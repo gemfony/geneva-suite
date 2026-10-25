@@ -343,6 +343,7 @@ bool runShowcase(Showcase const &s) {
 
     GDataLog log(std::string(s.mnemonic) + " on the " + std::string(s.function_name) + " function", 1, 1);
 
+    //! [dietrich-projection#1]
     GPlotSpec landscape(plotKind::graph_3d);
     landscape.name = std::string(s.function_name);
     landscape.x_label = "x_{0}";
@@ -351,6 +352,7 @@ bool runShowcase(Showcase const &s) {
     landscape.columns = {"x", "y", "z"};
     landscape.projection = MAP_PLANE; // the surface, and its colour map on the floor of the box
     const auto landscape_id = log.declareSeries(landscape);
+    //! [dietrich-projection#1]
     double map_z = 0.; // the plotted height of f_min is log10(1) = 0, the floor of the box
     for(auto const &g : grid) {
         const double z = std::log10(1. + g[2] - f_min);
@@ -360,6 +362,7 @@ bool runShowcase(Showcase const &s) {
         }
     }
 
+    //! [dietrich-projection#2]
     GPlotSpec points(plotKind::graph_3d);
     points.name = "individuals held after each iteration";
     points.columns = {"x", "y", "z"};
@@ -370,6 +373,7 @@ bool runShowcase(Showcase const &s) {
     path.name = "best position known so far";
     path.columns = {"x", "y", "z"};
     const auto path_id = log.overlaySeries(landscape_id, path);
+    //! [dietrich-projection#2]
 
     auto monitor = std::make_shared<GSearchTraceMonitor>(log, points_id, path_id, map_z);
 
