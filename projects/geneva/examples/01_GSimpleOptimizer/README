@@ -4,33 +4,38 @@ different optimization algorithms.
 
 Several mathematical functions, ranging from a simple parabola to functions with an
 immense number of local optima are encoded in the GFunctionIndividual class. The example
-searches for the global minimum of these functions. By default, the minimum of a 5-dimensional
+searches for the global minimum of these functions. By default, the minimum of a 2-dimensional
 parabola is sought for. You can change the type of target function, as well as many of
-its parameters (e.g. the search boundaries) in the configuration file
-"config/GFunctionIndividual.json".
+its parameters (e.g. the number of dimensions or the search boundaries) in the configuration
+file "config/GFunctionIndividual.json".
 
 Call the executable "GSimpleOptimizer" with the option --help to see the available
 command line options. Of particular interest for exploring Geneva are:
-o The option "-a <algorithm-type>" . It lets you choose from different optimization algorithms.
-  At the time of writing, Geneva implements evolutionary algorithms (-a "ea"), a simple gradient
-  descent (-a "gd"), particle swarm optimization (-a "swarm"), simulated annealing (-a "sa") and
-  parameter scans (-a "ps"). By default, the executable will use evolutionary algorithms
-o The executable can run in serial (Option "-e 0"), multithreaded (Option "-e 1", the
-  default) or networked mode.
-o In order to try out networked execution on the local host, the server must be started
-  with the options "-e 2 -c tcpc", the clients (try as many as you like) with the options
-  "-e 2 -c tcpc --client". It is possible to add the server ip and port, when running in
-  a LAN- or WAN-context. Point them to the server -- it will by default use port 10000.
+o The option "-a <algorithm-mnemonic>". It lets you choose from the registered optimization
+  algorithms; --help lists them all (e.g. "ea" for evolutionary algorithms, "swarm" for
+  particle swarm optimization, "sa" for simulated annealing, "cgd" for conjugate gradient
+  descent, "ps" for parameter scans). A comma-separated list such as -a "ea,cgd" chains
+  the algorithms: the same set of individuals is optimized by each of them in turn.
+  By default, the executable uses an evolutionary algorithm.
+o The option "-c <consumer-mnemonic>" selects where the evaluations run. The default,
+  "stc", uses all cores of the local machine ("--nWorkerThreads 1" makes it serial).
+  "asio" and "beast" distribute the work over the network, "mpi" over an MPI job, and
+  "gpu" (in a build with the GPU consumer) on a CUDA device.
+o In order to try out networked execution on the local host, start the server with
+  "-c asio" and the clients (try as many as you like) with "-c asio --client". Server
+  name and port are set with --asio_ip and --asio_port when running in a LAN- or
+  WAN-context; the server listens on port 10000 by default.
 
 The executable will print the best parameters found when finished.
 
 In order to facilitate the starting of a server and clients on the local host, there is
-a script called "startLocalJobs.sh" below $GENEVAHOME/scripts. Start it like this for
-4 local clients: "startLocalJobs.sh ./GSimpleOptimizer 4" from within the top directory
-of GSimpleOptimizer . Note that the script does a "m_tail_ptr -f" on the server output, hence
-you need to stop it with a ctrl-c, when the example has run through.
+a script called "startLocalJobs.sh" in the scripts/ directory of the Geneva source tree.
+Start it like this for 4 local clients on port 10000: "startLocalJobs.sh ./GSimpleOptimizer
+4 10000" from within the build directory of GSimpleOptimizer. Note that the script does a
+"tail -f" on the server output, hence you need to stop it with a ctrl-c, when the example
+has run through.
 
 As Geneva is a toolkit rather than a stand-alone application, we strongly
 recommend that you have a look at the source code of this example. Please find the code
-for the GFunctionIndividual class in the directories $GENEVAHOME/geneva/include/geneva/individuals
-and $GENEVAHOME/geneva/src/individuals
+for the GFunctionIndividual class in the directories projects/geneva/include/geneva/individuals
+and projects/geneva/src/individuals of the Geneva source tree.
