@@ -32,7 +32,9 @@ Building and installing
 =======================
 
 Geneva requires an out-of-source build with a C++23-capable compiler and
-Boost >= 1.91. See the INSTALL file for the prerequisites (compilers, Boost,
+Boost >= 1.91. The recommended system is Ubuntu 26.10, whose package archive
+carries a CUDA toolkit and NVIDIA driver recent enough for the optional GPU
+features. See the INSTALL file for the prerequisites (compilers, Boost,
 CMake, optional CUDA / MPI / ROOT), the supported processors, and step-by-step
 build instructions using either the prepareBuild.sh convenience script or a
 direct cmake call.

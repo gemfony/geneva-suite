@@ -6,6 +6,11 @@ on Ubuntu Linux. Geneva is expected to compile on most reasonably recent Linux
 distributions, provided a new enough compiler is available (see "Prerequisites"
 below). Linux is the only regularly tested platform at this time.
 
+The recommended system is Ubuntu 26.10. Its own package archive carries a CUDA
+toolkit and an NVIDIA driver recent enough for Geneva's optional GPU features
+(see "GPU support on Ubuntu 26.10" below), so no vendor repository is needed.
+Without a GPU, any Linux distribution that meets the prerequisites will do.
+
 Geneva has also been built experimentally on macOS using the bundled Clang
 compiler, and much older versions were known to compile under Windows with the
 Microsoft Visual C++ compiler. Neither is covered by regular testing today, so
@@ -36,8 +41,9 @@ when present but are never required:
    x86-64, NEON on AArch64), detected automatically at compile time, with a
    scalar fallback otherwise.
  - A CUDA-capable NVIDIA GPU: enables the optional GPU consumer and an optional
-   CUDA random-number backend. Both fall back to a CPU implementation when no
-   GPU or CUDA toolkit is present.
+   CUDA random-number backend. Without a usable CUDA toolkit the random numbers
+   come from the CPU (SIMD where available) and the GPU consumer is not built, so
+   evaluations run on the CPU consumers.
 
 
 Prerequisites
@@ -75,6 +81,41 @@ The compiler and tools come from the distribution; Boost is compiled separately
 (see "Compiling Boost on Linux" below):
 
 sudo apt-get install --no-install-recommends cmake git g++ clang catch2
+
+The Boost package of Ubuntu 26.10 (libboost-dev) is version 1.90, older than the
+required 1.91, which is one more reason to compile Boost yourself.
+
+The optional components, as far as the distribution provides them -- an MPI
+implementation for the MPI consumer, and plot viewers for the scripts the
+examples emit:
+
+sudo apt-get install --no-install-recommends libopenmpi-dev openmpi-bin
+sudo apt-get install --no-install-recommends gnuplot octave python3-matplotlib
+
+
+GPU support on Ubuntu 26.10
+---------------------------
+
+The GPU consumer and the CUDA random-number backend need CUDA 13.3 or newer, and
+the build checks this twice: the CUDA toolkit must be at least 13.3, and so must
+the CUDA version the installed NVIDIA driver supports. If either is older, the
+configure output says which. With the GPU switches at their default ("auto")
+CUDA is then switched off and the build continues without it; with a switch set
+to "on", configuring stops with an error.
+
+Ubuntu 26.10 provides both parts from its own archive. Two packages look like
+the obvious choice and are not: the driver that "ubuntu-drivers" marks as
+recommended (nvidia-driver-580-open) supports only CUDA 13.0, and the package
+nvidia-cuda-toolkit contains CUDA 12.4. Install these instead:
+
+sudo apt-get install nvidia-driver-615-open cuda-toolkit-13-3
+
+Reboot after the driver change, then check what the driver supports:
+
+nvidia-smi -q | grep CUDA
+
+The toolkit lands in /usr/local/cuda-13.3, reachable as /usr/local/cuda, where
+the build finds it without further settings.
 
 
 Building and installing Geneva
