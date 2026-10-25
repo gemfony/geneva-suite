@@ -60,6 +60,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -97,6 +98,9 @@ constexpr std::size_t MAP_NODES = 101;
 /** Iterations per run: enough to show the character of a search, short by default (Invariant 22). */
 constexpr std::uint32_t ITERATIONS = 40;
 
+/** Where the landscape's colour map is shown; the search is drawn onto it. */
+constexpr surfaceProjection MAP_PLANE = surfaceProjection::FLOOR;
+
 /******************************************************************************/
 /**
  * A pluggable optimization monitor that records where an algorithm searches.
@@ -133,11 +137,11 @@ public:
      * @param points The series that receives every individual as an (x0, x1) row
      * @param path The series that receives the best-so-far position after each iteration
      */
-    GSearchTraceMonitor(GDataLog &log, GDataLog::SeriesId points, GDataLog::SeriesId path, double f_min)
+    GSearchTraceMonitor(GDataLog &log, GDataLog::SeriesId points, GDataLog::SeriesId path, double map_z)
       : log_(&log)
       , points_(points)
       , path_(path)
-      , f_min_(f_min) { /* nothing */ }
+      , map_z_(map_z) { /* nothing */ }
 
     /** @brief The number of individuals recorded so far */
     [[nodiscard]] std::size_t nRecorded() const { return n_recorded_; }
@@ -164,7 +168,7 @@ private:
             }
             ind_ptr->streamline<double>(parameters);
             const double fitness = ind_ptr->raw_fitness(0);
-            log_->append(points_, parameters[0], parameters[1], height(fitness));
+            log_->append(points_, parameters[0], parameters[1], map_z_);
             ++n_recorded_;
 
             if(fitness < best_fitness_) {
@@ -174,12 +178,9 @@ private:
         }
 
         if(best_fitness_ < std::numeric_limits<double>::max()) {
-            log_->append(path_, best_position_[0], best_position_[1], height(best_fitness_));
+            log_->append(path_, best_position_[0], best_position_[1], map_z_);
         }
     }
-
-    /** @brief The plotted height of a fitness value, as on the landscape */
-    [[nodiscard]] double height(double fitness) const { return std::log10(1. + std::max(0., fitness - f_min_)); }
 
     GDataLog *log_ = nullptr;          ///< the log carrying the landscape
     GDataLog::SeriesId points_ = 0;    ///< every individual held after an iteration
@@ -187,7 +188,7 @@ private:
     std::size_t n_recorded_ = 0;       ///< how many individuals were recorded
     double best_fitness_ = std::numeric_limits<double>::max(); ///< the best fitness seen
     std::array<double, 2> best_position_{0., 0.};                ///< where it was seen
-    double f_min_ = 0.;                                          ///< the landscape's minimum
+    double map_z_ = 0.;                                          ///< the height of the colour map
 };
 
 /******************************************************************************/
@@ -198,6 +199,8 @@ struct Showcase {
     gind::solverFunction function;      ///< the test function
     double lower;                       ///< lower bound of both parameters
     double upper;                       ///< upper bound of both parameters
+    std::optional<std::array<double, 2>> start; ///< a fixed starting point (local methods), else random
+    std::uint32_t iterations;           ///< how long the run lasts
     std::function<std::shared_ptr<oa::GOptimizationAlgorithmBase>(gind::GFunctionIndividual const &,
                                                                   gind::GFunctionIndividual::Config const &)>
         make; ///< builds the configured algorithm around one prototype individual
@@ -228,7 +231,7 @@ std::vector<Showcase> showcases() {
     constexpr double pi = std::numbers::pi;
 
     return {
-        {"ea", "Rastrigin", F::RASTRIGIN, -5.12, 5.12,
+        {"ea", "Rastrigin", F::RASTRIGIN, -5.12, 5.12, std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &c) {
              auto oa = std::make_shared<oa::GEvolutionaryAlgorithm>();
              oa->setPopulationSizes(30, 6);
@@ -236,13 +239,13 @@ std::vector<Showcase> showcases() {
              oa->setAdaptionConfig(Ind::buildAdaptionConfig(proto, c));
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"sepcma", "Ellipsoid", F::ELLIPSOID, -5., 5.,
+        {"sepcma", "Ellipsoid", F::ELLIPSOID, -5., 5., std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GSepCmaEvolutionStrategy>();
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"sa", "Styblinski-Tang", F::STYBLINSKI_TANG, -5., 5.,
+        {"sa", "Styblinski-Tang", F::STYBLINSKI_TANG, -5., 5., std::array<double, 2>{2.75, 2.75}, 100,
          [](Ind const &proto, Cfg const &c) {
              auto oa = std::make_shared<oa::GSimulatedAnnealing>();
              oa->setPopulationSizes(30, 6);
@@ -250,28 +253,28 @@ std::vector<Showcase> showcases() {
              oa->setAdaptionConfig(Ind::buildAdaptionConfig(proto, c));
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"gsa", "Schwefel", F::SCHWEFEL, -500., 500.,
+        {"gsa", "Schwefel", F::SCHWEFEL, -500., 500., std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
              oa->setNChains(8);
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"swarm", "Ackley", F::ACKLEY_CANONICAL, -32.768, 32.768,
+        {"swarm", "Ackley", F::ACKLEY_CANONICAL, -32.768, 32.768, std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GSwarmAlgorithm>();
              oa->setSwarmSizes(4, 6); // 4 neighborhoods x 6 members
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"spso2011", "Levy", F::LEVY, -10., 10.,
+        {"spso2011", "Levy", F::LEVY, -10., 10., std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GStandardPSO2011>();
              oa->setSwarmSize(24);
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"acor", "Michalewicz", F::MICHALEWICZ, 0., pi,
+        {"acor", "Michalewicz", F::MICHALEWICZ, 0., pi, std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GAntColonyOptimization>();
              oa->setArchiveSize(20);
@@ -279,20 +282,20 @@ std::vector<Showcase> showcases() {
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"cgd", "Rosenbrock", F::ROSENBROCK, -2., 2.,
+        {"cgd", "Rosenbrock", F::ROSENBROCK, -2., 2., std::array<double, 2>{-1.2, 1.}, 400,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GConjugateGradientDescent>();
              oa->setNStartingPoints(1);
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"nm", "Zakharov", F::ZAKHAROV, -5., 10.,
+        {"nm", "Zakharov", F::ZAKHAROV, -5., 10., std::array<double, 2>{8., 8.}, ITERATIONS,
          [](Ind const &proto, Cfg const &) {
              auto oa = std::make_shared<oa::GNelderMead>();
              oa->push_back(proto.clone());
              return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
          }},
-        {"ps", "Berlich noisy parabola", F::NOISYPARABOLA, -4., 4.,
+        {"ps", "Berlich noisy parabola", F::NOISYPARABOLA, -4., 4., std::nullopt, ITERATIONS,
          [](Ind const &proto, Cfg const &c) {
              auto oa = std::make_shared<oa::GParameterScan>();
              oa->setScanRandomly(false); // a regular grid: the scan as a map
@@ -346,10 +349,15 @@ bool runShowcase(Showcase const &s) {
     landscape.y_label = "x_{1}";
     landscape.z_label = "log_{10}(1 + f - f_{min})";
     landscape.columns = {"x", "y", "z"};
-    landscape.drawing_args = "SURF2Z"; // a colour-mapped surface with a colour scale
+    landscape.projection = MAP_PLANE; // the surface, and its colour map on the floor of the box
     const auto landscape_id = log.declareSeries(landscape);
+    double map_z = 0.; // the plotted height of f_min is log10(1) = 0, the floor of the box
     for(auto const &g : grid) {
-        log.append(landscape_id, g[0], g[1], std::log10(1. + g[2] - f_min));
+        const double z = std::log10(1. + g[2] - f_min);
+        log.append(landscape_id, g[0], g[1], z);
+        if(MAP_PLANE == surfaceProjection::CEILING) {
+            map_z = std::max(map_z, z);
+        }
     }
 
     GPlotSpec points(plotKind::graph_3d);
@@ -358,17 +366,20 @@ bool runShowcase(Showcase const &s) {
     const auto points_id = log.overlaySeries(landscape_id, points);
 
     GPlotSpec path(plotKind::graph_3d);
-    path.drawing_args = "LINE,same"; // a polyline in the surface's own 3-d frame
+    path.plot_mode = graphPlotMode::CURVE; // a line through the points, in the box's own frame
     path.name = "best position known so far";
     path.columns = {"x", "y", "z"};
     const auto path_id = log.overlaySeries(landscape_id, path);
 
-    auto monitor = std::make_shared<GSearchTraceMonitor>(log, points_id, path_id, f_min);
+    auto monitor = std::make_shared<GSearchTraceMonitor>(log, points_id, path_id, map_z);
 
     auto proto = makeIndividual(problem);
+    if(s.start.has_value()) {
+        proto->assignValueVector<double>({(*s.start)[0], (*s.start)[1]});
+    }
     auto oa = s.make(*proto, problem);
-    oa->setMaxIteration(ITERATIONS);
-    oa->setMaxStallIteration(ITERATIONS); // the figure wants the whole run, stalls included
+    oa->setMaxIteration(s.iterations);
+    oa->setMaxStallIteration(s.iterations); // the figure wants the whole run, stalls included
     oa->setReportIteration(1);            // the monitor is only called on reporting iterations
     oa->registerPluggableOM(monitor);
     oa->optimize();
