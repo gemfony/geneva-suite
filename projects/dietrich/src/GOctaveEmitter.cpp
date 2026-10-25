@@ -129,7 +129,10 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
         } break;
         case scriptKind::g3d: {
             call << "plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
-                 << bracketedRowCol(cols[2]) << ", 'DisplayName', '" << label << "');" << '\n';
+                 << bracketedRowCol(cols[2]) << ", 'DisplayName', '" << label << "');" << '\n'
+                 // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d curve
+                 // would be drawn as its x-y shadow; the 3-d view is requested explicitly.
+                 << "view(3);" << '\n';
         } break;
         case scriptKind::g4d: {
             // 3-d scatter coloured by the w-component, with a colourbar.

@@ -1003,3 +1003,20 @@ TEST_CASE("GHistogram1I is fillable through the generic appendRow path",
     const auto cols = hist.dataColumns();
     REQUIRE(cols.size() == 1);
 }
+
+/******************************************************************************/
+// Octave keeps the flat 2-d view under `hold on`; a 3-d graph must ask for the 3-d view, or a helix
+// is drawn as a circle.
+TEST_CASE("Octave draws a 3-d graph in a 3-d view", "[plotting]") {
+    auto g = std::make_shared<GGraph3D>();
+    (*g) & std::tuple<double, double, double>(1.0, 2.0, 3.0);
+    (*g) & std::tuple<double, double, double>(2.0, 3.0, 4.0);
+
+    GPlotDesigner gpd("octave 3d", 1, 1);
+    gpd.setPlotBackend(plotBackend::OCTAVE);
+    gpd.registerPlotter(g);
+
+    const std::string s = gpd.plot();
+    CHECK(s.contains("plot3("));
+    CHECK(s.contains("view(3);"));
+}
