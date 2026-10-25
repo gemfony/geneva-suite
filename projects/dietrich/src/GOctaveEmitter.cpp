@@ -128,11 +128,32 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                  << bracketedRowCol(cols[3]) << ", 'o', 'DisplayName', '" << label << "');" << '\n';
         } break;
         case scriptKind::g3d: {
-            call << "plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
-                 << bracketedRowCol(cols[2]) << ", 'DisplayName', '" << label << "');" << '\n'
-                 // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d curve
-                 // would be drawn as its x-y shadow; the 3-d view is requested explicitly.
-                 << "view(3);" << '\n';
+            if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
+                // A triangulated surface over the scattered (x, y) points, and the same colour map
+                // as a flat triangulation at the floor or ceiling of the box (coloured by z); the z
+                // range is pinned to the data so the map lies exactly at its minimum or maximum.
+                auto [z_lo, z_hi] = columnRange(cols[2]);
+                if(not(z_hi > z_lo)) {
+                    z_hi = z_lo + 1.; // a flat surface still needs a z range to be drawn in
+                }
+                const double plane = (proj == surfaceProjection::FLOOR) ? z_lo : z_hi;
+                call << "x_ = " << bracketedRowCol(cols[0]) << ";" << '\n'
+                     << "y_ = " << bracketedRowCol(cols[1]) << ";" << '\n'
+                     << "z_ = " << bracketedRowCol(cols[2]) << ";" << '\n'
+                     << "t_ = delaunay(x_, y_);" << '\n'
+                     << "trisurf(t_, x_, y_, z_, 'EdgeColor', 'none', 'DisplayName', '" << label << "');" << '\n'
+                     << "trisurf(t_, x_, y_, " << plane << " * ones(size(z_)), z_, 'EdgeColor', 'none');" << '\n'
+                     << "zlim([" << z_lo << " " << z_hi << "]);" << '\n'
+                     << "colorbar;" << '\n'
+                     << "view(3);" << '\n';
+            }
+            else {
+                call << "plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
+                     << bracketedRowCol(cols[2]) << ", 'DisplayName', '" << label << "');" << '\n'
+                     // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d
+                     // curve would be drawn as its x-y shadow; the 3-d view is requested explicitly.
+                     << "view(3);" << '\n';
+            }
         } break;
         case scriptKind::g4d: {
             // 3-d scatter coloured by the w-component, with a colourbar.

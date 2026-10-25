@@ -34,7 +34,7 @@
 #include <tuple>
 #include <vector>
 
-#include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode
+#include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection
 
 namespace Gem::Dietrich {
 
@@ -137,7 +137,10 @@ struct GPlotSpec {
     std::optional<std::tuple<double, double>>
         range_y; ///< fixed (min,max) y-axis range (2-d histograms only)
 
-    std::optional<graphPlotMode> plot_mode; ///< scatter vs. curve (GGraph2D / GGraph2ED only)
+    std::optional<graphPlotMode> plot_mode; ///< scatter vs. curve (2-d graphs; for a 3-d graph CURVE adds a line)
+
+    std::optional<surfaceProjection>
+        projection; ///< 3-d graphs only: draw a surface with its colour map on the floor or ceiling
 
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
@@ -191,6 +194,15 @@ struct GPlotSpec {
         if(plot_mode.has_value()) {
             out += ", \"plot_mode\": \"";
             out += (*plot_mode == graphPlotMode::SCATTER ? "scatter" : "curve");
+            out += "\"";
+        }
+        if(projection.has_value()) {
+            out += ", \"projection\": \"";
+            switch(*projection) {
+                case surfaceProjection::NONE:    out += "none"; break;
+                case surfaceProjection::FLOOR:   out += "floor"; break;
+                case surfaceProjection::CEILING: out += "ceiling"; break;
+            }
             out += "\"";
         }
         out += "}";

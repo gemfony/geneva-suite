@@ -32,15 +32,67 @@
  ********************************************************************************/
 
 // Standard headers go here
+#include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <numbers>
+#include <string>
+#include <tuple>
 
 // Geneva headers go here
 #include "dietrich/GPlotDesigner.hpp"
 
 using namespace Gem::Common;
 using namespace Gem::Dietrich; // the plotting types live here
+
+namespace {
+
+/**
+ * @brief A sampled surface drawn with its colour map projected onto the floor or ceiling of the box,
+ * and a short path drawn onto that map as an overlay (a line through markers, at the map's height).
+ *
+ * @param where Where the colour map is shown
+ * @param label The plot label
+ * @return The surface plotter, with the path registered as its secondary plotter
+ */
+std::shared_ptr<GGraph3D> projectedSurface(surfaceProjection where, const std::string &label) {
+    auto surface = std::make_shared<GGraph3D>();
+    surface->setPlotLabel(label);
+    surface->setXAxisLabel("x");
+    surface->setYAxisLabel("y");
+    surface->setZAxisLabel("z");
+    surface->setSurfaceProjection(where);
+
+    constexpr std::size_t nodes = 25;
+    double z_lo = std::numeric_limits<double>::max();
+    double z_hi = std::numeric_limits<double>::lowest();
+    for(std::size_t i = 0; i < nodes; ++i) {
+        for(std::size_t j = 0; j < nodes; ++j) {
+            double const x = -2. + 4. * static_cast<double>(i) / static_cast<double>(nodes - 1);
+            double const y = -2. + 4. * static_cast<double>(j) / static_cast<double>(nodes - 1);
+            double const z = std::cos(x) * std::sin(y) + 0.1 * (x * x + y * y);
+            (*surface) & std::tuple<double, double, double>(x, y, z);
+            z_lo = std::min(z_lo, z);
+            z_hi = std::max(z_hi, z);
+        }
+    }
+
+    // The path lies on the map: its z is the height at which the projection is drawn.
+    double const plane = (where == surfaceProjection::FLOOR) ? z_lo : z_hi;
+    auto path = std::make_shared<GGraph3D>();
+    path->setPlotLabel("a path on the map");
+    path->setDrawLines(true);
+    for(std::size_t k = 0; k < 20; ++k) {
+        double const t = static_cast<double>(k) / 19.;
+        (*path) & std::tuple<double, double, double>(1.8 * (1. - t) * std::cos(6. * t), 1.8 * (1. - t) * std::sin(6. * t), plane);
+    }
+    surface->registerSecondaryPlotter(path);
+    return surface;
+}
+
+} // anonymous namespace
 
 // NOLINTNEXTLINE(readability-function-size) -- single demo main driving the ROOT/gnuplot/matplotlib backends end to end with the same graph/histogram/function data
 int main(int argc, char **argv) {
@@ -110,7 +162,7 @@ int main(int argc, char **argv) {
     noisyParabola_plotter_2D_ptr->setYAxisLabel("Noisy parabola");
     noisyParabola_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    GPlotDesigner gpd("Sine and cosine and 2D-functions", 2, 3);
+    GPlotDesigner gpd("Sine and cosine and 2D-functions", 2, 4);
 
     gpd.setCanvasDimensions(1200, 1400);
     gpd.registerPlotter(gsin_ptr);
@@ -119,6 +171,8 @@ int main(int argc, char **argv) {
     gpd.registerPlotter(gcos_plotter_1D_ptr);
     gpd.registerPlotter(schwefel_plotter_2D_ptr);
     gpd.registerPlotter(noisyParabola_plotter_2D_ptr);
+    gpd.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor"));
+    gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
 
     gpd.writeToFile("result.C");
 
@@ -154,10 +208,12 @@ int main(int argc, char **argv) {
             std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
-    GPlotDesigner gpd_gnuplot("Graphs through gnuplot", 1, 2);
+    GPlotDesigner gpd_gnuplot("Graphs through gnuplot", 2, 2);
     gpd_gnuplot.setPlotBackend(Gem::Dietrich::plotBackend::GNUPLOT);
     gpd_gnuplot.registerPlotter(gp_sin_ptr);
     gpd_gnuplot.registerPlotter(gp_helix_ptr);
+    gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, gnuplot"));
+    gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, gnuplot"));
     gpd_gnuplot.writeToFile("result.gp");
 
     // -------------------------------------------------------------------------
@@ -230,6 +286,7 @@ int main(int argc, char **argv) {
     gpd_mpl.registerPlotter(mpl_hist1d_ptr);
     gpd_mpl.registerPlotter(mpl_hist2d_ptr);
     gpd_mpl.registerPlotter(mpl_hist1i_ptr);
+    gpd_mpl.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, matplotlib"));
     gpd_mpl.writeToFile("result.py");
 
     // -------------------------------------------------------------------------
@@ -297,6 +354,7 @@ int main(int argc, char **argv) {
     gpd_oct.registerPlotter(oct_hist1d_ptr);
     gpd_oct.registerPlotter(oct_hist2d_ptr);
     gpd_oct.registerPlotter(oct_hist1i_ptr);
+    gpd_oct.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave"));
     gpd_oct.writeToFile("result.m");
 
     // -------------------------------------------------------------------------

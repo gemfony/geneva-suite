@@ -568,6 +568,26 @@ bool GGraph3D::getDrawLines() const {
 
 /******************************************************************************/
 /**
+ * Draws the data as a colour-mapped surface with its colour map on the floor or ceiling of the box.
+ *
+ * @param projection Where the colour map is shown (NONE draws the data as before)
+ */
+void GGraph3D::setSurfaceProjection(surfaceProjection projection) {
+    projection_ = projection;
+}
+
+/******************************************************************************/
+/**
+ * Retrieves where the colour map of the surface is shown.
+ *
+ * @return The surface projection
+ */
+surfaceProjection GGraph3D::getSurfaceProjection() const {
+    return projection_;
+}
+
+/******************************************************************************/
+/**
  * Retrieves a unique name for this plotter
  *
  * @return A unique name identifying this plotter type
@@ -587,6 +607,12 @@ GPlotSpec GGraph3D::plotSpec() const {
     spec.kind = plotKind::graph_3d;
     spec.role = defaultRole(spec.kind);
     spec.columns = {"x", "y", "z"};
+    if(draw_lines_) {
+        spec.plot_mode = graphPlotMode::CURVE;
+    }
+    if(projection_ != surfaceProjection::NONE) {
+        spec.projection = projection_;
+    }
     return spec;
 }
 
@@ -723,8 +749,13 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     // scanned landscape with unlabelled axes. Update() forces the painting to happen here, so the
     // titles below land on the histogram that is finally drawn -- for every drawing option, plain
     // point clouds included.
-    footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n'
-                << indent << "gPad->Update();" << '\n'
+    if(projection_ == surfaceProjection::NONE) {
+        footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n';
+    }
+    else {
+        footer_data << rootProjectedSurface_(is_secondary, graph_name, indent);
+    }
+    footer_data << indent << "gPad->Update();" << '\n'
                 << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
                 << '\n'
                 << indent << graph_name << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
@@ -765,6 +796,106 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     }
 
     return footer_data.str();
+}
+
+/******************************************************************************/
+/**
+ * Emits the ROOT drawing of a projected surface: the data as a colour-mapped surface, and its colour
+ * map on the ceiling (ROOT's own SURF3 option) or on the floor of the plot box.
+ *
+ * ROOT has no floor counterpart of SURF3, so the floor map is drawn here: once the surface has been
+ * painted and the 3-d view exists, every cell of the surface's interpolated histogram is projected
+ * onto the floor plane through the view and filled with the palette colour of its value. The surface
+ * is then painted again on top, so it hides the parts of the map that lie behind it.
+ *
+ * The z range of the box is pinned to the data's own minimum and maximum, so that the map lies at
+ * exactly those heights and an overlay drawn there sits on it.
+ *
+ * @param is_secondary Whether this plotter is a secondary plotter (a projection must be primary)
+ * @param graph_name The name of the TGraph2D the footer has created
+ * @param indent The indentation string prepended to every emitted line
+ * @return The ROOT code drawing the projected surface
+ */
+std::string
+GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name, const std::string &indent) const {
+    if(is_secondary) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
+            << "a surface projection was requested for an overlay -- only the primary plot of a pad "
+            << "can be drawn as a projected surface" << '\n'
+        );
+    }
+    if(not this->drawing_arguments_.empty()) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
+            << "a surface projection decides the drawing itself and cannot be combined with the "
+            << "custom drawing arguments \"" << this->drawing_arguments_ << "\"" << '\n'
+        );
+    }
+    if(this->currentSize() < 3) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
+            << "a surface needs at least three points, got " << this->currentSize() << '\n'
+        );
+    }
+
+    const auto &z_col = this->column<2>();
+    const auto [z_min_it, z_max_it] = std::ranges::minmax_element(z_col);
+    const double z_min = *z_min_it;
+    const double z_max = *z_max_it;
+
+    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    out << indent << graph_name << "->SetMinimum(" << z_min << ");" << '\n'
+        << indent << graph_name << "->SetMaximum(" << z_max << ");" << '\n';
+
+    if(projection_ == surfaceProjection::CEILING) {
+        out << indent << graph_name << "->Draw(\"SURF3Z\");" << '\n';
+        return out.str();
+    }
+
+    // FLOOR: paint once to obtain the view, draw the map onto the floor, paint the surface again.
+    const std::string h = "h_" + graph_name;
+    const std::string v = "v_" + graph_name;
+    out << indent << graph_name << "->Draw(\"SURF1Z\");" << '\n'
+        << indent << "gPad->Update();" << '\n'
+        << indent << "{" << '\n'
+        << indent << "   TH2 *" << h << " = " << graph_name << "->GetHistogram();" << '\n'
+        << indent << "   TView *" << v << " = gPad->GetView();" << '\n'
+        << indent << "   const int n_colours = gStyle->GetNumberOfColors();" << '\n'
+        << indent << "   const double z_lo = " << z_min << ";" << '\n'
+        << indent << "   const double z_hi = " << z_max << ";" << '\n'
+        << indent << "   for(int i = 1; i <= " << h << "->GetNbinsX(); ++i) {" << '\n'
+        << indent << "      for(int j = 1; j <= " << h << "->GetNbinsY(); ++j) {" << '\n'
+        << indent << "         const double x0 = " << h << "->GetXaxis()->GetBinLowEdge(i);" << '\n'
+        << indent << "         const double x1 = " << h << "->GetXaxis()->GetBinUpEdge(i);" << '\n'
+        << indent << "         const double y0 = " << h << "->GetYaxis()->GetBinLowEdge(j);" << '\n'
+        << indent << "         const double y1 = " << h << "->GetYaxis()->GetBinUpEdge(j);" << '\n'
+        << indent << "         const double corners[4][3] = {{x0, y0, z_lo}, {x1, y0, z_lo}, {x1, y1, z_lo}, {x0, y1, z_lo}};" << '\n'
+        << indent << "         double px[5];" << '\n'
+        << indent << "         double py[5];" << '\n'
+        << indent << "         for(int k = 0; k < 4; ++k) {" << '\n'
+        << indent << "            double ndc[3];" << '\n'
+        << indent << "            " << v << "->WCtoNDC(corners[k], ndc);" << '\n'
+        << indent << "            px[k] = ndc[0];" << '\n'
+        << indent << "            py[k] = ndc[1];" << '\n'
+        << indent << "         }" << '\n'
+        << indent << "         px[4] = px[0];" << '\n'
+        << indent << "         py[4] = py[0];" << '\n'
+        << indent << "         double frac = (" << h << "->GetBinContent(i, j) - z_lo) / (z_hi - z_lo);" << '\n'
+        << indent << "         frac = frac < 0. ? 0. : (frac > 1. ? 1. : frac);" << '\n'
+        << indent << "         const int colour = gStyle->GetColorPalette(int(frac * (n_colours - 1)));" << '\n'
+        << indent << "         TPolyLine *cell = new TPolyLine(5, px, py);" << '\n'
+        << indent << "         cell->SetFillColor(colour);" << '\n'
+        << indent << "         cell->SetLineColor(colour);" << '\n'
+        << indent << "         cell->Draw(\"f\");" << '\n'
+        << indent << "      }" << '\n'
+        << indent << "   }" << '\n'
+        << indent << "}" << '\n'
+        << indent << graph_name << "->Draw(\"SURF1 same\");" << '\n';
+    return out.str();
 }
 
 /******************************************************************************/

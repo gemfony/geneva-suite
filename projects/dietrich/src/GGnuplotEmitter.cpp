@@ -83,6 +83,9 @@ std::string GnuplotEmitter::fileExtension() const {
 
 namespace {
 
+/** Grid nodes per axis onto which a projected surface's scattered points are interpolated. */
+constexpr int GNUPLOT_SURFACE_GRID = 50;
+
 /******************************************************************************/
 // Shared helpers for reading a GPlotColumn (the type-tagged float64 / int32 view a
 // plotter exposes via dataColumns()). These let every non-ROOT backend consume a
@@ -210,6 +213,16 @@ void emitDatablocks(
         for(const auto *dp : pad) {
             result << "$D" << db_idx << " << EOD" << '\n'
                    << datasetRows(*dp, classifyForScript(*dp, false, "GnuplotEmitter::emitDocument()", "gnuplot"), "") << "EOD" << '\n';
+            // A projected surface is drawn with pm3d, which needs gridded data: the scattered points
+            // are interpolated onto a regular grid ONCE, into $Gn, and the gridding is switched off
+            // again so that the pad's overlays keep their own points.
+            if(projectionOf(*dp) != surfaceProjection::NONE) {
+                result << "set dgrid3d " << GNUPLOT_SURFACE_GRID << "," << GNUPLOT_SURFACE_GRID << '\n'
+                       << "set table $G" << db_idx << '\n'
+                       << "splot $D" << db_idx << " using 1:2:3" << '\n'
+                       << "unset table" << '\n'
+                       << "unset dgrid3d" << '\n';
+            }
             ++db_idx;
         }
     }
@@ -278,13 +291,40 @@ void emitMultiplot(
         }
 
         // The (s)plot command: one `$Dn <style>` reference per dataset, comma-separated.
+        // A projected surface: pm3d draws the gridded data as a coloured surface (s) and its colour
+        // map on the base (b) or top (t) of the box. The z range is pinned to the data and the base
+        // plane put at its minimum, so the map lies exactly at the data's minimum or maximum.
+        const surfaceProjection proj = projectionOf(*p);
+        if(proj != surfaceProjection::NONE) {
+            auto [z_lo, z_hi] = columnRange(p->dataColumns()[2]);
+            if(not(z_hi > z_lo)) {
+                z_hi = z_lo + 1.;
+            }
+            result << indent << "set pm3d at " << (proj == surfaceProjection::FLOOR ? "bs" : "ts") << '\n'
+                   << indent << "set zrange [" << z_lo << ":" << z_hi << "]" << '\n'
+                   << indent << "set xyplane at " << z_lo << '\n';
+        }
+
         result << indent << (three_d ? "splot " : "plot ");
         for(std::size_t i = 0; i < pad.size(); ++i) {
-            result << (i == 0 ? "" : ", ") << "$D" << db_ref << ' '
-                   << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"));
+            result << (i == 0 ? "" : ", ");
+            if(i == 0 && proj != surfaceProjection::NONE) {
+                result << "$G" << db_ref << " with pm3d title \"" << backslashEscape(pad[i]->plotLabel()) << "\"";
+            }
+            else {
+                result << "$D" << db_ref << ' '
+                       << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"));
+            }
             ++db_ref;
         }
         result << '\n' << '\n';
+
+        if(proj != surfaceProjection::NONE) {
+            // Restore the defaults for the next pad of the multiplot.
+            result << indent << "unset pm3d" << '\n'
+                   << indent << "set autoscale z" << '\n'
+                   << indent << "set xyplane relative 0.5" << '\n';
+        }
     }
 
     result << "unset multiplot" << '\n';

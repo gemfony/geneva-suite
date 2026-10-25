@@ -153,6 +153,19 @@ enum class graphPlotMode : ENUMBASETYPE {
 };
 
 /******************************************************************************/
+/**
+ * Where a 3-d graph drawn as a surface shows its colour map in addition to the surface itself:
+ * nowhere (the plain surface), on the floor of the plot box (at the lowest z of the data), or on
+ * its ceiling (at the highest). A projected map is the surface seen from above, so markers drawn at
+ * that height -- an overlay whose z is the data's minimum or maximum -- land on the map.
+ */
+enum class surfaceProjection : ENUMBASETYPE {
+    NONE = 0,
+    FLOOR = 1,
+    CEILING = 2
+};
+
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -215,5 +228,6 @@ template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gColor> = tru
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gMarker> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gLineStyle> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::graphPlotMode> = true;
+template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::surfaceProjection> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::tddropt> = true;
 } /* namespace Gem::Common */

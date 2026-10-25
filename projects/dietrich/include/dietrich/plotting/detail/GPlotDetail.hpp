@@ -46,6 +46,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
@@ -55,6 +56,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -254,6 +256,14 @@ inline void validateScriptPads(
         const scriptKind k = classifyForScript(*p, with_histograms, where, backend_name);
         for(const auto &sp : p->secondaryPlotters()) {
             const scriptKind sk = classifyForScript(*sp, with_histograms, where, backend_name);
+            if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE) {
+                throw geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In " << where << ": Error!" << '\n'
+                    << "an overlay (" << sp->getPlotterName() << ") requests a surface projection -- "
+                    << "only the primary plot of a pad can be drawn as a projected surface" << '\n'
+                );
+            }
             if(isThreeDimensionalScript(k) != isThreeDimensionalScript(sk)) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -308,6 +318,33 @@ std::string bracketedRow(const std::vector<T> &col) {
 /** @brief Emit a type-tagged column (float64 or int32) as a bracketed list literal. */
 inline std::string bracketedRowCol(const GPlotColumn &c) {
     return std::visit([](const auto *v) { return bracketedRow(*v); }, c);
+}
+
+/**
+ * @brief The smallest and largest value of a (non-empty) column, as doubles
+ * @param c The column
+ * @return (minimum, maximum); (0, 0) for an empty column
+ */
+inline std::pair<double, double> columnRange(const GPlotColumn &c) {
+    return std::visit(
+        [](const auto *v) -> std::pair<double, double> {
+            if(v->empty()) {
+                return {0., 0.};
+            }
+            const auto [lo, hi] = std::ranges::minmax_element(*v);
+            return {static_cast<double>(*lo), static_cast<double>(*hi)};
+        },
+        c
+    );
+}
+
+/**
+ * @brief Where a plotter's surface shows its colour map (NONE for anything that is not projected)
+ * @param p The plotter
+ * @return The plotter's surface projection
+ */
+inline surfaceProjection projectionOf(const GBasePlotter &p) {
+    return p.plotSpec().projection.value_or(surfaceProjection::NONE);
 }
 
 /******************************************************************************/

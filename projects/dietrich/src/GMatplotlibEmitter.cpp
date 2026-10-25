@@ -117,9 +117,35 @@ std::string mplPlotCall(
                  << '\n';
         } break;
         case scriptKind::g3d: {
-            call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                 << ", label=\"" << label << "\")" << '\n';
+            if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
+                // A surface over the scattered (x, y) points, and the same colour map as filled
+                // contours on the floor or ceiling of the box; the z range is pinned to the data so
+                // the map lies exactly at its minimum or maximum.
+                auto [z_lo, z_hi] = columnRange(cols[2]);
+                if(not(z_hi > z_lo)) {
+                    z_hi = z_lo + 1.; // a flat surface still needs a z range to be drawn in
+                }
+                const double plane = (proj == surfaceProjection::FLOOR) ? z_lo : z_hi;
+                // matplotlib sorts 3-d artists by a computed depth, which puts a map and a path drawn
+                // at the same height in arbitrary order; a fixed order is used instead: the map, then
+                // the surface, then the pad's overlays (default zorder 2), which therefore stay visible.
+                call << ax << ".computed_zorder = False" << '\n'
+                     << "_x = " << bracketedRowCol(cols[0]) << '\n'
+                     << "_y = " << bracketedRowCol(cols[1]) << '\n'
+                     << "_z = " << bracketedRowCol(cols[2]) << '\n'
+                     << "_surf = " << ax
+                     << ".plot_trisurf(_x, _y, _z, cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1, label=\""
+                     << label << "\")" << '\n'
+                     << ax << ".tricontourf(_x, _y, _z, zdir=\"z\", offset=" << plane
+                     << ", levels=20, cmap=\"viridis\", zorder=0)" << '\n'
+                     << ax << ".set_zlim(" << z_lo << ", " << z_hi << ")" << '\n'
+                     << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
+            }
+            else {
+                call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
+                     << ", label=\"" << label << "\")" << '\n';
+            }
         } break;
         case scriptKind::g4d: {
             // 3-d scatter coloured by the w-component, with a colourbar.

@@ -389,6 +389,26 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         else if(auto *g2ed = dynamic_cast<GGraph2ED *>(p.get())) {
             g2ed->setPlotMode(*spec.plot_mode);
         }
+        else if(auto *g3d = dynamic_cast<GGraph3D *>(p.get())) {
+            // For a 3-d graph a curve is a line through the points, in the plot box's own frame.
+            g3d->setDrawLines(*spec.plot_mode == graphPlotMode::CURVE);
+        }
+    }
+
+    // A surface projection is a 3-d-graph render choice; on any other kind it would silently mean
+    // nothing, so it is refused.
+    if(spec.projection.has_value() && *spec.projection != surfaceProjection::NONE) {
+        if(auto *g3d = dynamic_cast<GGraph3D *>(p.get())) {
+            g3d->setSurfaceProjection(*spec.projection);
+        }
+        else {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In makePlotter(): Error!" << '\n'
+                << "a surface projection was requested for a plot of kind \"" << to_string(spec.kind)
+                << "\" -- only a 3-d graph (graph_3d) can be drawn as a projected surface." << '\n'
+            );
+        }
     }
     return p;
 }

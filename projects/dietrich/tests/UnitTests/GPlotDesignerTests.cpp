@@ -1005,6 +1005,101 @@ TEST_CASE("GHistogram1I is fillable through the generic appendRow path",
 }
 
 /******************************************************************************/
+// Surface projections: a 3-d graph drawn as a surface with its colour map on the floor or ceiling.
+namespace {
+/** @brief A small sampled surface (3 x 3 grid), optionally projected, with z from 0 to 4 */
+std::shared_ptr<GGraph3D> smallSurface(surfaceProjection where) {
+    auto g = std::make_shared<GGraph3D>();
+    for(int i = -1; i <= 1; ++i) {
+        for(int j = -1; j <= 1; ++j) {
+            (*g) & std::tuple<double, double, double>(double(i), double(j), double(i * i + j * j) * 2.);
+        }
+    }
+    g->setSurfaceProjection(where);
+    return g;
+}
+
+/** @brief Renders one plotter on a 1x1 canvas through the given backend */
+std::string render(const std::shared_ptr<GBasePlotter> &p, plotBackend backend) {
+    GPlotDesigner gpd("projection", 1, 1);
+    gpd.setPlotBackend(backend);
+    gpd.registerPlotter(p);
+    return gpd.plot();
+}
+} // namespace
+
+TEST_CASE("A surface projection is reported in the plot spec and its JSON", "[plotting]") {
+    auto g = smallSurface(surfaceProjection::FLOOR);
+    const GPlotSpec spec = g->plotSpec();
+    REQUIRE(spec.projection.has_value());
+    CHECK(*spec.projection == surfaceProjection::FLOOR);
+    CHECK(spec.toJson().contains("\"projection\": \"floor\""));
+
+    // An unprojected 3-d graph reports no projection at all.
+    CHECK(not smallSurface(surfaceProjection::NONE)->plotSpec().projection.has_value());
+}
+
+TEST_CASE("makePlotter applies a projection and a 3-d curve, and refuses a projection elsewhere", "[plotting]") {
+    GPlotSpec spec(plotKind::graph_3d);
+    spec.projection = surfaceProjection::CEILING;
+    spec.plot_mode = graphPlotMode::CURVE;
+    auto p = makePlotter(spec);
+    auto *g3d = dynamic_cast<GGraph3D *>(p.get());
+    REQUIRE(g3d != nullptr);
+    CHECK(g3d->getSurfaceProjection() == surfaceProjection::CEILING);
+    CHECK(g3d->getDrawLines());
+
+    GPlotSpec flat(plotKind::graph_2d);
+    flat.projection = surfaceProjection::FLOOR;
+    CHECK_THROWS(makePlotter(flat));
+}
+
+TEST_CASE("ROOT draws a ceiling projection with SURF3 and a floor projection by hand", "[plotting]") {
+    const std::string ceiling = render(smallSurface(surfaceProjection::CEILING), plotBackend::ROOT);
+    CHECK(ceiling.contains("Draw(\"SURF3Z\")"));
+    CHECK(ceiling.contains("SetMinimum(0)"));
+    CHECK(ceiling.contains("SetMaximum(4)"));
+
+    const std::string floor = render(smallSurface(surfaceProjection::FLOOR), plotBackend::ROOT);
+    CHECK(floor.contains("Draw(\"SURF1Z\")"));
+    CHECK(floor.contains("WCtoNDC("));
+    CHECK(floor.contains("Draw(\"SURF1 same\")"));
+}
+
+TEST_CASE("A projection refuses custom drawing arguments and being an overlay", "[plotting]") {
+    auto g = smallSurface(surfaceProjection::FLOOR);
+    g->setDrawingArguments("SURF2Z");
+    CHECK_THROWS(render(g, plotBackend::ROOT));
+
+    auto primary = smallSurface(surfaceProjection::NONE);
+    primary->registerSecondaryPlotter(smallSurface(surfaceProjection::FLOOR));
+    CHECK_THROWS(render(primary, plotBackend::ROOT));
+    CHECK_THROWS(render(primary, plotBackend::GNUPLOT));
+    CHECK_THROWS(render(primary, plotBackend::MATPLOTLIB));
+    CHECK_THROWS(render(primary, plotBackend::OCTAVE));
+}
+
+TEST_CASE("The script backends draw a projected surface with their own means", "[plotting]") {
+    const std::string gp_floor = render(smallSurface(surfaceProjection::FLOOR), plotBackend::GNUPLOT);
+    CHECK(gp_floor.contains("set dgrid3d"));
+    CHECK(gp_floor.contains("set pm3d at bs"));
+    CHECK(gp_floor.contains("with pm3d"));
+    CHECK(gp_floor.contains("unset pm3d")); // the next pad starts from the defaults again
+    CHECK(render(smallSurface(surfaceProjection::CEILING), plotBackend::GNUPLOT).contains("set pm3d at ts"));
+
+    const std::string mpl = render(smallSurface(surfaceProjection::FLOOR), plotBackend::MATPLOTLIB);
+    CHECK(mpl.contains("plot_trisurf("));
+    CHECK(mpl.contains("tricontourf("));
+    CHECK(mpl.contains("offset=0"));
+    CHECK(mpl.contains("set_zlim(0, 4)"));
+
+    const std::string oct = render(smallSurface(surfaceProjection::CEILING), plotBackend::OCTAVE);
+    CHECK(oct.contains("delaunay("));
+    CHECK(oct.contains("4 * ones(size(z_))"));
+    CHECK(oct.contains("zlim([0 4])"));
+}
+
+/******************************************************************************/
 // Octave keeps the flat 2-d view under `hold on`; a 3-d graph must ask for the 3-d view, or a helix
 // is drawn as a circle.
 TEST_CASE("Octave draws a 3-d graph in a 3-d view", "[plotting]") {
