@@ -73,10 +73,12 @@ public:
 	  * @param do_log If true, the wrapped message is also sent to the global logger when converted to a string (use DO_LOG / NO_LOG)
 	  * @param where_and_when A "where and when" location string (e.g. from timeAndPlace()) prepended to the logged message
 	  */
+    //! [coding-empty-body]
     explicit g_error_streamer(bool do_log, std::string where_and_when)
       : do_log_(do_log)
       , where_and_when_(std::move(where_and_when)) { /* nothing */
     }
+    //! [coding-empty-body]
 
     /*************************************************************************/
     // Defaulted or deleted constructors, destructor and assignment operators

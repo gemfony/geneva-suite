@@ -703,7 +703,7 @@ ADD_CUSTOM_TARGET(
 	common-all      # lib + tests + examples + benchmarks for the common library
 	dietrich-all    # plotting lib + tests (unit + validity gates)
 	hap-all         # lib + tests + examples
-	courtier-all    # lib + tests + examples-stub + benchmarks
+	courtier-all    # lib + tests + examples-stub + docprograms + benchmarks
 	geneva-all      # lib + tests + examples + benchmarks (the largest subtree)
 	COMMENT "Build the entire Gemfony library collection"
 )

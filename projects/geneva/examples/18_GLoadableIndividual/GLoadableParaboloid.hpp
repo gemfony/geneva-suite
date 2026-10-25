@@ -81,6 +81,7 @@ public:
 
     /** @brief The values read from this problem's configuration file (with in-source defaults, so the
      *  problem also works with no config file at all). */
+    //! [modules-individual-hooks]
     struct Config {
         std::size_t par_dim = 2; ///< the number of parameters (dimensions)
         double min = -10.;       ///< the lower boundary of each parameter
@@ -106,6 +107,7 @@ public:
         b.addDoubleGroup(c.par_dim, c.min, c.max); // structure only; the adaptor lives on the OA config
         return b.build();
     }
+    //! [modules-individual-hooks]
 
     /** @brief The OA-owned Gauss adaption config for a genome this problem produces. Reached generically
      *  through GGenomeFactory::getAdaptionConfig(), so a launcher need not know this type. */

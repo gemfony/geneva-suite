@@ -1,0 +1,17 @@
+Documentation programs
+======================
+
+The .cpp files in this directory exist to be QUOTED BY THE GENEVA MANUAL: where
+the real library code is too heavyweight to excerpt honestly, the manual shows a
+small, complete program instead (rule D2 in the manual repository's
+DOCUMENTATION-INVARIANTS.md). Every program here
+
+  * compiles and links against this library's own dependency closure only,
+  * runs as an S-size ctest case, so it cannot rot without turning a gate red,
+  * carries //! [anchor] snippet markers that the manual's extraction layer
+    reads (see source/snippets.map in the manual repository).
+
+They are deliberately separate from examples/: an example teaches a user how to
+use the library, a documentation program backs a specific listing in the manual.
+Treat marker pairs like code -- moving or deleting one breaks the manual build,
+which names the affected chapter.

@@ -49,6 +49,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * GPositionPersonalityTraits base provides; the GAlgorithmPersonalityTraitsT scaffold supplies the
  * shared boilerplate, so this class contributes only the algorithm's identity.
  */
+//! [geneva.oa.traits]
 class GNelderMead_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
   : public GAlgorithmPersonalityTraitsT<GNelderMead_PersonalityTraits> {
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base (via the generator) reach this
@@ -67,6 +68,7 @@ public:
     /** @brief The name emitted by name_() */
     static constexpr std::string_view class_name{"GNelderMead_PersonalityTraits"};
 };
+//! [geneva.oa.traits]
 
 /******************************************************************************/
 

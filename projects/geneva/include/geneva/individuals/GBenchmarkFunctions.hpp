@@ -138,6 +138,7 @@ constexpr int FUNC_MAX = 14; ///< highest valid ID
  * @param n Number of parameters (problem dimension)
  * @return The function value Σxᵢ²
  */
+//! [appendix:benchmark-dispatch#1]
 G_CALLABLE inline double parabola(const double *x, int n) {
     double r = 0.;
     for(int i = 0; i < n; ++i) {
@@ -145,6 +146,7 @@ G_CALLABLE inline double parabola(const double *x, int n) {
     }
     return r;
 }
+//! [appendix:benchmark-dispatch#1]
 
 /**
  * @brief Berlich noisy parabola: f(x) = (cos(‖x‖²)+2)·‖x‖²
@@ -448,12 +450,14 @@ G_CALLABLE inline double zakharov(const double *x, int n) {
  * @param n       Number of parameters (dimension)
  * @return        Fitness value (lower = better for all minimisation functions)
  */
+//! [appendix:benchmark-dispatch#2]
 G_CALLABLE inline double eval(int func_id, const double *x, int n) {
     switch(func_id) {
     case FUNC_PARABOLA:
         return parabola(x, n);
     case FUNC_NOISYPARABOLA:
         return noisyParabola(x, n);
+//! [appendix:benchmark-dispatch#2]
     case FUNC_ROSENBROCK:
         return rosenbrock(x, n);
     case FUNC_ACKLEY:

@@ -426,6 +426,7 @@ std::vector<double> GGeneralizedSimulatedAnnealing::drawVisitingJump(double tqv)
  *
  * clamped to [0,1].
  */
+//! [gsa-acceptance]
 double GGeneralizedSimulatedAnnealing::acceptanceProbability(double delta_e, double tqa) const {
     if(tqa <= 0.) {
         return 0.; // zero temperature => never accept an uphill move
@@ -449,6 +450,7 @@ double GGeneralizedSimulatedAnnealing::acceptanceProbability(double delta_e, dou
     }
     return p;
 }
+//! [gsa-acceptance]
 
 /******************************************************************************/
 /**
@@ -565,6 +567,7 @@ void GGeneralizedSimulatedAnnealing::evaluatePopulation_() {
  *
  * @return The best (current or proposal) energy found in this iteration
  */
+//! [gsa-cycle-logic]
 std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
     if(this->afterFirstIteration()) {
         this->applyAcceptance();
@@ -599,6 +602,7 @@ std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
 
     return best_fitness;
 }
+//! [gsa-cycle-logic]
 
 /******************************************************************************/
 /**

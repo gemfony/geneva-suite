@@ -596,6 +596,7 @@ void GSepCmaEvolutionStrategy::updateDistribution(const std::vector<std::size_t>
 /**
  * The actual business logic performed during each iteration.
  */
+//! [algo-ea:sepcma-cycle]
 std::tuple<double, double> GSepCmaEvolutionStrategy::cycleLogic_() {
     // 1) Sample lambda offspring from the current distribution.
     sampleOffspring();
@@ -627,6 +628,7 @@ std::tuple<double, double> GSepCmaEvolutionStrategy::cycleLogic_() {
     // 5) Report the best fitness of this iteration.
     return this->at(0)->getFitnessTuple();
 }
+//! [algo-ea:sepcma-cycle]
 
 /******************************************************************************/
 /**

@@ -555,6 +555,7 @@ std::shared_ptr<GPersonalityTraits> GSwarmAlgorithm::getPersonalityTraits_() con
  * @brief Performs one iteration of the swarm algorithm (position update, evaluation, best-search, topology fix)
  * @return A tuple holding the raw and transformed fitness of the best individual found
  */
+//! [swarm-cycle]
 std::tuple<double, double> GSwarmAlgorithm::cycleLogic_() {
     std::tuple<double, double> best_individual_fitness;
 
@@ -574,6 +575,7 @@ std::tuple<double, double> GSwarmAlgorithm::cycleLogic_() {
     // Return the result to the audience
     return best_individual_fitness;
 }
+//! [swarm-cycle]
 
 /******************************************************************************/
 /**
@@ -1049,6 +1051,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
  *
  * @param vel_vec the velocity vector to be adjusted
  */
+//! [swarm-prune-velocity]
 void GSwarmAlgorithm::pruneVelocity(std::vector<double> &vel_vec) {
     // The velocity cap vel_max_ is a single dimensionless fraction of the normalized unit interval, the
     // same for every parameter. A zero cap (velocity range percentage of 0) freezes all velocities.
@@ -1074,6 +1077,7 @@ void GSwarmAlgorithm::pruneVelocity(std::vector<double> &vel_vec) {
         }
     }
 }
+//! [swarm-prune-velocity]
 
 /******************************************************************************/
 /**

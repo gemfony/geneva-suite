@@ -48,6 +48,7 @@
 
 // A plain value type. The serialize member is public here for brevity; see
 // polymorphic.cpp for the encapsulated (private + friend access) variant.
+//! [weft-intrusive-serialize]
 struct Particle {
     int id = 0;
     double mass = 0.0;
@@ -62,6 +63,7 @@ struct Particle {
         ar &Gem::Weft::make_nvp("label", label);
     }
 };
+//! [weft-intrusive-serialize]
 
 int main() {
     const Particle original{.id = 42, .mass = 9.10938e-31, .label = "electron"};

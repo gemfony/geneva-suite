@@ -45,6 +45,7 @@
 
 using namespace Gem::Geneva;
 
+//! [go2-main-quickstart]
 int main(int argc, char **argv) {
     Go2 go(argc, argv, "./config/Go2.json");
 
@@ -59,6 +60,7 @@ int main(int argc, char **argv) {
 
     // Add a "pluggable optimization monitor" to Go2. This particular monitor will log
     // solutions that were found into the file allLog.txt.
+    //! [monitors:register-simple]
     std::shared_ptr<GAllSolutionFileLogger> allSolutionLogger_ptr(
         new GAllSolutionFileLogger("allLog.txt")
     );
@@ -67,6 +69,7 @@ int main(int argc, char **argv) {
     allSolutionLogger_ptr->setShowIterationBoundaries(); // Facilitates reading of the log file
 
     go.registerPluggableOM(allSolutionLogger_ptr);
+    //! [monitors:register-simple]
 
     // Create a factory for GStarterIndividual objects and perform
     // any necessary initial work.
@@ -87,9 +90,12 @@ int main(int argc, char **argv) {
     }
 
     // Perform the actual optimization
+    //! [results-harvest]
     auto bestIndividual_ptr =
         go.optimize()->getBestGlobalIndividual<GStarterIndividual>();
 
     // Do something with the best result. Here we simply print the result to stdout.
     std::cout << bestIndividual_ptr << '\n';
+    //! [results-harvest]
 }
+//! [go2-main-quickstart]

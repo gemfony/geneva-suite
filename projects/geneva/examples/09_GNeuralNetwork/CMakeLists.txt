@@ -60,7 +60,7 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/$
 
 # The four sample training sets are MATERIALIZED FROM CODE at build time -- the same model
 # GENEVA_MATERIALIZE_CONFIGS applies to configuration -- instead of being shipped as data files. This
-# example writes them itself (--traininDataType selects the distribution and the run also emits the
+# example writes them itself (--trainingDataType selects the distribution and the run also emits the
 # matching ROOT visualization macro "<name>.dat.C"), so a checked-in copy is a hand-synced duplicate of
 # what the code already produces: the shipped set was written by Boost.Serialization and became
 # unreadable the moment serialization moved to GArchive, with the example aborting on start.
@@ -82,7 +82,7 @@ SET ( _nn_type 1 )
 FOREACH ( _nn_name hyper_cube hyper_sphere axis_centric sinus )
 	ADD_CUSTOM_COMMAND ( TARGET ${EXECUTABLENAME} POST_BUILD
 		COMMAND ${CMAKE_COMMAND}
-			"-DRQ_CMD=$<TARGET_FILE:${EXECUTABLENAME}>|--trainingDataFile|./DataSets/${_nn_name}.dat|--traininDataType|${_nn_type}|--nDataSets|${_nn_data_sets}"
+			"-DRQ_CMD=$<TARGET_FILE:${EXECUTABLENAME}>|--trainingDataFile|./DataSets/${_nn_name}.dat|--trainingDataType|${_nn_type}|--nDataSets|${_nn_data_sets}"
 			"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 			"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/dataset-${_nn_name}.log"
 			"-DRQ_DESC=Training-data generation for ${_nn_name}"

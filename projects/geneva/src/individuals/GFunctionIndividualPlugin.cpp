@@ -47,9 +47,11 @@
 
 #include "geneva/individuals/GFunctionIndividual.hpp"
 
+//! [ind-module-manifest]
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::Individuals::GFunctionIndividual>,
         "./config/GFunctionIndividual.json", "GFunctionIndividual">();
 }
+//! [ind-module-manifest]

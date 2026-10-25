@@ -545,7 +545,9 @@ TEST_CASE("GGenomeBuilder: groups vs arrays vs single parameters", "[flat]") {
 /******************************************************************************/
 TEST_CASE("GGenomeBuilder: interned group labels", "[flat]") {
     GGenomeBuilder b;
+    //! [problem-handle-tuning#2]
     b.addDoubleGroup(3, -1., 1.).label("position"); // structural label
+    //! [problem-handle-tuning#2]
     b.addDoubleGroup(2, -1., 1.).label("position"); // group 1
     b.addDouble(0., -1., 1.).label("scale");        // group 2
     b.addDouble(0., -1., 1.);                        // group 3 (unlabeled)

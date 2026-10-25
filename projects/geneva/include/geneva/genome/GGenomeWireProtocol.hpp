@@ -54,12 +54,14 @@ namespace Gem::Geneva::Genome {
  *
  * The values are part of the wire format and are therefore stable.
  */
+//! [courtier-geneva-commands#1]
 enum class geneva_command : std::uint32_t {
     evaluate = 0,               ///< server -> worker: evaluate this individual
     evaluation = 1,             ///< worker -> server: the computed results of an unmodified individual
     evaluated_and_modified = 2, ///< worker -> server: the whole individual, whose genome the worker changed
     terminate = 3               ///< server -> worker: stop working
 };
+//! [courtier-geneva-commands#1]
 
 /******************************************************************************/
 /**
@@ -75,6 +77,7 @@ enum class geneva_command : std::uint32_t {
  *
  * Courtier never reads this: it is the library payload of a RETURN frame, relayed as opaque content.
  */
+//! [courtier-geneva-commands#2]
 struct GEvaluationResults {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
@@ -93,6 +96,7 @@ struct GEvaluationResults {
     std::vector<individual_processing_result> results; ///< one {raw, transformed, set} per criterion
     double validity_level = 0.;                        ///< the computed feasibility level (<= 1 == feasible)
 };
+//! [courtier-geneva-commands#2]
 
 /******************************************************************************/
 

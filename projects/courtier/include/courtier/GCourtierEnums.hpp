@@ -71,6 +71,7 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  *
  * NONE is the cleared/default state of a frame container, never a transmitted frame.
  */
+//! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     NONE = 0,         ///< Cleared / not yet filled in -- never sent
     PULL = 1,         ///< worker -> server: "give me work" (may carry a result, see RETURN)
@@ -81,6 +82,7 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7    ///< server -> worker: the requested blob (empty on a registry miss)
 };
+//! [courtier-frame-kind]
 
 /******************************************************************************/
 /** @brief Indicates in what state of the ping submission we are */

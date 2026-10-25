@@ -105,6 +105,7 @@ int main(int argc, char **argv) {
 
     //---------------------------------------------------------------------------
     // Register a post-processor, if this was requested by the user
+    //! [results-postprocessor]
     if(usePostProcessor) {
         std::shared_ptr<GEvolutionaryAlgorithmPostOptimizer> const eaPostOptimizer_ptr(
             new GEvolutionaryAlgorithmPostOptimizer(
@@ -118,6 +119,7 @@ int main(int argc, char **argv) {
         // Make the post-processor known to the factory
         gfi_ptr->registerPostProcessor(eaPostOptimizer_ptr);
     }
+    //! [results-postprocessor]
 
     //---------------------------------------------------------------------------
     // Register pluggable optimization monitors, if requested by the user

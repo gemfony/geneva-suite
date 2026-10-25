@@ -77,16 +77,24 @@ int main(int argc, char **argv) {
     }
 
     //---------------------------------------------------------------------------
+    //! [algo-overview-chaining#1]
     // Chain two optimization algorithms with the &-operator: the evolutionary
     // algorithm runs first (global exploration), then a conjugate gradient descent
     // refines its best result (local exploitation). Each algorithm runs its own full
     // iteration budget; the best individuals are passed from one to the next.
+    //! [go2-chain#1]
     go & "ea" & "cgd";
+    //! [go2-chain#1]
+    //! [algo-overview-chaining#1]
 
     //---------------------------------------------------------------------------
     // Perform the actual (chained) optimization
+    //! [algo-overview-chaining#2]
+    //! [go2-chain#2]
     auto const p =
         go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    //! [algo-overview-chaining#2]
+    //! [go2-chain#2]
 
     std::cout << "Best result found:" << '\n' << p << '\n';
 }

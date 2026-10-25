@@ -337,6 +337,7 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
 
+    //! [sa-direct-setup#1]
     // Create an empty population
     std::shared_ptr<oa::GSimulatedAnnealing> const pop_ptr(new oa::GSimulatedAnnealing());
 
@@ -355,6 +356,7 @@ int main(int argc, char **argv) {
     // The genome carries only structure; the configured Gauss / bi-Gauss adaptor lives on an OA-owned
     // config the factory authors. Hand it to the simulated-annealing population directly.
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
+    //! [sa-direct-setup#1]
 
     // Build and register the ONE process-wide consumer, depending on the parallelisation mode.
     // The algorithm submits through it automatically.
@@ -394,12 +396,14 @@ int main(int argc, char **argv) {
         Gem::Geneva::buildConsumerSetup(spec); // registers the process consumer
     }
 
+    //! [sa-direct-setup#2]
     /****************************************************************************/
     // Perform the actual optimization
     pop_ptr->optimize();
 
     // Retrieve the best individual found
     auto p = pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    //! [sa-direct-setup#2]
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

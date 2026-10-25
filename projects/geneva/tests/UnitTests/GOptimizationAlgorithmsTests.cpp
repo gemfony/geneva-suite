@@ -1102,6 +1102,7 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
     // (scan_randomly = false) used to lose its pre-computed grid, so getCurrentItem -> at(step_) threw
     // during the sweep. We build a grid scan, CLONE it (via the copy ctor that clone() uses), and run the
     // clone: it must sweep the intact grid and find the origin (which is on a 3-step [-5, 5] grid).
+    //! [ps-direct-construction]
     auto pop = std::make_shared<oa::GParameterScan>();
     pop->setScanRandomly(false); // GRID scan -> the grid points are pre-computed and must survive a clone
     pop->setParameterSpecs(
@@ -1111,6 +1112,7 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
     pop->setMaxStallIteration(0);
     pop->setReportIteration(100000);
     pop->push_back(SphereOA().clone());
+    //! [ps-direct-construction]
 
     // Deep-copy through the copy constructor (exactly what clone() / load_() use).
     auto clone = std::make_shared<oa::GParameterScan>(*pop);

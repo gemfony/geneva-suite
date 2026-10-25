@@ -81,6 +81,7 @@ struct GNoLibraryPayload {
  *
  * @tparam processable_type The work-item type exchanged over the transport
  */
+//! [courtier-wire-seam]
 template <typename processable_type>
 struct GWireProtocolT {
     /** @brief The library-defined payload alternative of a frame (see GCommandContainerT). */
@@ -133,6 +134,7 @@ struct GWireProtocolT {
         }
     }
 };
+//! [courtier-wire-seam]
 
 /******************************************************************************/
 /** @brief Shorthand for the library payload type of a work-item type. */

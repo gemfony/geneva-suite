@@ -59,6 +59,7 @@ int main() {
         log.append(id, x, x * x);
     }
 
+    //! [dietrich-data-export]
     // CSV is the DATA backend's default format -- one writeToFile() through GDataLog.
     log.writeToFile("exported.csv", plotBackend::DATA);
 
@@ -68,6 +69,7 @@ int main() {
     gpd.setPlotBackend(plotBackend::DATA);
     gpd.setDataFormat(dataFormat::NPZ);
     gpd.writeToFile("exported.npz");
+    //! [dietrich-data-export]
 
     std::cout << "external_render: wrote exported.csv and exported.npz\n"
               << "Render outside C++ with the bundled renderer, e.g.:\n"

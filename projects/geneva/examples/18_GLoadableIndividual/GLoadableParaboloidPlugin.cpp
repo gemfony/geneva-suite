@@ -56,7 +56,9 @@
 #include "GLoadableParaboloid.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE
 
+//! [modules-individual-glue#1]
 GEM_REGISTER_ARCHIVABLE(GLoadableParaboloid) // NOLINT
+//! [modules-individual-glue#1]
 
 // (1) The archive tag for wire / checkpoint transport of this individual.
 
@@ -64,8 +66,10 @@ GEM_REGISTER_ARCHIVABLE(GLoadableParaboloid) // NOLINT
 // for the loader's dlsym); everything else is the typed individualManifest<> helper. The template arguments
 // are the content-creator factory (the standard flat-individual factory on the problem type), the problem's
 // config-file path (auto-created with the individual's defaults if absent), and a display name.
+//! [modules-individual-glue#2]
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<Gem::Geneva::Genome::GIndividualFactory<GLoadableParaboloid>,
                                            "./config/GLoadableParaboloid.json", "GLoadableParaboloid">();
 }
+//! [modules-individual-glue#2]

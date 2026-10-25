@@ -309,8 +309,10 @@ int main(int argc, char **argv) {
     }
 
     /****************************************************************************/
+    //! [hap-factory-tuning#2]
     // Random numbers are our most valuable good. Set the number of threads
     randomFactory()->setNProducerThreads(nProducerThreads);
+    //! [hap-factory-tuning#2]
 
     /****************************************************************************/
     // If this is a client in networked mode, we can just start the listener and
@@ -349,6 +351,7 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
 
+    //! [algo-ea:direct-setup]
     // Create an empty population
     std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(new oa::GEvolutionaryAlgorithm());
 
@@ -368,6 +371,7 @@ int main(int argc, char **argv) {
     // The genome carries only structure; the configured Gauss / bi-Gauss adaptor lives on an OA-owned
     // config the factory authors. Hand it to the EA directly (the setAdaptionConfig distribution path).
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
+    //! [algo-ea:direct-setup]
 
     // Build and register the ONE process-wide consumer, depending on the parallelisation mode.
     // The algorithm submits through it automatically.

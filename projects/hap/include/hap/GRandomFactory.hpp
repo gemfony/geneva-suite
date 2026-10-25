@@ -345,7 +345,9 @@ public:
      *
      * @param n_producer_threads The desired number of threads producing random number packages
      */
+    //! [hap-factory-tuning#1]
     void setNProducerThreads(const std::uint16_t &n_producer_threads);
+    //! [hap-factory-tuning#1]
 
     /**
      * @brief Retrieves the current number of producer threads.
@@ -408,7 +410,9 @@ public:
      *
      * @return The lifetime count of packages delivered to the fresh buffer
      */
+    //! [hap-factory-tuning#3]
     [[nodiscard]] std::uint64_t getNPackagesProduced() const noexcept { return n_packages_produced_.load(std::memory_order_relaxed); }
+    //! [hap-factory-tuning#3]
 
     /**
      * @brief The number of times getNewRandomContainer() returned empty because no package became
@@ -420,7 +424,9 @@ public:
      *
      * @return The lifetime count of empty (timed-out) getNewRandomContainer() results
      */
+    //! [hap-factory-tuning#4]
     [[nodiscard]] std::uint64_t getNGetTimeouts() const noexcept { return n_get_timeouts_.load(std::memory_order_relaxed); }
+    //! [hap-factory-tuning#4]
 
 private:
     /**

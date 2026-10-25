@@ -1,0 +1,40 @@
+Documentation programs
+======================
+
+The .cpp files in this directory exist to be QUOTED BY THE GENEVA MANUAL, and to
+PRODUCE THE FIGURES it prints: where the real library code is too heavyweight to
+excerpt honestly, the manual shows a small, complete program instead (suite
+Invariant 27; rule D2 in the manual repository's DOCUMENTATION-INVARIANTS.md).
+Every program here
+
+  * compiles and links against this library's own dependency closure only,
+  * runs as an S-size ctest case, so it cannot rot without turning a gate red,
+  * carries //! [anchor] snippet markers that the manual's extraction layer
+    reads (see source/snippets.map in the manual repository),
+  * writes its output to the WORKING DIRECTORY -- never into the source tree --
+    so it can be run from a build tree by the manual's `make figures` target.
+
+They are deliberately separate from examples/: an example teaches a user how to
+use the library, a documentation program backs a specific listing or figure in
+the manual. Treat marker pairs like code -- moving or deleting one breaks the
+manual build, which names the affected chapter.
+
+Figure producers
+----------------
+
+noisy_parabola_scan   Scans the two-dimensional Berlich noisy parabola on a
+                      regular grid and searches it with a small evolutionary
+                      algorithm, writing two ROOT macros:
+                        noisy-parabola-scan.C      the landscape as a surface,
+                                                   with every individual the
+                                                   algorithm evaluated drawn on
+                                                   top of it in red
+                        noisy-parabola-progress.C  the same run seen from the
+                                                   optimizer's side (best
+                                                   fitness per iteration, and
+                                                   the distribution of every
+                                                   evaluated fitness)
+                      The scan is deterministic; the search is not (Geneva's
+                      random numbers are not reproducible from a seed --
+                      DEVELOPMENT-INVARIANTS.md, Invariant 18), so a rerun draws
+                      a different but equivalent path.

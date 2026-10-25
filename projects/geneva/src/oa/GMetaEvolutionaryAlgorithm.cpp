@@ -59,6 +59,7 @@ GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::siz
         );
     }
 
+    //! [meta.orchestrationpool]
     // Run each umbrella-individual's process() on the orchestration pool. process() funnels any thrown
     // exception into the item's status (EXCEPTION_CAUGHT) rather than letting it escape the worker.
     for(std::size_t i = start; i < end; ++i) {
@@ -66,6 +67,7 @@ GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::siz
         orchestration_pool_->post([ind]() { ind->process(); });
     }
     orchestration_pool_->wait();
+    //! [meta.orchestrationpool]
 
     // A local evaluation never goes MISSING: every slot is PROCESSED or carries a caught error. Report
     // "complete", flagging errors so the base evaluatePopulation_ removes any failed umbrella-individual.

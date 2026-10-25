@@ -47,6 +47,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * Options for the convergence error estimate.
  */
+//! [hesse-options]
 struct GHesseErrorOptions {
     /** @brief The error definition UP: the increase of the objective that defines one standard
      *  deviation. 1.0 for a chi^2-like objective, 0.5 for a negative-log-likelihood (the MINUIT
@@ -65,6 +66,7 @@ struct GHesseErrorOptions {
      *  and expensive -- each bound costs repeated re-minimisations. */
     bool minos = false;
 };
+//! [hesse-options]
 
 /******************************************************************************/
 /**
@@ -123,11 +125,13 @@ struct GHesseErrorResult {
  * The objective is supplied as a batch eval_fn(points) -> values, so the curvature probes are
  * evaluated through whatever consumer the calling algorithm uses (the estimator is consumer-agnostic).
  */
+//! [hesse-estimate#1]
 class GHesseError {
 public:
     /** @brief Evaluates a batch of points and returns one (min-only) objective value per point. */
     using eval_fn_t =
         std::function<std::vector<double>(const std::vector<std::vector<double>> &)>;
+//! [hesse-estimate#1]
 
     /***************************************************************************/
     /**
@@ -145,6 +149,7 @@ public:
      * @param opts The error definition UP and the gate controlling whether the full covariance is computed.
      * @return The estimate (validity flags, per-parameter errors, and -- when computed -- the covariance).
      */
+    //! [hesse-estimate#2]
     static GHesseErrorResult estimate(
         eval_fn_t const &eval_fn,
         std::vector<double> const &x_min,
@@ -152,6 +157,7 @@ public:
         std::vector<double> const &step_sizes,
         GHesseErrorOptions const &opts = GHesseErrorOptions{}
     );
+    //! [hesse-estimate#2]
 
 private:
     /** @brief estimate() phase 1 (always): the diagonal Hessian, parameter-fixed errors, curvature

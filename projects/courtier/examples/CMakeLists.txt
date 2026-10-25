@@ -27,7 +27,8 @@
 #
 ################################################################################
 
-#ADD_SUBDIRECTORY( )
+# No examples at the moment; the aggregate target lives here for symmetry and
+# collects nothing until one is added. Documentation programs -- compiled listings
+# for the manual -- are deliberately kept apart, in ../docprograms/.
 
-# No example sub-directories at the moment; collects nothing until one is added.
 GENEVA_AGGREGATE_TARGET( "examples-courtier" )

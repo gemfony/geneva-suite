@@ -88,6 +88,7 @@ struct trainingSet {
     // pre-sizing, no split. (This is a local training-data file, never a wire item,
     // and archives may change under the clean-break policy, so the historical raw-
     // array layout no longer needs preserving.)
+    //! [weft-archive-named]
     template <typename Archive>
     void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "nInputNodes", nInputNodes);
@@ -95,6 +96,7 @@ struct trainingSet {
         Gem::Common::archive_named(ar, "Input", Input);
         Gem::Common::archive_named(ar, "Output", Output);
     }
+    //! [weft-archive-named]
 
     /////////////////////////////////////////////////////////////////////////////
 

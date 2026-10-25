@@ -9,16 +9,24 @@
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/../build",
       "cacheVariables": {
-        "CMAKE_INSTALL_PREFIX":            { "type": "PATH",   "value": "/opt/geneva" },
-        "CMAKE_VERBOSE_MAKEFILE":          { "type": "BOOL",   "value": "0" },
-        "GENEVA_BUILD_TYPE":               { "type": "STRING", "value": "Debug" },
-        "GENEVA_BUILD_TESTS":              { "type": "BOOL",   "value": "1" },
-        "GENEVA_BUILD_EXAMPLES":           { "type": "BOOL",   "value": "1" },
-        "GENEVA_BUILD_BENCHMARKS":         { "type": "BOOL",   "value": "1" },
-        "GENEVA_STATIC":                   { "type": "BOOL",   "value": "0" },
-        "GENEVA_BUILD_WITH_MPI_CONSUMER":  { "type": "BOOL",   "value": "1" },
-        "GENEVA_USE_CUDA_RNG":             { "type": "BOOL",   "value": "0" },
-        "BOOST_ROOT":                      { "type": "PATH",   "value": "/opt/boost" }
+        "CMAKE_INSTALL_PREFIX":            { "type": "PATH",     "value": "/opt/geneva" },
+        "CMAKE_VERBOSE_MAKEFILE":          { "type": "BOOL",     "value": "0" },
+        "GENEVA_BUILD_TYPE":               { "type": "STRING",   "value": "Debug" },
+        "GENEVA_BUILD_TESTS":              { "type": "BOOL",     "value": "1" },
+        "GENEVA_BUILD_EXAMPLES":           { "type": "BOOL",     "value": "1" },
+        "GENEVA_BUILD_BENCHMARKS":         { "type": "BOOL",     "value": "1" },
+        "GENEVA_BUILD_WITH_MPI_CONSUMER":  { "type": "BOOL",     "value": "1" },
+        "GENEVA_BUILD_WITH_GPU_CONSUMER":  { "type": "STRING",   "value": "auto" },
+        "GENEVA_USE_CUDA_RNG":             { "type": "STRING",   "value": "auto" },
+        "BOOST_ROOT":                      { "type": "PATH",     "value": "/opt/boost" },
+        "GENEVA_SKIP_CUDA":                { "type": "BOOL",     "value": "0" },
+        "GENEVA_FORCE_CUDA":               { "type": "BOOL",     "value": "0" },
+        "GIMAGE_USE_FLOAT":                { "type": "BOOL",     "value": "1" },
+        "HAP_RANDOM_SOURCE":               { "type": "STRING",   "value": "queue" },
+        "GENEVA_BUILD_WITH_COVERAGE":      { "type": "BOOL",     "value": "0" },
+        "GENEVA_SANITIZER":                { "type": "STRING",   "value": "none" },
+        "CMAKE_C_COMPILER":                { "type": "FILEPATH", "value": "/usr/bin/clang" },
+        "CMAKE_CXX_COMPILER":              { "type": "FILEPATH", "value": "/usr/bin/clang++" }
       }
     }
   ]

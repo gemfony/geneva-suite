@@ -843,6 +843,7 @@ void GParChild::markChildren() {
  *
  * @return A tuple holding the raw and transformed primary fitness of the best individual found
  */
+//! [algo-ea:cycle-logic]
 std::tuple<double, double> GParChild::cycleLogic_() {
     // If this is not the first iteration, check whether we need to increase the population
     if(GOptimizationAlgorithmBase::afterFirstIteration()) {
@@ -876,6 +877,7 @@ std::tuple<double, double> GParChild::cycleLogic_() {
     // Return the primary fitness of the best individual in the collection
     return this->at(0)->getFitnessTuple();
 }
+//! [algo-ea:cycle-logic]
 
 /******************************************************************************/
 /**

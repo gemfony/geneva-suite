@@ -85,6 +85,7 @@ ENDIF ()
 # a runtime-loadable module (libGStarterIndividual.so). The individual's serialization export lives in
 # GStarterIndividual.cpp (SOURCES, in both targets); the module's fixed entry point is
 # GStarterIndividualPlugin.cpp (PLUGIN, module only).
+#! [quickstart-cmake-declare]
 GENEVA_DECLARE_INDIVIDUAL(GStarterIndividual
 	MODE    both
 	SOURCES GStarterIndividual.cpp
@@ -109,6 +110,7 @@ TARGET_LINK_LIBRARIES(GStarterGenericOptimizer PRIVATE Geneva::geneva)
 TARGET_COMPILE_FEATURES(GStarterGenericOptimizer PRIVATE cxx_std_23)
 ADD_DEPENDENCIES(GStarterGenericOptimizer GStarterIndividual)
 INSTALL(TARGETS GStarterGenericOptimizer GStarterIndividual DESTINATION bin)
+#! [quickstart-cmake-declare]
 
 ################################################################################
 # Materialize the configuration files from code defaults at build time, so the

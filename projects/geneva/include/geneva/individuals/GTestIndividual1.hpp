@@ -69,6 +69,7 @@ namespace Gem::Geneva::Individuals {
  * of writing, it was included in order to be able to set the individual's personality without
  * weakening data protection.
  */
+//! [ind-member-list#1]
 class GTestIndividual1 // NOLINT(cppcoreguidelines-special-member-functions)
   : public gen::GGenomeT<GTestIndividual1>
   , public Gem::Common::GSelfTestable {
@@ -83,6 +84,7 @@ public:
     using gemfony_flat_individual = void;
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() and compare token. */
     static constexpr std::string_view class_name = "GTestIndividual1";
+//! [ind-member-list#1]
 
     /** @brief The default constructor */
     GTestIndividual1();

@@ -123,6 +123,7 @@ public:
      * @brief Produce the next 64-bit value and advance the state.
      * @return The next pseudo-random 64-bit value in the sequence
      */
+    //! [hap-xoshiro-step]
     result_type operator()() noexcept {
         const std::uint64_t result = rotl(s_[0] + s_[3], 23) + s_[0];
         const std::uint64_t t      = s_[1] << 17;
@@ -134,6 +135,7 @@ public:
         s_[3] = rotl(s_[3], 45);
         return result;
     }
+    //! [hap-xoshiro-step]
 
     /**
      * @brief Advance the state by z steps (UniformRandomBitGenerator nicety).

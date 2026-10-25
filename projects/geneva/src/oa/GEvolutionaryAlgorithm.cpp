@@ -699,6 +699,7 @@ void GType::sortMuPlusNuMode() {
 /******************************************************************************/
 
 void GType::sortMuCommaNuMode() {
+    //! [algo-ea:comma-selection]
     std::ranges::partial_sort(
         GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_,
         GOptimizationAlgorithmBase::data_cnt_.begin() + 2 * n_parents_,
@@ -712,6 +713,7 @@ void GType::sortMuCommaNuMode() {
         GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_,
         GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_
     );
+    //! [algo-ea:comma-selection]
 }
 
 /******************************************************************************/

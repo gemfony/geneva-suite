@@ -68,6 +68,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Selects how the search direction is built from the (finite-difference) gradient. Steepest descent is
  * the former, separate "gd" algorithm folded in as the beta == 0 special case.
  */
+//! [algo-gd-gradient-method-enum]
 enum class gradientMethod : std::uint8_t {
     CONJUGATE_PR_PLUS = 0, ///< Polak-Ribiere+ nonlinear conjugate gradient with restarts (the default)
     STEEPEST_DESCENT = 1,  ///< Plain steepest descent (beta == 0)
@@ -76,6 +77,7 @@ enum class gradientMethod : std::uint8_t {
     CONJUGATE_DY = 4,      ///< Dai-Yuan (beta = g.g / d_prev.(g-g_prev))
     LBFGS = 5              ///< Limited-memory BFGS quasi-Newton (two-loop recursion over the last m (s,y) pairs)
 };
+//! [algo-gd-gradient-method-enum]
 
 /**
  * Selects whether (and how thoroughly) a MINUIT-style parameter-error estimate is computed at the

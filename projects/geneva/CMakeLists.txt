@@ -49,6 +49,8 @@
 #                                        top-level header set); 73 sources
 #   geneva/tests/                      UnitTests + ManualTests
 #   geneva/examples/{01_..21_}/        all numbered examples
+#   geneva/docprograms/                compiled listings and figure producers for
+#                                        the manual, each registered as an S-size test
 #   geneva/quickstart/                 the self-contained downstream template
 #                                        (find_package(Geneva); NOT built in tree)
 #   geneva/benchmarks/                 6 benchmark binaries
@@ -66,6 +68,10 @@ ENDIF ()
 
 IF ( GENEVA_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
+ENDIF ()
+
+IF ( GENEVA_BUILD_TESTS )
+	ADD_SUBDIRECTORY ( docprograms )
 ENDIF ()
 
 IF ( GENEVA_BUILD_BENCHMARKS )

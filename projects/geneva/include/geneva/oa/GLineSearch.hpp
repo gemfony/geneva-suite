@@ -48,6 +48,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Acceptance and termination options for the backtracking line search. The defaults follow the usual
  * textbook recommendations (Nocedal & Wright, "Numerical Optimization" 2e, ch. 3).
  */
+//! [algo-gd-linesearch-options]
 struct GLineSearchOptions {
     /** @brief Armijo sufficient-decrease constant c1, with 0 < c1 < 1 (typically 1e-4). */
     double c1 = 1.e-4;
@@ -62,6 +63,7 @@ struct GLineSearchOptions {
     /** @brief The smallest step length still worth trying. */
     double alpha_min = 1.e-12;
 };
+//! [algo-gd-linesearch-options]
 
 /******************************************************************************/
 /**

@@ -487,5 +487,30 @@ if unknown.
 
 ---
 
+## 27. The manual reads this tree
+
+Three artifacts in this repository are load-bearing for the external reference manual and are never
+decoration or convenience:
+
+- **Snippet-marker comment pairs** — `//! [anchor]` (C++), `#! [anchor]` (CMake/shell) — bracket the
+  regions the manual extracts at *its* build time. Treat a marker like code: moving, renaming or
+  deleting one breaks the manual build, which names the affected chapter. When editing a marked
+  region, the markers move with the meaning they bracket.
+- **Documentation programs** live under `projects/<lib>/docprograms/`, never in `examples/` — an
+  example teaches a user, a docu-program backs a listing. Each links its library's own dependency
+  closure only and is registered as an S-size test, so a docu-program that stops compiling or stops
+  doing what the manual says turns a gate red. The directory's README states the contract.
+- **The tracked `docs/config-reference/` JSONs** are the source the manual renders its configuration
+  tables from; they stay tracked and are regenerated, never hand-edited.
+
+The manual repository carries all extraction machinery (see its `DOCUMENTATION-INVARIANTS.md`, D2);
+this tree carries only these hooks.
+
+*Why:* the manual's honesty rests on generation from this tree. The hooks are cheap (comments, a few
+tiny programs, tracked JSON) but only work if nobody treats them as removable clutter — and the
+people in a position to remove them work here, not in the manual repository.
+
+---
+
 *Add new invariants below as the maintainer establishes them. Keep each rule short, mandatory, and
 general — design decisions for a specific feature belong in that feature's design notes, not here.*

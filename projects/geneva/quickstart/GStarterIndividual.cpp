@@ -153,6 +153,7 @@ GStarterIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config
 /**
  * Emit information about this individual
  */
+//! [results-print]
 std::string GStarterIndividual::print() {
     std::ostringstream result;
 
@@ -172,6 +173,7 @@ std::string GStarterIndividual::print() {
 
     return result.str();
 }
+//! [results-print]
 
 /******************************************************************************/
 /**
@@ -179,6 +181,7 @@ std::string GStarterIndividual::print() {
  *
  * @return The value of this object, as calculated with the evaluation function
  */
+//! [quickstart-evaluate]
 std::vector<double> GStarterIndividual::evaluate() {
     // Retrieve the parameters
     std::vector<double> parVec;
@@ -202,6 +205,7 @@ std::vector<double> GStarterIndividual::evaluate() {
     // Make the compiler happy
     return {0.};
 }
+//! [quickstart-evaluate]
 
 /******************************************************************************/
 /**
@@ -414,7 +418,9 @@ void GStarterIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
  * optimization algorithm random-initialises within bounds. The Gauss adaptor settings live on the
  * OA-owned config (see getAdaptionConfig()), stamped onto the individual by applyConfig().
  */
+//! [quickstart-buildgenome#1]
 gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
+//! [quickstart-buildgenome#1]
 #ifdef DEBUG
     if(c.start_values.empty() || c.start_values.size() != c.lower_boundaries.size() ||
        c.start_values.size() != c.upper_boundaries.size()) {
@@ -427,12 +433,14 @@ gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
     }
 #endif /* DEBUG */
 
+    //! [quickstart-buildgenome#2]
     gen::GGenomeBuilder b;
     for(std::size_t i = 0; i < c.start_values.size(); i++) {
         b.addDouble(c.start_values.at(i), c.lower_boundaries.at(i), c.upper_boundaries.at(i));
     }
     return b.build();
 }
+    //! [quickstart-buildgenome#2]
 
 /******************************************************************************/
 /**

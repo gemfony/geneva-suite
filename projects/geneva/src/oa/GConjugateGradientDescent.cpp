@@ -596,6 +596,7 @@ void GConjugateGradientDescent::ensureGradientScratch_(gen::GAuxiliaryStore &cg_
  * @param parent_fitness The (minimization-oriented) fitness of that starting point
  * @return The proxy gradient, one component per floating-point parameter
  */
+//! [algo-gd-proxy-gradient]
 std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
     std::size_t starting_point,
     double parent_fitness
@@ -620,6 +621,7 @@ std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
     }
     return gradient;
 }
+//! [algo-gd-proxy-gradient]
 
 /******************************************************************************/
 /**

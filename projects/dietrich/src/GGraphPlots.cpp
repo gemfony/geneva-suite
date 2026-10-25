@@ -710,6 +710,21 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     footer_data << indent << "TGraph2D *" << graph_name << " = new TGraph2D(" << this->currentSize()
                 << ", " << x_array_name << ", " << y_array_name << ", " << z_array_name << ");"
                 << '\n'
+                << indent << graph_name << "->SetMarkerStyle(20);" << '\n'
+                << indent << graph_name << "->SetMarkerSize(1);" << '\n'
+                << indent << graph_name << "->SetMarkerColor(2);" << '\n';
+
+    emitRootTitle(footer_data, indent, graph_name, plot_label_);
+
+    // The draw, then a pad update, then the axis titles -- and that order is load-bearing. A
+    // TGraph2D owns no axes of its own: GetXaxis() reaches into an internal histogram that ROOT
+    // REBUILDS when the graph is painted with a surface or colour-map option (SURF*, COLZ, TRI*).
+    // Titles set before the painting are discarded with the old histogram, which left every
+    // scanned landscape with unlabelled axes. Update() forces the painting to happen here, so the
+    // titles below land on the histogram that is finally drawn -- for every drawing option, plain
+    // point clouds included.
+    footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n'
+                << indent << "gPad->Update();" << '\n'
                 << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
                 << '\n'
                 << indent << graph_name << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
@@ -719,13 +734,7 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
                 << indent << graph_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel()) << "\");"
                 << '\n'
                 << indent << graph_name << "->GetZaxis()->SetTitleOffset(1.5);" << '\n'
-                << indent << graph_name << "->SetMarkerStyle(20);" << '\n'
-                << indent << graph_name << "->SetMarkerSize(1);" << '\n'
-                << indent << graph_name << "->SetMarkerColor(2);" << '\n';
-
-    emitRootTitle(footer_data, indent, graph_name, plot_label_);
-
-    footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n' << '\n';
+                << '\n';
 
     if(draw_lines_ && this->currentSize() >= 2) {
         const auto &x_col = this->column<0>();

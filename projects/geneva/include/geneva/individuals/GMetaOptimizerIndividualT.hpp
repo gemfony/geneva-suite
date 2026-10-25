@@ -445,6 +445,7 @@ public:
      * @param p The individual whose genome is being built (modified in place)
      * @param manifest The tunable parameters to encode (name, channel, init value and search bounds)
      */
+    //! [meta.addcontent]
     static void addContent(
         const std::shared_ptr<GMetaOptimizerIndividualT<ind_type>>& p,
         const std::vector<oa::TunableParam> &manifest
@@ -471,6 +472,7 @@ public:
 
         p->setGenome(b.build());
     }
+    //! [meta.addcontent]
 
     /***************************************************************************/
     /**
@@ -728,6 +730,7 @@ protected:
         const std::shared_ptr<oa::GAdaptionConfigBase> &sub_adaption_config,
         double amalgamation_likelihood
     ) {
+        //! [meta.populatesubea]
         ea.setPopulationSizes(pop_size, n_parents);
         for(std::size_t ind = 0; ind < pop_size; ind++) {
             std::shared_ptr<gen::GGenome> const gi_ptr = ind_factory_->get();
@@ -737,6 +740,7 @@ protected:
         // items to be produced through cross-over rather than mutation alone.
         ea.setAdaptionConfig(sub_adaption_config);
         ea.setAmalgamationLikelihood(amalgamation_likelihood);
+        //! [meta.populatesubea]
     }
 
     /***************************************************************************/

@@ -71,13 +71,16 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 namespace {
 
 /******************************************************************************/
+//! [algo-overview-registration]
 // The algorithms that are always part of Geneva. Each factory is the GOptimizationAlgorithmFactoryT
 // scaffold instantiated for one algorithm -- that instantiation is the whole factory, so it needs no
 // name and no derived class of its own (the algorithm's own personality traits are the scaffold's
 // default second argument).
 
 const GInitializerT<GOptimizationAlgorithmFactoryT<GAntColonyOptimization>> g_aco_registrant;
+//! [geneva.oa.registration#2]
 const GInitializerT<GOptimizationAlgorithmFactoryT<GEvolutionaryAlgorithm>> g_ea_registrant;
+//! [geneva.oa.registration#2]
 const GInitializerT<GOptimizationAlgorithmFactoryT<GGeneralizedSimulatedAnnealing>> g_gsa_registrant;
 const GInitializerT<GOptimizationAlgorithmFactoryT<GSepCmaEvolutionStrategy>> g_sepcma_registrant;
 const GInitializerT<GOptimizationAlgorithmFactoryT<GStandardPSO2011>> g_pso_registrant;
@@ -96,7 +99,9 @@ const GInitializerT<GOptimizationAlgorithmFactoryT<GNelderMead>> g_nm_registrant
 #ifdef GENEVA_ALGO_PS
 // The one algorithm whose factory genuinely adds something (the parameter-spec command-line option),
 // so it is a class of its own rather than the bare scaffold instantiation.
+//! [geneva.oa.registration#3]
 const GInitializerT<GParameterScanFactory> g_ps_registrant;
+//! [geneva.oa.registration#3]
 #endif
 #ifdef GENEVA_ALGO_SA
 const GInitializerT<GOptimizationAlgorithmFactoryT<GSimulatedAnnealing>> g_sa_registrant;
@@ -104,6 +109,7 @@ const GInitializerT<GOptimizationAlgorithmFactoryT<GSimulatedAnnealing>> g_sa_re
 #ifdef GENEVA_ALGO_SWARM
 const GInitializerT<GOptimizationAlgorithmFactoryT<GSwarmAlgorithm>> g_swarm_registrant;
 #endif
+//! [algo-overview-registration]
 
 /******************************************************************************/
 

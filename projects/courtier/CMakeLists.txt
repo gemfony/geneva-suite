@@ -38,6 +38,8 @@
 #   courtier/tests/                        UnitTests
 #   courtier/examples/                     stub (no examples yet, the aggregate
 #                                          target lives here for symmetry)
+#   courtier/docprograms/                  compiled listings for the manual,
+#                                          each registered as an S-size test
 #   courtier/benchmarks/                   GBufferPortTTest, GConsumerPerformance
 #
 # Tests / examples / benchmarks gated on the top-level options. The
@@ -53,6 +55,10 @@ ENDIF ()
 
 IF ( GENEVA_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
+ENDIF ()
+
+IF ( GENEVA_BUILD_TESTS )
+	ADD_SUBDIRECTORY ( docprograms )
 ENDIF ()
 
 IF ( GENEVA_BUILD_BENCHMARKS )

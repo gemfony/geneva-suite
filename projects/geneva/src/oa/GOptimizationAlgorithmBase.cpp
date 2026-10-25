@@ -503,9 +503,11 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // Emit the info header, unless we do not want any info (parameter 0).
     // Note that this call needs to come after the initialization, so we have the
     // complete set of individuals available.
+    //! [monitors:info-cycle#1]
     if(report_iteration_) {
         informationUpdate(infoMode::INFOINIT);
     }
+    //! [monitors:info-cycle#1]
 
     // We want to know if no better values were found for a longer period of time
     double const worst_case = this->at(0)->getWorstCase();
@@ -537,6 +539,7 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // aborting the process).
     file_start_time_ = std::chrono::file_clock::now();
 
+    //! [geneva.oa.cycle]
     do {
         // Let all individuals know the current iteration
         markIteration();
@@ -561,9 +564,11 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
         // We want to provide feedback to the user in regular intervals.
         // Set the reportGeneration_ variable to 0 in order not to emit
         // any information at all.
+        //! [monitors:info-cycle#2]
         if(report_iteration_ && (iteration_ % report_iteration_ == 0)) {
             informationUpdate(infoMode::INFOPROCESSING);
         }
+        //! [monitors:info-cycle#2]
 
         // update the iteration_ counter
         iteration_++;
@@ -576,14 +581,17 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // would never be written at all. checkpoint() itself gates on the user having enabled
     // checkpointing (cp_interval_ != 0).
     checkpoint(progress());
+    //! [geneva.oa.cycle]
 
     // Give derived classes the opportunity to perform any remaining clean-up work
     finalize();
 
     // Finalize the info output
+    //! [monitors:info-cycle#3]
     if(report_iteration_) {
         informationUpdate(infoMode::INFOEND);
     }
+    //! [monitors:info-cycle#3]
 
     // Remove information particular to the optimization algorithms from the individuals
     resetIndividualPersonalities();

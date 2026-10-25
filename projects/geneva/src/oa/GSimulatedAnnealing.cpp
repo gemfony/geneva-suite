@@ -317,6 +317,7 @@ std::shared_ptr<GPersonalityTraits> GSimulatedAnnealing::getPersonalityTraits_()
 /**
  * @brief Performs a simulated annealing style sorting and selection
  */
+//! [sa-sort-mode]
 void GSimulatedAnnealing::sortSAMode() {
     // Position the n_parents best children of the population right behind the parents
     std::ranges::partial_sort(
@@ -358,6 +359,7 @@ void GSimulatedAnnealing::sortSAMode() {
     // Make sure the temperature gets updated
     updateTemperature();
 }
+//! [sa-sort-mode]
 
 /******************************************************************************/
 /**
@@ -369,6 +371,7 @@ void GSimulatedAnnealing::sortSAMode() {
   * @param f_min_only_child The "min only" (minimization-transformed) fitness of the child
   * @return A double value representing the Boltzmann likelihood for the child to replace the parent
   */
+//! [sa-cooling#1]
 double
 GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min_only_child) const {
     // Minimisation: a worse child has f_child > f_parent, so the exponent is negative and the result
@@ -377,11 +380,13 @@ GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min
     // there is no division by zero.
     return exp(-(f_min_only_child - f_min_only_parent) / t_);
 }
+//! [sa-cooling#1]
 
 /******************************************************************************/
 /**
   * @brief Updates the temperature. This function is used for simulated annealing.
   */
+//! [sa-cooling#2]
 void GSimulatedAnnealing::updateTemperature() {
     // Clamp to the smallest normalised double so t_ never enters the subnormal range or reaches 0.
     // With t_ == 0 and a fitness gap of 0, saProb() would compute 0/0 = NaN; the floor prevents that
@@ -391,6 +396,7 @@ void GSimulatedAnnealing::updateTemperature() {
     // is min(), never 0.)
     t_ = std::max(t_ * alpha_, std::numeric_limits<double>::min());
 }
+//! [sa-cooling#2]
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

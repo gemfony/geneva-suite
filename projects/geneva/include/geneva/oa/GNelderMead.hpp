@@ -70,6 +70,7 @@ constexpr double DEFAULTNMSIGMA = 0.5;   ///< Shrink coefficient
 constexpr double DEFAULTNMINITIALEDGE = 0.1; ///< Initial simplex edge (fraction of range)
 constexpr std::uint32_t DEFAULTNMRESTARTTHRESHOLD = 0; ///< Stall count triggering an oriented restart (0 = disabled)
 
+//! [algo-nm-trial-slots]
 /** @brief Number of speculative trial points evaluated per simplex and iteration
  *  (reflection, expansion, inside contraction, outside contraction). */
 constexpr std::size_t NM_NTRIALS = 4;
@@ -78,6 +79,7 @@ constexpr std::size_t NM_REFLECT = 0;
 constexpr std::size_t NM_EXPAND = 1;
 constexpr std::size_t NM_CONTRACT = 2;  ///< inside contraction
 constexpr std::size_t NM_OCONTRACT = 3; ///< outside contraction
+//! [algo-nm-trial-slots]
 
 /******************************************************************************/
 /**

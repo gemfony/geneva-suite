@@ -40,6 +40,7 @@
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GMultiCriterionParabolaIndividual) // NOLINT
 
+//! [problem-store#1]
 namespace {
 /**
  * @brief The module's load-once store of per-criterion minima -- this problem's hardware-independent
@@ -51,6 +52,7 @@ Gem::Geneva::Genome::GProblemStoreT<std::vector<double>> &minimaStore() {
     return store;
 }
 } // namespace
+//! [problem-store#1]
 
 namespace Gem::Geneva {
 /******************************************************************************/
@@ -93,8 +95,11 @@ std::ostream &operator<<(
      *
      * @return The per-criterion raw results (size == the number of minima)
      */
+//! [problem-multicriterion#2]
 std::vector<double> GMultiCriterionParabolaIndividual::evaluate() {
+    //! [problem-store#3]
     const std::vector<double> &minima = minimaStore().get();
+    //! [problem-store#3]
 
     std::vector<double> parVec; // Will hold the individual parameters
     this->streamline(parVec);   // Retrieve the (external) parameters
@@ -105,6 +110,7 @@ std::vector<double> GMultiCriterionParabolaIndividual::evaluate() {
     }
     return results;
 }
+//! [problem-multicriterion#2]
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,11 +169,15 @@ void GMultiCriterionParabolaIndividual::applyConfig(
     GMultiCriterionParabolaIndividual &ind,
     const Config &c
 ) {
+    //! [problem-multicriterion#1]
     const std::vector<double> minima = Gem::Common::stringToDoubleVec(c.minima);
     ind.setNStoredResults(minima.size());
+    //! [problem-multicriterion#1]
     // Load the minima once into the module's store; the free evaluator reads them from there. The
     // number of criteria is genome structure (per-instance), so it stays on the individual.
+    //! [problem-store#2]
     minimaStore().ensureLoaded([&minima]() { return minima; });
+    //! [problem-store#2]
 }
 
 /******************************************************************************/

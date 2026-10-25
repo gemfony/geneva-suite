@@ -56,7 +56,9 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // As we are dealing with a server, register a signal handler that allows us
     // to interrupt execution "on the run"
+    //! [go2-sighup]
     signal(G_SIGHUP, Gem::Common::sigHupHandler);
+    //! [go2-sighup]
 
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
@@ -71,10 +73,12 @@ int main(int argc, char **argv) {
     // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
     // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
     {
+        //! [adaptors-go2-register]
         auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
         auto cfg = gfi_ptr->getAdaptionConfig(*sample);
         go.registerAdaptionConfig("PERSONALITY_EA", cfg);
         go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+        //! [adaptors-go2-register]
     }
 
     // Add a default optimization algorithm to the Go2 object. This is optional.

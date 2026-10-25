@@ -119,6 +119,37 @@ TEST_CASE("GGraph3D poly-line emits every point including the first", "[plotting
 }
 
 /******************************************************************************/
+// A TGraph2D owns no axes: GetXaxis() reaches into an internal histogram that ROOT REBUILDS when
+// the graph is painted with a surface / colour-map option, which discards any title set
+// beforehand. The axis titles must therefore be emitted after the draw command AND after the pad
+// update that forces the painting (pre-fix they came before the draw, and every SURF*/COLZ plot --
+// e.g. a scanned fitness landscape -- came out with unlabelled axes).
+TEST_CASE("GGraph3D sets its axis titles after the draw command", "[plotting]") {
+    GGraph3D g;
+    g.setXAxisLabel(std::string("x_axis"));
+    g.setYAxisLabel(std::string("y_axis"));
+    g.setZAxisLabel(std::string("z_axis"));
+    g.setDrawingArguments(std::string("SURF2Z"));
+    g & std::tuple<double, double, double>(1., 1., 1.);
+
+    const std::string s = g.footerData("");
+
+    const std::string::size_type draw = s.find("->Draw(\"SURF2Z\")");
+    REQUIRE(draw != std::string::npos);
+
+    // The pad update between them is what forces the painting the titles must survive.
+    const std::string::size_type update = s.find("gPad->Update();");
+    REQUIRE(update != std::string::npos);
+    CHECK(update > draw);
+
+    for(const auto *axis : {"x_axis", "y_axis", "z_axis"}) {
+        const std::string::size_type title = s.find(axis);
+        REQUIRE(title != std::string::npos);
+        CHECK(title > update); // pre-fix: the title was set before the draw and was discarded
+    }
+}
+
+/******************************************************************************/
 // BUG-5/6: function plotters emit a QUOTED draw option, and the 2D plotter honours
 // its configured drawing arguments (pre-fix it emitted an unquoted, and for 2D empty, option).
 TEST_CASE("function plotters emit a quoted, honoured draw option", "[plotting]") {

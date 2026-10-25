@@ -239,8 +239,9 @@ An installed Geneva is best consumed through its CMake package:
   find_package(Geneva CONFIG REQUIRED)
   target_link_libraries(myTarget PRIVATE Geneva::geneva)
 
-The imported targets are Geneva::common, Geneva::hap, Geneva::courtier and
-Geneva::geneva; linking Geneva::geneva pulls in the layers beneath it, the C++23
+The imported targets are Geneva::common, Geneva::hap, Geneva::weft,
+Geneva::dietrich, Geneva::courtier and Geneva::geneva; linking Geneva::geneva
+pulls in the layers beneath it, the C++23
 requirement and the Boost dependency transitively.
 
 projects/geneva/quickstart/ is a working project of exactly this shape and the
@@ -282,8 +283,7 @@ sudo ./b2 -j$(nproc) \
    install
 
 To build only the components Geneva uses, add:
-   --with-atomic --with-filesystem --with-program_options \
-   --with-regex --with-serialization
+   --with-atomic --with-json --with-program_options --with-regex
 To match Geneva's compiler too, pass "--with-toolset=clang" to bootstrap.sh and
 "toolset=clang" to b2.
 

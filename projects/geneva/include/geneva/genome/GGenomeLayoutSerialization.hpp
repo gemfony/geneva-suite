@@ -303,6 +303,7 @@ void gem_archive_serialize(Archive &ar, ChannelLayout<T> &c) {
  * @param ar The archive to read from / write to.
  * @param l The layout to serialize.
  */
+//! [weft-layout-nonintrusive]
 template <class Archive>
 void gem_archive_serialize(Archive &ar, GGenomeLayout &l) {
     using Gem::Common::archive_named;
@@ -316,6 +317,7 @@ void gem_archive_serialize(Archive &ar, GGenomeLayout &l) {
         l.invalidateId();
     }
 }
+//! [weft-layout-nonintrusive]
 
 } /* namespace Gem::Geneva::Genome */
 

@@ -390,6 +390,7 @@ std::size_t GAntColonyOptimization::rouletteSelect() {
  * sampled from a Gaussian kernel. This is an ES-style mutation that reuses the inherited RNG (gr_) and
  * std::normal_distribution, exactly as GSepCmaEvolutionStrategy / GStandardPSO2011 do.
  */
+//! [acor-construct-ants]
 void GAntColonyOptimization::constructAnts() {
     for(std::size_t a = 0; a < n_ants_; ++a) {
         std::vector<double> x_new(n_fp_parms_, 0.);
@@ -425,6 +426,7 @@ void GAntColonyOptimization::constructAnts() {
         this->at(a)->mark_as_due_for_processing();
     }
 }
+//! [acor-construct-ants]
 
 /******************************************************************************/
 /**

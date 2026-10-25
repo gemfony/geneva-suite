@@ -95,6 +95,7 @@ public:
 	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from gen::GGenome)
 	  * @return A copy of the best individual found in the optimization run
 	  */
+    //! [results-accessor-signatures#1]
     template <typename individual_type>
         requires std::derived_from<individual_type, gen::GGenome>
     std::unique_ptr<individual_type> getBestGlobalIndividual() const {
@@ -102,6 +103,7 @@ public:
         return castBest_<individual_type>(
             this->getBestGlobalIndividual_(), "getBestGlobalIndividual");
     }
+    //! [results-accessor-signatures#1]
 
     /***************************************************************************/
     /**
@@ -113,6 +115,7 @@ public:
 	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from gen::GGenome)
 	  * @return A list of copies of the best individuals found in the optimization run
 	  */
+    //! [results-accessor-signatures#2]
     template <typename individual_type>
         requires std::derived_from<individual_type, gen::GGenome>
     std::vector<std::unique_ptr<individual_type>> getBestGlobalIndividuals() const {
@@ -139,6 +142,7 @@ public:
 
         return best_individuals;
     }
+    //! [results-accessor-signatures#2]
 
     /***************************************************************************/
     /**
@@ -153,6 +157,7 @@ public:
 	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from gen::GGenome)
 	  * @return A copy of the best individual found in the iteration
 	  */
+    //! [results-accessor-signatures#3]
     template <typename individual_type>
         requires std::derived_from<individual_type, gen::GGenome>
     std::unique_ptr<individual_type> getBestIterationIndividual() const {
@@ -160,6 +165,7 @@ public:
         return castBest_<individual_type>(
             this->getBestIterationIndividual_(), "getBestIterationIndividual");
     }
+    //! [results-accessor-signatures#3]
 
     /***************************************************************************/
     /**
@@ -171,6 +177,7 @@ public:
 	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from gen::GGenome)
 	  * @return A list of copies of the best individuals found in the iteration
 	  */
+    //! [results-accessor-signatures#4]
     template <typename individual_type>
         requires std::derived_from<individual_type, gen::GGenome>
     std::vector<std::unique_ptr<individual_type>> getBestIterationIndividuals() const {
@@ -198,6 +205,7 @@ public:
 
         return best_individuals;
     }
+    //! [results-accessor-signatures#4]
 
     /***************************************************************************/
     /**

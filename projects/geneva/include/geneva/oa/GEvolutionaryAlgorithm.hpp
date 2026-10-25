@@ -207,6 +207,7 @@ constexpr auto DEFAULTEASORTINGMODE = sortingMode::MUCOMMANU_SINGLEEVAL;
  * - K. Deb, A. Pratap, S. Agarwal, T. Meyarivan, "A Fast and Elitist Multiobjective Genetic Algorithm:
  *   NSGA-II", IEEE Trans. Evolutionary Computation 6(2):182-197, 2002 (the Pareto selection).
  */
+//! [geneva.oa.identifiers]
 class GEvolutionaryAlgorithm // NOLINT(cppcoreguidelines-special-member-functions)
   : public GOptimizationAlgorithmT<GEvolutionaryAlgorithm, GParChild>
   , public Gem::Common::GSelfTestable {
@@ -218,6 +219,7 @@ public:
     /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
      *  and the default second template argument of the algorithm factory scaffold. */
     using personality_traits_type = GEvolutionaryAlgorithm_PersonalityTraits;
+//! [geneva.oa.identifiers]
 
 private:
     ///////////////////////////////////////////////////////////////////////

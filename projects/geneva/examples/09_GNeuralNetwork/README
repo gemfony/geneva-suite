@@ -21,7 +21,7 @@ root -l ./DataSets/hyper_sphere.dat.C
 The DataSets directory is not shipped: it is created in the build directory when this
 example is built, by running the freshly built binary once per distribution, e.g.
 
-GNeuralNetwork --trainingDataFile ./DataSets/hyper_sphere.dat --traininDataType 2 --nDataSets 2000
+GNeuralNetwork --trainingDataFile ./DataSets/hyper_sphere.dat --trainingDataType 2 --nDataSets 2000
 
 (HYPERCUBE=1, HYPERSPHERE=2, AXISCENTRIC=3, SINUS=4). Each run writes the training set and
 its ROOT visualization macro. Regenerate a set with a different size or architecture at any

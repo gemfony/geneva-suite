@@ -88,12 +88,14 @@ public:
     }
 
     /** @brief The OA-owned adaption config: a Gauss adaptor on the double group, a flip adaptor on the int. */
+    //! [adaptors-mixed-channels]
     std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
         auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         cfg->groupInt32(0).flip(1.);
         return cfg;
     }
+    //! [adaptors-mixed-channels]
 
 protected:
     std::vector<double> evaluate() override {
@@ -262,11 +264,15 @@ int main(int argc, char **argv) {
 
     { // Per-group tuning: the structural policy (.init / .perimeter / adaptionMode(NEVER) -- a frozen,
       // "inactive" group) stays on the builder; the adaptor is authored on the config for the active groups.
+        //! [problem-handle-tuning#1]
         gen::GGenomeBuilder b;
         b.addDoubleGroup(2, -10., 10.).init(3.);
         b.addDoubleGroup(2, -10., 10.).perimeter(-1., 1.);
         b.addDoubleGroup(2, -10., 10.).adaptionMode(adaptionMode::NEVER); // frozen parameters
+        //! [problem-handle-tuning#1]
+        //! [problem-handle-tuning#3]
         auto genome = b.build();
+        //! [problem-handle-tuning#3]
         auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
         // Author the Gauss adaptor on every group; the frozen group (built adaptionMode::NEVER) is
         // inactive, so the adaption kernel skips it regardless.

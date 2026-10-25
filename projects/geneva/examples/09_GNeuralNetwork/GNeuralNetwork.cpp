@@ -50,7 +50,9 @@ using namespace Gem::Geneva;
 using namespace Gem::Courtier;
 using namespace Gem::Common;
 using namespace Gem::Hap;
+//! [go2-user-options#1]
 namespace po = boost::program_options;
+//! [go2-user-options#1]
 
 /******************************************************************************/
 /**
@@ -60,6 +62,7 @@ namespace po = boost::program_options;
 int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // Assemble additional command line options to be passed to Go2
+    //! [go2-user-options#2]
     gind::trainingDataType tdt = gind::trainingDataType::TDTNONE;
     std::string trainingDataFile = "./DataSets/hyper_sphere.dat";
     std::string architecture =
@@ -70,35 +73,38 @@ int main(int argc, char **argv) {
 
     // Assemble command line options
     boost::program_options::options_description user_options;
-    user_options.add_options() (
-		"traininDataType"
-		, po::value<gind::trainingDataType>(&tdt)->default_value(gind::trainingDataType::TDTNONE)
-		, "Specify training data to be produced: HYPERCUBE=1, HYPERSPHERE=2, AXISCENTRIC=3, SINUS=4"
-	)(
-		"trainingDataFile"
-		, po::value<std::string>(&trainingDataFile)->default_value(trainingDataFile)
-		, "The name of the file to which training data should be written"
-	)(
-		"architecture"
-		, po::value<std::string>(&architecture)->default_value(architecture)
-		, "The architecture of the network"
-	)(
-		"nDataSets"
-		, po::value<std::size_t>(&nDataSets)->default_value(nDataSets)
-		, "The number of data sets to be produced"
-	)(
-		"resultProgram"
-		, po::value<std::string>(&resultProgram)->default_value(resultProgram)
-		, "The name of the result program"
-	)(
-		"visualizationFile"
-		, po::value<std::string>(&visualizationFile)->default_value(visualizationFile)
-		, "The name of the visualization file"
-	);
+    user_options.add_options()(
+        "trainingDataType",
+        po::value<gind::trainingDataType>(&tdt)->default_value(gind::trainingDataType::TDTNONE),
+        "Specify training data to be produced: HYPERCUBE=1, HYPERSPHERE=2, AXISCENTRIC=3, SINUS=4"
+    )(
+        "trainingDataFile",
+        po::value<std::string>(&trainingDataFile)->default_value(trainingDataFile),
+        "The name of the file to which training data should be written"
+    )(
+        "architecture",
+        po::value<std::string>(&architecture)->default_value(architecture),
+        "The architecture of the network"
+    )(
+        "nDataSets",
+        po::value<std::size_t>(&nDataSets)->default_value(nDataSets),
+        "The number of data sets to be produced"
+    )(
+        "resultProgram",
+        po::value<std::string>(&resultProgram)->default_value(resultProgram),
+        "The name of the result program"
+    )(
+        "visualizationFile",
+        po::value<std::string>(&visualizationFile)->default_value(visualizationFile),
+        "The name of the visualization file"
+    );
+    //! [go2-user-options#2]
 
     //---------------------------------------------------------------------------
     // Create the main optimizer-wrapper
+    //! [go2-user-options#3]
     Go2 go(argc, argv, "./config/Go2.json", user_options);
+    //! [go2-user-options#3]
 
     //---------------------------------------------------------------------------
     // Produce data sets if we have been asked to do so, then leave
@@ -119,8 +125,7 @@ int main(int argc, char **argv) {
     }
 
     // Store the trainingDataFile in the global options, so they can be accessed by the individuals
-        neuralNetworkOptions()->set("trainingDataFile", trainingDataFile);
-   
+    neuralNetworkOptions()->set("trainingDataFile", trainingDataFile);
 
     //---------------------------------------------------------------------------
     // Client mode

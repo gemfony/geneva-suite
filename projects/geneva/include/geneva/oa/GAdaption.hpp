@@ -262,10 +262,12 @@ inline std::size_t adaptIndividual(
     detail::GAuxiliaryStore &scratch,
     const GAdaptionConfigBase &cfg
 ) {
+    //! [hap-lease-idiom]
     // The candidate holds no RNG of its own -- lease a proxy for the duration of this adaption. The
     // lease is thread-scoped, so this composes with the EA's parallel adaptChildren_.
     auto             lease = Gem::Hap::randomLeasePool().acquire();
     Gem::Hap::GRandomBase &gr = *lease;
+    //! [hap-lease-idiom]
 
     const std::size_t max_unsuccessful = cfg.getMaxUnsuccessfulAdaptions();
     const std::size_t max_retries = cfg.getMaxRetriesUntilValid();
@@ -538,6 +540,7 @@ inline double readRepresentativeMaxSigma(const GAdaptionConfigBase &cfg, double 
  * The config is validated against the genome's structure and copied (its base data is all the
  * data-oriented adaption needs).
  */
+//! [adaptors-standalone]
 class StandaloneAdapter {
 public:
     StandaloneAdapter(const detail::GGenome &ind, const std::shared_ptr<GAdaptionConfigBase> &cfg)
@@ -552,6 +555,7 @@ private:
     detail::GAuxiliaryStore scratch_;
     GAdaptionConfigBase cfg_;
 };
+//! [adaptors-standalone]
 
 /******************************************************************************/
 

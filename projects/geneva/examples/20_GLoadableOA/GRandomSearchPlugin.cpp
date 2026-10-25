@@ -53,8 +53,10 @@
 #include "GRandomSearch_PersonalityTraits.hpp"
 
 // Serialization registrations for the algorithm and its personality traits (checkpoint payloads).
+//! [modules-oa-glue#1]
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch) // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch_PersonalityTraits) // NOLINT
+//! [modules-oa-glue#1]
 
 /**
  * @brief The module manifest entry point. Resolved by the loader (Gem::Geneva::openModule / loadModule) via
@@ -62,6 +64,7 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch_Perso
  *
  * @return This module's process-lifetime manifest (a single OA contribution)
  */
+//! [modules-oa-glue#2]
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     // The factory is the GOptimizationAlgorithmFactoryT scaffold instantiated for this algorithm, spelled
@@ -74,3 +77,4 @@ extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifes
             Gem::Geneva::OptimizationAlgorithms::GRandomSearch>,
         "GRandomSearch">();
 }
+//! [modules-oa-glue#2]

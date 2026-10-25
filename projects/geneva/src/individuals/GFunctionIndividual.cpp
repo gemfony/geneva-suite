@@ -107,6 +107,7 @@ void GDoubleSumConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder 
  * @param p A pointer to the individual whose floating-point parameters are summed and checked
  * @return 0 if the parameter sum is below the constant c_; otherwise sum/c_ as a penalty measure
  */
+//! [constraints:sum-check]
 double GDoubleSumConstraint::check_(const gen::GGenome *p) const {
     std::vector<double> par_vec;
     p->streamlineFP(par_vec);
@@ -116,9 +117,9 @@ double GDoubleSumConstraint::check_(const gen::GGenome *p) const {
     if(sum < c_) {
         return 0.;
     }
-            return sum / c_;
-   
+    return sum / c_;
 }
+//! [constraints:sum-check]
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,8 +167,7 @@ double GDoubleSumGapConstraint::check_(const gen::GGenome *p) const {
     if(sum >= (c_ - gap_) && sum <= (c_ + gap_)) {
         return 0.;
     }
-            return 1. + (fabs(sum - c_) / c_);
-   
+    return 1. + (fabs(sum - c_) / c_);
 }
 
 /******************************************************************************/
@@ -587,6 +587,7 @@ gen::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
  * @param c The Config supplying the adaptor parameters (sigmas, ad_prob, bi-gaussian flag, ...)
  * @return A shared pointer to the populated OA-owned adaption configuration
  */
+//! [adaptors-build-config]
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GFunctionIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -611,6 +612,7 @@ GFunctionIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Confi
     }
     return cfg;
 }
+//! [adaptors-build-config]
 
 /******************************************************************************/
 /**

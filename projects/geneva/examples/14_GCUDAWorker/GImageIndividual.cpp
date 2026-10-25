@@ -279,6 +279,7 @@ void GImageIndividual::applyConfig(GImageIndividual &ind, const Config &c) {
 	 * @param c The Config supplying the main / location Gauss adaptor parameters
 	 * @return A shared pointer to the populated OA-owned adaption config
 	 */
+//! [adaptors-by-label]
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GImageIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -293,6 +294,7 @@ GImageIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &
     );
     return cfg;
 }
+//! [adaptors-by-label]
 
 /*******************************************************************************************/
 /**

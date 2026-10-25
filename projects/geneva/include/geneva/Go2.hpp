@@ -132,7 +132,9 @@ public:
      * @brief Checks whether this object is running in client mode.
      * @return True if this object represents a network client, false otherwise
      */
+    //! [coding-naming-example#1]
     bool clientMode() const;
+    //! [coding-naming-example#1]
 
     /**
      * @brief Specifies whether only the best individuals of a population should be copied to the next algorithm.
@@ -234,7 +236,9 @@ public:
      * @brief Sets whether this object runs in client mode.
      * @param client_mode If true, this object represents a network client
      */
+    //! [coding-naming-example#2]
     void setClientMode(bool client_mode);
+    //! [coding-naming-example#2]
 
     /**
      * @brief Retrieves the number of random number production threads.
@@ -548,8 +552,10 @@ private:
 
     /***************************************************************************/
     // These parameters can enter the object through the constructor
+    //! [coding-naming-example#3]
     bool client_mode_ =
         GO2_DEF_CLIENTMODE; ///< Specifies whether this object represents a network client
+    //! [coding-naming-example#3]
     bool update_configs_mode_ =
         false; ///< --update-configs: refresh every config this binary owns (GParserBuilder update-in-place), then exit without optimizing
     std::string config_filename_ =

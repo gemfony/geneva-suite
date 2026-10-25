@@ -140,6 +140,7 @@ int main(int argc, char **argv) {
     // Register pluggable optimization monitors, if requested by the user
 
     // Register a progress plotter with the global optimization algorithm factory
+    //! [monitors:register-plotter]
     if(monitorSpec != "empty") {
         std::shared_ptr<GProgressPlotter> const progplot_ptr(new GProgressPlotter());
 
@@ -160,6 +161,7 @@ int main(int argc, char **argv) {
 
         go.registerPluggableOM(progplot_ptr);
     }
+    //! [monitors:register-plotter]
 
     if(logAll != "empty") {
         std::shared_ptr<GAllSolutionFileLogger> const allSolutionLogger_ptr(

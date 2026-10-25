@@ -43,9 +43,12 @@
 
 #include "dietrich/GPlotDesigner.hpp"
 
+//! [dietrich-quickstart#1]
 using namespace Gem::Dietrich;
+//! [dietrich-quickstart#1]
 
 int main() {
+    //! [dietrich-quickstart#2]
     // A 1x1 canvas (one pad) titled for the figure.
     GDataLog log("Dietrich quickstart: y = sin(x)", 1, 1);
 
@@ -70,6 +73,7 @@ int main() {
     log.writeToFile("quickstart.py",  plotBackend::MATPLOTLIB); // a matplotlib script
     log.writeToFile("quickstart.m",   plotBackend::OCTAVE);     // an Octave / MATLAB script
     log.writeToFile("quickstart.csv", plotBackend::DATA);       // the raw data (CSV + manifest)
+    //! [dietrich-quickstart#2]
 
     std::cout << "quickstart: wrote quickstart.{C,gp,py,m,csv}\n";
     return 0;

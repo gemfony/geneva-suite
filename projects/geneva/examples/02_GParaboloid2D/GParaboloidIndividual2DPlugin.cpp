@@ -46,7 +46,9 @@
 
 #include "GParaboloidIndividual2D.hpp"
 
+//! [modules-manifest-symbol]
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+//! [modules-manifest-symbol]
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GParaboloidIndividual2D>,

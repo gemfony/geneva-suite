@@ -505,6 +505,7 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
  *
  * @return The best fitness found in this iteration
  */
+//! [spso-cycle]
 std::tuple<double, double> GStandardPSO2011::cycleLogic_() {
     if(inFirstIteration() || not global_best_improved_) {
         buildTopology();
@@ -518,6 +519,7 @@ std::tuple<double, double> GStandardPSO2011::cycleLogic_() {
 
     return updateBests();
 }
+//! [spso-cycle]
 
 /******************************************************************************/
 /**

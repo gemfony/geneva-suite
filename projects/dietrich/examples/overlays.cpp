@@ -47,6 +47,7 @@ int main() {
     std::mt19937 rng(20260623);
     std::normal_distribution<double> noise(0., 0.3);
 
+    //! [dietrich-overlays]
     GDataLog log("Measured vs. fitted", 1, 1);
 
     // Primary series: the noisy measurements, shown as individual markers.
@@ -80,6 +81,7 @@ int main() {
 
     log.writeToFile("overlays.C",  plotBackend::ROOT);
     log.writeToFile("overlays.gp", plotBackend::GNUPLOT);
+    //! [dietrich-overlays]
 
     std::cout << "overlays: wrote overlays.{C,gp}\n";
     return 0;

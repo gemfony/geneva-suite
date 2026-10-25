@@ -82,11 +82,13 @@ ENDIF()
 # runtime-loadable module lib<name>.so (loaded by the generic optimizer via --individual). One
 # GEM_REGISTER_ARCHIVABLE (in the individual's own .cpp) serves both; each module-only glue TU carries the
 # extern "C" manifest entry point.
+#! [modules-cmake-declare]
 GENEVA_DECLARE_INDIVIDUAL(GLineFitIndividual
 	MODE    both
 	SOURCES individuals/GLineFitIndividual.cpp
 	PLUGIN  individuals/GLineFitIndividualPlugin.cpp
 	CONFIG  ./config/GLineFitIndividual.json)
+#! [modules-cmake-declare]
 
 GENEVA_DECLARE_INDIVIDUAL(GNeuralNetworkIndividual
 	MODE    both

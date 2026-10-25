@@ -42,10 +42,12 @@ namespace Gem::Courtier {
  * that stayed MISSING (never returned) beyond the resubmission budget / was reclassified as a
  * hidden FAILED.
  */
+//! [courtier-submission-policy#1]
 enum class on_unresolved : Gem::Common::ENUMBASETYPE {
     fatal = 0, ///< Cannot continue -- terminate the program (e.g. gradient methods need every value)
     clone = 1  ///< Refill the slot with a clone of a successfully evaluated item (population-based, tolerant)
 };
+//! [courtier-submission-policy#1]
 
 /******************************************************************************/
 /**
@@ -62,6 +64,7 @@ enum class on_unresolved : Gem::Common::ENUMBASETYPE {
  * *poison* individual that crashes the client; once its resubmission budget is exhausted it becomes
  * unresolved rather than being resubmitted forever (see GBaseConsumerT::processBatch).
  */
+//! [courtier-submission-policy#2]
 struct GSubmissionPolicy {
     /** @brief What to do with a slot that cannot be successfully evaluated */
     on_unresolved unresolved_action = on_unresolved::fatal;
@@ -75,6 +78,7 @@ struct GSubmissionPolicy {
 
     /** @brief Floor under every policy: if NOTHING usable came back at all, terminate fatally */
     bool fatal_on_none_returned = true;
+//! [courtier-submission-policy#2]
 
     /***************************************************************************/
     /** @brief GD/CGD and the parameter scan: every slot must be successfully evaluated; resubmit

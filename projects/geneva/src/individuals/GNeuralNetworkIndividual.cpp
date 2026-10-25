@@ -302,7 +302,7 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
             << "The file is most likely stale or was written by an incompatible version." << '\n'
             << "Regenerate it with:" << '\n'
             << "  GNeuralNetwork --trainingDataFile " << network_data_file
-            << " --traininDataType <1-4> --nDataSets <N>" << '\n'
+            << " --trainingDataType <1-4> --nDataSets <N>" << '\n'
         );
     }
 

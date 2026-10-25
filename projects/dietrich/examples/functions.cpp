@@ -48,6 +48,7 @@
 using namespace Gem::Dietrich;
 
 int main() {
+    //! [dietrich-functions]
     const std::tuple<double, double> rx(-std::numbers::pi, std::numbers::pi);
     const std::tuple<double, double> ry(-std::numbers::pi, std::numbers::pi);
 
@@ -69,6 +70,7 @@ int main() {
     gpd.registerPlotter(sinc);
     gpd.registerPlotter(surface);
     gpd.writeToFile("functions.C"); // the default (ROOT) backend
+    //! [dietrich-functions]
 
     std::cout << "functions: wrote functions.C (function plotters are a ROOT-only capability;\n"
               << "           the gnuplot / matplotlib / Octave backends would reject them)\n";

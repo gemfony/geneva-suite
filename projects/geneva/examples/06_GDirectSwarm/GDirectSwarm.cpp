@@ -362,10 +362,12 @@ int main(int argc, char **argv) {
     /****************************************************************************/
     // We can now start creating populations. We refer to them through the base class
 
+    //! [swarm-direct-setup#1]
     // This smart pointer will hold the different population types
     std::shared_ptr<oa::GSwarmAlgorithm> const pop_ptr(
         new oa::GSwarmAlgorithm(nNeighborhoods, nNeighborhoodMembers)
     );
+    //! [swarm-direct-setup#1]
 
     // Build and register the ONE process-wide consumer, depending on the requested consumer type.
     // The algorithm submits through it automatically.
@@ -434,6 +436,7 @@ int main(int argc, char **argv) {
         pop_ptr->push_back(parentIndividual->clone());
     }
 
+    //! [swarm-direct-setup#2]
     // Specify some general population settings
     pop_ptr->setMaxIteration(maxIterations);
     pop_ptr->setMaxTime(std::chrono::minutes(maxMinutes));
@@ -443,9 +446,12 @@ int main(int argc, char **argv) {
     pop_ptr->setCNeighborhood(cNeighborhood);
     pop_ptr->setCVelocity(cVelocity);
     pop_ptr->setUpdateRule(ur);
+    //! [swarm-direct-setup#2]
 
+    //! [swarm-direct-setup#3]
     // Do the actual optimization
     pop_ptr->optimize();
+    //! [swarm-direct-setup#3]
 
     /****************************************************************************/
     // Do something with the best individual found
