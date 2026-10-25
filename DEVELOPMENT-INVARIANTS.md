@@ -510,6 +510,22 @@ this tree carries only these hooks.
 tiny programs, tracked JSON) but only work if nobody treats them as removable clutter — and the
 people in a position to remove them work here, not in the manual repository.
 
+## 28. Larger work starts from a commit — a clean rollback point, and nobody else's changes discarded
+
+Before a larger piece of work begins — a restructuring, a multi-file change, anything that might
+have to be undone as a whole — the working tree is committed first, so that a clean rollback point
+exists. Uncommitted changes found at that moment are clarified, not assumed: they may be someone
+else's work in progress, and they are committed (or set aside by their owner) before the new work
+touches the tree.
+
+Undoing the work then means returning to that commit, or restoring exactly the files the work
+changed after diffing each one. A blanket `git reset --hard`, `git checkout .` or `git restore` over
+changes whose origin has not been checked is never the way back.
+
+*Why:* without a rollback point, "revert" has no clean target, and a reset over a mixed working tree
+destroys whatever else was in it. That happened once, to uncommitted manual edits of the
+maintainer's; they survived only because the editor kept a local history.
+
 ---
 
 *Add new invariants below as the maintainer establishes them. Keep each rule short, mandatory, and
