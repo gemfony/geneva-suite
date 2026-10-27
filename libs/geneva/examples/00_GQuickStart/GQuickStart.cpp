@@ -66,11 +66,8 @@ namespace oa = Gem::Geneva::OptimizationAlgorithms;    // algorithms and their a
 
 namespace first {
 
-//! [quickstart-tour-class]
-/**
- * A candidate solution of the problem: two floating-point parameters x and y, each between -5 and
- * 5, judged by how far f(x, y) = (x - 1)^2 + (y + 2)^2 lies above its minimum.
- */
+//! [quickstart-tour-class#1]
+/** A candidate: x and y in [-5, 5], judged by f(x, y) = (x - 1)^2 + (y + 2)^2 */
 class GFirstProblem final : public gen::GGenomeT<GFirstProblem> {
 public:
     using genome_only = void; // the genome is all the state there is
@@ -101,11 +98,13 @@ protected:
         return {dx * dx + dy * dy};
     }
 };
-//! [quickstart-tour-class]
+//! [quickstart-tour-class#1]
 
 } /* namespace first */
 
+//! [quickstart-tour-class#2]
 GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
+//! [quickstart-tour-class#2]
 
 /******************************************************************************/
 
