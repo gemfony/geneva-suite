@@ -124,6 +124,11 @@ RUN cd /tmp \\
  && cd / \\
  && rm -rf /tmp/boost_{BOOST_UNDERSCORE} /tmp/{BOOST_TARBALL}
 
+# The jobs run as root inside the container, which Open MPI refuses unless told
+# otherwise; without this every mpirun-launched test fails before it starts.
+ENV OMPI_ALLOW_RUN_AS_ROOT=1
+ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
 ENV BOOST_ROOT={boost_root}
 ENV LD_LIBRARY_PATH={boost_root}/lib:$LD_LIBRARY_PATH
 
