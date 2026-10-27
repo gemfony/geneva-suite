@@ -141,13 +141,14 @@ TEST_CASE("GProgressPlotterT writes a valid ROOT macro when driven by a real EA"
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT names its axes and projects a 2-d profile's surface", "[monitor][plot][oa]") {
+TEST_CASE("GProgressPlotterT names its axes and draws a 2-d profile over the function's landscape", "[monitor][plot][oa]") {
     const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_projection.C";
     std::filesystem::remove(out);
 
     auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
     monitor->setProfileSpec("d(0, -5, 5), d(1, -5, 5)");
     monitor->setVariableNames({"x", "y"});
+    monitor->setLandscapeResolution(7);
     monitor->setSurfaceProjection(Gem::Dietrich::surfaceProjection::FLOOR);
     monitor->setFileName(out.string());
     REQUIRE(monitor->getVariableNames() == std::vector<std::string>{"x", "y"});
@@ -157,6 +158,7 @@ TEST_CASE("GProgressPlotterT names its axes and projects a 2-d profile's surface
     Gem::Geneva::GProgressPlotterT<double> const copy(*monitor);
     CHECK(copy.getVariableNames() == monitor->getVariableNames());
     CHECK(copy.getSurfaceProjection() == monitor->getSurfaceProjection());
+    CHECK(copy.getLandscapeResolution() == 7);
 
     auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(12, 4);
@@ -175,8 +177,9 @@ TEST_CASE("GProgressPlotterT names its axes and projects a 2-d profile's surface
     CHECK(content.contains("SetTitle(\"x\")"));
     CHECK(content.contains("SetTitle(\"y\")"));
     CHECK_FALSE(content.contains("variable id"));
-    // ... and the candidates span a surface whose colour map lies on the floor (SURF1Z, then the
-    // floor cells), with the candidates themselves drawn on top.
+    // ... the function itself is drawn as a surface sampled on the 7 x 7 grid, with its colour map on
+    // the floor (SURF1Z, then the floor cells), and the candidates on top of it.
+    CHECK(content.contains("TGraph2D *graph__0 = new TGraph2D(49,"));
     CHECK(content.contains("SURF1Z"));
     CHECK(content.contains("TPolyLine"));
     CHECK(content.contains("evaluated candidates"));

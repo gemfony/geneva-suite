@@ -383,7 +383,8 @@ class GProgressPlotterT // NOLINT(cppcoreguidelines-special-member-functions)
             Gem::Common::make_member("observe_boundaries_", self.observe_boundaries_),
             Gem::Common::make_member("add_print_command_", self.add_print_command_),
             Gem::Common::make_member("variable_names_", self.variable_names_),
-            Gem::Common::make_member("projection_", self.projection_)
+            Gem::Common::make_member("projection_", self.projection_),
+            Gem::Common::make_member("landscape_resolution_", self.landscape_resolution_)
         );
     }
     ///////////////////////////////////////////////////////////////////////
@@ -435,7 +436,8 @@ public:
       , observe_boundaries_(cp.observe_boundaries_)
       , add_print_command_(cp.add_print_command_)
       , variable_names_(cp.variable_names_)
-      , projection_(cp.projection_) {
+      , projection_(cp.projection_)
+      , landscape_resolution_(cp.landscape_resolution_) {
         // data_log_ is transient run state (rebuilt in INFOINIT) and is not copied.
         Gem::Common::copyCloneableObjectsContainer(cp.fp_prof_var_vec_, fp_prof_var_vec_);
     }
@@ -506,12 +508,11 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief For two profiled variables: draws the evaluated candidates as a surface with its
-	  * colour map projected onto the floor or the ceiling of the plot box, the candidates
-	  * themselves on top of it. NONE (the default) draws the candidates alone. Ignored for one or
-	  * three profiled variables.
+	  * @brief For two profiled variables with a landscape (setLandscapeResolution()): where the
+	  * landscape's colour map is drawn -- on the floor or the ceiling of the plot box, or not at all
+	  * (NONE, the default).
 	  *
-	  * @param projection Where the surface's colour map is drawn
+	  * @param projection Where the landscape's colour map is drawn
 	  */
     void setSurfaceProjection(Gem::Dietrich::surfaceProjection projection) {
         projection_ = projection;
@@ -525,6 +526,31 @@ public:
 	  */
     [[nodiscard]] Gem::Dietrich::surfaceProjection getSurfaceProjection() const {
         return projection_;
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief For two profiled variables: draws the objective function itself as a landscape under the
+	  * evaluated candidates, sampled on a grid of @p points_per_axis x @p points_per_axis points over
+	  * the profiled ranges. At the end of the run the plotter evaluates a copy of the best candidate at
+	  * every grid point, with the profiled variables set to the grid values and all others left as
+	  * they are -- so the landscape is the slice through the best solution, and it costs
+	  * points_per_axis^2 evaluations, made locally. 0 (the default) draws the candidates alone.
+	  *
+	  * @param points_per_axis The number of grid points along each of the two axes (0: no landscape)
+	  */
+    void setLandscapeResolution(std::size_t points_per_axis) {
+        landscape_resolution_ = points_per_axis;
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief Retrieves the number of landscape grid points per axis (0: no landscape).
+	  *
+	  * @return The landscape resolution
+	  */
+    [[nodiscard]] std::size_t getLandscapeResolution() const {
+        return landscape_resolution_;
     }
 
     /***************************************************************************/
@@ -769,7 +795,7 @@ private:
             // and the plotters are materialized only at INFOEND via GDataLog.
             data_log_.emplace(canvas_label_, 1, 1);
             have_series_ = true;
-            surface_series_.reset();
+            landscape_series_.reset();
             switch(this->nProfileVars()) {
             case 1: {
                 Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
@@ -787,17 +813,17 @@ private:
                 spec.y_label = this->getLabel(fp_prof_var_vec_[1]);
                 spec.z_label = "Fitness";
                 spec.columns = {"x", "y", "z"};
-                if(projection_ == Gem::Dietrich::surfaceProjection::NONE) {
+                if(landscape_resolution_ < 2) {
                     active_series_ = data_log_->declareSeries(spec);
                 } else {
-                    // The candidates span a surface whose colour map lies on the floor or ceiling;
-                    // the candidates themselves are drawn on top of it.
+                    // The objective function as a surface (filled in at INFOEND), its colour map
+                    // projected as asked; the evaluated candidates are drawn on top of it.
                     spec.projection = projection_;
-                    surface_series_ = data_log_->declareSeries(spec);
+                    landscape_series_ = data_log_->declareSeries(spec);
                     Gem::Dietrich::GPlotSpec points(Gem::Dietrich::plotKind::graph_3d);
                     points.name = "evaluated candidates";
                     points.columns = {"x", "y", "z"};
-                    active_series_ = data_log_->overlaySeries(*surface_series_, points);
+                    active_series_ = data_log_->overlaySeries(*landscape_series_, points);
                 }
             } break;
 
@@ -845,6 +871,9 @@ private:
         } break;
 
         case Gem::Geneva::infoMode::INFOEND: {
+            if(data_log_.has_value() && landscape_series_) {
+                this->scanLandscape_(*goa);
+            }
             if(data_log_.has_value()) {
                 // Make sure 1-D data is sorted (the GGraph2D::sortX() equivalent).
                 if(have_series_ && 1 == this->nProfileVars()) {
@@ -860,6 +889,61 @@ private:
             data_log_.reset();
         } break;
         };
+    }
+
+    /************************************************************************/
+    /**
+     * @brief Samples the objective function on the landscape grid and fills the landscape series.
+     *
+     * A copy of the best candidate is evaluated at every grid point, with the two profiled variables
+     * set to the grid values and all other parameters left as they are; the evaluation is made here,
+     * locally, not through the consumer.
+     *
+     * @param goa The optimization algorithm whose best candidate the landscape is a slice through
+     */
+    void scanLandscape_(oa::GOptimizationAlgorithmBase const &goa) {
+        auto const best =
+            goa.Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+        if(not best) {
+            return;
+        }
+        auto probe = best->clone();
+
+        std::vector<fp_type> values;
+        probe->template streamline<fp_type>(values);
+        const std::size_t ix = std::get<2>(fp_prof_var_vec_[0].var);
+        const std::size_t iy = std::get<2>(fp_prof_var_vec_[1].var);
+        if(ix >= values.size() || iy >= values.size()) {
+            return;
+        }
+
+        // The grid covers the profiled range, narrowed to the range the parameter itself may take.
+        // Its points sit at the centres of n x n cells, so none lies on the excluded upper boundary
+        // of a half-open parameter range.
+        std::vector<fp_type> lower;
+        std::vector<fp_type> upper;
+        probe->template boundaries<fp_type>(lower, upper);
+        const double x_lo = std::max<double>(fp_prof_var_vec_[0].lowerBoundary, lower.at(ix));
+        const double x_hi = std::min<double>(fp_prof_var_vec_[0].upperBoundary, upper.at(ix));
+        const double y_lo = std::max<double>(fp_prof_var_vec_[1].lowerBoundary, lower.at(iy));
+        const double y_hi = std::min<double>(fp_prof_var_vec_[1].upperBoundary, upper.at(iy));
+        const auto n = static_cast<double>(landscape_resolution_);
+        // NOLINTNEXTLINE(bugprone-unchecked-optional-access) -- called only with a data log present
+        auto &data_log = *data_log_;
+        for(std::size_t i = 0; i < landscape_resolution_; ++i) {
+            const double x = x_lo + (x_hi - x_lo) * (static_cast<double>(i) + 0.5) / n;
+            for(std::size_t j = 0; j < landscape_resolution_; ++j) {
+                const double y = y_lo + (y_hi - y_lo) * (static_cast<double>(j) + 0.5) / n;
+                values[ix] = static_cast<fp_type>(x);
+                values[iy] = static_cast<fp_type>(y);
+                probe->template assignValueVector<fp_type>(values);
+                probe->process();
+                const double f = oa::GBasePluggableOM::use_raw_evaluation_
+                    ? probe->raw_fitness(0)
+                    : probe->transformed_fitness(0);
+                data_log.append(*landscape_series_, std::tuple<double, double, double>(x, y, f));
+            }
+        }
     }
 
     /************************************************************************/
@@ -911,12 +995,6 @@ private:
                 active_series_,
                 std::tuple<double, double, double>(vals[0], vals[1], primary_fitness)
             );
-            if(surface_series_) {
-                data_log.append(
-                    *surface_series_,
-                    std::tuple<double, double, double>(vals[0], vals[1], primary_fitness)
-                );
-            }
             break;
         case 3:
             data_log.append(
@@ -943,7 +1021,7 @@ private:
     std::optional<Gem::Dietrich::GDataLog> data_log_;
     Gem::Dietrich::GDataLog::SeriesId active_series_ = 0; ///< the series declared for this run
     std::optional<Gem::Dietrich::GDataLog::SeriesId>
-        surface_series_; ///< the projected surface under the candidates, if one was asked for
+        landscape_series_; ///< the objective function's landscape under the candidates, if one was asked for
     bool have_series_ = false; ///< whether a renderable series was declared (nProfileVars 1..3)
 
     std::string file_name_ = std::string(
@@ -962,7 +1040,8 @@ private:
         false; ///< Asks the GPlotDesigner to add a print command to result files
     std::vector<std::string> variable_names_; ///< axis names of the profiled variables, in profile order
     Gem::Dietrich::surfaceProjection projection_ =
-        Gem::Dietrich::surfaceProjection::NONE; ///< where a 2-d profile's surface map is drawn
+        Gem::Dietrich::surfaceProjection::NONE; ///< where a 2-d profile's landscape map is drawn
+    std::size_t landscape_resolution_ = 0; ///< grid points per axis of the 2-d landscape (0: none)
 };
 
 /******************************************************************************/
