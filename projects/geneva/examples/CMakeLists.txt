@@ -28,6 +28,7 @@
 ################################################################################
 
 SET(DEPENDENCIES
+		GQuickStart
 		GSimpleOptimizer
 		GParaboloid2D
 		GParameterObjectUsagePatterns
@@ -58,6 +59,7 @@ IF(GENEVA_GPU_CONSUMER_ENABLED)
 		GCUDAWorker)
 ENDIF()
 
+ADD_SUBDIRECTORY( 00_GQuickStart )
 ADD_SUBDIRECTORY( 01_GSimpleOptimizer )
 # The generic optimizer (example 18) is the shared runtime driver the collapsed, load-from-disk examples
 # (02/04/07, ...) run their problem modules on; it is configured first so those examples can depend on it
@@ -126,6 +128,7 @@ OPTION(GENEVA_UPDATE_CONFIGS
 
 IF(GENEVA_UPDATE_CONFIGS)
 	SET(GENEVA_UPDATE_CONFIG_TARGETS
+			GQuickStart                    # 00
 			GSimpleOptimizer               # 01
 			GParaboloid2D                  # 02
 			GMultiCriterionParabola        # 04

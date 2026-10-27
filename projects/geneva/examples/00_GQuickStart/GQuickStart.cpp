@@ -1,5 +1,5 @@
 /**
- * @file first_problem.cpp
+ * @file GQuickStart.cpp
  */
 
 /********************************************************************************
@@ -32,18 +32,19 @@
  ********************************************************************************/
 
 /**
- * The manual's quick start in one file: a complete, minimal optimization problem and the program
- * that solves it.
+ * The quick start in one file: a small, complete optimization problem and the program that solves
+ * it. This is the first example to read, and the one the manual's Quick Start chapter walks through
+ * line by line (the //! [quickstart-tour-*] markers bracket the regions it quotes).
  *
  * The problem is a bowl, f(x, y) = (x - 1)^2 + (y + 2)^2, whose minimum f = 0 lies at (1, -2) -- a
  * known answer, so a reader can check what the run reports. The program hands the problem to Go2,
  * lets the default algorithm (an evolutionary algorithm) search it on all cores, records the search
- * with a progress plotter (written to progressScan.C, a ROOT macro the manual renders), and prints
- * the best solution found.
+ * with a progress plotter (written to progressScan.C, a ROOT macro), and prints the best solution
+ * found.
  *
- * Like every documentation program it runs as a test. Geneva's random numbers are not reproducible
- * from a seed (DEVELOPMENT-INVARIANTS.md, Invariant 18), so the check at the end is a tolerance on
- * the known minimum, not an exact value.
+ * The example runs as a test. Geneva's random numbers are not reproducible from a seed
+ * (DEVELOPMENT-INVARIANTS.md, Invariant 18), so the check at the end is a tolerance on the known
+ * minimum, not an exact value.
  */
 
 #include <cmath>
@@ -138,7 +139,7 @@ int main(int argc, char **argv) {
     // A tolerance on the known minimum at (1, -2), not an exact value (Invariant 18).
     const bool found = std::abs(xy[0] - 1.) < 0.1 && std::abs(xy[1] + 2.) < 0.1;
     if(not found) {
-        std::cerr << "first_problem: the search did not find the minimum at (1, -2)\n";
+        std::cerr << "GQuickStart: the search did not find the minimum at (1, -2)\n";
     }
     return found ? 0 : 1;
 }

@@ -1,0 +1,42 @@
+00_GQuickStart
+==============
+
+A short but complete Geneva program, the one the manual's Quick Start chapter
+walks through. A single source file, GQuickStart.cpp, holds
+
+  * the problem: a class FirstProblem with two floating-point parameters x and
+    y in [-5, 5], whose evaluate() returns f(x, y) = (x - 1)^2 + (y + 2)^2;
+  * how the evolutionary algorithm mutates them (adaptionConfig());
+  * a main() that hands the problem to Go2, records the search with a progress
+    plotter, runs it and prints the best solution found.
+
+The minimum is known in advance -- f = 0 at (1, -2) -- so the result can be
+checked by eye; the program also checks it itself and exits non-zero if the
+search missed it.
+
+Running it
+----------
+
+From this directory in the build tree:
+
+  ./GQuickStart
+
+The build has placed the configuration files with their default values in
+./config/; a copy of the program elsewhere writes them on its first run. The
+default algorithm is an evolutionary algorithm, and the candidates are
+evaluated on all cores. Useful options:
+
+  ./GQuickStart -a swarm      another algorithm (or a chain, e.g. -a ea,swarm)
+  ./GQuickStart --help        every option
+
+After the run, progressScan.C holds every evaluated candidate over the two
+parameters; draw it with ROOT:
+
+  root -l progressScan.C
+
+Where to go next
+----------------
+
+01_GSimpleOptimizer runs the same kind of search on a choice of standard test
+functions from the command line. For a project of your own, outside this tree,
+start from ../../quickstart, which builds against an installed Geneva.

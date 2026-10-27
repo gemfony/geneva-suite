@@ -499,7 +499,10 @@ decoration or convenience:
 - **Documentation programs** live under `projects/<lib>/docprograms/`, never in `examples/` — an
   example teaches a user, a docu-program backs a listing. Each links its library's own dependency
   closure only and is registered as an S-size test, so a docu-program that stops compiling or stops
-  doing what the manual says turns a gate red. The directory's README states the contract.
+  doing what the manual says turns a gate red. The directory's README states the contract. The
+  converse is allowed: where the manual walks through an example *as the example* (the Quick Start
+  and `examples/00_GQuickStart`), it quotes the example directly rather than a docu-program copy of
+  it, so the code has one home (Inv 20).
 - **The tracked `docs/config-reference/` JSONs** are the source the manual renders its configuration
   tables from; they stay tracked and are regenerated, never hand-edited.
 

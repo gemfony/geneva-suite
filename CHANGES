@@ -23,7 +23,8 @@ changes are itemized. In short -- checkpoints and binary archives from 1.11 do n
 definitions must move to the flat-genome / evaluate() model, configuration files are strict JSON.
 
 The GStarter starting point is now the self-contained quickstart in projects/geneva/quickstart/,
-built standalone against an installed Geneva; the numbered examples are renumbered contiguously.
+built standalone against an installed Geneva; the numbered examples are renumbered and start with
+00_GQuickStart, a short complete program that the manual's Quick Start walks through.
 
 Preconditions (INSTALL has the full details and the build instructions):
 - A 64-bit x86-64 or AArch64 CPU. SIMD (AVX2 / NEON) and a CUDA GPU are used when present, never

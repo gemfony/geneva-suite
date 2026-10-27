@@ -12,6 +12,13 @@ individual aspects of the library.
 
 The following examples are provided:
 
+00_GQuickStart:
+---------------
+
+A short but complete program: one problem class with two parameters and a known
+minimum, handed to Go2, searched, plotted and read out. The manual's Quick Start
+chapter walks through it line by line; start here.
+
 01_GSimpleOptimizer:
 --------------------
 

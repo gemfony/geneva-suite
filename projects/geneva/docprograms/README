@@ -16,7 +16,9 @@ Every program here
 
 They are deliberately separate from examples/: an example teaches a user how to
 use the library, a documentation program backs a specific listing or figure in
-the manual. Treat marker pairs like code -- moving or deleting one breaks the
+the manual. Where the manual walks through an example as such -- the Quick Start
+and examples/00_GQuickStart -- it quotes the example itself, so that the code
+has one home. Treat marker pairs like code -- moving or deleting one breaks the
 manual build, which names the affected chapter.
 
 Figure producers
