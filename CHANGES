@@ -22,6 +22,10 @@ practical porting guide and the one place the behavioral, source- and serializat
 changes are itemized. In short -- checkpoints and binary archives from 1.11 do not load, problem
 definitions must move to the flat-genome / evaluate() model, configuration files are strict JSON.
 
+Programs no longer depend on libraries a machine may lack: the CUDA driver is loaded only when
+the GPU consumer is used, and the MPI consumer is a module of its own (libgemfony-geneva-mpi),
+loaded when present. Container images with a complete Geneva are built from containers/.
+
 The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
 built standalone against an installed Geneva; the numbered examples are renumbered and start with
 00_GQuickStart, a short complete program that the manual's Quick Start walks through.

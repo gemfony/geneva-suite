@@ -16,8 +16,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 
 ## 1. Toolchain and build
 
-- **C++23 is now required** (was C++20). Minimum compilers: **GCC ≥ 14** or
-  **Clang ≥ 18**. The build pins `CMAKE_CXX_STANDARD=23` and rejects anything lower,
+- **C++23 is now required** (was C++20). Minimum compilers: **GCC ≥ 15** or
+  **Clang ≥ 22**, the versions Ubuntu 26.10 ships. The build pins `CMAKE_CXX_STANDARD=23` and rejects anything lower,
   and the exported CMake package advertises `cxx_std_23`, so **downstream consumers of
   the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
   longer build or link against Geneva.
@@ -29,6 +29,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `SKIPALLCUDA=1` / `-DGENEVA_SKIP_CUDA=ON` (no CUDA); `FORCECUDA=1` /
   `-DGENEVA_FORCE_CUDA=ON` (bypass the *driver* check for build farms/CI, still
   requiring the 13.3 toolkit).
+- **A CUDA build starts on machines without an NVIDIA driver.** The GPU consumer loads the
+  driver library (`libcuda.so.1`) when it is first used, instead of linking it, so a program
+  built with CUDA runs everywhere and uses the GPU where there is one; the CUDA toolkit's
+  libraries (NVRTC, cudart, cuRAND) remain link dependencies.
+- **The source tree's libraries live under `libs/`** (`libs/<library>/{include,src,...}`),
+  no longer under `projects/`. Include paths (`geneva/...`, `courtier/...`) are unchanged;
+  scripts or build files that named `projects/` must follow.
+- **Container images.** `containers/geneva/` builds an image with a complete, tested and
+  installed Geneva (CPU, or with `--cuda`), with Podman or Docker.
 - **Processors:** 64-bit **x86-64** or **AArch64** (both first-class). SIMD (AVX2/NEON)
   and a CUDA GPU are used when present but never required.
 - **Build and test hygiene changed in ways a 1.11 build script will notice.** Builds are
@@ -126,6 +135,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GMetaEvolutionaryAlgorithm` (example 10), which evaluates its umbrella individuals on
   its own orchestration pool while their sub-optimizations submit to the one process
   consumer — so the consumer is never re-entered.
+- **The MPI consumer is a module of its own.** `libgemfony-geneva-mpi` carries the `mpi`
+  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`; no other Geneva library
+  links MPI any more, so Geneva programs start on machines without an MPI library. The module
+  is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
+  first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
+  names the reason. **Source-breaking for users of the sub-client classes:** a program that
+  uses `GMPISubClientOptimizer` or `GMPISubClientIndividual` links `gemfony-geneva-mpi`
+  (out of tree: `Geneva::geneva-mpi`) and MPI itself, in addition to Geneva.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
@@ -186,7 +203,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Individuals, optimization algorithms and GPU marshallers can be shipped as
   runtime-loadable `.so` modules** (`GENEVA_DECLARE_INDIVIDUAL` /
   `GENEVA_ADD_INDIVIDUAL_MODULE`, `individualManifest<>` / `oaManifest<>` /
-  `marshallerManifest<>`), loaded with `--module <path>.so` (repeatable) — or, for the one
+  `marshallerManifest<>`, and `consumerManifest<>` for a consumer -- the MPI module is one),
+  loaded with `--module <path>.so` (repeatable) — or, for the one
   module that carries the optimization problem, with `--individual <path>.so`. Example 20's
   `README.md` is the reference author path for an algorithm module, example 18's for a problem.
 - **A module load either succeeds or says exactly what is wrong with the module.** Two gates run
@@ -219,6 +237,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `provide()` and a `final` `getName()` (the provider-interface spelling of `getAlgorithmName()`).
 
 ## 7. Renames and small API removals
+
+- **The genome-only marker is `using genome_only = void;`** (was
+  `using gemfony_flat_individual = void;`). A leaf individual whose state is its genome
+  declares it to opt into the generated empty member list; the meaning is unchanged.
 
 - **The best-individual accessors hand out sole ownership** (source-breaking; the return type
   changed, the semantics did not — these accessors always returned a fresh clone). On every
