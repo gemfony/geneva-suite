@@ -4,7 +4,7 @@
 A short but complete Geneva program, the one the manual's Quick Start chapter
 walks through. A single source file, GQuickStart.cpp, holds
 
-  * the problem: a class FirstProblem with two floating-point parameters x and
+  * the problem: a class GFirstProblem with two floating-point parameters x and
     y in [-5, 5], whose evaluate() returns f(x, y) = (x - 1)^2 + (y + 2)^2;
   * how the evolutionary algorithm mutates them (adaptionConfig());
   * a main() that hands the problem to Go2, records the search with a progress

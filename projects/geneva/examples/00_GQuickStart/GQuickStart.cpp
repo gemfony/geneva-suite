@@ -70,18 +70,18 @@ namespace first {
  * A candidate solution of the problem: two floating-point parameters x and y, each between -5 and
  * 5, judged by how far f(x, y) = (x - 1)^2 + (y + 2)^2 lies above its minimum.
  */
-class FirstProblem final : public gen::GGenomeT<FirstProblem> {
+class GFirstProblem final : public gen::GGenomeT<GFirstProblem> {
 public:
     using gemfony_flat_individual = void; // the genome is all the state there is
-    static constexpr std::string_view class_name = "FirstProblem";
+    static constexpr std::string_view class_name = "GFirstProblem";
 
     /** @brief Declares the parameters: two doubles in [-5, 5], both starting at 4 */
-    FirstProblem() {
+    GFirstProblem() {
         gen::GGenomeBuilder builder;
         builder.addDoubleGroup(2, -5., 5.).init(4.);
         this->setGenome(builder.build());
     }
-    FirstProblem(const FirstProblem &) = default;
+    GFirstProblem(const GFirstProblem &) = default;
 
     /** @brief How the parameters are mutated: Gaussian steps, adapted during the run */
     [[nodiscard]] std::shared_ptr<oa::GAdaptionConfigBase> adaptionConfig() const {
@@ -104,7 +104,7 @@ protected:
 
 } // namespace first
 
-GEM_REGISTER_ARCHIVABLE(first::FirstProblem) // NOLINT
+GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
 /******************************************************************************/
 
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     }
 
     // The problem: one prototype candidate, and how the evolutionary algorithm mutates it.
-    auto problem = std::make_shared<first::FirstProblem>();
+    auto problem = std::make_shared<first::GFirstProblem>();
     go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
     go.push_back(problem);
 
@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.
-    auto best = go.optimize()->getBestGlobalIndividual<first::FirstProblem>();
+    auto best = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
     std::vector<double> xy;
     best->streamline<double>(xy);
     std::cout << "best solution: x = " << xy[0] << ", y = " << xy[1]
