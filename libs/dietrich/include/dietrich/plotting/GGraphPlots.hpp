@@ -302,7 +302,8 @@ class GGraph3D
     template <typename Self>
     auto localMembers_(this Self &self) {
         return std::make_tuple(
-            make_member("draw_lines_", self.draw_lines_), make_member("projection_", self.projection_)
+            make_member("draw_lines_", self.draw_lines_), make_member("projection_", self.projection_),
+            make_member("draw_surface_", self.draw_surface_), make_member("floor_shadow_", self.floor_shadow_)
         );
     }
     ///////////////////////////////////////////////////////////////////////
@@ -361,6 +362,30 @@ public:
 	 * @return The surface projection
 	 */
     [[nodiscard]] surfaceProjection getSurfaceProjection() const;
+
+    /**
+	 * @brief For a projected surface: whether the surface itself is drawn (the default), or only its
+	 * colour map on the floor or ceiling -- a map of the data under whatever the pad's overlays show.
+	 * @param draw_surface Whether the surface is drawn as well as its map
+	 */
+    void setDrawSurface(bool draw_surface = true);
+    /**
+	 * @brief Retrieves whether a projected surface is drawn, or only its colour map
+	 * @return Whether the surface is drawn as well as its map
+	 */
+    [[nodiscard]] bool getDrawSurface() const;
+
+    /**
+	 * @brief Draws every point a second time, small and grey, on the floor of the plot box -- its
+	 * shadow, which shows where in the x-y plane the points lie.
+	 * @param floor_shadow Whether the points' shadows are drawn
+	 */
+    void setFloorShadow(bool floor_shadow = true);
+    /**
+	 * @brief Retrieves whether the points' shadows are drawn on the floor
+	 * @return Whether the shadows are drawn
+	 */
+    [[nodiscard]] bool getFloorShadow() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
@@ -423,8 +448,23 @@ private:
     [[nodiscard]] std::string
     rootProjectedSurface_(bool is_secondary, const std::string &graph_name, const std::string &indent) const;
 
+    /**
+	 * @brief Emits the ROOT drawing of the points' shadows on the floor (see setFloorShadow())
+	 * @param x_array_name The name of the array holding the points' x values
+	 * @param y_array_name The name of the array holding the points' y values
+	 * @param graph_name The name of the TGraph2D the shadows belong to
+	 * @param indent The indentation string prepended to every emitted line
+	 * @return The ROOT code drawing the shadows
+	 */
+    [[nodiscard]] std::string rootFloorShadow_(
+        const std::string &x_array_name, const std::string &y_array_name, const std::string &graph_name,
+        const std::string &indent
+    ) const;
+
     bool draw_lines_ = false; ///< When set to true, lines will be drawn between consecutive points
     surfaceProjection projection_ = surfaceProjection::NONE; ///< where a surface shows its colour map
+    bool draw_surface_ = true;  ///< whether a projected surface is drawn, or only its colour map
+    bool floor_shadow_ = false; ///< whether every point is drawn again, small and grey, on the floor
 };
 
 /******************************************************************************/

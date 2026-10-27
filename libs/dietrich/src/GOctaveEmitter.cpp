@@ -140,16 +140,30 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                 call << "x_ = " << bracketedRowCol(cols[0]) << ";" << '\n'
                      << "y_ = " << bracketedRowCol(cols[1]) << ";" << '\n'
                      << "z_ = " << bracketedRowCol(cols[2]) << ";" << '\n'
-                     << "t_ = delaunay(x_, y_);" << '\n'
-                     << "trisurf(t_, x_, y_, z_, 'EdgeColor', 'none', 'DisplayName', '" << label << "');" << '\n'
-                     << "trisurf(t_, x_, y_, " << plane << " * ones(size(z_)), z_, 'EdgeColor', 'none');" << '\n'
-                     << "zlim([" << z_lo << " " << z_hi << "]);" << '\n'
-                     << "colorbar;" << '\n'
-                     << "view(3);" << '\n';
+                     << "t_ = delaunay(x_, y_);" << '\n';
+                if(drawsSurface(p)) {
+                    call << "trisurf(t_, x_, y_, z_, 'EdgeColor', 'none', 'DisplayName', '" << label << "');" << '\n';
+                }
+                call << "trisurf(t_, x_, y_, " << plane << " * ones(size(z_)), z_, 'EdgeColor', 'none');" << '\n'
+                     << "zlim([" << z_lo << " " << z_hi << "]);" << '\n';
+                if(drawsSurface(p)) {
+                    call << "colorbar;" << '\n';
+                }
+                call << "view(3);" << '\n';
             }
             else {
+                if(castsFloorShadow(p)) {
+                    // The points' shadows on the floor, small and grey, drawn before the points.
+                    call << "xs_ = " << bracketedRowCol(cols[0]) << ";" << '\n'
+                         << "ys_ = " << bracketedRowCol(cols[1]) << ";" << '\n'
+                         << "zl_ = zlim();" << '\n'
+                         << "plot3(xs_, ys_, zl_(1) * ones(size(xs_)), '.', 'Color', [0.6 0.6 0.6], 'MarkerSize', 4);"
+                         << '\n';
+                }
+                // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
                 call << "plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
-                     << bracketedRowCol(cols[2]) << ", 'DisplayName', '" << label << "');" << '\n'
+                     << bracketedRowCol(cols[2]) << (isCurve3D(p) ? ", '-'" : ", 'o', 'Color', 'r', 'MarkerSize', 3")
+                     << ", 'DisplayName', '" << label << "');" << '\n'
                      // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d
                      // curve would be drawn as its x-y shadow; the 3-d view is requested explicitly.
                      << "view(3);" << '\n';

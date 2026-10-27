@@ -121,7 +121,9 @@ std::string datasetSpec(const GBasePlotter &p, scriptKind k) {
             spec << "with xyerrorbars title \"" << title << "\"";
             break;
         case scriptKind::g3d:
-            spec << "with linespoints title \"" << title << "\"";
+            // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
+            spec << (isCurve3D(p) ? "with linespoints" : "with points pointtype 7") << " title \"" << title
+                 << "\"";
             break;
         case scriptKind::g4d:
             spec << "using 1:2:3:4 with points palette pointtype 7 title \"" << title << "\"";
@@ -295,12 +297,27 @@ void emitMultiplot(
         // map on the base (b) or top (t) of the box. The z range is pinned to the data and the base
         // plane put at its minimum, so the map lies exactly at the data's minimum or maximum.
         const surfaceProjection proj = projectionOf(*p);
+        // The floor of the box, where shadows are drawn: the projected surface's minimum, else the
+        // lowest z of the pad's 3-d data (gnuplot's autoscaled floor lies at or below it).
+        double z_floor = 0.;
+        if(three_d) {
+            bool first = true;
+            for(const auto *dp : pad) {
+                if(dp->dataColumns().size() >= 3) {
+                    const double lo = columnRange(dp->dataColumns()[2]).first;
+                    z_floor = first ? lo : std::min(z_floor, lo);
+                    first = false;
+                }
+            }
+        }
         if(proj != surfaceProjection::NONE) {
             auto [z_lo, z_hi] = columnRange(p->dataColumns()[2]);
             if(not(z_hi > z_lo)) {
                 z_hi = z_lo + 1.;
             }
-            result << indent << "set pm3d at " << (proj == surfaceProjection::FLOOR ? "bs" : "ts") << '\n'
+            z_floor = z_lo;
+            const char *where = (proj == surfaceProjection::FLOOR) ? "b" : "t";
+            result << indent << "set pm3d at " << where << (drawsSurface(*p) ? "s" : "") << '\n'
                    << indent << "set zrange [" << z_lo << ":" << z_hi << "]" << '\n'
                    << indent << "set xyplane at " << z_lo << '\n';
         }
@@ -312,6 +329,11 @@ void emitMultiplot(
                 result << "$G" << db_ref << " with pm3d title \"" << backslashEscape(pad[i]->plotLabel()) << "\"";
             }
             else {
+                if(three_d && castsFloorShadow(*pad[i])) {
+                    // The points' shadows on the floor, small and grey, drawn before the points.
+                    result << "$D" << db_ref << " using 1:2:(" << z_floor
+                           << ") with points pointtype 7 pointsize 0.3 linecolor rgb \"gray60\" notitle, ";
+                }
                 result << "$D" << db_ref << ' '
                        << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"));
             }

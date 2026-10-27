@@ -410,6 +410,21 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             );
         }
     }
+
+    // Map-only surfaces and floor shadows are 3-d-graph render choices too.
+    if(spec.surface.has_value() || spec.floor_shadow.has_value()) {
+        auto *g3d = dynamic_cast<GGraph3D *>(p.get());
+        if(g3d == nullptr) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In makePlotter(): Error!" << '\n'
+                << "\"surface\" or \"floor_shadow\" was given for a plot of kind \"" << to_string(spec.kind)
+                << "\" -- only a 3-d graph (graph_3d) has a surface or a floor." << '\n'
+            );
+        }
+        g3d->setDrawSurface(spec.surface.value_or(true));
+        g3d->setFloorShadow(spec.floor_shadow.value_or(false));
+    }
     return p;
 }
 

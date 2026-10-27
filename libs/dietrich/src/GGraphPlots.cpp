@@ -588,6 +588,46 @@ surfaceProjection GGraph3D::getSurfaceProjection() const {
 
 /******************************************************************************/
 /**
+ * For a projected surface: whether the surface itself is drawn, or only its colour map.
+ *
+ * @param draw_surface Whether the surface is drawn as well as its map
+ */
+void GGraph3D::setDrawSurface(bool draw_surface) {
+    draw_surface_ = draw_surface;
+}
+
+/******************************************************************************/
+/**
+ * Retrieves whether a projected surface is drawn, or only its colour map.
+ *
+ * @return Whether the surface is drawn as well as its map
+ */
+bool GGraph3D::getDrawSurface() const {
+    return draw_surface_;
+}
+
+/******************************************************************************/
+/**
+ * Draws every point a second time, small and grey, on the floor of the plot box.
+ *
+ * @param floor_shadow Whether the points' shadows are drawn
+ */
+void GGraph3D::setFloorShadow(bool floor_shadow) {
+    floor_shadow_ = floor_shadow;
+}
+
+/******************************************************************************/
+/**
+ * Retrieves whether the points' shadows are drawn on the floor.
+ *
+ * @return Whether the shadows are drawn
+ */
+bool GGraph3D::getFloorShadow() const {
+    return floor_shadow_;
+}
+
+/******************************************************************************/
+/**
  * Retrieves a unique name for this plotter
  *
  * @return A unique name identifying this plotter type
@@ -612,6 +652,12 @@ GPlotSpec GGraph3D::plotSpec() const {
     }
     if(projection_ != surfaceProjection::NONE) {
         spec.projection = projection_;
+        if(not draw_surface_) {
+            spec.surface = false;
+        }
+    }
+    if(floor_shadow_) {
+        spec.floor_shadow = true;
     }
     return spec;
 }
@@ -749,8 +795,19 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     // scanned landscape with unlabelled axes. Update() forces the painting to happen here, so the
     // titles below land on the histogram that is finally drawn -- for every drawing option, plain
     // point clouds included.
+    // A shadow is drawn under the points: an overlay's shadow before its points (the primary has
+    // made the 3-d view already); a primary's after it has painted itself and the view exists, with
+    // the points painted again on top.
     if(projection_ == surfaceProjection::NONE) {
+        if(floor_shadow_ && is_secondary) {
+            footer_data << rootFloorShadow_(x_array_name, y_array_name, graph_name, indent);
+        }
         footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n';
+        if(floor_shadow_ && not is_secondary) {
+            footer_data << indent << "gPad->Update();" << '\n'
+                        << rootFloorShadow_(x_array_name, y_array_name, graph_name, indent)
+                        << indent << graph_name << "->Draw(\"P,same\");" << '\n';
+        }
     }
     else {
         footer_data << rootProjectedSurface_(is_secondary, graph_name, indent);
@@ -796,6 +853,38 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     }
 
     return footer_data.str();
+}
+
+/******************************************************************************/
+/**
+ * Emits the ROOT drawing of the points' shadows: every point again, small and grey, at the floor of
+ * the plot box, which the 3-d view of the pad already in place defines.
+ *
+ * @param x_array_name The name of the array holding the points' x values
+ * @param y_array_name The name of the array holding the points' y values
+ * @param graph_name The name of the TGraph2D the shadows belong to
+ * @param indent The indentation string prepended to every emitted line
+ * @return The ROOT code drawing the shadows
+ */
+std::string GGraph3D::rootFloorShadow_(
+    const std::string &x_array_name, const std::string &y_array_name, const std::string &graph_name,
+    const std::string &indent
+) const {
+    const std::string s = "shadow_" + graph_name;
+    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    out << indent << "{" << '\n'
+        << indent << "   const double z_floor = gPad->GetView() ? gPad->GetView()->GetRmin()[2] : 0.;" << '\n'
+        << indent << "   TPolyMarker3D *" << s << " = new TPolyMarker3D(" << this->currentSize() << ");" << '\n'
+        << indent << "   for(int k = 0; k < " << this->currentSize() << "; ++k) {" << '\n'
+        << indent << "      " << s << "->SetPoint(k, " << x_array_name << "[k], " << y_array_name
+        << "[k], z_floor);" << '\n'
+        << indent << "   }" << '\n'
+        << indent << "   " << s << "->SetMarkerStyle(20);" << '\n'
+        << indent << "   " << s << "->SetMarkerSize(0.35);" << '\n'
+        << indent << "   " << s << "->SetMarkerColor(kGray + 1);" << '\n'
+        << indent << "   " << s << "->Draw();" << '\n'
+        << indent << "}" << '\n';
+    return out.str();
 }
 
 /******************************************************************************/
@@ -851,16 +940,25 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
     out << indent << graph_name << "->SetMinimum(" << z_min << ");" << '\n'
         << indent << graph_name << "->SetMaximum(" << z_max << ");" << '\n';
 
-    if(projection_ == surfaceProjection::CEILING) {
+    if(projection_ == surfaceProjection::CEILING && draw_surface_) {
         out << indent << graph_name << "->Draw(\"SURF3Z\");" << '\n';
         return out.str();
     }
 
-    // FLOOR: paint once to obtain the view, draw the map onto the floor, paint the surface again.
+    // The map is drawn cell by cell onto the floor (or, without the surface, the ceiling): paint once
+    // to obtain the view, draw the map, and paint the surface again on top if it is wanted. Without
+    // the surface, the first paint draws invisible markers only -- it sets up the box and the view
+    // without a surface and without the colour scale that comes with one.
+    const double plane = (projection_ == surfaceProjection::CEILING) ? z_max : z_min;
     const std::string h = "h_" + graph_name;
     const std::string v = "v_" + graph_name;
-    out << indent << graph_name << "->Draw(\"SURF1Z\");" << '\n'
-        << indent << "gPad->Update();" << '\n'
+    if(draw_surface_) {
+        out << indent << graph_name << "->Draw(\"SURF1Z\");" << '\n';
+    } else {
+        out << indent << graph_name << "->SetMarkerSize(0);" << '\n'
+            << indent << graph_name << "->Draw(\"P\");" << '\n';
+    }
+    out << indent << "gPad->Update();" << '\n'
         << indent << "{" << '\n'
         << indent << "   TH2 *" << h << " = " << graph_name << "->GetHistogram();" << '\n'
         << indent << "   TView *" << v << " = gPad->GetView();" << '\n'
@@ -873,7 +971,8 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
         << indent << "         const double x1 = " << h << "->GetXaxis()->GetBinUpEdge(i);" << '\n'
         << indent << "         const double y0 = " << h << "->GetYaxis()->GetBinLowEdge(j);" << '\n'
         << indent << "         const double y1 = " << h << "->GetYaxis()->GetBinUpEdge(j);" << '\n'
-        << indent << "         const double corners[4][3] = {{x0, y0, z_lo}, {x1, y0, z_lo}, {x1, y1, z_lo}, {x0, y1, z_lo}};" << '\n'
+        << indent << "         const double z_p = " << plane << ";" << '\n'
+        << indent << "         const double corners[4][3] = {{x0, y0, z_p}, {x1, y0, z_p}, {x1, y1, z_p}, {x0, y1, z_p}};" << '\n'
         << indent << "         double px[5];" << '\n'
         << indent << "         double py[5];" << '\n'
         << indent << "         for(int k = 0; k < 4; ++k) {" << '\n'
@@ -893,8 +992,10 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
         << indent << "         cell->Draw(\"f\");" << '\n'
         << indent << "      }" << '\n'
         << indent << "   }" << '\n'
-        << indent << "}" << '\n'
-        << indent << graph_name << "->Draw(\"SURF1 same\");" << '\n';
+        << indent << "}" << '\n';
+    if(draw_surface_) {
+        out << indent << graph_name << "->Draw(\"SURF1 same\");" << '\n';
+    }
     return out.str();
 }
 

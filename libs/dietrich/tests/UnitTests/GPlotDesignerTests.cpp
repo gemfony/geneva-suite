@@ -1099,6 +1099,56 @@ TEST_CASE("The script backends draw a projected surface with their own means", "
     CHECK(oct.contains("zlim([0 4])"));
 }
 
+TEST_CASE("A projected map can be drawn without its surface, under points casting floor shadows", "[plotting]") {
+    // The map alone: the surface is not drawn, and with it goes the colour scale.
+    auto map = smallSurface(surfaceProjection::FLOOR);
+    map->setDrawSurface(false);
+    CHECK(not map->getDrawSurface());
+    CHECK(map->plotSpec().toJson().contains("\"surface\": false"));
+
+    // Points above it, casting shadows on the floor.
+    auto points = std::make_shared<GGraph3D>();
+    (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+    (*points) & std::tuple<double, double, double>(-0.5, 0.0, 1.0);
+    points->setFloorShadow(true);
+    CHECK(points->getFloorShadow());
+    CHECK(points->plotSpec().toJson().contains("\"floor_shadow\": true"));
+    map->registerSecondaryPlotter(points);
+
+    const std::string root = render(map, plotBackend::ROOT);
+    CHECK(root.contains("WCtoNDC(")); // the map, cell by cell
+    CHECK_FALSE(root.contains("SURF1"));
+    CHECK(root.contains("TPolyMarker3D")); // the shadows
+    CHECK(root.contains("GetRmin()[2]"));  // at the floor of the box
+
+    const std::string gp = render(map, plotBackend::GNUPLOT);
+    CHECK(gp.contains("set pm3d at b\n"));
+    CHECK(gp.contains("using 1:2:(0) with points"));
+
+    const std::string mpl = render(map, plotBackend::MATPLOTLIB);
+    CHECK_FALSE(mpl.contains("plot_trisurf("));
+    CHECK_FALSE(mpl.contains("colorbar("));
+    CHECK(mpl.contains("get_zlim()[0]"));
+
+    const std::string oct = render(map, plotBackend::OCTAVE);
+    CHECK_FALSE(oct.contains("colorbar;"));
+    CHECK(oct.contains("zl_(1) * ones(size(xs_))"));
+
+    // makePlotter honours both fields, and refuses them where there is no 3-d box.
+    GPlotSpec spec(plotKind::graph_3d);
+    spec.projection = surfaceProjection::FLOOR;
+    spec.surface = false;
+    spec.floor_shadow = true;
+    const auto plotter = makePlotter(spec);
+    auto *built = dynamic_cast<GGraph3D *>(plotter.get());
+    REQUIRE(built != nullptr);
+    CHECK(not built->getDrawSurface());
+    CHECK(built->getFloorShadow());
+    GPlotSpec flat(plotKind::graph_2d);
+    flat.floor_shadow = true;
+    CHECK_THROWS(makePlotter(flat));
+}
+
 /******************************************************************************/
 // Octave keeps the flat 2-d view under `hold on`; a 3-d graph must ask for the 3-d view, or a helix
 // is drawn as a circle.

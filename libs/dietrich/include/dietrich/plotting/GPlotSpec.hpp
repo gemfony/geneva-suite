@@ -142,6 +142,12 @@ struct GPlotSpec {
     std::optional<surfaceProjection>
         projection; ///< 3-d graphs only: draw a surface with its colour map on the floor or ceiling
 
+    std::optional<bool>
+        surface; ///< projected 3-d graphs only: false draws the colour map alone, without the surface
+
+    std::optional<bool>
+        floor_shadow; ///< 3-d graphs only: true draws every point again, small and grey, on the floor
+
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
     GPlotSpec() : role(defaultRole(kind)) { /* nothing */ }
@@ -204,6 +210,12 @@ struct GPlotSpec {
                 case surfaceProjection::CEILING: out += "ceiling"; break;
             }
             out += "\"";
+        }
+        if(surface.has_value()) {
+            out += std::string(", \"surface\": ") + (*surface ? "true" : "false");
+        }
+        if(floor_shadow.has_value()) {
+            out += std::string(", \"floor_shadow\": ") + (*floor_shadow ? "true" : "false");
         }
         out += "}";
         return out;

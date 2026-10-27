@@ -347,6 +347,33 @@ inline surfaceProjection projectionOf(const GBasePlotter &p) {
     return p.plotSpec().projection.value_or(surfaceProjection::NONE);
 }
 
+/**
+ * @brief Whether a projected 3-d graph draws its surface as well as its colour map.
+ * @param p The plotter
+ * @return false if only the map is to be drawn
+ */
+inline bool drawsSurface(const GBasePlotter &p) {
+    return p.plotSpec().surface.value_or(true);
+}
+
+/**
+ * @brief Whether a 3-d graph draws its points' shadows on the floor of the plot box.
+ * @param p The plotter
+ * @return true if the shadows are to be drawn
+ */
+inline bool castsFloorShadow(const GBasePlotter &p) {
+    return p.plotSpec().floor_shadow.value_or(false);
+}
+
+/**
+ * @brief Whether a 3-d graph is drawn as a curve through its points rather than as the points.
+ * @param p The plotter
+ * @return true for a curve
+ */
+inline bool isCurve3D(const GBasePlotter &p) {
+    return p.plotSpec().plot_mode.value_or(graphPlotMode::SCATTER) == graphPlotMode::CURVE;
+}
+
 /******************************************************************************/
 
 } // namespace Gem::Dietrich

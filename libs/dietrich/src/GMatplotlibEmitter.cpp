@@ -132,19 +132,30 @@ std::string mplPlotCall(
                 call << ax << ".computed_zorder = False" << '\n'
                      << "_x = " << bracketedRowCol(cols[0]) << '\n'
                      << "_y = " << bracketedRowCol(cols[1]) << '\n'
-                     << "_z = " << bracketedRowCol(cols[2]) << '\n'
-                     << "_surf = " << ax
-                     << ".plot_trisurf(_x, _y, _z, cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1, label=\""
-                     << label << "\")" << '\n'
-                     << ax << ".tricontourf(_x, _y, _z, zdir=\"z\", offset=" << plane
+                     << "_z = " << bracketedRowCol(cols[2]) << '\n';
+                if(drawsSurface(p)) {
+                    call << "_surf = " << ax
+                         << ".plot_trisurf(_x, _y, _z, cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1, label=\""
+                         << label << "\")" << '\n';
+                }
+                call << ax << ".tricontourf(_x, _y, _z, zdir=\"z\", offset=" << plane
                      << ", levels=20, cmap=\"viridis\", zorder=0)" << '\n'
-                     << ax << ".set_zlim(" << z_lo << ", " << z_hi << ")" << '\n'
-                     << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
+                     << ax << ".set_zlim(" << z_lo << ", " << z_hi << ")" << '\n';
+                if(drawsSurface(p)) {
+                    call << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
+                }
             }
             else {
+                if(castsFloorShadow(p)) {
+                    // The points' shadows on the floor, small and grey, drawn before the points.
+                    call << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
+                         << ", zs=" << ax << ".get_zlim()[0], s=2, c=\"0.6\", zorder=1)" << '\n';
+                }
+                // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
                 call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
                      << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                     << ", label=\"" << label << "\")" << '\n';
+                     << (isCurve3D(p) ? "" : ", linestyle=\"none\", marker=\"o\", markersize=3, color=\"red\"")
+                     << ", label=\"" << label << "\", zorder=2)" << '\n';
             }
         } break;
         case scriptKind::g4d: {
