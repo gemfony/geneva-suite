@@ -57,7 +57,7 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
 # End-to-end test on the materialized default configuration: the stall criterion halts the run after a
-# few dozen iterations, and the program fails unless it found the known minimum (Inv 22).
+# few dozen iterations, and the program fails unless it got close to the known minimum (Inv 22).
 ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 120)

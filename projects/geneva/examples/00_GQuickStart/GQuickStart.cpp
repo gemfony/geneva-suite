@@ -128,18 +128,18 @@ int main(int argc, char **argv) {
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.
-    auto best = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
+    auto best_solution = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
     std::vector<double> best_parameters;
-    best->streamline<double>(best_parameters);
+    best_solution->streamline<double>(best_parameters);
     std::cout << "best solution: x = " << best_parameters[0] << ", y = " << best_parameters[1]
-              << ", f = " << best->raw_fitness(0) << '\n';
+              << ", f = " << best_solution->raw_fitness(0) << '\n';
     //! [quickstart-tour-main]
 
     // A tolerance on the known minimum at (1, -2), not an exact value (Invariant 18).
-    const bool found = std::abs(best_parameters[0] - 1.) < 0.1
-                     && std::abs(best_parameters[1] + 2.) < 0.1;
-    if(not found) {
-        std::cerr << "GQuickStart: the search did not find the minimum at (1, -2)\n";
+    const bool close_enough = std::abs(best_parameters[0] - 1.) < 0.1
+                              && std::abs(best_parameters[1] + 2.) < 0.1;
+    if(not close_enough) {
+        std::cerr << "GQuickStart: the search did not get close enough to the minimum at (1, -2)\n";
     }
-    return found ? 0 : 1;
+    return close_enough ? 0 : 1;
 }
