@@ -110,19 +110,18 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
 //! [quickstart-tour-main]
 int main(int argc, char **argv) {
-    // Reads the command line and ./config/Go2.json (written with defaults on the first run).
+    // Reads the command line and ./config/Go2.json (written with defaults if absent).
     geneva::Go2 go(argc, argv, "./config/Go2.json");
     if(go.clientMode()) {
         return go.clientRun(); // a worker process in a networked run
     }
 
-    // The problem: one prototype candidate, and how the evolutionary algorithm mutates it.
+    // One prototype candidate, and how the evolutionary algorithm mutates it.
     auto problem = std::make_shared<first::GFirstProblem>();
     go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
     go.push_back(problem);
 
-    // Record every candidate the search evaluates, plotted over x and y above a heat map of the
-    // function itself (sampled on a 40 x 40 grid) on the floor of the plot.
+    // Record every evaluated candidate over x and y, above a heat map of f.
     auto plotter = std::make_shared<geneva::GProgressPlotter>();
     plotter->setProfileSpec("d(0, -5, 5), d(1, -5, 5)");
     plotter->setVariableNames({"x", "y"});
@@ -133,15 +132,17 @@ int main(int argc, char **argv) {
     auto best_solution = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
     std::vector<double> best_parameters;
     best_solution->streamline<double>(best_parameters);
-    std::cout << "best solution: x = " << best_parameters[0] << ", y = " << best_parameters[1]
+    std::cout << "best solution: x = " << best_parameters[0]
+              << ", y = " << best_parameters[1]
               << ", f = " << best_solution->raw_fitness(0) << '\n';
-    //! [quickstart-tour-main]
 
-    // A tolerance on the known minimum at (1, -2), not an exact value (Invariant 18).
+    // Check the answer against the known minimum at (1, -2) -- with a tolerance, as the
+    // search is stochastic.
     const bool close_enough = std::abs(best_parameters[0] - 1.) < 0.1
                               && std::abs(best_parameters[1] + 2.) < 0.1;
     if(not close_enough) {
-        std::cerr << "GQuickStart: the search did not get close enough to the minimum at (1, -2)\n";
+        std::cerr << "GQuickStart: the search did not get close enough to (1, -2)\n";
     }
     return close_enough ? 0 : 1;
 }
+//! [quickstart-tour-main]
