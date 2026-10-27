@@ -56,9 +56,9 @@ missing and how to fix it.
 
 * **One image per guest OS** (not per compiler). Each image installs BOTH a
   recent GCC and a recent Clang, plus CMake, Doxygen and (optionally) OpenMPI.
-* **Boost 1.91.0 is built from source inside the image in C++20 mode**
-  (`./b2 cxxstd=20 ... install`) for the components Geneva needs:
-  `filesystem, program_options, regex, serialization, test, atomic`. It is
+* **Boost 1.91.0 is built from source inside the image in C++23 mode**
+  (`./b2 cxxflags="-std=c++23" ... install`) for the components Geneva needs:
+  `atomic, json, program_options, regex`. It is
   installed to `/opt/boost` in the image.
 * The **distro `libboost` packages are deliberately not used**: Ubuntu ships
   Boost 1.83 / 1.88 / 1.89, all older than the required **1.91**, and not
@@ -91,12 +91,11 @@ benchmarks/MPI/CUDA OFF):
 
 | Guest OS    | Toolchain in image           | CMake  | Compilers built |
 |-------------|------------------------------|--------|-----------------|
-| Ubuntu 24.04| gcc 13.2 (*), clang 18.0     | 3.28.3 | gcc + clang     |
-| Ubuntu 26.04| gcc 15.2, clang 21.1         | 4.2.3  | gcc + clang     |
+| Ubuntu 26.10| gcc 15.3, clang 22.1         | 4.3.4  | gcc + clang     |
 
-(*) The images install the distro `g++`, which on Ubuntu 24.04 is GCC 13 --
-below Geneva's C++23 floor of GCC 14 (see below), so that image needs a newer
-GCC provisioned before its gcc cells can configure.
+Ubuntu 26.10 is the recommended platform (INSTALL), and its GCC 15 and Clang 22
+are Geneva's compiler floor. Older Ubuntu releases are not in the matrix: 26.04
+ships Clang 21 and 24.04 GCC 13.
 
 `--quick` expands to OS x compiler x {Debug, Release}, i.e. **both Debug and
 Release are built for every supported compiler on every guest OS** (8 base
@@ -134,10 +133,10 @@ cells). The value is a comma-separated list of CMake build-type names
 (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`, `Sanitize`); matching is
 case-insensitive.
 
-Geneva's requirements are GCC >= 14, Clang >= 18, CMake >= 3.27 and
+Geneva's requirements are GCC >= 15, Clang >= 22, CMake >= 3.27 and
 Boost >= 1.91; the floor is enforced at configure time by
 `CMakeModules/IdentifySystemParameters.cmake`. Every in-image toolchain meets
-it except the Ubuntu 24.04 `g++` (GCC 13), as noted with the matrix above.
+it.
 
 ---
 
@@ -161,7 +160,7 @@ python3 release_test.py run --quick --build-type Release
 python3 release_test.py run --quick --build-type Debug
 
 # Narrow further with --filter:
-python3 release_test.py run --quick --filter os=ubuntu-24.04,compiler=clang,buildtype=Debug
+python3 release_test.py run --quick --filter os=ubuntu-26.10,compiler=clang,buildtype=Debug
 
 # Full release run (SHORT + LONG tiers; hours):
 python3 release_test.py run --full

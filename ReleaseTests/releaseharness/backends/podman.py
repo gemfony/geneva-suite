@@ -3,7 +3,7 @@
 Podman runs rootless here (no daemon, no docker group needed). It builds ONE
 image per guest OS, each carrying BOTH toolchains (a recent GCC and a recent
 Clang) plus CMake, Doxygen and, optionally, OpenMPI, and builds Boost 1.91.0
-from source in C++20 mode (see ``containerfile.py``). Build/test commands then
+from source in C++23 mode (see ``containerfile.py``). Build/test commands then
 run in ephemeral containers (``podman run --rm``) with the Geneva source tree
 bind-mounted read-only and a writable per-job build directory mounted from the
 work area.

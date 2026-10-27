@@ -19,7 +19,7 @@ _ALGOS = {
     "ea": "Evolutionary Algorithm",
     "sa": "Simulated Annealing",
     "swarm": "Swarm",
-    "gd": "Gradient Descent",
+    "cgd": "Gradient Descent",
     "ps": "Parameter Scan",
 }
 
@@ -43,7 +43,7 @@ def run_all_algorithms(ctx: JobContext) -> list[CheckResult]:
         res = ctx.exec_in_guest(
             ["bash", "-lc",
              f"cd {GUEST_BUILD}/{_EX01_DIR} && "
-             f"{_EX01} -a {key} -c sc"],
+             f"{_EX01} -a {key} -c stc"],
             workdir=GUEST_BUILD, timeout=300,
         )
         out.append(ctx.record(f"algorithm/{key}", tier, res, started=started))
@@ -115,16 +115,16 @@ def checkpoint_identity(ctx: JobContext) -> CheckResult:
         "mkdir -p config && rm -f config/*.json && rm -rf checkpoints\n"
         # Run once to regenerate the default config files.
         f"{_EX01} >/dev/null 2>&1\n"
-        # Flip cp_interval inside the cp_interval block from 0 to 1 so the
+        # Flip cp_interval inside the cp_interval block from 0 to 1 (a JSON number) so the
         # algorithm writes a checkpoint every iteration. awk is portable and
         # scoped to the block, so it cannot accidentally touch other "value":
         # "0" entries elsewhere in the JSON.
         "awk 'BEGIN{in_cp=0} "
         '/\"cp_interval\"/{in_cp=1} '
-        'in_cp && /\"value\"/{sub(/\"0\"/, "\\"1\\""); in_cp=0} '
+        'in_cp && /\"value\"/{sub(/: *0/, ": 1"); in_cp=0} '
         "{print}' config/GEvolutionaryAlgorithm.json > config/_cp.json && "
         "mv config/_cp.json config/GEvolutionaryAlgorithm.json\n"
-        'grep -A1 cp_interval config/GEvolutionaryAlgorithm.json | head -8\n'
+        'grep -A8 cp_interval config/GEvolutionaryAlgorithm.json | grep value\n'
         # Save-side run: writes checkpoints to ./checkpoints/.
         "rm -rf checkpoints\n"
         f"{_EX01} >/tmp/cp_save.log 2>&1\n"

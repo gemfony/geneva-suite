@@ -15,7 +15,7 @@ existing source or build file in the repository.
 ## 0. Goals and constraints
 
 * Drive every item of `ReleaseTestplan.md` reproducibly.
-* Matrix: guest OS `{ubuntu-26.04, ubuntu-24.04}` x compiler `{gcc, clang}`
+* Matrix: guest OS `{ubuntu-26.10}` x compiler `{gcc, clang}`
   x build-type `{Debug, Release, RelWithDebInfo, Sanitize}` x feature flags
   (MPI on/off, CUDA on/off, tests/examples/benchmarks on/off, minimal build).
 * SHORT vs LONG split: a fast release smoke-check (`--quick`) that only runs
@@ -28,8 +28,8 @@ existing source or build file in the repository.
   daemon, no group membership needed), but pluggable so Docker (drop-in,
   OCI-compatible) and Multipass (full VMs, for true multi-distro VM testing)
   can be swapped in.
-* Boost policy: each image **builds Boost 1.91.0 from source in C++20 mode**
-  (`b2 cxxstd=20`). Distro `libboost` packages (1.83/1.88/1.89) are NOT used —
+* Boost policy: each image **builds Boost 1.91.0 from source in C++23 mode**
+  (`b2 cxxflags="-std=c++23"`). Distro `libboost` packages are NOT used —
   Geneva requires Boost >= 1.91. A single per-OS image (Boost built once with
   GCC) serves BOTH the GCC and Clang Geneva builds, since GCC and Clang share
   libstdc++ on Linux.
@@ -72,7 +72,7 @@ Deliverables:
   `cleanup()`.
 * `releaseharness/backends/containerfile.py` — Containerfile generation. One
   image per OS installs both toolchains (recent GCC and Clang), CMake, Doxygen,
-  optionally OpenMPI, and builds **Boost 1.91.0 from source in C++20 mode**.
+  optionally OpenMPI, and builds **Boost 1.91.0 from source in C++23 mode**.
 * `releaseharness/backends/docker.py` — shared OCI backend. Generates the
   per-OS Containerfile, builds the image, and runs build/test commands inside
   it with the repo bind-mounted read-only and a writable per-job build dir

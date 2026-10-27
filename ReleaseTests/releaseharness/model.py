@@ -52,10 +52,9 @@ class GuestOS:
 
     slug: str
     image: str
-    # NOTE: Boost is built from source (1.91, C++20) inside the image, not from
+    # NOTE: Boost is built from source (1.91, C++23) inside the image, not from
     # distro packages — see backends/containerfile.py. The distro libboost
-    # packages (1.83/1.88/1.89) are older than the required 1.91 and are not
-    # used.
+    # packages are older than the required 1.91 and are not used.
 
 
 @dataclass(frozen=True)

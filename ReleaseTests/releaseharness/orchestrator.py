@@ -45,7 +45,6 @@ def _run_job(ctx: JobContext, log) -> list[CheckResult]:
     results.append(ctest.run_standard_tests(ctx))
 
     # Parallelization consumers
-    results.append(consumers.serial(ctx))
     results.extend(consumers.threaded(ctx))
     results.append(consumers.websocket(ctx))
     results.append(consumers.mpi(ctx))

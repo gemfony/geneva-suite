@@ -2,8 +2,8 @@
 
 A single image is produced per guest OS. That image carries BOTH toolchains
 (a recent GCC and a recent Clang) plus CMake, Doxygen and, optionally,
-OpenMPI, and it builds **Boost 1.91.0 from source in C++20 mode** once with the
-system GCC.
+OpenMPI, and it builds **Boost 1.91.0 from source in C++23 mode** once with the
+system GCC -- the same mode Geneva is compiled in (INSTALL, "Compiling Boost").
 
 Why one image for both compilers: on Linux, GCC and Clang share the same
 ``libstdc++`` C++ standard library, so a Boost built with GCC links cleanly
@@ -13,8 +13,8 @@ release matrix). Only if a future Clang genuinely fails to link against the
 GCC-built Boost would a per-compiler Boost be warranted.
 
 The distro ``libboost-*-dev`` packages are intentionally NOT used: the Ubuntu
-archives ship Boost 1.83/1.88/1.89, all older than the required 1.91 and not
-guaranteed to be compiled in C++20 mode.
+archives ship Boost releases older than the required 1.91, and not compiled in
+C++23 mode.
 """
 
 from __future__ import annotations
@@ -32,11 +32,10 @@ BOOST_URL = (
 # Where the from-source Boost is installed inside the image.
 IMAGE_BOOST_ROOT = "/opt/boost"
 
-# Boost components Geneva links against (Boost.Test header is enough but we
-# build the compiled libs to be safe).
-BOOST_LIBRARIES = (
-    "filesystem,program_options,regex,serialization,test,atomic"
-)
+# The compiled Boost components Geneva links against: GENEVA_BOOST_LIBS in
+# CMakeModules/CommonGenevaBuild.cmake. (Serialization and Filesystem are gone
+# since the move to Gem::Weft; the tests use Catch2, not Boost.Test.)
+BOOST_LIBRARIES = "atomic,json,program_options,regex"
 
 
 def _base_packages(with_mpi: bool) -> str:
@@ -52,11 +51,11 @@ def _base_packages(with_mpi: bool) -> str:
         "git",
         "build-essential",   # gcc/g++ + make
         "g++",
-        "clang",             # distro clang (>=18 on 24.04, >=21 on 26.04)
+        "clang",             # distro clang (22 on 26.10)
         "lld",
         "llvm",
         "libomp-dev",
-        "cmake",             # 3.28 on 24.04, 4.x on 26.04 — both >= 3.27
+        "cmake",             # 4.3 on 26.10, >= 3.27
         "ninja-build",
         "catch2",            # Catch2 v3 (test framework; CMake config + lib)
         "doxygen",
@@ -75,7 +74,7 @@ def containerfile(guest: GuestOS, *, with_mpi: bool = False,
     """Render the Containerfile for one guest OS.
 
     The image installs both toolchains and builds Boost 1.91 from source with
-    GCC in C++20 mode (``b2 cxxstd=20``). Build jobs later mount the read-only
+    GCC in C++23 mode (``cxxflags=-std=c++23``). Build jobs later mount the read-only
     Geneva source and a writable build dir and run ``prepareBuild.sh``.
 
     ``boost_root`` is where Boost is installed inside the image (and exported as
@@ -105,10 +104,10 @@ RUN CLANG_MAJOR="$(clang --version | sed -nE 's/.*version ([0-9]+).*/\\1/p' | he
  && apt-get install -y --no-install-recommends "libclang-rt-${{CLANG_MAJOR}}-dev" \\
  && rm -rf /var/lib/apt/lists/*
 
-# --- Boost {BOOST_VERSION} from source, C++20 ABI --------------------------------
+# --- Boost {BOOST_VERSION} from source, C++23 ABI --------------------------------
 # Built ONCE with the system GCC; GCC and Clang share libstdc++ on Linux so the
-# same Boost serves both compilers. The distro libboost packages (1.83/1.88/
-# 1.89) are deliberately NOT installed: Geneva requires Boost >= 1.91 in C++20.
+# same Boost serves both compilers. The distro libboost packages are
+# deliberately NOT installed: Geneva requires Boost >= 1.91 built in C++23.
 RUN cd /tmp \\
  && curl -fsSL -o {BOOST_TARBALL} "{BOOST_URL}" \\
  && tar xf {BOOST_TARBALL} \\
@@ -116,7 +115,7 @@ RUN cd /tmp \\
  && ./bootstrap.sh --prefix={boost_root} \\
         --with-libraries={BOOST_LIBRARIES} \\
  && ./b2 -j"$(nproc)" \\
-        cxxstd=20 \\
+        cxxflags="-std=c++23" \\
         variant=release \\
         link=shared \\
         threading=multi \\
