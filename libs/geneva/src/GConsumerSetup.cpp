@@ -32,6 +32,9 @@
 // Standard headers
 #include <algorithm>
 #include <cstddef>
+#include <exception>
+#include <filesystem>
+#include <mutex>
 #include <cstdint>
 #include <format>
 #include <functional>
@@ -39,6 +42,10 @@
 #include <ranges>
 #include <string>
 #include <vector>
+
+// Boost.DLL locates this library on disk, next to which the optional consumer modules are installed.
+#define BOOST_DLL_USE_STD_FS 1
+#include <boost/dll/runtime_symbol_info.hpp>
 
 // Default values for the consumer command-line options.
 #include "courtier/GCourtierEnums.hpp"
@@ -49,12 +56,12 @@
 #include "common/GParserBuilder.hpp" // GParserBuilder::updateInPlace() -- materialize the networked config too
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
+#include "geneva/GModuleLoader.hpp" // loadModule() -- the optional consumer modules
 
 // The concrete courtier consumers -- known ONLY here.
 #include "courtier/consumers/GAsioConsumerT.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
-#include "courtier/consumers/GMPIConsumerT.hpp" // self-guarded by GENEVA_BUILD_WITH_MPI_CONSUMER
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 
@@ -78,6 +85,8 @@ namespace po = boost::program_options;
 
 namespace {
 
+} /* anonymous namespace */
+
 /**
  * @brief Builds the polymorphic clone functor for GGenome.
  *
@@ -89,6 +98,8 @@ std::function<std::unique_ptr<gen::GGenome>(const std::unique_ptr<gen::GGenome> 
 individualCloneFunction() {
     return [](const std::unique_ptr<gen::GGenome> &p) { return p->clone(); };
 }
+
+namespace {
 
 /******************************************************************************/
 // The concrete consumer providers. Each moves the construction / option / client logic that the old
@@ -267,81 +278,6 @@ public:
     }
 };
 
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
-/** @brief Provider for the MPI consumer (built on every rank; self-determines master vs worker). */
-class GMPIConsumerProvider final : public GConsumerProviderT {
-public:
-    [[nodiscard]] std::string getMnemonic() const override { return "mpi"; }
-    [[nodiscard]] std::string getName() const override { return "GMPIConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return true; }
-    // MPI is deliberately NOT a bindsListeningPort() consumer: it is built on every rank and
-    // self-determines master/worker, so it is constructed normally rather than reused from the registry.
-    // The master/worker role is fixed by the process rank, discovered only when setup() runs on each rank.
-    [[nodiscard]] bool determinesRoleAtRuntime() const override { return true; }
-
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
-        // MPI fixes the master/worker split by rank; the consumer is built on every rank and branches.
-        // Forward the [mpi] command-line options into the consumer's config.
-        Gem::Courtier::Consumers::MPIConsumerConfig mpi_config;
-        mpi_config.useAsyncReq = spec.mpi_async_req;
-        // 0 == hardware concurrency: leave the default-constructed config's recommendation in place.
-        if(spec.mpi_n_handler_threads != 0) {
-            mpi_config.nHandlerThreads = spec.mpi_n_handler_threads;
-        }
-        mpi_config.serializationMode = spec.serialization_mode;
-        mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
-        auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
-            nullptr, nullptr, mpi_config);
-        ConsumerSetup setup;
-        if(consumer->isMasterNode()) {
-            consumer->setCloneFunction(individualCloneFunction());
-            consumer->startServer();
-            setup.consumer = consumer;
-        }
-        else {
-            // Worker rank: serve through the consumer (kept alive by the capture); no consumer to register.
-            setup.run_worker = [consumer]() { consumer->runWorker(); };
-        }
-        return setup;
-    }
-
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
-        if(vm.contains("mpi_asyncReq")) { spec.mpi_async_req = vm["mpi_asyncReq"].as<bool>(); }
-        if(vm.contains("mpi_nHandlerThreads")) {
-            spec.mpi_n_handler_threads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
-        }
-        if(vm.contains("mpi_cleanSessInterval")) {
-            spec.mpi_clean_sess_interval = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
-        }
-        if(vm.contains("mpi_serializationMode")) {
-            spec.serialization_mode = vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
-        }
-        return spec;
-    }
-
-    [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
-        return nullptr; // the mpi worker loop comes from setup().run_worker, not a socket client
-    }
-
-    void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
-        using Gem::Common::serializationMode;
-        // The defaults mirror MPIConsumerConfig so an unset option leaves the consumer's own default in place.
-        visible.add_options()(
-            "mpi_asyncReq", po::value<bool>()->default_value(true),
-            "\t[mpi] Whether clients prefetch the next work item")(
-            "mpi_nHandlerThreads", po::value<std::uint32_t>()->default_value(0),
-            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)");
-        hidden.add_options()(
-            "mpi_cleanSessInterval", po::value<std::uint32_t>()->default_value(1000),
-            "\t[mpi] Interval in ms between master session-completion checks")(
-            "mpi_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
-            "\t[mpi] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)");
-    }
-};
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
 
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
 /**
@@ -449,9 +385,6 @@ struct ConsumerProviderRegistrar {
         store->setOnce(GDEFAULTCONSUMERMNEMONIC, std::make_shared<GStdThreadConsumerProvider>());
         store->setOnce("asio", std::make_shared<GAsioConsumerProvider>());
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
-        store->setOnce("mpi", std::make_shared<GMPIConsumerProvider>());
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
 #endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
@@ -462,12 +395,61 @@ const ConsumerProviderRegistrar g_consumer_provider_registrar{};
 
 /******************************************************************************/
 /**
+ * Consumers that need a library not every machine has -- MPI -- live in modules of their own, so that no
+ * Geneva program depends on that library to start. The build names them (GENEVA_OPTIONAL_CONSUMER_MODULES,
+ * a comma-separated list of file names) and installs them next to this library.
+ */
+#ifdef GENEVA_OPTIONAL_CONSUMER_MODULES
+constexpr const char *OPTIONAL_CONSUMER_MODULES[] = {GENEVA_OPTIONAL_CONSUMER_MODULES};
+#endif
+
+/** @brief Why an optional consumer module present on disk could not be loaded, per module file name. */
+std::vector<std::string> &optionalConsumerFailures() {
+    static std::vector<std::string> failures;
+    return failures;
+}
+
+/**
+ * @brief Loads the optional consumer modules once, before the consumer catalog is first consulted.
+ *
+ * A module that is absent, or whose own dependencies are missing on this machine (no MPI library, say),
+ * is skipped without a word: its consumer is then simply not available. The reason is kept, and reported
+ * if that consumer is asked for (optionalConsumerNotes()).
+ */
+void loadOptionalConsumerModules() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+#ifdef GENEVA_OPTIONAL_CONSUMER_MODULES
+        std::filesystem::path here;
+        try {
+            here = boost::dll::this_line_location().parent_path();
+        } catch(const std::exception &) {
+            return; // nowhere to look
+        }
+        for(const char *file_name : OPTIONAL_CONSUMER_MODULES) {
+            const std::filesystem::path module_path = here / file_name;
+            if(not std::filesystem::exists(module_path)) {
+                continue;
+            }
+            try {
+                (void)loadModule(module_path);
+            } catch(const std::exception &e) {
+                optionalConsumerFailures().push_back(module_path.string() + ": " + e.what());
+            }
+        }
+#endif
+    });
+}
+
+/******************************************************************************/
+/**
  * @brief Resolves a mnemonic to its consumer provider (downcast from the homogeneous store).
  *
  * @param mnemonic The consumer mnemonic to look up
  * @return The matching consumer provider, or nullptr if the mnemonic is unknown
  */
 std::shared_ptr<GConsumerProviderT> lookupConsumerProvider(const std::string &mnemonic) {
+    loadOptionalConsumerModules();
     std::shared_ptr<Gem::Common::GProviderT<c2::GBaseConsumerT<gen::GGenome>>> base;
     if(consumerProviderStore()->get(mnemonic, base) && base) {
         return std::static_pointer_cast<GConsumerProviderT>(base);
@@ -483,6 +465,7 @@ std::shared_ptr<GConsumerProviderT> lookupConsumerProvider(const std::string &mn
  * @return The registered providers, ordered by mnemonic
  */
 std::vector<std::shared_ptr<GConsumerProviderT>> allConsumerProviders() {
+    loadOptionalConsumerModules();
     std::vector<std::shared_ptr<GConsumerProviderT>> providers;
     for(const auto &base : consumerProviderStore()->getContentSnapshot()) {
         if(base) { providers.push_back(std::static_pointer_cast<GConsumerProviderT>(base)); }
@@ -649,6 +632,7 @@ void addConsumerOptions(
  * @return true if the mnemonic is a known/supported consumer, false otherwise
  */
 bool isKnownConsumer(const std::string &mnemonic) {
+    loadOptionalConsumerModules();
     return consumerProviderStore()->exists(mnemonic);
 }
 
@@ -698,7 +682,23 @@ std::string consumerListing() {
  * @return The count of registered consumer providers (build-dependent, e.g. +1 with MPI)
  */
 std::size_t consumerCount() {
+    loadOptionalConsumerModules();
     return consumerProviderStore()->size();
+}
+
+/******************************************************************************/
+/**
+ * @brief Explains which optional consumer modules exist on disk but could not be loaded, and why.
+ *
+ * @return One line per such module, or an empty string if every module present was loaded
+ */
+std::string optionalConsumerNotes() {
+    loadOptionalConsumerModules();
+    std::string result;
+    for(const auto &failure : optionalConsumerFailures()) {
+        result += failure + '\n';
+    }
+    return result;
 }
 
 /******************************************************************************/

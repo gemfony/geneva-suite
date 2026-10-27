@@ -294,5 +294,25 @@ std::string consumerListing();
 std::size_t consumerCount();
 
 /******************************************************************************/
+/**
+ * @brief Why consumers that live in optional modules (MPI) are missing, if their module is installed but
+ * could not be loaded -- typically because a library it needs is absent on this machine.
+ * @return One line per module that could not be loaded; empty if there is none.
+ */
+std::string optionalConsumerNotes();
+
+/******************************************************************************/
+/**
+ * @brief The polymorphic clone function every consumer is given for clone-on-partial-return.
+ *
+ * Copy-construction would slice the held individual, so the individual's virtual clone() is used. Exposed
+ * for consumer providers that live in modules of their own.
+ *
+ * @return A functor that deep-copies a GGenome via its virtual clone()
+ */
+std::function<std::unique_ptr<gen::GGenome>(const std::unique_ptr<gen::GGenome> &)>
+individualCloneFunction();
+
+/******************************************************************************/
 
 } /* namespace Gem::Geneva */

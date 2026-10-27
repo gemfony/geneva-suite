@@ -76,8 +76,8 @@
 /******************************************************************************/
 /*
  * Contribution kinds. A module may contribute several things (e.g. an OA plus its personality traits plus a
- * bundled monitor, or an individual plus its GPU marshaller). INDIVIDUAL, OA and MARSHALLER are wired by the
- * loader today; MONITOR and CONSUMER are reserved and added as their categories are modularised.
+ * bundled monitor, or an individual plus its GPU marshaller). INDIVIDUAL, OA, MARSHALLER and CONSUMER are wired
+ * by the loader today; MONITOR is reserved and added when that category is modularised.
  */
 #define GENEVA_CONTRIBUTION_INDIVIDUAL 1u
 #define GENEVA_CONTRIBUTION_OA 2u

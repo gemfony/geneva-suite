@@ -82,6 +82,8 @@ struct LoadedModule {
     std::uint32_t oa_count = 0;
     /** @brief How many GPU marshallers the module registered into @c marshallerProviderStore(). */
     std::uint32_t marshaller_count = 0;
+    /** @brief How many consumers the module registered into @c consumerProviderStore(). */
+    std::uint32_t consumer_count = 0;
 };
 
 /**

@@ -55,6 +55,7 @@
 #include "geneva/oa/GOAPlugin.hpp"     // GOAProviderPtr -- the OA contribution's void* holder type
 #include "geneva/GMarshallerSetup.hpp" // marshallerProviderStore() -- the marshaller registration target
 #include "geneva/GMarshallerPlugin.hpp" // GMarshallerProviderPtr -- the marshaller contribution's void* holder
+#include "geneva/GConsumerPlugin.hpp"   // GConsumerProviderPtr -- the consumer contribution's void* holder
 
 namespace Gem::Geneva {
 
@@ -66,12 +67,17 @@ namespace {
  * GArchive type registrations, so it must never be unloaded while the program runs; the store
  * is therefore intentionally never cleared. Guarded by a mutex so concurrent loads are safe (loads are
  * rare -- once at startup -- so a plain mutex is ample).
+ *
+ * Nor is it ever destroyed: a static vector would be torn down at exit and unload every module while
+ * objects built from module code -- providers in the provider stores, the process consumer and its
+ * threads -- are still alive in other statics, which would then run code that is no longer mapped.
+ * Hence a deliberately leaked store; the operating system releases the modules with the process.
  */
 std::mutex g_module_mutex;
 
 std::vector<boost::dll::shared_library> &keptModules_() {
-    static std::vector<boost::dll::shared_library> libs;
-    return libs;
+    static auto *libs = new std::vector<boost::dll::shared_library>(); // NOLINT(cppcoreguidelines-owning-memory)
+    return *libs;
 }
 
 /******************************************************************************/
@@ -381,6 +387,24 @@ void registerMarshallerContribution(const GenevaContribution &contrib, const std
     }
 }
 
+/** @brief Registers one CONSUMER contribution's provider into consumerProviderStore() under the consumer's
+ *  mnemonic. A mnemonic already held (a built-in consumer or another module) is a hard error. */
+void registerConsumerContribution(const GenevaContribution &contrib, const std::string &path_str) {
+    GConsumerProviderPtr const provider =
+        takeContribution<GConsumerProviderPtr>(contrib, path_str, "consumer provider");
+    const std::string mnemonic = provider->getMnemonic();
+    if(not consumerProviderStore()->setOnce(mnemonic, provider)) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Gem::Geneva::loadModule(): Error!" << '\n'
+            << "The module '" << path_str << "' contributes a consumer with mnemonic '" << mnemonic << "',"
+            << '\n'
+            << "but that mnemonic is already registered (a built-in consumer or another module owns it)."
+            << '\n'
+        );
+    }
+}
+
 } // namespace
 
 /******************************************************************************/
@@ -404,8 +428,9 @@ LoadedModule loadModule(const std::filesystem::path &module_path) {
             << "The module " << described << " contributes nothing: its manifest lists "
             << manifest->contributions_count << " contribution(s)"
             << (manifest->contributions == nullptr ? " and has no contribution array" : "") << "." << '\n'
-            << "A module must carry at least one individual, optimization algorithm or marshaller -- see"
-            << " Gem::Geneva::individualManifest() / oaManifest() / marshallerManifest()." << '\n'
+            << "A module must carry at least one individual, optimization algorithm, marshaller or"
+            << " consumer -- see Gem::Geneva::individualManifest() / oaManifest() / marshallerManifest() /"
+            << " consumerManifest()." << '\n'
         );
     }
 
@@ -424,7 +449,7 @@ LoadedModule loadModule(const std::filesystem::path &module_path) {
                 << ", name '" << (contrib.name_or_mnemonic != nullptr ? contrib.name_or_mnemonic : "<null>")
                 << "') has no factory entry point." << '\n'
                 << "Its manifest entry was built by hand and left make_factory null; use the typed author"
-                << " helpers (individualManifest() / oaManifest() / marshallerManifest()) instead." << '\n'
+                << " helpers (individualManifest() / oaManifest() / marshallerManifest() / consumerManifest()) instead." << '\n'
             );
         }
 
@@ -452,6 +477,11 @@ LoadedModule loadModule(const std::filesystem::path &module_path) {
                 ++result.marshaller_count;
                 break;
             }
+            case GENEVA_CONTRIBUTION_CONSUMER: {
+                registerConsumerContribution(contrib, path_str);
+                ++result.consumer_count;
+                break;
+            }
             default:
                 // Every other kind number -- the reserved-but-unwired ones and anything unknown -- is
                 // refused rather than skipped. The ABI stamp above already guarantees the module and this
@@ -466,9 +496,9 @@ LoadedModule loadModule(const std::filesystem::path &module_path) {
                     << "'), which this Geneva cannot load." << '\n'
                     << "Supported kinds: " << GENEVA_CONTRIBUTION_INDIVIDUAL << " (individual), "
                     << GENEVA_CONTRIBUTION_OA << " (optimization algorithm), "
-                    << GENEVA_CONTRIBUTION_MARSHALLER << " (GPU marshaller). Kinds "
-                    << GENEVA_CONTRIBUTION_MONITOR << " (monitor) and " << GENEVA_CONTRIBUTION_CONSUMER
-                    << " (consumer) are reserved and not yet wired." << '\n'
+                    << GENEVA_CONTRIBUTION_MARSHALLER << " (GPU marshaller), "
+                    << GENEVA_CONTRIBUTION_CONSUMER << " (consumer). Kind "
+                    << GENEVA_CONTRIBUTION_MONITOR << " (monitor) is reserved and not yet wired." << '\n'
                 );
         }
     }

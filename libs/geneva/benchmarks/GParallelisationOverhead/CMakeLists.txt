@@ -43,12 +43,6 @@ SET(LIBRARIES_TO_LINK
 		# GDelayIndividual is no longer in the geneva library; this benchmark compiles it in via its object library.
 		GDelayIndividual-obj)
 
-# Add MPI Libraries in case building with MPI-consumer
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK
-			${LIBRARIES_TO_LINK}
-			${MPI_LIBRARIES})
-ENDIF()
 
 TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${LIBRARIES_TO_LINK})

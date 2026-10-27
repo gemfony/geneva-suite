@@ -47,9 +47,6 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES})
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK ${LIBRARIES_TO_LINK} ${MPI_LIBRARIES})
-ENDIF()
 
 # (1) The loadable OA module -> libGRandomSearch.so. It carries the algorithm + its personality traits + the
 # archive tags + the manifest entry point. GENEVA_ADD_INDIVIDUAL_MODULE is kind-agnostic -- it builds

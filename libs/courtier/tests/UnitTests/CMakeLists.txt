@@ -32,11 +32,6 @@ SET(LIBRARIES_TO_LINK
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain)
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK
-			${LIBRARIES_TO_LINK}
-			${MPI_LIBRARIES})
-ENDIF()
 
 # Helper: declare a Courtier Catch2 test executable
 #
@@ -99,7 +94,8 @@ ENDFOREACH()
 # under mpirun (1 master + 2 workers) rather than as an in-process Catch2 test.
 IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	ADD_EXECUTABLE(GCourtierMpiExerciser GCourtierMpiExerciser.cpp)
-	TARGET_LINK_LIBRARIES(GCourtierMpiExerciser ${LIBRARIES_TO_LINK})
+	# The exercisers use the header-only MPI consumer directly, so they -- and only they -- link MPI.
+	TARGET_LINK_LIBRARIES(GCourtierMpiExerciser ${LIBRARIES_TO_LINK} MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	ADD_TEST(NAME GCourtierMpiTest
@@ -113,7 +109,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)
-	TARGET_LINK_LIBRARIES(GCourtierMpiLargePayloadExerciser ${LIBRARIES_TO_LINK})
+	TARGET_LINK_LIBRARIES(GCourtierMpiLargePayloadExerciser ${LIBRARIES_TO_LINK} MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiLargePayloadExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	ADD_TEST(NAME GCourtierMpiLargePayloadTest

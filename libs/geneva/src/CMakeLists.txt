@@ -142,19 +142,6 @@ IF(GENEVA_BUILD_TESTS)
 		SOURCES individuals/GTestIndividual3.cpp)
 ENDIF()
 
-# Add MPI specific files
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			GMPISubClientIndividual.cpp)
-ENDIF()
-
-# Add MPI specific files
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			GMPISubClientOptimizer.cpp)
-ENDIF()
 
 ################################################################################
 #
@@ -299,9 +286,33 @@ IF ( GENEVA_BUILD_TESTS )
 	)
 ENDIF ()
 
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-	TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE MPI::MPI_CXX)
-ENDIF ()
-
 INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
+
+################################################################################
+# The MPI module (libgemfony-geneva-mpi): everything in Geneva that needs MPI. MPI is the one consumer
+# that needs a library not every machine has, so it is not linked into libgemfony-geneva -- every Geneva
+# program would otherwise need libmpi to start, even for a run on the thread-pool consumer. The module
+# carries the "mpi" consumer provider and is loaded at run time when it lies next to libgemfony-geneva
+# (GConsumerSetup.cpp, loadOptionalConsumerModules()); a program that uses GMPISubClientOptimizer or
+# GMPISubClientIndividual links it directly. It is built into the same directory as libgemfony-geneva,
+# in the build tree as in the installation, which is where the loader looks.
+IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} SHARED
+		GMPIConsumerModule.cpp
+		GMPISubClientIndividual.cpp
+		GMPISubClientOptimizer.cpp )
+	SET_TARGET_PROPERTIES ( ${GENEVA_MPI_LIBNAME} PROPERTIES
+		VERSION ${GENEVA_VERSION}
+		EXPORT_NAME geneva-mpi )
+	# Like a loadable individual module, it links no Geneva library -- the process that loads (or links) it
+	# already carries them, and a testing build's Geneva would hand the static Catch2 on to a shared library
+	# that cannot take it. COMPILE_ONLY takes Geneva's include paths and compile settings without linking.
+	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME} PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> MPI::MPI_CXX )
+	ADD_DEPENDENCIES ( ${GENEVA_MPI_LIBNAME} ${GENEVA_LIBNAME} )
+	INSTALL ( TARGETS ${GENEVA_MPI_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
+
+	# The loader in libgemfony-geneva needs the module's file name.
+	SET_PROPERTY ( SOURCE GConsumerSetup.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+		"GENEVA_OPTIONAL_CONSUMER_MODULES=\"$<TARGET_FILE_NAME:${GENEVA_MPI_LIBNAME}>\"" )
+ENDIF ()
 

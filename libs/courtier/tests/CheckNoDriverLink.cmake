@@ -27,15 +27,19 @@
 #
 ################################################################################
 
-# Regression guard: no Geneva library may depend on the CUDA driver library.
+# Regression guard: no Geneva library or program may depend at load time on a library that not every
+# machine has -- the CUDA driver (libcuda.so.1, which comes with the NVIDIA driver, not the toolkit) or
+# the MPI library. Linked in, either keeps every program from starting where it is missing, even for a
+# run that does not use it. Geneva therefore loads both at run time: the CUDA driver through
+# libs/courtier/src/gpu/GCUDADriver, the MPI consumer as the module libgemfony-geneva-mpi. This check
+# fails if a link dependency on such a library comes back, directly or through another library; ldd
+# lists the whole dependency closure.
 #
-# libcuda.so.1 comes with the NVIDIA driver, not with the CUDA toolkit. A library that needs it at
-# load time keeps every program linked against it from starting on a machine without a driver --
-# even for a run on the CPU consumers. The GPU consumer therefore loads the driver at run time
-# (libs/courtier/src/gpu/GCUDADriver), and this check fails if a link dependency on it comes back,
-# directly or through another library. ldd lists the whole dependency closure.
-#
-# Driven via `cmake -P` with -DLIBS="<library>;<library>;...".
+# Driven via `cmake -P` with -DLIBS="<file>;<file>;..." and -DPATTERN=<regex> (default: libcuda\.so).
+
+if(NOT DEFINED PATTERN)
+    set(PATTERN "libcuda\\.so")
+endif()
 
 foreach(_lib IN LISTS LIBS)
     execute_process(
@@ -46,12 +50,13 @@ foreach(_lib IN LISTS LIBS)
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "ldd failed on ${_lib}: ${_err}")
     endif()
-    if(_out MATCHES "libcuda\\.so")
+    if(_out MATCHES "${PATTERN}")
         message(FATAL_ERROR
-            "${_lib} depends on the CUDA driver library at load time:\n${_out}\n"
-            "Programs linked against it would not start on a machine without an NVIDIA driver. "
-            "The driver must be loaded at run time (see libs/courtier/src/gpu/GCUDADriver.hpp).")
+            "${_lib} depends at load time on a library matching '${PATTERN}':\n${_out}\n"
+            "Programs linked against it would not start on a machine without that library. It must be "
+            "loaded at run time instead (see libs/courtier/src/gpu/GCUDADriver.hpp for the CUDA driver, "
+            "libs/geneva/src/GMPIConsumerModule.cpp for MPI).")
     endif()
 endforeach()
 
-message(STATUS "CheckNoDriverLink: no Geneva library needs libcuda.so at load time")
+message(STATUS "CheckNoDriverLink: nothing checked needs a library matching '${PATTERN}' at load time")

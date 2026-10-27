@@ -53,9 +53,6 @@ SET ( LIBRARIES_TO_LINK
 	# GFunctionIndividual is no longer in the geneva library; compiled in via its object library.
 	GFunctionIndividual-obj
 )
-IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
-	SET ( LIBRARIES_TO_LINK ${LIBRARIES_TO_LINK} ${MPI_LIBRARIES} )
-ENDIF ()
 
 TARGET_LINK_LIBRARIES ( ${EXECUTABLENAME} PRIVATE ${LIBRARIES_TO_LINK} )
 

@@ -31,9 +31,6 @@
 # merged in at Stage E. Launched by scripts/startCourtierJobs.sh as separate server + client
 # processes. (The "2" in the name is dropped at the Stage-E identifier rename, E2.)
 SET(LIBRARIES_TO_LINK ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK ${LIBRARIES_TO_LINK} ${MPI_LIBRARIES})
-ENDIF()
 
 ADD_EXECUTABLE(GCourtierNetworkedExerciser GCourtierNetworkedExerciser.cpp)
 TARGET_LINK_LIBRARIES(GCourtierNetworkedExerciser ${LIBRARIES_TO_LINK})

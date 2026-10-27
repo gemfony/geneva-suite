@@ -44,12 +44,6 @@ SET(LIBRARIES_TO_LINK
 		# its object library (the alternative to loading it as a module).
 		GExternalEvaluatorIndividual-obj)
 
-# Add MPI Libraries in case building with MPI-consumer
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK
-			${LIBRARIES_TO_LINK}
-			${MPI_LIBRARIES})
-ENDIF()
 
 TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${LIBRARIES_TO_LINK})

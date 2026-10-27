@@ -90,13 +90,17 @@ INSTALLDIR="/opt/geneva"
 # Further linker parameters you might want to provide
 LINKEREXTRAFLAGS=""
 
-# Whether to build MPI consumer
+# Whether to build the MPI consumer. It is built as a module of its own, libgemfony-geneva-mpi,
+# next to libgemfony-geneva, and loaded at run time: the "mpi" consumer mnemonic exists when the
+# module and an MPI library are present, and no other Geneva library or program links MPI, so
+# Geneva programs also start on machines without MPI. A program using GMPISubClientOptimizer
+# links the module directly.
 BUILDMPICONSUMER="1"
 
 # Whether to build the GPU consumer (GGPUConsumerT) into the courtier library and
-# expose the "gpu" consumer mnemonic. Like the MPI consumer this is an opt-in add-on:
-# when enabled, courtier dynamically links the CUDA (NVRTC + driver API) device backend
-# present on the system (a CPU backend is always available); when disabled, no GPU code is
+# expose the "gpu" consumer mnemonic. It is an opt-in add-on: when enabled, courtier
+# carries the CUDA backend (NVRTC linked; the CUDA driver loaded at run time, so a CUDA build
+# starts on machines without a driver); when disabled, no GPU code is
 # compiled and "gpu" is not a selectable consumer. Example 14 (GCUDAWorker) and the GPU
 # optimisation benchmark are built only when this is enabled. Independent of USECUDARNG (a
 # separate Hap feature). SKIPALLCUDA still forces the whole consumer off.

@@ -37,6 +37,7 @@
 
 // standard headers
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <thread>
@@ -83,7 +84,11 @@ struct MPICompletionStatus {
  * @param dataType The MPI datatype of the message elements (defaults to MPI_CHAR)
  * @return The number of elements of type @p dataType transferred by the operation
  */
-int mpiGetCount(const MPI_Status &status, MPI_Datatype dataType = MPI_CHAR);
+inline int mpiGetCount(const MPI_Status &status, MPI_Datatype dataType = MPI_CHAR) {
+    int count{};
+    MPI_Get_count(&status, dataType, &count);
+    return count;
+}
 
 /******************************************************************************/
 /**
@@ -92,7 +97,13 @@ int mpiGetCount(const MPI_Status &status, MPI_Datatype dataType = MPI_CHAR);
  * @param mpiError The integer MPI error code (typically taken from an MPI_Status's MPI_ERROR field)
  * @return A string describing the given error code
  */
-std::string mpiErrorString(int mpiError);
+inline std::string mpiErrorString(int mpiError) {
+    char errorMessage[MPI_MAX_ERROR_STRING];
+    int messageLength = 0;
+    MPI_Error_string(mpiError, errorMessage, &messageLength);
+    // the string in errorMessage is null terminated, so it can be handed to the std::string constructor
+    return std::string{errorMessage};
+}
 
 /******************************************************************************/
 /**
@@ -101,7 +112,99 @@ std::string mpiErrorString(int mpiError);
  * @param comm The MPI communicator to query
  * @return The number of processes in @p comm
  */
-std::uint32_t mpiSize(const MPI_Comm &comm);
+inline std::uint32_t mpiSize(const MPI_Comm &comm) {
+    int size{};
+    MPI_Comm_size(comm, &size);
+    return static_cast<std::uint32_t>(size);
+}
+
+/******************************************************************************/
+// The machinery the two collectives share; not part of the interface.
+namespace detail {
+
+/**
+ * Waits for the completion of an async MPI request by checking in a cyclic manner as long as a predicate returns true
+ * @param request the request to wait on
+ * @param pollIntervalMSec the time between checks
+ * @param runWhile predicate, when this is false the waiting will be aborted
+ * @return status of the operation when terminated
+ */
+inline MPICompletionStatus waitForRequestCompletionWhile(
+    MPI_Request &request,
+    const std::uint64_t &pollIntervalMSec,
+    const std::function<bool()> &runWhile
+) {
+    int isCompleted{0};
+    MPI_Status status{};
+
+    while(runWhile()) {
+        MPI_Test(&request, &isCompleted, &status);
+
+        // return appropriate result in case of completion
+        if(isCompleted) {
+            if(status.MPI_ERROR == MPI_SUCCESS) {
+                return MPICompletionStatus{.statusCode=MPIStatusCode::SUCCESS, .mpiStatus=status};
+            }
+            return MPICompletionStatus{.statusCode=MPIStatusCode::ERROR, .mpiStatus=status};
+        }
+
+        // sleep some time before polling again for completion status
+        std::this_thread::sleep_for(std::chrono::milliseconds(pollIntervalMSec));
+    }
+
+    // the execution shall be stopped due to the stop criterion returning false
+
+    // return appropriate result
+    return MPICompletionStatus{.statusCode=MPIStatusCode::STOPPED, .mpiStatus=status};
+}
+
+/**
+ * Starts an async symmetric collective (MPI_Iscatter or MPI_Igather -- their signatures are
+ * identical, with sendCount elements travelling per process in either direction) and blocks
+ * until the request has completed or a predicate returns false. The one shared implementation
+ * behind mpiScatterWhile() / mpiGatherWhile().
+ *
+ * @param collective The collective to start (MPI_Iscatter or MPI_Igather)
+ * @param sendBuf The buffer data is sent from (see the public wrappers for the per-direction meaning)
+ * @param sendCount The number of elements travelling per process
+ * @param recvBuf The buffer data is received into
+ * @param type The MPI datatype of the elements
+ * @param runWhile Predicate polled while waiting; waiting is aborted once it returns false
+ * @param root The rank of the root process of the collective
+ * @param comm The MPI communicator over which the collective is performed
+ * @param pollIntervalMSec The time in milliseconds between completion checks
+ * @return The completion status of the operation when it terminated
+ */
+// NOLINTNEXTLINE(readability-function-size) -- 9 parameters mirror the shared MPI_Iscatter/MPI_Igather call signature plus the poll predicate/interval; splitting would just pass most of them straight back together
+inline MPICompletionStatus mpiCollectiveWhile(
+    decltype(&MPI_Iscatter) collective,
+    const void *sendBuf,
+    const std::uint32_t &sendCount,
+    void *recvBuf,
+    MPI_Datatype type,
+    const std::function<bool()> &runWhile,
+    const std::uint32_t &root,
+    MPI_Comm comm,
+    const std::uint64_t &pollIntervalMSec
+) {
+    MPI_Request requestHandle{};
+
+    collective(
+        sendBuf,
+        static_cast<int>(sendCount), // elements sent per process
+        type,
+        recvBuf,
+        static_cast<int>(sendCount), // elements received per process
+        type,
+        static_cast<int>(root), // root rank
+        comm,
+        &requestHandle
+    );
+
+    return waitForRequestCompletionWhile(requestHandle, pollIntervalMSec, runWhile);
+}
+
+} /* namespace detail */
 
 /******************************************************************************/
 /**
@@ -117,7 +220,7 @@ std::uint32_t mpiSize(const MPI_Comm &comm);
  * @param pollIntervalMSec The time in milliseconds between completion checks
  * @return The completion status of the operation when it terminated
  */
-[[nodiscard]] MPICompletionStatus mpiScatterWhile(
+[[nodiscard]] inline MPICompletionStatus mpiScatterWhile(
     const void *sendBuf,
     const std::uint32_t &sendCount,
     void *recvBuf,
@@ -126,7 +229,11 @@ std::uint32_t mpiSize(const MPI_Comm &comm);
     const std::uint32_t &root,
     MPI_Comm comm,
     const std::uint64_t &pollIntervalMSec
-);
+) {
+    return detail::mpiCollectiveWhile(
+        &MPI_Iscatter, sendBuf, sendCount, recvBuf, type, runWhile, root, comm, pollIntervalMSec
+    );
+}
 
 /******************************************************************************/
 /**
@@ -142,7 +249,7 @@ std::uint32_t mpiSize(const MPI_Comm &comm);
  * @param pollIntervalMSec The time in milliseconds between completion checks
  * @return The completion status of the operation when it terminated
  */
-[[nodiscard]] MPICompletionStatus mpiGatherWhile(
+[[nodiscard]] inline MPICompletionStatus mpiGatherWhile(
     const void *sendBuf,
     const std::uint32_t &sendCount,
     void *recvBuf,
@@ -151,6 +258,10 @@ std::uint32_t mpiSize(const MPI_Comm &comm);
     const std::uint32_t &root,
     MPI_Comm comm,
     const std::uint64_t &pollIntervalMSec
-);
+) {
+    return detail::mpiCollectiveWhile(
+        &MPI_Igather, sendBuf, sendCount, recvBuf, type, runWhile, root, comm, pollIntervalMSec
+    );
+}
 
 } /* namespace Gem::Courtier */

@@ -33,15 +33,11 @@ SET(COMMUNICATIONSOURCES
         GDemoProcessingContainers.cpp
         )
 
-# MPI-consumer is optional, only build it when requested
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-    SET( COMMUNICATIONSOURCES
-            ${COMMUNICATIONSOURCES}
-            GMPIHelperFunctions.cpp)
-ENDIF ()
+# The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp,
+# GMPIHelperFunctions.hpp): courtier itself links no MPI. It is instantiated in Geneva's MPI module
+# (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start.
 
-# GPU-consumer is optional too, and is folded into this one courtier library exactly like the MPI
-# consumer: the device backends compile in (and CUDA links in) only when requested. The backend
+# The GPU consumer is optional, and is folded into this one courtier library: the device backends compile in (and CUDA links in) only when requested. The backend
 # source list + toolkit detection come from gpu/GPUBackends.cmake (which sets COURTIER_GPU_SRCS and the
 # COURTIER_GPU_HAVE_CUDA flag used in the link/definitions block below).
 IF (GENEVA_GPU_CONSUMER_ENABLED)
@@ -77,12 +73,6 @@ TARGET_INCLUDE_DIRECTORIES(
 
 # Inter-library dependency: courtier builds on hap (and transitively common).
 TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PUBLIC ${HAP_LIBNAME})
-
-# MPI is an implementation detail of the consumer sources; keep it PRIVATE so it
-# does not leak into the exported interface of consumers that do not use MPI.
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-    TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PRIVATE MPI::MPI_CXX)
-ENDIF ()
 
 # The GPU consumer's device dependencies (CUDA driver/NVRTC) are implementation details of the
 # backend .cpp files -> link them PRIVATE so they do not leak into courtier's exported interface. The

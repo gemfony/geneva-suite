@@ -40,7 +40,6 @@ ADD_EXECUTABLE(${EXECUTABLENAME}
 TARGET_LINK_LIBRARIES(${EXECUTABLENAME}
         ${GENEVA_LIBRARIES}
         ${Boost_LIBRARIES}
-        ${MPI_LIBRARIES}
         # GFunctionIndividual is no longer in the geneva library; compiled in via its object library.
         GFunctionIndividual-obj
         )

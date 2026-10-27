@@ -45,9 +45,6 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES})
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK ${LIBRARIES_TO_LINK} ${MPI_LIBRARIES})
-ENDIF()
 
 # (1) The loadable GPU-problem module -> libGGPUParaboloid.so. It carries the individual, its GPU marshaller,
 # the individual's archive tag and a TWO-contribution manifest entry point. GENEVA_ADD_INDIVIDUAL_MODULE

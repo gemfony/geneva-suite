@@ -42,12 +42,12 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES})
 
-# Add MPI Libraries in case building with MPI-consumer
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK
-			${LIBRARIES_TO_LINK}
-			${MPI_LIBRARIES})
-ENDIF()
+# GMPISubClientOptimizer and GMPISubClientIndividual live in Geneva's MPI library, and the example calls
+# MPI itself.
+SET(LIBRARIES_TO_LINK
+		${GENEVA_MPI_LIBNAME}
+		${LIBRARIES_TO_LINK}
+		MPI::MPI_CXX)
 
 TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${LIBRARIES_TO_LINK}

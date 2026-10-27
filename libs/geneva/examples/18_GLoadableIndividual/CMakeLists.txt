@@ -34,9 +34,6 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES})
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(LIBRARIES_TO_LINK ${LIBRARIES_TO_LINK} ${MPI_LIBRARIES})
-ENDIF()
 
 # (1) The loadable individual plugin -> libGLoadableParaboloid.so. It carries the problem code + its
 # archive-tag registration + the plugin entry points. GENEVA_ADD_INDIVIDUAL_MODULE builds it as a shared MODULE

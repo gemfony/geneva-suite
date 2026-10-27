@@ -49,9 +49,6 @@ FUNCTION(geneva_common_test name size)
 	ADD_EXECUTABLE(${name} ${ARGN})
 
 	SET(_libs ${GENEVA_LIBRARIES} ${Boost_LIBRARIES} Catch2::Catch2WithMain)
-	IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-		LIST(APPEND _libs ${MPI_LIBRARIES})
-	ENDIF ()
 	TARGET_LINK_LIBRARIES(${name} ${_libs})
 
 	ADD_TEST(${name} ${name})
