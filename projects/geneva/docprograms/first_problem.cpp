@@ -64,7 +64,7 @@ namespace oa = Gem::Geneva::OptimizationAlgorithms;    // algorithms and their a
 
 namespace first {
 
-//! [first-problem-class]
+//! [quickstart-tour-class]
 /**
  * A candidate solution of the problem: two floating-point parameters x and y, each between -5 and
  * 5, judged by how far f(x, y) = (x - 1)^2 + (y + 2)^2 lies above its minimum.
@@ -99,7 +99,7 @@ protected:
         return {dx * dx + dy * dy};
     }
 };
-//! [first-problem-class]
+//! [quickstart-tour-class]
 
 } // namespace first
 
@@ -107,7 +107,7 @@ GEM_REGISTER_ARCHIVABLE(first::FirstProblem) // NOLINT
 
 /******************************************************************************/
 
-//! [first-problem-main]
+//! [quickstart-tour-main]
 int main(int argc, char **argv) {
     using namespace Gem::Geneva;
 
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
     best->streamline<double>(xy);
     std::cout << "best solution: x = " << xy[0] << ", y = " << xy[1]
               << ", f = " << best->raw_fitness(0) << '\n';
-    //! [first-problem-main]
+    //! [quickstart-tour-main]
 
     // A tolerance on the known minimum at (1, -2), not an exact value (Invariant 18).
     const bool found = std::abs(xy[0] - 1.) < 0.1 && std::abs(xy[1] + 2.) < 0.1;
