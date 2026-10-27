@@ -60,6 +60,7 @@
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "weft/GArchivePolymorphic.hpp"
 
+namespace geneva = Gem::Geneva;                        // Go2 and the optimization monitors
 namespace gen = Gem::Geneva::Genome;                   // the genome and its builder
 namespace oa = Gem::Geneva::OptimizationAlgorithms;    // algorithms and their adaption
 
@@ -93,16 +94,16 @@ public:
 protected:
     /** @brief The evaluation: one number per criterion, here a single one */
     std::vector<double> evaluate() override {
-        std::vector<double> p;
-        this->streamline<double>(p); // the parameter values, in the units declared above
-        const double dx = p[0] - 1.;
-        const double dy = p[1] + 2.;
+        std::vector<double> parameters;
+        this->streamline<double>(parameters); // the values, in the units declared above
+        const double dx = parameters[0] - 1.;
+        const double dy = parameters[1] + 2.;
         return {dx * dx + dy * dy};
     }
 };
 //! [quickstart-tour-class]
 
-} // namespace first
+} /* namespace first */
 
 GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
@@ -110,10 +111,8 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
 //! [quickstart-tour-main]
 int main(int argc, char **argv) {
-    using namespace Gem::Geneva;
-
     // Reads the command line and ./config/Go2.json (written with defaults on the first run).
-    Go2 go(argc, argv, "./config/Go2.json");
+    geneva::Go2 go(argc, argv, "./config/Go2.json");
     if(go.clientMode()) {
         return go.clientRun(); // a worker process in a networked run
     }
@@ -124,20 +123,21 @@ int main(int argc, char **argv) {
     go.push_back(problem);
 
     // Record every candidate the search evaluates, plotted over the two parameters.
-    auto plotter = std::make_shared<GProgressPlotter>();
+    auto plotter = std::make_shared<geneva::GProgressPlotter>();
     plotter->setProfileSpec("d(0, -5, 5), d(1, -5, 5)");
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.
     auto best = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
-    std::vector<double> xy;
-    best->streamline<double>(xy);
-    std::cout << "best solution: x = " << xy[0] << ", y = " << xy[1]
+    std::vector<double> best_parameters;
+    best->streamline<double>(best_parameters);
+    std::cout << "best solution: x = " << best_parameters[0] << ", y = " << best_parameters[1]
               << ", f = " << best->raw_fitness(0) << '\n';
     //! [quickstart-tour-main]
 
     // A tolerance on the known minimum at (1, -2), not an exact value (Invariant 18).
-    const bool found = std::abs(xy[0] - 1.) < 0.1 && std::abs(xy[1] + 2.) < 0.1;
+    const bool found = std::abs(best_parameters[0] - 1.) < 0.1
+                     && std::abs(best_parameters[1] + 2.) < 0.1;
     if(not found) {
         std::cerr << "GQuickStart: the search did not find the minimum at (1, -2)\n";
     }

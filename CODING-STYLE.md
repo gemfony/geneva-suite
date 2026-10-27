@@ -254,6 +254,14 @@ Consequently there is **no standalone identifier-rename sweep**: the naming rule
 the existing tree converges only as files are touched for other reasons, and never across a config key or a
 public signature.
 
+### 4.5 Short, telling names
+
+A name says what the thing *is*, in the reader's terms: `best_parameters`, not `xy` or `p`, and not
+`vector_of_best_parameter_values_found`. Prefer the shortest name that still tells; a reader should not have
+to look up a declaration to know what a variable holds. Single letters and terse names are fine where they
+mirror a formula the code implements (`dx`, `dy` for x - 1 and y + 2) or index a short loop. This is a
+judgment rule, not a linter rule, and like every naming rule it applies to new and modified code (§4.4).
+
 ## 5. Layout and control flow
 
 Layout is owned entirely by `.clang-format`: rather than memorise it, run the formatter. The rules below are
