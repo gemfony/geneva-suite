@@ -40,6 +40,7 @@
 SET ( _GENEVA_DOCPROGRAMS
 	noisy_parabola_scan  # the scanned landscape + the search drawn on top of it (2 figures)
 	algorithm_search_paths  # each algorithm on a function that suits it, its search drawn (10 figures)
+	first_problem  # the manual's quick start: a minimal problem, solved, plotted and read out (1 figure)
 )
 
 SET ( _GENEVA_DOCPROGRAM_LIBS
