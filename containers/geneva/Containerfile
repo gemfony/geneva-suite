@@ -156,10 +156,10 @@ RUN set -eu; \
     ldconfig
 
 # The installed package must be usable from outside the tree: build the downstream template
-# (projects/geneva/quickstart) against /opt/geneva exactly as a user's own project would be.
+# (libs/geneva/quickstart) against /opt/geneva exactly as a user's own project would be.
 RUN set -eu; \
     if [ -d /opt/cuda-stubs ]; then export LD_LIBRARY_PATH=/opt/cuda-stubs; fi; \
-    cmake -S /src/geneva/projects/geneva/quickstart -B /tmp/quickstart \
+    cmake -S /src/geneva/libs/geneva/quickstart -B /tmp/quickstart \
           -DCMAKE_PREFIX_PATH="/opt/geneva;/opt/boost" -DBOOST_ROOT=/opt/boost; \
     cmake --build /tmp/quickstart -j"${JOBS:-$(nproc)}"; \
     rm -rf /tmp/quickstart

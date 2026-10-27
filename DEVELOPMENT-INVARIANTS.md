@@ -28,7 +28,7 @@ example of this rule; apply the same reflex everywhere.
 All concurrency building blocks — **thread pools, thread groups, thread-safe queues, thread-safe keyed
 stores, completion latches, content-addressed/aging stores, and any lock-free structures** — come from
 Geneva's shared concurrency facilities, consolidated in the distinct sub-module
-`projects/common/include/common/concurrency/` (namespace `Gem::Common::Concurrency`) — mirroring geneva's
+`libs/common/include/common/concurrency/` (namespace `Gem::Common::Concurrency`) — mirroring geneva's
 `par`/`ind`/`oa`, so they stay able to use `common`'s facilities yet are clearly separated and impossible to
 overlook. These include `GBlockingMPMCQueueT`, `GPreallocatedMPMCQueueT`, the `GMPMCQueueT` facade + the
 `MPMCQueue` concept, the thread pool/group, `GContentAddressedStoreT`, `GThreadSafeKeyedStoreT`,
@@ -496,7 +496,7 @@ decoration or convenience:
   regions the manual extracts at *its* build time. Treat a marker like code: moving, renaming or
   deleting one breaks the manual build, which names the affected chapter. When editing a marked
   region, the markers move with the meaning they bracket.
-- **Documentation programs** live under `projects/<lib>/docprograms/`, never in `examples/` — an
+- **Documentation programs** live under `libs/<lib>/docprograms/`, never in `examples/` — an
   example teaches a user, a docu-program backs a listing. Each links its library's own dependency
   closure only and is registered as an S-size test, so a docu-program that stops compiling or stops
   doing what the manual says turns a gate red. The directory's README states the contract. The

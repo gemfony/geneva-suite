@@ -1,0 +1,90 @@
+The Geneva quickstart
+=====================
+
+This directory is a complete, self-contained project that may be
+directly used as the basis for your own optimization problems. In
+order to adapt it to your needs, it is recommended to start from the
+GStarterIndividual-code in this directory.
+
+Note that the quickstart is not the shortest possible introduction to
+Geneva. If you are entirely new to it, work through the numbered
+examples in ../examples/ first and read the manual.
+
+The quickstart is in contrast targeted at situations, where already
+serious optimization problems should be tackled. It therefore contains
+already some advanced code, such as an optimization monitor (optional,
+it is needed if you want to find out more about the inner workings of
+your individuals and/or Geneva).
+
+--------------------------------------------------------------------
+Standalone build (the canonical downstream template)
+--------------------------------------------------------------------
+
+Unlike the numbered examples, the quickstart is NOT built by the
+in-tree Geneva build. It ships with the sources as the canonical
+template that demonstrates how an external project consumes an
+*installed* Geneva via find_package(Geneva) and links the
+Geneva::geneva imported target. You can copy this entire directory out
+of the Geneva tree and use it as the starting point for your own
+project.
+
+1. Build and install Geneva first (the install step is required --
+   the standalone build needs an installed Geneva, not just a build
+   tree):
+
+       cd /your/geneva/build
+       make -j$(nproc)
+       make install            # installs to CMAKE_INSTALL_PREFIX
+
+2. Configure and build the quickstart out-of-tree, pointing CMake at
+   the Geneva install prefix:
+
+       cd /path/to/libs/geneva/quickstart
+       mkdir build && cd build
+       cmake -DCMAKE_PREFIX_PATH=<geneva-install-prefix> ..
+       make
+
+   GENEVA_ROOT may be used as an alternative to CMAKE_PREFIX_PATH:
+
+       cmake -DGENEVA_ROOT=<geneva-install-prefix> ..
+
+   The build prefers the installed CMake config package
+   (find_package(Geneva CONFIG)). If that is not present it falls back
+   to the bundled FindGeneva.cmake module. If Boost is in a
+   non-standard location, also pass -DBOOST_ROOT=<boost-prefix>.
+
+3. Running the GStarter binary requires the Geneva shared libraries to
+   be visible to the dynamic linker. Either register the install lib
+   directory once,
+
+       echo "<geneva-install-prefix>/lib" | sudo tee /etc/ld.so.conf.d/geneva.conf
+       sudo ldconfig
+
+   or set LD_LIBRARY_PATH at runtime:
+
+       export LD_LIBRARY_PATH="<geneva-install-prefix>/lib:$LD_LIBRARY_PATH"
+       ./GStarter --help
+
+   The quickstart expects its configuration files under ./config; they are
+   materialized into the build tree from the code's registered defaults
+   right after the build (GENEVA_MATERIALIZE_CONFIGS, exported by the
+   installed Geneva CMake package), so no hand-maintained config files
+   are shipped.
+
+--------------------------------------------------------------------
+Optional unit test
+--------------------------------------------------------------------
+
+The unit test under Tests/UnitTests uses Catch2 together with the
+internal Geneva test scaffolding header (Geneva_tests.hpp), which is
+part of the Geneva *sources* and is not installed. The test target is
+built only when Catch2 v3 and that header are available AND the
+installed Geneva itself was built with test code (the BUILDTESTCODE
+knob / GENEVA_BUILD_TESTS; find_package(Geneva) reports the flavor as
+GENEVA_TESTING). Against an install built without test code the
+individual's self-test hooks are present but throw by design, and a
+consumer cannot compile that away, so the test is skipped with a STATUS
+message naming the reason. When this directory is built in place
+(inside a Geneva checkout) the scaffolding header is found
+automatically; otherwise its location can be supplied via
+-DGENEVA_TEST_INCLUDE_DIR=<path-to-libs/geneva/tests/UnitTests>.

@@ -84,7 +84,7 @@ set_property(CACHE GENEVA_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 #   staged     -> chunks from a shared, bulk-filled staging pool into a per-proxy double buffer
 #   quarantine -> read in place from N rotating, bulk-filled pools (benign-race, aligned-64-bit)
 # Every other source remains usable explicitly via GRandomT<randomSource::...>; this only
-# picks what the GRandom alias maps to. Consumed in projects/hap/src/CMakeLists.txt.
+# picks what the GRandom alias maps to. Consumed in libs/hap/src/CMakeLists.txt.
 set(HAP_RANDOM_SOURCE "queue" CACHE STRING "Source for the default Gem::Hap::GRandom proxy: queue|local|staged|quarantine")
 set_property(CACHE HAP_RANDOM_SOURCE PROPERTY STRINGS queue local staged quarantine)
 if(NOT HAP_RANDOM_SOURCE MATCHES "^(queue|local|staged|quarantine)$")
@@ -430,7 +430,7 @@ ENDIF ()
 # Set preprocessor define to use in source code if building with the GPU consumer.
 # This gates the "gpu" mnemonic in GConsumerSetup just as GENEVA_BUILD_WITH_MPI_CONSUMER
 # gates "mpi". The CUDA/OpenCL backend selection inside courtier uses the separate
-# GPUGEN_HAVE_CUDA / GPUGEN_HAVE_OPENCL feature macros (see projects/courtier/src/CMakeLists.txt).
+# GPUGEN_HAVE_CUDA / GPUGEN_HAVE_OPENCL feature macros (see libs/courtier/src/CMakeLists.txt).
 IF (GENEVA_GPU_CONSUMER_ENABLED)
 	ADD_COMPILE_DEFINITIONS(GENEVA_BUILD_WITH_GPU_CONSUMER)
 ENDIF ()
@@ -491,7 +491,7 @@ ENDIF()
 #
 # IMPORTANT: When bumping the version here, also update the two macros
 #   GENEVA_VERSION components (+ GENEVA_VERSION_PRERELEASE)  and  MIN_BOOST_VERSION
-# in projects/common/include/common/GGlobalDefines.hpp accordingly.
+# in libs/common/include/common/GGlobalDefines.hpp accordingly.
 
 SET(VERSION_MAJOR "1")
 SET(VERSION_MINOR "99")
@@ -513,12 +513,12 @@ ENDIF()
 # Include directories, libraries
 
 INCLUDE_DIRECTORIES (
-	${PROJECT_SOURCE_DIR}/projects/weft/include
-	${PROJECT_SOURCE_DIR}/projects/common/include
-	${PROJECT_SOURCE_DIR}/projects/dietrich/include
-	${PROJECT_SOURCE_DIR}/projects/hap/include
-	${PROJECT_SOURCE_DIR}/projects/courtier/include
-	${PROJECT_SOURCE_DIR}/projects/geneva/include
+	${PROJECT_SOURCE_DIR}/libs/weft/include
+	${PROJECT_SOURCE_DIR}/libs/common/include
+	${PROJECT_SOURCE_DIR}/libs/dietrich/include
+	${PROJECT_SOURCE_DIR}/libs/hap/include
+	${PROJECT_SOURCE_DIR}/libs/courtier/include
+	${PROJECT_SOURCE_DIR}/libs/geneva/include
 )
 
 # Custom targets for building single libraries only
@@ -551,8 +551,8 @@ IF (GENEVA_BUILD_WITH_COVERAGE)
     # Filter: only the Common library's headers and sources count. (The plotting
     # code now lives in the separate dietrich library and is covered there.)
     SET(_GENEVA_COV_FILTER
-        "--filter=${PROJECT_SOURCE_DIR}/projects/common/include/common/.*"
-        "--filter=${PROJECT_SOURCE_DIR}/projects/common/src/.*")
+        "--filter=${PROJECT_SOURCE_DIR}/libs/common/include/common/.*"
+        "--filter=${PROJECT_SOURCE_DIR}/libs/common/src/.*")
     ADD_CUSTOM_TARGET( "coverage"
         COMMAND ${CMAKE_COMMAND} -E make_directory
                 "${CMAKE_BINARY_DIR}/coverage/common"
@@ -609,12 +609,12 @@ ENDIF ()
 # dependency chain (weft <- common <- hap <- courtier <- geneva) so every
 # library's targets exist when its dependents configure. Weft (the standalone
 # serialization engine) is the deepest layer, added before common.
-ADD_SUBDIRECTORY (projects/weft)
-ADD_SUBDIRECTORY (projects/common)
-ADD_SUBDIRECTORY (projects/dietrich)
-ADD_SUBDIRECTORY (projects/hap)
-ADD_SUBDIRECTORY (projects/courtier)
-ADD_SUBDIRECTORY (projects/geneva)
+ADD_SUBDIRECTORY (libs/weft)
+ADD_SUBDIRECTORY (libs/common)
+ADD_SUBDIRECTORY (libs/dietrich)
+ADD_SUBDIRECTORY (libs/hap)
+ADD_SUBDIRECTORY (libs/courtier)
+ADD_SUBDIRECTORY (libs/geneva)
 
 ################################################################################
 # Installed CMake config-file package.

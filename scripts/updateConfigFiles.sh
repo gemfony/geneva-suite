@@ -62,15 +62,15 @@ if [ ! -d "$DIR_GENEVA_BUILD" ]; then
 fi
 
 if [ ! -e "$DIR_GENEVA_SRC/CMakeLists.txt" ] \
-		|| [ ! -d "$DIR_GENEVA_SRC/projects/geneva/examples" ] \
-		|| [ ! -d "$DIR_GENEVA_SRC/projects/geneva/tests" ]; then
+		|| [ ! -d "$DIR_GENEVA_SRC/libs/geneva/examples" ] \
+		|| [ ! -d "$DIR_GENEVA_SRC/libs/geneva/tests" ]; then
 	echo -e "\nError: Folder '$DIR_GENEVA_SRC' does not seem to contain a Geneva source tree.\nAborting...\n"
 	exit 2
 fi
 
 if [ ! -e "${DIR_GENEVA_BUILD}/CMakeCache.txt" ] \
-		|| [ ! -x "${DIR_GENEVA_BUILD}/projects/geneva/examples/01_GSimpleOptimizer/GSimpleOptimizer" ] \
-		|| [ ! -x "${DIR_GENEVA_BUILD}/projects/geneva/tests/UnitTests/GenevaStandardTests" ]; then
+		|| [ ! -x "${DIR_GENEVA_BUILD}/libs/geneva/examples/01_GSimpleOptimizer/GSimpleOptimizer" ] \
+		|| [ ! -x "${DIR_GENEVA_BUILD}/libs/geneva/tests/UnitTests/GenevaStandardTests" ]; then
 	echo -e "\nError: Folder '$DIR_GENEVA_BUILD' does not seem to contain a built Geneva build tree.\nAborting...\n"
 	exit 2
 fi
@@ -93,7 +93,7 @@ fi
 pushd "$DIR_GENEVA_SRC" > /dev/null
 
 # Since the per-library layout migration the config-generating programs live in per-library
-# subtrees (projects/geneva/examples, projects/geneva/tests, projects/geneva/benchmarks, projects/common/examples, ...), not in a
+# subtrees (libs/geneva/examples, libs/geneva/tests, libs/geneva/benchmarks, libs/common/examples, ...), not in a
 # top-level examples/ and tests/. Discover every 'config' directory under the library subtrees;
 # there are no filenames/paths with spaces in the Geneva sources.
 GENEVA_LIBS="common hap courtier geneva"

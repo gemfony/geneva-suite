@@ -22,7 +22,7 @@ practical porting guide and the one place the behavioral, source- and serializat
 changes are itemized. In short -- checkpoints and binary archives from 1.11 do not load, problem
 definitions must move to the flat-genome / evaluate() model, configuration files are strict JSON.
 
-The GStarter starting point is now the self-contained quickstart in projects/geneva/quickstart/,
+The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
 built standalone against an installed Geneva; the numbered examples are renumbered and start with
 00_GQuickStart, a short complete program that the manual's Quick Start walks through.
 

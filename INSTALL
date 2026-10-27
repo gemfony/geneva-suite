@@ -232,7 +232,7 @@ ctest -j$(nproc) -L XL          once per larger piece of work, and not before
 
 Tests also carry descriptive labels, which are informational only and never
 decide whether a test runs: the owning library (common, hap, weft, dietrich,
-courtier, geneva), "example" for the end-to-end runs of projects/*/examples/,
+courtier, geneva), "example" for the end-to-end runs of libs/*/examples/,
 and "benchmark" for the three programs whose whole purpose is a
 convergence- or throughput-scale measurement (GOptimizationBenchmark,
 GParallelisationOverhead and, in a GPU-consumer build, GCUDAOptBenchmark).
@@ -290,7 +290,7 @@ Geneva::dietrich, Geneva::courtier and Geneva::geneva; linking Geneva::geneva
 pulls in the layers beneath it, the C++23
 requirement and the Boost dependency transitively.
 
-projects/geneva/quickstart/ is a working project of exactly this shape and the
+libs/geneva/quickstart/ is a working project of exactly this shape and the
 recommended starting point: it is not built by the in-tree build, it locates
 Geneva only through the installed package, and it can be copied out of the tree
 as-is. Its README has the step-by-step standalone build.

@@ -12,7 +12,7 @@ What the image build does, in this order (all of it in [`Containerfile`](Contain
 2. compiles Boost from source in C++23 mode, as `INSTALL` describes;
 3. configures Geneva with `scripts/prepareBuild.sh` from a copy of `scripts/genevaConfig.gcfg`,
    builds it, runs the test suite (without the long benchmarks), and installs it to `/opt/geneva`;
-4. builds `projects/geneva/quickstart` against the installed Geneva, to check that a project
+4. builds `libs/geneva/quickstart` against the installed Geneva, to check that a project
    outside the source tree can use it;
 5. keeps the toolchain, `/opt/boost` and `/opt/geneva` in the final image, and drops the build tree.
 
@@ -127,7 +127,7 @@ WORKDIR /build/myproblem
 ENTRYPOINT ["./MyProblem"]
 ```
 
-`projects/geneva/quickstart` is a complete project of this shape to start from. Arguments given to
+`libs/geneva/quickstart` is a complete project of this shape to start from. Arguments given to
 `podman run` / `docker run` after the image name then go to the program, for instance `-a swarm` or
 the consumer options for a networked run.
 

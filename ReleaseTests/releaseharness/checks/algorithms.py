@@ -13,7 +13,7 @@ from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
 # Run from the example's own build dir so it finds/creates ./config/Go2.json.
-_EX01_DIR = "projects/geneva/examples/01_GSimpleOptimizer"
+_EX01_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _EX01 = "./GSimpleOptimizer"
 _ALGOS = {
     "ea": "Evolutionary Algorithm",

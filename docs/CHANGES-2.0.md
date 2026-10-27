@@ -358,5 +358,5 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 ---
 
 *For the day-to-day authoring model with worked examples, see
-`docs/writing-optimization-problems.md`, `projects/geneva/quickstart/` (minimal) and
-`projects/geneva/examples/03_GParameterObjectUsagePatterns/`.*
+`docs/writing-optimization-problems.md`, `libs/geneva/quickstart/` (minimal) and
+`libs/geneva/examples/03_GParameterObjectUsagePatterns/`.*

@@ -19,7 +19,7 @@ from ..runner import GUEST_BUILD, GUEST_SRC, JobContext
 
 # The quickstart is the canonical downstream template: it is NOT built in-tree
 # and exists precisely to be consumed via find_package(Geneva) from an install.
-_OOT_SRC = f"{GUEST_SRC}/projects/geneva/quickstart"
+_OOT_SRC = f"{GUEST_SRC}/libs/geneva/quickstart"
 _OOT_BUILD = f"{GUEST_BUILD}/oot-gstarter"
 
 

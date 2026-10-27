@@ -22,15 +22,15 @@ import time
 from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
-# Example 01 is the canonical simple optimizer; built under projects/geneva/examples
+# Example 01 is the canonical simple optimizer; built under libs/geneva/examples
 # (post-Lager-A per-library layout). It writes/reads ./config/Go2.json relative
 # to the CWD, so run it from its own build directory where config/ is installed.
-_EX01_DIR = "projects/geneva/examples/01_GSimpleOptimizer"
+_EX01_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _EX01 = "./GSimpleOptimizer"
 
 # Example 15 drives the GMPIConsumerT directly via mpirun (rank 0 = server,
 # ranks 1..n = clients); it reads ./config/*.json relative to its build dir.
-_EX16_DIR = "projects/geneva/examples/15_GMPIConsumer"
+_EX16_DIR = "libs/geneva/examples/15_GMPIConsumer"
 _EX16 = "./GMPIConsumer"
 
 
