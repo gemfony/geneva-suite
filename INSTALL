@@ -136,17 +136,17 @@ a) Using prepareBuild.sh and a configuration file
 
 Geneva comes with a script that wraps the somewhat involved cmake call behind a
 configuration file, so the chosen options can be recorded once and reused.
-Assuming Geneva is in $HOME/geneva, create a build directory, copy the template
-config over and adapt it:
+With GENEVAHOME naming the Geneva checkout (export GENEVAHOME=$HOME/geneva, for
+instance), create a build directory, copy the template config over and adapt it:
 
 mkdir -p $HOME/build && cd $HOME/build
-cp $HOME/geneva/scripts/genevaConfig.gcfg ./myGenevaConfig.gcfg
-# ... edit myGenevaConfig.gcfg (compiler, BOOSTROOT, build mode, install dir,
+cp $GENEVAHOME/scripts/genevaConfig.gcfg .
+# ... edit genevaConfig.gcfg (compiler, BOOSTROOT, build mode, install dir,
 #     and the optional MPI/GPU/CUDA features) ...
 
 Then configure (and optionally build) by handing the file to the script:
 
-$HOME/geneva/scripts/prepareBuild.sh ./myGenevaConfig.gcfg --clean --build
+$GENEVAHOME/scripts/prepareBuild.sh ./genevaConfig.gcfg --clean --build
 sudo make install   # if installing into a system directory
 
 Useful script options:
@@ -170,13 +170,13 @@ Everything the script does reduces to a cmake invocation, which can be issued by
 hand. From the build directory, point cmake at the source tree:
 
 cd $HOME/build
-cmake $HOME/geneva -DGENEVA_BUILD_TYPE="Release"
+cmake $GENEVAHOME -DGENEVA_BUILD_TYPE="Release"
 make -j$(nproc)
 sudo make install
 
 To choose a custom installation directory (the default is /opt/geneva):
 
-cmake $HOME/geneva -DCMAKE_INSTALL_PREFIX="/where/the/library/goes"
+cmake $GENEVAHOME -DCMAKE_INSTALL_PREFIX="/where/the/library/goes"
 
 The configuration variables map onto the .gcfg settings: INSTALLDIR becomes
 CMAKE_INSTALL_PREFIX, BUILDMODE becomes GENEVA_BUILD_TYPE (Release, Debug,
@@ -188,11 +188,11 @@ configuration is to run "prepareBuild.sh ./my.gcfg --dryrun".
 If Boost was installed in a non-standard location (for instance /opt/boost),
 make it known to cmake either by its prefix:
 
-cmake $HOME/geneva -DBOOST_ROOT="/opt/boost"
+cmake $GENEVAHOME -DBOOST_ROOT="/opt/boost"
 
 or, if headers and libraries do not share a prefix, by both locations:
 
-cmake $HOME/geneva -DBOOST_INCLUDEDIR="/opt/boost/include" \
+cmake $GENEVAHOME -DBOOST_INCLUDEDIR="/opt/boost/include" \
                    -DBOOST_LIBRARYDIR="/opt/boost/lib"
 
 Adding -DCMAKE_VERBOSE_MAKEFILE="1" shows the compiler command lines.
