@@ -700,6 +700,7 @@ INSTALL(
 ADD_CUSTOM_TARGET(
 	"gemfony-build-all" DEPENDS
 	core
+	weft-all        # serialization lib + tests + examples
 	common-all      # lib + tests + examples + benchmarks for the common library
 	dietrich-all    # plotting lib + tests (unit + validity gates)
 	hap-all         # lib + tests + examples

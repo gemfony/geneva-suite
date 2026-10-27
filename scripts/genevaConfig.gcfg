@@ -38,7 +38,7 @@
 CMAKE="/usr/bin/cmake"
 
 # Compiler selection: 'clang', 'gcc', or '' (leave empty to let CMake choose).
-# Default is 'clang'. Geneva is C++23 and requires GCC >= 14 or Clang >= 18.
+# Default is 'clang'. Geneva is C++23 and requires GCC >= 15 or Clang >= 22.
 COMPILER="clang"
 
 #

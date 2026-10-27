@@ -29,7 +29,7 @@ built standalone against an installed Geneva; the numbered examples are renumber
 Preconditions (INSTALL has the full details and the build instructions):
 - A 64-bit x86-64 or AArch64 CPU. SIMD (AVX2 / NEON) and a CUDA GPU are used when present, never
   required.
-- A C++23 compiler -- GCC >= 14 or Clang >= 18 -- rejected at configure time otherwise; consumers
+- A C++23 compiler -- GCC >= 15 or Clang >= 22 -- rejected at configure time otherwise; consumers
   of the Geneva:: CMake targets are compiled as C++23 too. Boost >= 1.91 built from source in
   C++23 mode, CMake >= 3.27, and Catch2 v3 when building the test code.
 - Optional: a CUDA toolkit >= 13.3 with a matching driver, for the GPU consumer and the CUDA

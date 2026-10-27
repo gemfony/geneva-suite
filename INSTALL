@@ -56,8 +56,8 @@ Prerequisites
 
  - CMake, version 3.27 or later (the build system).
 
- - A C++23 compiler: the GNU Compiler Collection (g++) version 14 or later, or
-   Clang version 18 or later.
+ - A C++23 compiler: the GNU Compiler Collection (g++) version 15 or later, or
+   Clang version 22 or later -- the versions Ubuntu 26.10 ships.
 
  - The Boost libraries (see http://www.boost.org), version 1.91 or newer. Boost
    should be compiled from source and installed for the system, in
