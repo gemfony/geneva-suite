@@ -67,7 +67,7 @@ namespace Gem::Tests {
  */
 class NewSphere : public GGenomeT<NewSphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     NewSphere() { buildGenome(3, 2, 4); }
     NewSphere(std::size_t nd, std::size_t ni, std::size_t nb) { buildGenome(nd, ni, nb); }
@@ -120,7 +120,7 @@ namespace Gem::Tests {
  */
 class SeamSphere : public GGenomeT<SeamSphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SeamSphere() {
         GGenomeBuilder b;
@@ -155,7 +155,7 @@ private:
  */
 class SeamMulti : public GGenomeT<SeamMulti> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SeamMulti() {
         GGenomeBuilder b;
@@ -430,7 +430,7 @@ namespace Gem::Tests {
 
 class ErrorFlaggingSphere : public GGenomeT<ErrorFlaggingSphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ErrorFlaggingSphere() {
         GGenomeBuilder b;

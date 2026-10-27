@@ -109,7 +109,7 @@ class GTestIndividual2
 
 public:
     /** @brief Opt into GGenomeT's generated empty member list (genome-only leaf, no own state). */
-    using gemfony_flat_individual = void;
+    using genome_only = void;
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() and compare token. */
     static constexpr std::string_view class_name = "GTestIndividual2";
     /**

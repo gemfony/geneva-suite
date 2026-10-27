@@ -73,7 +73,7 @@ namespace first {
  */
 class GFirstProblem final : public gen::GGenomeT<GFirstProblem> {
 public:
-    using gemfony_flat_individual = void; // the genome is all the state there is
+    using genome_only = void; // the genome is all the state there is
     static constexpr std::string_view class_name = "GFirstProblem";
 
     /** @brief Declares the parameters: two doubles in [-5, 5], both starting at 4 */

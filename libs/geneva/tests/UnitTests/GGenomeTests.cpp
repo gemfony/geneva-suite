@@ -97,7 +97,7 @@ namespace Gem::Tests {
 
 /******************************************************************************/
 // b2 guard (compile-time regression): GGenomeT's generated empty localMembers_() is gated on the
-// public `gemfony_flat_individual` marker. A tagged genome-only leaf resolves a viable localMembers_();
+// public `genome_only` marker. A tagged genome-only leaf resolves a viable localMembers_();
 // an UNtagged leaf that also declares no own localMembers_() has NONE -- GGenomeT's default is
 // constrained out and the GReflectiveInterfaceBaseT fallback is =deleted -- so GReflectiveInterfaceAccess::members()
 // is ill-formed and the class cannot compile. This pins the guard so a stateful leaf can never silently
@@ -105,7 +105,7 @@ namespace Gem::Tests {
 // virtuals / vtable are never instantiated and it never hard-errors here.
 namespace {
 struct FlatTaggedProbe : public GGenomeT<FlatTaggedProbe> {
-    using gemfony_flat_individual = void; // opts into the generated empty member list
+    using genome_only = void; // opts into the generated empty member list
 };
 struct FlatUntaggedProbe : public GGenomeT<FlatUntaggedProbe> {}; // no marker AND no own localMembers_()
 static_assert(Gem::Common::GReflectiveInterfaceAccess::has_members<FlatTaggedProbe>,
@@ -123,7 +123,7 @@ static_assert(!Gem::Common::GReflectiveInterfaceAccess::has_members<FlatUntagged
  */
 class Sphere : public GGenomeT<Sphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Sphere() { buildGenome(5); }
     explicit Sphere(std::size_t n) { buildGenome(n); }
@@ -170,7 +170,7 @@ private:
  */
 class GemSphere : public GGenomeT<GemSphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf
+    using genome_only = void; // b2: genome-only flat leaf
     GemSphere() { buildGenome(5); }
     explicit GemSphere(std::size_t n) { buildGenome(n); }
     GemSphere(const GemSphere &) = default;
@@ -205,7 +205,7 @@ private:
  */
 class FactorySphere : public GGenomeT<FactorySphere> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     FactorySphere() = default; // the factory installs the genome
     FactorySphere(const FactorySphere &) = default;
@@ -1070,7 +1070,7 @@ namespace Gem::Tests {
 
 class Mixed : public GGenomeT<Mixed> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Mixed() {
         GGenomeBuilder b;
@@ -1109,7 +1109,7 @@ private:
  */
 class IntGauss : public GGenomeT<IntGauss> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     IntGauss() {
         GGenomeBuilder b;
@@ -1149,7 +1149,7 @@ private:
  */
 class ManyGroups : public GGenomeT<ManyGroups> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ManyGroups() { build(64); }
     explicit ManyGroups(std::size_t n) { build(n); }
@@ -1183,7 +1183,7 @@ private:
  *  individual -- which is exactly what an `evaluation` return must not scale with. */
 class BulkyLeaf : public GGenomeT<BulkyLeaf> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 
     BulkyLeaf() = default;
     explicit BulkyLeaf(std::size_t n_params, std::size_t n_data_points)

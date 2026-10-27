@@ -50,7 +50,7 @@ namespace Gem::Geneva::Genome {
  *
  * Because GGenome holds all genome state generically, a genome-only individual adds no members of its own.
  * It opts into GGenomeT's generated empty member list by declaring the marker
- * `using gemfony_flat_individual = void;`. An individual that genuinely carries extra (non-genome) members
+ * `using genome_only = void;`. An individual that genuinely carries extra (non-genome) members
  * instead declares its OWN localMembers_(), listing them. A leaf that does NEITHER is a compile error (see
  * localMembers_() below) -- so extra state can never be silently dropped from serialize/compare/load.
  *
@@ -58,7 +58,7 @@ namespace Gem::Geneva::Genome {
  * @code
  *   class MyIndividual : public GGenomeT<MyIndividual> {
  *   public:
- *       using gemfony_flat_individual = void; // opt into the generated empty member list
+ *       using genome_only = void; // opt into the generated empty member list
  *       MyIndividual() {
  *           GGenomeBuilder b;
  *           b.addDouble(0., -10., 10.); // structure only; the adaptor lives on the OA-owned config
@@ -92,7 +92,7 @@ class GGenomeT : public Gem::Common::GReflectiveInterfaceT<Derived, GGenome> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief A genome-only leaf carries no data beyond its genome, so it opts into this generated empty
-     *  member list by declaring the public marker `using gemfony_flat_individual = void;` (which satisfies
+     *  member list by declaring the public marker `using genome_only = void;` (which satisfies
      *  the requires-clause below). The GReflectiveInterfaceT mixin then generates clone_ / name_ / load_ / compare_ /
      *  serialize from it (serialize additionally emits base_object<GGenome>; clone_ returns GGenome*
      *  covariantly). A leaf that genuinely adds non-genome members declares its OWN localMembers_() instead
@@ -105,7 +105,7 @@ class GGenomeT : public Gem::Common::GReflectiveInterfaceT<Derived, GGenome> {
      *  marker must be public: this base cannot see a derived-private nested type. Until C++26 member
      *  reflection can enumerate members automatically, this opt-in marker is the only compile-time guard. */
     template <typename Self>
-        requires requires { typename Self::gemfony_flat_individual; }
+        requires requires { typename Self::genome_only; }
     auto localMembers_(this Self &) { return std::make_tuple(); }
     ///////////////////////////////////////////////////////////////////////
 

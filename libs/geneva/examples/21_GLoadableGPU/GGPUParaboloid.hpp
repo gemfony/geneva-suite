@@ -68,7 +68,7 @@
  */
 class GGPUParaboloid : public Gem::Geneva::Genome::GGenomeT<GGPUParaboloid> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     /** @brief The factory installs the genome via setGenome(), so the default constructor leaves it empty. */
     GGPUParaboloid() = default;

@@ -62,7 +62,7 @@ namespace Gem::Tests {
  */
 class AdaptCfgIndividual : public GGenomeT<AdaptCfgIndividual> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     AdaptCfgIndividual() { buildGenome(); }
     AdaptCfgIndividual(const AdaptCfgIndividual &) = default;

@@ -57,7 +57,7 @@ namespace {
 template <std::size_t N_DIM>
 class SpherePSO : public gen::GGenomeT<SpherePSO<N_DIM>> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SpherePSO() {
         gen::GGenomeBuilder b;

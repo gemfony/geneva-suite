@@ -80,7 +80,7 @@ namespace Gem::Tests {
  *  read/write/round-trip contract under offset / narrow boxes. */
 class NgBoxIndividual : public GGenomeT<NgBoxIndividual> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     NgBoxIndividual() { build(3, -10., 10.); }
     NgBoxIndividual(std::size_t n, double lo, double hi) { build(n, lo, hi); }
@@ -124,7 +124,7 @@ private:
  *  genome -- exercising bounded/unbounded coexistence (§2.5). */
 class NgMixedIndividual : public GGenomeT<NgMixedIndividual> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     NgMixedIndividual() { build(); }
     NgMixedIndividual(const NgMixedIndividual &) = default;
@@ -168,7 +168,7 @@ private:
  *  (vector-of-starts groups, random-init helpers). */
 class NgErgoIndividual : public GGenomeT<NgErgoIndividual> {
 public:
-    using gemfony_flat_individual = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     NgErgoIndividual() = default;
     explicit NgErgoIndividual(const GenomeData &g) { this->setGenome(g); }
