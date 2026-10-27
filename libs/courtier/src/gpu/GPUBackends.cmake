@@ -33,7 +33,8 @@
 # in a separate library. It only sets variables; the caller folds the sources into the courtier target
 # and applies the matching link libraries + compile definitions:
 #   COURTIER_GPU_SRCS         -- backend .cpp to compile into courtier (paths relative to courtier/src)
-#   COURTIER_GPU_HAVE_CUDA    -- TRUE when the CUDA (NVRTC + driver API) backend is included
+#   COURTIER_GPU_HAVE_CUDA    -- TRUE when the CUDA (NVRTC + driver API) backend is included; the
+#                                driver is loaded at run time (gpu/GCUDADriver), never linked
 # The GPU consumer is device-only (no CPU backend); the CUDA headers are confined to these .cpp,
 # so folding them in does not leak device headers into courtier's public interface.
 
@@ -47,5 +48,5 @@ SET ( COURTIER_GPU_SRCS
 SET ( COURTIER_GPU_HAVE_CUDA FALSE )
 IF ( CMAKE_CUDA_COMPILER )
 	SET ( COURTIER_GPU_HAVE_CUDA TRUE )
-	SET ( COURTIER_GPU_SRCS ${COURTIER_GPU_SRCS} gpu/GCUDABackend.cpp )
+	SET ( COURTIER_GPU_SRCS ${COURTIER_GPU_SRCS} gpu/GCUDABackend.cpp gpu/GCUDADriver.cpp )
 ENDIF ()

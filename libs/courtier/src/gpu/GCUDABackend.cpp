@@ -35,7 +35,8 @@
 #include <vector>
 
 // CUDA driver API + NVRTC (runtime kernel compilation). No CUDA runtime (cudart) is needed: the
-// whole flow -- context, memory, module load and launch -- uses the driver API in one context.
+// whole flow -- context, memory, module load and launch -- uses the driver API in one context. The
+// driver API is reached through GCUDADriver, which loads the driver library at run time.
 #include <cuda.h>
 #include <nvrtc.h>
 
@@ -43,6 +44,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "courtier/gpu/GCUDABackend.hpp"
+#include "GCUDADriver.hpp"
 
 namespace Gem::Courtier::GPU {
 
@@ -57,8 +59,8 @@ void cuCheck(CUresult r, const char *what) {
     if(r != CUDA_SUCCESS) {
         const char *name = nullptr;
         const char *desc = nullptr;
-        cuGetErrorName(r, &name);
-        cuGetErrorString(r, &desc);
+        cudaDriver().getErrorName(r, &name);
+        cudaDriver().getErrorString(r, &desc);
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: CUDA driver error in " << what << ": "
@@ -141,14 +143,15 @@ struct GCUDABackend<scalar_type>::Impl {
 
     ~Impl() {
         if(context) {
-            cuCtxPushCurrent(context);
-            if(d_params) cuMemFree(d_params);
-            if(d_pconst) cuMemFree(d_pconst);
-            if(d_fitness) cuMemFree(d_fitness);
-            if(module) cuModuleUnload(module);
+            const GCUDADriver &drv = cudaDriver(); // loaded already, or there would be no context
+            drv.ctxPushCurrent(context);
+            if(d_params) drv.memFree(d_params);
+            if(d_pconst) drv.memFree(d_pconst);
+            if(d_fitness) drv.memFree(d_fitness);
+            if(module) drv.moduleUnload(module);
             CUcontext popped = nullptr;
-            cuCtxPopCurrent(&popped);
-            cuDevicePrimaryCtxRelease(device);
+            drv.ctxPopCurrent(&popped);
+            drv.devicePrimaryCtxRelease(device);
         }
     }
 
@@ -162,11 +165,12 @@ struct GCUDABackend<scalar_type>::Impl {
         if(need <= cap) {
             return;
         }
+        const GCUDADriver &drv = cudaDriver();
         if(buf) {
-            cuCheck(cuMemFree(buf), "cuMemFree(grow)");
+            cuCheck(drv.memFree(buf), "cuMemFree(grow)");
             buf = 0;
         }
-        cuCheck(cuMemAlloc(&buf, need), "cuMemAlloc");
+        cuCheck(drv.memAlloc(&buf, need), "cuMemAlloc");
         cap = need;
     }
 };
@@ -211,9 +215,11 @@ template <typename scalar_type>
 void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
     p_->spec = spec;
 
-    cuCheck(cuInit(0), "cuInit");
+    // Loads the driver library on first use; throws with the reason if this machine has no driver.
+    const GCUDADriver &drv = cudaDriver();
+    cuCheck(drv.init(0), "cuInit");
     int n_devices = 0;
-    cuCheck(cuDeviceGetCount(&n_devices), "cuDeviceGetCount");
+    cuCheck(drv.deviceGetCount(&n_devices), "cuDeviceGetCount");
     if(n_devices <= 0) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -225,25 +231,25 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
             << "GCUDABackend: device_id " << spec.device_id << " out of range [0," << n_devices << ")"
             << '\n');
     }
-    cuCheck(cuDeviceGet(&p_->device, spec.device_id), "cuDeviceGet");
+    cuCheck(drv.deviceGet(&p_->device, spec.device_id), "cuDeviceGet");
     // Use the primary context so behaviour matches the usual CUDA runtime model.
-    cuCheck(cuDevicePrimaryCtxRetain(&p_->context, p_->device), "cuDevicePrimaryCtxRetain");
-    cuCheck(cuCtxPushCurrent(p_->context), "cuCtxPushCurrent");
+    cuCheck(drv.devicePrimaryCtxRetain(&p_->context, p_->device), "cuDevicePrimaryCtxRetain");
+    cuCheck(drv.ctxPushCurrent(p_->context), "cuCtxPushCurrent");
 
     // Acquire the module: either load a prebuilt PTX/cubin, or NVRTC-compile a .cu source.
     std::string ptx;
     const std::string &path = spec.path;
     if(endsWith(path, ".ptx") || endsWith(path, ".cubin")) {
         ptx = readFile(path);
-        cuCheck(cuModuleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(prebuilt)");
+        cuCheck(drv.moduleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(prebuilt)");
     } else {
         const std::string src = readFile(path);
 
         int major = 0;
         int minor = 0;
-        cuCheck(cuDeviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, p_->device),
+        cuCheck(drv.deviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, p_->device),
                 "cuDeviceGetAttribute(major)");
-        cuCheck(cuDeviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, p_->device),
+        cuCheck(drv.deviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, p_->device),
                 "cuDeviceGetAttribute(minor)");
         const std::string arch = "--gpu-architecture=compute_" + std::to_string(major) + std::to_string(minor);
 
@@ -267,14 +273,14 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
         ptx.resize(ptxSize);
         nvrtcCheck(nvrtcGetPTX(prog, ptx.data()), "nvrtcGetPTX");
         nvrtcDestroyProgram(&prog);
-        cuCheck(cuModuleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(nvrtc)");
+        cuCheck(drv.moduleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(nvrtc)");
     }
 
-    cuCheck(cuModuleGetFunction(&p_->kernel, p_->module, spec.entry.c_str()),
+    cuCheck(drv.moduleGetFunction(&p_->kernel, p_->module, spec.entry.c_str()),
             "cuModuleGetFunction (is the entry 'extern \"C\"' and named correctly?)");
 
     CUcontext popped = nullptr;
-    cuCheck(cuCtxPopCurrent(&popped), "cuCtxPopCurrent");
+    cuCheck(drv.ctxPopCurrent(&popped), "cuCtxPopCurrent");
 }
 
 /**
@@ -302,7 +308,8 @@ void GCUDABackend<scalar_type>::evaluate(
         return;
     }
     threads_per_item = std::max(threads_per_item, 1);
-    cuCheck(cuCtxPushCurrent(p_->context), "cuCtxPushCurrent(evaluate)");
+    const GCUDADriver &drv = cudaDriver();
+    cuCheck(drv.ctxPushCurrent(p_->context), "cuCtxPushCurrent(evaluate)");
 
     const std::size_t paramBytes = static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim) * sizeof(scalar_type);
     const std::size_t fitnessBytes = static_cast<std::size_t>(n_items) * sizeof(scalar_type);
@@ -312,19 +319,19 @@ void GCUDABackend<scalar_type>::evaluate(
     p_->ensure(p_->d_fitness, p_->cap_fitness, fitnessBytes);
     p_->ensure(p_->d_pconst, p_->cap_pconst, pconstBytes);
 
-    cuCheck(cuMemcpyHtoD(p_->d_params, params, paramBytes), "cuMemcpyHtoD(params)");
+    cuCheck(drv.memcpyHtoD(p_->d_params, params, paramBytes), "cuMemcpyHtoD(params)");
     // Upload the problem constants only when they actually changed (same pointer + size => the
     // consumer reused its cached, static blob, so the device copy is still valid). This avoids
     // re-sending e.g. a multi-MB target image every generation.
     if(pconst_size > 0 && (pconst != p_->last_pconst || pconst_size != p_->last_pconst_sz)) {
-        cuCheck(cuMemcpyHtoD(p_->d_pconst, pconst, pconst_size), "cuMemcpyHtoD(pconst)");
+        cuCheck(drv.memcpyHtoD(p_->d_pconst, pconst, pconst_size), "cuMemcpyHtoD(pconst)");
         p_->last_pconst = pconst;
         p_->last_pconst_sz = pconst_size;
     }
     // Always zero the fitness buffer: a kernel that accumulates (atomicAdd, for intra-item
     // parallelism) needs it, and a kernel that overwrites is unaffected. This keeps an accumulating
     // kernel correct at ANY threads_per_item (including 1).
-    cuCheck(cuMemsetD8(p_->d_fitness, 0, fitnessBytes), "cuMemsetD8(fitness)");
+    cuCheck(drv.memsetD8(p_->d_fitness, 0, fitnessBytes), "cuMemsetD8(fitness)");
 
     // Kernel ABI: evaluate(const scalar_type* params, int n_items, int dim,
     //                      const unsigned char* pconst, int pconst_size, scalar_type* fitness,
@@ -341,14 +348,14 @@ void GCUDABackend<scalar_type>::evaluate(
     const auto gx = static_cast<unsigned int>((totalThreads + bx - 1) / bx);
 
     cuCheck(
-        cuLaunchKernel(p_->kernel, gx, 1, 1, bx, 1, 1, 0, nullptr, args, nullptr),
+        drv.launchKernel(p_->kernel, gx, 1, 1, bx, 1, 1, 0, nullptr, args, nullptr),
         "cuLaunchKernel");
-    cuCheck(cuCtxSynchronize(), "cuCtxSynchronize");
+    cuCheck(drv.ctxSynchronize(), "cuCtxSynchronize");
 
-    cuCheck(cuMemcpyDtoH(fitness_out, p_->d_fitness, fitnessBytes), "cuMemcpyDtoH(fitness)");
+    cuCheck(drv.memcpyDtoH(fitness_out, p_->d_fitness, fitnessBytes), "cuMemcpyDtoH(fitness)");
 
     CUcontext popped = nullptr;
-    cuCheck(cuCtxPopCurrent(&popped), "cuCtxPopCurrent(evaluate)");
+    cuCheck(drv.ctxPopCurrent(&popped), "cuCtxPopCurrent(evaluate)");
 }
 
 /******************************************************************************/

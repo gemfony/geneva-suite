@@ -30,4 +30,15 @@
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 
+# With the CUDA backend of the GPU consumer built in: no Geneva library may need the CUDA driver
+# library at load time, so that a CUDA build still starts on machines without an NVIDIA driver.
+IF ( GENEVA_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )
+	ADD_TEST ( NAME CourtierNoDriverLink
+		COMMAND ${CMAKE_COMMAND}
+			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>;$<TARGET_FILE:${HAP_LIBNAME}>;$<TARGET_FILE:${GENEVA_LIBNAME}>"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+	SET_TESTS_PROPERTIES ( CourtierNoDriverLink PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( CourtierNoDriverLink S )
+ENDIF ()
+
 GENEVA_AGGREGATE_TARGET( "tests-courtier" )

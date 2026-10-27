@@ -92,9 +92,13 @@ ENDIF ()
 IF (GENEVA_GPU_CONSUMER_ENABLED)
     IF (COURTIER_GPU_HAVE_CUDA)
         TARGET_COMPILE_DEFINITIONS(${COURTIER_LIBNAME} PRIVATE GPUGEN_HAVE_CUDA)
-        # NVRTC for runtime kernel compilation; the CUDA driver API (cuda) for module load + launch.
-        TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PRIVATE CUDA::nvrtc CUDA::cuda_driver)
-        MESSAGE(STATUS "${COURTIER_LIBNAME}: GPU consumer CUDA backend enabled (NVRTC + CUDA driver API)")
+        # NVRTC (a toolkit library) for runtime kernel compilation is linked. The CUDA driver API is
+        # NOT: libcuda.so.1 comes with the NVIDIA driver, so linking it would keep every Geneva program
+        # from starting on a machine without one, even for a run on the CPU consumers. gpu/GCUDADriver
+        # loads it with Boost.DLL when a CUDA backend is first initialized; the CUDA headers come with
+        # CUDA::nvrtc, and Boost.DLL needs only the dynamic loading library.
+        TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PRIVATE CUDA::nvrtc ${CMAKE_DL_LIBS})
+        MESSAGE(STATUS "${COURTIER_LIBNAME}: GPU consumer CUDA backend enabled (NVRTC; CUDA driver loaded at run time)")
     ELSE ()
         MESSAGE(STATUS "${COURTIER_LIBNAME}: GPU consumer CUDA backend DISABLED (no CUDA toolkit)")
     ENDIF ()
