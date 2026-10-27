@@ -74,17 +74,26 @@ cmake -S /work -B /work/build
 cmake --build /work/build -j"$(nproc)"
 ```
 
-The installed examples are under `/opt/geneva/share`; the manual's quick-start program, for
+The installed examples are under `/opt/geneva/examples`; the manual's quick-start program, for
 instance, runs with
 
 ```sh
-cd /opt/geneva/share/examples/GQuickStart && ./GQuickStart
+cd /opt/geneva/examples/GQuickStart && ./GQuickStart
 ```
 
 ### With a GPU
 
 The `geneva:cuda` image needs the NVIDIA Container Toolkit on the host, which hands the GPU and
-the driver into the container. With it installed and configured:
+the driver into the container. Ubuntu 26.10 carries it in its own archive; Podman finds the GPU
+through a CDI description generated once, Docker through a registered runtime:
+
+```sh
+sudo apt-get install nvidia-container-toolkit
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml                  # for Podman
+sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker   # for Docker
+```
+
+(The CDI description names the installed driver; generate it again after a driver update.) Then:
 
 ```sh
 podman run --rm -it --device nvidia.com/gpu=all geneva:cuda     # Podman, via CDI
@@ -94,6 +103,10 @@ docker run --rm -it --gpus all geneva:cuda                       # Docker
 An image is built where no GPU needs to be present, so the image build compiles the GPU code but
 cannot exercise it on a device; that happens when the container runs on a machine with a GPU. The
 host driver must support CUDA 13.3 or newer (`INSTALL`, "GPU support on Ubuntu 26.10").
+
+Programs built with the GPU consumer link the driver library `libcuda.so.1`, which the NVIDIA
+Container Toolkit brings in from the host. Started without access to a GPU, they do not run at all,
+not even on the CPU; for machines without a GPU, use the `geneva:cpu` image.
 
 ## Your own project in an image
 
