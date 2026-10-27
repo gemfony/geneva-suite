@@ -110,6 +110,13 @@ std::filesystem::path make_config(std::string const &tag,
     return p;
 }
 
+// A config path that can be neither read nor created, whoever runs the test: its parent is a
+// regular file, so no directory can be made there -- not even by root, as in a container build
+// (a merely absent directory such as /no/such/path would simply be created for root).
+std::filesystem::path unreachable_config(std::string const &file_name) {
+    return make_config("not_a_directory") / file_name;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -172,7 +179,7 @@ TEST_CASE("GFactoryT::get() throws when the config path cannot be opened",
           "[common][factory]") {
     // Point at a directory that cannot exist + lacks the .json extension. The
     // wrapper's parse step throws either way.
-    TestFactory f(std::filesystem::path("/no/such/path/geneva_does_not_exist.cfg"));
+    TestFactory f(unreachable_config("geneva_does_not_exist.cfg"));
     CHECK_THROWS_AS(f.get(), geneva_exception);
 }
 
@@ -377,7 +384,7 @@ TEST_CASE("GFactoryT: a failed parse is not cached -- the next get() retries",
           "[common][factory]") {
     // A file that does not exist: the parse throws out of the fill, which must leave the cache
     // empty rather than record a failure. (The load-once cell's throwing-producer contract.)
-    ValueReadingFactory f(std::filesystem::path("/no/such/path/geneva_does_not_exist.json"));
+    ValueReadingFactory f(unreachable_config("geneva_does_not_exist.json"));
     CHECK_THROWS_AS(f.get(), geneva_exception);
     CHECK_THROWS_AS(f.get(), geneva_exception);
 

@@ -1,0 +1,170 @@
+# syntax=docker/dockerfile:1
+################################################################################
+#
+# This file is part of the Geneva library collection. The following license
+# applies to this file:
+#
+# ------------------------------------------------------------------------------
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------------
+#
+# Note that other files in the Geneva library collection may use a different
+# license. Please see the licensing information in each file.
+#
+################################################################################
+#
+# See the NOTICE file in the top-level directory of the Geneva library
+# collection for a list of contributors and copyright information.
+#
+################################################################################
+
+# A container image with a complete, installed Geneva: the compilers and tools, Boost built from
+# source in C++23 mode, and Geneva configured with scripts/prepareBuild.sh, built, tested and
+# installed. Works with Podman and Docker alike; containers/geneva/build.sh picks whichever is
+# present. The build context is the root of the Geneva checkout, so the image holds exactly the
+# sources the user has, including their own changes:
+#
+#   podman build -f containers/geneva/Containerfile -t geneva:cpu .
+#   docker build -f containers/geneva/Containerfile -t geneva:cpu .
+#
+# Build arguments (all optional):
+#   BASE_IMAGE     the distribution image (default: Ubuntu 26.10, the recommended platform)
+#   WITH_CUDA      1 = add the CUDA toolkit and build the GPU consumer and the CUDA RNG backend
+#   CUDA_PACKAGE   the toolkit package from the Ubuntu archive (default cuda-toolkit-13-3)
+#   COMPILER       gcc or clang (default gcc)
+#   BUILD_MODE     Release, Debug, RelWithDebInfo (default Release)
+#   BOOST_VERSION  the Boost release built from source (default 1.91.0)
+#   RUN_TESTS      1 = run the test suite (without the XL benchmarks) during the build (default 1)
+#   JOBS           parallel compile jobs (default: all cores the build sees)
+#
+# The image is a development image: the compilers stay in it, so a project of one's own can be
+# built against the installed Geneva with find_package(Geneva) -- see containers/geneva/README.md.
+
+ARG BASE_IMAGE=docker.io/library/ubuntu:26.10
+
+################################################################################
+# Stage 1: the toolchain. Everything later stages and the final image need.
+FROM ${BASE_IMAGE} AS toolchain
+
+ARG WITH_CUDA=0
+ARG CUDA_PACKAGE=cuda-toolkit-13-3
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    TZ=Etc/UTC
+
+# The packages INSTALL names for building Geneva, OpenMPI for the MPI consumer, and the CUDA
+# toolkit from the Ubuntu archive when asked for. Boost comes from source below: the
+# distribution's Boost is older than the 1.91 Geneva needs.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+        ca-certificates curl bzip2 git make cmake g++ clang catch2 \
+        libopenmpi-dev openmpi-bin \
+ && if [ "${WITH_CUDA}" = "1" ]; then \
+        apt-get install -y --no-install-recommends "${CUDA_PACKAGE}"; \
+    fi \
+ && rm -rf /var/lib/apt/lists/*
+
+# OpenMPI refuses to run as root unless told otherwise; the image runs as root by default.
+ENV OMPI_ALLOW_RUN_AS_ROOT=1 \
+    OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+# Boost and Geneva are installed below /opt; the dynamic linker learns about them here, and an
+# ldconfig after each installation picks the libraries up.
+RUN printf '/opt/boost/lib\n/opt/geneva/lib\n' > /etc/ld.so.conf.d/geneva.conf
+
+################################################################################
+# Stage 2: Boost from source, in the same C++23 mode as Geneva (INSTALL, "Compiling Boost").
+FROM toolchain AS boost
+
+ARG BOOST_VERSION=1.91.0
+ARG COMPILER=gcc
+ARG JOBS=
+
+RUN set -eu; \
+    tarball="boost_$(echo "${BOOST_VERSION}" | tr . _).tar.bz2"; \
+    cd /tmp; \
+    curl -fsSL -o "${tarball}" "https://archives.boost.io/release/${BOOST_VERSION}/source/${tarball}"; \
+    tar xjf "${tarball}"; \
+    cd "boost_$(echo "${BOOST_VERSION}" | tr . _)"; \
+    toolset=gcc; [ "${COMPILER}" = "clang" ] && toolset=clang; \
+    ./bootstrap.sh --prefix=/opt/boost --with-toolset="${toolset}"; \
+    ./b2 -j"${JOBS:-$(nproc)}" toolset="${toolset}" \
+        cxxflags="-std=c++23" variant=release link=shared threading=multi \
+        --with-atomic --with-json --with-program_options --with-regex \
+        install; \
+    cd /; rm -rf /tmp/boost_*; \
+    ldconfig
+
+################################################################################
+# Stage 3: Geneva, configured and built by scripts/prepareBuild.sh, tested, installed.
+FROM boost AS build
+
+ARG WITH_CUDA=0
+ARG COMPILER=gcc
+ARG BUILD_MODE=Release
+ARG RUN_TESTS=1
+ARG JOBS=
+
+COPY . /src/geneva
+
+# The configuration starts from the shipped scripts/genevaConfig.gcfg, so its defaults and comments
+# stay the one reference; only the values a container build needs differ. A container is built
+# where it does not run, so with CUDA the driver check is bypassed (FORCECUDA) and the GPU parts are
+# required ("on"), not detected; without CUDA they are switched off.
+RUN set -eu; \
+    if [ "${WITH_CUDA}" = "1" ]; then gpu=on; skip=0; force=1; nvcc=/usr/local/cuda/bin/nvcc; \
+    else gpu=off; skip=1; force=0; nvcc=; fi; \
+    sed -e "s|^COMPILER=.*|COMPILER=\"${COMPILER}\"|" \
+        -e "s|^BUILDMODE=.*|BUILDMODE=\"${BUILD_MODE}\"|" \
+        -e "s|^BOOSTROOT=.*|BOOSTROOT=\"/opt/boost\"|" \
+        -e "s|^INSTALLDIR=.*|INSTALLDIR=\"/opt/geneva\"|" \
+        -e "s|^BUILDTESTCODE=.*|BUILDTESTCODE=\"1\"|" \
+        -e "s|^BUILDMPICONSUMER=.*|BUILDMPICONSUMER=\"1\"|" \
+        -e "s|^BUILDGPUCONSUMER=.*|BUILDGPUCONSUMER=\"${gpu}\"|" \
+        -e "s|^USECUDARNG=.*|USECUDARNG=\"${gpu}\"|" \
+        -e "s|^SKIPALLCUDA=.*|SKIPALLCUDA=\"${skip}\"|" \
+        -e "s|^FORCECUDA=.*|FORCECUDA=\"${force}\"|" \
+        -e "s|^CUDA_NVCC=.*|CUDA_NVCC=\"${nvcc}\"|" \
+        /src/geneva/scripts/genevaConfig.gcfg > /src/container.gcfg; \
+    mkdir -p /build; cd /build; \
+    /src/geneva/scripts/prepareBuild.sh -y /src/container.gcfg; \
+    make -j"${JOBS:-$(nproc)}"; \
+    if [ "${RUN_TESTS}" = "1" ]; then \
+        ctest -j"${JOBS:-$(nproc)}" -LE XL --output-on-failure; \
+    fi; \
+    make install; \
+    ldconfig
+
+# The installed package must be usable from outside the tree: build the downstream template
+# (projects/geneva/quickstart) against /opt/geneva exactly as a user's own project would be.
+RUN set -eu; \
+    cmake -S /src/geneva/projects/geneva/quickstart -B /tmp/quickstart \
+          -DCMAKE_PREFIX_PATH="/opt/geneva;/opt/boost" -DBOOST_ROOT=/opt/boost; \
+    cmake --build /tmp/quickstart -j"${JOBS:-$(nproc)}"; \
+    rm -rf /tmp/quickstart
+
+################################################################################
+# Stage 4: the image users get -- the toolchain, Boost and the installed Geneva; no build tree.
+FROM toolchain AS geneva
+
+COPY --from=build /opt/boost /opt/boost
+COPY --from=build /opt/geneva /opt/geneva
+
+RUN ldconfig
+
+ENV CMAKE_PREFIX_PATH=/opt/geneva:/opt/boost \
+    BOOST_ROOT=/opt/boost \
+    PATH=/opt/geneva/bin:${PATH}
+
+WORKDIR /work
+CMD ["/bin/bash"]

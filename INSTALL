@@ -11,6 +11,11 @@ toolkit and an NVIDIA driver recent enough for Geneva's optional GPU features
 (see "GPU support on Ubuntu 26.10" below), so no vendor repository is needed.
 Without a GPU, any Linux distribution that meets the prerequisites will do.
 
+All of the setup described in this file can also be left to a container: the
+image definition in containers/geneva/ builds Boost and Geneva inside Ubuntu
+26.10 with Podman or Docker, so the host needs nothing but a container engine.
+containers/geneva/README.md explains how to build and use it.
+
 Geneva has also been built experimentally on macOS using the bundled Clang
 compiler, and much older versions were known to compile under Windows with the
 Microsoft Visual C++ compiler. Neither is covered by regular testing today, so

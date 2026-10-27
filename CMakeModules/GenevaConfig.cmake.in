@@ -50,17 +50,10 @@
 include(CMakeFindDependencyMacro)
 
 # Geneva exposes Boost through its public headers, so consumers need a
-# compatible Boost. The component list mirrors GENEVA_BOOST_LIBS in
-# CommonGenevaBuild.cmake (the test-only "test" component is not part of the
-# installed interface).
-find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ COMPONENTS
-    filesystem
-    json
-    program_options
-    regex
-    serialization
-    atomic
-)
+# compatible Boost. The component list is GENEVA_BOOST_LIBS from
+# CommonGenevaBuild.cmake, filled in when the package is configured, so it
+# cannot drift from what the build itself requires.
+find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ COMPONENTS @GENEVA_BOOST_LIBS@)
 
 # The build flavor of this installation: TRUE if it was built with testing
 # support (GENEVA_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.

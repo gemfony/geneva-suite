@@ -784,9 +784,10 @@ SET(CPACK_DEBIAN_PACKAGE_PRIORITY "Extra")
 SET(
 	CPACK_DEBIAN_PACKAGE_DEPENDS
 	"libboost-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
+	libboost-atomic-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
+	libboost-json-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
 	libboost-program-options-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
 	libboost-regex-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
-	libboost-system-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
 	libcatch2-dev (>= 3.0)"
 )
 

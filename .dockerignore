@@ -1,0 +1,15 @@
+# The build context of containers/geneva/Containerfile is the whole checkout. Only what a Geneva
+# build reads goes into it: everything is excluded, then the build's inputs are let back in. Docker
+# and Podman both read this file (Podman prefers a .containerignore, and there is none).
+*
+!CMakeLists.txt
+!CMakeModules
+!projects
+!scripts
+!licenses
+!docs
+!LICENSE
+!NOTICE
+!README
+!INSTALL
+!CHANGES
