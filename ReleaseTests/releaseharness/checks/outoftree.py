@@ -74,6 +74,44 @@ def build_against_install(ctx: JobContext) -> CheckResult:
     return ctx.record("outoftree/findgeneva", tier, res, started=started)
 
 
+_MPI_PROBE_SRC = f"{GUEST_SRC}/libs/geneva/tests/OutOfTree/MpiModuleProbe"
+_MPI_PROBE_BUILD = f"{GUEST_BUILD}/oot-mpi-probe"
+
+
+def build_mpi_module_probe(ctx: JobContext) -> CheckResult:
+    """Build and run the MPI-module probe against the install (MPI cells only).
+
+    The MPI consumer lives in libgemfony-geneva-mpi, a module installed next to libgemfony-geneva and
+    loaded at run time. The probe (libs/geneva/tests/OutOfTree/MpiModuleProbe) finds the installed
+    package, links Geneva::geneva-mpi, and exits 0 only if the "mpi" consumer was loaded from the
+    installation.
+    """
+    tier = Tier.SHORT
+    if not ctx.job.spec.with_mpi:
+        return ctx.skipped("outoftree/mpi-module", tier, "built without the MPI consumer")
+    if not ctx.should_run(tier):
+        return ctx.skipped("outoftree/mpi-module", tier, "skipped")
+    if ctx.job.spec.build_type is BuildType.SANITIZE:
+        return ctx.skipped("outoftree/mpi-module", tier,
+                           "n/a for Sanitize builds (sanitized libs vs. non-sanitized probe)")
+    spec = ctx.job.spec
+    prefix = spec.install_dir
+    cxx = "clang++" if spec.compiler is Compiler.CLANG else "g++"
+    cc = "clang" if spec.compiler is Compiler.CLANG else "gcc"
+    started = time.monotonic()
+    script = (
+        "set -e\n"
+        f"rm -rf '{_MPI_PROBE_BUILD}'\n"
+        f"cmake -S '{_MPI_PROBE_SRC}' -B '{_MPI_PROBE_BUILD}' "
+        f"-DCMAKE_PREFIX_PATH='{prefix}' -DBOOST_ROOT='{spec.boost_root}' "
+        f"-DCMAKE_C_COMPILER='{cc}' -DCMAKE_CXX_COMPILER='{cxx}'\n"
+        f"cmake --build '{_MPI_PROBE_BUILD}'\n"
+        f"LD_LIBRARY_PATH='{prefix}'/lib:\"$LD_LIBRARY_PATH\" '{_MPI_PROBE_BUILD}/GenevaMpiModuleProbe'\n"
+    )
+    res = ctx.exec_in_guest(["bash", "-lc", script], workdir=GUEST_BUILD, timeout=900)
+    return ctx.record("outoftree/mpi-module", tier, res, started=started)
+
+
 def build_tests_mismatch(ctx: JobContext) -> CheckResult:
     """Verify a consumer can detect a GENEVA_BUILD_TESTS mismatch via the exposed variable.
 

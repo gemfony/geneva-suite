@@ -67,6 +67,7 @@ def _run_job(ctx: JobContext, log) -> list[CheckResult]:
     results.append(install.ldd_check(ctx))
     results.append(outoftree.build_against_install(ctx))
     results.append(outoftree.build_tests_mismatch(ctx))
+    results.append(outoftree.build_mpi_module_probe(ctx))
 
     return results
 

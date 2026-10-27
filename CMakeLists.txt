@@ -616,6 +616,14 @@ ADD_SUBDIRECTORY (libs/hap)
 ADD_SUBDIRECTORY (libs/courtier)
 ADD_SUBDIRECTORY (libs/geneva)
 
+# Geneva's headers are C++23, so every program that includes them is compiled as C++23 too: each
+# library carries the standard as a PUBLIC compile feature, which travels with its imported target
+# (Geneva::*) into a downstream project. The global CMAKE_CXX_STANDARD reaches only the targets of
+# this build, never a consumer of the installed package.
+FOREACH ( _geneva_lib IN LISTS GENEVA_LIBNAMES )
+	TARGET_COMPILE_FEATURES ( ${_geneva_lib} PUBLIC cxx_std_${CMAKE_CXX_STANDARD} )
+ENDFOREACH ()
+
 ################################################################################
 # Installed CMake config-file package.
 #
