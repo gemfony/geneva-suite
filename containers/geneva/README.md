@@ -84,16 +84,21 @@ cd /opt/geneva/examples/GQuickStart && ./GQuickStart
 ### With a GPU
 
 The `geneva:cuda` image needs the NVIDIA Container Toolkit on the host, which hands the GPU and
-the driver into the container. Ubuntu 26.10 carries it in its own archive; Podman finds the GPU
-through a CDI description generated once, Docker through a registered runtime:
+the driver into the container. Ubuntu 26.10 carries it in its own archive:
 
 ```sh
 sudo apt-get install nvidia-container-toolkit
-sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml                  # for Podman
-sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker   # for Docker
 ```
 
-(The CDI description names the installed driver; generate it again after a driver update.) Then:
+Podman finds the GPU through a CDI description of the installed driver, which the package's
+`nvidia-cdi-refresh` service writes to `/var/run/cdi/nvidia.yaml` and renews after driver updates;
+`nvidia-ctk cdi list` shows it. Docker needs the runtime registered once:
+
+```sh
+sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker
+```
+
+Then:
 
 ```sh
 podman run --rm -it --device nvidia.com/gpu=all geneva:cuda     # Podman, via CDI
