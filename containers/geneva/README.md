@@ -109,9 +109,9 @@ An image is built where no GPU needs to be present, so the image build compiles 
 cannot exercise it on a device; that happens when the container runs on a machine with a GPU. The
 host driver must support CUDA 13.3 or newer (`INSTALL`, "GPU support on Ubuntu 26.10").
 
-Programs built with the GPU consumer link the driver library `libcuda.so.1`, which the NVIDIA
-Container Toolkit brings in from the host. Started without access to a GPU, they do not run at all,
-not even on the CPU; for machines without a GPU, use the `geneva:cpu` image.
+Geneva loads the driver library `libcuda.so.1`, which the NVIDIA Container Toolkit brings in from
+the host, only when the GPU consumer is used. Started without access to a GPU, the CUDA image runs
+everything else on the CPU; the `geneva:cpu` image is the smaller choice for such machines.
 
 ## Your own project in an image
 
