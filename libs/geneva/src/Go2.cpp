@@ -1422,6 +1422,29 @@ void Go2::registerConsumer(
 }
 
 /******************************************************************************/
+
+namespace {
+
+/**
+ * @brief Why consumers that live in optional modules are missing, as a paragraph for an error message.
+ *
+ * A consumer such as "mpi" lives in a module that is loaded at run time; if the module is installed but
+ * could not be loaded -- typically because the MPI library is absent on this machine -- the user should
+ * learn that, not only that the mnemonic is unknown.
+ *
+ * @return The explanation, or an empty string if every installed consumer module was loaded
+ */
+std::string optionalConsumerNote_() {
+    const std::string notes = Gem::Geneva::optionalConsumerNotes();
+    if(notes.empty()) {
+        return {};
+    }
+    return "Consumer modules installed with Geneva that could not be loaded on this machine:\n" + notes;
+}
+
+} // namespace
+
+/******************************************************************************/
 /**
  * @brief Validates, initialises, configures and enrols the consumer chosen on the command line.
  *
@@ -1452,6 +1475,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
             << "You have requested an unknown consumer \"" << consumer_name_ << "\"." << '\n'
             << "Available consumers are:" << '\n'
             << Gem::Geneva::consumerListing()
+            << optionalConsumerNote_()
         );
     }
 
