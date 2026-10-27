@@ -122,9 +122,12 @@ int main(int argc, char **argv) {
     go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
     go.push_back(problem);
 
-    // Record every candidate the search evaluates, plotted over the two parameters.
+    // Record every candidate the search evaluates, plotted over x and y, with the surface they
+    // span and its colour map on the floor of the plot.
     auto plotter = std::make_shared<geneva::GProgressPlotter>();
     plotter->setProfileSpec("d(0, -5, 5), d(1, -5, 5)");
+    plotter->setVariableNames({"x", "y"});
+    plotter->setSurfaceProjection(Gem::Dietrich::surfaceProjection::FLOOR);
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.

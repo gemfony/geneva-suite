@@ -141,6 +141,51 @@ TEST_CASE("GProgressPlotterT writes a valid ROOT macro when driven by a real EA"
 
 /******************************************************************************/
 
+TEST_CASE("GProgressPlotterT names its axes and projects a 2-d profile's surface", "[monitor][plot][oa]") {
+    const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_projection.C";
+    std::filesystem::remove(out);
+
+    auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
+    monitor->setProfileSpec("d(0, -5, 5), d(1, -5, 5)");
+    monitor->setVariableNames({"x", "y"});
+    monitor->setSurfaceProjection(Gem::Dietrich::surfaceProjection::FLOOR);
+    monitor->setFileName(out.string());
+    REQUIRE(monitor->getVariableNames() == std::vector<std::string>{"x", "y"});
+    REQUIRE(monitor->getSurfaceProjection() == Gem::Dietrich::surfaceProjection::FLOOR);
+
+    // The settings belong to the monitor's configuration, so a copy carries them.
+    Gem::Geneva::GProgressPlotterT<double> const copy(*monitor);
+    CHECK(copy.getVariableNames() == monitor->getVariableNames());
+    CHECK(copy.getSurfaceProjection() == monitor->getSurfaceProjection());
+
+    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    p->setPopulationSizes(12, 4);
+    p->setMaxIteration(5);
+    p->setReportIteration(100000);
+    Sphere3 const src;
+    p->push_back(src.clone());
+    p->setAdaptionConfig(src.buildAdaptionConfig());
+    p->registerPluggableOM(monitor);
+
+    REQUIRE_NOTHROW(p->optimize());
+    REQUIRE(std::filesystem::exists(out));
+
+    const std::string content = readFile(out);
+    // The axes carry the given names instead of "variable id N" ...
+    CHECK(content.contains("SetTitle(\"x\")"));
+    CHECK(content.contains("SetTitle(\"y\")"));
+    CHECK_FALSE(content.contains("variable id"));
+    // ... and the candidates span a surface whose colour map lies on the floor (SURF1Z, then the
+    // floor cells), with the candidates themselves drawn on top.
+    CHECK(content.contains("SURF1Z"));
+    CHECK(content.contains("TPolyLine"));
+    CHECK(content.contains("evaluated candidates"));
+
+    std::filesystem::remove(out);
+}
+
+/******************************************************************************/
+
 TEST_CASE("GProgressPlotterT with no profiled variable still writes an (empty) canvas", "[monitor][plot][oa]") {
     // With zero profiled variables nProfileVars() is 0, so no renderable series is declared; the monitor
     // must still emit a valid, non-empty ROOT macro (an empty canvas), exactly as the legacy path did.

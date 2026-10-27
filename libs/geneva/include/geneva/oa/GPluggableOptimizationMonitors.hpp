@@ -381,7 +381,9 @@ class GProgressPlotterT // NOLINT(cppcoreguidelines-special-member-functions)
             Gem::Common::make_member("monitor_best_only_", self.monitor_best_only_),
             Gem::Common::make_member("monitor_valid_only_", self.monitor_valid_only_),
             Gem::Common::make_member("observe_boundaries_", self.observe_boundaries_),
-            Gem::Common::make_member("add_print_command_", self.add_print_command_)
+            Gem::Common::make_member("add_print_command_", self.add_print_command_),
+            Gem::Common::make_member("variable_names_", self.variable_names_),
+            Gem::Common::make_member("projection_", self.projection_)
         );
     }
     ///////////////////////////////////////////////////////////////////////
@@ -431,7 +433,9 @@ public:
       , monitor_best_only_(cp.monitor_best_only_)
       , monitor_valid_only_(cp.monitor_valid_only_)
       , observe_boundaries_(cp.observe_boundaries_)
-      , add_print_command_(cp.add_print_command_) {
+      , add_print_command_(cp.add_print_command_)
+      , variable_names_(cp.variable_names_)
+      , projection_(cp.projection_) {
         // data_log_ is transient run state (rebuilt in INFOINIT) and is not copied.
         Gem::Common::copyCloneableObjectsContainer(cp.fp_prof_var_vec_, fp_prof_var_vec_);
     }
@@ -476,6 +480,51 @@ public:
         fp_prof_var_vec_.append_range(std::ranges::subrange(fp_cit, d_end));
 
         //---------------------------------------------------------------------------
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief Names the profiled variables on the plot's axes, in the order of the profile
+	  * specification (e.g. {"x", "y"}). A variable without a name is labelled by its position
+	  * ("variable id 0", ...).
+	  *
+	  * @param variable_names The axis names of the profiled variables, in profile order
+	  */
+    void setVariableNames(std::vector<std::string> variable_names) {
+        variable_names_ = std::move(variable_names);
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief Retrieves the axis names of the profiled variables.
+	  *
+	  * @return The names set with setVariableNames(), in profile order
+	  */
+    [[nodiscard]] std::vector<std::string> const &getVariableNames() const {
+        return variable_names_;
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief For two profiled variables: draws the evaluated candidates as a surface with its
+	  * colour map projected onto the floor or the ceiling of the plot box, the candidates
+	  * themselves on top of it. NONE (the default) draws the candidates alone. Ignored for one or
+	  * three profiled variables.
+	  *
+	  * @param projection Where the surface's colour map is drawn
+	  */
+    void setSurfaceProjection(Gem::Dietrich::surfaceProjection projection) {
+        projection_ = projection;
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief Retrieves where the surface's colour map is drawn for two profiled variables.
+	  *
+	  * @return The surface projection
+	  */
+    [[nodiscard]] Gem::Dietrich::surfaceProjection getSurfaceProjection() const {
+        return projection_;
     }
 
     /***************************************************************************/
@@ -657,8 +706,13 @@ public:
 	  * @return A human-readable label string for the given variable
 	  */
     [[nodiscard]] std::string getLabel(const gen::parPropSpec<fp_type> &s) const {
-        // All monitored parameters are addressed positionally (the former by-name addressing
-        // modes have been removed).
+        // A name set with setVariableNames() wins; otherwise the variable is labelled by its
+        // position (the former by-name addressing modes have been removed).
+        for(std::size_t i = 0; i < fp_prof_var_vec_.size() && i < variable_names_.size(); ++i) {
+            if(&fp_prof_var_vec_[i] == &s && not variable_names_[i].empty()) {
+                return variable_names_[i];
+            }
+        }
         const std::size_t var_pos = std::get<2>(s.var);
         return std::string("variable id ") + Gem::Common::to_string(var_pos);
     }
@@ -715,6 +769,7 @@ private:
             // and the plotters are materialized only at INFOEND via GDataLog.
             data_log_.emplace(canvas_label_, 1, 1);
             have_series_ = true;
+            surface_series_.reset();
             switch(this->nProfileVars()) {
             case 1: {
                 Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
@@ -732,7 +787,18 @@ private:
                 spec.y_label = this->getLabel(fp_prof_var_vec_[1]);
                 spec.z_label = "Fitness";
                 spec.columns = {"x", "y", "z"};
-                active_series_ = data_log_->declareSeries(spec);
+                if(projection_ == Gem::Dietrich::surfaceProjection::NONE) {
+                    active_series_ = data_log_->declareSeries(spec);
+                } else {
+                    // The candidates span a surface whose colour map lies on the floor or ceiling;
+                    // the candidates themselves are drawn on top of it.
+                    spec.projection = projection_;
+                    surface_series_ = data_log_->declareSeries(spec);
+                    Gem::Dietrich::GPlotSpec points(Gem::Dietrich::plotKind::graph_3d);
+                    points.name = "evaluated candidates";
+                    points.columns = {"x", "y", "z"};
+                    active_series_ = data_log_->overlaySeries(*surface_series_, points);
+                }
             } break;
 
             case 3: {
@@ -845,6 +911,12 @@ private:
                 active_series_,
                 std::tuple<double, double, double>(vals[0], vals[1], primary_fitness)
             );
+            if(surface_series_) {
+                data_log.append(
+                    *surface_series_,
+                    std::tuple<double, double, double>(vals[0], vals[1], primary_fitness)
+                );
+            }
             break;
         case 3:
             data_log.append(
@@ -870,6 +942,8 @@ private:
     // realized + written in INFOEND. It is NOT part of the monitor's serialized config.
     std::optional<Gem::Dietrich::GDataLog> data_log_;
     Gem::Dietrich::GDataLog::SeriesId active_series_ = 0; ///< the series declared for this run
+    std::optional<Gem::Dietrich::GDataLog::SeriesId>
+        surface_series_; ///< the projected surface under the candidates, if one was asked for
     bool have_series_ = false; ///< whether a renderable series was declared (nProfileVars 1..3)
 
     std::string file_name_ = std::string(
@@ -886,6 +960,9 @@ private:
 
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
+    std::vector<std::string> variable_names_; ///< axis names of the profiled variables, in profile order
+    Gem::Dietrich::surfaceProjection projection_ =
+        Gem::Dietrich::surfaceProjection::NONE; ///< where a 2-d profile's surface map is drawn
 };
 
 /******************************************************************************/
