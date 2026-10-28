@@ -2,8 +2,8 @@ This directory contains a complete implementation of feedforward neural networks
 which can be trained with all optimization algorithms shipped with Geneva. Several
 examples are provided (such as n-dimensional cubes, spheres, or data-distributions 
 along all axis, which need to be distinguished from even distributions as well as
-possible). Also an example of data prediction is provided. The task is to predict
-a sine-function.
+possible). A further data set asks the network to tell points above a sine curve
+(y > 4 sin(x)) from points below it.
 
 E.g., in order to train a network which is supposed to recognize a filled circle
 within a plain, issue the following command:
