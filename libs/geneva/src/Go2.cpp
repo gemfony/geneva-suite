@@ -1126,7 +1126,7 @@ void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         [this](std::string const &c) { consumer_name_ = c; }
     ) << "The consumer (parallelization backend) used when none is given on the command line."
       << '\n'
-      << "One of: sc, stc, asio, beast, mpi, gpu (availability depends on build options and the"
+      << "One of: stc, asio, beast, mpi, gpu (availability depends on build options and the"
       << '\n'
       << "problem; e.g. gpu requires a registered GPU consumer builder). The --consumer command-line"
       << '\n'
