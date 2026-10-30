@@ -126,8 +126,8 @@
     },
     "cp_ser_mode": {
         "comment": [
-            "Determines whether check-pointing should be done in",
-            "text- (0), XML- (1), binary- (2), GArchive-binary- (3) or GArchive-JSON-mode (4)"
+            "The format of checkpoint files:",
+            "binary (3) or JSON (4)"
         ],
         "default": "4",
         "value": "4"

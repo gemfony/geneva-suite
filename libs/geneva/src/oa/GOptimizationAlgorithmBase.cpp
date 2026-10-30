@@ -1275,9 +1275,9 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         DEFAULTCPSERMODE // The default value
         ,
         [this](Gem::Common::serializationMode s_m) { this->setCheckpointSerializationMode(s_m); }
-    ) << "Determines whether check-pointing should be done in"
+    ) << "The format of checkpoint files:"
       << '\n'
-      << "text- (0), XML- (1), binary- (2), GArchive-binary- (3) or GArchive-JSON-mode (4)";
+      << "binary (3) or JSON (4)";
 
     gpb.registerFileParameter<double, bool>(
         "threshold" // The name of the variable
