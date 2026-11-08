@@ -64,8 +64,10 @@ class GGenome;
  * into a ranked, feasibility-aware evaluation -- the optimization direction (maxMode), the policy for
  * invalid solutions (evaluationPolicy), the sigmoid transform parameters, and the constraint object --
  * are identical across the whole population. GProblemPolicy holds that shared 1:N policy in one place;
- * each GGenome references a single policy instance, so the policy travels (and checkpoints)
- * once rather than once per individual.
+ * each GGenome of a population references a single policy instance in memory, and clones share it.
+ * On the wire and in checkpoints the policy is serialized by value with every individual: a remote
+ * worker receives the current rules with each work item (so no synchronization is needed), and
+ * GOptimizationAlgorithmBase::loadCheckpoint() re-shares one policy across the restored population.
  *
  * The per-individual state that genuinely differs (the computed validity level and the stored results)
  * stays on GGenome. Only the population-uniform rules live here.
@@ -78,7 +80,7 @@ class GGenome;
  * This is a plain serialisable holder (not a GCommonInterfaceT category root): it is shared, not
  * deep-cloned per individual, so it needs no clone/compare category machinery -- only value semantics
  * (the copy constructor deep-clones the constraint so two policies never share one constraint object)
- * and Boost serialisation for checkpointing.
+ * and Weft serialization for checkpointing and the wire.
  */
 class GProblemPolicy {
     ///////////////////////////////////////////////////////////////////////

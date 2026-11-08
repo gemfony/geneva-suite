@@ -556,6 +556,49 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
 
 /******************************************************************************/
 
+TEST_CASE("checkpoint round-trip re-shares one problem policy across the population", "[flat][oa]") {
+    // In memory all individuals of a population share one GProblemPolicy; a checkpoint stores a copy with
+    // every individual. After loadCheckpoint() the restored population must share one policy again, carry
+    // the settings that were saved, and a setter called on one individual must reach every candidate.
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+
+    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    gind::GLineFitIndividual const proto(data_points);
+    for(int i = 0; i < 4; ++i) {
+        pop->push_back(proto.clone());
+    }
+    REQUIRE(pop->size() == 4);
+    pop->at(0)->setMaxMode(Gem::Geneva::maxMode::MAXIMIZE);
+    pop->at(0)->setSteepness(2.5);
+    for(auto const &ind : *pop) {
+        REQUIRE(ind->getPolicy() == pop->at(0)->getPolicy()); // shared before the checkpoint
+    }
+
+    const std::filesystem::path cp =
+        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-policytest.cp";
+    pop->toFile(cp, pop->getCheckpointSerializationMode());
+
+    auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    resumed->loadCheckpoint(cp);
+    std::filesystem::remove(cp);
+
+    REQUIRE(resumed->size() == pop->size());
+    auto const shared = resumed->at(0)->getPolicy();
+    for(auto const &ind : *resumed) {
+        CHECK(ind->getPolicy() == shared);                            // one object again
+        CHECK(ind->getMaxMode() == Gem::Geneva::maxMode::MAXIMIZE); // the saved settings survived
+        CHECK(ind->getSteepness() == 2.5);
+    }
+
+    resumed->at(3)->setMaxMode(Gem::Geneva::maxMode::MINIMIZE);
+    for(auto const &ind : *resumed) {
+        CHECK(ind->getMaxMode() == Gem::Geneva::maxMode::MINIMIZE); // a setter on one reaches all
+    }
+}
+
+/******************************************************************************/
+
 TEST_CASE("checkpoint directory is created lazily, and a final checkpoint is actually written", "[flat][oa]") {
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;

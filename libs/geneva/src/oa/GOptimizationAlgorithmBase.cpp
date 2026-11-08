@@ -203,6 +203,17 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
         );
     }
 
+    // A population shares ONE problem policy in memory (optimization direction, evaluation policy,
+    // constraint), but the archive stores a copy with every individual, so after deserialization each
+    // individual holds its own. Re-share the first individual's policy, so that a setter called on one
+    // individual changes the rules for every candidate again, as it did before the checkpoint.
+    if(not this->empty()) {
+        auto const shared_policy = this->at(0)->getPolicy();
+        for(auto &ind : *this) {
+            ind->setPolicy(shared_policy);
+        }
+    }
+
     // The population (with its OA-owned scratch: personality + adaption / swarm / CG POD blocks) has
     // just been restored. Mark the run as resumed so the upcoming setup PRESERVES that scratch instead
     // of re-seeding it (the flag is set AFTER fromFile, so it is unaffected by deserialization, and is
