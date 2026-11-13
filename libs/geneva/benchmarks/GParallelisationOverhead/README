@@ -8,18 +8,36 @@ on the local environment. Furthermore, we can measure the overhead that
 is jointly introduced by the consumer/submission infrastructure, serialization
 and network transfers.
 
-A serial measurement will be started in parallel to your measurement,
-as a reference point. The serial measurement will only calculate
-the first few data points and then extrapolate.
+The speed-up is taken against a serial reference, which is a run of its own:
+
+  ./GParallelisationOverhead --reference
+
+It measures the delays of config/GDelayIndividual-reference.json on one local
+worker, whatever consumer is named, fits a line through the run times and
+stores it in referenceLine.txt (--referenceFile names another file). It also
+checks that the evaluations did run one after another. The reference needs
+only a few short delays; the line is extrapolated to the longer ones.
+
+The measurement itself is a second run with the consumer of your choice, for
+example a server and its clients:
+
+  ./GParallelisationOverhead -c beast
+  ./GParallelisationOverhead -c beast --client      (once per worker)
+
+It reads the stored reference, runs the delays of config/GDelayIndividual.json
+and writes the plot. The reference and the measurement must use the same
+config/GEvolutionaryAlgorithm.json. Both halves used to run in one process;
+an algorithm submits through the one consumer of its process, so that
+reference ran on the same workers as the measurement.
 
 ***
 ATTENTION: This test can run for a VERY long time
 ***
 
-The result is a ROOT-file result.C, which you can look at with a command
-similar to
+The result is a ROOT script (fullResults.C unless the configuration names
+another file), which you can look at with a command similar to
 
-root -l result.C
+root -l fullResults.C
 
 provided you have installed ROOT on your system (see http://root.cern.ch
 for further information).
