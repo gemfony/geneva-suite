@@ -43,6 +43,7 @@
 #include <future>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -57,12 +58,58 @@
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
+namespace {
+/// As many check-ins of a GSimpleContainer throw as this says (see the seam below).
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<int> checkInsToFail{0};
+} /* anonymous namespace */
+
+namespace Gem::Courtier {
+/** @brief The wire seam of GSimpleContainer in this file: the default one, except that applying a
+ *  return can be made to throw. That is how a test makes the consumer's check-in fail. */
+template <>
+struct GWireProtocolT<GSimpleContainer> {
+    using payload_type = GNoLibraryPayload;
+    static std::uint32_t workTag() {
+        return 0;
+    }
+    static std::uint32_t shutdownTag() {
+        return 0;
+    }
+    static bool buildReturn(
+        [[maybe_unused]] const GSimpleContainer &item,
+        std::uint32_t &tag,
+        [[maybe_unused]] payload_type &payload
+    ) {
+        tag = 0;
+        return true;
+    }
+    static void applyReturn(
+        GSimpleContainer &slot,
+        [[maybe_unused]] std::uint32_t tag,
+        [[maybe_unused]] const payload_type *payload,
+        const GSimpleContainer *item
+    ) {
+        int left = checkInsToFail.load();
+        while(left > 0 && not checkInsToFail.compare_exchange_weak(left, left - 1)) {
+        }
+        if(left > 0) {
+            throw std::runtime_error("this test makes the check-in fail");
+        }
+        if(item != nullptr) {
+            slot.absorbResultsFrom(*item);
+        }
+    }
+};
+} /* namespace Gem::Courtier */
+
 using boost::asio::ip::tcp;
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GCommandContainerT;
 using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::GFrameKind;
 using Gem::Courtier::GRandomNumberContainer;
+using Gem::Courtier::GSimpleContainer;
 using Gem::Courtier::GSubmissionPolicy;
 using Gem::Courtier::GWebsocketConsumerT;
 using Gem::Courtier::Consumers::GWebsocketClientT;
@@ -481,5 +528,46 @@ TEST_CASE(
     }
     CHECK(items.front()->is_processed());
     CHECK(consumer->requeuedCount() == 1); // taken back from the dead client, once
+    client->flagCloseRequested();
+}
+
+/******************************************************************************/
+// A result arrives and cannot be applied to its slot (the library's seam throws). The slot may be
+// half-written by then, so it must not go out to a client again as it is: it ends as failed, and
+// the submission policy deals with it like with an evaluation that failed. The client is not
+// refused, and nothing is put back.
+TEST_CASE(
+    "courtier(websocket): a result that cannot be applied ends its item as failed",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GSimpleContainer>(/*n_threads=*/2);
+    // No giving up on a slot that makes no progress: a slot left in flight would otherwise be
+    // declared missing after a while and filled like a failed one, and the test could not tell.
+    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
+    auto client = matchingClient<GSimpleContainer>(consumer->getPort());
+    const std::jthread client_thread([client] { client->run(); });
+
+    checkInsToFail.store(1); // the first result that comes back
+    std::vector<std::unique_ptr<GSimpleContainer>> items;
+    items.push_back(std::make_unique<GSimpleContainer>(0));
+    items.push_back(std::make_unique<GSimpleContainer>(1));
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GSimpleContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::clone_on_partial_return()
+        );
+    });
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+    CHECK(checkInsToFail.load() == 0);          // the failure did happen
+    CHECK(consumer->requeuedCount() == 0);      // the failed slot was not handed out again
+    CHECK(items.front()->is_processed());       // both slots are filled, the failed one from the
+    CHECK(items.back()->is_processed());        // one that succeeded
+    CHECK(consumer->getNActiveSessions() == 1); // and the client is still there
     client->flagCloseRequested();
 }

@@ -366,7 +366,13 @@ TEST_CASE(
     auto submitter = submit(consumer, batch, done);
     const GStopAtEnd stop_at_end(consumer);
 
-    REQUIRE(eventually([&] { return consumer.parkedCount() == CALLERS - ITEMS; }));
+    // Wait for the wake-ups themselves, not for the list to shrink: an entry leaves the list a
+    // moment before its function is called.
+    REQUIRE(eventually([&] {
+        return std::ranges::count_if(woken, [](const auto &count) { return count.load() > 0; }) ==
+               static_cast<std::ptrdiff_t>(ITEMS);
+    }));
+    CHECK(consumer.parkedCount() == CALLERS - ITEMS);
     for(const auto &[i, count] : woken | std::views::enumerate) {
         CHECK(count.load() == (std::cmp_less(i, ITEMS) ? 1 : 0));
     }
@@ -471,11 +477,13 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     auto submitter = submit(consumer, batch, done);
     const GStopAtEnd stop_at_end(consumer);
 
-    // The first caller takes the only item and then loses its client.
-    c2::GCheckoutResult<GFaultyContainer> first;
+    // The first caller takes the only item and then loses its client. (It waits for the batch
+    // with checkout(): a call that parks would leave an entry behind on every try, and the
+    // wake-up this test counts would go to one of those.)
+    item_ptr first;
     REQUIRE(eventually([&] {
-        first = consumer.checkoutOrPark([] { return true; });
-        return static_cast<bool>(first.item);
+        first = consumer.checkout();
+        return static_cast<bool>(first);
     }));
 
     std::atomic<int> woken{0};
@@ -493,7 +501,7 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     });
     REQUIRE(second_caller.parked);
 
-    consumer.requeue(first.item->getCorrelationId());
+    consumer.requeue(first->getCorrelationId());
     CHECK(woken.load() == 1); // one item, one wake-up: the caller that has waited longer
     CHECK(second_woken.load() == 0);
 
@@ -530,10 +538,12 @@ TEST_CASE(
     std::atomic<bool> x_done{false};
     auto submitter_x = submit(consumer, batch_x, x_done);
 
-    c2::GCheckoutResult<GFaultyContainer> abandoned;
+    // (With checkout(), so that waiting for the batch leaves no entries in the list of parked
+    // callers.)
+    item_ptr abandoned;
     REQUIRE(eventually([&] {
-        abandoned = consumer.checkoutOrPark([] { return true; });
-        return static_cast<bool>(abandoned.item);
+        abandoned = consumer.checkout();
+        return static_cast<bool>(abandoned);
     }));
     std::this_thread::sleep_for(50ms); // well past the lease
 
@@ -600,6 +610,9 @@ TEST_CASE(
     constexpr std::size_t ITEMS = 12;
 
     SimNetConsumer consumer;
+    // The test counts evaluations, so no item may be handed out twice: a thread that is kept
+    // waiting by a busy machine must not have its item taken back by the time lease.
+    consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     std::atomic<std::size_t> n_evaluated{0};
     std::atomic<std::size_t> n_never_woken{0};
 

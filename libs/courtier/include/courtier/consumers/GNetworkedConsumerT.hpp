@@ -391,7 +391,8 @@ protected:
      *  longer active (timed out / finished) takes the late-return path; a return for a slot that
      *  is already DONE (a duplicate) or does not take part in its batch is dropped and counted. A
      *  return for a slot that was put back to PENDING in the meantime is accepted: the evaluation
-     *  is as good as the one that would otherwise be repeated.
+     *  is as good as the one that would otherwise be repeated. A return that cannot be applied to
+     *  its slot (the library's seam throws) ends the slot as failed.
      *
      *  The frame is split at exactly the layer boundary: courtier applies the GProcessingOutcome (status,
      *  errors, timings, routing) itself, and hands the library tag + payload (or the returned work item)
@@ -442,10 +443,31 @@ protected:
         // what came back into it. The original already holds the submitted parameters and the evolved
         // library-owned scratch (omitted on the wire), and address stability is what lets a concurrent
         // per-item prefetch hold a snapshot of population addresses across the submission.
-        b.items[slot]->applyProcessingOutcome(frame.outcome());
-        Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
-            *b.items[slot], frame.tag(), frame.libraryPayload(), returned.get()
-        );
+        //
+        // A result that cannot be written into its slot leaves the slot in an unknown state, so
+        // the slot is not handed out again as it is. It is flagged as failed, and the submission
+        // policy decides what happens to it, as it does for an evaluation that failed.
+        try {
+            b.items[slot]->applyProcessingOutcome(frame.outcome());
+            Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
+                *b.items[slot],
+                frame.tag(),
+                frame.libraryPayload(),
+                returned.get()
+            );
+        }
+        catch(const std::exception &e) {
+            auto failed = frame.outcome();
+            failed.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
+            failed.error_descriptions += "The returned result could not be applied to its slot: ";
+            failed.error_descriptions += e.what();
+            b.items[slot]->applyProcessingOutcome(failed);
+            glogger << "In GNetworkedConsumerT::checkin(): a returned result could not be applied"
+                    << '\n'
+                    << e.what() << '\n'
+                    << "The work item is flagged as failed." << '\n'
+                    << GWARNING;
+        }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::DONE);
         ++b.done;
         if(b.done == b.target) {
@@ -847,6 +869,9 @@ private:
      *  cannot serve passes its item on by putting it back (see checkoutOrPark()). The length of
      *  the list is read once, so that a caller that parks again while this loop runs is not
      *  woken a second time in the same round.
+     *
+     *  noexcept on purpose: it runs in destructors (a session that ends puts its items back),
+     *  and a wake-up that cannot be delivered for lack of memory has no sensible continuation.
      *
      *  @param n_items How many items became available */
     void announceWork_(std::size_t n_items) noexcept {
