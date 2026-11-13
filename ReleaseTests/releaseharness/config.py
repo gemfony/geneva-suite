@@ -29,8 +29,7 @@ _DEFAULTS: dict[str, Any] = {
     "boost_root": "/opt/boost",
     "jobs": 1,
     "guests": [
-        {"slug": "ubuntu-26.04", "image": "ubuntu:26.04"},
-        {"slug": "ubuntu-24.04", "image": "ubuntu:24.04"},
+        {"slug": "ubuntu-26.10", "image": "docker.io/library/ubuntu:26.10"},
     ],
     "compilers": ["gcc", "clang"],
     "short_build_types": ["Debug", "Release"],

@@ -67,7 +67,7 @@ def run_standard_tests(ctx: JobContext) -> CheckResult:
         return ctx.skipped("test/standard", tier, "skipped")
     started = time.monotonic()
     res = ctx.exec_in_guest(
-        ["bash", "-lc", "./projects/geneva/tests/UnitTests/GenevaStandardTests"],
+        ["bash", "-lc", "./libs/geneva/tests/UnitTests/GenevaStandardTests"],
         workdir=GUEST_BUILD, timeout=3600,
     )
     result = ctx.record("test/standard", tier, res, started=started)

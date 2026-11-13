@@ -2,11 +2,12 @@
 
 Runs a simple optimization under each consumer via example 01
 (GSimpleOptimizer). The consumer is selected with ``-c``:
-  sc    -> GSerialConsumerT (serial)
-  stc   -> GStdThreadConsumerT (multithreaded)
+  stc   -> GStdThreadConsumerT (multithreaded; the local default)
   beast -> GWebsocketConsumerT
-The StdThread consumer's thread count is taken from the JSON config, not a CLI
-flag, so the threaded check simply runs the stc consumer to completion.
+There is no serial consumer any more (one consumer per process; stc is the
+local one), so there is no serial check either. The StdThread consumer's thread
+count is taken from the JSON config, not a CLI flag, so the threaded check
+simply runs the stc consumer to completion.
 
 The MPI consumer is exercised via example 15 (GMPIConsumer), launched with
 ``mpirun`` (rank 0 = server/broker, ranks 1..n = clients) to completion. The
@@ -21,31 +22,16 @@ import time
 from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
-# Example 01 is the canonical simple optimizer; built under projects/geneva/examples
+# Example 01 is the canonical simple optimizer; built under libs/geneva/examples
 # (post-Lager-A per-library layout). It writes/reads ./config/Go2.json relative
 # to the CWD, so run it from its own build directory where config/ is installed.
-_EX01_DIR = "projects/geneva/examples/01_GSimpleOptimizer"
+_EX01_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _EX01 = "./GSimpleOptimizer"
 
 # Example 15 drives the GMPIConsumerT directly via mpirun (rank 0 = server,
 # ranks 1..n = clients); it reads ./config/*.json relative to its build dir.
-_EX16_DIR = "projects/geneva/examples/15_GMPIConsumer"
+_EX16_DIR = "libs/geneva/examples/15_GMPIConsumer"
 _EX16 = "./GMPIConsumer"
-
-
-def serial(ctx: JobContext) -> CheckResult:
-    """Run one optimization to completion with the serial consumer (sc)."""
-    tier = Tier.SHORT
-    if not ctx.job.spec.build_examples:
-        return ctx.skipped("consumer/serial", tier, "examples not built")
-    if not ctx.should_run(tier):
-        return ctx.skipped("consumer/serial", tier, "skipped")
-    started = time.monotonic()
-    res = ctx.exec_in_guest(
-        ["bash", "-lc", f"cd {GUEST_BUILD}/{_EX01_DIR} && {_EX01} -c sc"],
-        workdir=GUEST_BUILD, timeout=900,
-    )
-    return ctx.record("consumer/serial", tier, res, started=started)
 
 
 def threaded(ctx: JobContext) -> list[CheckResult]:

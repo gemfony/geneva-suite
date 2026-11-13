@@ -40,3 +40,6 @@ CMakeUserPresets.json
 # Local assistant-guidance file, kept on disk but out of version control.
 /CLAUDE.md
 __pycache__/
+
+# Local clangd configuration (points at a machine-specific build directory)
+.clangd

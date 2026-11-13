@@ -22,13 +22,20 @@ practical porting guide and the one place the behavioral, source- and serializat
 changes are itemized. In short -- checkpoints and binary archives from 1.11 do not load, problem
 definitions must move to the flat-genome / evaluate() model, configuration files are strict JSON.
 
-The GStarter starting point is now the self-contained quickstart in projects/geneva/quickstart/,
-built standalone against an installed Geneva; the numbered examples are renumbered contiguously.
+Programs no longer depend on libraries a machine may lack: the CUDA driver is loaded only when
+the GPU consumer is used, and the MPI consumer is a module of its own (libgemfony-geneva-mpi),
+loaded when present. Container images with a complete Geneva are built from containers/.
+GPU random numbers can be switched off per process (Gem::Hap::setGpuRandomNumbersAllowed); Go2
+clients do so, and a failing CUDA call moves the random-number source to the CPU.
+
+The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
+built standalone against an installed Geneva; the numbered examples are renumbered and start with
+00_GQuickStart, a short complete program that the manual's Quick Start walks through.
 
 Preconditions (INSTALL has the full details and the build instructions):
 - A 64-bit x86-64 or AArch64 CPU. SIMD (AVX2 / NEON) and a CUDA GPU are used when present, never
   required.
-- A C++23 compiler -- GCC >= 14 or Clang >= 18 -- rejected at configure time otherwise; consumers
+- A C++23 compiler -- GCC >= 15 or Clang >= 22 -- rejected at configure time otherwise; consumers
   of the Geneva:: CMake targets are compiled as C++23 too. Boost >= 1.91 built from source in
   C++23 mode, CMake >= 3.27, and Catch2 v3 when building the test code.
 - Optional: a CUDA toolkit >= 13.3 with a matching driver, for the GPU consumer and the CUDA

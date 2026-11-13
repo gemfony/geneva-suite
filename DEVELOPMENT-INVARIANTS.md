@@ -28,7 +28,7 @@ example of this rule; apply the same reflex everywhere.
 All concurrency building blocks — **thread pools, thread groups, thread-safe queues, thread-safe keyed
 stores, completion latches, content-addressed/aging stores, and any lock-free structures** — come from
 Geneva's shared concurrency facilities, consolidated in the distinct sub-module
-`projects/common/include/common/concurrency/` (namespace `Gem::Common::Concurrency`) — mirroring geneva's
+`libs/common/include/common/concurrency/` (namespace `Gem::Common::Concurrency`) — mirroring geneva's
 `par`/`ind`/`oa`, so they stay able to use `common`'s facilities yet are clearly separated and impossible to
 overlook. These include `GBlockingMPMCQueueT`, `GPreallocatedMPMCQueueT`, the `GMPMCQueueT` facade + the
 `MPMCQueue` concept, the thread pool/group, `GContentAddressedStoreT`, `GThreadSafeKeyedStoreT`,
@@ -496,10 +496,13 @@ decoration or convenience:
   regions the manual extracts at *its* build time. Treat a marker like code: moving, renaming or
   deleting one breaks the manual build, which names the affected chapter. When editing a marked
   region, the markers move with the meaning they bracket.
-- **Documentation programs** live under `projects/<lib>/docprograms/`, never in `examples/` — an
+- **Documentation programs** live under `libs/<lib>/docprograms/`, never in `examples/` — an
   example teaches a user, a docu-program backs a listing. Each links its library's own dependency
   closure only and is registered as an S-size test, so a docu-program that stops compiling or stops
-  doing what the manual says turns a gate red. The directory's README states the contract.
+  doing what the manual says turns a gate red. The directory's README states the contract. The
+  converse is allowed: where the manual walks through an example *as the example* (the Quick Start
+  and `examples/00_GQuickStart`), it quotes the example directly rather than a docu-program copy of
+  it, so the code has one home (Inv 20).
 - **The tracked `docs/config-reference/` JSONs** are the source the manual renders its configuration
   tables from; they stay tracked and are regenerated, never hand-edited.
 
@@ -509,6 +512,22 @@ this tree carries only these hooks.
 *Why:* the manual's honesty rests on generation from this tree. The hooks are cheap (comments, a few
 tiny programs, tracked JSON) but only work if nobody treats them as removable clutter — and the
 people in a position to remove them work here, not in the manual repository.
+
+## 28. Larger work starts from a commit — a clean rollback point, and nobody else's changes discarded
+
+Before a larger piece of work begins — a restructuring, a multi-file change, anything that might
+have to be undone as a whole — the working tree is committed first, so that a clean rollback point
+exists. Uncommitted changes found at that moment are clarified, not assumed: they may be someone
+else's work in progress, and they are committed (or set aside by their owner) before the new work
+touches the tree.
+
+Undoing the work then means returning to that commit, or restoring exactly the files the work
+changed after diffing each one. A blanket `git reset --hard`, `git checkout .` or `git restore` over
+changes whose origin has not been checked is never the way back.
+
+*Why:* without a rollback point, "revert" has no clean target, and a reset over a mixed working tree
+destroys whatever else was in it. That happened once, to uncommitted manual edits of the
+maintainer's; they survived only because the editor kept a local history.
 
 ---
 

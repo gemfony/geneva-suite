@@ -6,6 +6,16 @@ on Ubuntu Linux. Geneva is expected to compile on most reasonably recent Linux
 distributions, provided a new enough compiler is available (see "Prerequisites"
 below). Linux is the only regularly tested platform at this time.
 
+The recommended system is Ubuntu 26.10. Its own package archive carries a CUDA
+toolkit and an NVIDIA driver recent enough for Geneva's optional GPU features
+(see "GPU support on Ubuntu 26.10" below), so no vendor repository is needed.
+Without a GPU, any Linux distribution that meets the prerequisites will do.
+
+All of the setup described in this file can also be left to a container: the
+image definition in containers/geneva/ builds Boost and Geneva inside Ubuntu
+26.10 with Podman or Docker, so the host needs nothing but a container engine.
+containers/geneva/README.md explains how to build and use it.
+
 Geneva has also been built experimentally on macOS using the bundled Clang
 compiler, and much older versions were known to compile under Windows with the
 Microsoft Visual C++ compiler. Neither is covered by regular testing today, so
@@ -36,8 +46,9 @@ when present but are never required:
    x86-64, NEON on AArch64), detected automatically at compile time, with a
    scalar fallback otherwise.
  - A CUDA-capable NVIDIA GPU: enables the optional GPU consumer and an optional
-   CUDA random-number backend. Both fall back to a CPU implementation when no
-   GPU or CUDA toolkit is present.
+   CUDA random-number backend. Without a usable CUDA toolkit the random numbers
+   come from the CPU (SIMD where available) and the GPU consumer is not built, so
+   evaluations run on the CPU consumers.
 
 
 Prerequisites
@@ -45,8 +56,8 @@ Prerequisites
 
  - CMake, version 3.27 or later (the build system).
 
- - A C++23 compiler: the GNU Compiler Collection (g++) version 14 or later, or
-   Clang version 18 or later.
+ - A C++23 compiler: the GNU Compiler Collection (g++) version 15 or later, or
+   Clang version 22 or later -- the versions Ubuntu 26.10 ships.
 
  - The Boost libraries (see http://www.boost.org), version 1.91 or newer. Boost
    should be compiled from source and installed for the system, in
@@ -76,6 +87,41 @@ The compiler and tools come from the distribution; Boost is compiled separately
 
 sudo apt-get install --no-install-recommends cmake git g++ clang catch2
 
+The Boost package of Ubuntu 26.10 (libboost-dev) is version 1.90, older than the
+required 1.91, which is one more reason to compile Boost yourself.
+
+The optional components, as far as the distribution provides them -- an MPI
+implementation for the MPI consumer, and plot viewers for the scripts the
+examples emit:
+
+sudo apt-get install --no-install-recommends libopenmpi-dev openmpi-bin
+sudo apt-get install --no-install-recommends gnuplot octave python3-matplotlib
+
+
+GPU support on Ubuntu 26.10
+---------------------------
+
+The GPU consumer and the CUDA random-number backend need CUDA 13.3 or newer, and
+the build checks this twice: the CUDA toolkit must be at least 13.3, and so must
+the CUDA version the installed NVIDIA driver supports. If either is older, the
+configure output says which. With the GPU switches at their default ("auto")
+CUDA is then switched off and the build continues without it; with a switch set
+to "on", configuring stops with an error.
+
+Ubuntu 26.10 provides both parts from its own archive. Two packages look like
+the obvious choice and are not: the driver that "ubuntu-drivers" marks as
+recommended (nvidia-driver-580-open) supports only CUDA 13.0, and the package
+nvidia-cuda-toolkit contains CUDA 12.4. Install these instead:
+
+sudo apt-get install nvidia-driver-615-open cuda-toolkit-13-3
+
+Reboot after the driver change, then check what the driver supports:
+
+nvidia-smi -q | grep CUDA
+
+The toolkit lands in /usr/local/cuda-13.3, reachable as /usr/local/cuda, where
+the build finds it without further settings.
+
 
 Building and installing Geneva
 ==============================
@@ -90,17 +136,17 @@ a) Using prepareBuild.sh and a configuration file
 
 Geneva comes with a script that wraps the somewhat involved cmake call behind a
 configuration file, so the chosen options can be recorded once and reused.
-Assuming Geneva is in $HOME/geneva, create a build directory, copy the template
-config over and adapt it:
+With GENEVAHOME naming the Geneva checkout (export GENEVAHOME=$HOME/geneva, for
+instance), create a build directory, copy the template config over and adapt it:
 
 mkdir -p $HOME/build && cd $HOME/build
-cp $HOME/geneva/scripts/genevaConfig.gcfg ./myGenevaConfig.gcfg
-# ... edit myGenevaConfig.gcfg (compiler, BOOSTROOT, build mode, install dir,
+cp $GENEVAHOME/scripts/genevaConfig.gcfg .
+# ... edit genevaConfig.gcfg (compiler, BOOSTROOT, build mode, install dir,
 #     and the optional MPI/GPU/CUDA features) ...
 
 Then configure (and optionally build) by handing the file to the script:
 
-$HOME/geneva/scripts/prepareBuild.sh ./myGenevaConfig.gcfg --clean --build
+$GENEVAHOME/scripts/prepareBuild.sh ./genevaConfig.gcfg --clean --build
 sudo make install   # if installing into a system directory
 
 Useful script options:
@@ -124,13 +170,13 @@ Everything the script does reduces to a cmake invocation, which can be issued by
 hand. From the build directory, point cmake at the source tree:
 
 cd $HOME/build
-cmake $HOME/geneva -DGENEVA_BUILD_TYPE="Release"
+cmake $GENEVAHOME -DGENEVA_BUILD_TYPE="Release"
 make -j$(nproc)
 sudo make install
 
 To choose a custom installation directory (the default is /opt/geneva):
 
-cmake $HOME/geneva -DCMAKE_INSTALL_PREFIX="/where/the/library/goes"
+cmake $GENEVAHOME -DCMAKE_INSTALL_PREFIX="/where/the/library/goes"
 
 The configuration variables map onto the .gcfg settings: INSTALLDIR becomes
 CMAKE_INSTALL_PREFIX, BUILDMODE becomes GENEVA_BUILD_TYPE (Release, Debug,
@@ -142,11 +188,11 @@ configuration is to run "prepareBuild.sh ./my.gcfg --dryrun".
 If Boost was installed in a non-standard location (for instance /opt/boost),
 make it known to cmake either by its prefix:
 
-cmake $HOME/geneva -DBOOST_ROOT="/opt/boost"
+cmake $GENEVAHOME -DBOOST_ROOT="/opt/boost"
 
 or, if headers and libraries do not share a prefix, by both locations:
 
-cmake $HOME/geneva -DBOOST_INCLUDEDIR="/opt/boost/include" \
+cmake $GENEVAHOME -DBOOST_INCLUDEDIR="/opt/boost/include" \
                    -DBOOST_LIBRARYDIR="/opt/boost/lib"
 
 Adding -DCMAKE_VERBOSE_MAKEFILE="1" shows the compiler command lines.
@@ -186,7 +232,7 @@ ctest -j$(nproc) -L XL          once per larger piece of work, and not before
 
 Tests also carry descriptive labels, which are informational only and never
 decide whether a test runs: the owning library (common, hap, weft, dietrich,
-courtier, geneva), "example" for the end-to-end runs of projects/*/examples/,
+courtier, geneva), "example" for the end-to-end runs of libs/*/examples/,
 and "benchmark" for the three programs whose whole purpose is a
 convergence- or throughput-scale measurement (GOptimizationBenchmark,
 GParallelisationOverhead and, in a GPU-consumer build, GCUDAOptBenchmark).
@@ -244,7 +290,7 @@ Geneva::dietrich, Geneva::courtier and Geneva::geneva; linking Geneva::geneva
 pulls in the layers beneath it, the C++23
 requirement and the Boost dependency transitively.
 
-projects/geneva/quickstart/ is a working project of exactly this shape and the
+libs/geneva/quickstart/ is a working project of exactly this shape and the
 recommended starting point: it is not built by the in-tree build, it locates
 Geneva only through the installed package, and it can be copied out of the tree
 as-is. Its README has the step-by-step standalone build.

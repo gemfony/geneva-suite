@@ -5,7 +5,7 @@
 
 # Absolute path to the Geneva source tree (the repo root). If omitted, the
 # harness infers it as the parent of the ReleaseTests/ directory.
-source_dir: /home/rberlich/ClionProjects/geneva
+# source_dir: /path/to/geneva-suite
 
 # Writable scratch area: per-job build dirs, generated Dockerfiles, logs, reports.
 workdir: /home/rberlich/Testplan
@@ -14,20 +14,20 @@ workdir: /home/rberlich/Testplan
 # group needed). 'auto' resolves to podman.
 backend: podman
 
-# Where the from-source Boost 1.91 (built in C++20 mode) lives inside the guest
+# Where the from-source Boost 1.91 (built in C++23 mode) lives inside the guest
 # images. The Containerfile downloads Boost 1.91.0 and installs it here; the
-# distro libboost packages are NOT used (Ubuntu ships 1.83/1.88/1.89 < 1.91).
+# distro libboost packages are NOT used (Ubuntu's are older than 1.91).
 boost_root: /opt/boost
 
 # Parallel jobs (matrix cells run concurrently). 1 = sequential.
 jobs: 2
 
-# Guest operating systems to test against.
+# Guest operating systems to test against: the recommended Ubuntu 26.10. Its
+# GCC 15 and Clang 22 are Geneva's compiler floor; the 26.04 LTS ships Clang 21
+# and 24.04 GCC 13, both too old.
 guests:
-  - slug: ubuntu-26.04
-    image: ubuntu:26.04
-  - slug: ubuntu-24.04
-    image: ubuntu:24.04
+  - slug: ubuntu-26.10
+    image: docker.io/library/ubuntu:26.10
 
 # Compilers.
 compilers:

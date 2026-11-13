@@ -126,11 +126,11 @@
     },
     "cp_ser_mode": {
         "comment": [
-            "Determines whether check-pointing should be done in",
-            "text- (0), XML- (1), or binary-mode (2)"
+            "The format of checkpoint files:",
+            "binary (3) or JSON (4)"
         ],
-        "default": "2",
-        "value": "2"
+        "default": "4",
+        "value": "4"
     },
     "quality_termination": {
         "threshold": {

@@ -99,7 +99,7 @@ IF(NOT GENEVA_INDIVIDUAL_MODULE_INCLUDED)
 		# branch.
 		#
 		# This is ABI-safe by CONSTRUCTION, not by discipline. The self-test hooks live on their own
-		# opt-in interface, Gem::Common::GSelfTestable (projects/common/include/common/GSelfTestable.hpp),
+		# opt-in interface, Gem::Common::GSelfTestable (libs/common/include/common/GSelfTestable.hpp),
 		# which a class inherits UNCONDITIONALLY or not at all -- no member of it is preprocessor-gated, so
 		# core and module can never disagree about its layout. The category roots an individual actually
 		# derives from (GGenome, GPersonalityTraits, GOptimizationAlgorithmBase, ...) do not inherit it, so

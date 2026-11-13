@@ -211,10 +211,13 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	SET ( DIETRICH_LIBNAME          "gemfony-dietrich" )
 	SET ( HAP_LIBNAME               "gemfony-hap" )
 	SET ( COURTIER_LIBNAME          "gemfony-courtier" )
-	# The GPU consumer is folded INTO gemfony-courtier as an opt-in add-on (GENEVA_BUILD_WITH_GPU_CONSUMER),
-	# exactly like the MPI consumer: when enabled, courtier dynamically links the CUDA/OpenCL backends; when
-	# disabled, no GPU code is compiled. There is no separate GPU library.
+	# The GPU consumer is folded INTO gemfony-courtier as an opt-in add-on (GENEVA_BUILD_WITH_GPU_CONSUMER):
+	# when enabled, courtier carries the CUDA backend and loads the CUDA driver at run time; when disabled,
+	# no GPU code is compiled. There is no separate GPU library. The MPI consumer, by contrast, lives in a
+	# module of its own (GENEVA_MPI_LIBNAME below), because MPI is a library not every machine has.
 	SET ( GENEVA_LIBNAME            "gemfony-geneva" )
+	# Geneva's MPI module: built only with the MPI consumer, and loaded at run time (libs/geneva/src)
+	SET ( GENEVA_MPI_LIBNAME        "gemfony-geneva-mpi" )
 	# The geneva-individuals library was dissolved into the geneva library: the sample
 	# individuals now live in Gem::Geneva::Individuals under geneva/{include,src}/individuals/,
 	# compiled into gemfony-geneva. There is no separate individuals library (and no
@@ -419,12 +422,12 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# that consumes an installed Geneva via find_package(Geneva). Here (the in-tree build) we point them at
 	# the in-tree source include layout; the installed GenevaConfig.cmake points them at the install prefix.
 	SET(GENEVA_INDIVIDUAL_INCLUDE_DIRS
-		${PROJECT_SOURCE_DIR}/projects/weft/include
-		${PROJECT_SOURCE_DIR}/projects/common/include
-		${PROJECT_SOURCE_DIR}/projects/hap/include
-		${PROJECT_SOURCE_DIR}/projects/courtier/include
-		${PROJECT_SOURCE_DIR}/projects/dietrich/include
-		${PROJECT_SOURCE_DIR}/projects/geneva/include)
+		${PROJECT_SOURCE_DIR}/libs/weft/include
+		${PROJECT_SOURCE_DIR}/libs/common/include
+		${PROJECT_SOURCE_DIR}/libs/hap/include
+		${PROJECT_SOURCE_DIR}/libs/courtier/include
+		${PROJECT_SOURCE_DIR}/libs/dietrich/include
+		${PROJECT_SOURCE_DIR}/libs/geneva/include)
 	SET(GENEVA_INDIVIDUAL_CXX_STANDARD ${CMAKE_CXX_STANDARD})
 
 	# ABI-affecting compile options a loadable individual module MUST match: it links none of the Geneva

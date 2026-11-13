@@ -155,24 +155,14 @@
     },
     "parameter_type": {
         "comment": [
-            "Indicates what type of parameter object should be used",
-            "(0) GDoubleCollection",
-            "(1) GConstrainedDoubleCollection",
-            "(2) GDoubleObjectCollection",
-            "(3) GConstrainedDoubleObjectCollection",
-            "(4) GConstrainedDoubleObjects on the root level"
+            "Selects the flat-genome structure, along two axes -- bounded-vs-unbounded and shared-vs-per-parameter adaptor group",
+            "(0) unbounded, one shared group",
+            "(1) bounded, one shared group",
+            "(2) unbounded, one group per parameter",
+            "(3) bounded, one group per parameter"
         ],
-        "default": "4",
-        "value": "4"
-    },
-    "init_mode": {
-        "comment": [
-            "Indicates how the parameters are initialized",
-            "(0) randomly",
-            "(1) with a value on the perimeter of the allowed or recommended value range"
-        ],
-        "default": "1",
-        "value": "1"
+        "default": "3",
+        "value": "3"
     },
     "demo_function": {
         "comment": [

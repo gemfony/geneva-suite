@@ -16,13 +16,13 @@ from ..runner import GUEST_BUILD, JobContext
 #
 # NOTE: the quickstart is deliberately NOT built in-tree -- it ships as the
 # canonical out-of-tree find_package(Geneva) project (see
-# projects/geneva/quickstart/README). The in-tree "run an example to completion"
+# libs/geneva/quickstart/README). The in-tree "run an example to completion"
 # smoke therefore uses 01_GSimpleOptimizer, the canonical minimal in-tree
 # optimizer (the quickstart's out-of-tree role belongs to the
 # outoftree/findgeneva check).
-_SIMPLE_DIR = "projects/geneva/examples/01_GSimpleOptimizer"
+_SIMPLE_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _SIMPLE = "./GSimpleOptimizer"
-_GCUDA_DIR = "projects/geneva/examples/14_GCUDAWorker"
+_GCUDA_DIR = "libs/geneva/examples/14_GCUDAWorker"
 _GCUDA = "./GCUDAWorker"
 
 

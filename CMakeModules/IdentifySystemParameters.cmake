@@ -174,7 +174,7 @@ FUNCTION (
         SET(FLAGS_LOCAL "${FLAGS_LOCAL} -fmessage-length=0 -ftemplate-depth=1024 -pthread")
         SET(CMAKE_CXX_FLAGS_SANITIZE "${CMAKE_CXX_FLAGS_SANITIZE} -fsanitize=thread" PARENT_SCOPE)
     ELSE()
-        MESSAGE(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. Geneva requires GCC >= 14 or Clang >= 18 on Linux.")
+        MESSAGE(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. Geneva requires GCC or Clang on Linux.")
     ENDIF()
 
     SET(CMAKE_CXX_FLAGS "${FLAGS_LOCAL}" PARENT_SCOPE)
@@ -225,14 +225,14 @@ FUNCTION (
         MESSAGE(FATAL_ERROR "Geneva only supports Linux.")
     ENDIF()
 
-    # C++23 baseline: GCC 14 is the first release with the C++23 library surface
-    # Geneva relies on (e.g. <print>, <generator>); Clang 18 is the matching floor.
+    # The compiler floor is the GCC and Clang that Ubuntu 26.10, the recommended platform, ships:
+    # GCC 15 and Clang 22. Both cover the C++23 library surface Geneva relies on.
     IF(${CMAKE_CXX_COMPILER_ID} STREQUAL ${CLANG_DEF_IDENTIFIER})
-        SET(COMPILER_MIN_VER 18.0)
+        SET(COMPILER_MIN_VER 22.0)
     ELSEIF(${CMAKE_CXX_COMPILER_ID} STREQUAL ${GNU_DEF_IDENTIFIER})
-        SET(COMPILER_MIN_VER 14.0)
+        SET(COMPILER_MIN_VER 15.0)
     ELSE()
-        MESSAGE(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. Geneva requires GCC >= 14 or Clang >= 18.")
+        MESSAGE(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}. Geneva requires GCC >= 15 or Clang >= 22.")
     ENDIF()
 
     IF(${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS ${COMPILER_MIN_VER})
