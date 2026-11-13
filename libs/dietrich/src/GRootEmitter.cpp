@@ -125,8 +125,15 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
     for(const auto &[idx, p] :
         gpd.plotters_cnt_ | std::views::enumerate | std::views::take(max_plots)) {
         result << gpd.indent() << "graphPad->cd(" << static_cast<std::size_t>(idx) + 1 << ");"
-               << '\n' /* cd starts at 1 */
-               << p->footerData(gpd.indent()) << '\n';
+               << '\n'; /* cd starts at 1 */
+        // The scale of an axis belongs to the pad and is set before anything is drawn into it.
+        if(p->xAxisLogarithmic()) {
+            result << gpd.indent() << "gPad->SetLogx(1);" << '\n';
+        }
+        if(p->yAxisLogarithmic()) {
+            result << gpd.indent() << "gPad->SetLogy(1);" << '\n';
+        }
+        result << p->footerData(gpd.indent()) << '\n';
     }
 
     result << gpd.indent() << "graphPad->cd();" << '\n' << gpd.indent() << "cc->cd();" << '\n';

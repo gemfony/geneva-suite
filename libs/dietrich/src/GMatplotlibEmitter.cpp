@@ -252,6 +252,13 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(three_d) {
             result << "ax.set_zlabel(\"" << backslashEscape(p->zAxisLabel()) << "\")" << '\n';
         }
+        // Logarithmic axes, for two-dimensional plots: matplotlib's 3-d axes do not support them.
+        if(not three_d && p->xAxisLogarithmic()) {
+            result << "ax.set_xscale(\"log\")" << '\n';
+        }
+        if(not three_d && p->yAxisLogarithmic()) {
+            result << "ax.set_yscale(\"log\")" << '\n';
+        }
         result << "ax.set_title(\"" << backslashEscape(p->plotLabel()) << "\")" << '\n';
 
         // The primary plotter, then any secondary plotters overlaid on the same Axes.

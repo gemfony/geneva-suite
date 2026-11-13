@@ -256,6 +256,12 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(three_d) {
             result << "zlabel('" << octaveEscape(p->zAxisLabel()) << "');" << '\n';
         }
+        if(p->xAxisLogarithmic()) {
+            result << "set(gca, 'XScale', 'log');" << '\n';
+        }
+        if(p->yAxisLogarithmic()) {
+            result << "set(gca, 'YScale', 'log');" << '\n';
+        }
         result << "title('" << octaveEscape(p->plotLabel()) << "');" << '\n';
 
         // The primary plotter, then any secondary plotters overlaid in the same pad.

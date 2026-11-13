@@ -35,8 +35,8 @@ ATTENTION: This test can run for a VERY long time
 ***
 
 The result is a ROOT script (fullResults.C unless the configuration names
-another file) that shows the speed-up twice, over the evaluation time and
-over its decadic logarithm. You can look at it with a command similar to
+another file) that shows the speed-up twice, with a linear and with a
+logarithmic time axis. You can look at it with a command similar to
 
 root -l fullResults.C
 

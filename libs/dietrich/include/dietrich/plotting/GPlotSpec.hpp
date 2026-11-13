@@ -125,6 +125,9 @@ struct GPlotSpec {
     std::string y_label; ///< the y-axis label
     std::string z_label; ///< the z-axis label
 
+    bool x_log = false; ///< whether the x-axis is logarithmic
+    bool y_log = false; ///< whether the y-axis is logarithmic
+
     std::string drawing_args; ///< the plotter's drawing arguments
 
     std::vector<std::string> columns; ///< axis/column names, e.g. {"x","y"} or {"x","ex","y","ey"}
@@ -176,6 +179,14 @@ struct GPlotSpec {
         out += ", \"x_label\": \"" + jsonEscape(x_label) + "\"";
         out += ", \"y_label\": \"" + jsonEscape(y_label) + "\"";
         out += ", \"z_label\": \"" + jsonEscape(z_label) + "\"";
+        // A linear axis is the rule and is not written, so the JSON of a plot without a
+        // logarithmic axis is what it was before these two fields existed.
+        if(x_log) {
+            out += ", \"x_log\": true";
+        }
+        if(y_log) {
+            out += ", \"y_log\": true";
+        }
         out += ", \"drawing_args\": \"" + jsonEscape(drawing_args) + "\"";
         out += ", \"columns\": [";
         for(std::size_t c = 0; c < columns.size(); ++c) {
