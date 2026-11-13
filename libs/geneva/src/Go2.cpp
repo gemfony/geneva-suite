@@ -135,6 +135,13 @@ Go2::Go2(
     // and client are the same binary launched with different options, so both load identically.
     parseCommandLine(argc, argv, user_descriptions);
 
+    // A client only evaluates and draws few random numbers. Keep it off the GPU, so that many clients
+    // on one machine do not each need a CUDA context (the MPI worker role is decided later, in
+    // setupChosenConsumer()).
+    if(client_mode_) {
+        Gem::Hap::setGpuRandomNumbersAllowed(false);
+    }
+
     //--------------------------------------------
     // GArchive registration completeness self-check. parseCommandLine (above) has loaded any
     // command-line-requested runtime modules / individual plugins, so every concrete polymorphic
@@ -1512,6 +1519,9 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
         // null consumer). Reflect that in client_mode_ so the caller dispatches to clientRun_().
         if(role_at_runtime) {
             client_mode_ = static_cast<bool>(run_worker_);
+            if(client_mode_) {
+                Gem::Hap::setGpuRandomNumbersAllowed(false); // as for the socket clients, see the constructor
+            }
         }
 
         if(consumer_) {

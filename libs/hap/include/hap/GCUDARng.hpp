@@ -65,6 +65,11 @@ public:
      *  @param dst Destination host buffer holding at least n 64-bit values. @param n The number of values to generate. */
     void generate(result_type *dst, std::size_t n);
 
+    /** @brief True once a CUDA or cuRAND call of this backend has failed (outside process shutdown).
+     *  generate() still fills dst after a failure, from a CPU generator.
+     *  @return true if any CUDA or cuRAND call has failed, false otherwise. */
+    [[nodiscard]] bool failed() const noexcept { return failed_; }
+
     /** @brief True iff at least one usable CUDA device is present at runtime.
      *  @return true if a CUDA device is available, false otherwise. */
     static bool deviceAvailable() noexcept;
@@ -78,6 +83,7 @@ private:
     void       *stream_{nullptr}; ///< cudaStream_t
     void       *d_buf_{nullptr};  ///< device buffer (32-bit words)
     std::size_t d_words_{0};      ///< current capacity of d_buf_ in 32-bit words
+    bool        failed_{false};   ///< set when a CUDA or cuRAND call has failed
 };
 
 } /* namespace Gem::Hap */

@@ -25,6 +25,8 @@ definitions must move to the flat-genome / evaluate() model, configuration files
 Programs no longer depend on libraries a machine may lack: the CUDA driver is loaded only when
 the GPU consumer is used, and the MPI consumer is a module of its own (libgemfony-geneva-mpi),
 loaded when present. Container images with a complete Geneva are built from containers/.
+GPU random numbers can be switched off per process (Gem::Hap::setGpuRandomNumbersAllowed); Go2
+clients do so, and a failing CUDA call moves the random-number source to the CPU.
 
 The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
 built standalone against an installed Geneva; the numbered examples are renumbered and start with

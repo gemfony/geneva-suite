@@ -46,6 +46,7 @@
 #include <stdexcept>
 #include <system_error>
 #include <thread>
+#include <tuple>
 #include <utility>
 
 namespace Gem::Hap {
@@ -405,6 +406,45 @@ struct GRandomFactoryLifecycleGuard {
 };
 const GRandomFactoryLifecycleGuard g_random_factory_lifecycle_guard;
 } // namespace
+
+/******************************************************************************/
+/**
+ * Process-wide GPU switch, GPU source count and failure hook. Constant-initialized, so they are valid
+ * before any static constructor runs and survive until the last producer has been joined.
+ */
+namespace {
+constinit std::atomic<bool> g_gpu_random_allowed{true}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::size_t> g_n_gpu_random_sources{0}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<bool> g_gpu_random_failure_simulated{false}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+} // namespace
+
+void setGpuRandomNumbersAllowed(bool allowed) noexcept { g_gpu_random_allowed.store(allowed); }
+
+bool gpuRandomNumbersAllowed() noexcept { return g_gpu_random_allowed.load(); }
+
+std::size_t nGpuRandomSources() noexcept { return g_n_gpu_random_sources.load(); }
+
+void simulateGpuRandomFailureForTests(bool fail) {
+#ifdef GEM_TESTING
+    g_gpu_random_failure_simulated.store(fail);
+#else  /* GEM_TESTING */
+    std::ignore = fail;
+    Gem::Common::condnotset("Gem::Hap::simulateGpuRandomFailureForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+namespace detail {
+void countGpuRandomSource(bool engaged) noexcept {
+    if(engaged) {
+        g_n_gpu_random_sources.fetch_add(1);
+    }
+    else {
+        g_n_gpu_random_sources.fetch_sub(1);
+    }
+}
+
+bool gpuRandomFailureSimulated() noexcept { return g_gpu_random_failure_simulated.load(); }
+} /* namespace detail */
 
 /******************************************************************************/
 

@@ -122,18 +122,25 @@ bool GCudaRNG::deviceAvailable() noexcept {
  * @param seed The seed value passed to the cuRAND pseudo-random generator
  */
 GCudaRNG::GCudaRNG(std::uint64_t seed) {
+    // A failed call marks the backend as failed (failed()); its owner then switches to the CPU engine.
     cudaStream_t stream{};
-    checkCuda(cudaStreamCreate(&stream), "cudaStreamCreate");
+    if (!checkCuda(cudaStreamCreate(&stream), "cudaStreamCreate")) {
+        failed_ = true;
+        return;
+    }
     stream_ = stream;
 
     curandGenerator_t gen{};
     // Philox4-32-10: fast, high-quality, no per-thread state setup needed.
-    checkCurand(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_PHILOX4_32_10),
-                "curandCreateGenerator");
-    checkCurand(curandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)),
-                "curandSetPseudoRandomGeneratorSeed");
-    checkCurand(curandSetStream(gen, stream), "curandSetStream");
+    if (!checkCurand(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_PHILOX4_32_10),
+                     "curandCreateGenerator")) {
+        failed_ = true;
+        return;
+    }
     gen_ = gen;
+    failed_ = !checkCurand(curandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)),
+                           "curandSetPseudoRandomGeneratorSeed")
+              || !checkCurand(curandSetStream(gen, stream), "curandSetStream");
 }
 
 /**
@@ -163,8 +170,10 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
     // On any failure -- which under heavy concurrent demand can be a transient cuRAND launch failure --
     // fall back to a thread-local CPU generator so the buffer is always filled with real randomness. The
     // failure is still reported by checkCurand/checkCuda, so the GPU problem stays observable; a true
-    // shutdown is handled by the early return above (cudaShuttingDown()).
-    auto cpuFallback = [dst, n]() {
+    // shutdown is handled by the early return above (cudaShuttingDown()). The failure also sets failed_,
+    // and the owning GFillBackend then moves to its CPU engine for good.
+    auto cpuFallback = [this, dst, n]() {
+        if (!cudaShuttingDown()) failed_ = true;
         thread_local std::mt19937_64 eng{std::random_device{}()};
         for (std::size_t i = 0; i < n; ++i) {
             dst[i] = static_cast<result_type>(eng());

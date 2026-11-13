@@ -483,6 +483,47 @@ private:
 
 /******************************************************************************/
 /**
+ * @brief Allows or forbids random-number generation on the GPU for this process.
+ *
+ * In a build with the CUDA random-number backend, every bulk source refills its containers on the GPU
+ * when a device is present. Processes that draw few random numbers, such as the clients of a networked
+ * run, gain nothing from that but each pay for a CUDA context; many of them on one GPU exhaust its
+ * memory. Calling this function with @c false makes every source use the CPU engine instead. Sources
+ * that already draw from the GPU switch to the CPU at their next refill. The default is @c true. In a
+ * build without the CUDA backend the setting has no effect.
+ *
+ * @param allowed Whether GPU random-number generation is allowed
+ */
+void setGpuRandomNumbersAllowed(bool allowed) noexcept;
+
+/**
+ * @brief Reports whether GPU random-number generation is allowed for this process.
+ *
+ * @return The value last set through setGpuRandomNumbersAllowed(), @c true by default
+ */
+[[nodiscard]] bool gpuRandomNumbersAllowed() noexcept;
+
+/**
+ * @brief Reports how many bulk random-number sources currently draw from the GPU.
+ *
+ * A source stops counting when it switches to the CPU, either because GPU use was forbidden or
+ * because a CUDA call failed. Always 0 in a build without the CUDA backend.
+ *
+ * @return The number of sources that currently use the GPU
+ */
+[[nodiscard]] std::size_t nGpuRandomSources() noexcept;
+
+/**
+ * @brief Makes every GPU source behave as if its next CUDA call failed (test hook).
+ *
+ * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param fail Whether GPU calls should be treated as failed
+ */
+void simulateGpuRandomFailureForTests(bool fail);
+
+/******************************************************************************/
+/**
  * A single, global GRandomFactory exists as a singleton. Access it through
  * randomFactory(), which forwards to the GSingletonT<GRandomFactory> lifetime
  * manager. This type-safe, namespaced function replaces the former GRANDOMFACTORY

@@ -31,6 +31,7 @@
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( HapQualityTests )
 ADD_SUBDIRECTORY ( HapConcurrencyTests )
+ADD_SUBDIRECTORY ( HapGpuFallbackTests )
 ADD_SUBDIRECTORY ( ManualTests )
 ADD_SUBDIRECTORY ( DocuPrograms )
 ADD_SUBDIRECTORY ( HapNeonCrossTest )  # optional; only active with aarch64 cross-tools
