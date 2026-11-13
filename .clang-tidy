@@ -1,4 +1,4 @@
-# Geneva-style clang-tidy baseline (modernized for C++20)
+# Geneva-style clang-tidy baseline (C++23; checked against clang-tidy 22)
 #
 # This file complements .clang-format. It focuses on rules that clang-tidy can
 # check reasonably well. Several Geneva coding conventions require custom
@@ -17,6 +17,13 @@
 # - C++20 features (concepts, ranges, span, format) are encouraged but not
 #   forced, to avoid disruptive changes in legacy code.
 #
+# Two checks are off because of what clang-tidy 21 and 22 brought:
+# - cppcoreguidelines-pro-bounds-avoid-unchecked-container-access (new) reports
+#   every operator[] on a container. Geneva indexes its containers on purpose; the
+#   related pro-bounds checks are off for the same reason.
+# - bugprone-throwing-static-initialization is the new name of cert-err58-cpp,
+#   which was off already; the old name no longer silences the new one.
+#
 # Usage:
 #   clang-tidy -p build path/to/file.cpp
 #
@@ -28,6 +35,7 @@ Checks: >-
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   -bugprone-crtp-constructor-accessibility,
+  -bugprone-throwing-static-initialization,
   cert-*,
   -cert-err58-cpp,
   clang-analyzer-*,
@@ -37,6 +45,7 @@ Checks: >-
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
   -cppcoreguidelines-pro-type-vararg,
   -cppcoreguidelines-avoid-c-arrays,
   -cppcoreguidelines-pro-type-reinterpret-cast,
