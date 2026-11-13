@@ -220,7 +220,12 @@ public:
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(
-            spec.port, spec.n_threads, spec.serialization_mode);
+            spec.port,
+            spec.n_threads,
+            spec.serialization_mode,
+            spec.ping_interval,
+            spec.verbose_control_frames
+        );
         consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
@@ -238,6 +243,9 @@ public:
         if(vm.contains("beast_verboseControlFrames")) {
             spec.verbose_control_frames = vm["beast_verboseControlFrames"].as<bool>();
         }
+        if(vm.contains("beast_pingInterval")) {
+            spec.ping_interval = vm["beast_pingInterval"].as<std::size_t>();
+        }
         if(vm.contains("beast_prefetchDepth")) {
             spec.client_prefetch_depth = vm["beast_prefetchDepth"].as<std::size_t>();
         }
@@ -248,8 +256,13 @@ public:
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
     buildClient(const ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GWebsocketClientT<gen::GGenome>>(
-            spec.ip, spec.port, spec.serialization_mode, spec.verbose_control_frames,
-            spec.client_prefetch_depth);
+            spec.ip,
+            spec.port,
+            spec.serialization_mode,
+            spec.verbose_control_frames,
+            spec.client_prefetch_depth,
+            spec.ping_interval
+        );
     }
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
@@ -268,7 +281,9 @@ public:
             "\t[beast] The number of threads used to listen for incoming connections")(
             "beast_pingInterval",
             po::value<std::size_t>()->default_value(c2::GBEASTCONSUMERPINGINTERVAL),
-            "\t[beast] The number of seconds between two consecutive pings")(
+            "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "
+            "sent; the connection is closed after twice that time without any inbound data "
+            "(0 == off)")(
             "beast_verboseControlFrames",
             po::value<bool>()->default_value(false)->implicit_value(true),
             "\t[beast] Announce ping/pong/close frames")(

@@ -155,11 +155,14 @@ protected:
     /** @brief After a NO_WORK reply, waits a short randomized backoff and then tops the pipeline back
      *  up. A single timer suffices: refill_() covers the whole deficit at once. */
     void schedule_refill_() {
+        if(pipeline_stopped_) {
+            return;
+        }
         std::uniform_int_distribution<> dist(50, 200);
         nodata_timer_.expires_after(std::chrono::milliseconds(dist(rng_engine_)));
         auto self = derived().shared_from_this();
         nodata_timer_.async_wait([self](boost::system::error_code ec) {
-            if(ec) { // cancelled during teardown
+            if(ec || self->pipeline_stopped_) { // cancelled, or stopped while this handler waited
                 return;
             }
             if(not self->halt()) {
@@ -174,6 +177,9 @@ protected:
      *  exchange active (or with only a read outstanding), so a timer is needed to notice a stop
      *  promptly; on halt the transport-specific haltShutdown_() hook tears the connection down. */
     void start_halt_timer() {
+        if(pipeline_stopped_) {
+            return;
+        }
         halt_timer_.expires_after(std::chrono::seconds(1));
         auto self = derived().shared_from_this();
         halt_timer_.async_wait([self](boost::system::error_code ec) { self->on_halt_timer(ec); });
@@ -185,7 +191,7 @@ protected:
      *
      *  @param ec The timer error code (non-zero means the timer was cancelled during teardown) */
     void on_halt_timer(boost::system::error_code ec) {
-        if(ec) { // the timer was cancelled during teardown -- stop polling
+        if(ec || pipeline_stopped_) { // cancelled, or stopped while this handler waited to run
             return;
         }
         if(this->halt()) {
@@ -193,6 +199,18 @@ protected:
             return;
         }
         start_halt_timer(); // keep polling
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Stops the halt-poll and the NO_WORK timers for good. A concrete client calls this
+     *  when it tears its transport down, so that io_context::run() can return. Cancelling them is
+     *  not enough for that: a timer that has already expired has its handler queued, the cancel no
+     *  longer reaches it, and the handler would arm the timer again -- the client would then never
+     *  terminate. The flag set here makes such a handler return without re-arming. */
+    void stopPipelineTimers_() {
+        pipeline_stopped_ = true;
+        halt_timer_.cancel();
+        nodata_timer_.cancel();
     }
 
     //-------------------------------------------------------------------------
@@ -220,6 +238,8 @@ protected:
     std::size_t computing_ = 0;
 
     std::uint64_t n_nodata_ = 0; ///< How often a NO_WORK reply was received (reported at shutdown)
+
+    bool pipeline_stopped_ = false; ///< Set by stopPipelineTimers_(): no timer is armed any more
 
     GCommandContainerT<processable_type> command_container_{
         GFrameKind::NONE

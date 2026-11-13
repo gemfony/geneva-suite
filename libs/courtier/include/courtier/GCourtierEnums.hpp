@@ -86,14 +86,6 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
 //! [courtier-frame-kind]
 
 /******************************************************************************/
-/** @brief Indicates in what state of the ping submission we are */
-enum class beast_ping_state : Gem::Common::ENUMBASETYPE {
-    CONNECTION_IS_ALIVE = 0,
-    SENDING_PING = 1,
-    CONNECTION_IS_STALE = 2
-};
-
-/******************************************************************************/
 /**
  * Specification of the different consumer types held in the GConsumerRegistry
  */
@@ -117,7 +109,17 @@ const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
 const Gem::Common::serializationMode GCONSUMERSERIALIZATIONMODE =
     Gem::Common::serializationMode::GEM_BINARY;
+/// Websocket keep-alive, in seconds, for both ends of a connection: after this much silence a ping
+/// is sent, and after twice as much without any inbound data the connection is closed. The same
+/// limit (twice the interval) bounds the websocket handshake and the close handshake.
 constexpr std::size_t GBEASTCONSUMERPINGINTERVAL = 15;
+/// The limit on the websocket handshake and the close handshake when the keep-alive is switched off
+/// (a ping interval of 0), so that neither can wait forever.
+constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
+/// The largest websocket message accepted, in bytes; 0 means no limit. A work item or a result
+/// travels as one message, and its size is the user's business (the MPI transport has no cap
+/// either).
+constexpr std::size_t GWEBSOCKETMAXMESSAGEBYTES = 0;
 
 /******************************************************************************
  * Constants specifically for the GMPIConsumerT:

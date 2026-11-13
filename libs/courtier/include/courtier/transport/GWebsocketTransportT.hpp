@@ -74,6 +74,63 @@
 namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
+/**
+ * @brief Applies the time limits and the message-size limit that both ends of a courtier websocket
+ * connection share.
+ *
+ * Beast watches the connection itself: after @p ping_interval without any inbound data it sends a
+ * ping, and after a second such interval it closes the socket and ends the outstanding read with an
+ * error. Any received frame counts, control frames included, so a peer that only answers pings is
+ * alive. The websocket handshake and the close handshake get the same limit as the idle time. All
+ * of this needs a read to be outstanding, which both ends keep.
+ *
+ * @tparam WsStream The websocket stream type
+ * @param ws The stream to configure
+ * @param ping_interval The silence after which a ping is sent; zero switches the idle limit off
+ */
+template <typename WsStream>
+void applyWebsocketLimits(WsStream &ws, std::chrono::seconds ping_interval) {
+    using boost::beast::websocket::stream_base;
+    const bool keep_alive = ping_interval > std::chrono::seconds::zero();
+    const stream_base::duration idle_limit = 2 * ping_interval;
+    const stream_base::duration handshake_limit =
+        keep_alive ? idle_limit : stream_base::duration{Gem::Courtier::GWEBSOCKETHANDSHAKETIMEOUT};
+    ws.set_option(
+        stream_base::timeout{
+            .handshake_timeout = handshake_limit,
+            .idle_timeout = keep_alive ? idle_limit : stream_base::none(),
+            .keep_alive_pings = keep_alive
+        }
+    );
+    ws.read_message_max(Gem::Courtier::GWEBSOCKETMAXMESSAGEBYTES);
+}
+
+/******************************************************************************/
+/**
+ * @brief Switches the time limits of applyWebsocketLimits() off again, for a connection that is
+ * over.
+ *
+ * Beast cancels its internal timer after an orderly close, but not after a read or write that
+ * failed (the peer vanished). The armed timer is pending work on the io context: a client's
+ * io_context::run() would not return until it fires, up to one ping interval later. Switching the
+ * limits off cancels the timer.
+ *
+ * @tparam WsStream The websocket stream type
+ * @param ws The stream whose connection has ended
+ */
+template <typename WsStream>
+void disarmWebsocketLimits(WsStream &ws) {
+    using boost::beast::websocket::stream_base;
+    ws.set_option(
+        stream_base::timeout{
+            .handshake_timeout = stream_base::none(),
+            .idle_timeout = stream_base::none(),
+            .keep_alive_pings = false
+        }
+    );
+}
+
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -83,7 +140,9 @@ namespace Gem::Courtier::Consumers {
  * The client can keep up to prefetch_depth_ work items in flight at once (requested-but-unanswered +
  * currently computing), overlapping network transfer with computation. A depth of 1 is the classic
  * strictly-serial behaviour (one item at a time). It keeps a single async_read outstanding throughout
- * so Beast can service pings -> auto-pong even while items evaluate on the compute pool, and serializes
+ * so Beast can service pings -> auto-pong even while items evaluate on the compute pool (an
+ * evaluation may therefore take any length of time), and so that Beast's idle limit can notice a
+ * server that has fallen silent (see applyWebsocketLimits()). It serializes
  * its outgoing messages through a write queue (Beast permits only one write at a time). All connection
  * state (the in-flight counters, the write queue, the websocket stream) is touched only on the single
  * io thread; the compute pool threads only ever touch the work-item container handed to them and then
@@ -117,19 +176,17 @@ class GWebsocketClientT final
     using string_view = boost::beast::string_view;
 
     // Members and helpers of the dependent pipeline base, pulled into scope
-    using pipeline_base::io_context_;
-    using pipeline_base::pending_pulls_;
-    using pipeline_base::computing_;
-    using pipeline_base::prefetch_depth_;
-    using pipeline_base::n_nodata_;
     using pipeline_base::command_container_;
-    using pipeline_base::wire_registry_;
-    using pipeline_base::wire_ctx_;
-    using pipeline_base::halt_timer_;
-    using pipeline_base::nodata_timer_;
-    using pipeline_base::schedule_refill_;
+    using pipeline_base::computing_;
     using pipeline_base::dispatch_compute_;
+    using pipeline_base::io_context_;
+    using pipeline_base::n_nodata_;
+    using pipeline_base::pending_pulls_;
+    using pipeline_base::prefetch_depth_;
+    using pipeline_base::schedule_refill_;
     using pipeline_base::start_halt_timer;
+    using pipeline_base::wire_ctx_;
+    using pipeline_base::wire_registry_;
 
 public:
     //-------------------------------------------------------------------------
@@ -141,13 +198,17 @@ public:
 	  * @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
 	  * @param verbose_control_frames If true, a diagnostic message is logged for every control frame received
 	  * @param prefetch_depth Maximum number of work items kept in flight at once (a value of 0 is treated as 1)
+	  * @param ping_interval Seconds of silence after which a ping is sent; after twice that time
+	  *        without any inbound data the server is presumed gone and the client terminates (0
+	  *        switches this off)
 	  */
     GWebsocketClientT(
         std::string address,
         unsigned short port,
         Gem::Common::serializationMode serialization_mode,
         bool verbose_control_frames,
-        std::size_t prefetch_depth = 1
+        std::size_t prefetch_depth = 1,
+        std::size_t ping_interval = Gem::Courtier::GBEASTCONSUMERPINGINTERVAL
     )
       : pipeline_base("GWebsocketClientT<processable_type>", prefetch_depth)
       , resolver_(io_context_)
@@ -159,6 +220,7 @@ public:
         // Set the auto_fragment option, so control frames are delivered timely
         ws_.auto_fragment(true);
         ws_.write_buffer_bytes(16384);
+        applyWebsocketLimits(ws_, std::chrono::seconds(ping_interval));
 
         // Set the transfer mode
         switch(serialization_mode_) {
@@ -223,7 +285,7 @@ private:
     //-------------------------------------------------------------------------
     /**
 	  * @brief Starts the main run-loop: resolves the server, runs the io_context until no work
-	  * remains, then closes all outstanding connections.
+	  * remains, then makes sure the socket is closed.
 	  */
     void run_() override {
         // Start looking up the domain name. This call will return immediately,
@@ -240,8 +302,9 @@ private:
         // This call will block until no more work remains in the ASIO work queue
         io_context_.run();
 
-        // Finally close all outstanding connections
-        do_close(close_code_);
+        // The io context has stopped, so no close handshake can run any more: just make sure the
+        // socket is closed (it already is after an orderly do_close()).
+        close_socket_();
 
         // Let the audience know that we have finished the shutdown
         glogger << "GWebsocketClientT<processable_type>::run_(): Client session has terminated"
@@ -257,8 +320,8 @@ private:
 	  * @param message The serialized message to be transferred to the peer
 	  */
     void async_start_write(std::string message) {
-        // Do nothing if we have been asked to stop
-        if(this->halt()) {
+        // Do nothing if we have been asked to stop, or once the close has begun
+        if(this->halt() || closing_) {
             return;
         }
 
@@ -273,7 +336,7 @@ private:
     /** @brief Sends the next queued message if no write is currently outstanding. Runs on the io
 		 *  thread only, so the single-writer invariant Beast requires is upheld. */
     void pump_write() {
-        if(writing_ || write_queue_.empty() || this->halt()) {
+        if(writing_ || write_queue_.empty() || this->halt() || closing_) {
             return;
         }
         writing_ = true;
@@ -426,8 +489,8 @@ private:
         [[maybe_unused]] std::size_t nothing
     ) {
         if(ec) {
-            // operation_aborted is the expected outcome of do_close() during shutdown -- not an error.
-            if(ec != boost::asio::error::operation_aborted) {
+            // An error is the expected outcome once do_close() has begun -- not worth a message.
+            if(not closing_ && ec != boost::asio::error::operation_aborted) {
                 glogger << "In GWebsocketClientT<processable_type>::when_written():" << '\n'
                         << "Got ec(\"" << ec.message() << "\")." << '\n'
                         << "This will terminate the client." << '\n'
@@ -464,8 +527,9 @@ private:
         [[maybe_unused]] std::size_t nothing
     ) {
         if(ec) {
-            // operation_aborted is the expected outcome of do_close() during shutdown -- not an error.
-            if(ec != boost::asio::error::operation_aborted) {
+            // An error is the expected outcome once do_close() has begun -- not worth a message.
+            // Otherwise it may be the idle limit: the server has been silent for too long.
+            if(not closing_ && ec != boost::asio::error::operation_aborted) {
                 glogger << "In GWebsocketClientT<processable_type>::when_read():" << '\n'
                         << "Got ec(\"" << ec.message() << "\")." << '\n'
                         << "This will terminate the client." << '\n'
@@ -598,20 +662,39 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Closes the connection to the peer, cancelling the halt and NO_WORK timers first.
+	  * @brief Closes the connection to the peer, cancelling the halt and NO_WORK timers first. The
+	  * close handshake runs asynchronously and is bounded by the handshake limit (see
+	  * applyWebsocketLimits()), so a peer that no longer answers cannot hold the io thread.
+	  * Idempotent.
 	  *
 	  * @param cc The close code to be sent to the peer
 	  */
     void do_close(close_code cc) {
-        // Stop the halt-poll and NO_WORK-backoff timers; if either has already fired this is a no-op.
-        halt_timer_.cancel();
-        nodata_timer_.cancel();
+        // Stop the halt-poll and NO_WORK-backoff timers for good, so io_context::run() can return.
+        this->stopPipelineTimers_();
 
-        if(ws_.is_open()) {
-            boost::system::error_code wc_ec;
-            ws_.close(cc, wc_ec); // ec-overload: we are tearing down, do not throw
+        if(closing_) {
+            return;
+        }
+        closing_ = true;
+
+        // Without an open websocket (the handshake never completed, or the connection has failed)
+        // there is no close handshake to perform.
+        if(not ws_.is_open()) {
+            close_socket_();
+            return;
         }
 
+        auto self = this->shared_from_this();
+        ws_.async_close(cc, [self]([[maybe_unused]] boost::system::error_code ec) {
+            self->close_socket_();
+        });
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Closes the TCP socket if it is still open, and stops Beast's time limits. */
+    void close_socket_() {
+        disarmWebsocketLimits(ws_);
         if(ws_.next_layer().is_open()) {
             boost::system::error_code ec;
 
@@ -669,6 +752,7 @@ private:
     std::string outgoing_message_; ///< Holds the message currently being written (one write at a time)
     std::deque<std::string> write_queue_; ///< Messages waiting to be written (Beast: one write at a time)
     bool writing_ = false;                ///< Whether an async_write is currently outstanding
+    bool closing_ = false;                ///< Whether do_close() has begun (no further writes)
 
     boost::beast::websocket::close_code close_code_ = boost::beast::websocket::close_code::
         normal; ///< Holds the close code when terminating the connection
@@ -716,7 +800,9 @@ public:
 	  * @param check_server_stopped Callback returning true when the server has reached a stop condition
 	  * @param server_sign_on Callback notifying the server of session start (true) and termination (false)
 	  * @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
-	  * @param ping_interval Time in seconds between keep-alive pings sent to the peer
+	  * @param ping_interval Seconds of silence after which a ping is sent; after twice that time
+	  *        without any inbound data the peer is presumed gone and the session ends (0 switches
+	  *        this off)
 	  * @param verbose_control_frames If true, a diagnostic message is logged for every control frame received
 	  */
     /** @brief The session's server-side hooks: how it pulls work, returns results, checks for a stopped
@@ -740,7 +826,6 @@ public:
     )
       : ws_(std::move(socket))
       , strand_(io_context.get_executor())
-      , timer_(io_context, (std::chrono::steady_clock::time_point::max)())
       , get_payload_item_(std::move(hooks.get_payload_item))
       , put_payload_item_(std::move(hooks.put_payload_item))
       , check_server_stopped_(std::move(hooks.check_server_stopped))
@@ -764,9 +849,8 @@ public:
         this->server_sign_on_(true);
 
         // ---------------------------------------------------
-        // Install the control-frame callback (ping/pong liveness + optional verbose logging) and set the
-        // websocket transfer options. The ping cycle itself must start after the handshake, from
-        // when_connection_accepted() (which calls async_start_ping()).
+        // Install the control-frame callback (optional verbose logging) and set the websocket
+        // transfer options, among them Beast's own keep-alive (see applyWebsocketLimits()).
         this->installControlFrameCallback();
         this->configureWebsocketOptions();
 
@@ -775,21 +859,12 @@ public:
 
     //-------------------------------------------------------------------------
     /**
-         * @brief Installs the control-frame callback on the websocket: pings/pongs mark the connection
-         * alive, and (when verbose_control_frames_ is set) every close/ping/pong frame is logged.
+         * @brief Installs the control-frame callback on the websocket: when verbose_control_frames_
+         * is set, every close/ping/pong frame is logged. (Liveness is Beast's business: it counts
+         * every received frame as activity by itself.)
          */
     void installControlFrameCallback() {
         f_when_control_frame_arrived_ = [this](frame_type frame_t, [[maybe_unused]] string_view s) {
-            if(
-				 // We might have received a pong as an answer to our own ping,
-				 // or someone might be sending us pings. In either case the conection is alive.
-				 boost::beast::websocket::frame_type::pong==frame_t
-				 || boost::beast::websocket::frame_type::ping==frame_t
-				 ) {
-                // Note that the connection is alive
-                this->ping_state_ = beast_ping_state::CONNECTION_IS_ALIVE;
-            }
-
             // Let the audience know what type of control frame we have received
             // if the user has requested it.
             if(this->verbose_control_frames_) {
@@ -818,12 +893,14 @@ public:
     //-------------------------------------------------------------------------
     /**
          * @brief Sets the websocket transfer options: auto-fragmentation (so control frames are delivered
-         * timely), the write buffer size, and the binary/text transfer mode per the serialization mode.
+         * timely), the write buffer size, the time and size limits shared with the client, and the
+         * binary/text transfer mode per the serialization mode.
          */
     void configureWebsocketOptions() {
         // Set the auto_fragment option, so control frames are delivered timely
         ws_.auto_fragment(true);
         ws_.write_buffer_bytes(16384);
+        applyWebsocketLimits(ws_, ping_interval_);
 
         // Set the transfer mode according to the serialization mode
         switch(serialization_mode_) {
@@ -925,39 +1002,6 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Initiates pinging of the peer, so the connection may be kept alive, and arms the
-	  * ping-interval timer.
-	  */
-    void async_start_ping() {
-        // Set the timer
-        timer_.expires_after(ping_interval_);
-
-        // Start to wait asynchronously. This call will return immediately.
-        // when_timer_fired() will be called once the timer has expired.
-        auto self = this->shared_from_this();
-        timer_.async_wait(
-            boost::asio::bind_executor(strand_, [self](boost::system::error_code ec) {
-                self->when_timer_fired(ec);
-            })
-        );
-
-        // Setting the ping state must be done before the ping is sent, or
-        // else the pong might arrive before the SENDING_PING state is set
-        // and we might overwrite the CONNECTION_IS_ALIVE state set by the
-        // control-frame callback
-        ping_state_ = beast_ping_state::SENDING_PING;
-
-        // Start the ping session
-        ws_.async_ping(
-            ping_data_,
-            boost::asio::bind_executor(strand_, [self](boost::system::error_code ec) {
-                self->when_ping_sent(ec);
-            })
-        );
-    }
-
-    //-------------------------------------------------------------------------
-    /**
 	  * @brief Starts waiting for websocket handshakes over an already established ASIO connection.
 	  */
     void async_start_accept() {
@@ -974,69 +1018,7 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Reacts on errors when sending a ping; a failure marks the connection as stale.
-	  *
-	  * @param ec The error code of a potential error from the ping write
-	  */
-    void when_ping_sent(boost::system::error_code ec) {
-        if(ec) {
-            if(ec != boost::asio::error::operation_aborted) {
-                glogger << "GWebsocketConsumerSessionT<processable_type>::when_ping_sent(): "
-                        << ec.message() << '\n'
-                        << GLOGGING;
-            }
-
-            ping_state_ = beast_ping_state::CONNECTION_IS_STALE;
-        }
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-	  * @brief A timer is started in regular intervals. This code is executed when the timer expires:
-	  * it checks ping liveness, tolerates a few missed pongs, and tears the connection down if the
-	  * peer is unresponsive over several intervals.
-	  *
-	  * @param ec The error code of a potential error (non-zero means the timer was cancelled at teardown)
-	  */
-    void when_timer_fired(boost::system::error_code ec) {
-        if(ec) {
-            // operation_aborted = the timer was cancelled by do_close() during teardown -- expected.
-            return;
-        }
-
-        if(ping_state_ == beast_ping_state::CONNECTION_IS_ALIVE) {
-            // A ping or pong was seen since the last tick: the peer is healthy. Reset the miss
-            // counter and start the next ping interval.
-            missed_pings_ = 0;
-            async_start_ping();
-            return;
-        }
-
-        // No pong came back within this interval. Tolerate a few consecutive misses before declaring
-        // the connection dead: a healthy client now answers pings promptly (it evaluates work items
-        // off its io thread), so a single miss is a transient hiccup, not death. Only a peer that is
-        // genuinely unresponsive over several intervals is torn down -- which reclaims the session
-        // and its socket (so the server does not slowly leak connections to vanished clients).
-        if(++missed_pings_ >= max_missed_pings_) {
-            if(not this->check_server_stopped_()) {
-                glogger << "GWebsocketConsumerSessionT<processable_type>::when_timer_fired():" << '\n'
-                        << "No pong after " << max_missed_pings_
-                        << " ping intervals; closing the connection." << '\n'
-                        << GLOGGING;
-            }
-            do_close(boost::beast::websocket::close_code::going_away);
-            return;
-        }
-
-        // Give the peer another interval to respond.
-        async_start_ping();
-
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-	  * @brief Code to be executed when a handshake was accepted; on success it starts the read loop
-	  * and the ping cycle.
+	  * @brief Code to be executed when a handshake was accepted; on success it starts the read loop.
 	  *
 	  * @param ec The error code of a potential error during the accept/handshake
 	  */
@@ -1051,12 +1033,9 @@ private:
             return;
         }
 
-        // Start reading an incoming message. This
-        // call will return immediately.
+        // Start reading an incoming message. This call will return immediately. With a read
+        // outstanding, Beast's keep-alive is at work too.
         async_start_read();
-
-        // Start the ping cycle
-        async_start_ping();
     }
 
     //-------------------------------------------------------------------------
@@ -1071,7 +1050,9 @@ private:
         [[maybe_unused]] std::size_t nothing
     ) {
         if(ec) {
-            if(ec != boost::beast::websocket::error::closed) {
+            // An error is the expected outcome once do_close() has begun. Otherwise it may be the
+            // idle limit: the peer has been silent for too long and is presumed gone.
+            if(not closing_ && ec != boost::beast::websocket::error::closed) {
                 glogger << "GWebsocketConsumerSessionT<processable_type>::when_read(): "
                         << ec.message() << '\n'
                         << GLOGGING;
@@ -1098,7 +1079,7 @@ private:
         [[maybe_unused]] std::size_t nothing
     ) {
         if(ec) {
-            if(ec != boost::beast::websocket::error::closed) {
+            if(not closing_ && ec != boost::beast::websocket::error::closed) {
                 glogger << "GWebsocketConsumerSessionT<processable_type>::when_written(): "
                         << ec.message() << '\n'
                         << GLOGGING;
@@ -1128,23 +1109,42 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Shuts down the (websocket and ASIO) connection to the peer, cancelling the ping timer.
+	  * @brief Shuts down the (websocket and ASIO) connection to the peer. The close handshake runs
+	  * asynchronously and is bounded by the handshake limit (see applyWebsocketLimits()), so a peer
+	  * that no longer answers cannot hold an io thread. Idempotent.
 	  *
 	  * @param cc A close-code to be transmitted to the peer
 	  */
     void do_close(boost::beast::websocket::close_code cc) {
+        if(closing_) {
+            return;
+        }
+        closing_ = true;
+
         // Store the close code for later reference
         close_code_ = cc;
 
-        // Make sure no more pings are sent and the timer expires
-        timer_.cancel();
-
-        if(ws_.is_open()) {
-            // Close the connection
-            boost::system::error_code wc_ec;
-            ws_.close(cc, wc_ec); // ec-overload: tearing down, do not throw
+        // Without an open websocket (the handshake never completed, or the connection has failed or
+        // timed out) there is no close handshake to perform.
+        if(not ws_.is_open()) {
+            close_socket_();
+            return;
         }
 
+        auto self = this->shared_from_this();
+        ws_.async_close(
+            cc,
+            boost::asio::bind_executor(
+                strand_,
+                [self]([[maybe_unused]] boost::system::error_code ec) { self->close_socket_(); }
+            )
+        );
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Closes the TCP socket if it is still open, and stops Beast's time limits. */
+    void close_socket_() {
+        disarmWebsocketLimits(ws_);
         if(ws_.next_layer().is_open()) {
             boost::system::error_code ec;
 
@@ -1168,7 +1168,8 @@ private:
 	  * @brief Processing of incoming messages and creation of a response-string. Handles PULL
 	  * (hands out a work item) and RETURN (sinks the returned result, then hands out the next item).
 	  *
-	  * @return The response to be sent to the peer; an empty string on an unknown frame or on error
+	  * @return The response to be sent to the peer (a NO_WORK frame if the request could not be
+	  * decoded or handled, so the client asks again later)
 	  */
     std::string process_request() {
         try {
@@ -1205,20 +1206,19 @@ private:
                        "exception: "
                     << e.what() << '\n'
                     << GLOGGING;
-
-            do_close(boost::beast::websocket::close_code::internal_error);
         }
         catch(...) {
             glogger << "GWebsocketConsumerSessionT<processable_type>::process_request(): Caught "
                        "non-std exception"
                     << '\n'
                     << GLOGGING;
-
-            do_close(boost::beast::websocket::close_code::internal_error);
         }
 
-        // Make the compiler happy
-        return {};
+        // The request was refused. Messages keep their boundaries on a websocket, so the connection
+        // is still usable: clear what is left of the bad message and answer NO_WORK, as the other
+        // transports do. Closing the connection instead would end the client.
+        incoming_buffer_.consume(incoming_buffer_.size());
+        return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
     }
 
     //-------------------------------------------------------------------------
@@ -1229,8 +1229,7 @@ private:
 
     boost::beast::multi_buffer incoming_buffer_;
     std::string outgoing_message_;
-
-    boost::asio::steady_timer timer_;
+    bool closing_ = false; ///< Whether do_close() has begun
 
     std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item_;
     std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;
@@ -1242,18 +1241,10 @@ private:
 
     Gem::Common::serializationMode serialization_mode_ = Gem::Common::serializationMode::GEM_BINARY;
 
-    const std::chrono::seconds ping_interval_{
-        GBEASTCONSUMERPINGINTERVAL
-    }; // Time between two pings in seconds
+    /// The silence after which Beast sends a ping; after twice that time without inbound data it
+    /// closes the connection (see applyWebsocketLimits())
+    const std::chrono::seconds ping_interval_{GBEASTCONSUMERPINGINTERVAL};
     bool verbose_control_frames_ = false;
-
-    std::atomic<beast_ping_state> ping_state_{beast_ping_state::CONNECTION_IS_ALIVE};
-    const boost::beast::websocket::ping_data ping_data_;
-
-    /// Consecutive ping intervals without a pong; the connection is declared dead only once this
-    /// reaches max_missed_pings_ (tolerating transient hiccups -- a healthy client now pongs promptly).
-    unsigned int missed_pings_ = 0;
-    static constexpr unsigned int max_missed_pings_ = 3;
 
     GCommandContainerT<processable_type> command_container_{
         GFrameKind::NONE

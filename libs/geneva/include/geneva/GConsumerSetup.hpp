@@ -45,6 +45,7 @@
 #include "common/GCommonEnums.hpp" // serializationMode
 #include "common/GProviderStoreT.hpp"
 #include "courtier/GBaseConsumerT.hpp"
+#include "courtier/GCourtierEnums.hpp" // GBEASTCONSUMERPINGINTERVAL
 #include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Courtier {
@@ -76,7 +77,9 @@ struct ConsumerSpec {
     // --- client-side fields (networked socket consumers; ignored by the server build) ---
     std::string ip = "localhost";        ///< server address the client connects to
     std::size_t max_reconnects = 0;      ///< [asio] client reconnect attempts before giving up
-    bool verbose_control_frames = false; ///< [beast] client: log ping/pong/close frames
+    bool verbose_control_frames = false; ///< [beast] log ping/pong/close frames
+    std::size_t ping_interval = Gem::Courtier::
+        GBEASTCONSUMERPINGINTERVAL;        ///< [beast] keep-alive: seconds of silence before a ping
     std::size_t client_prefetch_depth = 1; ///< [asio/beast] client: max work items held concurrently
                                            ///< (1 == serial; >1 overlaps fetch/compute/return)
     // --- [mpi] config fields (ignored by the other consumers). Defaults mirror MPIConsumerConfig so the

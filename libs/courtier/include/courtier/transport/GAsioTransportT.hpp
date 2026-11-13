@@ -103,20 +103,18 @@ class GAsioConsumerClientT final
     using socket = boost::asio::ip::tcp::socket;
 
     // Members and helpers of the dependent pipeline base, pulled into scope
-    using pipeline_base::io_context_;
-    using pipeline_base::pending_pulls_;
-    using pipeline_base::computing_;
-    using pipeline_base::prefetch_depth_;
-    using pipeline_base::n_nodata_;
     using pipeline_base::command_container_;
-    using pipeline_base::wire_registry_;
-    using pipeline_base::wire_ctx_;
-    using pipeline_base::halt_timer_;
-    using pipeline_base::nodata_timer_;
+    using pipeline_base::computing_;
+    using pipeline_base::dispatch_compute_;
+    using pipeline_base::io_context_;
+    using pipeline_base::n_nodata_;
+    using pipeline_base::pending_pulls_;
+    using pipeline_base::prefetch_depth_;
     using pipeline_base::rng_engine_;
     using pipeline_base::schedule_refill_;
-    using pipeline_base::dispatch_compute_;
     using pipeline_base::start_halt_timer;
+    using pipeline_base::wire_ctx_;
+    using pipeline_base::wire_registry_;
 
 public:
     //-------------------------------------------------------------------------
@@ -381,7 +379,7 @@ private:
                 reconnect_timer_.expires_after(std::chrono::milliseconds(dist(rng_engine_)));
                 auto self = this->shared_from_this();
                 reconnect_timer_.async_wait([self](boost::system::error_code tec) {
-                    if(tec) { // cancelled during teardown
+                    if(tec || self->pipeline_stopped_) { // cancelled, or shut down meanwhile
                         return;
                     }
                     if(not self->halt()) {
@@ -700,8 +698,7 @@ private:
     void shutdown() {
         // Clear the socket and cancel the timers
         socket_ptr_.reset();
-        halt_timer_.cancel();
-        nodata_timer_.cancel();
+        this->stopPipelineTimers_();
         reconnect_timer_.cancel();
         reply_timer_.cancel();
         // Reset the work object, so it no longer keeps the io_context alive

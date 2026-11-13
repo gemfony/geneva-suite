@@ -190,8 +190,9 @@ TEMPLATE_TEST_CASE(
     consumer.reset(); // the server goes away without a word to its clients
     CHECK(watch.expired());
 
-    // The clients notice (a closed connection, or a refused one) and return without being told.
-    const auto give_up_at = std::chrono::steady_clock::now() + 15s;
+    // The clients notice (a closed connection, or a refused one) and return without being told --
+    // and promptly: a timer left armed on a client's io context would hold it back for seconds.
+    const auto give_up_at = std::chrono::steady_clock::now() + 5s;
     while(returned.load() < N_CLIENTS && std::chrono::steady_clock::now() < give_up_at) {
         std::this_thread::sleep_for(20ms);
     }

@@ -73,20 +73,26 @@ public:
      *  @param port The TCP port the server listens on (0 lets the OS pick; the chosen port is read back)
      *  @param n_threads Number of io threads to run; 0 selects the hardware concurrency
      *  @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
-     *  @param ping_interval Time in seconds between keep-alive pings each session sends to its client
+     *  @param ping_interval Seconds of silence after which a session pings its client; after twice
+     *         that time without any inbound data the client is presumed gone (0 switches this off)
      *  @param verbose_control_frames If true, sessions log a diagnostic message for every control frame */
     explicit GWebsocketConsumerT(
         unsigned short port,
         std::size_t n_threads = 0,
-        Gem::Common::serializationMode serialization_mode = Gem::Common::serializationMode::GEM_BINARY,
-        std::size_t ping_interval = 5,
+        Gem::Common::serializationMode serialization_mode =
+            Gem::Common::serializationMode::GEM_BINARY,
+        std::size_t ping_interval = GBEASTCONSUMERPINGINTERVAL,
         bool verbose_control_frames = false
     )
-        : GTcpAcceptingConsumerT<processable_type>("Gem::Courtier::GWebsocketConsumerT", port, n_threads)
-        , serialization_mode_(serialization_mode)
-        , ping_interval_(ping_interval)
-        , verbose_control_frames_(verbose_control_frames)
-    { /* nothing */ }
+      : GTcpAcceptingConsumerT<processable_type>(
+            "Gem::Courtier::GWebsocketConsumerT",
+            port,
+            n_threads
+        )
+      , serialization_mode_(serialization_mode)
+      , ping_interval_(ping_interval)
+      , verbose_control_frames_(verbose_control_frames) { /* nothing */
+    }
 
     /** @brief Stops the server while this object is still complete (see the base class). */
     ~GWebsocketConsumerT() override {
