@@ -479,11 +479,14 @@ class GWebsocketConsumerSessionT final
 
 public:
     //-------------------------------------------------------------------------
-    /** @brief The session's server-side hooks: how it pulls work, returns results, checks for a stopped
-     *  server, and signs itself on/off. Bundled so the constructor stays within the parameter budget. */
+    /** @brief The session's server-side hooks: how it pulls work, returns results, gives back what
+     *  it holds, checks for a stopped server, and signs itself on/off. Bundled so the constructor
+     *  stays within the parameter budget. */
     struct SessionHooks {
         std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item;
         std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item;
+        /// Puts every item back that this session has handed out and not seen return
+        std::move_only_function<void()> abandonItems;
         std::move_only_function<bool()> check_server_stopped;
         std::move_only_function<void(bool)> server_sign_on;
     };
@@ -514,6 +517,7 @@ public:
       : socket_(std::move(socket))
       , get_payload_item_(std::move(hooks.get_payload_item))
       , put_payload_item_(std::move(hooks.put_payload_item))
+      , abandon_items_(std::move(hooks.abandonItems))
       , check_server_stopped_(std::move(hooks.check_server_stopped))
       , server_sign_on_(std::move(hooks.server_sign_on))
       , serialization_mode_(serialization_mode)
@@ -600,7 +604,9 @@ private:
         peer->send(process_request(message));
 
         if(this->check_server_stopped_()) {
-            // The close is queued behind the answer just sent.
+            // The close does not wait for answers: one that is being written is cut short if it
+            // has more than one frame, and those behind it are dropped. The items they carry are
+            // put back when the session ends.
             peer->close(close_code::normal);
         }
     }
@@ -671,6 +677,13 @@ private:
         // The request was refused. Messages keep their boundaries on a websocket, so the connection
         // is still usable: answer NO_WORK, as the other transports do. Closing the connection instead
         // would end the client.
+        //
+        // The refused message may have been a result that could not be read, or the item of the
+        // answer may have been checked out before the failure. Either way the session cannot tell
+        // any more which of its items are still being worked on, and nothing else would reclaim
+        // them while the client stays connected (a websocket session has no time lease). So it
+        // gives back all it holds; a result that arrives for one of them later is still accepted.
+        abandon_items_();
         return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
     }
 
@@ -683,6 +696,7 @@ private:
 
     std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item_;
     std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;
+    std::move_only_function<void()> abandon_items_;
     std::move_only_function<bool()> check_server_stopped_;
     std::move_only_function<void(bool)> server_sign_on_;
 

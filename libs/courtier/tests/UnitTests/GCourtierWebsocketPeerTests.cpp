@@ -184,13 +184,14 @@ TEST_CASE(
         auto peer = client_weak.lock();
         REQUIRE(peer);
         peer->send("last words");
-        peer->close(GWebsocketPeer::close_code::normal); // queued behind the message
+        peer->close(GWebsocketPeer::close_code::normal); // a message of one frame is not cut
         peer->close(GWebsocketPeer::close_code::normal); // a second close changes nothing
     });
     client_weak = client;
 
     server->acceptHandshake();
     client->connectHandshake("localhost");
+    client->send("too early"); // not open yet: dropped, not written into a stream that is not ready
     server.reset();
     client.reset();
 
@@ -247,8 +248,86 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// An end that never gets its handshake is told so, and a message handed over before the connection
-// is open is dropped instead of being written into a stream that is not ready.
+// A close ends the exchange of messages at once: it does not wait for the write queue. What waits
+// behind the message being written is never sent, and that message itself arrives whole or not at
+// all (Beast puts the close frame between two of its frames).
+TEST_CASE(
+    "GWebsocketPeer does not wait for its write queue at a close",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+    GSeen client_seen;
+
+    std::weak_ptr<GWebsocketPeer> client_weak;
+    auto server = recordingPeer(std::move(accepted), server_seen);
+    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+        auto peer = client_weak.lock();
+        REQUIRE(peer);
+        peer->send(std::string(LARGE_MESSAGE_BYTES, 'x')); // many frames
+        peer->send("waits behind the large one");
+        peer->close(GWebsocketPeer::close_code::normal);
+    });
+    client_weak = client;
+
+    server->acceptHandshake();
+    client->connectHandshake("localhost");
+    server.reset();
+    client.reset();
+
+    REQUIRE(runsDry(ctx));
+
+    for(const auto &message : server_seen.messages) {
+        CHECK(message.size() == LARGE_MESSAGE_BYTES); // never a part, never the queued one
+    }
+    CHECK(server_seen.messages.size() <= 1);
+    CHECK(server_seen.nClosed == 1);
+    CHECK(client_seen.nClosed == 1);
+    CHECK_FALSE(client_seen.cause);
+}
+
+/******************************************************************************/
+// And nothing that arrives after close() was called is handed on: the role has said it is done. A
+// client would otherwise start an evaluation whose result it can no longer return.
+TEST_CASE(
+    "GWebsocketPeer delivers nothing after close() was called",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+    GSeen client_seen;
+
+    std::weak_ptr<GWebsocketPeer> server_weak;
+    std::weak_ptr<GWebsocketPeer> client_weak;
+    auto server = recordingPeer(std::move(accepted), server_seen, [&] {
+        if(auto peer = server_weak.lock()) {
+            peer->send("crosses the close");
+        }
+    });
+    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+        if(auto peer = client_weak.lock()) {
+            peer->close(GWebsocketPeer::close_code::normal);
+        }
+    });
+    server_weak = server;
+    client_weak = client;
+
+    server->acceptHandshake();
+    client->connectHandshake("localhost");
+    server.reset();
+    client.reset();
+
+    REQUIRE(runsDry(ctx));
+
+    CHECK(client_seen.messages.empty());
+    CHECK(client_seen.nClosed == 1);
+    CHECK(server_seen.nClosed == 1);
+}
+
+/******************************************************************************/
+// An end that never gets its handshake is told so.
 TEST_CASE("GWebsocketPeer reports a handshake that fails", "[courtier][websocket][peer]") {
     boost::asio::io_context ctx;
     auto [accepted, connecting] = connectedPair(ctx);
@@ -256,7 +335,6 @@ TEST_CASE("GWebsocketPeer reports a handshake that fails", "[courtier][websocket
 
     auto server = recordingPeer(std::move(accepted), server_seen);
     server->acceptHandshake();
-    server->send("too early");
     server.reset();
 
     connecting.close(); // the other end goes away without a handshake

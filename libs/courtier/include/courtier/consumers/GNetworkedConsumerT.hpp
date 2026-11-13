@@ -316,7 +316,9 @@ protected:
         void remove(Gem::Courtier::CORRELATION_ID_TYPE id) {
             in_flight.erase(id);
         }
-        ~CheckoutLease() {
+        /** @brief Puts back everything the session still holds: at its end, or when it can no
+         *  longer tell which of its items are being worked on (a request it had to refuse). */
+        void abandonAll() {
             // Atomically take everything still in flight; requeue outside the set's lock.
             if(on_abandon) {
                 for(auto id : in_flight.drain()) {
@@ -326,6 +328,9 @@ protected:
             else {
                 in_flight.clear();
             }
+        }
+        ~CheckoutLease() {
+            abandonAll();
         }
     };
 

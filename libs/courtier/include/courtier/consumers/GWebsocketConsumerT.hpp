@@ -142,6 +142,7 @@ private:
                         lease->remove(frame.outcome().correlation_id);
                         this->checkin(std::move(frame));
                     },
+                .abandonItems = [lease] { lease->abandonAll(); },
                 .check_server_stopped = [this]() -> bool { return this->stopped(); },
                 .server_sign_on = [this](bool sign_on) { this->adjustSessionCount(sign_on); },
             },

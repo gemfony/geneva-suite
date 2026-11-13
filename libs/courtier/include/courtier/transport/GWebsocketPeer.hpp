@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <atomic>
 #include <chrono>
 #include <deque>
 #include <functional>
@@ -67,7 +68,11 @@ namespace Gem::Courtier::Consumers {
  *  - sends through a queue, because Beast allows one write at a time;
  *  - closes asynchronously and within the handshake limit, so a peer that no longer answers cannot
  *    hold an io thread, and switches Beast's limits off once the connection is over (Beast leaves
- *    its timer armed after a failed read, which would keep an io context busy).
+ *    its timer armed after a failed read, which would keep an io context busy). A close ends the
+ *    exchange of messages at once: a message that is being written is cut short if it has more
+ *    than one frame (Beast sends the close frame between two frames), messages still waiting in
+ *    the queue are dropped, and nothing that arrives after the call to close() is delivered. Both
+ *    roles can live with that: an item that did not get through is put back by the server.
  *
  * Threads. The socket's executor must serialize the handlers it runs: the server accepts each
  * connection onto its own strand, and a client runs its io context on one thread. The handlers are
@@ -121,7 +126,8 @@ public:
     void acceptHandshake();
     /** @brief Client side: performs the websocket handshake with the server, then reads. */
     void connectHandshake(const std::string &host);
-    /** @brief Queues a message; messages are written one after another, in this order. */
+    /** @brief Queues a message; messages are written one after another, in this order, until a
+     *  close begins. */
     void send(std::string message);
     /** @brief Closes the connection in the regular way, from any thread. Idempotent. */
     void close(close_code code);
@@ -151,6 +157,7 @@ private:
     bool closing_ =
         false; ///< A close has begun, or the connection is over: nothing is sent any more
     bool local_close_ = false; ///< This end began the close
+    std::atomic<bool> close_requested_{false}; ///< close() was called (from any thread)
     bool finished_ = false;    ///< onClosed has been called
 };
 

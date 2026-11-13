@@ -178,7 +178,9 @@ void GWebsocketPeer::read_() {
 /******************************************************************************/
 /**
  * Called when a read has completed: hands the message to the role and reads on. An error ends the
- * connection; this is also where an expired idle limit and the other end's close arrive.
+ * connection; this is also where an expired idle limit and the other end's close arrive. A message
+ * that arrives after close() was called is not handed on: the role has said that it is done, and a
+ * client would otherwise start an evaluation it can no longer return.
  *
  * @param ec The outcome of the read
  */
@@ -190,7 +192,7 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
 
     const std::string message = boost::beast::buffers_to_string(incoming_.data());
     incoming_.consume(incoming_.size());
-    if(handlers_.onMessage) {
+    if(handlers_.onMessage && not close_requested_.load()) {
         handlers_.onMessage(message);
     }
 
@@ -251,21 +253,24 @@ void GWebsocketPeer::writeDone_(const error_code &ec) {
 /******************************************************************************/
 /**
  * Closes the connection in the regular way. The work is posted to the peer's executor, so this may
- * be called from any thread, and from inside one of the peer's handlers.
+ * be called from any thread, and from inside one of the peer's handlers. From this call on no
+ * message is delivered any more, also not one whose read has completed already.
  *
  * @param code The close code sent to the other end
  */
 void GWebsocketPeer::close(close_code code) {
+    close_requested_.store(true);
     auto self = this->shared_from_this();
     boost::asio::post(ws_.get_executor(), [self, code] { self->beginClose_(code); });
 }
 
 /******************************************************************************/
 /**
- * Begins the close handshake. Beast queues it behind a write that is outstanding and bounds it by
- * the handshake limit. Without an open websocket (the handshake never completed, or the connection
- * has failed or timed out) there is nothing to shake hands about, and the connection is ended at
- * once.
+ * Begins the close handshake. Beast sends the close frame as soon as the frame being written is
+ * out -- a message of several frames ends there, incomplete -- and bounds the handshake by the
+ * handshake limit; messages that still wait in the write queue are not sent. Without an open
+ * websocket (the handshake never completed, or the connection has failed or timed out) there is
+ * nothing to shake hands about, and the connection is ended at once.
  *
  * @param code The close code sent to the other end
  */

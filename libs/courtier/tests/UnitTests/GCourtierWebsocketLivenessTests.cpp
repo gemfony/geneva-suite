@@ -295,3 +295,62 @@ TEST_CASE(
     );
     CHECK(reply.kind() == GFrameKind::NO_WORK);
 }
+
+/******************************************************************************/
+// The connection stays open after a refused request, so the session's end no longer puts its
+// items back -- and a websocket session has no time lease that would. A session that had to refuse
+// a request therefore gives back what it holds, at once: the refused message may have been the
+// result of one of its items.
+TEST_CASE(
+    "courtier(websocket): a session that refuses a request gives back the items it holds",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    HandDrivenPeer peer(consumer->getPort());
+    const auto answer_to = [&peer](const std::string &request) {
+        peer.ws.write(boost::asio::buffer(request));
+        boost::beast::flat_buffer buffer;
+        peer.ws.read(buffer);
+        GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
+        Gem::Courtier::container_from_string(
+            boost::beast::buffers_to_string(buffer.data()),
+            reply,
+            BIN
+        );
+        return reply.kind();
+    };
+    const std::string pull = Gem::Courtier::container_to_string(
+        GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+        BIN
+    );
+
+    // The hand-driven client takes the only item (the batch may need a moment to be registered).
+    REQUIRE(eventually([&] { return answer_to(pull) == GFrameKind::WORK; }));
+    CHECK(consumer->requeuedCount() == 0);
+
+    // Its result comes back unreadable.
+    CHECK(answer_to("this is not a frame") == GFrameKind::NO_WORK);
+    CHECK(consumer->requeuedCount() == 1); // put back right away, with the client still connected
+    CHECK(consumer->getNActiveSessions() == 1);
+
+    // Another client can now evaluate the item.
+    auto client = matchingClient<GFaultyContainer>(consumer->getPort());
+    const std::jthread client_thread([client] { client->run(); });
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+    client->flagCloseRequested();
+}
