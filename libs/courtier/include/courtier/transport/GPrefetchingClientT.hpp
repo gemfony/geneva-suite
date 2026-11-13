@@ -116,20 +116,8 @@ protected:
         boost::asio::post(
             compute_pool_,
             [self, container = std::move(container), guard = std::move(guard)]() mutable {
-                // A failure in the user's processing code surfaces as a g_processing_exception, with the
-                // work item already flagged (EXCEPTION_CAUGHT). We must NOT let that kill the client:
-                // catch it and return the flagged item like any other result, so it is accounted for.
-                try {
-                    container.process();
-                }
-                catch(const g_processing_exception &e) {
-                    glogger << "In " << self->client_name_ << "::dispatch_compute_():" << '\n'
-                            << "The work item flagged a processing exception:" << '\n'
-                            << e.what() << '\n'
-                            << "It is returned to the server flagged; the client keeps running."
-                            << '\n'
-                            << GWARNING;
-                }
+                // A failing evaluation leaves the item flagged; it is returned like any result.
+                Gem::Courtier::processWorkFrame(container, self->client_name_);
                 // Hop back onto the io thread for the result transmission -- connection state must
                 // only be touched there.
                 boost::asio::post(

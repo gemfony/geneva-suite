@@ -91,7 +91,6 @@ public:
             // Drive the master node from the courtier per-batch queue: the work-item source/sink
             // are required constructor parameters of the master node.
             master_ = std::make_shared<master_node_type>(
-                comm_size_,
                 config_,
                 [this]() -> std::unique_ptr<processable_type> {
                     return this->checkoutWait(checkout_wait_);

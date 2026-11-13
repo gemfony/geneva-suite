@@ -106,6 +106,23 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiTest PROPERTIES LABELS "courtier" PROCESSORS 3)
 	GENEVA_TEST_SIZE(GCourtierMpiTest M)
 
+	# An evaluation that throws must not end the worker rank: the item comes back flagged and the
+	# submission policy deals with it.
+	ADD_TEST(NAME GCourtierMpiThrowingItemTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=throwing
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiThrowingItemTest PROPERTIES LABELS "courtier" PROCESSORS 3)
+	GENEVA_TEST_SIZE(GCourtierMpiThrowingItemTest M)
+
+	# A master consumer that is destroyed without ever starting its server (a single rank suffices).
+	ADD_TEST(NAME GCourtierMpiNeverStartedTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=never-started
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES LABELS "courtier")
+	GENEVA_TEST_SIZE(GCourtierMpiNeverStartedTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)
