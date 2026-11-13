@@ -45,6 +45,7 @@
 #include <optional>
 #include <ranges>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -81,8 +82,9 @@ namespace Gem::Courtier {
  * The wire correlation token is `(batch_id, slot)` -- the reincarnation of the old broker's
  * bufferport routing: batch_id selects WHICH submitter's batch a result belongs to (so two concurrent
  * batches' slot 0s never collide), slot the index within that batch. A result whose batch_id is no
- * longer active (a late arrival from a batch that already timed out / finished) is silently dropped --
- * this is what makes resubmission and lease-reclaim safe, and replaces the former per-round generation.
+ * longer active (a late arrival from a batch that already timed out / finished) never reaches a
+ * live slot -- this is what makes resubmission and lease-reclaim safe, and replaces the former
+ * per-round generation. A batch holds at most maxBatchSize() items (the range of the slot index).
  *
  * Borrow contract: the
  * batch's vector is BORROWED for the duration of dispatch_; the consumer reads/serializes/schedules
@@ -175,7 +177,7 @@ public:
      * getLateReturns()/getOldWorkItems()). The buffer is bounded two ways: @p cap (max items held; 0 DISABLES buffering, the
      * default) and @p ttl_rounds (a held item is evicted after this many dispatch rounds). Each entry
      * carries the dispatch-round "epoch" at which it was buffered, used only for TTL eviction; the batch
-     * id is a 48-bit, process-wide, non-wrapping counter, so a retired batch id is never re-minted and a
+     * id is a 40-bit, process-wide, non-wrapping counter, so a retired batch id is never re-minted and a
      * buffered late return can never be confused with a fresh batch. Evictions (cap or TTL) are counted
      * (lateReturnDroppedCount()) and warned once -- never silently lost.
      *
@@ -230,6 +232,38 @@ public:
      *  @return The buffered late items in arrival order (ownership transferred; the buffer is emptied) */
     std::vector<item_ptr> getLateReturns() override {
         return late_store_.drainParked();
+    }
+
+    /***************************************************************************/
+    /** @brief The largest batch a single dispatch round can hold: the range of the slot index in
+     *  the correlation id. A larger span is refused with a fatal error rather than routed wrongly.
+     *  @return The maximum number of items in one batch */
+    [[nodiscard]] static constexpr std::size_t maxBatchSize() noexcept {
+        return MAX_BATCH_SIZE;
+    }
+
+    /** @brief Number of in-flight items put back to pending since construction: reclaimed by the
+     *  time lease, or put back by a session that lost its client.
+     *  @return The running total of re-queued items */
+    [[nodiscard]] std::uint64_t requeuedCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_requeued_;
+    }
+    /** @brief Number of returns for an ACTIVE batch that were not applied since construction: a
+     *  duplicate of a slot that is already done, or a slot that does not take part in its batch.
+     *  (A return for a batch that is no longer active is a late return -- see
+     *  lateReturnDroppedCount().)
+     *  @return The running total of dropped returns */
+    [[nodiscard]] std::uint64_t droppedReturnCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_dropped_returns_;
+    }
+    /** @brief Number of checkouts that found nothing pending since construction. A transport
+     *  answers each of them with "no work".
+     *  @return The running total of empty checkouts */
+    [[nodiscard]] std::uint64_t emptyCheckoutCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_empty_checkouts_;
     }
 
 protected:
@@ -312,9 +346,11 @@ protected:
 
     /***************************************************************************/
     /** @brief Accepts a returned RETURN frame and writes it into its slot. The frame's (batch_id, slot)
-     *  is decoded from the correlation id in its processing outcome; a return whose batch is no longer
-     *  active (timed out / finished) or whose slot is no longer IN_FLIGHT (a duplicate) is dropped,
-     *  which is what makes resubmission safe.
+     *  is decoded from the correlation id in its processing outcome. A return whose batch is no
+     *  longer active (timed out / finished) takes the late-return path; a return for a slot that
+     *  is already DONE (a duplicate) or does not take part in its batch is dropped and counted. A
+     *  return for a slot that was put back to PENDING in the meantime is accepted: the evaluation
+     *  is as good as the one that would otherwise be repeated.
      *
      *  The frame is split at exactly the layer boundary: courtier applies the GProcessingOutcome (status,
      *  errors, timings, routing) itself, and hands the library tag + payload (or the returned work item)
@@ -336,14 +372,27 @@ protected:
             return;
         }
         BatchState &b = it->second;
+        using Gem::Courtier::dispatchState;
         const std::size_t slot = decodeSlot(id);
-        if(slot >= b.items.size() || not b.items[slot] ||
-           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
-            return; // out of range, a null (non-participating) slot, or duplicate / not in flight
+        const auto ds = (slot < b.items.size() && b.items[slot]) ? b.items[slot]->getDispatchState()
+                                                                 : dispatchState::NONE;
+        if(ds != dispatchState::IN_FLIGHT && ds != dispatchState::PENDING) {
+            ++n_dropped_returns_; // out of range, not in the batch, or a duplicate of a done slot
+            return;
         }
-        // Feed the (shared) adaptive timeout: how long this item took from checkout to return.
+        if(ds == dispatchState::PENDING) {
+            // The slot was put back (lease reclaim / session put-back) and its first holder returns
+            // after all. Take the result: the slot leaves the pending set and is not served again.
+            --b.pending;
+            --total_pending_;
+        }
+        // Feed the (shared) adaptive timeout: how long this item took from checkout to return. A
+        // slot that was put back at least once gives no usable sample: its checkout time may belong
+        // to a second holder, and a sample that is too short would shrink the lease for everyone.
         const auto now = clock::now();
-        recordReturnTime_(now - b.checked_out_at[slot]);
+        if(not b.reclaimed[slot]) {
+            recordReturnTime_(now - b.checked_out_at[slot]);
+        }
         b.last_progress = now;
 
         // Reconcile the return INTO the live slot object in place, keeping its heap address (the slot
@@ -431,6 +480,16 @@ protected:
         if(n == 0) {
             return;
         }
+        if(n > MAX_BATCH_SIZE) {
+            // The slot index would not fit the correlation id: two slots would share an id and a
+            // result could be written into the wrong item. Refuse instead.
+            this->fatal_(
+                "GNetworkedConsumerT::dispatch_(): a batch of " + std::to_string(n) +
+                " items exceeds the maximum of " + std::to_string(MAX_BATCH_SIZE) +
+                " items per batch. Submit the items in several smaller batches."
+            );
+            return;
+        }
 
         const auto start = clock::now();
         typename std::map<batch_key_t, BatchState>::iterator my_it;
@@ -441,19 +500,27 @@ protected:
             b.items = items;
             b.cursor = 0;
             b.checked_out_at.assign(n, start); // indexed by slot (the span index)
+            b.reclaimed.assign(n, false);
             b.last_progress = start;
             // Select exactly the DO_PROCESS slots of the span for this batch: tag each with its
             // (batch_id, slot) correlation token (slot == span index) and mark it PENDING. Slots in any
-            // other state -- already resolved, or null -- are left in dispatchState NONE and are ignored
-            // by checkout()/checkin()/leaseSweep(), so the span may carry non-participating slots without
-            // affecting routing or the write-back position.
+            // other state -- already resolved, or null -- are set to dispatchState NONE and are
+            // ignored by checkout()/checkin()/leaseSweep(), so the span may carry non-participating
+            // slots without affecting routing or the write-back position. The reset matters: an
+            // item keeps the state an earlier round left on it (IN_FLIGHT for a slot that timed
+            // out), and a stale IN_FLIGHT would be picked up by this batch's lease sweep.
             std::size_t n_sel = 0;
             for(auto&& [k, item] : items | std::views::enumerate) {
-                if(item &&
-                   item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
+                if(not item) {
+                    continue;
+                }
+                if(item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
                     item->setCorrelationId(encodeId(key, static_cast<std::size_t>(k)));
                     item->setDispatchState(Gem::Courtier::dispatchState::PENDING);
                     ++n_sel;
+                }
+                else {
+                    item->setDispatchState(Gem::Courtier::dispatchState::NONE);
                 }
             }
             b.target = n_sel;
@@ -521,20 +588,25 @@ protected:
 
 private:
     /***************************************************************************/
-    // The work item's correlation id (a uint64) carries the wire correlation token: the high 48 bits
-    // hold the batch_id (which submitter's batch), the low 16 the slot index within it. The batch_id is
-    // drawn from a single monotonic process-wide counter (next_batch_id_) on the shared consumer, so two
-    // concurrent submitters never collide; at 48 bits it does not wrap in any realistic run (2^48 dispatch
-    // rounds), which is what makes late-return routing safe -- a stale return can never alias a freshly
-    // minted batch. The slot field bounds a single batch to 2^16 items (ample for any Geneva population).
+    // The work item's correlation id (a uint64) carries the wire correlation token: the high 40
+    // bits hold the batch_id (which submitter's batch), the low 24 the slot index within it. The
+    // batch_id is drawn from a single monotonic process-wide counter (next_batch_id_) on the shared
+    // consumer, so two concurrent submitters never collide; at 40 bits it does not wrap in any
+    // realistic run (2^40 dispatch rounds -- more than thirty years at a thousand rounds per
+    // second), which is what makes late-return routing safe -- a stale return can never alias a
+    // freshly minted batch. The slot field bounds a single batch to 2^24 items; dispatch_() refuses
+    // a larger span (see maxBatchSize()).
     using batch_key_t = Gem::Courtier::CORRELATION_ID_TYPE;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = 16;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = 24;
     static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_MASK = (1ull << SLOT_BITS) - 1ull;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_MASK = (1ull << 48) - 1ull;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_BITS = 40;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_MASK = (1ull << BATCH_BITS) - 1ull;
+    static constexpr std::size_t MAX_BATCH_SIZE = std::size_t{1} << SLOT_BITS;
 
-    /** @brief Packs a batch_id and slot into the on-wire correlation id (batch in the high 48 bits, slot in the low 16).
-     *  @param batch The batch id (masked to 48 bits)
-     *  @param slot The slot index within the batch (masked to 16 bits)
+    /** @brief Packs a batch_id and slot into the on-wire correlation id (batch in the high 40 bits,
+     *  slot in the low 24).
+     *  @param batch The batch id (masked to 40 bits)
+     *  @param slot The slot index within the batch (masked to 24 bits)
      *  @return The combined (batch_id, slot) correlation id */
     static Gem::Courtier::CORRELATION_ID_TYPE encodeId(batch_key_t batch, std::size_t slot) {
         return ((batch & BATCH_MASK) << SLOT_BITS)
@@ -542,13 +614,13 @@ private:
     }
     /** @brief Extracts the batch id from a correlation id.
      *  @param id The (batch_id, slot) correlation id
-     *  @return The batch id (high 48 bits) */
+     *  @return The batch id (high 40 bits) */
     static batch_key_t decodeBatch(Gem::Courtier::CORRELATION_ID_TYPE id) {
         return (id >> SLOT_BITS) & BATCH_MASK;
     }
     /** @brief Extracts the slot index from a correlation id.
      *  @param id The (batch_id, slot) correlation id
-     *  @return The slot index (low 16 bits) */
+     *  @return The slot index (low 24 bits) */
     static std::size_t decodeSlot(Gem::Courtier::CORRELATION_ID_TYPE id) {
         return static_cast<std::size_t>(id & SLOT_MASK);
     }
@@ -622,6 +694,7 @@ private:
         std::size_t pending = 0;                ///< Slots currently PENDING (awaiting a client)
         std::size_t cursor = 0;                 ///< Next slot index to consider in checkout
         std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (lease + stats)
+        std::vector<bool> reclaimed;          ///< Per-slot: put back to PENDING at least once
         clock::time_point last_progress;      ///< Time of the most recent checkin (stall basis)
     };
 
@@ -631,6 +704,7 @@ private:
      *  @return A clone of the next pending item to ship, or nullptr if no slot is pending */
     item_ptr checkout_locked() {
         if(total_pending_ == 0 || batches_.empty()) {
+            ++n_empty_checkouts_;
             return nullptr;
         }
         // Start just past the last-served batch and walk the (ordered) map once, wrapping around.
@@ -661,6 +735,7 @@ private:
             }
             ++it;
         }
+        ++n_empty_checkouts_;
         return nullptr;
     }
 
@@ -676,8 +751,10 @@ private:
             return false;
         }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::PENDING);
+        b.reclaimed[slot] = true;
         ++b.pending;
         ++total_pending_;
+        ++n_requeued_;
         if(slot < b.cursor) {
             b.cursor = slot;
         }
@@ -771,7 +848,7 @@ private:
     std::condition_variable cv_work_; ///< Signalled when a slot becomes available
 
     std::map<batch_key_t, BatchState> batches_; ///< All currently-active batches, keyed by batch_id
-    batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 48 bits)
+    batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 40 bits)
     batch_key_t last_served_batch_ = 0;         ///< Round-robin cursor across batches (for fairness)
     std::size_t total_pending_ = 0;             ///< Slots PENDING across ALL batches (cv predicate)
 
@@ -785,6 +862,11 @@ private:
     //     under mtx_, so its operations stay consistent with the batch bookkeeping. ---
     Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr> late_store_;
     std::uint64_t late_dropped_count_ = 0;      ///< Total late items dropped (disabled/cap/TTL) -- observable
+
+    // --- counters for diagnostics and tests (guarded by mtx_; see the getters) ---
+    std::uint64_t n_requeued_ = 0;        ///< In-flight items put back to pending
+    std::uint64_t n_dropped_returns_ = 0; ///< Returns for an active batch that were not applied
+    std::uint64_t n_empty_checkouts_ = 0; ///< Checkouts that found nothing pending
     bool late_drop_warned_ = false;             ///< One-shot warning guard for the first dropped late item
 
     double mean_return_ms_ = 0.0;       ///< Running (EMA) mean checkout->return time (consumer-wide)

@@ -83,7 +83,7 @@ ADD_TEST(NAME GCourtierFatal_ok COMMAND GCourtierFatalExerciser --scenario=ok)
 SET_TESTS_PROPERTIES(GCourtierFatal_ok PROPERTIES LABELS "courtier")
 GENEVA_TEST_SIZE(GCourtierFatal_ok S)
 
-FOREACH(scenario fatal-unfixable fatal-none-fatal fatal-none-clone)
+FOREACH(scenario fatal-unfixable fatal-none-fatal fatal-none-clone fatal-oversized-batch)
 	ADD_TEST(NAME GCourtierFatal_${scenario}
 			COMMAND GCourtierFatalExerciser --scenario=${scenario})
 	SET_TESTS_PROPERTIES(GCourtierFatal_${scenario} PROPERTIES LABELS "courtier" WILL_FAIL TRUE)

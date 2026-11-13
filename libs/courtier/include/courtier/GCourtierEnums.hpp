@@ -172,8 +172,8 @@ enum class dispatchState : Gem::Common::ENUMBASETYPE {
 /**
  * These typedefs steer the types of the routing / lineage ids carried by submitted work items
  */
-// 64-bit so the networked consumer can pack a 48-bit, process-unique, never-wrapping batch id with a
-// 16-bit slot index (GNetworkedConsumerT). This is the per-DISPATCH ROUTING token: it is minted fresh each
+// 64-bit so the networked consumer can pack a 40-bit, process-unique, never-wrapping batch id with a
+// 24-bit slot index (GNetworkedConsumerT). This is the per-DISPATCH ROUTING token: it is minted fresh each
 // dispatch and is unique per in-flight slot, so a return is matched back to exactly the slot it was served
 // from -- correct even when an individual is submitted more than once within a single OA iteration (large
 // populations chunked into several spans, in-iteration re-dispatch). It deliberately does NOT identify the
