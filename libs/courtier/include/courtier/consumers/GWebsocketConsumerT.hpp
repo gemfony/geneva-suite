@@ -131,11 +131,14 @@ private:
         std::make_shared<session_type>(
             std::move(socket),
             typename session_type::SessionHooks{
-                .get_payload_item = [this, lease]() -> std::unique_ptr<processable_type> {
-                    auto p = this->checkout();
-                    lease->add(p); // no-op for a null item; records p's correlation id
-                    return p;
-                },
+                .get_payload_item =
+                    [this, lease](Gem::Courtier::GWakeFn wake) {
+                        auto result = this->checkoutOrPark(std::move(wake));
+                        lease->add(
+                            result.item
+                        ); // no-op without an item; records its correlation id
+                        return result;
+                    },
                 .put_payload_item =
                     [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                         // returned normally -> nothing for the lease to reclaim

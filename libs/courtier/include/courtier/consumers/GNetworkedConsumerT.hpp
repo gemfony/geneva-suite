@@ -346,13 +346,16 @@ protected:
 
     /***************************************************************************/
     /** @brief Like checkout(), but a caller for whom nothing is pending is parked instead of sent
-     *  away empty-handed: @p wake is kept and called once, as soon as work may be available (a
+     *  away empty-handed: @p wake is kept and called once, when work has become available (a
      *  batch was registered, an item was put back) or the server stops. The woken caller asks
      *  again; it may find that others were faster and be parked once more.
      *
      *  For transports whose sessions can wait and can be reached later (the websocket consumer).
      *  The check for pending work and the parking happen under one lock, and work is announced
-     *  only after it was made pending under that lock, so no wake-up is lost.
+     *  only after it was made pending under that lock, so no wake-up is lost. As many callers are
+     *  woken as items became available, the one that has waited longest first. A woken caller
+     *  must therefore ask again even if it has no use for the item any more (its client is
+     *  gone), and put back what it gets: that wakes the next one.
      *
      *  @param wake Called once when the caller should ask again (see GWakeFn for what it may do)
      *  @return An item; or `parked`, with @p wake kept; or neither once the server is stopping */
@@ -478,7 +481,7 @@ protected:
             requeued = it != batches_.end() && requeueSlot_locked(it->second, decodeSlot(id));
         }
         if(requeued) {
-            announceWork_();
+            announceWork_(1);
         }
     }
 
@@ -495,7 +498,7 @@ protected:
             std::scoped_lock const lk(mtx_);
             stop_.store(true);
         }
-        announceWork_();
+        announceWork_(parked_.size()); // everyone: nobody is parked once the flag is set
         cv_done_.notify_all();
     }
 
@@ -537,6 +540,7 @@ protected:
 
         const auto start = clock::now();
         typename std::map<batch_key_t, BatchState>::iterator my_it;
+        std::size_t n_announced = 0; // how many items this call has made pending
         {
             std::scoped_lock const lk(mtx_);
             const batch_key_t key = (next_batch_id_++ & BATCH_MASK);
@@ -571,8 +575,9 @@ protected:
             b.pending = n_sel;
             my_it = batches_.emplace(key, std::move(b)).first;
             total_pending_ += n_sel;
+            n_announced = n_sel;
         }
-        announceWork_();
+        announceWork_(n_announced);
 
         // Wait until every slot of THIS batch is DONE, or its progress stalls past the (adaptive)
         // give-up window. The happy path wakes on the final checkin() and exits at once. While
@@ -594,12 +599,13 @@ protected:
                 if(n_return_samples_ > 0 && now - b.last_progress > currentStallWindow()) {
                     break; // progress stalled with live workers -> give up; unresolved slots MISSING
                 }
-                if(this->usesTimeLease() && leaseSweep_locked(b, now)) {
+                n_announced = this->usesTimeLease() ? leaseSweep_locked(b, now) : 0;
+                if(n_announced > 0) {
                     // Items were put back: tell the callers, without the lock. The batch's last
                     // check-in may arrive in that window, and its notification would find nobody
                     // waiting -- so look at the batch again instead of going to sleep.
                     lk.unlock();
-                    announceWork_();
+                    announceWork_(n_announced);
                     lk.lock();
                     continue;
                 }
@@ -816,36 +822,43 @@ private:
      *  lease, returning it to PENDING for re-service. Caller holds mtx_.
      *  @param b The batch to sweep
      *  @param now The current time; each slot's checkout time is compared with the lease against it
-     *  @return true if at least one slot was put back (the caller then announces the work) */
-    [[nodiscard]] bool leaseSweep_locked(BatchState &b, clock::time_point now) {
+     *  @return How many slots were put back (the caller then announces that much work) */
+    [[nodiscard]] std::size_t leaseSweep_locked(BatchState &b, clock::time_point now) {
         const auto lease = currentLease();
-        bool any = false;
+        std::size_t n_put_back = 0;
         for(std::size_t k = 0; k < b.items.size(); ++k) {
             if(b.items[k] &&
                b.items[k]->getDispatchState() == Gem::Courtier::dispatchState::IN_FLIGHT &&
                (now - b.checked_out_at[k]) > lease) {
-                any = requeueSlot_locked(b, k) || any;
+                n_put_back += requeueSlot_locked(b, k) ? 1 : 0;
             }
         }
-        return any;
+        return n_put_back;
     }
 
     /***************************************************************************/
-    /** @brief Tells everyone who waits for work that there may be some: the callers blocked in
-     *  checkoutWait() and all parked callers. Called WITHOUT mtx_, by every place that made
-     *  work pending (or set the stop flag) under it.
+    /** @brief Tells those who wait for work that @p n_items have become available: the callers
+     *  blocked in checkoutWait(), and up to @p n_items parked callers. Called WITHOUT mtx_, by
+     *  every place that made work pending (or set the stop flag) under it.
      *
-     *  All parked callers are woken, not as many as there are items: whoever finds nothing parks
-     *  again. The length of the list is read once, so that a caller that parks again while this
-     *  loop runs is not woken a second time in the same round. */
-    void announceWork_() noexcept {
+     *  One caller is woken per item, not everyone: with many small batches and many idle
+     *  clients, waking all costs several cores for wake-ups that find nothing. A parked caller
+     *  that is gone does not count (its wake function says so), and one that was reached but
+     *  cannot serve passes its item on by putting it back (see checkoutOrPark()). The length of
+     *  the list is read once, so that a caller that parks again while this loop runs is not
+     *  woken a second time in the same round.
+     *
+     *  @param n_items How many items became available */
+    void announceWork_(std::size_t n_items) noexcept {
         cv_work_.notify_all();
-        for(std::size_t n = parked_.size(); n > 0; --n) {
+        for(std::size_t in_list = parked_.size(); in_list > 0 && n_items > 0; --in_list) {
             auto wake = parked_.try_pop();
             if(not wake) {
                 break; // another announcement was faster
             }
-            (*wake)();
+            if((*wake)()) {
+                --n_items;
+            }
         }
     }
 

@@ -304,6 +304,12 @@ void GWebsocketPeer::abort() {
 }
 
 /******************************************************************************/
+/** @return The executor all handlers of this peer run on (to post work that came from elsewhere) */
+boost::asio::any_io_executor GWebsocketPeer::executor() {
+    return ws_.get_executor();
+}
+
+/******************************************************************************/
 /**
  * The end of the connection, whatever led to it. Runs its body once: switches Beast's time limits
  * off (Beast leaves its timer armed after a failed read, which would keep the io context busy),

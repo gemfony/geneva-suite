@@ -38,12 +38,14 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 // Boost headers go here
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/beast/websocket/error.hpp>
 #include <boost/system/error_code.hpp>
 
@@ -467,6 +469,14 @@ private:
  * and lasts until the connection ends or the server stops. The connection itself is a
  * GWebsocketPeer; this class answers the requests that arrive on it.
  *
+ * A request for work that cannot be met is not answered with NO_WORK: the session is parked with
+ * the consumer and answers when it is woken for an item that has become available (see
+ * GNetworkedConsumerT::checkoutOrPark()). A client
+ * therefore gets its next item as soon as there is one, and an idle client costs nothing but the
+ * keep-alive. While it is parked a session only counts the pulls it owes an answer to (a
+ * prefetching client has several outstanding). The client sees NO_WORK only when the server stops
+ * or had to refuse a request.
+ *
  * The session is owned by its peer (through the peer's handlers), and the peer by its pending
  * operations, so a session lives exactly as long as its connection.
  *
@@ -483,7 +493,8 @@ public:
      *  it holds, checks for a stopped server, and signs itself on/off. Bundled so the constructor
      *  stays within the parameter budget. */
     struct SessionHooks {
-        std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item;
+        /// Checks an item out or parks the session; the argument is how a parked session is woken
+        std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> get_payload_item;
         std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item;
         /// Puts every item back that this session has handed out and not seen return
         std::move_only_function<void()> abandonItems;
@@ -591,8 +602,8 @@ public:
 private:
     //-------------------------------------------------------------------------
     /**
-	  * @brief Called for every message from the client: answers the request and, if the server has
-	  * been stopped in the meantime, closes the connection after the answer.
+	  * @brief Called for every message from the client: checks a returned result in and answers,
+	  * or notes that the client is owed a work item and serves what can be served.
 	  *
 	  * @param message One complete message from the client
 	  */
@@ -601,14 +612,80 @@ private:
         if(not peer) {
             return;
         }
-        peer->send(process_request(message));
+        if(auto answer = this->absorb_(message)) {
+            peer->send(std::move(*answer));
+        }
+        else {
+            ++owed_replies_;
+        }
+        this->serve_(*peer);
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+	  * @brief Answers the pulls this session owes an answer to, for as long as there are items.
+	  * When there are none it stays parked until it is woken. Closes the connection if the server
+	  * has been stopped in the meantime.
+	  *
+	  * @param peer The connection of this session
+	  */
+    void serve_(GWebsocketPeer &peer) {
+        while(owed_replies_ > 0 && not parked_) {
+            if(auto answer = this->answer_pull_()) {
+                --owed_replies_;
+                peer.send(std::move(*answer));
+            }
+        }
 
         if(this->check_server_stopped_()) {
             // The close does not wait for answers: one that is being written is cut short if it
             // has more than one frame, and those behind it are dropped. The items they carry are
             // put back when the session ends.
-            peer->close(close_code::normal);
+            peer.close(close_code::normal);
         }
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+	  * @brief How this session is woken while it is parked. The function is called by whichever
+	  * thread made work available, so it only posts to the session's executor. It holds the
+	  * session weakly and no executor: the consumer's list of parked callers must neither keep a
+	  * session alive nor hold a strand beyond the life of its io context. It reports whether the
+	  * session was still there, so that a wake-up meant for an item is not spent on a session that
+	  * has ended.
+	  *
+	  * @return The wake function handed to the consumer with every request for an item
+	  */
+    GWakeFn wake_function_() {
+        return [weak = this->weak_from_this()] {
+            auto self = weak.lock();
+            auto peer = self ? self->peer_.lock() : nullptr;
+            if(not peer) {
+                return false;
+            }
+            // The handler keeps the connection as well as the session, so that the session can
+            // take its item in any case (see when_woken_()).
+            auto executor = peer->executor();
+            boost::asio::post(executor, [self = std::move(self), peer = std::move(peer)] {
+                self->when_woken_(*peer);
+            });
+            return true;
+        };
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Runs on the session's executor after a wake-up: an item has become available (or the
+	  * server stops), so the session asks again. Others may have been faster; then it is parked
+	  * once more.
+	  *
+	  * The wake-up stands for an item that another parked session did not get, so the session
+	  * takes it even if its connection has ended in the meantime. The answer is then not sent,
+	  * the item is among those the session gives back at its end, and that wakes the next one.
+	  *
+	  * @param peer The connection of this session */
+    void when_woken_(GWebsocketPeer &peer) {
+        parked_ = false;
+        this->serve_(peer);
     }
 
     //-------------------------------------------------------------------------
@@ -630,15 +707,15 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Processing of an incoming message and creation of the response. Handles PULL (hands out
-	  * a work item) and RETURN (sinks the returned result, then hands out the next item).
+	  * @brief Reads an incoming message and acts on all of it but the pull: a RETURN is checked in,
+	  * and like a PULL it leaves the client owed a work item.
 	  *
 	  * @param message One complete message from the client
-	  * @return The response to be sent to the peer (a NO_WORK frame if the request could not be
-	  * decoded or handled, so the client asks again later)
+	  * @return The answer if the message is answered by it (NO_WORK if it had to be refused);
+	  * nothing if the client is now owed a work item
 	  */
-    std::string process_request(const std::string &message) {
-        try {
+    std::optional<std::string> absorb_(const std::string &message) {
+        return this->refusing_([&] {
             // De-serialize the object (under the wire scope, so an id-referenced blob in a returned
             // result resolves against this server's registry).
             Gem::Courtier::wireDecode(
@@ -648,28 +725,65 @@ private:
                 serialization_mode_
             ); // may throw
 
-            // Act on the frame and produce the response (shared synchronous server dispatch). A
-            // websocket worker never sends BLOB_REQUEST (blobs arrive inline on the ordered
-            // connection), so only PULL / RETURN are exercised here; the response is serialized under
-            // this session's wire scope (blob send-once).
-            return Gem::Courtier::handleServerRequest(
+            // A websocket worker never sends BLOB_REQUEST (blobs arrive inline on the ordered
+            // connection), so only PULL / RETURN are exercised here.
+            return Gem::Courtier::absorbServerRequest(
                 command_container_,
-                get_payload_item_,
                 put_payload_item_,
                 wire_registry_,
+                serialization_mode_
+            );
+        });
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+	  * @brief Answers one pull: checks an item out and encodes it under this session's wire scope
+	  * (blob send-once), or parks the session if nothing is pending.
+	  *
+	  * @return The answer (WORK; NO_WORK only if the server is stopping or the item had to be
+	  * refused); nothing if the session is parked instead
+	  */
+    std::optional<std::string> answer_pull_() {
+        return this->refusing_([&]() -> std::optional<std::string> {
+            auto result = get_payload_item_(this->wake_function_());
+            if(result.parked) {
+                parked_ = true;
+                return std::nullopt;
+            }
+            Gem::Courtier::serveWorkItem(command_container_, [&result] {
+                return std::move(result.item);
+            });
+            return Gem::Courtier::wireEncode(
+                command_container_,
                 wire_ctx_.enabled ? &wire_ctx_ : nullptr,
                 serialization_mode_
             );
+        });
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+	  * @brief Runs one step of the request handling and turns a failure into a refusal, so that
+	  * no exception reaches the io thread.
+	  *
+	  * @tparam StepF A callable () -> std::optional<std::string>
+	  * @param step The step to run
+	  * @return What @p step returns, or the NO_WORK answer if it threw
+	  */
+    template <typename StepF>
+    std::optional<std::string> refusing_(StepF &&step) {
+        try {
+            return std::forward<StepF>(step)();
         }
         catch(const std::exception &e) {
-            glogger << "GWebsocketConsumerSessionT<processable_type>::process_request(): Caught "
-                       "exception: "
+            glogger << "GWebsocketConsumerSessionT<processable_type>: a request was refused: "
                     << e.what() << '\n'
                     << GLOGGING;
         }
         catch(...) {
-            glogger << "GWebsocketConsumerSessionT<processable_type>::process_request(): Caught "
-                       "non-std exception"
+            glogger << "GWebsocketConsumerSessionT<processable_type>: a request was refused "
+                       "(an exception that is not a std::exception)"
                     << '\n'
                     << GLOGGING;
         }
@@ -694,7 +808,7 @@ private:
         socket_; ///< The accepted socket until async_start_run() hands it on
     std::weak_ptr<GWebsocketPeer> peer_; ///< The connection (it owns this session, not the reverse)
 
-    std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item_;
+    std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> get_payload_item_;
     std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;
     std::move_only_function<void()> abandon_items_;
     std::move_only_function<bool()> check_server_stopped_;
@@ -708,6 +822,9 @@ private:
     GCommandContainerT<processable_type> command_container_{
         GFrameKind::NONE
     }; ///< Holds the current frame and its payload (if any)
+
+    std::size_t owed_replies_ = 0; ///< Pulls of the client that have no answer yet
+    bool parked_ = false; ///< The consumer holds this session's wake function; no pull is served
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
     /// installed around (de)serialisation so a work item's blob is sent to this peer only once

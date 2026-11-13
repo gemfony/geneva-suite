@@ -354,3 +354,132 @@ TEST_CASE(
     }
     client->flagCloseRequested();
 }
+
+/******************************************************************************/
+// A prefetching client has several pulls outstanding. While its session is parked the pulls are
+// only counted; once there is work, each of them gets its answer -- without the client having to
+// say anything more.
+TEST_CASE(
+    "courtier(websocket): a parked session answers every pull it owes",
+    "[courtier][websocket][liveness][net]"
+) {
+    constexpr std::size_t PULLS = 3;
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+    HandDrivenPeer peer(consumer->getPort());
+
+    const auto next_frame = [&peer] {
+        boost::beast::flat_buffer buffer;
+        peer.ws.read(buffer);
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+        Gem::Courtier::container_from_string(
+            boost::beast::buffers_to_string(buffer.data()),
+            frame,
+            BIN
+        );
+        return frame;
+    };
+
+    const std::string pull = Gem::Courtier::container_to_string(
+        GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+        BIN
+    );
+    for(std::size_t i = 0; i < PULLS; ++i) {
+        peer.ws.write(boost::asio::buffer(pull));
+    }
+    // A message the server answers at once (it refuses it). Messages are handled in order, so
+    // when this answer is here the session has seen all three pulls: it is parked, owing three.
+    peer.ws.write(boost::asio::buffer(std::string("this is not a frame")));
+    REQUIRE(next_frame().kind() == GFrameKind::NO_WORK);
+    REQUIRE(consumer->parkedCount() == 1);
+
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.reserve(PULLS);
+    for(std::size_t i = 0; i < PULLS; ++i) {
+        items.push_back(std::make_unique<GFaultyContainer>(i, fault_mode::NONE));
+    }
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    // If an item does not arrive, the read below waits forever. The watchdog then stops the
+    // server, and the batch that still waits ends the test process with a fatal error.
+    std::promise<void> all_arrived;
+    const std::jthread watchdog([&consumer, arrived = all_arrived.get_future()] {
+        if(arrived.wait_for(PATIENCE) != std::future_status::ready) {
+            consumer->stopServer();
+        }
+    });
+
+    // All three items arrive before the client returns anything (a return would be a pull again).
+    std::vector<GCommandContainerT<GFaultyContainer>> work;
+    work.reserve(PULLS);
+    for(std::size_t i = 0; i < PULLS; ++i) {
+        work.push_back(next_frame());
+        CHECK(work.back().kind() == GFrameKind::WORK);
+    }
+    all_arrived.set_value();
+    for(auto &frame : work) {
+        Gem::Courtier::processWorkFrame(frame, "hand-driven client");
+        Gem::Courtier::makeReturnFrame(frame);
+        peer.ws.write(boost::asio::buffer(Gem::Courtier::container_to_string(frame, BIN)));
+    }
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+    CHECK(consumer->emptyCheckoutCount() == 0);
+}
+
+/******************************************************************************/
+// One caller is woken per item. If that caller's client has died without the server knowing, the
+// item goes nowhere -- until the keep-alive ends the connection. The session then gives the item
+// back, and that wakes the next parked caller.
+TEST_CASE(
+    "courtier(websocket): an item handed to a parked client that has died reaches the next one",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+
+    // The first to be parked asks for work and then falls silent: it reads nothing any more.
+    HandDrivenPeer dead(consumer->getPort());
+    dead.ws.write(
+        boost::asio::buffer(
+            Gem::Courtier::container_to_string(
+                GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+                BIN
+            )
+        )
+    );
+    REQUIRE(eventually([&] { return consumer->parkedCount() == 1; }));
+
+    // Behind it, a client that works.
+    auto client = matchingClient<GFaultyContainer>(consumer->getPort());
+    const std::jthread client_thread([client] { client->run(); });
+    REQUIRE(eventually([&] { return consumer->parkedCount() == 2; }));
+
+    // One item: one wake-up, for the caller that has waited longest -- the dead one.
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+    CHECK(items.front()->is_processed());
+    CHECK(consumer->requeuedCount() == 1); // taken back from the dead client, once
+    client->flagCloseRequested();
+}

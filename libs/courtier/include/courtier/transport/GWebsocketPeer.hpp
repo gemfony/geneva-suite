@@ -41,6 +41,7 @@
 #include <string>
 
 // Boost headers go here
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
@@ -133,6 +134,8 @@ public:
     void close(close_code code);
     /** @brief Ends the connection at once, without a close handshake. Not inside a handler. */
     void abort();
+    /** @brief The executor all handlers of this peer run on. May be asked for from any thread. */
+    [[nodiscard]] boost::asio::any_io_executor executor();
 
 private:
     void configure_();

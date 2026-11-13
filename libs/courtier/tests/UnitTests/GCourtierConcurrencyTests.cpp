@@ -342,44 +342,93 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "courtier(park): a new batch wakes every parked caller exactly once",
+    "courtier(park): a new batch wakes one parked caller per item, the longest-waiting first",
     "[courtier][park]"
 ) {
     constexpr std::size_t CALLERS = 10;
+    constexpr std::size_t ITEMS = 3;
     SimNetConsumer consumer;
 
     std::vector<std::atomic<int>> woken(CALLERS);
     for(auto &count : woken) {
-        const auto result = consumer.checkoutOrPark([&count] { ++count; });
+        const auto result = consumer.checkoutOrPark([&count] {
+            ++count;
+            return true;
+        });
         REQUIRE(result.parked);
         REQUIRE_FALSE(result.item);
     }
     CHECK(consumer.parkedCount() == CALLERS);
     CHECK(consumer.emptyCheckoutCount() == 0); // a parked caller was not sent away empty-handed
 
-    auto batch = make_tagged_batch(0, 3);
+    auto batch = make_tagged_batch(0, ITEMS);
     std::atomic<bool> done{false};
     auto submitter = submit(consumer, batch, done);
     const GStopAtEnd stop_at_end(consumer);
 
-    REQUIRE(eventually([&] {
-        return std::ranges::all_of(woken, [](const auto &count) { return count.load() == 1; });
-    }));
-    CHECK(consumer.parkedCount() == 0);
+    REQUIRE(eventually([&] { return consumer.parkedCount() == CALLERS - ITEMS; }));
+    for(const auto &[i, count] : woken | std::views::enumerate) {
+        CHECK(count.load() == (std::cmp_less(i, ITEMS) ? 1 : 0));
+    }
 
-    // The woken callers ask again: three find an item, the fourth is parked once more.
-    for(std::size_t i = 0; i < batch.size(); ++i) {
-        auto result = consumer.checkoutOrPark([] {});
+    // The woken callers ask again and find an item each; one more caller is parked.
+    for(std::size_t i = 0; i < ITEMS; ++i) {
+        auto result = consumer.checkoutOrPark([] { return true; });
         REQUIRE(result.item);
         evaluateAndReturn(consumer, std::move(result.item));
     }
-    CHECK(consumer.checkoutOrPark([] {}).parked);
+    const auto one_more = consumer.checkoutOrPark([] { return true; });
+    CHECK(one_more.parked);
 
     submitter.join();
-    CHECK(count_processed(batch) == batch.size());
-    for(const auto &count : woken) {
-        CHECK(count.load() == 1);
+    CHECK(count_processed(batch) == ITEMS);
+    CHECK(consumer.parkedCount() == CALLERS - ITEMS + 1);
+}
+
+/******************************************************************************/
+// A parked caller that has gone away says so when it is called, and does not use up a wake-up:
+// the callers behind it get the items.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE("courtier(park): a caller that is gone does not use up a wake-up", "[courtier][park]") {
+    constexpr int GONE = 5;
+    constexpr int LIVE = 3;
+    constexpr std::size_t ITEMS = 2;
+    SimNetConsumer consumer;
+
+    std::atomic<int> gone_called{0};
+    std::atomic<int> live_woken{0};
+    for(int i = 0; i < GONE; ++i) {
+        const auto result = consumer.checkoutOrPark([&gone_called] {
+            ++gone_called;
+            return false;
+        });
+        REQUIRE(result.parked);
     }
+    for(int i = 0; i < LIVE; ++i) {
+        const auto result = consumer.checkoutOrPark([&live_woken] {
+            ++live_woken;
+            return true;
+        });
+        REQUIRE(result.parked);
+    }
+
+    auto batch = make_tagged_batch(0, ITEMS);
+    std::atomic<bool> done{false};
+    auto submitter = submit(consumer, batch, done);
+    const GStopAtEnd stop_at_end(consumer);
+
+    REQUIRE(eventually([&] { return live_woken.load() == static_cast<int>(ITEMS); }));
+    CHECK(gone_called.load() == GONE);  // each was asked once and dropped from the list
+    CHECK(consumer.parkedCount() == 1); // the third live caller: there was no item for it
+
+    for(std::size_t i = 0; i < ITEMS; ++i) {
+        auto result = consumer.checkoutOrPark([] { return true; });
+        REQUIRE(result.item);
+        evaluateAndReturn(consumer, std::move(result.item));
+    }
+    submitter.join();
+    CHECK(count_processed(batch) == ITEMS);
+    CHECK(live_woken.load() == static_cast<int>(ITEMS));
 }
 
 /******************************************************************************/
@@ -391,7 +440,10 @@ TEST_CASE(
     SimNetConsumer consumer;
     std::atomic<int> woken{0};
     for(int i = 0; i < 5; ++i) {
-        const auto result = consumer.checkoutOrPark([&woken] { ++woken; });
+        const auto result = consumer.checkoutOrPark([&woken] {
+            ++woken;
+            return true;
+        });
         REQUIRE(result.parked);
     }
 
@@ -400,7 +452,10 @@ TEST_CASE(
     CHECK(woken.load() == 5);
     CHECK(consumer.parkedCount() == 0);
 
-    const auto late_caller = consumer.checkoutOrPark([&woken] { ++woken; });
+    const auto late_caller = consumer.checkoutOrPark([&woken] {
+        ++woken;
+        return true;
+    });
     CHECK_FALSE(late_caller.parked);
     CHECK_FALSE(late_caller.item);
     CHECK(consumer.parkedCount() == 0);
@@ -409,7 +464,7 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("courtier(park): an item that is put back wakes a parked caller", "[courtier][park]") {
+TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[courtier][park]") {
     SimNetConsumer consumer;
     auto batch = make_tagged_batch(0, 1);
     std::atomic<bool> done{false};
@@ -419,19 +474,30 @@ TEST_CASE("courtier(park): an item that is put back wakes a parked caller", "[co
     // The first caller takes the only item and then loses its client.
     c2::GCheckoutResult<GFaultyContainer> first;
     REQUIRE(eventually([&] {
-        first = consumer.checkoutOrPark([] {});
+        first = consumer.checkoutOrPark([] { return true; });
         return static_cast<bool>(first.item);
     }));
 
     std::atomic<int> woken{0};
-    const auto parked_caller = consumer.checkoutOrPark([&woken] { ++woken; });
+    const auto parked_caller = consumer.checkoutOrPark([&woken] {
+        ++woken;
+        return true;
+    });
     REQUIRE(parked_caller.parked);
     CHECK(woken.load() == 0);
 
-    consumer.requeue(first.item->getCorrelationId());
-    CHECK(woken.load() == 1);
+    std::atomic<int> second_woken{0};
+    const auto second_caller = consumer.checkoutOrPark([&second_woken] {
+        ++second_woken;
+        return true;
+    });
+    REQUIRE(second_caller.parked);
 
-    auto second = consumer.checkoutOrPark([] {});
+    consumer.requeue(first.item->getCorrelationId());
+    CHECK(woken.load() == 1); // one item, one wake-up: the caller that has waited longer
+    CHECK(second_woken.load() == 0);
+
+    auto second = consumer.checkoutOrPark([] { return true; });
     REQUIRE(second.item);
     evaluateAndReturn(consumer, std::move(second.item));
 
@@ -466,7 +532,7 @@ TEST_CASE(
 
     c2::GCheckoutResult<GFaultyContainer> abandoned;
     REQUIRE(eventually([&] {
-        abandoned = consumer.checkoutOrPark([] {});
+        abandoned = consumer.checkoutOrPark([] { return true; });
         return static_cast<bool>(abandoned.item);
     }));
     std::this_thread::sleep_for(50ms); // well past the lease
@@ -474,7 +540,10 @@ TEST_CASE(
     // Serves until nothing is pending, then parks again with itself as the wake function.
     std::function<void()> serve = [&] {
         while(true) {
-            auto result = consumer.checkoutOrPark([&serve] { serve(); });
+            auto result = consumer.checkoutOrPark([&serve] {
+                serve();
+                return true;
+            });
             if(not result.item) {
                 return;
             }
@@ -510,7 +579,7 @@ TEST_CASE("courtier(park): a late return is kept when its caller parks next", "[
     auto late = std::make_unique<GFaultyContainer>(42, fault_mode::NONE);
     late->setCorrelationId(0); // no batch is active, so any id is a late one
     consumer.checkin(std::move(late));
-    CHECK(consumer.checkoutOrPark([] {}).parked);
+    CHECK(consumer.checkoutOrPark([] { return true; }).parked);
 
     CHECK(consumer.lateReturnBufferSize() == 1);
     CHECK(consumer.parkedCount() == 1);
@@ -541,7 +610,10 @@ TEST_CASE(
             // Shared with the wake function, which may outlive a session that gave up waiting.
             auto news = std::make_shared<std::binary_semaphore>(0);
             while(true) {
-                auto result = consumer.checkoutOrPark([news] { news->release(); });
+                auto result = consumer.checkoutOrPark([news] {
+                    news->release();
+                    return true;
+                });
                 if(result.item) {
                     evaluateAndReturn(consumer, std::move(result.item));
                     ++n_evaluated;
