@@ -36,6 +36,7 @@
 // Geneva headers
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
+#include "courtier/GCourtierEnums.hpp" // the defaults
 
 namespace Gem::Courtier {
 
@@ -112,24 +113,36 @@ struct GNetworkedTimeoutConfig {
     std::string treatment = "adaptive"; ///< "adaptive" | "fixed" | "wait_indefinitely"
 
     //--- adaptive-treatment knobs (multiples of / clamps on the running mean return time) ---
-    double ema_alpha = 0.25;    ///< EMA weight for a new return-time sample
-    double lease_factor = 4.0;  ///< reclaim lease = lease_factor * mean return time (clamped)
-    double stall_factor = 8.0;  ///< give-up window = stall_factor * mean return time (clamped)
-    std::int64_t lease_bootstrap_ms = 10'000; ///< reclaim lease before the first return is observed
-    std::int64_t min_lease_ms = 200;          ///< lower clamp on the adaptive reclaim lease
-    std::int64_t max_lease_ms = 300'000;      ///< upper clamp on the adaptive reclaim lease
-    std::int64_t min_stall_ms = 2'000;        ///< lower clamp on the adaptive give-up window
-    std::int64_t max_stall_ms = 600'000;      ///< upper clamp on the adaptive give-up window
-    std::int64_t sweep_tick_ms = 50;          ///< dispatch_ re-evaluation poll interval
+    //    The defaults are those of the consumer itself; both come from GCourtierEnums.hpp.
+    double ema_alpha = GNETWORKEDEMAALPHA; ///< EMA weight for a new return-time sample
+    /// reclaim lease = lease_factor * mean return time (clamped)
+    double lease_factor = GNETWORKEDLEASEFACTOR;
+    /// give-up window = stall_factor * mean return time (clamped)
+    double stall_factor = GNETWORKEDSTALLFACTOR;
+    /// reclaim lease before the first return is observed
+    std::int64_t lease_bootstrap_ms = GNETWORKEDLEASEBOOTSTRAP.count();
+    std::int64_t min_lease_ms =
+        GNETWORKEDMINLEASE.count(); ///< lower clamp on the adaptive reclaim lease
+    std::int64_t max_lease_ms =
+        GNETWORKEDMAXLEASE.count(); ///< upper clamp on the adaptive reclaim lease
+    std::int64_t min_stall_ms =
+        GNETWORKEDMINSTALL.count(); ///< lower clamp on the adaptive give-up window
+    std::int64_t max_stall_ms =
+        GNETWORKEDMAXSTALL.count(); ///< upper clamp on the adaptive give-up window
+    std::int64_t sweep_tick_ms =
+        GNETWORKEDSWEEPTICK.count(); ///< dispatch_ re-evaluation poll interval
 
     //--- fixed-treatment knobs (used only when treatment == "fixed") ---
-    std::int64_t fixed_stall_window_ms = 300'000; ///< give-up window when treatment == fixed
-    std::int64_t fixed_lease_ms = 300'000;        ///< reclaim lease when treatment == fixed
+    /// give-up window when treatment == fixed
+    std::int64_t fixed_stall_window_ms = GNETWORKEDFIXEDSTALLWINDOW.count();
+    std::int64_t fixed_lease_ms =
+        GNETWORKEDFIXEDLEASE.count(); ///< reclaim lease when treatment == fixed
 
     //--- connection-reclaim (ASIO only): the per-EXCHANGE session deadline that closes a client that
     //    connects but never completes its request. NOT the evaluation timeout (the ASIO client does discrete
     //    fetch/return exchanges and does not hold the connection while it computes). 0 disables it. ---
-    std::int64_t session_timeout_ms = 300'000; ///< [asio] per-exchange session deadline (0 == disabled)
+    /// [asio] per-exchange session deadline (0 == disabled)
+    std::int64_t session_timeout_ms = GASIOSESSIONTIMEOUT.count();
 
     /**
      * @brief Reads the configuration from @p configFile, writing scale-free defaults if it is absent.

@@ -125,15 +125,97 @@ constexpr std::size_t GWEBSOCKETMAXMESSAGEBYTES = 0;
 constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 
 /******************************************************************************
+ * Pauses and time limits of the networked clients and servers:
+ */
+/// A worker that is answered with NO_WORK waits a random time between these two bounds, in
+/// milliseconds, before it asks again. Random, so that workers that were sent away together do
+/// not come back together. (A websocket client is rarely answered with NO_WORK: its request waits
+/// at the server instead.)
+constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
+constexpr std::uint32_t GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC = 200;
+/// How often a socket client looks at its halt conditions (maximum run time, a close request).
+constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
+/// An asio client whose connection attempt failed waits a random time between these two bounds,
+/// in milliseconds, before it tries again.
+constexpr std::uint32_t GASIOCLIENTRECONNECTPAUSELOWERBOUNDARYMSEC = 500;
+constexpr std::uint32_t GASIOCLIENTRECONNECTPAUSEUPPERBOUNDARYMSEC = 1000;
+/// The deadline of one exchange with an asio client: a client that connects but does not complete
+/// its request is dropped after this time. It is not a limit on the evaluation (the client does
+/// not hold the connection while it computes). Zero switches it off.
+constexpr std::chrono::milliseconds GASIOSESSIONTIMEOUT{300'000};
+/// How long a socket server waits after a failed accept before it accepts again.
+constexpr std::chrono::milliseconds GCONSUMERACCEPTRETRYPAUSE{100};
+
+/******************************************************************************
+ * Defaults of the timeout treatment of the networked consumers (see GNetworkedConsumerT and
+ * GNetworkedTimeoutConfig, which both take their defaults from here):
+ */
+constexpr double GNETWORKEDEMAALPHA = 0.25;   ///< Weight of a new sample in the mean return time
+constexpr double GNETWORKEDLEASEFACTOR = 4.0; ///< Reclaim lease = factor * mean return time
+constexpr double GNETWORKEDSTALLFACTOR = 8.0; ///< Give-up window = factor * mean return time
+constexpr std::chrono::milliseconds GNETWORKEDLEASEBOOTSTRAP{
+    10'000
+}; ///< Lease before a return was seen
+constexpr std::chrono::milliseconds GNETWORKEDMINLEASE{200};     ///< Lower clamp on the lease
+constexpr std::chrono::milliseconds GNETWORKEDMAXLEASE{300'000}; ///< Upper clamp on the lease
+constexpr std::chrono::milliseconds GNETWORKEDMINSTALL{
+    2'000
+}; ///< Lower clamp on the give-up window
+constexpr std::chrono::milliseconds GNETWORKEDMAXSTALL{
+    600'000
+}; ///< Upper clamp on the give-up window
+constexpr std::chrono::milliseconds GNETWORKEDSWEEPTICK{
+    50
+}; ///< How often a waiting batch looks again
+constexpr std::chrono::milliseconds GNETWORKEDFIXEDSTALLWINDOW{
+    300'000
+}; ///< Give-up window, "fixed"
+constexpr std::chrono::milliseconds GNETWORKEDFIXEDLEASE{300'000}; ///< Reclaim lease, "fixed"
+/// The window and the lease of the treatment "wait_indefinitely". A finite but very large value
+/// (100 years) rather than milliseconds::max(): it is compared against a steady_clock (nanosecond)
+/// duration, and max() would overflow int64 when the comparison promotes it to nanoseconds,
+/// whereas 100 years in ns (~3.15e18) stays well within range and can never elapse in a real run.
+constexpr std::chrono::milliseconds GNETWORKEDNEVERWINDOW{100LL * 365 * 24 * 3600 * 1000};
+
+/******************************************************************************
+ * Constants specifically for the GPU consumer:
+ */
+/// The default launch block size (x) of a kernel.
+constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
+
+/******************************************************************************
  * Constants specifically for the GMPIConsumerT:
  */
-/**
- * When GMPIConsumerWorkerNodeT does retrieve a NO_WORK frame from GMPIConsumerMasterNodeT it waits for a random number
- * of milliseconds which is distributed between GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC and
- * GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC.
- */
-constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC = 50;
-constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC = 200;
+/// The MPI worker's names for the pause after NO_WORK (see GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC).
+constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC =
+    GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC;
+constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC =
+    GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC;
+/// The message tags that the master and the worker nodes use.
+constexpr int TAG_REQUEST_WORK_ITEM = 42;
+constexpr int TAG_SEND_WORK_ITEM = 43;
+/// blob send-once cache-miss fetch (worker <-> master). A worker that receives an id-only
+/// work item whose blob it does not hold sends a BLOB_REQUEST frame on TAG_REQUEST_BLOB; the
+/// master's receiver loop picks it up (it matches any tag) and answers with the serialized blob on
+/// TAG_SEND_BLOB. A distinct send tag keeps the reply from being mistaken for an ordinary work-item
+/// response by the worker's (double-buffered) MPI_ANY_TAG receive.
+constexpr int TAG_REQUEST_BLOB = 44;
+constexpr int TAG_SEND_BLOB = 45;
+constexpr int RANK_MASTER_NODE = 0;
+/// Once the master has been asked to stop, how long it keeps waiting for stragglers (a live
+/// worker's final double-buffered request, or an open session to finish) before abandoning them.
+/// Bounds shutdown so the loss of a worker cannot wedge the master at teardown.
+constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
+/// How long a worker waits for the master to complete a send/receive before giving up. The master
+/// always answers a request promptly (work or NO_WORK), so this only trips when the master has died
+/// or gone silent -- it is generous to avoid ever false-killing a worker while a live master is busy.
+constexpr std::chrono::seconds GMPICONSUMERWORKERMPITIMEOUT{120};
+/// How long the master blocks for a pending item before it answers a worker with NO_WORK.
+constexpr std::chrono::milliseconds GMPICONSUMERCHECKOUTWAIT{50};
+/// The pause between two looks at an MPI operation that is polled for completion.
+constexpr std::chrono::milliseconds GMPICONSUMERPOLLPAUSE{1};
+/// The default time in ms between two checks whether the send of a work item has completed.
+constexpr std::uint32_t GMPICONSUMERMASTERCLEANSESSINTERVALMSEC = 1'000;
 
 /******************************************************************************/
 /** @brief The default number of threads for parallelization with threads */
@@ -188,6 +270,10 @@ enum class dispatchState : Gem::Common::ENUMBASETYPE {
 // populations chunked into several spans, in-iteration re-dispatch). It deliberately does NOT identify the
 // individual across re-dispatch; that LINEAGE identity is SUBMISSION_UUID_TYPE below.
 using CORRELATION_ID_TYPE = std::uint64_t;
+/// The split of the correlation id described above: the slot index in the low bits, the batch id
+/// above it. The slot field bounds one batch to 2^24 items.
+constexpr CORRELATION_ID_TYPE GCORRELATIONIDSLOTBITS = 24;
+constexpr CORRELATION_ID_TYPE GCORRELATIONIDBATCHBITS = 40;
 
 // The stable, per-individual LINEAGE identity of a work item (D11). Minted ONCE, at construction, and
 // carried IMMUTABLY across every (re-)dispatch and serialized round-trip (fresh only on clone() = a new

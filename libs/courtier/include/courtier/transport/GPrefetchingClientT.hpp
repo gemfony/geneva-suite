@@ -158,7 +158,10 @@ protected:
         if(pipeline_stopped_) {
             return;
         }
-        std::uniform_int_distribution<> dist(50, 200);
+        std::uniform_int_distribution<std::uint32_t> dist(
+            Gem::Courtier::GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC,
+            Gem::Courtier::GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC
+        );
         nodata_timer_.expires_after(std::chrono::milliseconds(dist(rng_engine_)));
         auto self = derived().shared_from_this();
         nodata_timer_.async_wait([self](boost::system::error_code ec) {
@@ -180,7 +183,7 @@ protected:
         if(pipeline_stopped_) {
             return;
         }
-        halt_timer_.expires_after(std::chrono::seconds(1));
+        halt_timer_.expires_after(Gem::Courtier::GCLIENTHALTPOLLINTERVAL);
         auto self = derived().shared_from_this();
         halt_timer_.async_wait([self](boost::system::error_code ec) { self->on_halt_timer(ec); });
     }

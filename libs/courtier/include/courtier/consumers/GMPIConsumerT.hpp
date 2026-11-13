@@ -45,8 +45,9 @@
 #include <mpi.h>
 
 // Geneva headers
-#include "courtier/transport/GMPITransportT.hpp" // reuse the existing master/worker nodes + MPI init
+#include "courtier/GCourtierEnums.hpp" // GMPICONSUMERCHECKOUTWAIT
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
+#include "courtier/transport/GMPITransportT.hpp" // reuse the existing master/worker nodes + MPI init
 
 namespace Gem::Courtier {
 
@@ -190,7 +191,7 @@ private:
     std::atomic<std::uint64_t> n_worker_processed_{0};
 
     /// How long the master blocks for a pending item before answering a worker with "no data".
-    std::chrono::milliseconds checkout_wait_{50};
+    std::chrono::milliseconds checkout_wait_{Gem::Courtier::GMPICONSUMERCHECKOUTWAIT};
 };
 
 /******************************************************************************/

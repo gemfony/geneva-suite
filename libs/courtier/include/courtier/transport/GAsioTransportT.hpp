@@ -36,6 +36,7 @@
 #include <array>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <expected>
 #include <functional>
@@ -47,8 +48,8 @@
 #include <sstream>
 #include <string>
 #include <thread>
-#include <vector>
 #include <tuple>
+#include <vector>
 
 // Boost headers go here
 #include <boost/asio.hpp>
@@ -375,7 +376,10 @@ private:
                 // Back off a short while (randomly) before retrying the SAME exchange. The wait is an
                 // async timer, NOT a blocking sleep: at depth > 1 other items are still being evaluated
                 // on the compute pool and their result-returning connections must not be stalled.
-                std::uniform_int_distribution<> dist(500, 1000);
+                std::uniform_int_distribution<std::uint32_t> dist(
+                    Gem::Courtier::GASIOCLIENTRECONNECTPAUSELOWERBOUNDARYMSEC,
+                    Gem::Courtier::GASIOCLIENTRECONNECTPAUSEUPPERBOUNDARYMSEC
+                );
                 reconnect_timer_.expires_after(std::chrono::milliseconds(dist(rng_engine_)));
                 auto self = this->shared_from_this();
                 reconnect_timer_.async_wait([self](boost::system::error_code tec) {
@@ -792,7 +796,7 @@ public:
         Gem::Common::serializationMode serialization_mode,
         std::move_only_function<void(bool)> sign_on,
         Gem::Courtier::GWireBlobRegistry *wire_registry = nullptr,
-        std::chrono::milliseconds session_timeout = std::chrono::milliseconds{300'000}
+        std::chrono::milliseconds session_timeout = Gem::Courtier::GASIOSESSIONTIMEOUT
     )
       : socket_(std::move(socket))
       , strand_(io_context.get_executor())
@@ -1091,7 +1095,7 @@ private:
     /// timeout; it is configurable (GNetworkedTimeoutConfig::session_timeout_ms, threaded in via the
     /// consumer), and a non-positive value disables it (arm_deadline() then never arms the timer).
     boost::asio::steady_timer deadline_timer_;
-    std::chrono::milliseconds session_timeout_{300'000};
+    std::chrono::milliseconds session_timeout_{Gem::Courtier::GASIOSESSIONTIMEOUT};
 
     std::move_only_function<std::unique_ptr<processable_type>()> get_payload_item_;
     std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;

@@ -41,8 +41,9 @@
 #include <boost/asio.hpp>
 
 // Geneva headers
-#include "courtier/transport/GAsioTransportT.hpp" // reuse the existing session + client + wire protocol
+#include "courtier/GCourtierEnums.hpp" // GASIOSESSIONTIMEOUT
 #include "courtier/consumers/GTcpAcceptingConsumerT.hpp"
+#include "courtier/transport/GAsioTransportT.hpp" // reuse the existing session + client + wire protocol
 
 namespace Gem::Courtier {
 
@@ -125,9 +126,9 @@ private:
     }
 
     /***************************************************************************/
-    /// The per-exchange connection deadline handed to each new session (0 disables it). Defaulted to the
-    /// same 300s the session used before it became configurable; overwritten by applyTimeoutConfig().
-    std::chrono::milliseconds session_timeout_{300'000};
+    /// The per-exchange connection deadline handed to each new session (0 disables it); overwritten
+    /// by applyTimeoutConfig().
+    std::chrono::milliseconds session_timeout_{Gem::Courtier::GASIOSESSIONTIMEOUT};
     Gem::Common::serializationMode serialization_mode_;
 };
 

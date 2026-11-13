@@ -73,25 +73,8 @@
 // TODO: extract double buffering to GBaseConsumerClientT
 
 namespace Gem::Courtier::Consumers {
-// constants that are used by the master and the worker nodes
-constexpr int TAG_REQUEST_WORK_ITEM = 42;
-constexpr int TAG_SEND_WORK_ITEM = 43;
-/// blob send-once cache-miss fetch (worker <-> master). A worker that receives an id-only
-/// work item whose blob it does not hold sends a BLOB_REQUEST frame on TAG_REQUEST_BLOB; the
-/// master's receiver loop picks it up (it matches any tag) and answers with the serialized blob on
-/// TAG_SEND_BLOB. A distinct send tag keeps the reply from being mistaken for an ordinary work-item
-/// response by the worker's (double-buffered) MPI_ANY_TAG receive.
-constexpr int TAG_REQUEST_BLOB = 44;
-constexpr int TAG_SEND_BLOB = 45;
-constexpr int RANK_MASTER_NODE = 0;
-/// Once the master has been asked to stop, how long it keeps waiting for stragglers (a live worker's
-/// final double-buffered request, or an open session to finish) before abandoning them. Bounds
-/// shutdown so the loss of a worker cannot wedge the master at teardown.
-constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
-/// How long a worker waits for the master to complete a send/receive before giving up. The master
-/// always answers a request promptly (work or NO_WORK), so this only trips when the master has died or
-/// gone silent -- it is generous to avoid ever false-killing a worker while a live master is busy.
-constexpr std::chrono::seconds GMPICONSUMERWORKERMPITIMEOUT{120};
+// The constants that the master and the worker nodes use (message tags, the master's rank, time
+// limits and pauses) are defined in GCourtierEnums.hpp.
 // MPI errors: this transport installs no error handler, so the communicator's default applies
 // (MPI_ERRORS_ARE_FATAL) and an MPI error ends the whole job inside the failing call. The return
 // values of the MPI calls are therefore not checked. (MPI_Status::MPI_ERROR is no substitute: the
@@ -179,7 +162,7 @@ struct MPIConsumerConfig {
     /**
          * The time in ms between each check of completion of the send operation of a new work item to a worker node.
          */
-    std::uint32_t masterCleanSessIntervalMSec{1'000};
+    std::uint32_t masterCleanSessIntervalMSec{GMPICONSUMERMASTERCLEANSESSINTERVALMSEC};
 
     /**
      * @brief Registers this config's command-line options into the given option descriptions.
@@ -488,7 +471,7 @@ private:
                 MPI_Wait(&handle, MPI_STATUS_IGNORE);
                 return false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
         }
     }
 
@@ -516,7 +499,7 @@ private:
             if(halt_() || std::chrono::steady_clock::now() >= deadline) {
                 return false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
         }
     }
 
@@ -1343,7 +1326,7 @@ private:
                 if(grace.expired()) {
                     break; // isAvailable stays 0
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
             }
 
             if(not isAvailable) {

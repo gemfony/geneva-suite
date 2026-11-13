@@ -653,9 +653,9 @@ private:
     // freshly minted batch. The slot field bounds a single batch to 2^24 items; dispatch_() refuses
     // a larger span (see maxBatchSize()).
     using batch_key_t = Gem::Courtier::CORRELATION_ID_TYPE;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = 24;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = GCORRELATIONIDSLOTBITS;
     static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_MASK = (1ull << SLOT_BITS) - 1ull;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_BITS = 40;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_BITS = GCORRELATIONIDBATCHBITS;
     static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_MASK = (1ull << BATCH_BITS) - 1ull;
     static constexpr std::size_t MAX_BATCH_SIZE = std::size_t{1} << SLOT_BITS;
 
@@ -887,7 +887,7 @@ protected:
             case timeoutTreatment::wait_indefinitely:
                 // Never reclaim on time: no time lease can ever elapse (liveness-driven reclaim, e.g. a
                 // websocket disconnect, still applies independently).
-                return kNeverWindow_;
+                return GNETWORKEDNEVERWINDOW;
             case timeoutTreatment::fixed:
                 return fixed_lease_;
             case timeoutTreatment::adaptive:
@@ -912,7 +912,7 @@ protected:
             case timeoutTreatment::wait_indefinitely:
                 // Never give up on time: the stall window can never elapse, so no item is declared MISSING
                 // for lateness (a genuinely dead client is still detected by liveness where available).
-                return kNeverWindow_;
+                return GNETWORKEDNEVERWINDOW;
             case timeoutTreatment::fixed:
                 return fixed_stall_window_;
             case timeoutTreatment::adaptive:
@@ -962,24 +962,27 @@ private:
     //     reclaims relative to the running mean; fixed uses the two fixed windows below; wait_indefinitely
     //     never declares MISSING on time. Selected from the config file via applyTimeoutConfig(). ---
     timeoutTreatment treatment_ = timeoutTreatment::adaptive;
-    std::chrono::milliseconds fixed_stall_window_{300'000}; ///< give-up window when treatment_ == fixed
-    std::chrono::milliseconds fixed_lease_{300'000};        ///< reclaim lease when treatment_ == fixed
-    // The "never" window/lease for wait_indefinitely. A finite but astronomically large value (100 years)
-    // rather than milliseconds::max(): it is compared against a steady_clock (nanosecond) duration, and
-    // max() would overflow int64 when the comparison promotes it to nanoseconds, whereas 100 years in ns
-    // (~3.15e18) stays well within range and can never elapse in a real run.
-    static constexpr std::chrono::milliseconds kNeverWindow_{100LL * 365 * 24 * 3600 * 1000};
+    /// give-up window when treatment_ == fixed
+    std::chrono::milliseconds fixed_stall_window_{GNETWORKEDFIXEDSTALLWINDOW};
+    std::chrono::milliseconds fixed_lease_{
+        GNETWORKEDFIXEDLEASE
+    }; ///< reclaim lease when treatment_ == fixed
 
     // --- adaptive-timeout configuration (sane defaults; tunable via the setters) ---
-    double ema_alpha_ = 0.25;   ///< EMA weight for new return-time samples
-    double lease_factor_ = 4.0; ///< Reclaim lease = lease_factor_ * mean return time (clamped)
-    double stall_factor_ = 8.0; ///< Give-up window = stall_factor_ * mean return time (clamped)
-    std::chrono::milliseconds lease_bootstrap_{10'000};     ///< Reclaim lease before any return is seen
-    std::chrono::milliseconds min_lease_{200};              ///< Lower clamp on the reclaim lease
-    std::chrono::milliseconds max_lease_{300'000};          ///< Upper clamp on the reclaim lease
-    std::chrono::milliseconds min_stall_{2'000};            ///< Lower clamp on the give-up window
-    std::chrono::milliseconds max_stall_{600'000};          ///< Upper clamp on the give-up window
-    std::chrono::milliseconds sweep_tick_{50};              ///< dispatch_ re-evaluation poll interval
+    double ema_alpha_ = GNETWORKEDEMAALPHA; ///< EMA weight for new return-time samples
+    /// Reclaim lease = lease_factor_ * mean return time (clamped)
+    double lease_factor_ = GNETWORKEDLEASEFACTOR;
+    /// Give-up window = stall_factor_ * mean return time (clamped)
+    double stall_factor_ = GNETWORKEDSTALLFACTOR;
+    /// Reclaim lease before any return is seen
+    std::chrono::milliseconds lease_bootstrap_{GNETWORKEDLEASEBOOTSTRAP};
+    std::chrono::milliseconds min_lease_{GNETWORKEDMINLEASE}; ///< Lower clamp on the reclaim lease
+    std::chrono::milliseconds max_lease_{GNETWORKEDMAXLEASE}; ///< Upper clamp on the reclaim lease
+    std::chrono::milliseconds min_stall_{GNETWORKEDMINSTALL}; ///< Lower clamp on the give-up window
+    std::chrono::milliseconds max_stall_{GNETWORKEDMAXSTALL}; ///< Upper clamp on the give-up window
+    std::chrono::milliseconds sweep_tick_{
+        GNETWORKEDSWEEPTICK
+    }; ///< dispatch_ re-evaluation poll interval
 };
 
 /******************************************************************************/

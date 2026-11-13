@@ -50,8 +50,9 @@
 #include "common/GLogger.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
-#include "courtier/consumers/GNetworkedConsumerT.hpp"
+#include "courtier/GCourtierEnums.hpp"            // GCONSUMERACCEPTRETRYPAUSE
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: shared registry
+#include "courtier/consumers/GNetworkedConsumerT.hpp"
 
 namespace Gem::Courtier {
 
@@ -315,7 +316,7 @@ private:
             glogger << "In " << consumer_name_ << "::when_accepted(): " << ec.message()
                     << " -- backing off before retrying accept" << '\n'
                     << GWARNING;
-            accept_retry_timer_.expires_after(std::chrono::milliseconds(100));
+            accept_retry_timer_.expires_after(Gem::Courtier::GCONSUMERACCEPTRETRYPAUSE);
             accept_retry_timer_.async_wait(
                 boost::asio::bind_executor(accept_strand_, [this](boost::system::error_code tec) {
                     if(not tec && not this->stopped()) {
