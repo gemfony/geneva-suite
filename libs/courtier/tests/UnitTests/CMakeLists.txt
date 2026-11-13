@@ -71,6 +71,12 @@ geneva_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
 geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
 
+# The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
+# consumer's backend factory is, and that is compiled into the library only with the GPU consumer.
+IF(GENEVA_GPU_CONSUMER_ENABLED)
+	geneva_courtier_test(GCourtierGpuConsumerTests S  GCourtierGpuConsumerTests.cpp)
+ENDIF()
+
 # The fatal reconciliation paths exit the process cleanly with a non-zero status (via LOGEXIT, no
 # core dump), so they are exercised as subprocesses: the "ok" control must succeed (exit 0); each
 # fatal scenario must exit non-zero, which CTest's WILL_FAIL asserts directly.

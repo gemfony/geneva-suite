@@ -32,13 +32,16 @@
 // Standard headers
 #include <cstddef>
 #include <memory>
+#include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 // Geneva headers
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/concurrency/GThreadPool.hpp" // the one device thread
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/gpu/GGPUBackendFactory.hpp"
 #include "courtier/gpu/GGPUConsumerConfig.hpp"
@@ -72,6 +75,13 @@ namespace Gem::Courtier::GPU {
  * GPU evaluation is deterministic and all-or-nothing, so a batch should be submitted under
  * GSubmissionPolicy::full_success_or_fatal.
  *
+ * Several algorithms may submit to the one process consumer at the same time (the fan-in case, e.g.
+ * a meta-optimization). Every submitter may call in; ONE thread owns the device. A batch is queued
+ * to that device thread and its submitter waits for it, so batches reach the device one after
+ * another, in the order they were submitted, and always from the same thread -- whatever a
+ * backend's rules about threads and device contexts are. The host buffers and the backend are
+ * touched by the device thread only and need no lock.
+ *
  * @tparam processable_type The work-item type evaluated on the device
  * @tparam scalar_type The genome/fitness flat-buffer element type and device ABI type (default double)
  */
@@ -92,6 +102,20 @@ public:
         cfg_.load(configFile);
     }
 
+    /** @brief Builds the consumer around a device backend the caller supplies, instead of one
+     *  chosen from a config file: for a backend of the caller's own, and for tests that need no
+     *  device. The backend must be ready for evaluate() (initialized by the caller).
+     *
+     *  @param backend The ready device backend (ownership taken by move)
+     *  @param marshaller The problem-specific flatten/scatter helper (shared ownership) */
+    GGPUConsumerT(
+        std::unique_ptr<GGPUDeviceBackendI<scalar_type>> backend,
+        std::shared_ptr<GGPUEvaluableI<processable_type, scalar_type>> marshaller
+    )
+      : marshaller_(std::move(marshaller))
+      , backend_(std::move(backend)) { /* nothing */
+    }
+
     /** @brief The destructor. */
     ~GGPUConsumerT() override = default;
 
@@ -101,21 +125,38 @@ public:
     /** @brief The backend actually in use (after the first dispatch_), e.g. "cuda".
      *  @return The backend name, or "(uninitialised)" before the first dispatch_ */
     [[nodiscard]] std::string activeBackendName() const {
-        return backend_ ? backend_->name() : std::string("(uninitialised)");
+        // Asked on the device thread, like everything that reads the backend.
+        return device_thread_
+            .async_schedule([this] {
+                return backend_ ? backend_->name() : std::string("(uninitialised)");
+            })
+            .get();
     }
 
 protected:
     /***************************************************************************/
-    /** @brief Evaluates the whole round's batch in one bulk launch: flatten -> backend -> scatter.
-     *  Requires a uniform genome geometry across the batch (rejects mixed geometries loudly). The GPU
-     *  consumer is non-networked and evaluates a batch all-or-nothing, so a round is always a full,
-     *  uniform-geometry batch of DO_PROCESS items (no MISSING/partial re-dispatch, no gaps).
+    /** @brief Queues the round's batch to the device thread and waits until it has been evaluated.
+     *  Safe to call from several threads at once; an exception thrown while the batch is evaluated
+     *  is rethrown here, in the submitter.
      *
      *  @param items The whole round's batch span of work items, evaluated in place (fitness written back) */
     void dispatch_(std::span<item_ptr> items) override {
         if(items.empty()) {
             return;
         }
+        device_thread_.async_schedule([this, items] { this->evaluateBatch_(items); }).get();
+    }
+
+private:
+    /***************************************************************************/
+    /** @brief Evaluates the whole round's batch in one bulk launch: flatten -> backend -> scatter.
+     *  Runs on the device thread. Requires a uniform genome geometry across the batch (rejects
+     *  mixed geometries loudly). The GPU consumer is non-networked and evaluates a batch
+     *  all-or-nothing, so a round is always a full, uniform-geometry batch of DO_PROCESS items (no
+     *  MISSING/partial re-dispatch, no gaps).
+     *
+     *  @param items The whole round's batch span of work items, evaluated in place (fitness written back) */
+    void evaluateBatch_(std::span<item_ptr> items) {
         ensureBackend_();
 
         const int n = static_cast<int>(items.size());
@@ -160,9 +201,9 @@ protected:
         marshaller_->scatter(items, fitness_);
     }
 
-private:
     /***************************************************************************/
-    /** @brief Lazily builds the backend and acquires the kernel. The GPU consumer is device-only, so a
+    /** @brief Lazily builds the backend and acquires the kernel, unless the caller supplied a
+     *  backend at construction. Runs on the device thread. The GPU consumer is device-only, so a
      *  configured backend that was not compiled into this build is a hard error (there is no CPU
      *  fallback -- a CPU run uses a CPU consumer such as --consumer stc). */
     void ensureBackend_() {
@@ -200,6 +241,15 @@ private:
     // vector keep its capacity across rounds, which an optional's reset would throw away.
     std::vector<std::byte> pconst_;  ///< Cached problem-constant blob (built once when static)
     bool pconst_built_ = false;      ///< Whether pconst_ has been built
+
+    /// The one thread that owns the device: every batch is queued to it (see the class comment),
+    /// and it alone touches the members above after construction. Declared last, so it is joined
+    /// before they are destroyed.
+    mutable Gem::Common::Concurrency::GThreadPool device_thread_{
+        "consumer:gpu",
+        1,
+        Gem::Common::Concurrency::ThreadElasticity::Fixed
+    };
 };
 
 /******************************************************************************/
