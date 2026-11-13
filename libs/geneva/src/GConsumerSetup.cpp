@@ -177,7 +177,10 @@ public:
         if(vm.contains("asio_prefetchDepth")) {
             spec.client_prefetch_depth = vm["asio_prefetchDepth"].as<std::size_t>();
         }
-        spec.n_threads = 0; // networked IO threads: hardware concurrency
+        if(vm.contains("asio_nProcessingThreads")) {
+            spec.n_threads =
+                static_cast<unsigned int>(vm["asio_nProcessingThreads"].as<std::size_t>());
+        }
         return spec;
     }
 
@@ -200,7 +203,8 @@ public:
             "\t[asio] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
             "asio_nProcessingThreads",
             po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
-            "\t[asio] The number of threads used to process incoming connections")(
+            "\t[asio] The number of io threads of the server (0 == as many as the machine has "
+            "hardware threads)")(
             "asio_maxReconnects",
             po::value<std::size_t>()->default_value(c2::GASIOCONSUMERMAXCONNECTIONATTEMPTS),
             "\t[asio] The maximum number of client reconnection attempts")(
@@ -249,7 +253,10 @@ public:
         if(vm.contains("beast_prefetchDepth")) {
             spec.client_prefetch_depth = vm["beast_prefetchDepth"].as<std::size_t>();
         }
-        spec.n_threads = 0;
+        if(vm.contains("beast_nListenerThreads")) {
+            spec.n_threads =
+                static_cast<unsigned int>(vm["beast_nListenerThreads"].as<std::size_t>());
+        }
         return spec;
     }
 
@@ -278,7 +285,8 @@ public:
             "\t[beast] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
             "beast_nListenerThreads",
             po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
-            "\t[beast] The number of threads used to listen for incoming connections")(
+            "\t[beast] The number of io threads of the server (0 == as many as the machine has "
+            "hardware threads)")(
             "beast_pingInterval",
             po::value<std::size_t>()->default_value(c2::GBEASTCONSUMERPINGINTERVAL),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "

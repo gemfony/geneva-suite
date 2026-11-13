@@ -557,9 +557,9 @@ private:
             ++nNoData_;
 
             // sleep for a short random time interval
-            std::uniform_int_distribution<> dist(
-                GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC,
-                GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC
+            std::uniform_int_distribution<std::uint32_t> dist(
+                GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC,
+                GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC
             );
             std::this_thread::sleep_for(std::chrono::milliseconds(dist(randomNumberEngine_)));
 

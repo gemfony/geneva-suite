@@ -39,18 +39,22 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <boost/program_options.hpp>
+
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "courtier/GConsumerRegistry.hpp"
+#include "courtier/GCourtierEnums.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "geneva/GConsumerSetup.hpp"
-#include "geneva/genome/GGenomeT.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -283,6 +287,40 @@ TEST_CASE("buildConsumerSetup registers the process consumer", "[consumer][shari
     CHECK(reg.consumer() == stc2.consumer);
 
     reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// The options for the number of io threads of the socket servers were registered and shown in the
+// help text, but their values never reached the consumer: it always ran as many io threads as the
+// machine has hardware threads. The value given on the command line -- or the default -- must be
+// in the spec the consumer is built from.
+TEST_CASE(
+    "the io thread options of the socket consumers take effect",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+    po::options_description all;
+    all.add(visible).add(hidden);
+
+    const auto spec_for =
+        [&all](const std::string &mnemonic, const std::vector<std::string> &args) {
+            po::variables_map vm;
+            po::store(po::command_line_parser(args).options(all).run(), vm);
+            po::notify(vm);
+            return Gem::Geneva::specFromCommandLine(mnemonic, vm);
+        };
+
+    CHECK(spec_for("beast", {"--beast_nListenerThreads", "7"}).n_threads == 7);
+    CHECK(spec_for("asio", {"--asio_nProcessingThreads", "9"}).n_threads == 9);
+    CHECK(spec_for("beast", {"--beast_nListenerThreads", "0"}).n_threads == 0); // hardware threads
+
+    // Without the option the documented default applies, not the number of hardware threads.
+    CHECK(spec_for("beast", {}).n_threads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
+    CHECK(spec_for("asio", {}).n_threads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
 }
 
 // ---------------------------------------------------------------------------

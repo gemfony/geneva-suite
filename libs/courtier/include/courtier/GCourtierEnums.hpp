@@ -127,8 +127,8 @@ constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:
  */
-/// A worker that is answered with NO_WORK waits a random time between these two bounds, in
-/// milliseconds, before it asks again. Random, so that workers that were sent away together do
+/// A worker of any transport that is answered with NO_WORK waits a random time between these two
+/// bounds, in milliseconds, before it asks again. Random, so that workers that were sent away together do
 /// not come back together. (A websocket client is rarely answered with NO_WORK: its request waits
 /// at the server instead.)
 constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
@@ -186,11 +186,6 @@ constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
 /******************************************************************************
  * Constants specifically for the GMPIConsumerT:
  */
-/// The MPI worker's names for the pause after NO_WORK (see GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC).
-constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC =
-    GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC;
-constexpr std::uint32_t GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC =
-    GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC;
 /// The message tags that the master and the worker nodes use.
 constexpr int TAG_REQUEST_WORK_ITEM = 42;
 constexpr int TAG_SEND_WORK_ITEM = 43;
