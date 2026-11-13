@@ -70,6 +70,7 @@ geneva_courtier_test(GCourtierTimeoutTests     M  GCourtierTimeoutTests.cpp)
 geneva_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
 geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
+geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 
 # The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
 # consumer's backend factory is, and that is compiled into the library only with the GPU consumer.

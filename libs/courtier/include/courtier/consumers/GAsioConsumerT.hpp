@@ -83,6 +83,16 @@ public:
         , serialization_mode_(serialization_mode)
     { /* nothing */ }
 
+    /** @brief Stops the server while this object is still complete (see the base class). */
+    ~GAsioConsumerT() override {
+        this->stopServerNoThrow_();
+    }
+
+    GAsioConsumerT(const GAsioConsumerT &) = delete;
+    GAsioConsumerT(GAsioConsumerT &&) = delete;
+    GAsioConsumerT &operator=(const GAsioConsumerT &) = delete;
+    GAsioConsumerT &operator=(GAsioConsumerT &&) = delete;
+
     /***************************************************************************/
     /** @brief Applies the timeout configuration, additionally taking the ASIO-only per-exchange session
      *  deadline (session_timeout_ms; a non-positive value disables it) on top of the base treatment/knobs.
@@ -98,19 +108,18 @@ private:
     /** @brief Starts one ASIO one-shot session for a freshly accepted connection.
      *  @param socket The freshly accepted client socket (ownership taken by move) */
     void start_session_(boost::asio::ip::tcp::socket socket) override {
-        auto self = this->shared_from_this();
         std::make_shared<session_type>(
             this->io_context_,
             std::move(socket),
-            [self, this]() -> std::unique_ptr<processable_type> { return this->checkout(); },
-            [self, this](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
+            [this]() -> std::unique_ptr<processable_type> { return this->checkout(); },
+            [this](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                 this->checkin(std::move(frame));
             },
-            [self, this]() -> bool { return this->stopped(); },
+            [this]() -> bool { return this->stopped(); },
             serialization_mode_,
-            [self, this](bool sign_on) { this->adjustSessionCount(sign_on); },
+            [this](bool sign_on) { this->adjustSessionCount(sign_on); },
             &this->wire_registry_, // blob send-once: the registry shared by all of this server's sessions
-            session_timeout_ // per-exchange connection deadline (configurable; 0 disables it)
+            session_timeout_       // per-exchange connection deadline (configurable; 0 disables it)
         )
             ->async_start_run();
     }
