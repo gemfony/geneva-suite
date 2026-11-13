@@ -35,9 +35,14 @@ ATTENTION: This test can run for a VERY long time
 ***
 
 The result is a ROOT script (fullResults.C unless the configuration names
-another file), which you can look at with a command similar to
+another file) that shows the speed-up twice, over the evaluation time and
+over its decadic logarithm. You can look at it with a command similar to
 
 root -l fullResults.C
+
+The numbers behind the plot -- the fitted serial run time, the measured
+parallel run time and the speed-up, each with its error -- are written to
+shortDelayResults.txt (short_result_file in the configuration).
 
 provided you have installed ROOT on your system (see http://root.cern.ch
 for further information).

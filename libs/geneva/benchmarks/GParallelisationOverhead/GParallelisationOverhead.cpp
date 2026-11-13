@@ -422,28 +422,47 @@ int main(int argc, char **argv) try {
         getRatioErrors(referenceExecutionTimes, parallelExecutionTimes);
 
     //---------------------------------------------------------------------
-    // Will hold all plot information
-    std::shared_ptr<GGraph2ED> const greference_ptr(new GGraph2ED());
-    greference_ptr->setPlotLabel("Serial execution times and errors");
+    // The plot shows the speed-up only, once over the evaluation time and once over its decadic
+    // logarithm, because the delays usually span several orders of magnitude. The serial and
+    // the parallel run times are straight lines of little interest; they go to the text file.
+    std::vector<std::tuple<double, double, double, double>> ratio_over_log = ratioWithErrors;
+    for(auto &point : ratio_over_log) {
+        std::get<0>(point) = std::log10(std::get<0>(point));
+    }
 
-    std::shared_ptr<GGraph2ED> const gparallel_ptr(new GGraph2ED());
-    gparallel_ptr->setPlotLabel("Parallel execution times and errors");
-
-    std::shared_ptr<GGraph2ED> const gratio_ptr(new GGraph2ED());
-    gratio_ptr->setPlotLabel("Speedup: serial/parallel execution times and errors");
-
-    (*greference_ptr) & referenceExecutionTimes;
-    (*gparallel_ptr) & parallelExecutionTimes;
+    const auto gratio_ptr = std::make_shared<GGraph2ED>();
+    gratio_ptr->setPlotLabel("Speed-up over serial execution");
+    gratio_ptr->setXAxisLabel("Evaluation time [s]");
+    gratio_ptr->setYAxisLabel("Speed-up");
     (*gratio_ptr) & ratioWithErrors;
 
-    GPlotDesigner gpd("Processing times and speed-up as a function of evaluation time", 1, 3);
+    const auto gratio_log_ptr = std::make_shared<GGraph2ED>();
+    gratio_log_ptr->setPlotLabel("Speed-up over serial execution, logarithmic time axis");
+    gratio_log_ptr->setXAxisLabel("log10(evaluation time / s)");
+    gratio_log_ptr->setYAxisLabel("Speed-up");
+    (*gratio_log_ptr) & ratio_over_log;
 
-    gpd.registerPlotter(greference_ptr);
-    gpd.registerPlotter(gparallel_ptr);
+    GPlotDesigner gpd("Speed-up as a function of the evaluation time", 1, 2);
     gpd.registerPlotter(gratio_ptr);
-
-    gpd.setCanvasDimensions(800, 1200);
+    gpd.registerPlotter(gratio_log_ptr);
+    gpd.setCanvasDimensions(800, 1000);
     gpd.writeToFile(delay_config_par.result_file);
+
+    //---------------------------------------------------------------------
+    // The numbers behind the plot, one line per delay
+    std::ofstream table(delay_config_par.short_result_file);
+    table << "# evaluation time [s]; serial run time [s] (fitted) and its error; parallel run time "
+             "[s] "
+             "and its error; speed-up and its error"
+          << '\n';
+    for(std::size_t i = 0; i < parallelExecutionTimes.size(); i++) {
+        table << std::get<0>(parallelExecutionTimes[i]) << '\t'
+              << std::get<2>(referenceExecutionTimes[i]) << '\t'
+              << std::get<3>(referenceExecutionTimes[i]) << '\t'
+              << std::get<2>(parallelExecutionTimes[i]) << '\t'
+              << std::get<3>(parallelExecutionTimes[i]) << '\t' << std::get<2>(ratioWithErrors[i])
+              << '\t' << std::get<3>(ratioWithErrors[i]) << '\n';
+    }
 
     return 0;
 }
