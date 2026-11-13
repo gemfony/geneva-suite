@@ -129,7 +129,6 @@ private:
         lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id) { this->requeue(id); };
 
         std::make_shared<session_type>(
-            this->io_context_,
             std::move(socket),
             typename session_type::SessionHooks{
                 .get_payload_item = [this, lease]() -> std::unique_ptr<processable_type> {

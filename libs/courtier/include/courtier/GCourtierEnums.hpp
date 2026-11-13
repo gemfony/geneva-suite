@@ -120,6 +120,9 @@ constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
 /// travels as one message, and its size is the user's business (the MPI transport has no cap
 /// either).
 constexpr std::size_t GWEBSOCKETMAXMESSAGEBYTES = 0;
+/// The write buffer of a websocket stream, in bytes. With fragmenting on, a message goes out in
+/// frames of at most this size, so that a control frame never waits behind a large message.
+constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 
 /******************************************************************************
  * Constants specifically for the GMPIConsumerT:

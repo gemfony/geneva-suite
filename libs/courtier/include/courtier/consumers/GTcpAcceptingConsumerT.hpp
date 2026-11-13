@@ -275,9 +275,12 @@ private:
      *  access across the io threads). */
     void async_start_accept() {
         // Use the connectionless async_accept overload: each accept yields its own fresh socket, so
-        // there is no shared socket_ member to race on. The handler is bound to accept_strand_, which
-        // serializes all acceptor access across the io threads (acceptor is not thread-safe).
+        // there is no shared socket_ member to race on. The socket is created on a strand of its
+        // own, so that everything a session does on it is serialized without further arrangement (a
+        // GWebsocketPeer relies on that). The handler is bound to accept_strand_, which serializes
+        // all acceptor access across the io threads (acceptor is not thread-safe).
         acceptor_.async_accept(
+            boost::asio::make_strand(io_context_),
             boost::asio::bind_executor(
                 accept_strand_,
                 [this](boost::system::error_code ec, boost::asio::ip::tcp::socket socket) {
