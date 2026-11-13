@@ -34,6 +34,7 @@
 
 // Standard headers go here
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <istream>
 #include <ostream>
@@ -108,6 +109,9 @@ enum class consumerType : Gem::Common::ENUMBASETYPE {
  * Global variables for failed transfers and connection attempts.
  */
 constexpr std::uint32_t GASIOCONSUMERMAXCONNECTIONATTEMPTS = 10;
+/// How long an asio client waits for the server's reply to a request before it gives up. A server
+/// answers every request at once (with work or with NO_WORK), so a longer silence means it is gone.
+constexpr std::chrono::seconds GASIOCLIENTREPLYTIMEOUT{120};
 constexpr unsigned short GCONSUMERDEFAULTPORT = 10000;
 const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;

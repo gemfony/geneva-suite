@@ -185,6 +185,14 @@ public:
     operator=(GAsioConsumerClientT<processable_type> &&) = delete;
 
     //-------------------------------------------------------------------------
+    /** @brief Sets how long the client waits for the server's reply to a request before it gives up
+     *  and terminates. A server answers every request at once, so a longer silence means it is
+     *  gone.
+     *
+     *  @param reply_timeout The limit; zero or less disables it (the client then waits forever) */
+    void setReplyTimeout(std::chrono::milliseconds reply_timeout) {
+        reply_timeout_ = reply_timeout;
+    }
 
 private:
     //-------------------------------------------------------------------------
@@ -265,12 +273,18 @@ private:
     //-------------------------------------------------------------------------
     /**
 	  * @brief Opens a fresh connection for the current exchange (outgoing_message_str_, already set by
-	  * kick_exchange_). One exchange = one connection: resolve -> connect -> write request -> read
-	  * response -> close. Also re-entered by the reconnect backoff with the SAME outgoing message.
+	  * kick_exchange_). One exchange = one connection: connect -> write request -> read response ->
+	  * close. The server's name is resolved for the first exchange only; later ones reuse the
+	  * endpoints. Also re-entered by the reconnect backoff with the SAME outgoing message.
 	  */
     void start_connect_() {
         // Prepare a new socket. This will delete the old socket.
         socket_ptr_ = std::make_unique<boost::asio::ip::tcp::socket>(io_context_);
+
+        if(not endpoints_.empty()) {
+            connect_();
+            return;
+        }
 
         // Start looking up the domain name. This call will return immediately,
         // when_resolved() will be called once the operation is complete.
@@ -287,7 +301,8 @@ private:
     //-------------------------------------------------------------------------
     /**
 	  * @brief Code to be executed when the async_resolve-operation has completed. On success it
-	  * initiates the connection to the resolved endpoints; on error the client shuts down.
+	  * keeps the resolved endpoints for all later exchanges and initiates the connection; on error
+	  * the client shuts down.
 	  *
 	  * @param ec Indicates a possible error
 	  * @param results The results of the resolve-operation (the candidate endpoints)
@@ -305,13 +320,21 @@ private:
             return;
         }
 
-        // Make the ASIO connection on the endpoint we get from a lookup
+        endpoints_ = results;
+        connect_();
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Connects the current socket to one of the server's (already resolved) endpoints. */
+    void connect_() {
         auto self = this->shared_from_this();
         boost::asio::async_connect(
             *socket_ptr_,
-            results.begin(),
-            results.end(),
-            [self](boost::system::error_code ec, [[maybe_unused]] const auto& unused) { self->when_connected(ec); }
+            endpoints_.begin(),
+            endpoints_.end(),
+            [self](boost::system::error_code ec, [[maybe_unused]] const auto &unused) {
+                self->when_connected(ec);
+            }
         );
     }
 
@@ -346,8 +369,10 @@ private:
                         << "We will try to reconnect" << '\n'
                         << GLOGGING;
 
-                // Get rid of the old socket
+                // Get rid of the old socket, and of the endpoints: the next attempt resolves the
+                // server's name afresh, in case its address has changed.
                 socket_ptr_.reset();
+                endpoints_ = {};
 
                 // Back off a short while (randomly) before retrying the SAME exchange. The wait is an
                 // async timer, NOT a blocking sleep: at depth > 1 other items are still being evaluated
@@ -428,6 +453,7 @@ private:
         // Initiate the read-sequence: Every transmission from client to server
         // should be answered, so we expect a response.
         auto self = this->shared_from_this();
+        arm_reply_timer_();
         boost::asio::async_read(
             *socket_ptr_,
             boost::asio::dynamic_buffer(incoming_message_str_),
@@ -451,6 +477,11 @@ private:
         boost::system::error_code ec,
         [[maybe_unused]] std::size_t nothing
     ) {
+        // The wait for the reply is over, whatever its outcome. The new wait id makes a timer
+        // handler that is already queued recognise that it is too late.
+        ++reply_wait_id_;
+        reply_timer_.cancel();
+
         if(ec == boost::asio::error::eof) { // The expected outcome
             // Disconnect from the remote side by destroying the socket
             socket_ptr_.reset();
@@ -477,6 +508,29 @@ private:
             this->shutdown();
             return;
         }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Bounds the wait for the server's reply (see setReplyTimeout()). On expiry the socket
+     *  is closed, which ends the outstanding read with an error; when_read() then terminates the
+     *  client. */
+    void arm_reply_timer_() {
+        if(reply_timeout_ <= std::chrono::milliseconds::zero()) {
+            return;
+        }
+        reply_timer_.expires_after(reply_timeout_);
+        auto self = this->shared_from_this();
+        reply_timer_.async_wait([self, wait_id = reply_wait_id_](boost::system::error_code ec) {
+            if(ec || wait_id != self->reply_wait_id_ || not self->socket_ptr_) {
+                return; // cancelled, or the reply this timer guarded has arrived in the meantime
+            }
+            glogger << "In GAsioConsumerClientT<processable_type>:" << '\n'
+                    << "The server did not answer a request within " << self->reply_timeout_.count()
+                    << " ms. It is presumed gone." << '\n'
+                    << GWARNING;
+            boost::system::error_code ignore;
+            std::ignore = self->socket_ptr_->close(ignore); // ends the read; when_read() terminates
+        });
     }
 
     //-------------------------------------------------------------------------
@@ -649,6 +703,7 @@ private:
         halt_timer_.cancel();
         nodata_timer_.cancel();
         reconnect_timer_.cancel();
+        reply_timer_.cancel();
         // Reset the work object, so it no longer keeps the io_context alive
         work_.reset();
     }
@@ -680,6 +735,15 @@ private:
     boost::asio::steady_timer reconnect_timer_{
         io_context_
     }; ///< Backoff timer for connection retries (async, never blocks the io thread)
+
+    resolver::results_type endpoints_; ///< The server's endpoints, resolved once (empty: resolve)
+
+    boost::asio::steady_timer reply_timer_{io_context_}; ///< Bounds the wait for the server's reply
+    std::chrono::milliseconds reply_timeout_{
+        GASIOCLIENTREPLYTIMEOUT
+    }; ///< The limit; <= 0 disables it
+    std::uint64_t reply_wait_id_ =
+        0; ///< Counts the waits, so a late timer handler knows it is late
 
     /// blob send-once (worker side): this client's local cache of received blobs, the wire
     /// context engaged around (de)serialisation, and the stable per-client peer id announced on every
@@ -958,7 +1022,8 @@ private:
 	  * frame, acts on it (PULL serves an item, RETURN sinks the returned result and serves the next)
 	  * and produces the response.
 	  *
-	  * @return Serialized data to be sent to the client as a response to the request (empty on error or unknown frame)
+	  * @return Serialized data to be sent to the client as a response to the request (a NO_WORK
+	  * frame if the request could not be decoded or handled, so the client asks again later)
 	  */
     std::string process_request() {
         try {
@@ -1000,17 +1065,15 @@ private:
                 << e.what() << '\n'
                 << GLOGGING;
         }
-        catch(
-            ...
-        ) { // session ends, caller retries
+        catch(...) {
             glogger
                 << "GAsioConsumerSessionT<processable_type>::process_request(): Caught non-std exception"
                 << '\n'
                 << GLOGGING;
         }
 
-        // Make the compiler happy
-        return {};
+        // The request was refused. Answer NO_WORK: an empty reply would end the client.
+        return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
     }
 
     //-------------------------------------------------------------------------

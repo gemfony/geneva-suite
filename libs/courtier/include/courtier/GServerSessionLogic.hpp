@@ -103,14 +103,32 @@ void serveWorkItem(
 
 /******************************************************************************/
 /**
+ * @brief The serialized answer to a request the server cannot act on -- a frame it could not
+ * decode, could not handle, or does not know: NO_WORK.
+ *
+ * A worker treats NO_WORK as "ask again later", so a refused request costs it one pause. An empty
+ * or missing reply would instead look like a broken server and end the worker.
+ *
+ * @tparam processable_type The payload type of the command container
+ * @param ser_mode The serialization format to use
+ * @return The serialized NO_WORK frame
+ */
+template <typename processable_type>
+std::string refusalReply(Gem::Common::serializationMode ser_mode) {
+    const GCommandContainerT<processable_type> refusal{GFrameKind::NO_WORK};
+    return wireEncode(refusal, nullptr, ser_mode);
+}
+
+/******************************************************************************/
+/**
  * @brief Synchronous server dispatch: acts on an already-deserialized inbound frame and returns the
  * serialized response. Used by the request/response transports (Asio, websocket).
  *
  * A PULL serves a work item; a RETURN hands the whole inbound frame to the sink (the consumer applies
  * its outcome and its library payload to the slot) and then serves the next item; both responses are
  * serialized under @p respCtx so a WORK item's blob is sent send-once. A BLOB_REQUEST is answered from
- * the shared registry (under a null scope, via the codec). An unknown frame logs a warning and yields
- * no response.
+ * the shared registry (under a null scope, via the codec). An unknown frame logs a warning and is
+ * answered with NO_WORK (see refusalReply()).
  *
  * @tparam processable_type The payload type of the command container
  * @tparam GetItemF A callable () -> std::unique_ptr<processable_type> (the checkout)
@@ -121,7 +139,7 @@ void serveWorkItem(
  * @param registry The shared blob registry (for BLOB_REQUEST; may be nullptr)
  * @param respCtx The wire context to serialize a WORK/NO_WORK response under (may be nullptr)
  * @param serMode The serialization format to use
- * @return The serialized response, or an empty string on an unknown/invalid frame
+ * @return The serialized response (a NO_WORK frame for an unknown/invalid frame)
  */
 template <typename processable_type, typename GetItemF, typename PutItemF>
 std::string handleServerRequest(
@@ -160,8 +178,9 @@ std::string handleServerRequest(
     default: {
         glogger << "In Gem::Courtier::handleServerRequest():" << '\n'
                 << "Got unknown or invalid frame " << fkToStr(container.kind()) << '\n'
+                << "The request is refused and answered with NO_WORK." << '\n'
                 << GWARNING;
-        return {};
+        return refusalReply<processable_type>(serMode);
     }
     }
 }
