@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -75,6 +76,28 @@ namespace Gem::Courtier {
  *   getItem : () -> std::unique_ptr<processable_type>          (checkout; null when the queue is empty)
  *   putItem : (GCommandContainerT<processable_type>&&) -> void (checkin a returned frame)
  */
+
+/******************************************************************************/
+/**
+ * @brief How a parked caller is told that work may be available (see
+ * GNetworkedConsumerT::checkoutOrPark()). It is called once, from whichever thread made the work
+ * available, so it must not block, must not throw and must not call into the consumer: it hands
+ * the news to the caller's own executor. It refers to its caller weakly, so that the consumer's
+ * list of parked callers never keeps one alive.
+ */
+using GWakeFn = std::move_only_function<void()>;
+
+/**
+ * @brief The outcome of GNetworkedConsumerT::checkoutOrPark(): an item, or the promise of one
+ * wake-up, or neither (the server is stopping).
+ *
+ * @tparam ProcessableT The work-item type
+ */
+template <typename ProcessableT>
+struct GCheckoutResult {
+    std::unique_ptr<ProcessableT> item; ///< Set: an item was checked out
+    bool parked = false; ///< True: nothing was pending; the caller will be woken once
+};
 
 /******************************************************************************/
 /**

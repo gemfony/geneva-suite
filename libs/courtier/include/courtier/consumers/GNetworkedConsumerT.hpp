@@ -52,11 +52,13 @@
 // Geneva headers
 #include "common/GLogger.hpp" // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
+#include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
 #include "common/concurrency/GThreadSafeSetT.hpp" // the per-session in-flight borrow set (CheckoutLease)
-#include "courtier/GCourtierEnums.hpp" // CORRELATION_ID_TYPE, dispatchState
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCommandContainerT.hpp" // the RETURN frame checkin() consumes
-#include "courtier/GWireProtocolT.hpp"     // the library seam that interprets a return
+#include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
+#include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
+#include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // timeoutTreatment + the config struct
 
 namespace Gem::Courtier {
@@ -265,6 +267,13 @@ public:
         std::scoped_lock const lk(mtx_);
         return n_empty_checkouts_;
     }
+    /** @brief Number of callers that are parked right now, waiting to be told about work (see
+     *  checkoutOrPark()). A caller that has gone away while parked is counted until the next
+     *  announcement.
+     *  @return The current length of the list of parked callers */
+    [[nodiscard]] std::size_t parkedCount() const {
+        return parked_.size();
+    }
 
 protected:
     /***************************************************************************/
@@ -328,6 +337,30 @@ protected:
     item_ptr checkout() {
         std::scoped_lock const lk(mtx_);
         return checkout_locked();
+    }
+
+    /***************************************************************************/
+    /** @brief Like checkout(), but a caller for whom nothing is pending is parked instead of sent
+     *  away empty-handed: @p wake is kept and called once, as soon as work may be available (a
+     *  batch was registered, an item was put back) or the server stops. The woken caller asks
+     *  again; it may find that others were faster and be parked once more.
+     *
+     *  For transports whose sessions can wait and can be reached later (the websocket consumer).
+     *  The check for pending work and the parking happen under one lock, and work is announced
+     *  only after it was made pending under that lock, so no wake-up is lost.
+     *
+     *  @param wake Called once when the caller should ask again (see GWakeFn for what it may do)
+     *  @return An item; or `parked`, with @p wake kept; or neither once the server is stopping */
+    Gem::Courtier::GCheckoutResult<processable_type> checkoutOrPark(Gem::Courtier::GWakeFn wake) {
+        std::scoped_lock const lk(mtx_);
+        if(stop_.load()) {
+            return {};
+        }
+        if(total_pending_ > 0) {
+            return {.item = checkout_locked()};
+        }
+        static_cast<void>(parked_.push(std::move(wake))); // unbounded queue: push never fails
+        return {.parked = true};
     }
 
     /***************************************************************************/
@@ -433,13 +466,14 @@ protected:
      *  passed correlation id. A no-op if the batch moved on or the slot is no longer in flight.
      *  @param id The (batch_id, slot) correlation id of the item to put back */
     void requeue(Gem::Courtier::CORRELATION_ID_TYPE id) {
-        std::scoped_lock const lk(mtx_);
-        auto it = batches_.find(decodeBatch(id));
-        if(it == batches_.end()) {
-            return;
+        bool requeued = false;
+        {
+            std::scoped_lock const lk(mtx_);
+            auto it = batches_.find(decodeBatch(id));
+            requeued = it != batches_.end() && requeueSlot_locked(it->second, decodeSlot(id));
         }
-        if(requeueSlot_locked(it->second, decodeSlot(id))) {
-            cv_work_.notify_one();
+        if(requeued) {
+            announceWork_();
         }
     }
 
@@ -448,10 +482,15 @@ protected:
      *  @return true once teardown has been requested */
     [[nodiscard]] bool stopped() const noexcept { return stop_.load(); }
 
-    /** @brief Requests teardown -- subclasses call this from their stop path. Wakes every waiter. */
+    /** @brief Requests teardown -- subclasses call this from their stop path. Wakes every waiter
+     *  and every parked caller. The flag is set under the lock, so a caller either sees it or is
+     *  parked (or waiting) by the time the wake-up goes out. */
     void requestStop() noexcept {
-        stop_.store(true);
-        cv_work_.notify_all();
+        {
+            std::scoped_lock const lk(mtx_);
+            stop_.store(true);
+        }
+        announceWork_();
         cv_done_.notify_all();
     }
 
@@ -528,7 +567,7 @@ protected:
             my_it = batches_.emplace(key, std::move(b)).first;
             total_pending_ += n_sel;
         }
-        cv_work_.notify_all(); // wake any session blocked in checkoutWait()
+        announceWork_();
 
         // Wait until every slot of THIS batch is DONE, or its progress stalls past the (adaptive)
         // give-up window. The happy path wakes on the final checkin() and exits at once. While
@@ -550,8 +589,14 @@ protected:
                 if(n_return_samples_ > 0 && now - b.last_progress > currentStallWindow()) {
                     break; // progress stalled with live workers -> give up; unresolved slots MISSING
                 }
-                if(this->usesTimeLease()) {
-                    leaseSweep_locked(b, now);
+                if(this->usesTimeLease() && leaseSweep_locked(b, now)) {
+                    // Items were put back: tell the callers, without the lock. The batch's last
+                    // check-in may arrive in that window, and its notification would find nobody
+                    // waiting -- so look at the batch again instead of going to sleep.
+                    lk.unlock();
+                    announceWork_();
+                    lk.lock();
+                    continue;
                 }
                 cv_done_.wait_for(lk, sweep_tick_);
             }
@@ -765,8 +810,9 @@ private:
     /** @brief Reclaims every slot of batch @p b that has been IN_FLIGHT longer than the adaptive
      *  lease, returning it to PENDING for re-service. Caller holds mtx_.
      *  @param b The batch to sweep
-     *  @param now The current time, against which each slot's checkout time is compared to the lease */
-    void leaseSweep_locked(BatchState &b, clock::time_point now) {
+     *  @param now The current time; each slot's checkout time is compared with the lease against it
+     *  @return true if at least one slot was put back (the caller then announces the work) */
+    [[nodiscard]] bool leaseSweep_locked(BatchState &b, clock::time_point now) {
         const auto lease = currentLease();
         bool any = false;
         for(std::size_t k = 0; k < b.items.size(); ++k) {
@@ -776,8 +822,25 @@ private:
                 any = requeueSlot_locked(b, k) || any;
             }
         }
-        if(any) {
-            cv_work_.notify_all();
+        return any;
+    }
+
+    /***************************************************************************/
+    /** @brief Tells everyone who waits for work that there may be some: the callers blocked in
+     *  checkoutWait() and all parked callers. Called WITHOUT mtx_, by every place that made
+     *  work pending (or set the stop flag) under it.
+     *
+     *  All parked callers are woken, not as many as there are items: whoever finds nothing parks
+     *  again. The length of the list is read once, so that a caller that parks again while this
+     *  loop runs is not woken a second time in the same round. */
+    void announceWork_() noexcept {
+        cv_work_.notify_all();
+        for(std::size_t n = parked_.size(); n > 0; --n) {
+            auto wake = parked_.try_pop();
+            if(not wake) {
+                break; // another announcement was faster
+            }
+            (*wake)();
         }
     }
 
@@ -851,6 +914,9 @@ private:
     batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 40 bits)
     batch_key_t last_served_batch_ = 0;         ///< Round-robin cursor across batches (for fairness)
     std::size_t total_pending_ = 0;             ///< Slots PENDING across ALL batches (cv predicate)
+    /// The callers parked by checkoutOrPark(), each as its wake function. Pushed under mtx_,
+    /// popped without it (see announceWork_()).
+    Gem::Common::Concurrency::GMPMCQueueT<Gem::Courtier::GWakeFn, 0> parked_;
 
     // --- late-return facility: a result that arrives after its batch finished/timed out is PARKED for a
     //     later getOldWorkItems() to reap instead of dropped, and a clone of each un-returned original is
