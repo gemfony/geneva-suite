@@ -73,20 +73,36 @@ public:
      *  @param port The TCP port the server listens on (0 lets the OS pick; the chosen port is read back)
      *  @param n_threads Number of io threads to run; 0 selects the hardware concurrency
      *  @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
-     *  @param ping_interval Time in seconds between keep-alive pings each session sends to its client
+     *  @param ping_interval Seconds of silence after which a session pings its client; after twice
+     *         that time without any inbound data the client is presumed gone (0 switches this off)
      *  @param verbose_control_frames If true, sessions log a diagnostic message for every control frame */
     explicit GWebsocketConsumerT(
         unsigned short port,
         std::size_t n_threads = 0,
-        Gem::Common::serializationMode serialization_mode = Gem::Common::serializationMode::GEM_BINARY,
-        std::size_t ping_interval = 5,
+        Gem::Common::serializationMode serialization_mode =
+            Gem::Common::serializationMode::GEM_BINARY,
+        std::size_t ping_interval = GBEASTCONSUMERPINGINTERVAL,
         bool verbose_control_frames = false
     )
-        : GTcpAcceptingConsumerT<processable_type>("Gem::Courtier::GWebsocketConsumerT", port, n_threads)
-        , serialization_mode_(serialization_mode)
-        , ping_interval_(ping_interval)
-        , verbose_control_frames_(verbose_control_frames)
-    { /* nothing */ }
+      : GTcpAcceptingConsumerT<processable_type>(
+            "Gem::Courtier::GWebsocketConsumerT",
+            port,
+            n_threads
+        )
+      , serialization_mode_(serialization_mode)
+      , ping_interval_(ping_interval)
+      , verbose_control_frames_(verbose_control_frames) { /* nothing */
+    }
+
+    /** @brief Stops the server while this object is still complete (see the base class). */
+    ~GWebsocketConsumerT() override {
+        this->stopServerNoThrow_();
+    }
+
+    GWebsocketConsumerT(const GWebsocketConsumerT &) = delete;
+    GWebsocketConsumerT(GWebsocketConsumerT &&) = delete;
+    GWebsocketConsumerT &operator=(const GWebsocketConsumerT &) = delete;
+    GWebsocketConsumerT &operator=(GWebsocketConsumerT &&) = delete;
 
 protected:
     /***************************************************************************/
@@ -107,35 +123,31 @@ private:
         // liveness-driven put-back, no time lease needed (see usesTimeLease()). A prefetching client may
         // hold several items at once, so the lease tracks the whole in-flight set, not just the latest.
         auto lease = std::make_shared<typename GNetworkedConsumerT<processable_type>::CheckoutLease>();
-        // The weak pointer is kept at the CONCRETE type: requeue() is protected on the networked
-        // base, so it is only accessible through a pointer of this class's own type.
-        std::weak_ptr<GWebsocketConsumerT<processable_type>> const w =
-            std::static_pointer_cast<GWebsocketConsumerT<processable_type>>(this->shared_from_this());
-        lease->on_abandon = [w](Gem::Courtier::CORRELATION_ID_TYPE id) {
-            if(auto s = w.lock()) {
-                s->requeue(id);
-            }
-        };
+        // The lease and the hooks below refer to this consumer through `this`. They live in a
+        // session, and every session is gone before the networked base of this object is destroyed
+        // (see the lifetime note in GTcpAcceptingConsumerT).
+        lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id) { this->requeue(id); };
 
-        auto self = this->shared_from_this();
         std::make_shared<session_type>(
-            this->io_context_,
             std::move(socket),
             typename session_type::SessionHooks{
                 .get_payload_item =
-                    [self, this, lease]() -> std::unique_ptr<processable_type> {
-                        auto p = this->checkout();
-                        lease->add(p); // no-op for a null item; records p's correlation id
-                        return p;
+                    [this, lease](Gem::Courtier::GWakeFn wake) {
+                        auto result = this->checkoutOrPark(std::move(wake));
+                        lease->add(
+                            result.item
+                        ); // no-op without an item; records its correlation id
+                        return result;
                     },
                 .put_payload_item =
-                    [self, this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
+                    [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                         // returned normally -> nothing for the lease to reclaim
                         lease->remove(frame.outcome().correlation_id);
                         this->checkin(std::move(frame));
                     },
-                .check_server_stopped = [self, this]() -> bool { return this->stopped(); },
-                .server_sign_on = [self, this](bool sign_on) { this->adjustSessionCount(sign_on); },
+                .abandonItems = [lease] { lease->abandonAll(); },
+                .check_server_stopped = [this]() -> bool { return this->stopped(); },
+                .server_sign_on = [this](bool sign_on) { this->adjustSessionCount(sign_on); },
             },
             serialization_mode_,
             ping_interval_,

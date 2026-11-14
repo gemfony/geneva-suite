@@ -50,8 +50,9 @@
 #include "common/GLogger.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
-#include "courtier/consumers/GNetworkedConsumerT.hpp"
+#include "courtier/GCourtierEnums.hpp"            // GCONSUMERACCEPTRETRYPAUSE
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: shared registry
+#include "courtier/consumers/GNetworkedConsumerT.hpp"
 
 namespace Gem::Courtier {
 
@@ -65,23 +66,24 @@ namespace Gem::Courtier {
  * contributes only its session construction via the start_session_() hook (plus any
  * transport-specific configuration and knobs).
  *
+ * Lifetime. The accept loop and the sessions refer to this object through a plain `this`, never
+ * through an owning pointer: an owning pointer held by a pending handler would live inside
+ * io_context_, a member of this very object, which would then keep itself alive for good. A plain
+ * `this` is safe because handlers run on the io threads only, and those are joined before any part
+ * of the object is destroyed. That holds only if the MOST-DERIVED class stops the server in its
+ * destructor (stopServerNoThrow_()), since a handler may still call the virtual start_session_()
+ * until the threads are joined. The destructor of this class repeats the stop as a safety net.
+ * Connections that are still open when the server stops are closed when the object is destroyed.
+ *
  * @tparam processable_type The work-item type served to clients and collected back from them.
  */
 template <typename processable_type>
-class GTcpAcceptingConsumerT
-  : public GNetworkedConsumerT<processable_type>
-  , public std::enable_shared_from_this<GTcpAcceptingConsumerT<processable_type>> {
+class GTcpAcceptingConsumerT : public GNetworkedConsumerT<processable_type> {
 public:
     /***************************************************************************/
-    /** @brief The destructor stops the server (idempotent). stopServer() posts to a strand and joins
-     *  the io threads, either of which may throw; a destructor must not propagate, so teardown is
-     *  best-effort and any exception is swallowed. */
+    /** @brief The destructor stops the server if the derived class has not done so already. */
     ~GTcpAcceptingConsumerT() override {
-        try {
-            this->stopServer();
-        } catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
-            // never let an exception escape a destructor
-        }
+        this->stopServerNoThrow_();
     }
 
     GTcpAcceptingConsumerT(const GTcpAcceptingConsumerT &) = delete;
@@ -168,7 +170,8 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Stops accepting connections, lets the io threads drain and joins them. Idempotent.
+     * @brief Stops the io threads, joins them and closes the listening port. Idempotent. Must not
+     * be called from one of the io threads.
      */
     void stopServer() {
         if(stopped_already_.exchange(true)) {
@@ -176,25 +179,35 @@ public:
         }
         this->requestStop();
 
-        // Close the acceptor and cancel the retry timer ON the accept strand, so this never runs
-        // concurrently with the accept handler (a tcp::acceptor is not thread-safe). All other
-        // acceptor access also happens on the strand.
-        boost::asio::post(accept_strand_, [this]() {
-            boost::system::error_code ec;
-            std::ignore = acceptor_.close(ec); // best-effort teardown
-            accept_retry_timer_.cancel();
-        });
-
         // Drop the work guard and stop the context so run() returns on every io thread.
         work_guard_.reset();
         io_context_.stop();
         gtg_.join_all();
+
+        // No io thread is left, so nothing else can touch the acceptor (it is not thread-safe, and
+        // while they ran all access to it went through the accept strand). Close it here: the port
+        // is free once this returns.
+        boost::system::error_code ec;
+        std::ignore = acceptor_.close(ec); // best-effort teardown
 
         // The io threads are joined -- return their reservation to the thread budget.
         io_budget_.release();
     }
 
 protected:
+    /***************************************************************************/
+    /** @brief Stops the server without letting an exception escape -- for destructors. A concrete
+     *  consumer calls this from its own destructor (see the class comment). stopServer() joins the
+     *  io threads, which may throw; teardown is best-effort and any exception is swallowed. */
+    void stopServerNoThrow_() noexcept {
+        try {
+            this->stopServer();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
+            // never let an exception escape a destructor
+        }
+    }
+
     /***************************************************************************/
     /** @brief Initializes the shared server shell.
      *
@@ -209,8 +222,8 @@ protected:
 
     /***************************************************************************/
     /** @brief Starts a transport-specific session for a freshly accepted connection -- the ONE hook a
-     *  concrete socket consumer implements. Called on the accept strand, with the object kept alive
-     *  by a shared_ptr in the accept chain.
+     *  concrete socket consumer implements. Called on the accept strand. The session's hooks refer
+     *  to the consumer through `this` (see the class comment).
      *
      *  @param socket The freshly accepted client socket (ownership taken by move) */
     virtual void start_session_(boost::asio::ip::tcp::socket socket) = 0;
@@ -231,14 +244,23 @@ protected:
     }
 
     /***************************************************************************/
-    /// The io context all sessions run on; accessible to the concrete session factory.
-    boost::asio::io_context io_context_;
+    // Declaration order matters below. When io_context_ is destroyed it destroys the handlers that
+    // never ran, and with them the sessions they hold; a session's destructor signs off with the
+    // session counter and the blob registry. Both are therefore declared BEFORE the context, so
+    // that they outlive it.
 
     /// The blob send-once registry shared by all of this server's sessions: a content-addressed
     /// store of the blobs the server has sent, with per-peer ack tracking, so a given blob
     /// travels to a given client only once. A worker that misses (id-only item with no cached blob)
     /// fetches it back via the REQUEST_BLOB / SEND_BLOB command pair.
     Gem::Courtier::GWireBlobRegistry wire_registry_;
+
+private:
+    std::atomic<std::size_t> n_active_sessions_{0}; ///< Sessions alive (see adjustSessionCount())
+
+protected:
+    /// The io context all sessions run on; accessible to the concrete session factory.
+    boost::asio::io_context io_context_;
 
 private:
     /***************************************************************************/
@@ -254,14 +276,16 @@ private:
      *  access across the io threads). */
     void async_start_accept() {
         // Use the connectionless async_accept overload: each accept yields its own fresh socket, so
-        // there is no shared socket_ member to race on. The handler is bound to accept_strand_, which
-        // serializes all acceptor access across the io threads (acceptor is not thread-safe).
-        auto self = this->shared_from_this();
+        // there is no shared socket_ member to race on. The socket is created on a strand of its
+        // own, so that everything a session does on it is serialized without further arrangement (a
+        // GWebsocketPeer relies on that). The handler is bound to accept_strand_, which serializes
+        // all acceptor access across the io threads (acceptor is not thread-safe).
         acceptor_.async_accept(
+            boost::asio::make_strand(io_context_),
             boost::asio::bind_executor(
                 accept_strand_,
-                [self](boost::system::error_code ec, boost::asio::ip::tcp::socket socket) {
-                    self->when_accepted(ec, std::move(socket));
+                [this](boost::system::error_code ec, boost::asio::ip::tcp::socket socket) {
+                    this->when_accepted(ec, std::move(socket));
                 }
             )
         );
@@ -292,12 +316,11 @@ private:
             glogger << "In " << consumer_name_ << "::when_accepted(): " << ec.message()
                     << " -- backing off before retrying accept" << '\n'
                     << GWARNING;
-            accept_retry_timer_.expires_after(std::chrono::milliseconds(100));
-            auto self = this->shared_from_this();
+            accept_retry_timer_.expires_after(Gem::Courtier::GCONSUMERACCEPTRETRYPAUSE);
             accept_retry_timer_.async_wait(
-                boost::asio::bind_executor(accept_strand_, [self](boost::system::error_code tec) {
-                    if(not tec && not self->stopped()) {
-                        self->async_start_accept();
+                boost::asio::bind_executor(accept_strand_, [this](boost::system::error_code tec) {
+                    if(not tec && not this->stopped()) {
+                        this->async_start_accept();
                     }
                 })
             );
@@ -332,7 +355,6 @@ private:
     Gem::Common::Concurrency::GThreadBudget::Reservation io_budget_;
 
     Gem::Common::Concurrency::GThreadGroup gtg_;
-    std::atomic<std::size_t> n_active_sessions_{0};
     std::atomic<bool> stopped_already_{false};
 };
 

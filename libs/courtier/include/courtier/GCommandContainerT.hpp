@@ -36,18 +36,20 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <variant>
 
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GArchiveNamed.hpp"      // archive_named (named-member emitter)
-#include "weft/GArchivePolymorphic.hpp"  // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
+#include "common/GArchiveNamed.hpp" // archive_named (named-member emitter)
+#include "common/GLogger.hpp"       // the warning of processWorkFrame()
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
 #include "courtier/GWireProtocolT.hpp"            // the library seam (tag + payload type)
 #include "courtier/GWireSerializationContext.hpp" // GWireBlobId / GWirePeerId / the blob frame payloads
+#include "weft/GArchivePolymorphic.hpp" // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
 
 namespace Gem::Courtier {
 
@@ -361,6 +363,38 @@ void makeReturnFrame(GCommandContainerT<processable_type> &container) {
     }
     else {
         container.setLibraryPayload(std::move(payload));
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Worker side: processes the work item a WORK frame carries, without letting a failure of
+ * the user's processing code escape.
+ *
+ * Such a failure surfaces as a g_processing_exception, with the work item already flagged
+ * (EXCEPTION_CAUGHT) and its error text stored. It must not end the worker: the flagged item is
+ * returned like any other result, and the server's submission policy decides what happens to the
+ * slot. Every transport's worker processes through this function, so the rule is stated once.
+ *
+ * @tparam processable_type The payload type of the command container
+ * @param container The frame holding the work item to process
+ * @param worker_name The worker's name, used in the warning
+ * @throws geneva_exception if the frame holds no work item
+ */
+template <typename processable_type>
+void processWorkFrame(
+    GCommandContainerT<processable_type> &container,
+    std::string_view worker_name
+) {
+    try {
+        container.process();
+    }
+    catch(const g_processing_exception &e) {
+        glogger << "In " << worker_name << ":" << '\n'
+                << "The work item flagged a processing exception:" << '\n'
+                << e.what() << '\n'
+                << "It is returned to the server flagged; the worker keeps running." << '\n'
+                << GWARNING;
     }
 }
 

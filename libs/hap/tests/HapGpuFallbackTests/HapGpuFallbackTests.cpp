@@ -25,6 +25,7 @@
  * See the NOTICE file in the top-level directory of the Geneva library
  * collection for a list of contributors and copyright information.
  *
+ ********************************************************************************/
 
 /*
  * Tests of the GPU switch and the CPU fall-back of Hap's bulk random-number sources.

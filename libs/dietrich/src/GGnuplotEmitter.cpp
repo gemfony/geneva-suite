@@ -263,6 +263,10 @@ void emitMultiplot(
     // advances in the SAME order as emitDatablocks(), so $Dn lines up with its data.
     std::size_t db_ref = 0;
     std::size_t n_plots = 0;
+    // A logarithmic scale stays in force from one pad of a multiplot to the next, so the emitter
+    // keeps track of it and switches it off again for a pad that wants a linear axis.
+    bool log_x_in_force = false;
+    bool log_y_in_force = false;
     for(const auto &p : plotters) {
         if(n_plots++ >= max_plots) {
             break;
@@ -279,6 +283,14 @@ void emitMultiplot(
             result << indent << "set zlabel \"" << backslashEscape(p->zAxisLabel()) << "\"" << '\n';
         }
         result << indent << "set title \"" << backslashEscape(p->plotLabel()) << "\"" << '\n';
+        if(p->xAxisLogarithmic() != log_x_in_force) {
+            log_x_in_force = p->xAxisLogarithmic();
+            result << indent << (log_x_in_force ? "set" : "unset") << " logscale x" << '\n';
+        }
+        if(p->yAxisLogarithmic() != log_y_in_force) {
+            log_y_in_force = p->yAxisLogarithmic();
+            result << indent << (log_y_in_force ? "set" : "unset") << " logscale y" << '\n';
+        }
 
         // GGraph4D maps its w-component to a colour palette.
         if(k == scriptKind::g4d) {

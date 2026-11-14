@@ -113,11 +113,14 @@ using Gem::Common::to_string;
  * @param cp A copy of another GBasePlotter object
  */
 GBasePlotter::GBasePlotter(const GBasePlotter &cp)
-  : Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>>(cp)
+  : Gem::Common::
+        GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>>(cp)
   , drawing_arguments_(cp.drawing_arguments_)
   , x_axis_label_(cp.x_axis_label_)
   , y_axis_label_(cp.y_axis_label_)
   , z_axis_label_(cp.z_axis_label_)
+  , x_axis_logarithmic_(cp.x_axis_logarithmic_)
+  , y_axis_logarithmic_(cp.y_axis_logarithmic_)
   , plot_label_(cp.plot_label_)
   , ds_marker_(cp.ds_marker_)
   , id_(cp.id_) {
@@ -147,6 +150,8 @@ GBasePlotter &GBasePlotter::operator=(GBasePlotter const &cp) {
     x_axis_label_ = cp.x_axis_label_;
     y_axis_label_ = cp.y_axis_label_;
     z_axis_label_ = cp.z_axis_label_;
+    x_axis_logarithmic_ = cp.x_axis_logarithmic_;
+    y_axis_logarithmic_ = cp.y_axis_logarithmic_;
     plot_label_ = cp.plot_label_;
     ds_marker_ = cp.ds_marker_;
     id_ = cp.id_;
@@ -208,6 +213,46 @@ std::string GBasePlotter::yAxisLabel() const {
 
 /******************************************************************************/
 /**
+ * Chooses a logarithmic or a linear scale for the x-axis of this plot's pad
+ *
+ * @param logarithmic true for a logarithmic x-axis, false for a linear one
+ */
+void GBasePlotter::setXAxisLogarithmic(bool logarithmic) {
+    x_axis_logarithmic_ = logarithmic;
+}
+
+/******************************************************************************/
+/**
+ * Whether the x-axis is logarithmic
+ *
+ * @return true if the x-axis of this plot's pad is drawn with a logarithmic scale
+ */
+bool GBasePlotter::xAxisLogarithmic() const {
+    return x_axis_logarithmic_;
+}
+
+/******************************************************************************/
+/**
+ * Chooses a logarithmic or a linear scale for the y-axis of this plot's pad
+ *
+ * @param logarithmic true for a logarithmic y-axis, false for a linear one
+ */
+void GBasePlotter::setYAxisLogarithmic(bool logarithmic) {
+    y_axis_logarithmic_ = logarithmic;
+}
+
+/******************************************************************************/
+/**
+ * Whether the y-axis is logarithmic
+ *
+ * @return true if the y-axis of this plot's pad is drawn with a logarithmic scale
+ */
+bool GBasePlotter::yAxisLogarithmic() const {
+    return y_axis_logarithmic_;
+}
+
+/******************************************************************************/
+/**
  * Sets the label for the z-axis
  *
  * @param z_axis_label The label to be assigned to the z-axis
@@ -261,6 +306,8 @@ GPlotSpec GBasePlotter::plotSpec() const {
     spec.x_label = x_axis_label_;
     spec.y_label = y_axis_label_;
     spec.z_label = z_axis_label_;
+    spec.x_log = x_axis_logarithmic_;
+    spec.y_log = y_axis_logarithmic_;
     spec.drawing_args = drawing_arguments_;
     return spec;
 }
@@ -378,6 +425,8 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     p->setXAxisLabel(spec.x_label);
     p->setYAxisLabel(spec.y_label);
     p->setZAxisLabel(spec.z_label);
+    p->setXAxisLogarithmic(spec.x_log);
+    p->setYAxisLogarithmic(spec.y_log);
     p->setDrawingArguments(spec.drawing_args);
 
     // The plot mode (scatter vs. curve) is a GGraph2D / GGraph2ED render choice; apply it
@@ -630,6 +679,11 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
                     << plotter_ptr->footerData_(true, this->id(), pos, indent) << '\n';
 
         pos++;
+    }
+
+    // Several plotters share this pad: give them one frame and a legend.
+    if(not secondary_plotter_.empty()) {
+        emitRootOverlayFrameAndLegend(footer_data, indent);
     }
 
     return footer_data.str();

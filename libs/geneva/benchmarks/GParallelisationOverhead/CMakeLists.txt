@@ -57,8 +57,15 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/gene
 # The TIMEOUT is ~3x that measurement. The former 2500 s was only 2.2x, which is not enough margin for
 # a wall-clock measurement of PARALLEL throughput: a slower or busier machine would have tripped the
 # clock and reported a defect that is not there.
+# Two runs: the serial reference first (it stores its line in the working directory), then the
+# measurement, which reads it.
+ADD_TEST(NAME ${EXECUTABLENAME}Reference COMMAND ${EXECUTABLENAME} --reference)
+SET_TESTS_PROPERTIES(${EXECUTABLENAME}Reference PROPERTIES
+		LABELS "benchmark" TIMEOUT 3600 FIXTURES_SETUP ${EXECUTABLENAME}ReferenceLine)
+GENEVA_TEST_SIZE(${EXECUTABLENAME}Reference XL)
 ADD_TEST(${EXECUTABLENAME} ${EXECUTABLENAME})
-SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "benchmark" TIMEOUT 3600)
+SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES
+		LABELS "benchmark" TIMEOUT 3600 FIXTURES_REQUIRED ${EXECUTABLENAME}ReferenceLine)
 GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )

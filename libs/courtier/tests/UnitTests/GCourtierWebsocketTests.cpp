@@ -39,10 +39,11 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <future>
 #include <memory>
+#include <span>
 #include <thread>
 #include <vector>
-#include <span>
 
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp" // the (reused) client
@@ -236,5 +237,133 @@ TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its
         // Rescue a hung client (the pre-fix behaviour) so the jthread can join and the test
         // FAILS instead of deadlocking the suite.
         client->flagCloseRequested();
+    }
+}
+
+/******************************************************************************/
+// A client for which there is no work is not sent away with NO_WORK to ask again after a pause:
+// its session is parked with the consumer and answers as soon as there is an item. So an idle
+// client causes no traffic, and none of the pauses that used to add to every iteration.
+//
+// Checked without timing: after an idle phase every client is parked and the server has not
+// answered a single request with NO_WORK; a batch is evaluated completely; afterwards every
+// client is parked again. With a prefetch depth above one a session owes several answers but is
+// parked once.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario, run for two prefetch depths
+TEST_CASE(
+    "courtier(websocket): idle clients are parked, not sent away",
+    "[courtier][websocket][net][park]"
+) {
+    constexpr std::size_t CLIENTS = 4;
+    constexpr std::size_t ITEMS = 40;
+
+    for(const std::size_t prefetch_depth : {std::size_t{1}, std::size_t{3}}) {
+        auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(
+            /*port=*/0,
+            /*threads=*/2,
+            BIN
+        );
+        consumer->startServer();
+
+        std::vector<std::shared_ptr<ccons::GWebsocketClientT<GFaultyContainer>>> clients;
+        std::vector<std::jthread> client_threads;
+        for(std::size_t c = 0; c < CLIENTS; ++c) {
+            clients.push_back(
+                std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
+                    "127.0.0.1",
+                    consumer->getPort(),
+                    BIN,
+                    /*verbose_control_frames=*/false,
+                    prefetch_depth
+                )
+            );
+            client_threads.emplace_back([client = clients.back()] { client->run(); });
+        }
+
+        const auto all_parked = [&consumer] {
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+            while(consumer->parkedCount() != CLIENTS &&
+                  std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            }
+            return consumer->parkedCount() == CLIENTS;
+        };
+
+        CHECK(all_parked());
+        CHECK(consumer->emptyCheckoutCount() == 0);
+
+        // On a thread of its own and with a limit: if the parked sessions were not woken, the
+        // batch would wait forever, and the test is to fail, not to hang.
+        auto items = make_batch(ITEMS);
+        auto batch = std::async(std::launch::async, [&] {
+            consumer->processBatch(
+                std::span<item_ptr>(items.data(), items.size()),
+                c2::GSubmissionPolicy::full_success_or_fatal()
+            );
+        });
+        if(batch.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
+            consumer->stopServer(); // releases the waiting batch
+            batch.wait();
+            for(auto &client : clients) {
+                client->flagCloseRequested();
+            }
+            FAIL("the batch was not served");
+        }
+        CHECK(count_processed(items) == ITEMS);
+
+        CHECK(all_parked()); // each client's last result was a request for more
+        CHECK(consumer->emptyCheckoutCount() == 0);
+
+        for(auto &client : clients) {
+            client->flagCloseRequested();
+        }
+        client_threads.clear(); // joins
+
+        // The clients are gone while their sessions were parked. The list of parked callers must
+        // not keep a session alive: each one ends with its connection.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while(consumer->getNActiveSessions() != 0 && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        CHECK(consumer->getNActiveSessions() == 0);
+
+        // Their entries are still in the list of parked callers, ahead of the client that comes
+        // now. One item means one wake-up, and it must not be spent on a session that has ended.
+        CHECK(consumer->parkedCount() == CLIENTS);
+        auto late_client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
+            "127.0.0.1",
+            consumer->getPort(),
+            BIN,
+            /*verbose_control_frames=*/false,
+            prefetch_depth
+        );
+        const std::jthread late_thread([late_client] { late_client->run(); });
+        const auto late_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while(consumer->parkedCount() != CLIENTS + 1 &&
+              std::chrono::steady_clock::now() < late_deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        REQUIRE(consumer->parkedCount() == CLIENTS + 1);
+
+        // A batch that makes no progress is given up after a while and submitted again, which
+        // announces its item anew; that would paper over a wake-up that went astray. Not here.
+        consumer->setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
+        auto one_item = make_batch(1);
+        auto one_batch = std::async(std::launch::async, [&] {
+            consumer->processBatch(
+                std::span<item_ptr>(one_item.data(), one_item.size()),
+                c2::GSubmissionPolicy::full_success_or_fatal()
+            );
+        });
+        if(one_batch.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
+            consumer->stopServer(); // releases the waiting batch
+            one_batch.wait();
+            late_client->flagCloseRequested();
+            FAIL("the wake-up for the item did not reach the client that is there");
+        }
+        CHECK(count_processed(one_item) == 1);
+        late_client->flagCloseRequested();
+
+        consumer->stopServer();
     }
 }

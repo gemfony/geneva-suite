@@ -47,6 +47,7 @@
 #include "common/GLogger.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
@@ -114,6 +115,124 @@ inline std::string rootEscape(const std::string &in) {
  */
 inline std::string dsMarkerComment(const std::string &ds_marker) {
     return ds_marker.empty() ? std::string{} : "// " + rootEscape(ds_marker);
+}
+
+/******************************************************************************/
+/**
+ * The ROOT colour of the n-th series of a pad that holds several: the primary plotter is series 0,
+ * its overlays follow. ROOT draws every graph in black unless it is told otherwise; the other
+ * backends choose their colours themselves.
+ *
+ * @param series The position of the series in its pad
+ * @return A ROOT colour index
+ */
+inline int rootSeriesColour(std::size_t series) {
+    static constexpr std::array<int, 8> COLOURS{4, 2, 8, 6, 7, 9, 28, 1}; // blue, red, green, ...
+    return COLOURS.at(series % COLOURS.size());
+}
+
+/******************************************************************************/
+/**
+ * Emits the two ROOT lines that give a graph the colour of its series (line and marker).
+ *
+ * @param s The stream the ROOT macro lines are written to
+ * @param indent The indentation prefix of the emitted lines
+ * @param obj The ROOT object variable name
+ * @param series The position of the series in its pad
+ */
+inline void emitRootSeriesColour(
+    std::ostream &s,
+    const std::string &indent,
+    const std::string &obj,
+    std::size_t series
+) {
+    s << indent << obj << "->SetLineColor(" << rootSeriesColour(series) << ");" << '\n'
+      << indent << obj << "->SetMarkerColor(" << rootSeriesColour(series) << ");" << '\n';
+}
+
+/******************************************************************************/
+/**
+ * Emits what a ROOT pad with overlaid graphs needs after all of them are drawn: one frame that
+ * holds every graph, and a legend. ROOT takes the frame from the first graph alone, so a graph
+ * drawn "same" that reaches beyond it would be cut off. The emitted block looks at the graphs of
+ * the current pad (it needs no names), widens the first one's frame by a twentieth -- by a factor
+ * on a logarithmic axis -- and lets ROOT build the legend from the graphs' titles.
+ *
+ * @param s The stream the ROOT macro lines are written to
+ * @param indent The indentation prefix of the emitted lines
+ */
+inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &indent) {
+    s << indent << "{ // one frame for all graphs of this pad, and a legend" << '\n'
+      << indent << "   TGraph *first = nullptr;" << '\n'
+      << indent << "   double xlo = 0., xhi = 0., ylo = 0., yhi = 0.;" << '\n'
+      << indent << "   TIter next(gPad->GetListOfPrimitives());" << '\n'
+      << indent << "   while(TObject *o = next()) {" << '\n'
+      << indent << "      TGraph *g = dynamic_cast<TGraph *>(o);" << '\n'
+      << indent << "      if(!g || g->GetN() == 0) continue;" << '\n'
+      << indent << "      const double gxlo = TMath::MinElement(g->GetN(), g->GetX());" << '\n'
+      << indent << "      const double gxhi = TMath::MaxElement(g->GetN(), g->GetX());" << '\n'
+      << indent << "      const double gylo = TMath::MinElement(g->GetN(), g->GetY());" << '\n'
+      << indent << "      const double gyhi = TMath::MaxElement(g->GetN(), g->GetY());" << '\n'
+      << indent << "      if(!first) { first = g; xlo = gxlo; xhi = gxhi; ylo = gylo; yhi = gyhi; }"
+      << '\n'
+      << indent << "      xlo = TMath::Min(xlo, gxlo); xhi = TMath::Max(xhi, gxhi);" << '\n'
+      << indent << "      ylo = TMath::Min(ylo, gylo); yhi = TMath::Max(yhi, gyhi);" << '\n'
+      << indent << "   }" << '\n'
+      << indent << "   if(first) {" << '\n'
+      << indent << "      if(gPad->GetLogx()) first->GetXaxis()->SetLimits(xlo / 1.1, xhi * 1.1);"
+      << '\n'
+      << indent
+      << "      else first->GetXaxis()->SetLimits(xlo - 0.05 * (xhi - xlo), xhi + 0.05 * (xhi - "
+         "xlo));"
+      << '\n'
+      << indent
+      << "      if(gPad->GetLogy()) { first->SetMinimum(ylo / 1.1); first->SetMaximum(yhi * 1.1); }"
+      << '\n'
+      << indent
+      << "      else { first->SetMinimum(ylo - 0.05 * (yhi - ylo)); first->SetMaximum(yhi + 0.05 * "
+         "(yhi - ylo)); }"
+      << '\n'
+      << indent << "   }" << '\n'
+      << indent << "   gPad->BuildLegend();" << '\n'
+      << indent << "   gPad->Modified();" << '\n'
+      << indent << "}" << '\n';
+}
+
+/******************************************************************************/
+/**
+ * Emits what a ROOT pad with a logarithmic axis needs after everything is drawn. ROOT labels a
+ * logarithmic axis at the powers of ten only, so an axis that lies between two of them would
+ * carry no number at all. For an axis of fewer than three decades the emitted block asks for the
+ * labels in between and has them written out (300 instead of 3x10^2). It looks at the objects of
+ * the current pad and needs no names.
+ *
+ * @param s The stream the ROOT macro lines are written to
+ * @param indent The indentation prefix of the emitted lines
+ */
+inline void emitRootLogAxisLabels(std::ostream &s, const std::string &indent) {
+    s << indent << "{ // a logarithmic axis over few decades: more labels, written out" << '\n'
+      << indent << "   gPad->Update();" << '\n'
+      << indent
+      << "   const bool few_x = gPad->GetLogx() && gPad->GetUxmax() - gPad->GetUxmin() < 3.;"
+      << '\n'
+      << indent
+      << "   const bool few_y = gPad->GetLogy() && gPad->GetUymax() - gPad->GetUymin() < 3.;"
+      << '\n'
+      << indent << "   TIter next(gPad->GetListOfPrimitives());" << '\n'
+      << indent << "   while(TObject *o = next()) {" << '\n'
+      << indent << "      TH1 *h = dynamic_cast<TH1 *>(o);" << '\n'
+      << indent << "      if(TGraph *g = dynamic_cast<TGraph *>(o)) h = g->GetHistogram();" << '\n'
+      << indent << "      if(TF1 *f = dynamic_cast<TF1 *>(o)) h = f->GetHistogram();" << '\n'
+      << indent << "      if(!h) continue;" << '\n'
+      << indent
+      << "      if(few_x) { h->GetXaxis()->SetMoreLogLabels(); h->GetXaxis()->SetNoExponent(); }"
+      << '\n'
+      << indent
+      << "      if(few_y) { h->GetYaxis()->SetMoreLogLabels(); h->GetYaxis()->SetNoExponent(); }"
+      << '\n'
+      << indent << "   }" << '\n'
+      << indent << "   gPad->Modified();" << '\n'
+      << indent << "}" << '\n';
 }
 
 /******************************************************************************/

@@ -68,8 +68,18 @@ geneva_courtier_test(GProcessingStatusTests    S  GProcessingStatusTests.cpp)
 geneva_courtier_test(GCourtierPolicyTests      S  GCourtierPolicyTests.cpp)
 geneva_courtier_test(GCourtierTimeoutTests     M  GCourtierTimeoutTests.cpp)
 geneva_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
+geneva_courtier_test(GCourtierClientTests      M  GCourtierClientTests.cpp)
 geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
+geneva_courtier_test(GCourtierWebsocketPeerTests S  GCourtierWebsocketPeerTests.cpp)
+geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
+geneva_courtier_test(GCourtierWebsocketLivenessTests L  GCourtierWebsocketLivenessTests.cpp)
+
+# The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
+# consumer's backend factory is, and that is compiled into the library only with the GPU consumer.
+IF(GENEVA_GPU_CONSUMER_ENABLED)
+	geneva_courtier_test(GCourtierGpuConsumerTests S  GCourtierGpuConsumerTests.cpp)
+ENDIF()
 
 # The fatal reconciliation paths exit the process cleanly with a non-zero status (via LOGEXIT, no
 # core dump), so they are exercised as subprocesses: the "ok" control must succeed (exit 0); each
@@ -83,7 +93,7 @@ ADD_TEST(NAME GCourtierFatal_ok COMMAND GCourtierFatalExerciser --scenario=ok)
 SET_TESTS_PROPERTIES(GCourtierFatal_ok PROPERTIES LABELS "courtier")
 GENEVA_TEST_SIZE(GCourtierFatal_ok S)
 
-FOREACH(scenario fatal-unfixable fatal-none-fatal fatal-none-clone)
+FOREACH(scenario fatal-unfixable fatal-none-fatal fatal-none-clone fatal-oversized-batch)
 	ADD_TEST(NAME GCourtierFatal_${scenario}
 			COMMAND GCourtierFatalExerciser --scenario=${scenario})
 	SET_TESTS_PROPERTIES(GCourtierFatal_${scenario} PROPERTIES LABELS "courtier" WILL_FAIL TRUE)
@@ -105,6 +115,23 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# live processes. Without it the scheduler counts it as one and oversubscribes the machine.
 	SET_TESTS_PROPERTIES(GCourtierMpiTest PROPERTIES LABELS "courtier" PROCESSORS 3)
 	GENEVA_TEST_SIZE(GCourtierMpiTest M)
+
+	# An evaluation that throws must not end the worker rank: the item comes back flagged and the
+	# submission policy deals with it.
+	ADD_TEST(NAME GCourtierMpiThrowingItemTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=throwing
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiThrowingItemTest PROPERTIES LABELS "courtier" PROCESSORS 3)
+	GENEVA_TEST_SIZE(GCourtierMpiThrowingItemTest M)
+
+	# A master consumer that is destroyed without ever starting its server (a single rank suffices).
+	ADD_TEST(NAME GCourtierMpiNeverStartedTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=never-started
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES LABELS "courtier")
+	GENEVA_TEST_SIZE(GCourtierMpiNeverStartedTest M)
 
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.

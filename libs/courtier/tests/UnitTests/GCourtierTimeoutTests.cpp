@@ -500,3 +500,164 @@ TEST_CASE("courtier(timeout): the treatment is config-file selectable", "[courti
         CHECK(consumer.currentLease() > std::chrono::hours(24 * 365 * 50));
     }
 }
+
+/******************************************************************************/
+// Routing and bookkeeping of returns inside an ACTIVE batch: the range of the slot index, a return
+// for a slot that was put back in the meantime, the dispatch state of slots outside a batch, and
+// the counters that make these paths observable.
+
+namespace {
+
+/** @brief A SimNetConsumer that also exposes dispatch_(), so a test can register a batch that
+ *  carries slots which do not take part in it (processBatch() itself marks every non-null slot for
+ *  processing). */
+class RawDispatchConsumer : public SimNetConsumer {
+public:
+    using c2::GNetworkedConsumerT<GFaultyContainer>::dispatch_;
+};
+
+/** @brief Blocks until @p consumer hands out an item (a batch must be, or become, active). */
+template <typename Consumer>
+item_ptr checkoutBlocking(Consumer &consumer) {
+    while(true) {
+        if(auto p = consumer.checkout()) {
+            return p;
+        }
+        std::this_thread::sleep_for(1ms);
+    }
+}
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "courtier(routing): two slots more than 2^16 apart do not share a correlation id",
+    "[courtier][routing]"
+) {
+    // With a 16-bit slot index, slot 70000 aliased slot 70000 - 65536 = 4464: one result landed in
+    // the other's item and the second slot never completed. Only these two slots are populated, so
+    // the span is large but the batch is two items.
+    constexpr std::size_t LOW = 4464;
+    constexpr std::size_t HIGH = LOW + 65536;
+    std::vector<item_ptr> batch(HIGH + 1);
+    batch[LOW] = std::make_unique<GFaultyContainer>(LOW, fault_mode::NONE);
+    batch[HIGH] = std::make_unique<GFaultyContainer>(HIGH, fault_mode::NONE);
+
+    SimNetConsumer consumer;
+    std::jthread worker([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    auto first = checkoutBlocking(consumer);
+    auto second = checkoutBlocking(consumer);
+    CHECK(first->getCorrelationId() != second->getCorrelationId());
+
+    // Return the HIGH slot first: with aliased ids it would have been written into the LOW slot.
+    if(first->get_stored_number() != HIGH) {
+        std::swap(first, second);
+    }
+    first->process();
+    consumer.checkin(std::move(first));
+    second->process();
+    consumer.checkin(std::move(second));
+    worker.join();
+
+    CHECK(batch[LOW]->is_processed());
+    CHECK(batch[HIGH]->is_processed());
+    CHECK(batch[LOW]->get_stored_number() == LOW);
+    CHECK(batch[HIGH]->get_stored_number() == HIGH);
+    CHECK(consumer.droppedReturnCount() == 0);
+    CHECK(SimNetConsumer::maxBatchSize() == std::size_t{16'777'216}); // 2^24
+}
+
+TEST_CASE(
+    "courtier(routing): a return for a put-back slot is accepted, without a timing sample",
+    "[courtier][routing]"
+) {
+    auto batch = make_batch(1);
+    SimNetConsumer consumer;
+    consumer.setLeaseBootstrap(12345ms); // the lease while no return time has been sampled
+
+    std::jthread worker([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    auto p = checkoutBlocking(consumer);
+    consumer.requeue(p->getCorrelationId()); // the slot is PENDING again, as after a lease reclaim
+    CHECK(consumer.requeuedCount() == 1);
+
+    p->process();
+    consumer.checkin(std::move(p)); // the first holder returns after all
+
+    // The slot must be done now. Before the fix the return was dropped and the slot served again.
+    auto again = consumer.checkout();
+    CHECK(again == nullptr);
+    if(again) { // let the batch finish so the test ends instead of hanging
+        again->process();
+        consumer.checkin(std::move(again));
+    }
+    worker.join();
+
+    CHECK(count_processed(batch) == 1);
+    CHECK(consumer.droppedReturnCount() == 0);
+    // A put-back slot yields no return-time sample, so the lease is still the bootstrap value.
+    CHECK(consumer.currentLease() == 12345ms);
+}
+
+TEST_CASE(
+    "courtier(routing): a slot outside the batch is set to dispatch state NONE",
+    "[courtier][routing]"
+) {
+    auto batch = make_batch(2);
+    batch[0]->set_processing_status(c2::processingStatus::DO_PROCESS);
+    // Slot 1 does not take part (it is not DO_PROCESS) but carries the state an earlier, timed-out
+    // round left on it.
+    batch[1]->setDispatchState(c2::dispatchState::IN_FLIGHT);
+
+    RawDispatchConsumer consumer;
+    std::jthread worker([&] {
+        consumer.dispatch_(std::span<item_ptr>(batch.data(), batch.size()));
+    });
+
+    auto p = checkoutBlocking(consumer); // the batch is registered once this returns
+    CHECK(p->get_stored_number() == 0);
+    CHECK(batch[1]->getDispatchState() == c2::dispatchState::NONE);
+
+    p->process();
+    consumer.checkin(std::move(p));
+    worker.join();
+    CHECK(batch[0]->is_processed());
+}
+
+TEST_CASE("courtier(routing): duplicates and empty checkouts are counted", "[courtier][routing]") {
+    SimNetConsumer consumer;
+    CHECK(consumer.checkout() == nullptr); // nothing registered yet
+    CHECK(consumer.emptyCheckoutCount() == 1);
+
+    auto batch = make_batch(2);
+    std::jthread worker([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    auto a = checkoutBlocking(consumer);
+    auto b = checkoutBlocking(consumer);
+    a->process();
+    auto duplicate = std::make_unique<GFaultyContainer>(*a); // same correlation id as a
+    consumer.checkin(std::move(a));
+    consumer.checkin(std::move(duplicate)); // the batch is still active (b is out): a duplicate
+    CHECK(consumer.droppedReturnCount() == 1);
+
+    b->process();
+    consumer.checkin(std::move(b));
+    worker.join();
+    CHECK(count_processed(batch) == 2);
+    CHECK(consumer.requeuedCount() == 0);
+}

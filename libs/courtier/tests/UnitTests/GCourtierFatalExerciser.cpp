@@ -40,6 +40,8 @@
  *   fatal-unfixable    -- a deterministically failing slot under full-success-or-fatal: must exit non-zero.
  *   fatal-none-fatal   -- every slot fails under full-success-or-fatal: zero-usable floor, must exit non-zero.
  *   fatal-none-clone   -- every slot fails under clone-on-partial-return: nothing to clone from, must exit non-zero.
+ *   fatal-oversized-batch -- a networked batch one slot larger than a correlation id can address:
+ *                         must exit non-zero.
  */
 
 #include <cstdlib>
@@ -52,6 +54,7 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/consumers/GNetworkedConsumerT.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 
 using namespace Gem::Courtier;
@@ -71,21 +74,32 @@ std::vector<item_ptr> make_batch(std::size_t n, fault_mode fm_for_all = fault_mo
     return v;
 }
 
+/** @brief A networked consumer without a transport, exposing dispatch_() so the size check at its
+ *  entry can be reached directly. */
+class OversizeProbe : public GNetworkedConsumerT<GFaultyContainer> {
+public:
+    using GNetworkedConsumerT<GFaultyContainer>::dispatch_;
+};
+
 } /* anonymous namespace */
 
 int main(int argc, char **argv) {
     std::string scenario;
     Gem::Common::GParserBuilder gpb;
     gpb.registerCLParameter(
-        "scenario", scenario, std::string(""),
+        "scenario",
+        scenario,
+        std::string(""),
         "which fatal path to exercise: ok | fatal-unfixable | fatal-none-fatal | fatal-none-clone"
+        " | fatal-oversized-batch"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
     }
     if(scenario.empty()) {
         std::cerr << "Error: --scenario is required "
-                     "(ok | fatal-unfixable | fatal-none-fatal | fatal-none-clone)\n";
+                     "(ok | fatal-unfixable | fatal-none-fatal | fatal-none-clone | "
+                     "fatal-oversized-batch)\n";
         return 2;
     }
 
@@ -119,6 +133,17 @@ int main(int argc, char **argv) {
         auto batch = make_batch(8, fault_mode::THROW_PROCESSING);
         workOn(batch, GSubmissionPolicy::clone_on_partial_return());
         std::cout << "fatal-none-clone: ERROR -- returned without terminating\n";
+        return 0; // should be unreachable
+    }
+
+    if(scenario == "fatal-oversized-batch") {
+        // One slot more than the slot index of a correlation id can address: the networked consumer
+        // must refuse the batch rather than let two slots share an id. The span holds null slots
+        // only; the size check comes before any slot is looked at.
+        std::vector<item_ptr> batch(OversizeProbe::maxBatchSize() + 1);
+        OversizeProbe probe;
+        probe.dispatch_(std::span<item_ptr>(batch.data(), batch.size()));
+        std::cout << "fatal-oversized-batch: ERROR -- returned without terminating\n";
         return 0; // should be unreachable
     }
 

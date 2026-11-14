@@ -73,25 +73,14 @@
 // TODO: extract double buffering to GBaseConsumerClientT
 
 namespace Gem::Courtier::Consumers {
-// constants that are used by the master and the worker nodes
-constexpr int TAG_REQUEST_WORK_ITEM = 42;
-constexpr int TAG_SEND_WORK_ITEM = 43;
-/// blob send-once cache-miss fetch (worker <-> master). A worker that receives an id-only
-/// work item whose blob it does not hold sends a BLOB_REQUEST frame on TAG_REQUEST_BLOB; the
-/// master's receiver loop picks it up (it matches any tag) and answers with the serialized blob on
-/// TAG_SEND_BLOB. A distinct send tag keeps the reply from being mistaken for an ordinary work-item
-/// response by the worker's (double-buffered) MPI_ANY_TAG receive.
-constexpr int TAG_REQUEST_BLOB = 44;
-constexpr int TAG_SEND_BLOB = 45;
-constexpr int RANK_MASTER_NODE = 0;
-/// Once the master has been asked to stop, how long it keeps waiting for stragglers (a live worker's
-/// final double-buffered request, or an open session to finish) before abandoning them. Bounds
-/// shutdown so the loss of a worker cannot wedge the master at teardown.
-constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
-/// How long a worker waits for the master to complete a send/receive before giving up. The master
-/// always answers a request promptly (work or NO_WORK), so this only trips when the master has died or
-/// gone silent -- it is generous to avoid ever false-killing a worker while a live master is busy.
-constexpr std::chrono::seconds GMPICONSUMERWORKERMPITIMEOUT{120};
+// The constants that the master and the worker nodes use (message tags, the master's rank, time
+// limits and pauses) are defined in GCourtierEnums.hpp.
+// MPI errors: this transport installs no error handler, so the communicator's default applies
+// (MPI_ERRORS_ARE_FATAL) and an MPI error ends the whole job inside the failing call. The return
+// values of the MPI calls are therefore not checked. (MPI_Status::MPI_ERROR is no substitute: the
+// single-completion calls used here -- MPI_Test, MPI_Recv, MPI_Iprobe -- do not set it.) What the
+// code does guard against is a peer that falls SILENT: see the two time limits above.
+
 /// The communicator all MPI transport operations run on. `inline` (not `static`): every translation
 /// unit must see the SAME object, so that setMPICommunicator() (e.g. an application splitting
 /// MPI_COMM_WORLD) takes effect in all TUs rather than only in the one that called it.
@@ -173,7 +162,7 @@ struct MPIConsumerConfig {
     /**
          * The time in ms between each check of completion of the send operation of a new work item to a worker node.
          */
-    std::uint32_t masterCleanSessIntervalMSec{1'000};
+    std::uint32_t masterCleanSessIntervalMSec{GMPICONSUMERMASTERCLEANSESSINTERVALMSEC};
 
     /**
      * @brief Registers this config's command-line options into the given option descriptions.
@@ -434,19 +423,6 @@ private:
             return false;
         }
 
-        if(status.MPI_ERROR != MPI_SUCCESS) {
-            glogger
-                << "In GMPIConsumerWorkerNodeT<processable_type>::sendResultAndRequestNewWork() "
-                   "with rank="
-                << commRank_ << ":" << '\n'
-                << "Received an error sending a message to GMPIConsumerMasterNodeT:" << '\n'
-                << mpiErrorString(status.MPI_ERROR) << '\n'
-                << "Worker node will shut down." << '\n'
-                << GWARNING;
-
-            return false;
-        }
-
         // Wait until the master's response is available -- bounded for the same reason (this is where a
         // dead master would otherwise hang the worker indefinitely). Probe first so the response can be
         // of any size (the master may inline a large full-payload work item); receiveProbedMessage() then
@@ -460,20 +436,6 @@ private:
                    "GMPIConsumerMasterNodeT."
                 << '\n'
                 << "The master appears to be gone; worker node will shut down." << '\n'
-                << GWARNING;
-
-            return false;
-        }
-
-        if(status.MPI_ERROR != MPI_SUCCESS) {
-            glogger
-                << "In GMPIConsumerWorkerNodeT<processable_type>::sendResultAndRequestNewWork() "
-                   "with rank="
-                << commRank_ << ":" << '\n'
-                << "Received an error receiving a message from GMPIConsumerMasterNodeT:"
-                << '\n'
-                << mpiErrorString(status.MPI_ERROR) << '\n'
-                << "Worker node will shut down." << '\n'
                 << GWARNING;
 
             return false;
@@ -509,7 +471,7 @@ private:
                 MPI_Wait(&handle, MPI_STATUS_IGNORE);
                 return false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
         }
     }
 
@@ -537,7 +499,7 @@ private:
             if(halt_() || std::chrono::steady_clock::now() >= deadline) {
                 return false;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
         }
     }
 
@@ -577,8 +539,12 @@ private:
         switch(commandContainer_.kind()) {
             using enum Gem::Courtier::GFrameKind;
         case WORK: {
-            // process item. This will put the result into the work item
-            commandContainer_.process();
+            // Process the item; the result is stored in the work item. A failing evaluation leaves
+            // the item flagged and is returned like any other result -- it must not end this rank.
+            Gem::Courtier::processWorkFrame(
+                commandContainer_,
+                "GMPIConsumerWorkerNodeT with rank=" + std::to_string(commRank_)
+            );
 
             // increment the counter for processed items
             incrementProcessingCounter_();
@@ -591,9 +557,9 @@ private:
             ++nNoData_;
 
             // sleep for a short random time interval
-            std::uniform_int_distribution<> dist(
-                GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC,
-                GMPICONSUMERWORKERNODERETRYINTERVALUPPERBOUNDARYMSEC
+            std::uniform_int_distribution<std::uint32_t> dist(
+                GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC,
+                GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC
             );
             std::this_thread::sleep_for(std::chrono::milliseconds(dist(randomNumberEngine_)));
 
@@ -692,17 +658,20 @@ private:
             &sendReq
         );
         MPI_Status status{};
-        if(not waitForRequestOrTimeout(sendReq, status) || status.MPI_ERROR != MPI_SUCCESS) {
-            return std::unexpected("rank=" + std::to_string(commRank_) +
-                                   ": timed out / errored sending a BLOB_REQUEST to the master");
+        if(not waitForRequestOrTimeout(sendReq, status)) {
+            return std::unexpected(
+                "rank=" + std::to_string(commRank_) +
+                ": timed out sending a BLOB_REQUEST to the master"
+            );
         }
 
         // Receive the BLOB_REPLY on its dedicated tag. Probe first so a blob of any size
         // can be received (a large blob is exactly what would have exceeded the old fixed cap).
-        if(not probeWithTimeout(RANK_MASTER_NODE, TAG_SEND_BLOB, status) ||
-           status.MPI_ERROR != MPI_SUCCESS) {
-            return std::unexpected("rank=" + std::to_string(commRank_) +
-                                   ": timed out / errored waiting for the BLOB_REPLY from the master");
+        if(not probeWithTimeout(RANK_MASTER_NODE, TAG_SEND_BLOB, status)) {
+            return std::unexpected(
+                "rank=" + std::to_string(commRank_) +
+                ": timed out waiting for the BLOB_REPLY from the master"
+            );
         }
 
         // Deserialise the reply (again no nested wire scope) and hand back the blob. An empty blob means a
@@ -1223,20 +1192,16 @@ public:
          * an unset sink would silently drop every processed result), so the former two-phase
          * setPayloadFunctors() seam was retired in favour of construction-time injection.
          *
-         * @param commSize number of nodes in the cluster, which is equal to the number of workers + 1
          * @param config configuration for this node specified by the end user
          * @param getPayloadItemFn Source callback returning the next raw work item (or empty pointer)
          * @param putPayloadItemFn Sink callback receiving each RETURN frame
          */
     GMPIConsumerMasterNodeT(
-        std::int32_t commSize,
         const MPIConsumerConfig &config,
         std::move_only_function<std::unique_ptr<processable_type>()> getPayloadItemFn,
         std::move_only_function<void(GCommandContainerT<processable_type> &&)> putPayloadItemFn
     )
-      : commSize_{commSize}
-      , config_{config}
-      , reqNumStops_{static_cast<std::uint32_t>(2 * (commSize - 1))}
+      : config_{config}
       , isToldToStop_{false}
       , getPayloadItemFn_{std::move(getPayloadItemFn)}
       , putPayloadItemFn_{std::move(putPayloadItemFn)} {
@@ -1306,6 +1271,11 @@ public:
          * requests have been either completed, and the server is shut down completely.
          */
     void shutdown() {
+        // Nothing to stop if async_startProcessing() never ran, or the node was shut down before.
+        if(not receiverThread_.joinable()) {
+            return;
+        }
+
         // notify other threads to stop
         isToldToStop_.store(true);
 
@@ -1334,7 +1304,7 @@ private:
         // number of workers that we have send a stop request to
         uint32_t stopRequestsSendOut{0};
 
-        while(stopRequestsSendOut < reqNumStops_) {
+        while(stopRequestsSendOut < requiredStopResponses()) {
             // Probe (rather than post a fixed-size receive) so a request of ANY size can be received:
             // MPI_Get_count then tells us the exact length and we allocate to fit. This removes the old
             // fixed message-size cap, which a large genome's first (full-payload) work item
@@ -1356,7 +1326,7 @@ private:
                 if(grace.expired()) {
                     break; // isAvailable stays 0
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
             }
 
             if(not isAvailable) {
@@ -1397,9 +1367,8 @@ private:
     /**
          * @brief Handles a single received request by opening, running and tracking a session.
          *
-         * Runs on a thread-pool thread. If the receive carried an MPI error the request is not
-         * answered. Otherwise a GMPIConsumerSessionT is created, run (which sends the response), and
-         * pushed onto the open-session list for the cleanup thread to reap.
+         * Runs on a thread-pool thread. A GMPIConsumerSessionT is created, run (which sends the
+         * response), and pushed onto the open-session list for the cleanup thread to reap.
          *
          * @param status The MPI_Status of the received request (its source is the requesting worker)
          * @param buffer The shared buffer holding the received (serialized) request message
@@ -1410,17 +1379,6 @@ private:
         const std::shared_ptr<char[]> &buffer,
         const bool stopRequested
     ) {
-        if(status.MPI_ERROR != MPI_SUCCESS) {
-            glogger << "In GMPIConsumerMasterNodeT<processable_type>::handleRequest():" << '\n'
-                    << "Received an error:" << '\n'
-                    << mpiErrorString(status.MPI_ERROR) << '\n'
-                    << "Request from worker node will not be answered." << '\n'
-                    << GWARNING;
-
-            // return from this handler, which means not answering the request
-            return;
-        }
-
         // start a new session
         auto session = std::make_shared<GMPIConsumerSessionT<processable_type>>(
             status,
@@ -1471,7 +1429,7 @@ private:
         // be opened because all clients will shut down) -- or, once shutdown was requested, until the
         // grace window elapses, so a session that will never complete (its worker died mid-exchange)
         // cannot wedge this thread and thus shutdown().
-        while(stopSendOutsCompleted < reqNumStops_) {
+        while(stopSendOutsCompleted < requiredStopResponses()) {
             // wait a short amount of time between checking if the sessions have been completed
             if(config_.masterCleanSessIntervalMSec > 0) {
                 std::this_thread::sleep_for(
@@ -1564,14 +1522,25 @@ private:
     //-------------------------------------------------------------------------
     // Data
 
-    std::int32_t commSize_;
-    const MPIConsumerConfig &config_;
     /**
-         * Stop responses required for a complete shutdown: each worker sends one final request per
-         * double-buffer slot after receiving its stop, so the master answers 2*(commSize-1) STOPs in
-         * total. Single-sourced here for the receiver and cleanup loops (formerly computed in both).
+         * @brief Stop responses required for a complete shutdown.
+         *
+         * Each worker sends one final request per double-buffer slot after receiving its stop, so
+         * the master answers two STOPs per worker. The number of workers is read from the
+         * communicator in use at the time of the call: an application may set its own communicator
+         * after this node was constructed (setMPICommunicator()), and MPI_COMM_WORLD may then hold
+         * ranks that are not workers of this master. Counting those would make every shutdown wait
+         * out the grace period.
+         *
+         * @return Twice the number of ranks in the transport's communicator other than the master
          */
-    const std::uint32_t reqNumStops_;
+    [[nodiscard]] static std::uint32_t requiredStopResponses() {
+        int size{1};
+        MPI_Comm_size(MPI_COMMUNICATOR, &size);
+        return static_cast<std::uint32_t>(2 * (size - 1));
+    }
+
+    const MPIConsumerConfig &config_;
 
     std::unique_ptr<Common::Concurrency::GThreadPool> handlerThreadPool_;
     /**

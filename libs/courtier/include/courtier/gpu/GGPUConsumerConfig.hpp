@@ -52,7 +52,7 @@ struct GGPUConsumerConfig {
     std::string kernel_path;                  ///< path to the kernel source / prebuilt module
     std::string kernel_entry = "evaluate";    ///< kernel entry-point name
     int device_id = 0;                        ///< which device
-    unsigned int block_x = 256;               ///< launch block size (x)
+    unsigned int block_x = Gem::Courtier::GGPUCONSUMERBLOCKX; ///< launch block size (x)
     unsigned int block_y = 1;
     unsigned int block_z = 1;
     unsigned int grid_x = 0;                  ///< launch grid (0 == auto)

@@ -69,3 +69,42 @@ endfunction()
 # 2. Render the comprehensive .npz and the .csv.
 render_and_check("result_data_full.npz" "render_full.png")
 render_and_check("result_data.csv" "render_csv.png")
+
+# 3. The renderer follows what the manifest says about a pad. The generator's power law has
+#    logarithmic axes and two graphs laid over it: its pad must have logarithmic scales and a
+#    legend of three entries, and a pad without the flags must stay linear.
+get_filename_component(_render_dir "${RENDER_PY}" DIRECTORY)
+file(WRITE "${WORKDIR}/gpd_render_validate.py"
+"import sys\n"
+"sys.path.insert(0, sys.argv[1])\n"
+"import geneva_plot_render as r\n"
+"\n"
+"canvas, series = r.load('result_data_full.npz')\n"
+"pads = {ax.get_title(): ax for ax in r.build_figure(canvas, series).axes}\n"
+"log = pads['a power law with logarithmic axes, data export']\n"
+"assert log.get_xscale() == 'log', 'x scale is ' + log.get_xscale()\n"
+"assert log.get_yscale() == 'log', 'y scale is ' + log.get_yscale()\n"
+"assert log.get_legend() is not None, 'three graphs in one pad, but no legend'\n"
+"names = [t.get_text() for t in log.get_legend().get_texts()]\n"
+"assert len(names) == 3, 'legend entries: ' + repr(names)\n"
+"lin = pads['g2ed']\n"
+"assert lin.get_xscale() == 'linear' and lin.get_yscale() == 'linear', 'g2ed is not linear'\n"
+"assert lin.get_legend() is None, 'a legend for a single graph'\n"
+"print('GPlotDesignerRenderValidity: logarithmic axes and the legend follow the manifest.')\n"
+)
+execute_process(
+	COMMAND "${CMAKE_COMMAND}" -E env
+		"MPLBACKEND=Agg" "MPLCONFIGDIR=${WORKDIR}/.mplconfig"
+		"${PYTHON_EXE}" gpd_render_validate.py "${_render_dir}"
+	WORKING_DIRECTORY "${WORKDIR}"
+	RESULT_VARIABLE _py_rc
+	OUTPUT_VARIABLE _out
+	ERROR_VARIABLE _err
+	TIMEOUT 300
+)
+if(NOT _py_rc EQUAL 0 OR _err MATCHES "Traceback" OR _err MATCHES "Error")
+	message(FATAL_ERROR
+		"the renderer does not follow the manifest (rc=${_py_rc}).\n"
+		"stdout:\n${_out}\nstderr:\n${_err}")
+endif()
+message(STATUS "${_out}")

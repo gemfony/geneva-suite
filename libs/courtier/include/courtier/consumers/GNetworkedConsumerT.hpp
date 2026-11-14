@@ -45,17 +45,20 @@
 #include <optional>
 #include <ranges>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
 // Geneva headers
 #include "common/GLogger.hpp" // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
+#include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
 #include "common/concurrency/GThreadSafeSetT.hpp" // the per-session in-flight borrow set (CheckoutLease)
-#include "courtier/GCourtierEnums.hpp" // CORRELATION_ID_TYPE, dispatchState
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCommandContainerT.hpp" // the RETURN frame checkin() consumes
-#include "courtier/GWireProtocolT.hpp"     // the library seam that interprets a return
+#include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
+#include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
+#include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // timeoutTreatment + the config struct
 
 namespace Gem::Courtier {
@@ -81,8 +84,9 @@ namespace Gem::Courtier {
  * The wire correlation token is `(batch_id, slot)` -- the reincarnation of the old broker's
  * bufferport routing: batch_id selects WHICH submitter's batch a result belongs to (so two concurrent
  * batches' slot 0s never collide), slot the index within that batch. A result whose batch_id is no
- * longer active (a late arrival from a batch that already timed out / finished) is silently dropped --
- * this is what makes resubmission and lease-reclaim safe, and replaces the former per-round generation.
+ * longer active (a late arrival from a batch that already timed out / finished) never reaches a
+ * live slot -- this is what makes resubmission and lease-reclaim safe, and replaces the former
+ * per-round generation. A batch holds at most maxBatchSize() items (the range of the slot index).
  *
  * Borrow contract: the
  * batch's vector is BORROWED for the duration of dispatch_; the consumer reads/serializes/schedules
@@ -175,7 +179,7 @@ public:
      * getLateReturns()/getOldWorkItems()). The buffer is bounded two ways: @p cap (max items held; 0 DISABLES buffering, the
      * default) and @p ttl_rounds (a held item is evicted after this many dispatch rounds). Each entry
      * carries the dispatch-round "epoch" at which it was buffered, used only for TTL eviction; the batch
-     * id is a 48-bit, process-wide, non-wrapping counter, so a retired batch id is never re-minted and a
+     * id is a 40-bit, process-wide, non-wrapping counter, so a retired batch id is never re-minted and a
      * buffered late return can never be confused with a fresh batch. Evictions (cap or TTL) are counted
      * (lateReturnDroppedCount()) and warned once -- never silently lost.
      *
@@ -232,6 +236,45 @@ public:
         return late_store_.drainParked();
     }
 
+    /***************************************************************************/
+    /** @brief The largest batch a single dispatch round can hold: the range of the slot index in
+     *  the correlation id. A larger span is refused with a fatal error rather than routed wrongly.
+     *  @return The maximum number of items in one batch */
+    [[nodiscard]] static constexpr std::size_t maxBatchSize() noexcept {
+        return MAX_BATCH_SIZE;
+    }
+
+    /** @brief Number of in-flight items put back to pending since construction: reclaimed by the
+     *  time lease, or put back by a session that lost its client.
+     *  @return The running total of re-queued items */
+    [[nodiscard]] std::uint64_t requeuedCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_requeued_;
+    }
+    /** @brief Number of returns for an ACTIVE batch that were not applied since construction: a
+     *  duplicate of a slot that is already done, or a slot that does not take part in its batch.
+     *  (A return for a batch that is no longer active is a late return -- see
+     *  lateReturnDroppedCount().)
+     *  @return The running total of dropped returns */
+    [[nodiscard]] std::uint64_t droppedReturnCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_dropped_returns_;
+    }
+    /** @brief Number of checkouts that found nothing pending since construction. A transport
+     *  answers each of them with "no work".
+     *  @return The running total of empty checkouts */
+    [[nodiscard]] std::uint64_t emptyCheckoutCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_empty_checkouts_;
+    }
+    /** @brief Number of callers that are parked right now, waiting to be told about work (see
+     *  checkoutOrPark()). A caller that has gone away while parked is counted until the next
+     *  announcement.
+     *  @return The current length of the list of parked callers */
+    [[nodiscard]] std::size_t parkedCount() const {
+        return parked_.size();
+    }
+
 protected:
     /***************************************************************************/
     /**
@@ -273,7 +316,9 @@ protected:
         void remove(Gem::Courtier::CORRELATION_ID_TYPE id) {
             in_flight.erase(id);
         }
-        ~CheckoutLease() {
+        /** @brief Puts back everything the session still holds: at its end, or when it can no
+         *  longer tell which of its items are being worked on (a request it had to refuse). */
+        void abandonAll() {
             // Atomically take everything still in flight; requeue outside the set's lock.
             if(on_abandon) {
                 for(auto id : in_flight.drain()) {
@@ -283,6 +328,9 @@ protected:
             else {
                 in_flight.clear();
             }
+        }
+        ~CheckoutLease() {
+            abandonAll();
         }
     };
 
@@ -294,6 +342,33 @@ protected:
     item_ptr checkout() {
         std::scoped_lock const lk(mtx_);
         return checkout_locked();
+    }
+
+    /***************************************************************************/
+    /** @brief Like checkout(), but a caller for whom nothing is pending is parked instead of sent
+     *  away empty-handed: @p wake is kept and called once, when work has become available (a
+     *  batch was registered, an item was put back) or the server stops. The woken caller asks
+     *  again; it may find that others were faster and be parked once more.
+     *
+     *  For transports whose sessions can wait and can be reached later (the websocket consumer).
+     *  The check for pending work and the parking happen under one lock, and work is announced
+     *  only after it was made pending under that lock, so no wake-up is lost. As many callers are
+     *  woken as items became available, the one that has waited longest first. A woken caller
+     *  must therefore ask again even if it has no use for the item any more (its client is
+     *  gone), and put back what it gets: that wakes the next one.
+     *
+     *  @param wake Called once when the caller should ask again (see GWakeFn for what it may do)
+     *  @return An item; or `parked`, with @p wake kept; or neither once the server is stopping */
+    Gem::Courtier::GCheckoutResult<processable_type> checkoutOrPark(Gem::Courtier::GWakeFn wake) {
+        std::scoped_lock const lk(mtx_);
+        if(stop_.load()) {
+            return {};
+        }
+        if(total_pending_ > 0) {
+            return {.item = checkout_locked()};
+        }
+        static_cast<void>(parked_.push(std::move(wake))); // unbounded queue: push never fails
+        return {.parked = true};
     }
 
     /***************************************************************************/
@@ -312,9 +387,12 @@ protected:
 
     /***************************************************************************/
     /** @brief Accepts a returned RETURN frame and writes it into its slot. The frame's (batch_id, slot)
-     *  is decoded from the correlation id in its processing outcome; a return whose batch is no longer
-     *  active (timed out / finished) or whose slot is no longer IN_FLIGHT (a duplicate) is dropped,
-     *  which is what makes resubmission safe.
+     *  is decoded from the correlation id in its processing outcome. A return whose batch is no
+     *  longer active (timed out / finished) takes the late-return path; a return for a slot that
+     *  is already DONE (a duplicate) or does not take part in its batch is dropped and counted. A
+     *  return for a slot that was put back to PENDING in the meantime is accepted: the evaluation
+     *  is as good as the one that would otherwise be repeated. A return that cannot be applied to
+     *  its slot (the library's seam throws) ends the slot as failed.
      *
      *  The frame is split at exactly the layer boundary: courtier applies the GProcessingOutcome (status,
      *  errors, timings, routing) itself, and hands the library tag + payload (or the returned work item)
@@ -336,14 +414,27 @@ protected:
             return;
         }
         BatchState &b = it->second;
+        using Gem::Courtier::dispatchState;
         const std::size_t slot = decodeSlot(id);
-        if(slot >= b.items.size() || not b.items[slot] ||
-           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
-            return; // out of range, a null (non-participating) slot, or duplicate / not in flight
+        const auto ds = (slot < b.items.size() && b.items[slot]) ? b.items[slot]->getDispatchState()
+                                                                 : dispatchState::NONE;
+        if(ds != dispatchState::IN_FLIGHT && ds != dispatchState::PENDING) {
+            ++n_dropped_returns_; // out of range, not in the batch, or a duplicate of a done slot
+            return;
         }
-        // Feed the (shared) adaptive timeout: how long this item took from checkout to return.
+        if(ds == dispatchState::PENDING) {
+            // The slot was put back (lease reclaim / session put-back) and its first holder returns
+            // after all. Take the result: the slot leaves the pending set and is not served again.
+            --b.pending;
+            --total_pending_;
+        }
+        // Feed the (shared) adaptive timeout: how long this item took from checkout to return. A
+        // slot that was put back at least once gives no usable sample: its checkout time may belong
+        // to a second holder, and a sample that is too short would shrink the lease for everyone.
         const auto now = clock::now();
-        recordReturnTime_(now - b.checked_out_at[slot]);
+        if(not b.reclaimed[slot]) {
+            recordReturnTime_(now - b.checked_out_at[slot]);
+        }
         b.last_progress = now;
 
         // Reconcile the return INTO the live slot object in place, keeping its heap address (the slot
@@ -352,10 +443,31 @@ protected:
         // what came back into it. The original already holds the submitted parameters and the evolved
         // library-owned scratch (omitted on the wire), and address stability is what lets a concurrent
         // per-item prefetch hold a snapshot of population addresses across the submission.
-        b.items[slot]->applyProcessingOutcome(frame.outcome());
-        Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
-            *b.items[slot], frame.tag(), frame.libraryPayload(), returned.get()
-        );
+        //
+        // A result that cannot be written into its slot leaves the slot in an unknown state, so
+        // the slot is not handed out again as it is. It is flagged as failed, and the submission
+        // policy decides what happens to it, as it does for an evaluation that failed.
+        try {
+            b.items[slot]->applyProcessingOutcome(frame.outcome());
+            Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
+                *b.items[slot],
+                frame.tag(),
+                frame.libraryPayload(),
+                returned.get()
+            );
+        }
+        catch(const std::exception &e) {
+            auto failed = frame.outcome();
+            failed.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
+            failed.error_descriptions += "The returned result could not be applied to its slot: ";
+            failed.error_descriptions += e.what();
+            b.items[slot]->applyProcessingOutcome(failed);
+            glogger << "In GNetworkedConsumerT::checkin(): a returned result could not be applied"
+                    << '\n'
+                    << e.what() << '\n'
+                    << "The work item is flagged as failed." << '\n'
+                    << GWARNING;
+        }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::DONE);
         ++b.done;
         if(b.done == b.target) {
@@ -384,13 +496,14 @@ protected:
      *  passed correlation id. A no-op if the batch moved on or the slot is no longer in flight.
      *  @param id The (batch_id, slot) correlation id of the item to put back */
     void requeue(Gem::Courtier::CORRELATION_ID_TYPE id) {
-        std::scoped_lock const lk(mtx_);
-        auto it = batches_.find(decodeBatch(id));
-        if(it == batches_.end()) {
-            return;
+        bool requeued = false;
+        {
+            std::scoped_lock const lk(mtx_);
+            auto it = batches_.find(decodeBatch(id));
+            requeued = it != batches_.end() && requeueSlot_locked(it->second, decodeSlot(id));
         }
-        if(requeueSlot_locked(it->second, decodeSlot(id))) {
-            cv_work_.notify_one();
+        if(requeued) {
+            announceWork_(1);
         }
     }
 
@@ -399,10 +512,15 @@ protected:
      *  @return true once teardown has been requested */
     [[nodiscard]] bool stopped() const noexcept { return stop_.load(); }
 
-    /** @brief Requests teardown -- subclasses call this from their stop path. Wakes every waiter. */
+    /** @brief Requests teardown -- subclasses call this from their stop path. Wakes every waiter
+     *  and every parked caller. The flag is set under the lock, so a caller either sees it or is
+     *  parked (or waiting) by the time the wake-up goes out. */
     void requestStop() noexcept {
-        stop_.store(true);
-        cv_work_.notify_all();
+        {
+            std::scoped_lock const lk(mtx_);
+            stop_.store(true);
+        }
+        announceWork_(parked_.size()); // everyone: nobody is parked once the flag is set
         cv_done_.notify_all();
     }
 
@@ -431,9 +549,20 @@ protected:
         if(n == 0) {
             return;
         }
+        if(n > MAX_BATCH_SIZE) {
+            // The slot index would not fit the correlation id: two slots would share an id and a
+            // result could be written into the wrong item. Refuse instead.
+            this->fatal_(
+                "GNetworkedConsumerT::dispatch_(): a batch of " + std::to_string(n) +
+                " items exceeds the maximum of " + std::to_string(MAX_BATCH_SIZE) +
+                " items per batch. Submit the items in several smaller batches."
+            );
+            return;
+        }
 
         const auto start = clock::now();
         typename std::map<batch_key_t, BatchState>::iterator my_it;
+        std::size_t n_announced = 0; // how many items this call has made pending
         {
             std::scoped_lock const lk(mtx_);
             const batch_key_t key = (next_batch_id_++ & BATCH_MASK);
@@ -441,27 +570,36 @@ protected:
             b.items = items;
             b.cursor = 0;
             b.checked_out_at.assign(n, start); // indexed by slot (the span index)
+            b.reclaimed.assign(n, false);
             b.last_progress = start;
             // Select exactly the DO_PROCESS slots of the span for this batch: tag each with its
             // (batch_id, slot) correlation token (slot == span index) and mark it PENDING. Slots in any
-            // other state -- already resolved, or null -- are left in dispatchState NONE and are ignored
-            // by checkout()/checkin()/leaseSweep(), so the span may carry non-participating slots without
-            // affecting routing or the write-back position.
+            // other state -- already resolved, or null -- are set to dispatchState NONE and are
+            // ignored by checkout()/checkin()/leaseSweep(), so the span may carry non-participating
+            // slots without affecting routing or the write-back position. The reset matters: an
+            // item keeps the state an earlier round left on it (IN_FLIGHT for a slot that timed
+            // out), and a stale IN_FLIGHT would be picked up by this batch's lease sweep.
             std::size_t n_sel = 0;
             for(auto&& [k, item] : items | std::views::enumerate) {
-                if(item &&
-                   item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
+                if(not item) {
+                    continue;
+                }
+                if(item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
                     item->setCorrelationId(encodeId(key, static_cast<std::size_t>(k)));
                     item->setDispatchState(Gem::Courtier::dispatchState::PENDING);
                     ++n_sel;
+                }
+                else {
+                    item->setDispatchState(Gem::Courtier::dispatchState::NONE);
                 }
             }
             b.target = n_sel;
             b.pending = n_sel;
             my_it = batches_.emplace(key, std::move(b)).first;
             total_pending_ += n_sel;
+            n_announced = n_sel;
         }
-        cv_work_.notify_all(); // wake any session blocked in checkoutWait()
+        announceWork_(n_announced);
 
         // Wait until every slot of THIS batch is DONE, or its progress stalls past the (adaptive)
         // give-up window. The happy path wakes on the final checkin() and exits at once. While
@@ -483,8 +621,15 @@ protected:
                 if(n_return_samples_ > 0 && now - b.last_progress > currentStallWindow()) {
                     break; // progress stalled with live workers -> give up; unresolved slots MISSING
                 }
-                if(this->usesTimeLease()) {
-                    leaseSweep_locked(b, now);
+                n_announced = this->usesTimeLease() ? leaseSweep_locked(b, now) : 0;
+                if(n_announced > 0) {
+                    // Items were put back: tell the callers, without the lock. The batch's last
+                    // check-in may arrive in that window, and its notification would find nobody
+                    // waiting -- so look at the batch again instead of going to sleep.
+                    lk.unlock();
+                    announceWork_(n_announced);
+                    lk.lock();
+                    continue;
                 }
                 cv_done_.wait_for(lk, sweep_tick_);
             }
@@ -521,20 +666,25 @@ protected:
 
 private:
     /***************************************************************************/
-    // The work item's correlation id (a uint64) carries the wire correlation token: the high 48 bits
-    // hold the batch_id (which submitter's batch), the low 16 the slot index within it. The batch_id is
-    // drawn from a single monotonic process-wide counter (next_batch_id_) on the shared consumer, so two
-    // concurrent submitters never collide; at 48 bits it does not wrap in any realistic run (2^48 dispatch
-    // rounds), which is what makes late-return routing safe -- a stale return can never alias a freshly
-    // minted batch. The slot field bounds a single batch to 2^16 items (ample for any Geneva population).
+    // The work item's correlation id (a uint64) carries the wire correlation token: the high 40
+    // bits hold the batch_id (which submitter's batch), the low 24 the slot index within it. The
+    // batch_id is drawn from a single monotonic process-wide counter (next_batch_id_) on the shared
+    // consumer, so two concurrent submitters never collide; at 40 bits it does not wrap in any
+    // realistic run (2^40 dispatch rounds -- more than thirty years at a thousand rounds per
+    // second), which is what makes late-return routing safe -- a stale return can never alias a
+    // freshly minted batch. The slot field bounds a single batch to 2^24 items; dispatch_() refuses
+    // a larger span (see maxBatchSize()).
     using batch_key_t = Gem::Courtier::CORRELATION_ID_TYPE;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = 16;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_BITS = GCORRELATIONIDSLOTBITS;
     static constexpr Gem::Courtier::CORRELATION_ID_TYPE SLOT_MASK = (1ull << SLOT_BITS) - 1ull;
-    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_MASK = (1ull << 48) - 1ull;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_BITS = GCORRELATIONIDBATCHBITS;
+    static constexpr Gem::Courtier::CORRELATION_ID_TYPE BATCH_MASK = (1ull << BATCH_BITS) - 1ull;
+    static constexpr std::size_t MAX_BATCH_SIZE = std::size_t{1} << SLOT_BITS;
 
-    /** @brief Packs a batch_id and slot into the on-wire correlation id (batch in the high 48 bits, slot in the low 16).
-     *  @param batch The batch id (masked to 48 bits)
-     *  @param slot The slot index within the batch (masked to 16 bits)
+    /** @brief Packs a batch_id and slot into the on-wire correlation id (batch in the high 40 bits,
+     *  slot in the low 24).
+     *  @param batch The batch id (masked to 40 bits)
+     *  @param slot The slot index within the batch (masked to 24 bits)
      *  @return The combined (batch_id, slot) correlation id */
     static Gem::Courtier::CORRELATION_ID_TYPE encodeId(batch_key_t batch, std::size_t slot) {
         return ((batch & BATCH_MASK) << SLOT_BITS)
@@ -542,13 +692,13 @@ private:
     }
     /** @brief Extracts the batch id from a correlation id.
      *  @param id The (batch_id, slot) correlation id
-     *  @return The batch id (high 48 bits) */
+     *  @return The batch id (high 40 bits) */
     static batch_key_t decodeBatch(Gem::Courtier::CORRELATION_ID_TYPE id) {
         return (id >> SLOT_BITS) & BATCH_MASK;
     }
     /** @brief Extracts the slot index from a correlation id.
      *  @param id The (batch_id, slot) correlation id
-     *  @return The slot index (low 16 bits) */
+     *  @return The slot index (low 24 bits) */
     static std::size_t decodeSlot(Gem::Courtier::CORRELATION_ID_TYPE id) {
         return static_cast<std::size_t>(id & SLOT_MASK);
     }
@@ -622,6 +772,7 @@ private:
         std::size_t pending = 0;                ///< Slots currently PENDING (awaiting a client)
         std::size_t cursor = 0;                 ///< Next slot index to consider in checkout
         std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (lease + stats)
+        std::vector<bool> reclaimed;          ///< Per-slot: put back to PENDING at least once
         clock::time_point last_progress;      ///< Time of the most recent checkin (stall basis)
     };
 
@@ -631,6 +782,7 @@ private:
      *  @return A clone of the next pending item to ship, or nullptr if no slot is pending */
     item_ptr checkout_locked() {
         if(total_pending_ == 0 || batches_.empty()) {
+            ++n_empty_checkouts_;
             return nullptr;
         }
         // Start just past the last-served batch and walk the (ordered) map once, wrapping around.
@@ -661,6 +813,7 @@ private:
             }
             ++it;
         }
+        ++n_empty_checkouts_;
         return nullptr;
     }
 
@@ -676,8 +829,10 @@ private:
             return false;
         }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::PENDING);
+        b.reclaimed[slot] = true;
         ++b.pending;
         ++total_pending_;
+        ++n_requeued_;
         if(slot < b.cursor) {
             b.cursor = slot;
         }
@@ -688,19 +843,47 @@ private:
     /** @brief Reclaims every slot of batch @p b that has been IN_FLIGHT longer than the adaptive
      *  lease, returning it to PENDING for re-service. Caller holds mtx_.
      *  @param b The batch to sweep
-     *  @param now The current time, against which each slot's checkout time is compared to the lease */
-    void leaseSweep_locked(BatchState &b, clock::time_point now) {
+     *  @param now The current time; each slot's checkout time is compared with the lease against it
+     *  @return How many slots were put back (the caller then announces that much work) */
+    [[nodiscard]] std::size_t leaseSweep_locked(BatchState &b, clock::time_point now) {
         const auto lease = currentLease();
-        bool any = false;
+        std::size_t n_put_back = 0;
         for(std::size_t k = 0; k < b.items.size(); ++k) {
             if(b.items[k] &&
                b.items[k]->getDispatchState() == Gem::Courtier::dispatchState::IN_FLIGHT &&
                (now - b.checked_out_at[k]) > lease) {
-                any = requeueSlot_locked(b, k) || any;
+                n_put_back += requeueSlot_locked(b, k) ? 1 : 0;
             }
         }
-        if(any) {
-            cv_work_.notify_all();
+        return n_put_back;
+    }
+
+    /***************************************************************************/
+    /** @brief Tells those who wait for work that @p n_items have become available: the callers
+     *  blocked in checkoutWait(), and up to @p n_items parked callers. Called WITHOUT mtx_, by
+     *  every place that made work pending (or set the stop flag) under it.
+     *
+     *  One caller is woken per item, not everyone: with many small batches and many idle
+     *  clients, waking all costs several cores for wake-ups that find nothing. A parked caller
+     *  that is gone does not count (its wake function says so), and one that was reached but
+     *  cannot serve passes its item on by putting it back (see checkoutOrPark()). The length of
+     *  the list is read once, so that a caller that parks again while this loop runs is not
+     *  woken a second time in the same round.
+     *
+     *  noexcept on purpose: it runs in destructors (a session that ends puts its items back),
+     *  and a wake-up that cannot be delivered for lack of memory has no sensible continuation.
+     *
+     *  @param n_items How many items became available */
+    void announceWork_(std::size_t n_items) noexcept {
+        cv_work_.notify_all();
+        for(std::size_t in_list = parked_.size(); in_list > 0 && n_items > 0; --in_list) {
+            auto wake = parked_.try_pop();
+            if(not wake) {
+                break; // another announcement was faster
+            }
+            if((*wake)()) {
+                --n_items;
+            }
         }
     }
 
@@ -729,7 +912,7 @@ protected:
             case timeoutTreatment::wait_indefinitely:
                 // Never reclaim on time: no time lease can ever elapse (liveness-driven reclaim, e.g. a
                 // websocket disconnect, still applies independently).
-                return kNeverWindow_;
+                return GNETWORKEDNEVERWINDOW;
             case timeoutTreatment::fixed:
                 return fixed_lease_;
             case timeoutTreatment::adaptive:
@@ -754,7 +937,7 @@ protected:
             case timeoutTreatment::wait_indefinitely:
                 // Never give up on time: the stall window can never elapse, so no item is declared MISSING
                 // for lateness (a genuinely dead client is still detected by liveness where available).
-                return kNeverWindow_;
+                return GNETWORKEDNEVERWINDOW;
             case timeoutTreatment::fixed:
                 return fixed_stall_window_;
             case timeoutTreatment::adaptive:
@@ -771,9 +954,12 @@ private:
     std::condition_variable cv_work_; ///< Signalled when a slot becomes available
 
     std::map<batch_key_t, BatchState> batches_; ///< All currently-active batches, keyed by batch_id
-    batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 48 bits)
+    batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 40 bits)
     batch_key_t last_served_batch_ = 0;         ///< Round-robin cursor across batches (for fairness)
     std::size_t total_pending_ = 0;             ///< Slots PENDING across ALL batches (cv predicate)
+    /// The callers parked by checkoutOrPark(), each as its wake function. Pushed under mtx_,
+    /// popped without it (see announceWork_()).
+    Gem::Common::Concurrency::GMPMCQueueT<Gem::Courtier::GWakeFn, 0> parked_;
 
     // --- late-return facility: a result that arrives after its batch finished/timed out is PARKED for a
     //     later getOldWorkItems() to reap instead of dropped, and a clone of each un-returned original is
@@ -785,6 +971,11 @@ private:
     //     under mtx_, so its operations stay consistent with the batch bookkeeping. ---
     Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr> late_store_;
     std::uint64_t late_dropped_count_ = 0;      ///< Total late items dropped (disabled/cap/TTL) -- observable
+
+    // --- counters for diagnostics and tests (guarded by mtx_; see the getters) ---
+    std::uint64_t n_requeued_ = 0;        ///< In-flight items put back to pending
+    std::uint64_t n_dropped_returns_ = 0; ///< Returns for an active batch that were not applied
+    std::uint64_t n_empty_checkouts_ = 0; ///< Checkouts that found nothing pending
     bool late_drop_warned_ = false;             ///< One-shot warning guard for the first dropped late item
 
     double mean_return_ms_ = 0.0;       ///< Running (EMA) mean checkout->return time (consumer-wide)
@@ -796,24 +987,27 @@ private:
     //     reclaims relative to the running mean; fixed uses the two fixed windows below; wait_indefinitely
     //     never declares MISSING on time. Selected from the config file via applyTimeoutConfig(). ---
     timeoutTreatment treatment_ = timeoutTreatment::adaptive;
-    std::chrono::milliseconds fixed_stall_window_{300'000}; ///< give-up window when treatment_ == fixed
-    std::chrono::milliseconds fixed_lease_{300'000};        ///< reclaim lease when treatment_ == fixed
-    // The "never" window/lease for wait_indefinitely. A finite but astronomically large value (100 years)
-    // rather than milliseconds::max(): it is compared against a steady_clock (nanosecond) duration, and
-    // max() would overflow int64 when the comparison promotes it to nanoseconds, whereas 100 years in ns
-    // (~3.15e18) stays well within range and can never elapse in a real run.
-    static constexpr std::chrono::milliseconds kNeverWindow_{100LL * 365 * 24 * 3600 * 1000};
+    /// give-up window when treatment_ == fixed
+    std::chrono::milliseconds fixed_stall_window_{GNETWORKEDFIXEDSTALLWINDOW};
+    std::chrono::milliseconds fixed_lease_{
+        GNETWORKEDFIXEDLEASE
+    }; ///< reclaim lease when treatment_ == fixed
 
     // --- adaptive-timeout configuration (sane defaults; tunable via the setters) ---
-    double ema_alpha_ = 0.25;   ///< EMA weight for new return-time samples
-    double lease_factor_ = 4.0; ///< Reclaim lease = lease_factor_ * mean return time (clamped)
-    double stall_factor_ = 8.0; ///< Give-up window = stall_factor_ * mean return time (clamped)
-    std::chrono::milliseconds lease_bootstrap_{10'000};     ///< Reclaim lease before any return is seen
-    std::chrono::milliseconds min_lease_{200};              ///< Lower clamp on the reclaim lease
-    std::chrono::milliseconds max_lease_{300'000};          ///< Upper clamp on the reclaim lease
-    std::chrono::milliseconds min_stall_{2'000};            ///< Lower clamp on the give-up window
-    std::chrono::milliseconds max_stall_{600'000};          ///< Upper clamp on the give-up window
-    std::chrono::milliseconds sweep_tick_{50};              ///< dispatch_ re-evaluation poll interval
+    double ema_alpha_ = GNETWORKEDEMAALPHA; ///< EMA weight for new return-time samples
+    /// Reclaim lease = lease_factor_ * mean return time (clamped)
+    double lease_factor_ = GNETWORKEDLEASEFACTOR;
+    /// Give-up window = stall_factor_ * mean return time (clamped)
+    double stall_factor_ = GNETWORKEDSTALLFACTOR;
+    /// Reclaim lease before any return is seen
+    std::chrono::milliseconds lease_bootstrap_{GNETWORKEDLEASEBOOTSTRAP};
+    std::chrono::milliseconds min_lease_{GNETWORKEDMINLEASE}; ///< Lower clamp on the reclaim lease
+    std::chrono::milliseconds max_lease_{GNETWORKEDMAXLEASE}; ///< Upper clamp on the reclaim lease
+    std::chrono::milliseconds min_stall_{GNETWORKEDMINSTALL}; ///< Lower clamp on the give-up window
+    std::chrono::milliseconds max_stall_{GNETWORKEDMAXSTALL}; ///< Upper clamp on the give-up window
+    std::chrono::milliseconds sweep_tick_{
+        GNETWORKEDSWEEPTICK
+    }; ///< dispatch_ re-evaluation poll interval
 };
 
 /******************************************************************************/

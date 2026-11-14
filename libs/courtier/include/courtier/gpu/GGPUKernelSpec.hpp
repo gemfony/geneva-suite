@@ -38,6 +38,7 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "courtier/GCourtierEnums.hpp" // GGPUCONSUMERBLOCKX
 
 namespace Gem::Courtier::GPU {
 
@@ -93,7 +94,7 @@ inline const char *toString(BackendKind k) {
  * the item count and the block size".
  */
 struct LaunchConfig {
-    unsigned int block_x = 256;
+    unsigned int block_x = Gem::Courtier::GGPUCONSUMERBLOCKX;
     unsigned int block_y = 1;
     unsigned int block_z = 1;
     unsigned int grid_x = 0; // 0 == auto (ceil(n_items / block_x))

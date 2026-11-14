@@ -39,6 +39,10 @@
  * driver threads play the shared client pool (checkout / process / checkin) against M concurrent
  * processBatch() submitters. The local thread-pool consumer is exercised directly (concurrent
  * processBatch() onto one shared pool).
+ *
+ * The second half covers parked pulls (checkoutOrPark()): a caller for whom nothing is pending
+ * leaves a wake function instead of going away empty-handed, and every place that makes work
+ * available calls the parked ones.
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -47,10 +51,13 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <ranges>
+#include <semaphore>
 #include <span>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "courtier/GDemoProcessingContainers.hpp"
@@ -100,7 +107,60 @@ class SimNetConsumer : public c2::GNetworkedConsumerT<GFaultyContainer> {
 public:
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkout;
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkin;
+    // For the tests of parked pulls
+    using c2::GNetworkedConsumerT<GFaultyContainer>::checkoutOrPark;
+    using c2::GNetworkedConsumerT<GFaultyContainer>::requeue;
+    using c2::GNetworkedConsumerT<GFaultyContainer>::requestStop;
+    using c2::GNetworkedConsumerT<GFaultyContainer>::setLateReturnBuffer;
+    using c2::GNetworkedConsumerT<GFaultyContainer>::lateReturnBufferSize;
 };
+
+/** @brief Waits until @p condition holds, for at most five seconds.
+ *  @return Whether the condition held in the end */
+template <typename ConditionF>
+bool eventually(ConditionF condition) {
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while(not condition()) {
+        if(std::chrono::steady_clock::now() > deadline) {
+            return false;
+        }
+        std::this_thread::sleep_for(1ms);
+    }
+    return true;
+}
+
+/** @brief Stops @p consumer at the end of a scope. Declared after a submitter thread, it releases
+ *  a batch that still waits when a test fails half-way, so the thread can be joined and the test
+ *  ends instead of hanging. After a batch has completed it does nothing of interest. */
+struct GStopAtEnd {
+    SimNetConsumer &consumer;
+    explicit GStopAtEnd(SimNetConsumer &to_stop)
+      : consumer(to_stop) {
+    }
+    ~GStopAtEnd() {
+        consumer.requestStop();
+    }
+    GStopAtEnd(const GStopAtEnd &) = delete;
+    GStopAtEnd &operator=(const GStopAtEnd &) = delete;
+};
+
+/** @brief Evaluates a checked-out item and hands it back, as a client would. */
+void evaluateAndReturn(SimNetConsumer &consumer, item_ptr item) {
+    item->process();
+    consumer.checkin(std::move(item));
+}
+
+/** @brief Runs @p batch through @p consumer on a thread of its own and says when it is done. */
+std::jthread
+submit(SimNetConsumer &consumer, std::vector<item_ptr> &batch, std::atomic<bool> &done) {
+    return std::jthread([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+        done.store(true);
+    });
+}
 
 } /* anonymous namespace */
 
@@ -276,3 +336,342 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
 }
 
 /******************************************************************************/
+
+/******************************************************************************/
+// Parked pulls
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "courtier(park): a new batch wakes one parked caller per item, the longest-waiting first",
+    "[courtier][park]"
+) {
+    constexpr std::size_t CALLERS = 10;
+    constexpr std::size_t ITEMS = 3;
+    SimNetConsumer consumer;
+
+    std::vector<std::atomic<int>> woken(CALLERS);
+    for(auto &count : woken) {
+        const auto result = consumer.checkoutOrPark([&count] {
+            ++count;
+            return true;
+        });
+        REQUIRE(result.parked);
+        REQUIRE_FALSE(result.item);
+    }
+    CHECK(consumer.parkedCount() == CALLERS);
+    CHECK(consumer.emptyCheckoutCount() == 0); // a parked caller was not sent away empty-handed
+
+    auto batch = make_tagged_batch(0, ITEMS);
+    std::atomic<bool> done{false};
+    auto submitter = submit(consumer, batch, done);
+    const GStopAtEnd stop_at_end(consumer);
+
+    // Wait for the wake-ups themselves, not for the list to shrink: an entry leaves the list a
+    // moment before its function is called.
+    REQUIRE(eventually([&] {
+        return std::ranges::count_if(woken, [](const auto &count) { return count.load() > 0; }) ==
+               static_cast<std::ptrdiff_t>(ITEMS);
+    }));
+    CHECK(consumer.parkedCount() == CALLERS - ITEMS);
+    for(const auto &[i, count] : woken | std::views::enumerate) {
+        CHECK(count.load() == (std::cmp_less(i, ITEMS) ? 1 : 0));
+    }
+
+    // The woken callers ask again and find an item each; one more caller is parked.
+    for(std::size_t i = 0; i < ITEMS; ++i) {
+        auto result = consumer.checkoutOrPark([] { return true; });
+        REQUIRE(result.item);
+        evaluateAndReturn(consumer, std::move(result.item));
+    }
+    const auto one_more = consumer.checkoutOrPark([] { return true; });
+    CHECK(one_more.parked);
+
+    submitter.join();
+    CHECK(count_processed(batch) == ITEMS);
+    CHECK(consumer.parkedCount() == CALLERS - ITEMS + 1);
+}
+
+/******************************************************************************/
+// A parked caller that has gone away says so when it is called, and does not use up a wake-up:
+// the callers behind it get the items.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE("courtier(park): a caller that is gone does not use up a wake-up", "[courtier][park]") {
+    constexpr int GONE = 5;
+    constexpr int LIVE = 3;
+    constexpr std::size_t ITEMS = 2;
+    SimNetConsumer consumer;
+
+    std::atomic<int> gone_called{0};
+    std::atomic<int> live_woken{0};
+    for(int i = 0; i < GONE; ++i) {
+        const auto result = consumer.checkoutOrPark([&gone_called] {
+            ++gone_called;
+            return false;
+        });
+        REQUIRE(result.parked);
+    }
+    for(int i = 0; i < LIVE; ++i) {
+        const auto result = consumer.checkoutOrPark([&live_woken] {
+            ++live_woken;
+            return true;
+        });
+        REQUIRE(result.parked);
+    }
+
+    auto batch = make_tagged_batch(0, ITEMS);
+    std::atomic<bool> done{false};
+    auto submitter = submit(consumer, batch, done);
+    const GStopAtEnd stop_at_end(consumer);
+
+    REQUIRE(eventually([&] { return live_woken.load() == static_cast<int>(ITEMS); }));
+    CHECK(gone_called.load() == GONE);  // each was asked once and dropped from the list
+    CHECK(consumer.parkedCount() == 1); // the third live caller: there was no item for it
+
+    for(std::size_t i = 0; i < ITEMS; ++i) {
+        auto result = consumer.checkoutOrPark([] { return true; });
+        REQUIRE(result.item);
+        evaluateAndReturn(consumer, std::move(result.item));
+    }
+    submitter.join();
+    CHECK(count_processed(batch) == ITEMS);
+    CHECK(live_woken.load() == static_cast<int>(ITEMS));
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "courtier(park): a stop wakes every parked caller and parks nobody afterwards",
+    "[courtier][park]"
+) {
+    SimNetConsumer consumer;
+    std::atomic<int> woken{0};
+    for(int i = 0; i < 5; ++i) {
+        const auto result = consumer.checkoutOrPark([&woken] {
+            ++woken;
+            return true;
+        });
+        REQUIRE(result.parked);
+    }
+
+    consumer.requestStop();
+
+    CHECK(woken.load() == 5);
+    CHECK(consumer.parkedCount() == 0);
+
+    const auto late_caller = consumer.checkoutOrPark([&woken] {
+        ++woken;
+        return true;
+    });
+    CHECK_FALSE(late_caller.parked);
+    CHECK_FALSE(late_caller.item);
+    CHECK(consumer.parkedCount() == 0);
+    CHECK(woken.load() == 5);
+}
+
+/******************************************************************************/
+
+TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[courtier][park]") {
+    SimNetConsumer consumer;
+    auto batch = make_tagged_batch(0, 1);
+    std::atomic<bool> done{false};
+    auto submitter = submit(consumer, batch, done);
+    const GStopAtEnd stop_at_end(consumer);
+
+    // The first caller takes the only item and then loses its client. (It waits for the batch
+    // with checkout(): a call that parks would leave an entry behind on every try, and the
+    // wake-up this test counts would go to one of those.)
+    item_ptr first;
+    REQUIRE(eventually([&] {
+        first = consumer.checkout();
+        return static_cast<bool>(first);
+    }));
+
+    std::atomic<int> woken{0};
+    const auto parked_caller = consumer.checkoutOrPark([&woken] {
+        ++woken;
+        return true;
+    });
+    REQUIRE(parked_caller.parked);
+    CHECK(woken.load() == 0);
+
+    std::atomic<int> second_woken{0};
+    const auto second_caller = consumer.checkoutOrPark([&second_woken] {
+        ++second_woken;
+        return true;
+    });
+    REQUIRE(second_caller.parked);
+
+    consumer.requeue(first->getCorrelationId());
+    CHECK(woken.load() == 1); // one item, one wake-up: the caller that has waited longer
+    CHECK(second_woken.load() == 0);
+
+    auto second = consumer.checkoutOrPark([] { return true; });
+    REQUIRE(second.item);
+    evaluateAndReturn(consumer, std::move(second.item));
+
+    submitter.join();
+    CHECK(count_processed(batch) == 1);
+    CHECK(consumer.requeuedCount() == 1);
+}
+
+/******************************************************************************/
+// The lease sweep puts an abandoned item back while a batch waits, and announces it without the
+// consumer's lock. If the batch's last result is checked in during that announcement, nobody waits
+// for the notification; the batch must notice all the same, without sleeping through another sweep
+// interval. The interval is an hour here, so a batch that sleeps does not return.
+//
+// The arrangement: batch X has one item, which a client takes and abandons. A parked caller serves
+// whatever it is woken for, right inside the wake function (a real caller must not do that; here it
+// places the check-in exactly in the unlocked window). A second batch, Y, wakes the caller, which
+// completes Y; that completion wakes the wait of X, whose sweep puts the abandoned item back and
+// announces it -- and the caller completes X from inside that announcement.
+TEST_CASE(
+    "courtier(park): a batch completed during the lease sweep's announcement ends at once",
+    "[courtier][park]"
+) {
+    SimNetConsumer consumer;
+    consumer.setLeaseBootstrap(5ms);
+    consumer.setLeaseBounds(1ms, 5s);
+    consumer.setSweepTick(std::chrono::hours(1));
+
+    auto batch_x = make_tagged_batch(0, 1);
+    std::atomic<bool> x_done{false};
+    auto submitter_x = submit(consumer, batch_x, x_done);
+
+    // (With checkout(), so that waiting for the batch leaves no entries in the list of parked
+    // callers.)
+    item_ptr abandoned;
+    REQUIRE(eventually([&] {
+        abandoned = consumer.checkout();
+        return static_cast<bool>(abandoned);
+    }));
+    std::this_thread::sleep_for(50ms); // well past the lease
+
+    // Serves until nothing is pending, then parks again with itself as the wake function.
+    std::function<void()> serve = [&] {
+        while(true) {
+            auto result = consumer.checkoutOrPark([&serve] {
+                serve();
+                return true;
+            });
+            if(not result.item) {
+                return;
+            }
+            evaluateAndReturn(consumer, std::move(result.item));
+        }
+    };
+    serve(); // nothing pending (the item of X is in flight): parks
+
+    auto batch_y = make_tagged_batch(1, 1);
+    std::atomic<bool> y_done{false};
+    auto submitter_y = submit(consumer, batch_y, y_done);
+
+    const bool both_done = eventually([&] { return x_done.load() && y_done.load(); });
+    if(not both_done) {
+        consumer.requestStop(); // release the batch that sleeps, so the test can end
+    }
+    submitter_x.join();
+    submitter_y.join();
+
+    CHECK(both_done);
+    CHECK(count_processed(batch_x) == 1);
+    CHECK(count_processed(batch_y) == 1);
+    CHECK(consumer.requeuedCount() == 1);
+}
+
+/******************************************************************************/
+// A session checks a result in first and asks for work second. A late result must reach the late
+// buffer also when the caller is parked right afterwards.
+TEST_CASE("courtier(park): a late return is kept when its caller parks next", "[courtier][park]") {
+    SimNetConsumer consumer;
+    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
+
+    auto late = std::make_unique<GFaultyContainer>(42, fault_mode::NONE);
+    late->setCorrelationId(0); // no batch is active, so any id is a late one
+    consumer.checkin(std::move(late));
+    CHECK(consumer.checkoutOrPark([] { return true; }).parked);
+
+    CHECK(consumer.lateReturnBufferSize() == 1);
+    CHECK(consumer.parkedCount() == 1);
+}
+
+/******************************************************************************/
+// Many sessions that park and are woken, against several submitters: nothing is lost, nothing is
+// evaluated twice into a wrong slot, and no caller is ever sent away empty-handed. This is the test
+// for the thread sanitizer.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- one scenario: a pool of parking sessions against several submitters
+TEST_CASE(
+    "courtier(park): parking sessions against concurrent submitters",
+    "[courtier][park][concurrency]"
+) {
+    constexpr std::size_t SESSIONS = 8;
+    constexpr std::size_t SUBMITTERS = 4;
+    constexpr std::size_t ROUNDS = 25;
+    constexpr std::size_t ITEMS = 12;
+
+    SimNetConsumer consumer;
+    // The test counts evaluations, so no item may be handed out twice: a thread that is kept
+    // waiting by a busy machine must not have its item taken back by the time lease.
+    consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
+    std::atomic<std::size_t> n_evaluated{0};
+    std::atomic<std::size_t> n_never_woken{0};
+
+    std::vector<std::jthread> sessions;
+    sessions.reserve(SESSIONS);
+    for(std::size_t s = 0; s < SESSIONS; ++s) {
+        sessions.emplace_back([&] {
+            // Shared with the wake function, which may outlive a session that gave up waiting.
+            auto news = std::make_shared<std::binary_semaphore>(0);
+            while(true) {
+                auto result = consumer.checkoutOrPark([news] {
+                    news->release();
+                    return true;
+                });
+                if(result.item) {
+                    evaluateAndReturn(consumer, std::move(result.item));
+                    ++n_evaluated;
+                }
+                else if(result.parked) {
+                    // Woken exactly once per parking. The limit only keeps a failing test from
+                    // hanging; the whole test takes a fraction of a second.
+                    if(not news->try_acquire_for(30s)) {
+                        ++n_never_woken;
+                        return;
+                    }
+                }
+                else {
+                    return; // the server is stopping
+                }
+            }
+        });
+    }
+
+    std::atomic<std::size_t> n_complete{0};
+    {
+        std::vector<std::jthread> submitters;
+        submitters.reserve(SUBMITTERS);
+        for(std::size_t m = 0; m < SUBMITTERS; ++m) {
+            submitters.emplace_back([&, m] {
+                for(std::size_t round = 0; round < ROUNDS; ++round) {
+                    auto batch = make_tagged_batch(m, ITEMS);
+                    consumer.processBatch(
+                        std::span<item_ptr>(batch.data(), batch.size()),
+                        c2::GSubmissionPolicy::full_success_or_fatal()
+                    );
+                    if(count_processed(batch) == ITEMS) {
+                        ++n_complete;
+                    }
+                }
+            });
+        }
+    }
+
+    consumer.requestStop();
+    sessions.clear(); // joins: every session was woken by the stop
+
+    CHECK(n_complete.load() == SUBMITTERS * ROUNDS);
+    CHECK(n_evaluated.load() == SUBMITTERS * ROUNDS * ITEMS);
+    CHECK(n_never_woken.load() == 0);
+    CHECK(consumer.emptyCheckoutCount() == 0);
+    CHECK(consumer.parkedCount() == 0);
+}

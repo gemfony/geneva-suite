@@ -167,6 +167,38 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   Checkpoint/file serialization stays self-contained (full layout by value).
 - **Networked consumers' timeout / death-detection is now user-configurable** through a
   config file.
+- **A websocket (`beast`) client that finds no work waits at the server instead of polling.**
+  The server keeps the request and answers it when an item becomes available; one waiting client
+  is woken per item, the one that has waited longest first. A client thus gets its next item as
+  soon as there is one, and idle clients cause no traffic beyond the keep-alive. Measured with
+  400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
+  fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `asio`
+  and `mpi` workers still ask again after a random pause of 50 to 200 ms
+  (`GCLIENTNOWORKPAUSE{LOWER,UPPER}BOUNDARYMSEC`), which adds up to about that much to an
+  iteration; for evaluations of less than a few seconds the websocket consumer is the better
+  choice.
+- **One keep-alive for both ends of a websocket connection.** `--beast_pingInterval` (default
+  15 s) applies to the server and to the client: after that much silence a ping is sent, and after
+  twice as much without any inbound data the connection is closed. The same limit bounds the
+  websocket handshake and the close handshake, so a peer that has stopped answering cannot hold
+  a connection or a thread. A client answers pings while it evaluates, so an evaluation may take
+  any length of time. There is no limit on the size of a message.
+- **The number of io threads of a socket server** is set with `--asio_nProcessingThreads` and
+  `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11.
+  Development snapshots of the redesign ignored these options and ran one io thread per hardware
+  thread. In measurements with 400 clients the iteration time did not depend on the number, and
+  four threads used the least server CPU.
+- **A socket server lives as long as it is referenced.** Dropping the last reference stops and
+  tears down the server; `stopServer()` joins the io threads and frees the listening port.
+- **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
+  longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
+  handle is answered with NO_WORK, so the client asks again instead of ending. A result that
+  cannot be applied to its item marks the item as failed. In each case the submission policy
+  decides what happens to the item, as it does for any failed evaluation.
+- **Several submitters may use the GPU consumer at once**; their batches are queued to one device
+  thread.
+- **A batch may hold up to 2^24 items** (`GNetworkedConsumerT::maxBatchSize()`); a larger span
+  is refused with a fatal error. Submit it in several batches.
 - **The EA post-optimizer always refines inline.** `GEvolutionaryAlgorithmPostOptimizer`
   is constructed from the inner-EA config file alone; the former `execMode` constructor
   parameter and `setExecMode` / `getExecMode` have been **removed** (the nested
@@ -355,6 +387,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   full; its single behavioral effect is a warning (at most three per process) when the
   reserved thread total crosses 2x the hardware ceiling, naming the largest reservations —
   previously oversubscription was silent.
+- **courtier: one name for the pause of a worker after NO_WORK.**
+  `GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC` are
+  **removed**; the pause is the same for every transport and is
+  `GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC`. The other pauses, time limits
+  and defaults of the networked consumers are named constants in `courtier/GCourtierEnums.hpp`
+  as well.
 - **courtier: the socket consumers/clients gained shared bases** — `GAsioConsumerT` /
   `GWebsocketConsumerT` now derive from `GTcpAcceptingConsumerT` (the common TCP server
   shell) and `GAsioConsumerClientT` / `GWebsocketClientT` from `GPrefetchingClientT`

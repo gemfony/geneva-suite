@@ -34,9 +34,11 @@
 // Standard header files go here
 #include <cmath>
 #include <fstream>
-#include <future>
+#include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 // Boost header files go here
@@ -44,26 +46,75 @@
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "common/concurrency/GThreadPool.hpp"
+#include "geneva/GConsumerSetup.hpp"
+#include "geneva/Go2.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
-#include "geneva/Go2.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GDelayIndividual.hpp"
 
 using namespace Gem::Geneva;
 using namespace Gem::Common;
-using namespace Gem::Common::Concurrency;
 using namespace Gem::Dietrich; // plotting types live here now
+
+/******************************************************************************/
+/// The slope of the reference line must reach this fraction of the number of evaluations of a
+/// run; below it the reference is rejected as not serial.
+constexpr double MINSERIALSLOPEFRACTION = 0.8;
+
+/******************************************************************************/
+/**
+ * Stores the line of the serial reference, f(x) = a + b*x with the errors of a and b, in a file
+ * for the run that measures the parallel times.
+ *
+ * @param file_name The file to write
+ * @param ab The parameters a, error of a, b, error of b
+ */
+void writeReferenceLine(
+    const std::string &file_name,
+    const std::tuple<double, double, double, double> &ab
+) {
+    std::ofstream out(file_name);
+    out << std::setprecision(std::numeric_limits<double>::max_digits10) << std::get<0>(ab) << ' '
+        << std::get<1>(ab) << ' ' << std::get<2>(ab) << ' ' << std::get<3>(ab) << '\n';
+    if(not out) {
+        throw std::runtime_error("GParallelisationOverhead: could not write " + file_name);
+    }
+}
+
+/**
+ * Reads the line of the serial reference that an earlier run with --reference has stored.
+ *
+ * @param file_name The file to read
+ * @return The parameters a, error of a, b, error of b
+ */
+std::tuple<double, double, double, double> readReferenceLine(const std::string &file_name) {
+    std::ifstream in(file_name);
+    double a = 0.;
+    double a_err = 0.;
+    double b = 0.;
+    double b_err = 0.;
+    if(not(in >> a >> a_err >> b >> b_err)) {
+        throw std::runtime_error(
+            "GParallelisationOverhead: no serial reference in \"" + file_name +
+            "\". Run the program once with --reference first; it measures the reference on one "
+            "local worker and stores it there."
+        );
+    }
+    return {a, a_err, b, b_err};
+}
 
 /******************************************************************************/
 /**
  * Starts a series of reference measurements to be compared with the parallel
- * measurements. This will usually mean serial execution. The execution mode
- * is however determined by the caller.
+ * measurements. The reference is serial: an algorithm submits through the one
+ * consumer of its process, so this function registers the local thread consumer
+ * with a single worker as that consumer. It therefore runs in a process of its
+ * own (see main()). At the end it checks that the evaluations did run one
+ * after another.
  *
  * @param delay_config The parsed delay-individual configuration
  * @param ab The parameters a and b of the line best describing all measurements, so that f(x)=a+b*x
@@ -83,8 +134,11 @@ void startReferenceMeasurement(
     // Create an evolutionary algorithm
     auto ea_alg_master = ea_serial_factory.get<oa::GEvolutionaryAlgorithm>();
 
-    // The algorithm submits through the process-wide consumer (a default local thread-pool consumer
-    // is lazily built if none has been registered).
+    // The algorithm submits through the process-wide consumer. Make that the serial one, whatever
+    // was asked for on the command line: the reference is the time one worker needs.
+    const auto serial_consumer = Gem::Geneva::buildConsumerSetup(
+        Gem::Geneva::ConsumerSpec{.mnemonic = "stc", .n_threads = 1}
+    );
 
     //---------------------------------------------------------------------
     // Cycle through the configured delays, building a fresh delay individual for each one.
@@ -139,6 +193,24 @@ void startReferenceMeasurement(
     // Calculate the regression parameters a and b, including errors
     ab = getRegressionParameters(referenceExecutionTimes);
 
+    // A run that evaluates n individuals one after another takes n times the delay (plus a
+    // constant), so the slope of the line is the number of evaluations of a run. If the slope is
+    // well below that number, the evaluations overlapped and this was no serial reference.
+    // The first iteration evaluates the whole population, every later one the children only.
+    const double population = static_cast<double>(ea_alg_master->getDefaultPopulationSize());
+    const double n_children = static_cast<double>(ea_alg_master->getDefaultNChildren());
+    const double n_evaluations =
+        population + (static_cast<double>(ea_alg_master->getMaxIteration()) - 1.) * n_children;
+    const double slope = std::get<2>(ab);
+    std::cout << "Reference: " << slope << " s of run time per second of delay; a serial run has "
+              << n_evaluations << " evaluations" << std::endl;
+    if(slope < MINSERIALSLOPEFRACTION * n_evaluations) {
+        throw std::runtime_error(
+            "GParallelisationOverhead: the reference measurement did not run serially (its "
+            "evaluations overlapped), so it cannot serve as a reference."
+        );
+    }
+
     std::cout << "End of reference measurement" << std::endl;
 }
 
@@ -190,6 +262,16 @@ void startParallelMeasurement(
             go.registerAdaptionConfig("PERSONALITY_EA", cfg);
         }
 
+        // One run that is not measured, before the first delay: it waits until the workers of a
+        // networked consumer have connected and have the genome's layout, so that the first
+        // measurement does not carry that start-up time.
+        if(iter == 0) {
+            std::cout << "Warm-up run" << std::endl;
+            go.push_back(gdi_ptr);
+            go.optimize();
+            go.clear();
+        }
+
         std::vector<double> delaySummary;
         for(std::uint32_t i = 0; i < nMeasurementsPerIteration; i++) {
             std::cout << "Parallel measurement " << i << " in iteration " << iter << std::endl;
@@ -197,12 +279,11 @@ void startParallelMeasurement(
             // Make the individual known to the optimizer
             go.push_back(gdi_ptr);
 
-            // Do the actual optimization and measure the time. Each run starts at
-            // the accumulated iteration (passed as the offset) so the absolute
-            // max-iteration halt criterion does not fire immediately on the second
-            // and later measurements.
+            // Do the actual optimization and measure the time. Every run starts at iteration 0:
+            // the iteration limit is absolute, so a run that started at the iterations accumulated
+            // so far would end after a single iteration and measure almost nothing.
             std::chrono::system_clock::time_point const startTime = std::chrono::system_clock::now();
-            go.optimize(go.getIteration());
+            go.optimize();
             std::chrono::system_clock::time_point const endTime = std::chrono::system_clock::now();
             std::chrono::duration<double> const duration = endTime - startTime;
 
@@ -269,13 +350,31 @@ std::vector<std::tuple<double, double, double, double>> getReferenceTimes(
 
 /******************************************************************************/
 
-int main(int argc, char **argv) {
+// A failure (no reference to read, a reference that was not serial) ends the program with its
+// message and a non-zero status instead of an abort.
+int main(int argc, char **argv) try {
     std::vector<std::tuple<double, double, double, double>> parallelExecutionTimes,
         referenceExecutionTimes;
-    std::tuple<double, double, double, double> ab;
+
+    // The serial reference and the parallel measurement are two runs of this program. An
+    // algorithm submits through the one consumer of its process, so a reference taken next to
+    // the parallel measurement would run on the same workers and be no reference at all.
+    bool reference_run = false;
+    std::string reference_file = "referenceLine.txt";
+    boost::program_options::options_description user_options;
+    user_options.add_options()(
+        "reference",
+        boost::program_options::value<bool>(&reference_run)->implicit_value(true)->default_value(false),
+        "Measure the serial reference (on one local worker, whatever consumer is named) and store "
+        "its line in --referenceFile, instead of measuring the parallel times"
+    )(
+        "referenceFile",
+        boost::program_options::value<std::string>(&reference_file)->default_value(reference_file),
+        "The file that holds the line of the serial reference"
+    );
 
     // For the parallel measurement
-    Go2 go_parallel(argc, argv, "./config/Go2.json");
+    Go2 go_parallel(argc, argv, "./config/Go2.json", user_options);
 
     //---------------------------------------------------------------------
     // Client mode
@@ -294,30 +393,26 @@ int main(int argc, char **argv) {
     go_parallel.registerDefaultAlgorithm("ea");
 
     // --update-configs: the delay-individual configs were materialized by the readConfig calls above; now
-    // let Go2 refresh the configs it owns and exit. The benchmark itself must be skipped -- its worker
-    // threads run real optimizations, and the config-refresh exit path (std::exit) would tear the process
-    // down while they are mid-flight, racing their shared-state teardown (an intermittent segfault).
+    // let Go2 refresh the configs it owns and exit, without measuring anything.
     if(go_parallel.updateConfigsMode()) {
-        go_parallel.optimize(); // refreshes Go2's owned configs, then exits; no benchmark threads are running
+        go_parallel.optimize(); // refreshes Go2's owned configs, then exits
         return 0;               // not reached (optimize() std::exit()s in --update-configs mode)
     }
 
-    // Threadpool for two threads
-    Gem::Common::Concurrency::GThreadPool tp(2);
+    //---------------------------------------------------------------------
+    // The reference run: measure, store the line, done.
+    if(reference_run) {
+        std::tuple<double, double, double, double> ab;
+        startReferenceMeasurement(delay_config_ref, ab);
+        writeReferenceLine(reference_file, ab);
+        std::cout << "The serial reference is in " << reference_file << std::endl;
+        return 0;
+    }
 
-    // Start the reference and parallel threads. The futures are KEPT and get()-ed below: a half that
-    // throws would otherwise be swallowed by the pool, and the benchmark would go on to write an empty
-    // plot and exit 0 -- a run that measured nothing while reporting success. (That is exactly what a
-    // missing adaption config on the parallel half used to do.)
-    auto reference_done = tp.async_schedule([&]() { startReferenceMeasurement(delay_config_ref, ab); });
-    auto parallel_done  = tp.async_schedule([&]() {
-        startParallelMeasurement(go_parallel, delay_config_par, parallelExecutionTimes);
-    });
-    std::cout << "Waiting for threads to return" << std::endl;
-    // And wait for their return, re-throwing whatever either of them failed with
-    tp.wait();
-    reference_done.get();
-    parallel_done.get();
+    //---------------------------------------------------------------------
+    // The parallel run: needs the reference of an earlier run.
+    const std::tuple<double, double, double, double> ab = readReferenceLine(reference_file);
+    startParallelMeasurement(go_parallel, delay_config_par, parallelExecutionTimes);
 
     // Calculate reference times from the line parameters
     referenceExecutionTimes = getReferenceTimes(ab, parallelExecutionTimes);
@@ -327,28 +422,47 @@ int main(int argc, char **argv) {
         getRatioErrors(referenceExecutionTimes, parallelExecutionTimes);
 
     //---------------------------------------------------------------------
-    // Will hold all plot information
-    std::shared_ptr<GGraph2ED> const greference_ptr(new GGraph2ED());
-    greference_ptr->setPlotLabel("Serial execution times and errors");
-
-    std::shared_ptr<GGraph2ED> const gparallel_ptr(new GGraph2ED());
-    gparallel_ptr->setPlotLabel("Parallel execution times and errors");
-
-    std::shared_ptr<GGraph2ED> const gratio_ptr(new GGraph2ED());
-    gratio_ptr->setPlotLabel("Speedup: serial/parallel execution times and errors");
-
-    (*greference_ptr) & referenceExecutionTimes;
-    (*gparallel_ptr) & parallelExecutionTimes;
+    // The plot shows the speed-up only, over the evaluation time: once with a linear and once
+    // with a logarithmic speed-up axis. The serial and the parallel run times are straight lines
+    // of little interest; they go to the text file.
+    const auto gratio_ptr = std::make_shared<GGraph2ED>();
+    gratio_ptr->setPlotLabel("Speed-up over serial execution");
+    gratio_ptr->setXAxisLabel("Evaluation time [s]");
+    gratio_ptr->setYAxisLabel("Speed-up");
     (*gratio_ptr) & ratioWithErrors;
 
-    GPlotDesigner gpd("Processing times and speed-up as a function of evaluation time", 1, 3);
+    const auto gratio_log_ptr = std::make_shared<GGraph2ED>();
+    gratio_log_ptr->setPlotLabel("Speed-up over serial execution, logarithmic speed-up axis");
+    gratio_log_ptr->setXAxisLabel("Evaluation time [s]");
+    gratio_log_ptr->setYAxisLabel("Speed-up");
+    gratio_log_ptr->setYAxisLogarithmic(true);
+    (*gratio_log_ptr) & ratioWithErrors;
 
-    gpd.registerPlotter(greference_ptr);
-    gpd.registerPlotter(gparallel_ptr);
+    GPlotDesigner gpd("Speed-up as a function of the evaluation time", 1, 2);
     gpd.registerPlotter(gratio_ptr);
-
-    gpd.setCanvasDimensions(800, 1200);
+    gpd.registerPlotter(gratio_log_ptr);
+    gpd.setCanvasDimensions(800, 1000);
     gpd.writeToFile(delay_config_par.result_file);
 
+    //---------------------------------------------------------------------
+    // The numbers behind the plot, one line per delay
+    std::ofstream table(delay_config_par.short_result_file);
+    table << "# evaluation time [s]; serial run time [s] (fitted) and its error; parallel run time "
+             "[s] "
+             "and its error; speed-up and its error"
+          << '\n';
+    for(std::size_t i = 0; i < parallelExecutionTimes.size(); i++) {
+        table << std::get<0>(parallelExecutionTimes[i]) << '\t'
+              << std::get<2>(referenceExecutionTimes[i]) << '\t'
+              << std::get<3>(referenceExecutionTimes[i]) << '\t'
+              << std::get<2>(parallelExecutionTimes[i]) << '\t'
+              << std::get<3>(parallelExecutionTimes[i]) << '\t' << std::get<2>(ratioWithErrors[i])
+              << '\t' << std::get<3>(ratioWithErrors[i]) << '\n';
+    }
+
     return 0;
+}
+catch(const std::exception &e) {
+    std::cerr << e.what() << std::endl;
+    return 1;
 }

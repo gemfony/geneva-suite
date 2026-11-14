@@ -1165,3 +1165,176 @@ TEST_CASE("Octave draws a 3-d graph in a 3-d view", "[plotting]") {
     CHECK(s.contains("plot3("));
     CHECK(s.contains("view(3);"));
 }
+
+/******************************************************************************/
+// Logarithmic axes: a plotter can ask for a logarithmic x- or y-axis, and every backend writes
+// what its tool needs for that. A plot that does not ask for one gets the script it always got.
+namespace {
+
+/** @brief A graph over three decades, with the axis scales as asked for. */
+std::shared_ptr<GGraph2D> decadesGraph(bool log_x, bool log_y) {
+    auto g = std::make_shared<GGraph2D>();
+    (*g) & std::tuple<double, double>(0.01, 1.0);
+    (*g) & std::tuple<double, double>(0.1, 10.0);
+    (*g) & std::tuple<double, double>(1.0, 100.0);
+    g->setXAxisLogarithmic(log_x);
+    g->setYAxisLogarithmic(log_y);
+    return g;
+}
+
+/** @brief The script of @p backend for the given plotters, one pad each. */
+std::string scriptFor(plotBackend backend, const std::vector<std::shared_ptr<GGraph2D>> &graphs) {
+    GPlotDesigner gpd("axes", 1, graphs.size());
+    gpd.setPlotBackend(backend);
+    for(const auto &g : graphs) {
+        gpd.registerPlotter(g);
+    }
+    return gpd.plot();
+}
+
+} /* anonymous namespace */
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE("A plotter's logarithmic axes reach every backend", "[plotting][logaxis]") {
+    const auto log_x = decadesGraph(true, false);
+    const auto log_y = decadesGraph(false, true);
+    const auto linear = decadesGraph(false, false);
+
+    SECTION("ROOT sets the scale on the pad before it draws") {
+        const std::string s = scriptFor(plotBackend::ROOT, {log_x, log_y});
+        const auto first_pad = s.find("graphPad->cd(1);");
+        const auto second_pad = s.find("graphPad->cd(2);");
+        REQUIRE(first_pad != std::string::npos);
+        REQUIRE(second_pad != std::string::npos);
+        const std::string pad_one = s.substr(first_pad, second_pad - first_pad);
+        const std::string pad_two = s.substr(second_pad);
+        CHECK(pad_one.contains("gPad->SetLogx(1);"));
+        CHECK_FALSE(pad_one.contains("SetLogy"));
+        CHECK(pad_one.find("gPad->SetLogx(1);") < pad_one.find("Draw("));
+        CHECK(pad_two.contains("gPad->SetLogy(1);"));
+        CHECK_FALSE(pad_two.contains("SetLogx"));
+        // An axis between two powers of ten would have no labels: both pads ask for more of
+        // them, after the graph is drawn (the range is not known before).
+        for(const std::string &pad : {pad_one, pad_two}) {
+            REQUIRE(pad.contains("SetMoreLogLabels"));
+            CHECK(pad.contains("SetNoExponent"));
+            CHECK(pad.find("Draw(") < pad.find("SetMoreLogLabels"));
+        }
+    }
+
+    SECTION("gnuplot switches the scale on, and off again for the next pad") {
+        const std::string s = scriptFor(plotBackend::GNUPLOT, {log_x, linear, log_y});
+        const auto on = s.find("set logscale x");
+        const auto off = s.find("unset logscale x");
+        const auto on_y = s.find("set logscale y");
+        REQUIRE(on != std::string::npos);
+        REQUIRE(off != std::string::npos);
+        REQUIRE(on_y != std::string::npos);
+        CHECK(on < off);
+        CHECK(off < on_y);
+    }
+
+    SECTION("matplotlib and Octave set the scale of the axes object") {
+        const std::string py = scriptFor(plotBackend::MATPLOTLIB, {log_x, log_y});
+        CHECK(py.contains("ax.set_xscale(\"log\")"));
+        CHECK(py.contains("ax.set_yscale(\"log\")"));
+        const std::string m = scriptFor(plotBackend::OCTAVE, {log_x, log_y});
+        CHECK(m.contains("set(gca, 'XScale', 'log');"));
+        CHECK(m.contains("set(gca, 'YScale', 'log');"));
+    }
+
+    SECTION("a plot with linear axes gets no scale command in any backend") {
+        for(const auto backend :
+            {plotBackend::ROOT,
+             plotBackend::GNUPLOT,
+             plotBackend::MATPLOTLIB,
+             plotBackend::OCTAVE}) {
+            const std::string s = scriptFor(backend, {linear});
+            CHECK_FALSE(s.contains("SetLog"));
+            CHECK_FALSE(s.contains("MoreLogLabels"));
+            CHECK_FALSE(s.contains("logscale"));
+            CHECK_FALSE(s.contains("scale(\"log\")"));
+            CHECK_FALSE(s.contains("Scale', 'log'"));
+        }
+    }
+}
+
+TEST_CASE(
+    "The logarithmic axes are part of a plotter's state and of its spec",
+    "[plotting][logaxis]"
+) {
+    const auto g = decadesGraph(true, false);
+    CHECK(g->xAxisLogarithmic());
+    CHECK_FALSE(g->yAxisLogarithmic());
+
+    // A copy has them; a plotter that differs in them is a different plotter.
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization) -- the copy is what is tested
+    const GGraph2D copy(*g);
+    CHECK(copy.xAxisLogarithmic());
+    CHECK(copy == *g);
+    GGraph2D changed(*g);
+    changed.setYAxisLogarithmic(true);
+    CHECK(changed != *g);
+
+    // The spec reports them, writes them into its JSON only when set, and a plotter built from
+    // the spec has them again.
+    const GPlotSpec spec = g->plotSpec();
+    CHECK(spec.x_log);
+    CHECK_FALSE(spec.y_log);
+    CHECK(spec.toJson().contains("\"x_log\": true"));
+    CHECK_FALSE(spec.toJson().contains("y_log"));
+    CHECK_FALSE(decadesGraph(false, false)->plotSpec().toJson().contains("_log"));
+    const auto rebuilt = makePlotter(spec);
+    REQUIRE(rebuilt);
+    CHECK(rebuilt->xAxisLogarithmic());
+    CHECK_FALSE(rebuilt->yAxisLogarithmic());
+}
+
+/******************************************************************************/
+// Several graphs in one pad must be told apart and must all be visible. gnuplot does that by
+// itself; ROOT, matplotlib and Octave have to be told.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE(
+    "Overlaid graphs get colours, a legend and room in every backend",
+    "[plotting][overlay]"
+) {
+    const auto overlaid = [] {
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        auto third = decadesGraph(false, false);
+        third->setPlotLabel("third");
+        first->registerSecondaryPlotter(second);
+        first->registerSecondaryPlotter(third);
+        return first;
+    };
+
+    SECTION("ROOT: a colour per graph, one frame for all, a legend") {
+        const std::string s = scriptFor(plotBackend::ROOT, {overlaid()});
+        CHECK(s.contains("->SetLineColor(4);"));
+        CHECK(s.contains("->SetLineColor(2);"));
+        CHECK(s.contains("->SetLineColor(8);"));
+        CHECK(s.contains("->SetMarkerColor(8);"));
+        CHECK(s.contains("gPad->BuildLegend();"));
+        CHECK(s.contains("first->SetMinimum("));
+        CHECK(s.contains("first->GetXaxis()->SetLimits("));
+        // The frame and the legend come after the last graph is drawn.
+        CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
+    }
+
+    SECTION("matplotlib and Octave show the legend their plot calls prepared") {
+        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend()"));
+        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend('show');"));
+    }
+
+    SECTION("a pad with a single graph gets none of this") {
+        const auto single = decadesGraph(false, false);
+        const std::string root = scriptFor(plotBackend::ROOT, {single});
+        CHECK_FALSE(root.contains("SetLineColor"));
+        CHECK_FALSE(root.contains("BuildLegend"));
+        CHECK_FALSE(root.contains("SetMinimum"));
+        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("legend"));
+        CHECK_FALSE(scriptFor(plotBackend::OCTAVE, {single}).contains("legend"));
+    }
+}

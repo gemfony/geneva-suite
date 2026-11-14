@@ -75,9 +75,14 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
             Gem::Common::make_member("x_axis_label_", self.x_axis_label_),
             Gem::Common::make_member("y_axis_label_", self.y_axis_label_),
             Gem::Common::make_member("z_axis_label_", self.z_axis_label_),
+            Gem::Common::make_member("x_axis_logarithmic_", self.x_axis_logarithmic_),
+            Gem::Common::make_member("y_axis_logarithmic_", self.y_axis_logarithmic_),
             Gem::Common::make_member("plot_label_", self.plot_label_),
             Gem::Common::make_member("ds_marker_", self.ds_marker_),
-            Gem::Common::make_cloneable_container_member("secondary_plotter_", self.secondary_plotter_),
+            Gem::Common::make_cloneable_container_member(
+                "secondary_plotter_",
+                self.secondary_plotter_
+            ),
             Gem::Common::make_member("id_", self.id_)
         );
     }
@@ -151,6 +156,30 @@ public:
      * @return The current z-axis label
      */
     [[nodiscard]] std::string zAxisLabel() const;
+
+    /**
+     * @brief Chooses a logarithmic or a linear scale for the x-axis of this plot's pad. Every
+     * backend honours it (matplotlib for two-dimensional plots only). The values plotted on a
+     * logarithmic axis must be positive.
+     * @param logarithmic true for a logarithmic x-axis, false (the default) for a linear one
+     */
+    void setXAxisLogarithmic(bool logarithmic);
+    /**
+     * @brief Whether the x-axis is logarithmic
+     * @return true if the x-axis of this plot's pad is drawn with a logarithmic scale
+     */
+    [[nodiscard]] bool xAxisLogarithmic() const;
+    /**
+     * @brief Chooses a logarithmic or a linear scale for the y-axis of this plot's pad (see
+     * setXAxisLogarithmic())
+     * @param logarithmic true for a logarithmic y-axis, false (the default) for a linear one
+     */
+    void setYAxisLogarithmic(bool logarithmic);
+    /**
+     * @brief Whether the y-axis is logarithmic
+     * @return true if the y-axis of this plot's pad is drawn with a logarithmic scale
+     */
+    [[nodiscard]] bool yAxisLogarithmic() const;
 
     /**
      * @brief Allows to assign a label to the entire plot
@@ -362,6 +391,9 @@ protected:
     std::string x_axis_label_ = std::string("x"); ///< A label for the x-axis
     std::string y_axis_label_ = std::string("y"); ///< A label for the y-axis
     std::string z_axis_label_ = std::string("z"); ///< A label for the z-axis (if available)
+
+    bool x_axis_logarithmic_ = false; ///< Whether the x-axis has a logarithmic scale
+    bool y_axis_logarithmic_ = false; ///< Whether the y-axis has a logarithmic scale
 
     std::string plot_label_ = std::string(""); ///< A label to be assigned to the entire plot
     std::string ds_marker_ = std::string(

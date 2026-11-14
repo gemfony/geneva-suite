@@ -39,11 +39,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <span>
+#include <string>
 #include <thread>
 #include <vector>
-#include <span>
 
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/transport/GAsioTransportT.hpp" // the (reused) client
@@ -54,6 +57,7 @@ using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
 namespace c2 = Gem::Courtier;
 namespace ccons = Gem::Courtier::Consumers;
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -176,3 +180,111 @@ TEST_CASE("courtier(asio): prefetch + throwing items refilled under clone-on-par
 }
 
 /******************************************************************************/
+
+/******************************************************************************/
+// Requests the server cannot act on, and a server that does not answer.
+
+namespace {
+
+/** @brief Plays a client by hand: connects to @p port, sends @p request as one complete asio
+ *  exchange (write, half-close) and returns whatever the server sends back until it closes. */
+std::string rawExchange(unsigned short port, const std::string &request) {
+    boost::asio::io_context ctx;
+    boost::asio::ip::tcp::socket socket(ctx);
+    socket.connect({boost::asio::ip::address_v4::loopback(), port});
+    boost::asio::write(socket, boost::asio::buffer(request));
+    socket.shutdown(boost::asio::socket_base::shutdown_send);
+
+    std::string reply;
+    boost::system::error_code ec;
+    boost::asio::read(socket, boost::asio::dynamic_buffer(reply), ec); // ends with eof
+    return reply;
+}
+
+/** @brief The frame kind of a serialized reply. */
+c2::GFrameKind replyKind(const std::string &reply) {
+    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::NONE};
+    c2::container_from_string(reply, frame, BIN);
+    return frame.kind();
+}
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "courtier(asio): a request the server cannot decode is answered with NO_WORK",
+    "[courtier][asio][net]"
+) {
+    auto consumer =
+        std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(/*port=*/0, /*threads=*/2, BIN);
+    consumer->startServer();
+
+    // An empty reply would make a real client fail to decode it and shut down.
+    const std::string reply = rawExchange(consumer->getPort(), "this is not a frame");
+    REQUIRE_FALSE(reply.empty());
+    CHECK(replyKind(reply) == c2::GFrameKind::NO_WORK);
+
+    consumer->stopServer();
+}
+
+TEST_CASE(
+    "courtier(asio): a frame a client must not send is answered with NO_WORK",
+    "[courtier][asio][net]"
+) {
+    auto consumer =
+        std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(/*port=*/0, /*threads=*/2, BIN);
+    consumer->startServer();
+
+    // WORK travels from the server to the client only; the server's dispatch does not know it.
+    const c2::GCommandContainerT<GFaultyContainer> wrong_way{
+        c2::GFrameKind::WORK,
+        std::make_unique<GFaultyContainer>(0, fault_mode::NONE)
+    };
+    const std::string reply =
+        rawExchange(consumer->getPort(), c2::container_to_string(wrong_way, BIN));
+    REQUIRE_FALSE(reply.empty());
+    CHECK(replyKind(reply) == c2::GFrameKind::NO_WORK);
+
+    consumer->stopServer();
+}
+
+TEST_CASE("courtier(asio): a client whose server never answers gives up", "[courtier][asio][net]") {
+    // A "server" that accepts connections and then stays silent: it never reads and never replies.
+    boost::asio::io_context ctx;
+    boost::asio::ip::tcp::acceptor acceptor(ctx, {boost::asio::ip::address_v4::loopback(), 0});
+    std::vector<boost::asio::ip::tcp::socket> held;
+    std::function<void()> accept_next = [&] {
+        acceptor.async_accept([&](boost::system::error_code ec, boost::asio::ip::tcp::socket s) {
+            if(not ec) {
+                held.push_back(std::move(s));
+                accept_next();
+            }
+        });
+    };
+    accept_next();
+    const std::jthread silent_server([&] { ctx.run(); });
+
+    auto client = std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(
+        "127.0.0.1",
+        acceptor.local_endpoint().port(),
+        BIN,
+        /*max_reconnects=*/0
+    );
+    client->setReplyTimeout(200ms);
+
+    std::atomic<bool> finished{false};
+    std::jthread client_thread([&] {
+        client->run();
+        finished.store(true);
+    });
+
+    // Without a limit on the wait for the reply the client stays in its read for good.
+    const auto give_up_at = std::chrono::steady_clock::now() + 5s;
+    while(not finished.load() && std::chrono::steady_clock::now() < give_up_at) {
+        std::this_thread::sleep_for(10ms);
+    }
+    CHECK(finished.load());
+
+    client->flagCloseRequested(); // ends a client that is still waiting, so the test can finish
+    client_thread.join();
+    ctx.stop();
+}

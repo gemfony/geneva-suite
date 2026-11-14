@@ -256,6 +256,12 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(three_d) {
             result << "zlabel('" << octaveEscape(p->zAxisLabel()) << "');" << '\n';
         }
+        if(p->xAxisLogarithmic()) {
+            result << "set(gca, 'XScale', 'log');" << '\n';
+        }
+        if(p->yAxisLogarithmic()) {
+            result << "set(gca, 'YScale', 'log');" << '\n';
+        }
         result << "title('" << octaveEscape(p->plotLabel()) << "');" << '\n';
 
         // The primary plotter, then any secondary plotters overlaid in the same pad.
@@ -264,6 +270,10 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
             result << octPlotCall(
                 *sp, classifyForScript(*sp, true, "OctaveEmitter::emitDocument()", "Octave")
             );
+        }
+        // Several series in one pad are told apart by a legend (each call above set its name).
+        if(not p->secondaryPlotters().empty()) {
+            result << "legend('show');" << '\n';
         }
         result << '\n';
     }

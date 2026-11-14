@@ -49,6 +49,38 @@ using namespace Gem::Dietrich; // the plotting types live here
 
 namespace {
 
+/******************************************************************************/
+/**
+ * A graph whose values span several decades on both axes, drawn with logarithmic axes: what the
+ * real tool behind each backend has to accept when a plotter asks for a logarithmic scale. Two
+ * further graphs are laid over it; they lie below the first one, so the pad must make room for
+ * them, and the three are to be told apart by colour and by a legend.
+ *
+ * @param label The label of the plot
+ * @return The plotter
+ */
+std::shared_ptr<GGraph2D> decadesGraph(const std::string &label) {
+    auto g = std::make_shared<GGraph2D>();
+    g->setPlotLabel(label);
+    g->setXAxisLabel("x (logarithmic)");
+    g->setYAxisLabel("y (logarithmic)");
+    g->setXAxisLogarithmic(true);
+    g->setYAxisLogarithmic(true);
+    auto lower = std::make_shared<GGraph2D>();
+    lower->setPlotLabel("a tenth of it");
+    auto lowest = std::make_shared<GGraph2D>();
+    lowest->setPlotLabel("a hundredth of it");
+    for(int i = 0; i <= 30; i++) {
+        const double x = std::pow(10., -2. + (0.1 * static_cast<double>(i))); // 0.01 ... 10
+        (*g) & std::tuple<double, double>(x, 100. * x * x);                   // 0.01 ... 10000
+        (*lower) & std::tuple<double, double>(x, 10. * x * x);
+        (*lowest) & std::tuple<double, double>(x, x * x);
+    }
+    g->registerSecondaryPlotter(lower);
+    g->registerSecondaryPlotter(lowest);
+    return g;
+}
+
 /**
  * @brief A sampled surface drawn with its colour map projected onto the floor or ceiling of the box,
  * and a short path drawn onto that map as an overlay (a line through markers, at the map's height).
@@ -162,7 +194,7 @@ int main(int argc, char **argv) {
     noisyParabola_plotter_2D_ptr->setYAxisLabel("Noisy parabola");
     noisyParabola_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    GPlotDesigner gpd("Sine and cosine and 2D-functions", 2, 4);
+    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 3);
 
     gpd.setCanvasDimensions(1200, 1400);
     gpd.registerPlotter(gsin_ptr);
@@ -173,6 +205,7 @@ int main(int argc, char **argv) {
     gpd.registerPlotter(noisyParabola_plotter_2D_ptr);
     gpd.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor"));
     gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
+    gpd.registerPlotter(decadesGraph("a power law with logarithmic axes"));
 
     gpd.writeToFile("result.C");
 
@@ -208,12 +241,15 @@ int main(int argc, char **argv) {
             std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
-    GPlotDesigner gpd_gnuplot("Graphs through gnuplot", 2, 2);
+    GPlotDesigner gpd_gnuplot("Graphs through gnuplot", 2, 3);
     gpd_gnuplot.setPlotBackend(Gem::Dietrich::plotBackend::GNUPLOT);
     gpd_gnuplot.registerPlotter(gp_sin_ptr);
     gpd_gnuplot.registerPlotter(gp_helix_ptr);
     gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, gnuplot"));
     gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, gnuplot"));
+    // A pad with logarithmic axes, and a linear one after it: the scale must not carry over.
+    gpd_gnuplot.registerPlotter(decadesGraph("a power law with logarithmic axes, gnuplot"));
+    gpd_gnuplot.registerPlotter(gp_cos_ptr);
     gpd_gnuplot.writeToFile("result.gp");
 
     // -------------------------------------------------------------------------
@@ -279,7 +315,7 @@ int main(int argc, char **argv) {
         (*mpl_hist1i_ptr) & static_cast<std::int32_t>(std::lround(x));
     }
 
-    GPlotDesigner gpd_mpl("Graphs and histograms through matplotlib", 2, 3);
+    GPlotDesigner gpd_mpl("Graphs and histograms through matplotlib", 2, 4);
     gpd_mpl.setPlotBackend(Gem::Dietrich::plotBackend::MATPLOTLIB);
     gpd_mpl.registerPlotter(mpl_sin_ptr);
     gpd_mpl.registerPlotter(mpl_helix_ptr);
@@ -287,6 +323,7 @@ int main(int argc, char **argv) {
     gpd_mpl.registerPlotter(mpl_hist2d_ptr);
     gpd_mpl.registerPlotter(mpl_hist1i_ptr);
     gpd_mpl.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, matplotlib"));
+    gpd_mpl.registerPlotter(decadesGraph("a power law with logarithmic axes, matplotlib"));
     gpd_mpl.writeToFile("result.py");
 
     // -------------------------------------------------------------------------
@@ -347,7 +384,7 @@ int main(int argc, char **argv) {
         (*oct_hist1i_ptr) & static_cast<std::int32_t>(std::lround(x));
     }
 
-    GPlotDesigner gpd_oct("Graphs and histograms through Octave", 2, 3);
+    GPlotDesigner gpd_oct("Graphs and histograms through Octave", 2, 4);
     gpd_oct.setPlotBackend(Gem::Dietrich::plotBackend::OCTAVE);
     gpd_oct.registerPlotter(oct_sin_ptr);
     gpd_oct.registerPlotter(oct_helix_ptr);
@@ -355,6 +392,7 @@ int main(int argc, char **argv) {
     gpd_oct.registerPlotter(oct_hist2d_ptr);
     gpd_oct.registerPlotter(oct_hist1i_ptr);
     gpd_oct.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave"));
+    gpd_oct.registerPlotter(decadesGraph("a power law with logarithmic axes, Octave"));
     gpd_oct.writeToFile("result.m");
 
     // -------------------------------------------------------------------------
@@ -488,6 +526,8 @@ int main(int argc, char **argv) {
         gpd_full.registerPlotter(full_h1d);
         gpd_full.registerPlotter(full_h2d);
         gpd_full.registerPlotter(full_h1i);
+        // Logarithmic axes and two overlaid graphs: the manifest has to carry both to the renderer.
+        gpd_full.registerPlotter(decadesGraph("a power law with logarithmic axes, data export"));
         gpd_full.writeToFile("result_data_full.npz");
     }
 }
