@@ -324,6 +324,25 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// The thread consumer registered an option "stcCapableOfFullReturn" that nothing ever read. An
+// option that is offered must have an effect, so it is gone; the consumers' option set must not
+// offer it (the neighbouring stc option is there, so the lookup itself works).
+TEST_CASE(
+    "the consumers do not offer the unread option stcCapableOfFullReturn",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+
+    CHECK(hidden.find_nothrow("nWorkerThreads", false) != nullptr);
+    CHECK(visible.find_nothrow("stcCapableOfFullReturn", false) == nullptr);
+    CHECK(hidden.find_nothrow("stcCapableOfFullReturn", false) == nullptr);
+}
+
+// ---------------------------------------------------------------------------
 // The consumer catalog is data in the shared provider store, not a hard-coded table + switch.
 
 TEST_CASE("Consumer provider store exposes the built-in consumer catalog", "[consumer][sharing][registry]") {

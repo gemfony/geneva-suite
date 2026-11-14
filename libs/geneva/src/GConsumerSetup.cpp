@@ -139,10 +139,10 @@ public:
     void addCLOptions(po::options_description & /*visible*/, po::options_description &hidden) override {
         // 0 means "the consumer's own default" (hardware concurrency).
         hidden.add_options()(
-            "nWorkerThreads", po::value<std::size_t>()->default_value(0),
-            "\t[stc] The number of worker threads (0 == hardware concurrency)")(
-            "stcCapableOfFullReturn", po::value<bool>()->default_value(true),
-            "\t[stc] A debugging option toggling timeouts in the executor");
+            "nWorkerThreads",
+            po::value<std::size_t>()->default_value(0),
+            "\t[stc] The number of worker threads (0 == hardware concurrency)"
+        );
     }
 };
 
