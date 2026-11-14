@@ -1224,6 +1224,16 @@ public:
                 << "The payload source/sink callbacks must both be set" << '\n'
             );
         }
+        if(config_.masterCleanSessIntervalMSec == 0) {
+            // The cleanup thread pauses for this interval between two passes; without a pause it
+            // would occupy a core for the whole run.
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "GMPIConsumerMasterNodeT<>::GMPIConsumerMasterNodeT():" << '\n'
+                << "The interval between two checks for completed sessions "
+                << "(mpi_cleanSessInterval) must be at least 1 ms" << '\n'
+            );
+        }
 
         glogger << "GMPIConsumerMasterNodeT started with " << config_.nHandlerThreads
                 << " handler threads" << '\n'
@@ -1443,11 +1453,10 @@ private:
         // cannot wedge this thread and thus shutdown().
         while(stopSendOutsCompleted < requiredStopResponses()) {
             // wait a short amount of time between checking if the sessions have been completed
-            if(config_.masterCleanSessIntervalMSec > 0) {
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds{config_.masterCleanSessIntervalMSec}
-                );
-            }
+            // (the constructor has refused an interval of zero)
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds{config_.masterCleanSessIntervalMSec}
+            );
 
             this->reapCompletedSessions(stopSendOutsCompleted);
 

@@ -142,6 +142,14 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiThreadLevelTest PROPERTIES LABELS "courtier" SKIP_RETURN_CODE 77)
 	GENEVA_TEST_SIZE(GCourtierMpiThreadLevelTest M)
 
+	# A cleanup interval of 0 ms is refused: the master's cleanup thread would occupy a core.
+	ADD_TEST(NAME GCourtierMpiCleanIntervalTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=zero-clean-interval
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiCleanIntervalTest PROPERTIES LABELS "courtier")
+	GENEVA_TEST_SIZE(GCourtierMpiCleanIntervalTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)

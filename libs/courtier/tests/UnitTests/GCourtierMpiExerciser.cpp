@@ -44,6 +44,8 @@
  *                     (run with a single rank). The process must end normally.
  *   low-thread-level -- the program initializes MPI itself, below MPI_THREAD_MULTIPLE (single
  *                     rank). The consumer must refuse to be built.
+ *   zero-clean-interval -- a cleanup interval of 0 ms (single rank). The consumer must refuse to
+ *                     be built: the cleanup thread would occupy a core.
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -97,6 +99,26 @@ int lowThreadLevel(int argc, char **argv) {
     return verdict(refused, "a consumer was refused on MPI initialized with a lower thread level");
 }
 
+/** A cleanup interval of zero must be refused. */
+int zeroCleanInterval(int argc, char **argv) {
+    c2::Consumers::MPIConsumerConfig config;
+    config.masterCleanSessIntervalMSec = 0;
+    bool refused = false;
+    try {
+        const c2::GMPIConsumerT<GFaultyContainer> consumer(&argc, &argv, config);
+    }
+    catch(const geneva_exception &) {
+        refused = true;
+    }
+    // A constructor that throws leaves MPI initialized; a consumer that was built has finalized it.
+    int finalized = 0;
+    MPI_Finalized(&finalized);
+    if(finalized == 0) {
+        MPI_Finalize();
+    }
+    return verdict(refused, "a consumer with a cleanup interval of 0 ms was refused");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -110,12 +132,16 @@ int main(int argc, char **argv) {
         std::string("clean"),
         "what to exercise: clean | throwing | never-started"
         " | low-thread-level"
+        " | zero-clean-interval"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
     }
     if(scenario == "low-thread-level") {
         return lowThreadLevel(argc, argv);
+    }
+    if(scenario == "zero-clean-interval") {
+        return zeroCleanInterval(argc, argv);
     }
     if(scenario != "clean" && scenario != "throwing" && scenario != "never-started") {
         std::println(stderr, "Unknown scenario: {}", scenario);
