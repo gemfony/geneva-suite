@@ -46,6 +46,8 @@
  *                     rank). The consumer must refuse to be built.
  *   zero-clean-interval -- a cleanup interval of 0 ms (single rank). The consumer must refuse to
  *                     be built: the cleanup thread would occupy a core.
+ *   idle-session   -- a master session that has not sent anything (single rank). Asking it
+ *                     whether its send has completed must be harmless.
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -119,6 +121,25 @@ int zeroCleanInterval(int argc, char **argv) {
     return verdict(refused, "a consumer with a cleanup interval of 0 ms was refused");
 }
 
+/** A session that has not sent anything may be asked whether its send has completed. */
+int idleSession(int argc, char **argv) {
+    c2::Consumers::initializeMPI(&argc, &argv);
+    bool completed = false;
+    {
+        c2::Consumers::GMPIConsumerSessionT<GFaultyContainer> session(
+            MPI_Status{},
+            std::string{},
+            [] { return std::unique_ptr<GFaultyContainer>{}; },
+            [](c2::GCommandContainerT<GFaultyContainer> &&) { /* nothing */ },
+            Gem::Common::serializationMode::GEM_BINARY,
+            false
+        );
+        completed = session.isCompleted();
+    }
+    MPI_Finalize();
+    return verdict(completed, "a session that has not sent anything counts as completed");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -133,6 +154,7 @@ int main(int argc, char **argv) {
         "what to exercise: clean | throwing | never-started"
         " | low-thread-level"
         " | zero-clean-interval"
+        " | idle-session"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
@@ -142,6 +164,9 @@ int main(int argc, char **argv) {
     }
     if(scenario == "zero-clean-interval") {
         return zeroCleanInterval(argc, argv);
+    }
+    if(scenario == "idle-session") {
+        return idleSession(argc, argv);
     }
     if(scenario != "clean" && scenario != "throwing" && scenario != "never-started") {
         std::println(stderr, "Unknown scenario: {}", scenario);

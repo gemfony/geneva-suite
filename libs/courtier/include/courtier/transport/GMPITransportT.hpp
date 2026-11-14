@@ -725,7 +725,7 @@ private:
     // responsible for handling the IO will always be joined before the next thread for the next IO-operation is spawned.
     // So the program logic ensures that the access to these resources is exclusive to one thread, so we do not
     // need to enforce this with mutex or something similar and can store the handles as members.
-    MPI_Request sendHandle_{};
+    MPI_Request sendHandle_{MPI_REQUEST_NULL};
 
     /**
          * counter for how many times we have not received data when requesting data from the master node
@@ -794,7 +794,10 @@ public:
       , stopRequested_{stopRequested}
       , getPayloadItem_(std::move(getPayloadItem))
       , putPayloadItem_(std::move(putPayloadItem))
-      , mpiRequestHandle_{}
+      ,
+      // The null handle, not a value-initialized one: the two differ in some MPI libraries, and
+      // only the null handle may be tested before anything was sent.
+      mpiRequestHandle_{MPI_REQUEST_NULL}
       , wireRegistry_{wireRegistry} {
         // Engage the master side of the blob send-once wire form, if a registry was supplied.
         // MPI ranks are persistent, so the peer id is simply the requesting worker's rank

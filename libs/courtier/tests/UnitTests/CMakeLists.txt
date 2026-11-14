@@ -150,6 +150,14 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiCleanIntervalTest PROPERTIES LABELS "courtier")
 	GENEVA_TEST_SIZE(GCourtierMpiCleanIntervalTest M)
 
+	# A master session that has not sent anything can be asked whether its send has completed.
+	ADD_TEST(NAME GCourtierMpiIdleSessionTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=idle-session
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiIdleSessionTest PROPERTIES LABELS "courtier")
+	GENEVA_TEST_SIZE(GCourtierMpiIdleSessionTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)
