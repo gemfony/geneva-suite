@@ -43,6 +43,7 @@
 #include "common/GLogger.hpp"
 #include "common/concurrency/GThreadPool.hpp" // the one device thread
 #include "courtier/GBaseConsumerT.hpp"
+#include "courtier/GCourtierEnums.hpp" // processingStatus
 #include "courtier/gpu/GGPUBackendFactory.hpp"
 #include "courtier/gpu/GGPUConsumerConfig.hpp"
 #include "courtier/gpu/GGPUDeviceBackendI.hpp"
@@ -149,14 +150,61 @@ protected:
 
 private:
     /***************************************************************************/
-    /** @brief Evaluates the whole round's batch in one bulk launch: flatten -> backend -> scatter.
-     *  Runs on the device thread. Requires a uniform genome geometry across the batch (rejects
-     *  mixed geometries loudly). The GPU consumer is non-networked and evaluates a batch
-     *  all-or-nothing, so a round is always a full, uniform-geometry batch of DO_PROCESS items (no
-     *  MISSING/partial re-dispatch, no gaps).
+    /** @brief Evaluates the slots of the round's batch that are due -- non-null and DO_PROCESS --
+     *  in one bulk launch. Runs on the device thread. Null slots and slots in any other state are
+     *  left untouched. When every slot is due, the span is evaluated as it is; otherwise the due
+     *  pointers are moved into a scratch vector, evaluated there and moved back to their slots (the
+     *  items themselves stay where they are), also when the evaluation throws.
      *
-     *  @param items The whole round's batch span of work items, evaluated in place (fitness written back) */
+     *  @param items The round's batch of work items, evaluated in place (fitness written back) */
     void evaluateBatch_(std::span<item_ptr> items) {
+        const auto is_due = [](const item_ptr &item) {
+            return item &&
+                   item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS;
+        };
+
+        due_slots_.clear();
+        for(std::size_t i = 0; i < items.size(); ++i) {
+            if(is_due(items[i])) {
+                due_slots_.push_back(i);
+            }
+        }
+
+        if(due_slots_.empty()) {
+            return;
+        }
+        if(due_slots_.size() == items.size()) {
+            evaluateDue_(items);
+            return;
+        }
+
+        due_items_.clear();
+        for(const std::size_t slot : due_slots_) {
+            due_items_.push_back(std::move(items[slot]));
+        }
+        const auto move_back = [&] {
+            for(std::size_t k = 0; k < due_slots_.size(); ++k) {
+                items[due_slots_[k]] = std::move(due_items_[k]);
+            }
+            due_items_.clear();
+        };
+        try {
+            evaluateDue_(std::span<item_ptr>(due_items_));
+        }
+        catch(...) {
+            move_back();
+            throw;
+        }
+        move_back();
+    }
+
+    /***************************************************************************/
+    /** @brief Evaluates a batch of due items in one bulk launch: flatten -> backend -> scatter.
+     *  Runs on the device thread. Requires a uniform genome geometry across the batch (rejects
+     *  mixed geometries loudly).
+     *
+     *  @param items Non-null DO_PROCESS work items, evaluated in place (fitness written back) */
+    void evaluateDue_(std::span<item_ptr> items) {
         ensureBackend_();
 
         const int n = static_cast<int>(items.size());
@@ -234,6 +282,8 @@ private:
 
     std::vector<scalar_type> params_;     ///< Reused host parameter buffer (avoids per-round reallocation)
     std::vector<scalar_type> fitness_;    ///< Reused host fitness buffer
+    std::vector<std::size_t> due_slots_;  ///< Reused: the batch positions of the due slots
+    std::vector<item_ptr> due_items_;     ///< Reused: the due items of a partial batch
     // A value plus a "has it been built" flag, kept as two members rather than folded into a
     // std::optional or a load-once cell. Neither fits: the blob is REBUILT every round when the
     // marshaller reports it as non-static, so this is not a load-once constant, and the flag is
