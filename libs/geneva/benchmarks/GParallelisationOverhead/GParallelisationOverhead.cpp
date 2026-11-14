@@ -422,9 +422,9 @@ int main(int argc, char **argv) try {
         getRatioErrors(referenceExecutionTimes, parallelExecutionTimes);
 
     //---------------------------------------------------------------------
-    // The plot shows the speed-up only, once with a linear and once with a logarithmic time axis,
-    // because the delays usually span several orders of magnitude. The serial and the parallel
-    // run times are straight lines of little interest; they go to the text file.
+    // The plot shows the speed-up only, over the evaluation time: once with a linear and once
+    // with a logarithmic speed-up axis. The serial and the parallel run times are straight lines
+    // of little interest; they go to the text file.
     const auto gratio_ptr = std::make_shared<GGraph2ED>();
     gratio_ptr->setPlotLabel("Speed-up over serial execution");
     gratio_ptr->setXAxisLabel("Evaluation time [s]");
@@ -432,10 +432,10 @@ int main(int argc, char **argv) try {
     (*gratio_ptr) & ratioWithErrors;
 
     const auto gratio_log_ptr = std::make_shared<GGraph2ED>();
-    gratio_log_ptr->setPlotLabel("Speed-up over serial execution, logarithmic time axis");
+    gratio_log_ptr->setPlotLabel("Speed-up over serial execution, logarithmic speed-up axis");
     gratio_log_ptr->setXAxisLabel("Evaluation time [s]");
     gratio_log_ptr->setYAxisLabel("Speed-up");
-    gratio_log_ptr->setXAxisLogarithmic(true);
+    gratio_log_ptr->setYAxisLogarithmic(true);
     (*gratio_log_ptr) & ratioWithErrors;
 
     GPlotDesigner gpd("Speed-up as a function of the evaluation time", 1, 2);
