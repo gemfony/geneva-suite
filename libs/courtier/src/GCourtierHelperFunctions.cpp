@@ -29,6 +29,9 @@
 
 #include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GProcessable.hpp" // detail::lineageSalt
+#include <cstdint>
+#include <random>
 #include <string>
 
 
@@ -101,6 +104,21 @@ std::string fkToStr(const GFrameKind &fk) {
 
     // Make the compiler happy
     return {};
+}
+
+/******************************************************************************/
+/**
+ * @brief The random salt of this process: the first half of every lineage id minted in it. Drawn
+ * once, on first use, from std::random_device. Defined here rather than in the header so that a
+ * module loaded at run time and its host share one instance.
+ * @return The salt of this process
+ */
+std::uint64_t detail::lineageSalt() noexcept {
+    static const std::uint64_t SALT = [] {
+        std::random_device rd;
+        return (static_cast<std::uint64_t>(rd()) << 32U) ^ static_cast<std::uint64_t>(rd());
+    }();
+    return SALT;
 }
 
 /******************************************************************************/

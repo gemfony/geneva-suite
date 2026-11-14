@@ -44,12 +44,14 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <future>
 #include <memory>
 #include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "courtier/GDemoProcessingContainers.hpp"
@@ -194,6 +196,8 @@ void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE
     c2::GProcessingOutcome outcome;
     outcome.status = c2::processingStatus::PROCESSED;
     outcome.correlation_id = corr;
+    // No item exists here; the id names this process, as a checkout clone's would
+    outcome.submission_uuid = {c2::detail::lineageSalt(), 0};
     frame.setOutcome(outcome);
     frame.setLibraryPayload({}); // the library's own return payload (empty for the demo containers)
     consumer.checkin(std::move(frame));
@@ -795,6 +799,25 @@ public:
     using c2::GNetworkedConsumerT<GFaultyContainer>::requestStop;
 };
 
+/** @brief Stops @p consumer at the end of a scope, so that a batch that still waits when a test
+ *  fails half-way is released and its submitter can be joined. */
+class StopAtEnd {
+public:
+    explicit StopAtEnd(StoppableRawDispatchConsumer &consumer)
+      : consumer_(consumer) {
+    }
+    ~StopAtEnd() {
+        consumer_.requestStop();
+    }
+    StopAtEnd(const StopAtEnd &) = delete;
+    StopAtEnd &operator=(const StopAtEnd &) = delete;
+    StopAtEnd(StopAtEnd &&) = delete;
+    StopAtEnd &operator=(StopAtEnd &&) = delete;
+
+private:
+    StoppableRawDispatchConsumer &consumer_;
+};
+
 } /* anonymous namespace */
 
 TEST_CASE(
@@ -861,4 +884,79 @@ TEST_CASE(
             CHECK(batch[k]->is_processed());
         }
     }
+}
+
+/******************************************************************************/
+// A result whose work item another server process handed out. Batch and slot numbers start again
+// in every process, so a client that outlived its server and connected to this one can bring back
+// a result whose correlation id names a slot of this consumer. The lineage id of the item it was
+// handed names the process that handed it out; such a result must not reach the slot.
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- the count is the assertion macros
+TEST_CASE(
+    "courtier(routing): a result whose item another server process handed out is dropped",
+    "[courtier][routing]"
+) {
+    constexpr double FOREIGN_TIME = 4242.0; // the processing time the foreign result reports
+    const c2::SUBMISSION_UUID_TYPE foreign_uuid{c2::detail::lineageSalt() ^ 1U, 42};
+
+    auto batch = make_batch(1);
+    StoppableRawDispatchConsumer consumer;
+    c2::GNetworkedTimeoutConfig cfg;
+    cfg.treatment = "wait_indefinitely"; // no give-up window completes the batch behind our back
+    consumer.applyTimeoutConfig(cfg);
+    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8); // a misrouted return could be parked
+
+    auto submitter = std::async(std::launch::async, [&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+    // Declared after the submitter, so it is destroyed first: a test that fails half-way releases
+    // the waiting batch, and the future can be joined.
+    const StopAtEnd stop_at_end{consumer};
+
+    auto p = checkoutBlocking(consumer);
+    p->process();
+
+    auto processing_time = [](const item_ptr &item) {
+        return std::get<1>(item->getProcessingTimes());
+    };
+
+    SECTION("a foreign result that carries its item") {
+        auto foreign_item = std::make_unique<GFaultyContainer>(*p);
+        c2::GProcessingOutcome foreign = p->processingOutcome();
+        foreign.processing_time = FOREIGN_TIME;
+        foreign_item->applyProcessingOutcome(foreign); // the item reports the foreign value, too
+        foreign.submission_uuid = foreign_uuid;
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        frame.setOutcome(foreign);
+        frame.setItem(std::move(foreign_item));
+        consumer.checkin(std::move(frame));
+    }
+
+    SECTION("a foreign payload-only result") {
+        c2::GProcessingOutcome foreign = p->processingOutcome();
+        foreign.processing_time = FOREIGN_TIME;
+        foreign.submission_uuid = foreign_uuid;
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        frame.setOutcome(foreign);
+        frame.setLibraryPayload({});
+        consumer.checkin(std::move(frame));
+    }
+
+    REQUIRE(consumer.foreignReturnCount() == 1);
+    REQUIRE(consumer.lateReturnBufferSize() == 0);
+    REQUIRE(consumer.droppedReturnCount() == 0);
+    REQUIRE(submitter.wait_for(200ms) == std::future_status::timeout); // the submitter still waits
+    REQUIRE(processing_time(batch[0]) != FOREIGN_TIME);
+
+    // The result of this process completes the batch with its own value.
+    consumer.checkin(std::move(p));
+    REQUIRE(submitter.wait_for(5s) == std::future_status::ready);
+    submitter.get();
+    CHECK(batch[0]->is_processed());
+    CHECK(processing_time(batch[0]) != FOREIGN_TIME);
+    CHECK(consumer.foreignReturnCount() == 1);
 }

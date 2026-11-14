@@ -57,6 +57,7 @@
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
 #include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
 #include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
 #include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // timeoutTreatment + the config struct
@@ -267,6 +268,13 @@ public:
         std::scoped_lock const lk(mtx_);
         return n_dropped_returns_;
     }
+    /** @brief Number of returns dropped since construction because their work item was handed out
+     *  by another server process (a client that outlived its server and connected to this one).
+     *  @return The running total of foreign returns */
+    [[nodiscard]] std::uint64_t foreignReturnCount() const {
+        std::scoped_lock const lk(mtx_);
+        return n_foreign_returns_;
+    }
     /** @brief Number of checkouts that found nothing pending since construction. A transport
      *  answers each of them with "no work".
      *  @return The running total of empty checkouts */
@@ -414,6 +422,13 @@ protected:
     void checkin(GCommandContainerT<processable_type> &&frame) {
         item_ptr returned = frame.releaseItem();
         std::scoped_lock const lk(mtx_);
+        // A result whose item was handed out by another server process (a client that outlived
+        // its server and found this one) must not reach a slot: batch and slot numbers start
+        // again in every process. The lineage id of the checkout clone names the process.
+        if(frame.outcome().submission_uuid[0] != Gem::Courtier::detail::lineageSalt()) {
+            recordForeignReturn_locked();
+            return;
+        }
         const Gem::Courtier::CORRELATION_ID_TYPE id = frame.outcome().correlation_id;
         auto it = batches_.find(decodeBatch(id));
         if(it == batches_.end()) {
@@ -778,6 +793,20 @@ private:
         }
     }
 
+    /** @brief Records that a return was dropped because its work item was handed out by another
+     *  server process, and warns ONCE. Caller holds mtx_. */
+    void recordForeignReturn_locked() {
+        ++n_foreign_returns_;
+        if(not foreign_return_warned_) {
+            foreign_return_warned_ = true;
+            glogger << "In GNetworkedConsumerT: a result arrived whose work item was" << '\n'
+                    << "handed out by another server process; it is dropped. This happens" << '\n'
+                    << "when a client outlives its server and connects to a new one. The" << '\n'
+                    << "total is available via foreignReturnCount()." << '\n'
+                    << GWARNING;
+        }
+    }
+
     /***************************************************************************/
     /** @brief Per-batch scheduling state. `items` is a BORROWED pointer to the caller's round vector
      *  (valid only while that call's dispatch_ blocks); everything else is this batch's bookkeeping. */
@@ -1059,8 +1088,10 @@ private:
     // --- counters for diagnostics and tests (guarded by mtx_; see the getters) ---
     std::uint64_t n_requeued_ = 0;        ///< In-flight items put back to pending
     std::uint64_t n_dropped_returns_ = 0; ///< Returns for an active batch that were not applied
+    std::uint64_t n_foreign_returns_ = 0; ///< Returns whose item another server process handed out
     std::uint64_t n_empty_checkouts_ = 0; ///< Checkouts that found nothing pending
     bool late_drop_warned_ = false;             ///< One-shot warning guard for the first dropped late item
+    bool foreign_return_warned_ = false; ///< One-shot warning guard for the first foreign return
 
     double mean_return_ms_ = 0.0;       ///< Running (EMA) mean checkout->return time (consumer-wide)
     std::size_t n_return_samples_ = 0;  ///< Returns observed so far (across all batches)

@@ -86,7 +86,9 @@ struct GProcessingOutcome {
     double processing_time = 0.;                             ///< Processing duration (seconds)
     double post_processing_time = 0.;                        ///< Post-processing duration (seconds)
     CORRELATION_ID_TYPE correlation_id = 0;                  ///< (batch, slot) routing token of the slot
-    SUBMISSION_UUID_TYPE submission_uuid{0, 0};              ///< The item's stable lineage id (informational)
+    /// The item's stable lineage id; its first half names the process that handed the item out and
+    /// is checked at check-in
+    SUBMISSION_UUID_TYPE submission_uuid{0, 0};
 };
 
 /******************************************************************************/

@@ -284,6 +284,8 @@ constexpr CORRELATION_ID_TYPE GCORRELATIONIDBATCHBITS = 40;
 // return to its slot, while the uuid lets a LATE return be reunited with -- and de-duplicated against -- the
 // live individual it belongs to, even after that individual has been resubmitted under a new correlation id.
 // 128-bit (process salt + monotonic counter) so ids never collide within or across runs / checkpoint resumes.
+// The salt half has a second use: it names the process that handed an item out, so a networked
+// consumer drops a result whose item another server process handed out.
 using SUBMISSION_UUID_TYPE = std::array<std::uint64_t, 2>;
 
 /******************************************************************************/
