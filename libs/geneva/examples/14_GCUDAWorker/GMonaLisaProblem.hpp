@@ -214,9 +214,17 @@ inline void renderToRGB(const gimage_fp_t *params, int dim, int W, int H,
     }
 }
 
-/** @brief Convenience: score a genome against the process-wide target. */
+/** @brief Convenience: score a genome against the process-wide target. Throws a std::runtime_error
+ *  if no target has been loaded in this process, so that an evaluation without a target fails
+ *  instead of scoring nothing. */
 inline gimage_fp_t scoreAgainstTarget(const gimage_fp_t *params, int dim) {
     const Target &t = target();
+    if(t.width <= 0 || t.height <= 0 || t.rgb.empty()) {
+        throw std::runtime_error(
+            "GMonaLisaProblem: no target image is loaded in this process; load it with loadTarget()"
+            " before any evaluation (in a networked run also in every client)"
+        );
+    }
     static thread_local std::vector<gimage_fp_t> scratch;
     return score(params, dim, t.width, t.height, t.rgb.data(), scratch);
 }
