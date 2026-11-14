@@ -158,6 +158,15 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiIdleSessionTest PROPERTIES LABELS "courtier")
 	GENEVA_TEST_SIZE(GCourtierMpiIdleSessionTest M)
 
+	# A message a worker cannot decode must not end the worker rank: it asks again, and the item
+	# comes back to the master through the lease.
+	ADD_TEST(NAME GCourtierMpiUndecodableTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=undecodable
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiUndecodableTest PROPERTIES LABELS "courtier" PROCESSORS 3)
+	GENEVA_TEST_SIZE(GCourtierMpiUndecodableTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)

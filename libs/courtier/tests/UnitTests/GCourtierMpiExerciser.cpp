@@ -48,6 +48,8 @@
  *                     be built: the cleanup thread would occupy a core.
  *   idle-session   -- a master session that has not sent anything (single rank). Asking it
  *                     whether its send has completed must be harmless.
+ *   undecodable    -- each worker fails to load the first such item it is sent. The workers must
+ *                     survive, and the items come back to the master through the lease.
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -155,6 +157,7 @@ int main(int argc, char **argv) {
         " | low-thread-level"
         " | zero-clean-interval"
         " | idle-session"
+        " | undecodable"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
@@ -168,7 +171,8 @@ int main(int argc, char **argv) {
     if(scenario == "idle-session") {
         return idleSession(argc, argv);
     }
-    if(scenario != "clean" && scenario != "throwing" && scenario != "never-started") {
+    if(scenario != "clean" && scenario != "throwing" && scenario != "never-started" &&
+       scenario != "undecodable") {
         std::println(stderr, "Unknown scenario: {}", scenario);
         return 2;
     }
@@ -187,16 +191,18 @@ int main(int argc, char **argv) {
         consumer->startServer();
 
         const bool throwing = (scenario == "throwing");
+        const bool undecodable = (scenario == "undecodable");
         std::vector<std::unique_ptr<GFaultyContainer>> items;
         items.reserve(N);
         for(std::size_t i = 0; i < N; ++i) {
-            const bool faulty = throwing && (i % 5 == 0);
-            items.push_back(
-                std::make_unique<GFaultyContainer>(
-                    i,
-                    faulty ? fault_mode::THROW_PROCESSING : fault_mode::NONE
-                )
-            );
+            fault_mode mode = fault_mode::NONE;
+            if(throwing && (i % 5 == 0)) {
+                mode = fault_mode::THROW_PROCESSING;
+            }
+            else if(undecodable && (i % 10 == 0)) {
+                mode = fault_mode::THROW_LOADING;
+            }
+            items.push_back(std::make_unique<GFaultyContainer>(i, mode));
         }
 
         // A throwing item is flagged by the worker and returned; the tolerant policy then refills
@@ -207,6 +213,9 @@ int main(int argc, char **argv) {
                      : c2::GSubmissionPolicy::full_success_or_fatal()
         );
 
+        // The items the workers could not load came back through the lease. If none did, the
+        // scenario has not exercised what it is for.
+        const bool faults_seen = not undecodable || consumer->requeuedCount() > 0;
         consumer->stopServer();
 
         std::size_t processed = 0;
@@ -216,6 +225,10 @@ int main(int argc, char **argv) {
             }
         }
 
+        if(not faults_seen) {
+            std::println("FAIL: no item was put back, so no worker failed to load one");
+            return 1;
+        }
         if(processed == N) {
             std::println("OK: {}/{} items processed over MPI ({} ranks)",
                          processed, N, consumer->getCommSize());
@@ -226,6 +239,9 @@ int main(int argc, char **argv) {
     }
 
     // Worker ranks: serve the master until it broadcasts the stop signal.
+    if(scenario == "undecodable") {
+        GFaultyContainer::armLoadFaults(1); // the first such item this rank is sent fails to load
+    }
     consumer->runWorker();
     return 0;
 }

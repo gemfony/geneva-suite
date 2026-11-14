@@ -355,12 +355,7 @@ public:
             // send/receive below, so a fetch here never overlaps this rank's other MPI traffic.
             outgoingMessage_ =
                 Gem::Courtier::wireEncode(commandContainer_, &wireCtx_, config_.serializationMode);
-            Gem::Courtier::wireDecode(
-                incomingMessage_,
-                commandContainer_,
-                &wireCtx_,
-                config_.serializationMode
-            );
+            decodeIncomingMessage();
 
             if(config_.useAsyncReq) {
                 std::future<bool> networkingSuccessful =
@@ -392,6 +387,37 @@ public:
     }
 
 private:
+    /**
+         * @brief Turns incomingMessage_ into the frame to act on.
+         *
+         * A message that cannot be decoded (a blob that could not be fetched, a damaged message)
+         * must not end this rank: an exception that leaves run() ends the process, and with the
+         * launcher's default the whole job. The item itself cannot be reported back, because what
+         * identifies it travels inside the item that failed to load. The frame is therefore
+         * treated like NO_WORK: the worker pauses and asks again, and the master puts the item
+         * back when its lease expires.
+         */
+    void decodeIncomingMessage() {
+        try {
+            Gem::Courtier::wireDecode(
+                incomingMessage_,
+                commandContainer_,
+                &wireCtx_,
+                config_.serializationMode
+            );
+        }
+        catch(const std::exception &e) {
+            glogger << "GMPIConsumerWorkerNodeT<processable_type>::decodeIncomingMessage() with "
+                    << "rank=" << commRank_ << ":" << '\n'
+                    << "A message from the master could not be decoded:" << '\n'
+                    << e.what() << '\n'
+                    << "The worker asks again; the master puts the item back when its lease "
+                    << "expires." << '\n'
+                    << GWARNING;
+            commandContainer_.reset(Gem::Courtier::GFrameKind::NO_WORK);
+        }
+    }
+
     /**
          * @brief Sends the pending outgoing message and requests/receives the next work item.
          *

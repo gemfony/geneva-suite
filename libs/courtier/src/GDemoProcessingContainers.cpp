@@ -139,6 +139,7 @@ GFaultyContainer::GFaultyContainer(std::size_t stored_number, fault_mode fm, uns
 void GFaultyContainer::process_([[maybe_unused]] const std::vector<bool> &res_vec) {
     switch(fault_mode_) {
     case fault_mode::NONE:
+    case fault_mode::THROW_LOADING: // the fault is in the loading; an item that got through is fine
         registerResult(0, true);
         break;
 
@@ -162,6 +163,37 @@ void GFaultyContainer::process_([[maybe_unused]] const std::vector<bool> &res_ve
         // process()'s catch(...) fallback rather than its catch(std::exception&) branch.
         throw "GFaultyContainer: injected non-std::exception"; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp)
     }
+}
+
+/********************************************************************************************/
+namespace {
+/// The load faults still armed in this process (see GFaultyContainer::armLoadFaults()).
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<std::size_t> g_load_faults_left{0};
+} // namespace
+
+/**
+ * @brief Arms load faults in this process.
+ *
+ * @param n How many loads of an item with fault_mode::THROW_LOADING are to fail from now on
+ */
+void GFaultyContainer::armLoadFaults(std::size_t n) noexcept {
+    g_load_faults_left.store(n);
+}
+
+/**
+ * @brief Uses up one armed load fault.
+ *
+ * @return Whether one was left
+ */
+bool GFaultyContainer::consumeLoadFault() noexcept {
+    std::size_t left = g_load_faults_left.load();
+    while(left > 0) {
+        if(g_load_faults_left.compare_exchange_weak(left, left - 1)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /********************************************************************************************/
