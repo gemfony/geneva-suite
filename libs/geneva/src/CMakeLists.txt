@@ -267,9 +267,10 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${COURTIER_LIBNAME})
 # geneva's pluggable monitors render through the dietrich plotting library.
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 
-# The runtime module loader (GModuleLoader) uses Boost.DLL, which needs the dynamic
-# loading library (libdl) on platforms that provide it. Boost.DLL is otherwise header-only, so
-# libdl is its only link-time requirement here.
+# GConsumerSetup finds this library's own path with Boost.DLL (boost::dll::this_line_location()),
+# to load the optional consumer modules installed next to it. Boost.DLL needs the dynamic loading
+# library (libdl) on platforms that provide it; it is otherwise header-only, so libdl is its only
+# link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
 IF ( GENEVA_BUILD_TESTS )

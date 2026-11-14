@@ -252,7 +252,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
   the `GENEVA_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
-  supply it.
+  supply it. No contribution of a module is taken before all of them have been checked (a factory
+  entry point, a kind this program serves), so a module refused for one of these registers nothing.
+  The loader is `common/GModuleLoader.hpp`, which takes one handler per kind of contribution; Geneva
+  uses it through `Gem::Geneva::loadModule()`.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
   is gone, and a factory registers through one function, `Gem::Geneva::registerOptimizationAlgorithm()`

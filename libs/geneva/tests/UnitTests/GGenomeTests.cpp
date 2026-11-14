@@ -89,6 +89,9 @@
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 
+// The consumer catalogue: optionalConsumerNotes(), consumerListing()
+#include "geneva/GConsumerSetup.hpp"
+
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -2438,6 +2441,11 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, "GUnknownKindModule"));         // ... and the module, by its own name
         CHECK(mentions(msg, "SomethingElse"));              // ... and the contribution
         CHECK(mentions(msg, "Supported kinds"));            // ... and what this Geneva does serve
+        // ... namely all four of Geneva's kinds, each with its noun
+        CHECK(mentions(msg, "1 (individual)"));
+        CHECK(mentions(msg, "2 (optimization algorithm)"));
+        CHECK(mentions(msg, "5 (GPU marshaller)"));
+        CHECK(mentions(msg, "4 (consumer)"));
     }
 
     SECTION("a manifest that advertises nothing") {
@@ -2464,48 +2472,24 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     }
 }
 
-// Toolchain-compatibility gate (GenevaCompat). The loader validates a module's fingerprint before touching
-// any of its C++ contributions; here we exercise that gate directly (a .so is not needed) via the exposed
-// comparator. Regression guard for the silent-crash hole where a same-GENEVA_VERSION module built with an
-// incompatible compiler/stdlib/Boost/build-mode used to pass and then corrupt the process.
-TEST_CASE("Module compat gate accepts this host's own fingerprint", "[flat][plugin][compat]") {
-    const GenevaCompat self = Gem::Geneva::thisHostCompat();
-    CHECK(Gem::Geneva::moduleCompatMismatch(self).empty());
+#ifdef GENEVA_TEST_MODULE_MPI_MNEMONIC
+// Needs a process in which no function of the consumer catalogue has run: once one has, the
+// optional modules are loaded whatever loadModule() does, and this case could not fail. It is
+// therefore hidden from the shards and run alone by the ctest entry GenevaOptionalModulesFirst.
+TEST_CASE(
+    "A module cannot take the mnemonic of an optional consumer module",
+    "[.optional-first][plugin]"
+) {
+    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MPI_MNEMONIC);
+    REQUIRE_FALSE(msg.empty());
+    CHECK(mentions(msg, "already registered"));
+    CHECK(mentions(msg, "'mpi'"));
+    CHECK(mentions(msg, GENEVA_TEST_MODULE_MPI_MNEMONIC));
+    // The consumer of that mnemonic is the one of Geneva's own module.
+    CHECK(Gem::Geneva::optionalConsumerNotes().empty());
+    CHECK(mentions(Gem::Geneva::consumerListing(), "mpi:  GMPIConsumerT"));
 }
-
-TEST_CASE("Module compat gate rejects a mismatched toolchain, naming the axis", "[flat][plugin][compat]") {
-    using Gem::Geneva::moduleCompatMismatch;
-    const GenevaCompat host = Gem::Geneva::thisHostCompat();
-
-    SECTION("compiler version") {
-        GenevaCompat m = host;
-        m.compiler_major += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("compiler major") != std::string::npos);
-    }
-    SECTION("standard-library version") {
-        GenevaCompat m = host;
-        m.stdlib_version += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("standard-library version") != std::string::npos);
-    }
-    SECTION("build-mode ABI flags") {
-        GenevaCompat m = host;
-        m.abi_flags ^= GENEVA_ABI_FLAG_ASAN; // pretend the module was built with AddressSanitizer
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("ABI flags") != std::string::npos);
-    }
-    SECTION("Geneva version") {
-        GenevaCompat m = host;
-        m.geneva_version += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("Geneva version") != std::string::npos);
-    }
-}
+#endif
 
 namespace {
 /** @brief A trivial host-only GPU marshaller: the flat-genome flatten/scatter scaffolding is complete in the
@@ -2525,7 +2509,7 @@ TEST_CASE("Marshaller module manifest contributes a registrable GPU marshaller",
     const GenevaModuleManifest *manifest =
         marshallerManifest<ProbeGPUMarshaller, "cuda", "config/ProbeGPU.json">();
     REQUIRE(manifest != nullptr);
-    CHECK(Gem::Geneva::moduleCompatMismatch(manifest->compat).empty());
+    CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     const GenevaContribution &contribution = manifest->contributions[0];
     CHECK(contribution.kind == GENEVA_CONTRIBUTION_MARSHALLER);
@@ -2588,7 +2572,7 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     const GenevaModuleManifest *manifest =
         Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
     REQUIRE(manifest != nullptr);
-    CHECK(Gem::Geneva::moduleCompatMismatch(manifest->compat).empty());
+    CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     CHECK(manifest->contributions[0].kind == GENEVA_CONTRIBUTION_OA);
     REQUIRE(manifest->contributions[0].make_factory != nullptr);

@@ -59,8 +59,9 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch_Perso
 //! [modules-oa-glue#1]
 
 /**
- * @brief The module manifest entry point. Resolved by the loader (Gem::Geneva::openModule / loadModule) via
- * a dlsym-style lookup of the fixed, unmangled symbol; delegates to the typed oaManifest<> helper.
+ * @brief The module manifest entry point. Resolved by the loader (Gem::Geneva::loadModule(), built
+ * on the loader in common/GModuleLoader.hpp) via a dlsym-style lookup of the fixed, unmangled
+ * symbol; delegates to the typed oaManifest<> helper.
  *
  * @return This module's process-lifetime manifest (a single OA contribution)
  */

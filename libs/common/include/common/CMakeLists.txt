@@ -55,6 +55,7 @@ SET ( GENEVACOMMONINCLUDES
 	GGlobalOptionsT.hpp
 	GLogger.hpp
 	GMemberReflectionT.hpp
+	GModuleLoader.hpp
 	GModuleManifest.hpp
 	GParserBuilder.hpp
 	GProviderT.hpp

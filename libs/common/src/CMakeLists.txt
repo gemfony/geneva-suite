@@ -35,6 +35,7 @@ SET ( COMMONSOURCES
 	GExpectationChecksT.cpp
 	GJsonIO.cpp
 	GLogger.cpp
+	GModuleLoader.cpp
 	GParserBuilder.cpp
 	GSigHupHandler.cpp
 	concurrency/GThreadGroup.cpp
@@ -79,6 +80,10 @@ TARGET_LINK_LIBRARIES(
     Boost::regex
     Boost::atomic
 )
+
+# The module loader (GModuleLoader) uses Boost.DLL, which is header-only here and needs only
+# the dynamic loading library, on platforms that have one.
+TARGET_LINK_LIBRARIES(${COMMON_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
 # Coverage instrumentation: only applied when explicitly enabled, only to
 # the Common library and its tests (driven by the parent CMakeLists.txt

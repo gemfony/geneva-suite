@@ -50,13 +50,13 @@
 // Default values for the consumer command-line options.
 #include "courtier/GCourtierEnums.hpp"
 
+#include "GModuleLoaderInternal.hpp" // loadModuleWithGenevaHandlers() -- the optional modules
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp" // GParserBuilder::updateInPlace() -- materialize the networked config too
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
-#include "geneva/GModuleLoader.hpp" // loadModule() -- the optional consumer modules
 
 // The concrete courtier consumers -- known ONLY here.
 #include "courtier/consumers/GAsioConsumerT.hpp"
@@ -432,12 +432,16 @@ std::vector<std::string> &optionalConsumerFailures() {
     return failures;
 }
 
+} /* anonymous namespace */
+
 /**
  * @brief Loads the optional consumer modules once, before the consumer catalog is first consulted.
  *
  * A module that is absent, or whose own dependencies are missing on this machine (no MPI library, say),
  * is skipped without a word: its consumer is then simply not available. The reason is kept, and reported
- * if that consumer is asked for (optionalConsumerNotes()).
+ * if that consumer is asked for (optionalConsumerNotes()). It is also called by
+ * Gem::Geneva::loadModule(), before that loads a module of its own, so that no module can take the
+ * mnemonic of an optional one.
  */
 void loadOptionalConsumerModules() {
     static std::once_flag once;
@@ -455,7 +459,7 @@ void loadOptionalConsumerModules() {
                 continue;
             }
             try {
-                (void)loadModule(module_path);
+                (void)loadModuleWithGenevaHandlers(module_path);
             } catch(const std::exception &e) {
                 optionalConsumerFailures().push_back(module_path.string() + ": " + e.what());
             }
@@ -463,6 +467,8 @@ void loadOptionalConsumerModules() {
 #endif
     });
 }
+
+namespace {
 
 /******************************************************************************/
 /**
