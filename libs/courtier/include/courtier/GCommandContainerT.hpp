@@ -34,6 +34,7 @@
 
 // Standard headers go here
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -369,17 +370,23 @@ void makeReturnFrame(GCommandContainerT<processable_type> &container) {
 /******************************************************************************/
 /**
  * @brief Worker side: processes the work item a WORK frame carries, without letting a failure of
- * the user's processing code escape.
+ * the item's processing escape.
  *
- * Such a failure surfaces as a g_processing_exception, with the work item already flagged
- * (EXCEPTION_CAUGHT) and its error text stored. It must not end the worker: the flagged item is
- * returned like any other result, and the server's submission policy decides what happens to the
- * slot. Every transport's worker processes through this function, so the rule is stated once.
+ * A failure of the user's processing code surfaces as a g_processing_exception, with the work item
+ * already flagged (EXCEPTION_CAUGHT) and its error text stored. Any other exception out of the
+ * item's processing -- e.g. the geneva_exception the processing lifecycle throws for an item that
+ * is not due (its status is not DO_PROCESS) -- leaves the item unflagged; it is flagged here
+ * (ERROR_FLAGGED, the text appended to its error descriptions, unless the item already reports an
+ * error), the way the networked consumer flags a result it cannot apply. Neither ends the worker:
+ * the flagged item is returned like any other result, and the server's submission policy decides
+ * what happens to the slot. Every transport's worker processes through this function, so the rule
+ * is stated once.
  *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the work item to process
  * @param worker_name The worker's name, used in the warning
- * @throws geneva_exception if the frame holds no work item
+ * @throws geneva_exception if the frame holds no work item (a WORK frame without an item is a
+ * protocol error)
  */
 template <typename processable_type>
 void processWorkFrame(
@@ -392,6 +399,25 @@ void processWorkFrame(
     catch(const g_processing_exception &e) {
         glogger << "In " << worker_name << ":" << '\n'
                 << "The work item flagged a processing exception:" << '\n'
+                << e.what() << '\n'
+                << "It is returned to the server flagged; the worker keeps running." << '\n'
+                << GWARNING;
+    }
+    catch(const std::exception &e) {
+        auto item = container.releaseItem();
+        if(not item) {
+            throw; // no item to return: a protocol error, not a failed evaluation
+        }
+        if(not item->has_errors()) {
+            auto outcome = item->processingOutcome();
+            outcome.status = processingStatus::ERROR_FLAGGED;
+            outcome.error_descriptions += "The work item could not be processed: ";
+            outcome.error_descriptions += e.what();
+            item->applyProcessingOutcome(outcome);
+        }
+        container.setItem(std::move(item));
+        glogger << "In " << worker_name << ":" << '\n'
+                << "The work item could not be processed:" << '\n'
                 << e.what() << '\n'
                 << "It is returned to the server flagged; the worker keeps running." << '\n'
                 << GWARNING;

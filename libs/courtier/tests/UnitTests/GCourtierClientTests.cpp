@@ -36,6 +36,7 @@
 
 #include <chrono>
 #include <memory>
+#include <string>
 #include <thread>
 
 #include <boost/asio.hpp>
@@ -114,4 +115,52 @@ TEST_CASE(
     auto client = std::make_shared<ProbeClient>();
     client->stopWhileHaltPollIsQueued();
     CHECK(client->runsOutOfWork(1500ms));
+}
+
+/******************************************************************************/
+// An item whose processing throws something other than a g_processing_exception -- here the
+// geneva_exception the processing lifecycle throws for an item that is not due -- used to leave
+// processWorkFrame() and end the worker. It is returned flagged instead; only a WORK frame without
+// an item is still an error.
+
+TEST_CASE(
+    "courtier(client): processWorkFrame returns an item that cannot be processed flagged",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    SECTION("an item that was already processed comes back with an error") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        item->process();
+        REQUIRE(item->is_processed());
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(
+            frame.item()->getStoredErrorDescriptions().find("could not be processed") !=
+            std::string::npos
+        );
+    }
+
+    SECTION("an item that already reports an error keeps it") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::THROW_PROCESSING);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        CHECK_THROWS(item->process()); // the user's code fails: EXCEPTION_CAUGHT
+        REQUIRE(item->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+    }
+
+    SECTION("a WORK frame without an item is a protocol error") {
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK};
+        CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "test worker"));
+    }
 }
