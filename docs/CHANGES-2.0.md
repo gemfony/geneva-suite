@@ -398,6 +398,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   shell) and `GAsioConsumerClientT` / `GWebsocketClientT` from `GPrefetchingClientT`
   (the common prefetch/compute pipeline). Public construction, options and the wire
   protocol are unchanged; only code naming the old direct base classes is affected.
+- **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
+  taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
+  `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.
+  Constant problem data is loaded in every process, before `clientRun()` as before `optimize()`.
 
 ## 8. Checkpointing
 

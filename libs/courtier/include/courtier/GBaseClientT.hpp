@@ -73,19 +73,6 @@ class GBaseClientT {
 
 public:
     //---------------------------------------------------------------------------
-    /**
-	  * @brief A constructor that accepts a model of the item to be processed.
-	  *
-	  * This can be used to avoid having to transfer or reload data that doesn't change. Note that
-	  * the model must understand the clone() command.
-	  *
-	  * @param additionalDataTemplate The model of the item to be processed (shared ownership; its constant data is loaded into each new item)
-	  */
-    GBaseClientT(std::shared_ptr<processable_type> additionalDataTemplate)
-      : additional_data_template_(additionalDataTemplate) { /* nothing*/
-    }
-
-    //---------------------------------------------------------------------------
     // Defaulted or Deleted constructors and assignment operators
 
     GBaseClientT() = default;
@@ -257,22 +244,6 @@ protected:
 
     //---------------------------------------------------------------------------
     /**
-	  * @brief Loads the additional data template into the processable_type target.
-	  *
-	  * This function needs to be called for each new item by derived classes. A no-op if no template
-	  * was supplied at construction.
-	  *
-	  * @param target The item (shared ownership) into which the template's constant data is loaded
-	  */
-    void loadDataTemplate(std::shared_ptr<processable_type> target) {
-        // If we have a model for the item to be parallelized, load its data into the target
-        if(additional_data_template_) {
-            target->loadConstantData(additional_data_template_);
-        }
-    }
-
-    //---------------------------------------------------------------------------
-    /**
 	  * Checks whether a halt condition was reached.
 	  *
 	  * @return A boolean indicating whether a halt condition was reached
@@ -377,9 +348,6 @@ private:
         false
     }; ///< Indicates whether a the termination was requested by the server
     bool halt_logged_ = false; ///< Ensures the halt reason is logged only once (halt() is polled)
-
-    std::shared_ptr<processable_type>
-        additional_data_template_; ///< Optionally holds a template of the object to be processed
 
     //---------------------------------------------------------------------------
 };

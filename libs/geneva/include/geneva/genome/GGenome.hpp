@@ -931,14 +931,6 @@ public:
     /** @brief Removes any registered post-processor */
     void clearPostProcessor() { post_processor_ptr_.reset(); }
 
-    /** @brief Loads otherwise-constant data into this (freshly de-serialized) item from a template held at
-     *  a remote site, so that data need not travel with every work item (a networked-client convenience;
-     *  the default is a no-op, a derived type overrides the hook below if it carries such data).
-     *  @param cd_ptr A template item whose constant data is loaded into this one */
-    void loadConstantData(std::shared_ptr<GGenome> cd_ptr) {
-        this->loadConstantData_(std::move(cd_ptr));
-    }
-
     /***************************************************************************/
     // Fitness accessors / multi-criterion support.
 
@@ -1544,10 +1536,6 @@ private:
      *  @param src The source item to deep-copy in place
      *  @return true (the optimization individual supports in-place substitution) */
     bool loadContentFrom_(const Gem::Courtier::GProcessable &src) override;
-
-    /** @brief Default no-op constant-data load; a derived type overrides if it deposits constant data at a
-     *  remote site. @param cd_ptr A template item whose constant data would be loaded into this one */
-    virtual void loadConstantData_([[maybe_unused]] std::shared_ptr<GGenome> cd_ptr) { /* nothing */ }
 
     /***************************************************************************/
     // Evaluation internals.
