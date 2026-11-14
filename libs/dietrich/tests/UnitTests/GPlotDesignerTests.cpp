@@ -1281,3 +1281,52 @@ TEST_CASE(
     CHECK(rebuilt->xAxisLogarithmic());
     CHECK_FALSE(rebuilt->yAxisLogarithmic());
 }
+
+/******************************************************************************/
+// Several graphs in one pad must be told apart and must all be visible. gnuplot does that by
+// itself; ROOT, matplotlib and Octave have to be told.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE(
+    "Overlaid graphs get colours, a legend and room in every backend",
+    "[plotting][overlay]"
+) {
+    const auto overlaid = [] {
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        auto third = decadesGraph(false, false);
+        third->setPlotLabel("third");
+        first->registerSecondaryPlotter(second);
+        first->registerSecondaryPlotter(third);
+        return first;
+    };
+
+    SECTION("ROOT: a colour per graph, one frame for all, a legend") {
+        const std::string s = scriptFor(plotBackend::ROOT, {overlaid()});
+        CHECK(s.contains("->SetLineColor(4);"));
+        CHECK(s.contains("->SetLineColor(2);"));
+        CHECK(s.contains("->SetLineColor(8);"));
+        CHECK(s.contains("->SetMarkerColor(8);"));
+        CHECK(s.contains("gPad->BuildLegend();"));
+        CHECK(s.contains("first->SetMinimum("));
+        CHECK(s.contains("first->GetXaxis()->SetLimits("));
+        // The frame and the legend come after the last graph is drawn.
+        CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
+    }
+
+    SECTION("matplotlib and Octave show the legend their plot calls prepared") {
+        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend()"));
+        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend('show');"));
+    }
+
+    SECTION("a pad with a single graph gets none of this") {
+        const auto single = decadesGraph(false, false);
+        const std::string root = scriptFor(plotBackend::ROOT, {single});
+        CHECK_FALSE(root.contains("SetLineColor"));
+        CHECK_FALSE(root.contains("BuildLegend"));
+        CHECK_FALSE(root.contains("SetMinimum"));
+        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("legend"));
+        CHECK_FALSE(scriptFor(plotBackend::OCTAVE, {single}).contains("legend"));
+    }
+}

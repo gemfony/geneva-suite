@@ -52,7 +52,9 @@ namespace {
 /******************************************************************************/
 /**
  * A graph whose values span several decades on both axes, drawn with logarithmic axes: what the
- * real tool behind each backend has to accept when a plotter asks for a logarithmic scale.
+ * real tool behind each backend has to accept when a plotter asks for a logarithmic scale. Two
+ * further graphs are laid over it; they lie below the first one, so the pad must make room for
+ * them, and the three are to be told apart by colour and by a legend.
  *
  * @param label The label of the plot
  * @return The plotter
@@ -64,10 +66,18 @@ std::shared_ptr<GGraph2D> decadesGraph(const std::string &label) {
     g->setYAxisLabel("y (logarithmic)");
     g->setXAxisLogarithmic(true);
     g->setYAxisLogarithmic(true);
+    auto lower = std::make_shared<GGraph2D>();
+    lower->setPlotLabel("a tenth of it");
+    auto lowest = std::make_shared<GGraph2D>();
+    lowest->setPlotLabel("a hundredth of it");
     for(int i = 0; i <= 30; i++) {
         const double x = std::pow(10., -2. + (0.1 * static_cast<double>(i))); // 0.01 ... 10
         (*g) & std::tuple<double, double>(x, 100. * x * x);                   // 0.01 ... 10000
+        (*lower) & std::tuple<double, double>(x, 10. * x * x);
+        (*lowest) & std::tuple<double, double>(x, x * x);
     }
+    g->registerSecondaryPlotter(lower);
+    g->registerSecondaryPlotter(lowest);
     return g;
 }
 

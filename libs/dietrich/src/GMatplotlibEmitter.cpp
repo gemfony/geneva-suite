@@ -271,6 +271,10 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
                 "fig"
             );
         }
+        // Several series in one pad are told apart by a legend (each call above set its label).
+        if(not p->secondaryPlotters().empty()) {
+            result << "ax.legend()" << '\n';
+        }
         result << '\n';
     }
 

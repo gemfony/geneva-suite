@@ -681,6 +681,11 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
         pos++;
     }
 
+    // Several plotters share this pad: give them one frame and a legend.
+    if(not secondary_plotter_.empty()) {
+        emitRootOverlayFrameAndLegend(footer_data, indent);
+    }
+
     return footer_data.str();
 }
 
