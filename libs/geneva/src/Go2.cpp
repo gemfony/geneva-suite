@@ -1409,12 +1409,13 @@ void Go2::emitHelpIfRequested(
 
 /******************************************************************************/
 /**
- * @brief Registers a ready-built custom consumer as the process's single consumer, overriding the
- * mnemonic-based default that setupChosenConsumer() established during construction.
+ * @brief Registers a ready-built custom consumer as the process's single consumer, in place of the
+ * consumer of the chosen mnemonic.
  *
- * setupChosenConsumer() already announced and registered the mnemonic-based default (e.g. "stc"); this
- * replaces it in the GConsumerRegistry. We log the replacement so the earlier "Using consumer <name>"
- * line is not mistaken for the consumer that actually runs the work (e.g. a GPU consumer).
+ * The consumer of the mnemonic is built when the run is configured (ensureConfigured_()); a
+ * consumer registered here before that is kept, and the mnemonic's consumer is then not built at
+ * all. A consumer registered after the configuration replaces the one built for the mnemonic in
+ * the GConsumerRegistry.
  *
  * @param consumer The ready-to-use consumer to register as the process consumer (ownership is moved in)
  */
@@ -1499,11 +1500,16 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
         );
     }
 
-    std::println("Using consumer {}", consumer_name_);
-
     // courtier is the submission path. Assemble the transport-agnostic spec from the command line and
     // remember it, so clientRun_() can build the matching networked client without a second pass.
     consumer_spec_ = Gem::Geneva::specFromCommandLine(consumer_name_, vm);
+
+    // A consumer the program gave to registerConsumer() is the process consumer; the mnemonic's
+    // consumer is then not built (it would replace the registered one in the registry).
+    if(consumer_) {
+        return;
+    }
+    std::println("Using consumer {}", consumer_name_);
 
     // Build the courtier consumer through the shared factory -- the single place that knows the concrete
     // consumer types -- which registers the resulting consumer as the process's single consumer

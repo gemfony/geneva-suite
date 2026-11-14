@@ -42,6 +42,7 @@
 #include <boost/program_options.hpp>
 
 #include <cstddef>
+#include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
@@ -52,6 +53,7 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "geneva/GConsumerSetup.hpp"
+#include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -286,6 +288,43 @@ TEST_CASE("buildConsumerSetup registers the process consumer", "[consumer][shari
     CHECK(stc2.consumer != stc.consumer);  // a genuinely new consumer was built
     CHECK(reg.consumer() == stc2.consumer);
 
+    reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// A consumer a program hands to Go2::registerConsumer() is the process consumer of the run. Go2
+// builds the consumer of its mnemonic lazily, when the run is configured (the first of optimize(),
+// clientRun() and a role-at-runtime clientMode()); that build must not replace the registered one.
+TEST_CASE("a consumer given to Go2::registerConsumer() is used", "[consumer][sharing][go2]") {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+    const std::filesystem::path base =
+        std::filesystem::temp_directory_path() / "geneva_registerconsumer_tests";
+    std::filesystem::create_directories(base);
+
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    int const argc = 3;
+    char arg0[] = "unit-test";
+    char arg1[] = "--consumer";
+    char arg2[] = "stc";
+    char *argv[] = {arg0, arg1, arg2, nullptr};
+    {
+        Gem::Geneva::Go2 go(argc, argv, base / "Go2.json");
+
+        auto registered = std::make_shared<StcConsumer>();
+        StcConsumer::instances_constructed().store(0);
+        go.registerConsumer(registered);
+        CHECK(reg.consumer() == registered);
+
+        // optimize() configures the run, then throws: no individual was registered.
+        CHECK_THROWS(go.optimize());
+
+        // Still the process consumer every algorithm submits to; the mnemonic's was not built.
+        CHECK(reg.consumer() == registered);
+        CHECK(StcConsumer::instances_constructed().load() == 0);
+    }
     reg.clear();
 }
 
