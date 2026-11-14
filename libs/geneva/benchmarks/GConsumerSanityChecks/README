@@ -3,3 +3,10 @@ infrastructure, particularly in networked mode and with respect to widely varyin
 calculation times. It runs a Go2 optimization of GDelayIndividual (whose
 "evaluation" simply sleeps for configurable durations) and can log the timings
 of all processing steps via --monitorTimings.
+
+measureIterationTime.sh measures, with a server and N clients on one host, how
+long an iteration takes and how much CPU the server needs for it; with
+individuals that only sleep, the time above the sleep is what the submission
+infrastructure and the transport add. summarizeIterationTimes.py turns its
+result lines into a table. Both describe their arguments in their header. Run
+them from a work directory outside the source tree.

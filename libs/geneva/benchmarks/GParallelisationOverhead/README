@@ -46,3 +46,10 @@ shortDelayResults.txt (short_result_file in the configuration).
 
 provided you have installed ROOT on your system (see http://root.cern.ch
 for further information).
+
+runWithClients.sh does the two runs for a server and N clients on one host and
+leaves the results in a work directory outside the source tree; several runs
+can share one serial reference. compareSpeedups.py averages the result tables
+of several runs and tells whether a second group of runs is slower than the
+first by more than their errors allow. Both describe their arguments in their
+header.
