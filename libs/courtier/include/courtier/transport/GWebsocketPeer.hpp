@@ -159,9 +159,9 @@ private:
     bool open_ = false; ///< The handshake has completed
     bool closing_ =
         false; ///< A close has begun, or the connection is over: nothing is sent any more
-    bool local_close_ = false; ///< This end began the close
+    bool local_close_ = false;                 ///< This end began the close
     std::atomic<bool> close_requested_{false}; ///< close() was called (from any thread)
-    bool finished_ = false;    ///< onClosed has been called
+    bool finished_ = false;                    ///< onClosed has been called
 };
 
 /******************************************************************************/
