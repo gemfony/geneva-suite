@@ -46,9 +46,11 @@
 #include <filesystem>
 #include <memory>
 #include <set>
+#include <span>
+#include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
-#include <span>
 
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -660,4 +662,86 @@ TEST_CASE("courtier(routing): duplicates and empty checkouts are counted", "[cou
     worker.join();
     CHECK(count_processed(batch) == 2);
     CHECK(consumer.requeuedCount() == 0);
+}
+
+/******************************************************************************/
+// A clone that throws at checkout. The slot used to be marked IN_FLIGHT and counted out of the
+// pending set before the clone was made; when the clone threw, the exception left checkout() with
+// the slot in flight and nobody holding it, and under wait_indefinitely the batch never ended.
+
+namespace {
+
+/** @brief A RawDispatchConsumer that can also be stopped, so a test whose batch does not finish can
+ *  still end instead of hanging. */
+class StoppableRawDispatchConsumer : public RawDispatchConsumer {
+public:
+    using c2::GNetworkedConsumerT<GFaultyContainer>::requestStop;
+};
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "courtier(checkout): an item whose clone throws is flagged as failed and the batch completes",
+    "[courtier][routing]"
+) {
+    constexpr std::size_t N = 4;
+    constexpr std::size_t BAD = 1; // the item whose clone throws
+    auto batch = make_batch(N);
+    for(auto &p : batch) {
+        p->set_processing_status(c2::processingStatus::DO_PROCESS);
+    }
+
+    StoppableRawDispatchConsumer consumer;
+    c2::GNetworkedTimeoutConfig cfg;
+    cfg.treatment = "wait_indefinitely"; // a stuck slot cannot be hidden by the give-up window
+    consumer.applyTimeoutConfig(cfg);
+    consumer.setCloneFunction([](const item_ptr &src) -> item_ptr {
+        if(src->get_stored_number() == BAD) {
+            throw std::runtime_error("clone refused by the test");
+        }
+        return std::make_unique<GFaultyContainer>(*src);
+    });
+
+    std::atomic<bool> finished{false};
+    std::jthread worker([&] {
+        consumer.dispatch_(std::span<item_ptr>(batch.data(), batch.size()));
+        finished.store(true);
+    });
+
+    std::size_t n_thrown = 0;
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while(not finished.load() && std::chrono::steady_clock::now() < deadline) {
+        item_ptr p;
+        try {
+            p = consumer.checkout();
+        }
+        catch(const std::exception &) {
+            ++n_thrown;
+        }
+        if(not p) {
+            std::this_thread::sleep_for(1ms);
+            continue;
+        }
+        p->process();
+        consumer.checkin(std::move(p));
+    }
+    const bool completed = finished.load();
+    if(not completed) {
+        consumer.requestStop(); // let dispatch_ return so that the test ends instead of hanging
+    }
+    worker.join();
+
+    CHECK(completed);
+    CHECK(n_thrown == 0);
+    CHECK(batch[BAD]->getProcessingStatus() == c2::processingStatus::ERROR_FLAGGED);
+    CHECK(
+        batch[BAD]->getStoredErrorDescriptions().find("clone refused by the test") !=
+        std::string::npos
+    );
+    CHECK(batch[BAD]->getDispatchState() == c2::dispatchState::DONE);
+    for(std::size_t k = 0; k < N; ++k) {
+        if(k != BAD) {
+            CHECK(batch[k]->is_processed());
+        }
+    }
 }

@@ -365,7 +365,11 @@ protected:
             return {};
         }
         if(total_pending_ > 0) {
-            return {.item = checkout_locked()};
+            if(auto item = checkout_locked()) {
+                return {.item = std::move(item)};
+            }
+            // Every pending slot failed to clone and was completed as failed: nothing to hand
+            // out after all, so the caller is parked like one that found nothing pending.
         }
         static_cast<void>(parked_.push(std::move(wake))); // unbounded queue: push never fails
         return {.parked = true};
@@ -457,22 +461,16 @@ protected:
             );
         }
         catch(const std::exception &e) {
-            auto failed = frame.outcome();
-            failed.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
-            failed.error_descriptions += "The returned result could not be applied to its slot: ";
-            failed.error_descriptions += e.what();
-            b.items[slot]->applyProcessingOutcome(failed);
-            glogger << "In GNetworkedConsumerT::checkin(): a returned result could not be applied"
-                    << '\n'
-                    << e.what() << '\n'
-                    << "The work item is flagged as failed." << '\n'
-                    << GWARNING;
+            failSlot_locked(
+                b,
+                slot,
+                frame.outcome(),
+                std::string("The returned result could not be applied to its slot: ") + e.what(),
+                "checkin()"
+            );
+            return;
         }
-        b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::DONE);
-        ++b.done;
-        if(b.done == b.target) {
-            cv_done_.notify_all(); // each waiting dispatch_ re-checks its own batch
-        }
+        completeSlot_locked(b, slot);
     }
 
     /***************************************************************************/
@@ -779,6 +777,11 @@ private:
     /***************************************************************************/
     /** @brief Serves the next PENDING slot, round-robin across active batches for fairness (so no
      *  single submitter starves the others). Caller holds mtx_.
+     *
+     *  The slot's item is cloned before anything about the slot changes. A slot whose clone throws
+     *  cannot be shipped; it is completed as failed (see failSlot_locked()) and the scan goes on
+     *  with the next slot, so the exception neither leaves the slot in flight with nobody holding
+     *  it nor reaches the session that asked for work.
      *  @return A clone of the next pending item to ship, or nullptr if no slot is pending */
     item_ptr checkout_locked() {
         if(total_pending_ == 0 || batches_.empty()) {
@@ -792,29 +795,92 @@ private:
                 it = batches_.begin();
             }
             BatchState &b = it->second;
-            // Skip non-participating slots: null entries and anything not PENDING (see dispatch_'s
-            // selection comment -- the span may carry null / already-resolved slots).
-            while(b.cursor < b.items.size() &&
-                  (not b.items[b.cursor] ||
-                   b.items[b.cursor]->getDispatchState() != Gem::Courtier::dispatchState::PENDING)) {
-                ++b.cursor;
-            }
-            if(b.cursor < b.items.size()) {
+            while(true) {
+                // Skip non-participating slots: null entries and anything not PENDING (see
+                // dispatch_'s selection comment -- the span may carry null / already-resolved
+                // slots).
+                while(b.cursor < b.items.size() &&
+                      (not b.items[b.cursor] || b.items[b.cursor]->getDispatchState() !=
+                                                    Gem::Courtier::dispatchState::PENDING)) {
+                    ++b.cursor;
+                }
+                if(b.cursor >= b.items.size()) {
+                    break; // nothing pending in this batch
+                }
                 const std::size_t k = b.cursor++;
+                // Hand the session a clone to serialize and ship; the owning copy stays in the
+                // slot, marked IN_FLIGHT. Its correlation id rides the clone, so checkin() finds
+                // the slot again. Clone via the consumer's type-generic helper (polymorphic functor
+                // or copy-construct), before the slot is touched: a clone that throws leaves
+                // nothing to undo but the cursor, which has passed a slot that is about to be DONE.
+                item_ptr clone;
+                try {
+                    clone = this->clone_item_(b.items[k]);
+                }
+                catch(const std::exception &e) {
+                    --b.pending;
+                    --total_pending_;
+                    failSlot_locked(
+                        b,
+                        k,
+                        b.items[k]->processingOutcome(),
+                        std::string("The work item could not be cloned for dispatch: ") + e.what(),
+                        "checkout()"
+                    );
+                    continue; // on to the next PENDING slot of this batch
+                }
                 b.items[k]->setDispatchState(Gem::Courtier::dispatchState::IN_FLIGHT);
                 b.checked_out_at[k] = clock::now();
                 --b.pending;
                 --total_pending_;
                 last_served_batch_ = it->first;
-                // Hand the session a clone to serialize and ship; the owning copy stays in the slot,
-                // marked IN_FLIGHT. Its correlation id rides the clone, so checkin() finds the slot again.
-                // Clone via the consumer's type-generic helper (polymorphic functor or copy-construct).
-                return this->clone_item_(b.items[k]);
+                return clone;
             }
             ++it;
         }
         ++n_empty_checkouts_;
         return nullptr;
+    }
+
+    /***************************************************************************/
+    /** @brief Marks slot @p slot of batch @p b DONE and counts it; wakes the waiting dispatch_
+     *  calls when that completes the batch. Caller holds mtx_.
+     *  @param b The batch owning the slot
+     *  @param slot The slot index that has been resolved */
+    void completeSlot_locked(BatchState &b, std::size_t slot) {
+        b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::DONE);
+        ++b.done;
+        if(b.done == b.target) {
+            cv_done_.notify_all(); // each waiting dispatch_ re-checks its own batch
+        }
+    }
+
+    /***************************************************************************/
+    /** @brief Ends slot @p slot of batch @p b as failed: the item gets @p outcome with status
+     *  ERROR_FLAGGED and @p what appended to its error descriptions, a warning is logged, and the
+     *  slot is completed (completeSlot_locked()). The submission policy then treats the item like
+     *  any evaluation that failed. Used where the item cannot go on: a return that cannot be
+     *  applied (checkin()) and an item that cannot be cloned for dispatch (checkout). The caller
+     *  holds mtx_ and has already taken the slot out of the pending counts if it was PENDING.
+     *  @param b The batch owning the slot
+     *  @param slot The slot index to fail
+     *  @param outcome The lifecycle record to write onto the item (status and text are added here)
+     *  @param what Why the item failed
+     *  @param where The function that failed it (for the log) */
+    void failSlot_locked(
+        BatchState &b,
+        std::size_t slot,
+        Gem::Courtier::GProcessingOutcome outcome,
+        const std::string &what,
+        const char *where
+    ) {
+        outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
+        outcome.error_descriptions += what;
+        b.items[slot]->applyProcessingOutcome(outcome);
+        glogger << "In GNetworkedConsumerT::" << where << ": " << what << '\n'
+                << "The work item is flagged as failed." << '\n'
+                << GWARNING;
+        completeSlot_locked(b, slot);
     }
 
     /***************************************************************************/
