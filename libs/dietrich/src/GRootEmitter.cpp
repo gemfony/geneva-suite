@@ -133,7 +133,12 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(p->yAxisLogarithmic()) {
             result << gpd.indent() << "gPad->SetLogy(1);" << '\n';
         }
-        result << p->footerData(gpd.indent()) << '\n';
+        result << p->footerData(gpd.indent());
+        // The labels of such an axis can only be arranged once the pad knows its range.
+        if(p->xAxisLogarithmic() || p->yAxisLogarithmic()) {
+            emitRootLogAxisLabels(result, gpd.indent());
+        }
+        result << '\n';
     }
 
     result << gpd.indent() << "graphPad->cd();" << '\n' << gpd.indent() << "cc->cd();" << '\n';

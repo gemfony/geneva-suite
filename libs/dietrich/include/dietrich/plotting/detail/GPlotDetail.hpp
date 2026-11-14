@@ -200,6 +200,43 @@ inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &in
 
 /******************************************************************************/
 /**
+ * Emits what a ROOT pad with a logarithmic axis needs after everything is drawn. ROOT labels a
+ * logarithmic axis at the powers of ten only, so an axis that lies between two of them would
+ * carry no number at all. For an axis of fewer than three decades the emitted block asks for the
+ * labels in between and has them written out (300 instead of 3x10^2). It looks at the objects of
+ * the current pad and needs no names.
+ *
+ * @param s The stream the ROOT macro lines are written to
+ * @param indent The indentation prefix of the emitted lines
+ */
+inline void emitRootLogAxisLabels(std::ostream &s, const std::string &indent) {
+    s << indent << "{ // a logarithmic axis over few decades: more labels, written out" << '\n'
+      << indent << "   gPad->Update();" << '\n'
+      << indent
+      << "   const bool few_x = gPad->GetLogx() && gPad->GetUxmax() - gPad->GetUxmin() < 3.;"
+      << '\n'
+      << indent
+      << "   const bool few_y = gPad->GetLogy() && gPad->GetUymax() - gPad->GetUymin() < 3.;"
+      << '\n'
+      << indent << "   TIter next(gPad->GetListOfPrimitives());" << '\n'
+      << indent << "   while(TObject *o = next()) {" << '\n'
+      << indent << "      TH1 *h = dynamic_cast<TH1 *>(o);" << '\n'
+      << indent << "      if(TGraph *g = dynamic_cast<TGraph *>(o)) h = g->GetHistogram();" << '\n'
+      << indent << "      if(TF1 *f = dynamic_cast<TF1 *>(o)) h = f->GetHistogram();" << '\n'
+      << indent << "      if(!h) continue;" << '\n'
+      << indent
+      << "      if(few_x) { h->GetXaxis()->SetMoreLogLabels(); h->GetXaxis()->SetNoExponent(); }"
+      << '\n'
+      << indent
+      << "      if(few_y) { h->GetYaxis()->SetMoreLogLabels(); h->GetYaxis()->SetNoExponent(); }"
+      << '\n'
+      << indent << "   }" << '\n'
+      << indent << "   gPad->Modified();" << '\n'
+      << indent << "}" << '\n';
+}
+
+/******************************************************************************/
+/**
  * Emits one ROOT SetTitle line for @p obj into @p s: the escaped @p label if one was set, else the
  * single-space placeholder ROOT needs to suppress its default object title. This block used to be
  * copy-pasted into every graph / histogram plotter's footer.

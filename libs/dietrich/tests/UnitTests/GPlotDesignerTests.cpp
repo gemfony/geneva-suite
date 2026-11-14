@@ -1213,6 +1213,13 @@ TEST_CASE("A plotter's logarithmic axes reach every backend", "[plotting][logaxi
         CHECK(pad_one.find("gPad->SetLogx(1);") < pad_one.find("Draw("));
         CHECK(pad_two.contains("gPad->SetLogy(1);"));
         CHECK_FALSE(pad_two.contains("SetLogx"));
+        // An axis between two powers of ten would have no labels: both pads ask for more of
+        // them, after the graph is drawn (the range is not known before).
+        for(const std::string &pad : {pad_one, pad_two}) {
+            REQUIRE(pad.contains("SetMoreLogLabels"));
+            CHECK(pad.contains("SetNoExponent"));
+            CHECK(pad.find("Draw(") < pad.find("SetMoreLogLabels"));
+        }
     }
 
     SECTION("gnuplot switches the scale on, and off again for the next pad") {
@@ -1244,6 +1251,7 @@ TEST_CASE("A plotter's logarithmic axes reach every backend", "[plotting][logaxi
              plotBackend::OCTAVE}) {
             const std::string s = scriptFor(backend, {linear});
             CHECK_FALSE(s.contains("SetLog"));
+            CHECK_FALSE(s.contains("MoreLogLabels"));
             CHECK_FALSE(s.contains("logscale"));
             CHECK_FALSE(s.contains("scale(\"log\")"));
             CHECK_FALSE(s.contains("Scale', 'log'"));

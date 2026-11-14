@@ -43,7 +43,9 @@ It reads either format the DATA backend emits:
 
 The manifest describes the canvas (title + pad grid) and, per series, its plot kind,
 labels, columns, histogram bin counts and the pad it draws into (``secondary`` series
-overlay the primary in the same pad). The plot kinds mirror the C++ matplotlib backend:
+overlay the primary in the same pad, and such a pad gets a legend). A manifest can also
+ask for a logarithmic x- or y-axis (``x_log``, ``y_log``). The ``.csv`` form carries
+neither the axis labels nor these two flags. The plot kinds mirror the C++ matplotlib backend:
 graph_2d / graph_2d_err / graph_3d / graph_4d / hist_1d / hist_1i / hist_2d (an
 ``hist_1i`` integer histogram is stored as a true int32 array in the ``.npz``).
 
@@ -197,8 +199,8 @@ def _draw_series(ax, fig, s):
         raise ValueError("cannot render kind %r from data export" % kind)
 
 
-def render(canvas, series, output):
-    """Render (canvas, series) to an image file via matplotlib (headless Agg)."""
+def build_figure(canvas, series):
+    """Build the matplotlib figure for (canvas, series) (headless Agg) and return it."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -231,9 +233,23 @@ def render(canvas, series, output):
         if three_d:
             ax.set_zlabel(prim.get("z_label", "z"))
         ax.set_title(prim.get("name", ""))
+        # Logarithmic axes, where the manifest asks for them. As in the C++ matplotlib
+        # backend a 3-d pad stays linear: matplotlib's 3-d axes have no logarithmic scale.
+        if not three_d and prim.get("x_log", False):
+            ax.set_xscale("log")
+        if not three_d and prim.get("y_log", False):
+            ax.set_yscale("log")
+        # Several series in one pad are told apart by a legend.
+        if len(members) > 1:
+            ax.legend()
 
     fig.tight_layout()
-    fig.savefig(output)
+    return fig
+
+
+def render(canvas, series, output):
+    """Render (canvas, series) to an image file."""
+    build_figure(canvas, series).savefig(output)
     return output
 
 

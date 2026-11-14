@@ -526,6 +526,8 @@ int main(int argc, char **argv) {
         gpd_full.registerPlotter(full_h1d);
         gpd_full.registerPlotter(full_h2d);
         gpd_full.registerPlotter(full_h1i);
+        // Logarithmic axes and two overlaid graphs: the manifest has to carry both to the renderer.
+        gpd_full.registerPlotter(decadesGraph("a power law with logarithmic axes, data export"));
         gpd_full.writeToFile("result_data_full.npz");
     }
 }
