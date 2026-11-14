@@ -63,12 +63,14 @@
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadPool.hpp"
+#include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/GServerSessionLogic.hpp"       // shared server-side work-item decision (serveWorkItem)
 #include "courtier/GWireCodec.hpp"                // shared scope-wrapped (de)serialization + blob fetch
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: registry + wire scope
+#include "courtier/transport/GMPIEnvironment.hpp" // the communicator and the role of a process
 
 // TODO: extract double buffering to GBaseConsumerClientT
 
@@ -177,9 +179,17 @@ struct MPIConsumerConfig {
 };
 
 /**
-     * This class is responsible for the client side of network communication using MPI.
-     * It will repeatedly request work items from the GMPIConsumerMasterNodeT, process those,
-     * send them back to the worker and request more work items.
+     * The client of the MPI consumer: a GBaseClientT like the socket clients, built on a process
+     * whose role in the GMPIEnvironment is CLIENT (Go2 builds it through buildConsumerClient()). It
+     * will repeatedly request work items from the GMPIConsumerMasterNodeT, process those, send them
+     * back to the master and request more work items.
+     *
+     * It never consults halt() of GBaseClientT. The client ends when the master tells it to (a
+     * SHUTDOWN frame), or when the master has been silent for GMPICONSUMERWORKERMPITIMEOUT. A rank
+     * that left on its own with a request outstanding would make the master send to a finalized
+     * rank, which is a fatal MPI error. A time limit (setMaxTime()) or an item limit
+     * (setProcessMax()) set on this client therefore has no effect; run() logs one warning if one
+     * is set.
      *
      * The simplified workflow of the GMPIConsumerWorkerNodeT can be described as follows:
      *
@@ -200,30 +210,25 @@ struct MPIConsumerConfig {
      * @tparam processable_type the type of work item exchanged with the master node
      */
 template <typename processable_type>
-class GMPIConsumerWorkerNodeT final
-  : public std::enable_shared_from_this<GMPIConsumerWorkerNodeT<processable_type>> {
+class GMPIConsumerWorkerNodeT final : public Gem::Courtier::GBaseClientT<processable_type> {
 public:
     /**
-         * @brief Constructor with arguments for all configuration options for this class.
+         * @brief Builds the client on a process whose role is CLIENT.
          *
-         * @param communicator The communicator this node talks to the master on (courtier's own,
-         *        see GMPIEnvironment); the master is its rank RANK_MASTER_NODE
-         * @param commRank this node's rank within this cluster
-         * @param halt function that returns true if halt criterion has been reached
-         * @param incrementProcessingCounter function that increments the counter for already processed items on this node
-         * @param config const reference to configuration struct instance storing user-defined configuration
+         * @param environment The process's MPI environment; the client keeps it for as long as it
+         *        exists and talks to the master (rank RANK_MASTER_NODE) on its communicator. Must
+         *        not be null.
+         * @param config The configuration of the MPI consumer; the client keeps a copy
+         * @throws geneva_exception if @p environment is null or the role of this process is not
+         *         CLIENT
          */
     explicit GMPIConsumerWorkerNodeT(
-        MPI_Comm communicator,
-        std::int32_t commRank,
-        std::move_only_function<bool()> halt,
-        std::move_only_function<void()> incrementProcessingCounter,
-        const MPIConsumerConfig &config
+        std::shared_ptr<GMPIEnvironment> environment,
+        MPIConsumerConfig config
     )
-      : communicator_{communicator}
-      , commRank_{commRank}
-      , halt_{std::move(halt)}
-      , incrementProcessingCounter_{std::move(incrementProcessingCounter)}
+      : environment_{requireClient_(std::move(environment))}
+      , communicator_{environment_->communicator()}
+      , commRank_{environment_->rank()}
       , config_{config} {
         glogger << "GMPIConsumerWorkerNodeT with rank " << commRank_ << " started up" << '\n'
                 << GLOGGING;
@@ -251,7 +256,7 @@ public:
     /**
          * @brief The destructor.
          */
-    ~GMPIConsumerWorkerNodeT() = default;
+    ~GMPIConsumerWorkerNodeT() override = default;
 
     //-------------------------------------------------------------------------
     // Deleted functions
@@ -270,13 +275,55 @@ public:
     GMPIConsumerWorkerNodeT<processable_type> &
     operator=(GMPIConsumerWorkerNodeT<processable_type> &&) = delete;
 
+private:
     /**
-         * @brief Advises the worker to start requesting and processing work items.
+         * @brief Returns @p environment if this process is a client of it; throws otherwise.
+         * @param environment The process's MPI environment
+         * @return The environment
+         */
+    static std::shared_ptr<GMPIEnvironment>
+    requireClient_(std::shared_ptr<GMPIEnvironment> environment) {
+        if(not environment) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
+                << "The MPI environment must not be empty" << '\n'
+            );
+        }
+        if(environment->role() != Gem::Courtier::processRole::CLIENT) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
+                << "The MPI client is built on a process whose role is CLIENT only; this process "
+                << "has the role " << static_cast<int>(environment->role()) << '\n'
+            );
+        }
+        return environment;
+    }
+
+    /**
+         * @brief Logs one warning if a time or an item limit is set on this client: neither has an
+         * effect for the MPI transport (see the class comment).
+         */
+    void warnAboutLimits_() {
+        if(this->getMaxTime().count() > 0. || this->getProcessMax() > 0) {
+            glogger << "GMPIConsumerWorkerNodeT with rank " << commRank_ << ":" << '\n'
+                    << "A time limit or a limit on the number of items is set on this client. "
+                    << "It has no effect for the MPI transport: the client runs until the master "
+                    << "tells it to stop." << '\n'
+                    << GWARNING;
+        }
+    }
+
+    /**
+         * @brief Requests and processes work items.
          *
          * This call completes when a stop request has been received from the master node, indicating the end of the
-         * optimization, or if a fatal error has been encountered.
+         * optimization, or when the master has been silent for GMPICONSUMERWORKERMPITIMEOUT.
          */
-    void run() {
+    void run_() override {
+        this->warnAboutLimits_();
+
         // set message for the initial PULL frame (carries no work item, but keep it under the scope for
         // uniformity -- the scope is harmless for a payload-free frame)
         outgoingMessage_ =
@@ -287,8 +334,8 @@ public:
             return; // return if unrecoverable error in networking occurred
         }
 
-        // stop if server tells this worker to stop or if the optimization stop criteria is fulfilled
-        while(!stopRequestReceived_ && !halt_()) {
+        // stop when the master tells this worker to stop
+        while(!stopRequestReceived_) {
             // swap messages: serialize the (processed) frame into outgoingMessage_, then deserialize
             // incomingMessage_ into the frame. Both run under the blob send-once wire scope:
             // the outgoing RETURN ships its blob to the master in full only the first time
@@ -328,7 +375,6 @@ public:
         }
     }
 
-private:
     /**
          * @brief Turns incomingMessage_ into the frame to act on.
          *
@@ -396,7 +442,7 @@ private:
                 << "In GMPIConsumerWorkerNodeT<processable_type>::sendResultAndRequestNewWork() "
                    "with rank="
                 << commRank_ << ":" << '\n'
-                << "Timed out (or was halted) while sending to GMPIConsumerMasterNodeT." << '\n'
+                << "Timed out while sending to GMPIConsumerMasterNodeT." << '\n'
                 << "The master appears to be gone; worker node will shut down." << '\n'
                 << GWARNING;
 
@@ -412,7 +458,7 @@ private:
                 << "In GMPIConsumerWorkerNodeT<processable_type>::sendResultAndRequestNewWork() "
                    "with rank="
                 << commRank_ << ":" << '\n'
-                << "Timed out (or was halted) while waiting for a response from "
+                << "Timed out while waiting for a response from "
                    "GMPIConsumerMasterNodeT."
                 << '\n'
                 << "The master appears to be gone; worker node will shut down." << '\n'
@@ -429,13 +475,13 @@ private:
 
     /**
          * Waits for an outstanding MPI request to complete, polling so the worker can give up if the
-         * master goes silent (GMPICONSUMERWORKERMPITIMEOUT) or a halt was requested, instead of
-         * blocking forever in MPI_Wait. On timeout/halt the request is cancelled and reclaimed so it
-         * cannot outlive into MPI_Finalize.
+         * master goes silent (GMPICONSUMERWORKERMPITIMEOUT), instead of blocking forever in
+         * MPI_Wait. On timeout the request is cancelled and reclaimed so it cannot outlive into
+         * MPI_Finalize.
          *
-         * @param handle The outstanding MPI request to wait on (cancelled and reclaimed on timeout/halt)
+         * @param handle The outstanding MPI request to wait on (cancelled and reclaimed on timeout)
          * @param status The MPI_Status filled in if the request completes
-         * @return true if the request completed (status filled); false on timeout / halt.
+         * @return true if the request completed (status filled); false on timeout.
          */
     [[nodiscard]] bool waitForRequestOrTimeout(MPI_Request &handle, MPI_Status &status) {
         const auto deadline = std::chrono::steady_clock::now() + GMPICONSUMERWORKERMPITIMEOUT;
@@ -446,7 +492,7 @@ private:
             if(isCompleted) {
                 return true;
             }
-            if(halt_() || std::chrono::steady_clock::now() >= deadline) {
+            if(std::chrono::steady_clock::now() >= deadline) {
                 MPI_Cancel(&handle);
                 MPI_Wait(&handle, MPI_STATUS_IGNORE);
                 return false;
@@ -464,7 +510,7 @@ private:
          * @param source The expected sender rank
          * @param tag The expected message tag (may be MPI_ANY_TAG)
          * @param status Filled with the pending message's envelope on success
-         * @return true if a matching message is pending (status filled); false on timeout / halt.
+         * @return true if a matching message is pending (status filled); false on timeout.
          */
     [[nodiscard]] bool probeWithTimeout(int source, int tag, MPI_Status &status) {
         const auto deadline = std::chrono::steady_clock::now() + GMPICONSUMERWORKERMPITIMEOUT;
@@ -476,7 +522,7 @@ private:
                 return true;
             }
             // A probe posts no request, so on give-up there is nothing to cancel.
-            if(halt_() || std::chrono::steady_clock::now() >= deadline) {
+            if(std::chrono::steady_clock::now() >= deadline) {
                 return false;
             }
             std::this_thread::sleep_for(GMPICONSUMERPOLLPAUSE);
@@ -527,7 +573,7 @@ private:
             );
 
             // increment the counter for processed items
-            incrementProcessingCounter_();
+            this->incrementProcessingCounter();
 
             // rewrite the frame into the RETURN the using library wants sent back
             Gem::Courtier::makeReturnFrame(commandContainer_);
@@ -669,7 +715,12 @@ private:
     // Private data
 
     /**
-         * The communicator all of this node's MPI calls run on (not owned)
+         * The process's MPI environment; held so that MPI stays initialized while this client
+         * exists
+         */
+    std::shared_ptr<GMPIEnvironment> environment_;
+    /**
+         * The communicator all of this node's MPI calls run on (the environment's)
          */
     MPI_Comm communicator_;
     /**
@@ -677,17 +728,9 @@ private:
          */
     std::int32_t commRank_;
     /**
-         * Callback function that returns true if the halt criterion has been reached
+         * This client's copy of the configuration specified by the end-user.
          */
-    std::move_only_function<bool()> halt_;
-    /**
-         * Increments the counter for processed work items of the calling instance of GConsumerBaseT.
-         */
-    std::move_only_function<void()> incrementProcessingCounter_;
-    /**
-         * reference to configuration specified by the end-user.
-         */
-    const MPIConsumerConfig &config_;
+    MPIConsumerConfig config_;
     /**
          * Whether a stop request from the master node has been received
          */

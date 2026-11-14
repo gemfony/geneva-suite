@@ -50,17 +50,18 @@
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
-#include "courtier/GConsumerRegistry.hpp"
-#include "geneva/GConsumerSetup.hpp"
-#include "geneva/GOptimizationEnums.hpp"
-#include "geneva/GFaultInjector.hpp"
 #include "common/GSigHupHandler.hpp"
-#include "geneva/genome/GGenome.hpp"
-#include "geneva/Interface/GOptimizerIT.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GFactoryStore.hpp"
+#include "courtier/GConsumerRegistry.hpp"
+#include "courtier/GCourtierEnums.hpp" // processRole
+#include "courtier/GCourtierHelperFunctions.hpp"
+#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GFaultInjector.hpp"
+#include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaInitializer.hpp"
+#include "geneva/Interface/GOptimizerIT.hpp"
+#include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
 
@@ -124,13 +125,15 @@ public:
     ~Go2() override;
 
     /**
-     * @brief Triggers execution of the client loop.
+     * @brief Runs this process as a client of the chosen consumer (or, for a process that takes no
+     * part in the consumer's protocol, returns at once).
      * @return An integer return value (suitable for the main function) indicating the execution status
      */
     int clientRun();
     /**
-     * @brief Checks whether this object is running in client mode.
-     * @return True if this object represents a network client, false otherwise
+     * @brief Checks whether this process is not the submitter, i.e. whether the caller must call
+     * clientRun() instead of optimize().
+     * @return True if the role of this process is client or bystander, false for the submitter
      */
     //! [coding-naming-example#1]
     bool clientMode() const;
@@ -233,7 +236,8 @@ public:
     /***************************************************************************/
     // The following is a trivial list of getters and setters
     /**
-     * @brief Sets whether this object runs in client mode.
+     * @brief Asks for client mode, as --client does. A consumer that determines the role at runtime
+     * (see GConsumerProviderT::determinesRoleAtRuntime()) ignores the request.
      * @param client_mode If true, this object represents a network client
      */
     //! [coding-naming-example#2]
@@ -373,7 +377,8 @@ protected:
     void releaseConsumer_();
 
     /**
-     * @brief Triggers execution of the client loop.
+     * @brief Runs this process according to its role: a client builds and runs the client of the
+     * consumer, a bystander returns at once.
      * @return An integer return value (suitable for the main function) indicating the execution status
      */
     virtual int clientRun_();
@@ -572,13 +577,12 @@ private:
     // marshaller (registered into marshallerProviderStore()) like every other consumer.
     /** @brief The single server-backed/local courtier consumer, shared across all algorithms. Held here
      *  so it (and any listening server) outlives the run and is torn down by RAII at Go2 destruction.
-     *  Null when this process is not a submitter (a role-at-runtime consumer placed it in the worker role). */
+     *  Null when this process is not the submitter. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer_;
-    /** @brief Set when a role-at-runtime consumer (see GConsumerProviderT::determinesRoleAtRuntime, e.g.
-     *  the MPI worker rank) placed this process in the worker role: the worker loop clientRun_ runs instead
-     *  of building a networked client. Type-erased so Go2.hpp needs no transport headers; the captured
-     *  consumer shared_ptr keeps the worker node alive. Empty on a submitter / role-from-flag path. */
-    std::move_only_function<void()> run_worker_;
+    /** @brief The role of this process for the chosen consumer, asked for in setupChosenConsumer()
+     *  (consumerRole()). The submitter builds the consumer; a client runs the consumer's client in
+     *  clientRun_(); a bystander takes no part. client_mode_ is derived from it. */
+    Gem::Courtier::processRole role_ = Gem::Courtier::processRole::SUBMITTER;
     /** @brief The transport-agnostic spec for the chosen consumer, assembled from the command line in
      *  setupChosenConsumer(). Held so clientRun_() can build the matching networked client through the
      *  courtier setup layer (buildConsumerClient) without re-touching the command line or the

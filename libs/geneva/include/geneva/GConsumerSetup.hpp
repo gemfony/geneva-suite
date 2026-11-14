@@ -45,7 +45,7 @@
 #include "common/GCommonEnums.hpp" // serializationMode
 #include "common/GProviderStoreT.hpp"
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCourtierEnums.hpp" // GBEASTCONSUMERPINGINTERVAL
+#include "courtier/GCourtierEnums.hpp" // GBEASTCONSUMERPINGINTERVAL, processRole
 #include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Courtier {
@@ -91,16 +91,13 @@ struct ConsumerSpec {
 
 /******************************************************************************/
 /**
- * The result of building a courtier setup for the current process.
+ * The result of building a courtier setup for the current process, a submitter.
  */
 struct ConsumerSetup {
     /** @brief The ready consumer (clone function set, server started for networked consumers), also
-     *  registered as the process's single consumer in GConsumerRegistry. Null when this process is not a
-     *  submitter -- e.g. an MPI worker rank. */
+     *  registered as the process's single consumer in GConsumerRegistry. Null only for an unknown
+     *  mnemonic. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer;
-    /** @brief When this process must serve as a worker (an MPI worker rank), the loop to run; null
-     *  otherwise. The caller invokes it instead of submitting. */
-    std::move_only_function<void()> run_worker;
 };
 
 /******************************************************************************/
@@ -117,18 +114,23 @@ struct ConsumerSetup {
  * @c provide() (inherited) is unused for consumers: building a consumer has side effects (binding a port,
  * starting a server), so a consumer is built through @c setup(), never handed out prototype-style -- it
  * returns nullptr.
+ *
+ * The role of a process (@c role()) decides which of the two builds applies: @c setup() is called
+ * on a submitter only, @c buildClient() on a client only, and a bystander builds neither.
  */
 class GConsumerProviderT
   : public Gem::Common::GProviderT<Gem::Courtier::GBaseConsumerT<gen::GGenome>> {
 public:
-    /** @brief Builds this consumer (and, for an MPI worker rank, a worker loop) for the current process.
-     *  @param spec The consumer specification. @return The consumer and/or worker loop for this process. */
+    /** @brief Builds this consumer for the current process. Called on a submitter only (see
+     *  role()).
+     *  @param spec The consumer specification. @return The consumer for this process. */
     virtual ConsumerSetup setup(const ConsumerSpec &spec) = 0;
     /** @brief Reads this consumer's command-line options out of @p vm into a spec (mnemonic filled by the
      *  caller). @param vm The parsed program-options map. @return The populated (partial) ConsumerSpec. */
     [[nodiscard]] virtual ConsumerSpec specFromCommandLine(
         const boost::program_options::variables_map &vm) const = 0;
     /** @brief Builds the networked client matching @p spec, or nullptr for a local-only consumer.
+     *  Called on a client only (see role()).
      *  @param spec The consumer specification. @return The client, or nullptr. */
     [[nodiscard]] virtual std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
     buildClient(const ConsumerSpec &spec) const = 0;
@@ -138,16 +140,24 @@ public:
     /** @brief Whether this consumer binds a listening socket, so a second build reuses the existing one
      *  rather than binding again. @return true for the socket-server consumers (asio/beast). */
     [[nodiscard]] virtual bool bindsListeningPort() const { return false; }
-    /** @brief Whether this consumer assigns each process its client/server role from the RUNTIME
-     *  environment (e.g. an MPI process rank) rather than from the --client switch. Such a consumer is
-     *  built on every process, and the role is not known until that build runs: the build hands a worker
-     *  process a run_worker loop (and a null consumer) and a submitter process the consumer. A caller must
-     *  therefore build the setup before it can know whether this process is a client, must not reject
-     *  --client up front (the role is not yet decided), and reads the resulting role from
-     *  ConsumerSetup.run_worker. The default (false) is the ordinary case: the role comes from --client
-     *  and is known before the consumer is built.
-     *  @return true if the client/server role is determined at runtime by the consumer, false otherwise. */
+    /** @brief Whether this consumer answers role() from its RUNTIME environment (e.g. the rank of
+     *  the process in an MPI communicator) rather than from the --client switch. A caller must
+     *  finalize its configuration (choose the consumer) before it can ask such a consumer for the
+     *  role, and must not reject --client up front for it. The default (false) is the ordinary
+     *  case: the role follows --client and is known as soon as the command line is parsed.
+     *  @return true if the role is determined at runtime by the consumer, false otherwise. */
     [[nodiscard]] virtual bool determinesRoleAtRuntime() const { return false; }
+    /** @brief The role of this process for this consumer. The default follows the client
+     *  switch: CLIENT if a client was asked for and this consumer has one, otherwise SUBMITTER.
+     *  @param spec The consumer specification
+     *  @param client_requested Whether the program was started as a client (--client)
+     *  @return The role of this process */
+    [[nodiscard]] virtual Gem::Courtier::processRole
+    role(const ConsumerSpec &spec, bool client_requested) const {
+        (void)spec;
+        return client_requested && this->needsClient() ? Gem::Courtier::processRole::CLIENT
+                                                       : Gem::Courtier::processRole::SUBMITTER;
+    }
 
     /** @brief Unused for consumers (they are built via setup(), not handed out prototype-style).
      *  @return nullptr. */
@@ -171,20 +181,19 @@ public:
 
 /******************************************************************************/
 /**
- * @brief Builds a courtier setup (consumer and/or worker loop) for the current process from a spec.
+ * @brief Builds a courtier setup (the consumer) for the current process, a submitter, from a spec.
  *
  * Resolves @c spec.mnemonic against @c consumerProviderStore() and invokes the matching provider's
- * @c setup(): it constructs the consumer, sets the polymorphic GGenome clone function
- * (required by clone-on-partial-return), and -- for networked consumers -- starts the server (for MPI
- * only on the master rank; a worker rank yields a run_worker loop and a null consumer instead). The
- * freshly-built consumer is registered in GConsumerRegistry as the process's single consumer. A socket
- * consumer whose process already holds a consumer reuses it rather than binding the port again.
+ * @c setup(): it constructs the consumer, sets the polymorphic GGenome clone function (required by
+ * clone-on-partial-return), and -- for networked consumers -- starts the server. The freshly-built
+ * consumer is registered in GConsumerRegistry as the process's single consumer. A socket consumer
+ * whose process already holds a consumer reuses it rather than binding the port again. Call it on a
+ * submitter only (see consumerRole()); a provider refuses to build on any other role.
  *
  * @param spec The transport-agnostic description of the consumer to build (mnemonic, ports, threads,
  *   serialization, client-side fields).
- * @return A ConsumerSetup whose consumer is registered in GConsumerRegistry (or null when this
- *   process is a worker rather than a submitter), and whose run_worker holds the worker loop when this
- *   process must serve as a worker. An unknown mnemonic yields an empty setup (both fields null).
+ * @return A ConsumerSetup whose consumer is registered in GConsumerRegistry. An unknown mnemonic
+ *   yields an empty setup (a null consumer).
  */
 ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec);
 
@@ -226,14 +235,15 @@ ConsumerSpec specFromCommandLine(
 /**
  * @brief Builds the networked client for a spec, for a process running in client mode.
  *
- * The socket servers built by buildConsumerSetup() are wire-compatible with the existing client
- * classes, so this is the single place that maps a mnemonic onto the matching client (asio/beast).
- * The caller sets the maximum runtime and invokes run() on the returned client.
+ * The servers built by buildConsumerSetup() are wire-compatible with the existing client classes,
+ * so this is the single place that maps a mnemonic onto the matching client (asio/beast/mpi). The
+ * caller sets the maximum runtime and invokes run() on the returned client. Call it on a client
+ * only (see consumerRole()); a provider may refuse to build on any other role.
  *
  * @param spec The consumer description; its client-side fields (ip, port, serialization, reconnects,
  *   prefetch depth) drive the client that is constructed.
- * @return The constructed client, or null for mnemonics that have no socket client (stc is local;
- *   the mpi worker loop is obtained from buildConsumerSetup().run_worker instead).
+ * @return The constructed client (for mpi, the MPI worker node), or null for a consumer that has no
+ *   client (stc is local).
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const ConsumerSpec &spec);
@@ -270,17 +280,33 @@ bool isKnownConsumer(const std::string &mnemonic);
 bool consumerNeedsClient(const std::string &mnemonic);
 
 /**
- * @brief Whether the given consumer determines each process's client/server role at runtime (e.g. from an
- * MPI rank) rather than from --client.
+ * @brief Whether the given consumer determines each process's role at runtime (e.g. from an MPI
+ * rank) rather than from --client.
  *
- * Generic drivers use this instead of naming a specific consumer: a consumer that answers true must be
- * built on every process to discover its role (so a client's role is only known once the setup runs), and
- * --client must not be rejected up front for it. See GConsumerProviderT::determinesRoleAtRuntime().
+ * Generic drivers use this instead of naming a specific consumer: for a consumer that answers true,
+ * the configuration must be finalized before consumerRole() can be asked, and --client must not be
+ * rejected up front. See GConsumerProviderT::determinesRoleAtRuntime().
  *
  * @param mnemonic The consumer mnemonic to test.
  * @return true if the consumer self-assigns the role at runtime, false otherwise (incl. unknown mnemonics).
  */
 bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic);
+
+/******************************************************************************/
+/**
+ * @brief The role of this process for the consumer of @p spec.
+ *
+ * Asks the provider of the mnemonic (GConsumerProviderT::role()): a submitter builds the consumer
+ * (buildConsumerSetup()), a client builds and runs the client (buildConsumerClient()), a bystander
+ * takes no part in the consumer's protocol.
+ *
+ * @param spec The consumer specification
+ * @param client_requested Whether the program was started as a client (--client)
+ * @return The role of this process
+ * @throws geneva_exception for a mnemonic no provider is registered for
+ */
+[[nodiscard]] Gem::Courtier::processRole
+consumerRole(const ConsumerSpec &spec, bool client_requested = false);
 
 /******************************************************************************/
 /**

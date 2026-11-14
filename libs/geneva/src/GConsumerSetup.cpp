@@ -501,15 +501,14 @@ std::vector<std::shared_ptr<GConsumerProviderT>> allConsumerProviders() {
 
 /******************************************************************************/
 /**
- * @brief Builds a consumer (and, for MPI workers, a worker loop) from a consumer specification.
+ * @brief Builds the consumer of a submitter from a consumer specification.
  *
  * Resolves the mnemonic against the consumer-provider store and invokes the matching provider's setup().
  * A socket consumer whose process already holds a consumer reuses it rather than binding the port again;
- * the freshly-built consumer (if any) is registered as the process's single consumer. An MPI worker rank
- * yields a run_worker callable instead of a consumer.
+ * the freshly-built consumer is registered as the process's single consumer.
  *
  * @param spec The consumer specification (mnemonic plus port/threads/serialization settings)
- * @return A ConsumerSetup holding the consumer and/or worker loop; empty for an unknown mnemonic
+ * @return A ConsumerSetup holding the consumer; empty for an unknown mnemonic
  */
 ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
     auto &registry = c2::GConsumerRegistryT<gen::GGenome>::instance();
@@ -553,7 +552,7 @@ ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
     }
 
     // Register the freshly-built consumer as the process's single consumer so every algorithm submits
-    // through it. An MPI worker rank has no consumer (run_worker only), so nothing is registered there.
+    // through it.
     if(setup.consumer) {
         registry.setConsumer(setup.consumer);
     }
@@ -617,11 +616,10 @@ ConsumerSpec specFromCommandLine(
 /**
  * @brief Builds the networked client matching a consumer specification.
  *
- * Delegates to the matching provider's buildClient(); the local consumer (stc) and MPI (whose worker
- * loop comes from buildConsumerSetup().run_worker) return nullptr.
+ * Delegates to the matching provider's buildClient(); the local consumer (stc) returns nullptr.
  *
  * @param spec The consumer specification (mnemonic plus connection/serialization settings)
- * @return A client for asio/beast; nullptr for local-only or non-client consumers
+ * @return A client for asio/beast/mpi; nullptr for local-only or non-client consumers
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const ConsumerSpec &spec) {
@@ -682,6 +680,27 @@ bool consumerNeedsClient(const std::string &mnemonic) {
 bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic) {
     auto provider = lookupConsumerProvider(mnemonic);
     return provider != nullptr && provider->determinesRoleAtRuntime();
+}
+
+/******************************************************************************/
+/**
+ * @brief The role of this process for the consumer of a specification, as its provider states it.
+ *
+ * @param spec The consumer specification
+ * @param client_requested Whether the program was started as a client (--client)
+ * @return The role of this process
+ * @throws geneva_exception for a mnemonic no provider is registered for
+ */
+Gem::Courtier::processRole consumerRole(const ConsumerSpec &spec, bool client_requested) {
+    auto provider = lookupConsumerProvider(spec.mnemonic);
+    if(not provider) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Gem::Geneva::consumerRole(): Error!" << '\n'
+            << "No consumer is registered under the mnemonic \"" << spec.mnemonic << "\"" << '\n'
+        );
+    }
+    return provider->role(spec, client_requested);
 }
 
 /******************************************************************************/

@@ -167,6 +167,24 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiUndecodableTest PROPERTIES LABELS "courtier" PROCESSORS 3)
 	GENEVA_TEST_SIZE(GCourtierMpiUndecodableTest M)
 
+	# A client must be refused the consumer, and the submitter the client.
+	ADD_TEST(NAME GCourtierMpiRefusalTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=refusal
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiRefusalTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
+	GENEVA_TEST_SIZE(GCourtierMpiRefusalTest M)
+
+	# A time limit set on the MPI client has no effect: the client says so and serves until the
+	# master tells it to stop, so every item is processed.
+	ADD_TEST(NAME GCourtierMpiClientLimitsTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=client-limits
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiClientLimitsTest PROPERTIES
+			LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
+	GENEVA_TEST_SIZE(GCourtierMpiClientLimitsTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)

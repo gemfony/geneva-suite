@@ -30,13 +30,14 @@
 /*
  * A cascade on a base communicator whose rank 0 is not rank 0 of MPI_COMM_WORLD.
  *
- * The program initializes MPI itself and reverses the ranks: rank 0 of the base communicator is
- * the last rank of MPI_COMM_WORLD. GMPISubClientOptimizer runs on that base with groups of two
- * (one geneva client and one sub-client), and every rank checks that its role follows its rank in
- * the base communicator: 0 is the submitter, an odd rank a client, an even rank above 0 a
- * bystander (a sub-client). One iteration is then run, as example 16 does. Who is master must
- * follow courtier's communicator; a consumer that took it from MPI_COMM_WORLD would make a
- * sub-client the master. Run with five ranks.
+ * The program initializes MPI itself and reverses the ranks: rank 0 of the base communicator is the
+ * last rank of MPI_COMM_WORLD. GMPISubClientOptimizer runs on that base with groups of two (one
+ * geneva client and one sub-client), and every rank asks for its role (consumerRole(), and
+ * clientMode() of the optimizer) and checks that it follows its rank in the base communicator: 0 is
+ * the submitter, an odd rank a client, an even rank above 0 a bystander (a sub-client). One
+ * iteration is then run, as example 16 does. Who is master must follow courtier's communicator; a
+ * consumer that took it from MPI_COMM_WORLD would make a sub-client the master. Run with five
+ * ranks.
  */
 
 // Standard header files go here
@@ -50,7 +51,7 @@
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "geneva/GMPIEnvironmentAccess.hpp"
+#include "geneva/GConsumerSetup.hpp"
 #include "geneva/GMPISubClientOptimizer.hpp"
 
 // The individual of example 16
@@ -124,7 +125,17 @@ int runTest(int argc, char **argv) {
         GMPISubClientOptimizer optimizer(argc, argv, CONFIGFILE, {}, base);
 
         const processRole expected = expectedRole(base_rank);
-        const processRole role = mpiProcessRole();
+        const processRole role = consumerRole(ConsumerSpec{.mnemonic = "mpi"});
+        const bool client_mode_expected = (expected != processRole::SUBMITTER);
+        if(optimizer.clientMode() != client_mode_expected) {
+            std::println(
+                "FAIL: world rank {} (base rank {}) is {}in client mode",
+                world_rank,
+                base_rank,
+                client_mode_expected ? "not " : ""
+            );
+            result = 1;
+        }
         if(role != expected) {
             std::println(
                 "FAIL: world rank {} (base rank {}) has the role {}, expected {}",

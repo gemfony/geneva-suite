@@ -136,8 +136,8 @@ Go2::Go2(
     parseCommandLine(argc, argv, user_descriptions);
 
     // A client only evaluates and draws few random numbers. Keep it off the GPU, so that many clients
-    // on one machine do not each need a CUDA context (the MPI worker role is decided later, in
-    // setupChosenConsumer()).
+    // on one machine do not each need a CUDA context (the role of a process for a consumer that
+    // determines it at run time, such as MPI, is asked for later, in setupChosenConsumer()).
     if(client_mode_) {
         Gem::Hap::setGpuRandomNumbersAllowed(false);
     }
@@ -312,7 +312,7 @@ std::chrono::duration<double> Go2::getMaxClientTime() const {
 
 /******************************************************************************/
 /**
- * @brief Triggers execution of the client loop.
+ * @brief Runs this process as a client of the chosen consumer; a bystander returns at once.
  *
  * Note that it is up to you to terminate the program after calling this function.
  *
@@ -326,25 +326,22 @@ int Go2::clientRun() {
 }
 
 /**
- * @brief Implementation of the client loop.
+ * @brief Implementation of the client loop, according to the role of this process.
  *
- * On an MPI worker rank routed through courtier this serves work through the courtier worker node;
- * otherwise it builds the networked client for the chosen consumer and runs its processing loop.
+ * A bystander (a process that takes no part in the consumer's protocol, e.g. an MPI sub-client)
+ * returns at once. A client builds the client of the chosen consumer (a socket client, or the MPI
+ * client) and runs its processing loop.
  *
  * @return The exit status of the client loop (always 0 here)
  */
 int Go2::clientRun_() {
-    // When a role-at-runtime consumer placed this process in the worker role (e.g. an MPI worker rank),
-    // serve work through its worker loop (held type-erased from setupChosenConsumer) instead of a
-    // networked client.
-    if(run_worker_) {
-        run_worker_();
+    if(role_ == Gem::Courtier::processRole::BYSTANDER) {
         return 0;
     }
 
-    // Build the networked client for the chosen consumer through the courtier setup layer, from the
-    // spec assembled in setupChosenConsumer(). The client is wire-compatible with the courtier socket
-    // server. Go2 thus stays free of the concrete consumer/client types and the consumer store.
+    // Build the client for the chosen consumer through the courtier setup layer, from the spec
+    // assembled in setupChosenConsumer(). The client is wire-compatible with the consumer's server.
+    // Go2 thus stays free of the concrete consumer/client types and the consumer store.
     std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>> const p =
         Gem::Geneva::buildConsumerClient(consumer_spec_);
 
@@ -356,7 +353,7 @@ int Go2::clientRun_() {
         );
     }
 
-    // Set the maximum runtime of the client
+    // Set the maximum runtime of the client (the MPI client does not observe it and says so)
     p->setMaxTime(this->max_client_duration_);
 
     // Start the actual processing loop. This call will not return until run() is finished.
@@ -372,15 +369,16 @@ int Go2::clientRun_() {
  * @return A boolean which indicates whether the client mode has been set for this object
  */
 bool Go2::clientMode() const {
-    // Most consumers take the client/server role from --client, so it is already known after construction
-    // and this is a plain getter. A consumer that determines the role at runtime instead (see
-    // GConsumerProviderT::determinesRoleAtRuntime -- e.g. the MPI consumer deriving it from the process
-    // rank) only reveals the role once its setup runs: for such a consumer we must finalize configuration
-    // here, before the caller dispatches on the result, or a worker process would read the default (false)
-    // and wrongly call optimize() instead of clientRun(). We test the EFFECTIVE consumer (a --consumer on
-    // the command line wins over a programmatic setConsumerName, mirroring ensureConfigured_). The trigger
-    // is idempotent, so the later optimize()/clientRun() is a no-op; the const_cast reflects that this is a
-    // lazy-init concern, not a change to observable state.
+    // Most consumers take the role from --client, so it is already known after construction and
+    // this is a plain getter. A consumer that determines the role at runtime instead (see
+    // GConsumerProviderT::determinesRoleAtRuntime -- e.g. the MPI consumer, from the rank of the
+    // process) can be asked for the role only once the configuration is final (the consumer is
+    // chosen): for such a consumer we finalize the configuration here, before the caller dispatches
+    // on the result, or a client or bystander would read the default (false) and wrongly call
+    // optimize() instead of clientRun(). We test the EFFECTIVE consumer (a --consumer on the
+    // command line wins over a programmatic setConsumerName, mirroring ensureConfigured_). The
+    // trigger is idempotent, so the later optimize()/clientRun() is a no-op; the const_cast
+    // reflects that this is a lazy-init concern, not a change to observable state.
     const std::string &effective_consumer = cli_consumer_name_ ? *cli_consumer_name_ : consumer_name_;
     if(Gem::Geneva::consumerDeterminesRoleAtRuntime(effective_consumer)) {
         const_cast<Go2 *>(this)->ensureConfigured_();
@@ -1147,10 +1145,10 @@ void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
  * @param client_mode Allows marking this object as belonging to a client as opposed to a server
  */
 void Go2::setClientMode(bool client_mode) {
-    // Note: a consumer that determines its client/server role at runtime (see
-    // GConsumerProviderT::determinesRoleAtRuntime, e.g. the MPI consumer, from its process rank) overrides
-    // this request when configuration is finalized -- see setupChosenConsumer(), which derives client_mode_
-    // from the courtier setup result for such a consumer.
+    // Note: a consumer that determines the role at runtime (see
+    // GConsumerProviderT::determinesRoleAtRuntime, e.g. the MPI consumer, from the rank of the
+    // process) ignores this request when the configuration is finalized -- see
+    // setupChosenConsumer(), which derives client_mode_ from the role the consumer states.
     client_mode_ = client_mode;
 }
 
@@ -1280,9 +1278,16 @@ void Go2::parseCommandLine(
 				("optimizationAlgorithms,a", po::value<std::string>(&optimization_algorithms), oa_help.c_str())
 				("cp_file,f", po::value<std::string>(&checkpoint_file)->default_value("empty"),
 				 "A file (including its path) holding a checkpoint for a given optimization algorithm")
-				("client", "Indicates that this program should run as a client or in server mode. Note that this setting will trigger an error unless called in conjunction with a consumer capable of dealing with clients. This option is ignored when working with the mpi consumer, because the mpi consumer will configure itself to be a client or server depending on its rank.")
+				("client", "Indicates that this program should run as a client or in server mode. Note that "
+				 "this setting will trigger an error unless called in conjunction with a consumer capable "
+				 "of dealing with clients. "
+				 "This option is ignored when working with the mpi consumer, whose role (submitter, client "
+				 "or bystander) follows the rank of the process.")
 				("max_client_duration", po::value<std::string>(&max_client_duration)->default_value(EMPTYDURATION),
-				 R"(The maximum runtime for a client in the form "hh:mm:ss". Note that a client may run longer as this time-frame if its work load still runs. The default value "00:00:00" means: "no time limit")")
+				 R"(The maximum runtime for a client in the form "hh:mm:ss". Note that a client may run )"
+				 "longer as this time-frame if its work load still runs. "
+				 "The MPI client does not observe it: it runs until the master tells it to stop. "
+				 R"(The default value "00:00:00" means: "no time limit")")
 				("consumer,c", po::value<std::string>(&consumer_name_), consumer_help.c_str())
 				("individual,i", po::value<std::string>(&individual_plugin_path_),
 				 "Filesystem path to a runtime individual (optimization-problem) plugin (.so) to load at "
@@ -1456,8 +1461,9 @@ std::string optionalConsumerNote_() {
 /**
  * @brief Validates, initialises, configures and enrols the consumer chosen on the command line.
  *
- * Operates on the consumer_name_ member; assembles the transport-agnostic consumer spec, builds the
- * courtier consumer (except on an MPI worker rank) and derives client_mode_ for the MPI consumer.
+ * Operates on the consumer_name_ member; assembles the transport-agnostic consumer spec, asks for
+ * the role of this process (consumerRole()), derives client_mode_ from it and builds the courtier
+ * consumer on the submitter.
  *
  * @param vm The parsed program_options variables map (used to assemble the consumer spec)
  */
@@ -1489,7 +1495,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
 
     // Client mode requires a consumer with a networked client form (asio/beast/mpi). A consumer that
     // determines the role at runtime (e.g. mpi, from the rank) is exempt from this up-front check: its role
-    // is not decided from --client and is not yet known here.
+    // is not decided from --client.
     const bool role_at_runtime = Gem::Geneva::consumerDeterminesRoleAtRuntime(consumer_name_);
     if(client_mode_ && not role_at_runtime && not Gem::Geneva::consumerNeedsClient(consumer_name_)) {
         throw geneva_exception(
@@ -1504,32 +1510,37 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     // remember it, so clientRun_() can build the matching networked client without a second pass.
     consumer_spec_ = Gem::Geneva::specFromCommandLine(consumer_name_, vm);
 
-    // A consumer the program gave to registerConsumer() is the process consumer; the mnemonic's
-    // consumer is then not built (it would replace the registered one in the registry).
-    if(consumer_) {
-        return;
+    if(not consumer_) {
+        std::println("Using consumer {}", consumer_name_);
     }
-    std::println("Using consumer {}", consumer_name_);
 
-    // Build the courtier consumer through the shared factory -- the single place that knows the concrete
-    // consumer types -- which registers the resulting consumer as the process's single consumer
-    // (GConsumerRegistry); every algorithm reads it from there. A role-at-runtime consumer builds on EVERY
-    // process (it self-assigns submitter vs. worker: submitter -> consumer, worker -> run_worker); the
-    // socket and local consumers build a server only when this process is not a client.
-    if(role_at_runtime || not client_mode_) {
-        auto setup = Gem::Geneva::buildConsumerSetup(consumer_spec_);
-        consumer_    = setup.consumer;   // also registered as the process consumer (null in the worker role)
-        run_worker_  = std::move(setup.run_worker); // worker role: clientRun_ serves through it
+    // The role of this process is asked for, not inferred. A consumer that takes the role from
+    // --client must state the role the switch asked for; one that determines it at run time decides
+    // client_mode_.
+    role_ = Gem::Geneva::consumerRole(consumer_spec_, client_mode_);
+    const bool is_submitter = (role_ == Gem::Courtier::processRole::SUBMITTER);
+    if(not role_at_runtime && is_submitter == client_mode_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Go2::setupChosenConsumer(): Error!" << '\n'
+            << "Consumer " << consumer_name_ << " states the role " << static_cast<int>(role_)
+            << " for this process, which contradicts the client switch (client mode: "
+            << client_mode_ << "), although it does not determine the role at run time" << '\n'
+        );
+    }
+    client_mode_ = not is_submitter;
+    if(role_at_runtime && client_mode_) {
+        // as for the socket clients, see the constructor
+        Gem::Hap::setGpuRandomNumbersAllowed(false);
+    }
 
-        // A role-at-runtime consumer assigns the role here: a worker process yields a run_worker loop (and a
-        // null consumer). Reflect that in client_mode_ so the caller dispatches to clientRun_().
-        if(role_at_runtime) {
-            client_mode_ = static_cast<bool>(run_worker_);
-            if(client_mode_) {
-                Gem::Hap::setGpuRandomNumbersAllowed(false); // as for the socket clients, see the constructor
-            }
-        }
-
+    // Build the courtier consumer on the submitter through the shared factory -- the single place
+    // that knows the concrete consumer types -- which registers the resulting consumer as the
+    // process's single consumer (GConsumerRegistry); every algorithm reads it from there. A
+    // consumer the program gave to registerConsumer() is the process consumer instead; the
+    // mnemonic's consumer is then not built (it would replace the registered one in the registry).
+    if(is_submitter && not consumer_) {
+        consumer_ = Gem::Geneva::buildConsumerSetup(consumer_spec_).consumer;
         if(consumer_) {
             std::println("Routing consumer \"{}\" through courtier", consumer_name_);
         }

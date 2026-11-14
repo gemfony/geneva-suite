@@ -160,42 +160,71 @@ c2::processRole mpiProcessRole() {
 }
 
 /******************************************************************************/
-/** @brief Provider for the MPI consumer (built on every rank; self-determines master vs worker). */
+namespace {
+
+/** @brief The configuration of the MPI consumer and its client, from the [mpi] fields of a spec.
+ *  @param spec The consumer specification
+ *  @return The configuration */
+c2::Consumers::MPIConsumerConfig mpiConfigFrom(const ConsumerSpec &spec) {
+    c2::Consumers::MPIConsumerConfig mpi_config;
+    mpi_config.useAsyncReq = spec.mpi_async_req;
+    // 0 == hardware concurrency: leave the default-constructed config's recommendation in place.
+    if(spec.mpi_n_handler_threads != 0) {
+        mpi_config.nHandlerThreads = spec.mpi_n_handler_threads;
+    }
+    mpi_config.serializationMode = spec.serialization_mode;
+    mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
+    return mpi_config;
+}
+
+/** @brief Throws unless this process has the role @p wanted.
+ *  @param wanted The role the caller is for
+ *  @param caller The name of the calling function, for the message */
+void requireRole(c2::processRole wanted, const char *caller) {
+    const c2::processRole actual = mpiProcessRole();
+    if(actual != wanted) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPIConsumerProvider::" << caller << "(): Error!" << '\n'
+            << "This process has the role " << static_cast<int>(actual) << " in the MPI "
+            << "environment, but " << caller << "() is for the role " << static_cast<int>(wanted)
+            << " only (see consumerRole())" << '\n'
+        );
+    }
+}
+
+} // namespace
+
+/******************************************************************************/
+/** @brief Provider for the MPI consumer. The role of a process follows its rank in courtier's
+ *  communicator (see mpiEnvironment()): the submitter builds the consumer, a client the MPI
+ *  client, a bystander neither. */
 class GMPIConsumerProvider final : public GConsumerProviderT {
 public:
     [[nodiscard]] std::string getMnemonic() const override { return "mpi"; }
     [[nodiscard]] std::string getName() const override { return "GMPIConsumerT"; }
     [[nodiscard]] bool needsClient() const override { return true; }
-    // MPI is deliberately NOT a bindsListeningPort() consumer: it is built on every rank and
-    // self-determines master/worker, so it is constructed normally rather than reused from the registry.
-    // The master/worker role is fixed by the rank in courtier's communicator (see
-    // mpiEnvironment()), discovered only when setup() runs on each rank.
+    // MPI is deliberately NOT a bindsListeningPort() consumer: there is no port to share, and the
+    // consumer is built on the submitter only.
     [[nodiscard]] bool determinesRoleAtRuntime() const override { return true; }
 
+    /** @brief The role of this process in the MPI environment; --client plays no part.
+     *  @return The role of this process */
+    [[nodiscard]] c2::processRole
+    role(const ConsumerSpec & /*spec*/, bool /*client_requested*/) const override {
+        return mpiProcessRole();
+    }
+
     ConsumerSetup setup(const ConsumerSpec &spec) override {
-        // The process's role in the MPI environment fixes the master/worker split; the consumer is
-        // built on every rank and branches.
-        // Forward the [mpi] command-line options into the consumer's config.
-        Gem::Courtier::Consumers::MPIConsumerConfig mpi_config;
-        mpi_config.useAsyncReq = spec.mpi_async_req;
-        // 0 == hardware concurrency: leave the default-constructed config's recommendation in place.
-        if(spec.mpi_n_handler_threads != 0) {
-            mpi_config.nHandlerThreads = spec.mpi_n_handler_threads;
-        }
-        mpi_config.serializationMode = spec.serialization_mode;
-        mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
-        auto consumer =
-            std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(mpiEnvironment(), mpi_config);
+        requireRole(c2::processRole::SUBMITTER, "setup");
+        auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
+            mpiEnvironment(),
+            mpiConfigFrom(spec)
+        );
+        consumer->setCloneFunction(individualCloneFunction());
+        consumer->startServer();
         ConsumerSetup setup;
-        if(consumer->isMasterNode()) {
-            consumer->setCloneFunction(individualCloneFunction());
-            consumer->startServer();
-            setup.consumer = consumer;
-        }
-        else {
-            // Worker rank: serve through the consumer (kept alive by the capture); no consumer to register.
-            setup.run_worker = [consumer]() { consumer->runWorker(); };
-        }
+        setup.consumer = consumer;
         return setup;
     }
 
@@ -215,8 +244,12 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
-        return nullptr; // the mpi worker loop comes from setup().run_worker, not a socket client
+    buildClient(const ConsumerSpec &spec) const override {
+        requireRole(c2::processRole::CLIENT, "buildClient");
+        return std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<gen::GGenome>>(
+            mpiEnvironment(),
+            mpiConfigFrom(spec)
+        );
     }
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {

@@ -61,6 +61,28 @@ SET_TESTS_PROPERTIES ( GMPISubClientBaseCommTest PROPERTIES
 	LABELS "geneva;example" TIMEOUT 120 PROCESSORS 5 )
 GENEVA_TEST_SIZE ( GMPISubClientBaseCommTest L )
 
+# A bystander in a plain Go2 program: three ranks, of which the MPI consumer's communicator holds
+# two. The third must be in client mode, and its clientRun() must return at once. Each rank runs in
+# a directory of its own, because the program writes its configuration files where it starts.
+ADD_EXECUTABLE ( GMPIBystanderTest GMPIBystanderTest.cpp )
+TARGET_LINK_LIBRARIES ( GMPIBystanderTest
+	GFunctionIndividual-obj
+	${GENEVA_MPI_LIBNAME}
+	${GENEVA_LIBRARIES}
+	${Boost_LIBRARIES}
+	MPI::MPI_CXX
+)
+SET ( BYSTANDER_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/bystander )
+FILE ( MAKE_DIRECTORY ${BYSTANDER_WORKDIR} )
+ADD_TEST ( NAME GMPIBystanderTest
+	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GMPIBystanderTest> ${MPIEXEC_POSTFLAGS} --consumer mpi
+	WORKING_DIRECTORY ${BYSTANDER_WORKDIR} )
+SET_TESTS_PROPERTIES ( GMPIBystanderTest PROPERTIES
+	LABELS "geneva" TIMEOUT 60 PROCESSORS 3 )
+GENEVA_TEST_SIZE ( GMPIBystanderTest M )
+
 # No rank enters MPI on the way out: a Go2 program asked for its help text, or for a refresh of its
 # configuration files, with the MPI consumer named, must end with 0 under the launcher. A rank that
 # initialized MPI and exited without finalizing it would make the launcher fail the job. Each rank

@@ -35,10 +35,10 @@
  * receives are sized dynamically via MPI_Iprobe + MPI_Get_count.
  *
  * Like GCourtierMpiExerciser, MPI fixes the rank layout at launch, so this is launched by CTest via
- * `mpirun -np N`: rank 0 is the master (serves work and drives the batch), every other rank is a
- * worker. The master prints OK / FAIL and returns 0 only when every (large) item made the full
- * round-trip AND a single item genuinely serializes to more than the old cap (so the test is proven
- * to exercise the formerly-rejected size).
+ * `mpirun -np N`: rank 0 is the submitter (its consumer serves work and drives the batch), every
+ * other rank a client (GMPIConsumerWorkerNodeT). The master prints OK / FAIL and returns 0 only
+ * when every (large) item made the full round-trip AND a single item genuinely serializes to more
+ * than the old cap (so the test is proven to exercise the formerly-rejected size).
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -53,7 +53,7 @@
 #include <sstream>
 #include <vector>
 
-
+#include "courtier/GCourtierEnums.hpp" // processRole
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
@@ -86,57 +86,72 @@ std::size_t serialized_size_of_one_item() {
 } // namespace
 
 int main(int argc, char **argv) {
-    // Declared before the consumer, so that it outlives it; it finalizes MPI at the end of main.
+    // Declared before the consumer and the client, so that it outlives them; it finalizes MPI at
+    // the end of main.
     const auto environment = std::make_shared<c2::Consumers::GMPIEnvironment>(&argc, &argv);
+
+    // A client serves the master until it is told to stop.
+    if(environment->role() == c2::processRole::CLIENT) {
+        c2::Consumers::GMPIConsumerWorkerNodeT<GRandomNumberContainer> client(
+            environment,
+            c2::Consumers::MPIConsumerConfig{}
+        );
+        client.run();
+        return 0;
+    }
+
     auto consumer = std::make_shared<c2::GMPIConsumerT<GRandomNumberContainer>>(environment);
 
-    if(consumer->isMasterNode()) {
-        // Confirm the payload really is larger than the old cap, so a pass genuinely exercises the
-        // path that the 20 KB cap would have rejected (rather than silently using tiny items).
-        const std::size_t item_bytes = serialized_size_of_one_item();
-        if(item_bytes <= OLD_MPI_CAP_BYTES) {
-            std::println("FAIL: per-item payload is only {} bytes, not above the old cap of {}; "
-                         "the test would not exercise the large-message path",
-                         item_bytes, OLD_MPI_CAP_BYTES);
-            consumer->startServer();
-            consumer->stopServer();
-            return 1;
-        }
-
-        consumer->startServer();
-
-        std::vector<std::unique_ptr<GRandomNumberContainer>> items;
-        items.reserve(N_ITEMS);
-        for(std::size_t i = 0; i < N_ITEMS; ++i) {
-            items.push_back(std::make_unique<GRandomNumberContainer>(DOUBLES_PER_ITEM));
-        }
-
-        consumer->processBatch(
-            std::span<std::unique_ptr<GRandomNumberContainer>>(items.data(), items.size()),
-            c2::GSubmissionPolicy::full_success_or_fatal()
+    // Confirm the payload really is larger than the old cap, so a pass genuinely exercises the
+    // path that the 20 KB cap would have rejected (rather than silently using tiny items).
+    const std::size_t item_bytes = serialized_size_of_one_item();
+    if(item_bytes <= OLD_MPI_CAP_BYTES) {
+        std::println(
+            "FAIL: per-item payload is only {} bytes, not above the old cap of {}; "
+            "the test would not exercise the large-message path",
+            item_bytes,
+            OLD_MPI_CAP_BYTES
         );
-
+        consumer->startServer();
         consumer->stopServer();
-
-        std::size_t processed = 0;
-        for(const auto &it : items) {
-            if(it && it->is_processed()) {
-                ++processed;
-            }
-        }
-
-        if(processed == N_ITEMS) {
-            std::println("OK: {}/{} large items ({} bytes each, > old cap {}) processed over MPI ({} ranks)",
-                         processed, N_ITEMS, item_bytes, OLD_MPI_CAP_BYTES, consumer->getCommSize());
-            return 0;
-        }
-        std::println("FAIL: only {}/{} large items processed", processed, N_ITEMS);
         return 1;
     }
 
-    // Worker ranks: serve the master until it broadcasts the stop signal.
-    consumer->runWorker();
-    return 0;
+    consumer->startServer();
+
+    std::vector<std::unique_ptr<GRandomNumberContainer>> items;
+    items.reserve(N_ITEMS);
+    for(std::size_t i = 0; i < N_ITEMS; ++i) {
+        items.push_back(std::make_unique<GRandomNumberContainer>(DOUBLES_PER_ITEM));
+    }
+
+    consumer->processBatch(
+        std::span<std::unique_ptr<GRandomNumberContainer>>(items.data(), items.size()),
+        c2::GSubmissionPolicy::full_success_or_fatal()
+    );
+
+    consumer->stopServer();
+
+    std::size_t processed = 0;
+    for(const auto &it : items) {
+        if(it && it->is_processed()) {
+            ++processed;
+        }
+    }
+
+    if(processed == N_ITEMS) {
+        std::println(
+            "OK: {}/{} large items ({} bytes each, > old cap {}) processed over MPI ({} ranks)",
+            processed,
+            N_ITEMS,
+            item_bytes,
+            OLD_MPI_CAP_BYTES,
+            environment->size()
+        );
+        return 0;
+    }
+    std::println("FAIL: only {}/{} large items processed", processed, N_ITEMS);
+    return 1;
 }
 
 #else

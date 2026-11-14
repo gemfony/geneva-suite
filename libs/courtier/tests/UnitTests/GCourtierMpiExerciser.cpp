@@ -30,9 +30,9 @@
 /**
  * Multi-process exerciser for the courtier MPI consumer. It cannot be an in-process Catch2 test
  * (MPI fixes the rank layout at launch), so it is launched by CTest via `mpirun -np N`: rank 0 is
- * the master (it registers the consumer, serves work and drives the batch through the span+policy
- * executor); every other rank is a worker. The master prints OK / FAIL and returns 0 only when
- * every item made the full master->worker->master round-trip.
+ * the submitter (its consumer serves work and drives the batch through the span+policy executor);
+ * every other rank is a client and runs a GMPIConsumerWorkerNodeT. The master prints OK / FAIL and
+ * returns 0 only when every item made the full master->client->master round-trip.
  *
  *   GCourtierMpiExerciser [--scenario=<scenario>]
  *
@@ -50,23 +50,33 @@
  *                     whether its send has completed must be harmless.
  *   undecodable    -- each worker fails to load the first such item it is sent. The workers must
  *                     survive, and the items come back to the master through the lease.
+ *   refusal        -- (two ranks) the client tries to build the consumer and the submitter tries
+ *                     to build the client; each must be refused.
+ *   client-limits  -- (two ranks) a time limit of 1 ms is set on the client. It must warn that the
+ *                     limit has no effect, and serve until every item is processed.
  */
 
 #include "common/GGlobalDefines.hpp"
 
 #ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
 
+#include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <print>
 #include <span>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include <mpi.h>
 
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
+#include "courtier/GCourtierEnums.hpp" // processRole
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
@@ -76,6 +86,7 @@ using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::Consumers::GMPIEnvironment;
 namespace c2 = Gem::Courtier;
+using client_type = c2::Consumers::GMPIConsumerWorkerNodeT<GFaultyContainer>;
 
 namespace {
 
@@ -144,6 +155,76 @@ int idleSession(int argc, char **argv) {
     return verdict(completed, "a session that has not sent anything counts as completed");
 }
 
+/** The client is refused the consumer, and the submitter the client. */
+int refusal(int argc, char **argv) {
+    const auto environment = std::make_shared<GMPIEnvironment>(&argc, &argv);
+    bool refused = false;
+    if(environment->role() == c2::processRole::SUBMITTER) {
+        try {
+            const client_type client(environment, c2::Consumers::MPIConsumerConfig{});
+        }
+        catch(const geneva_exception &) {
+            refused = true;
+        }
+        return verdict(refused, "the submitter was refused the MPI client");
+    }
+    try {
+        const c2::GMPIConsumerT<GFaultyContainer> consumer(environment);
+    }
+    catch(const geneva_exception &) {
+        refused = true;
+    }
+    return verdict(refused, "a client was refused the MPI consumer");
+}
+
+/** A log target that notes whether a message contained a given text, and passes every message on
+ *  to the console. */
+class GTextSpotter final : public Gem::Common::GBaseLogTarget {
+public:
+    explicit GTextSpotter(std::string text)
+      : text_(std::move(text)) {
+    }
+
+    void log(std::string const &message) const override {
+        this->note_(message);
+        console_.log(message);
+    }
+    void logWithSource(std::string const &message, std::string const &extension) const override {
+        this->note_(message);
+        console_.logWithSource(message, extension);
+    }
+
+    /** Whether a message contained the text. */
+    [[nodiscard]] bool seen() const {
+        return seen_.load();
+    }
+
+private:
+    void note_(std::string const &message) const {
+        if(message.contains(text_)) {
+            seen_.store(true);
+        }
+    }
+
+    std::string text_;
+    Gem::Common::GConsoleLogger console_;
+    mutable std::atomic<bool> seen_{false};
+};
+
+/** The client with a time limit of 1 ms: it must say that the limit has no effect, and it must
+ *  not end before the master tells it to (the master then finds every item processed). */
+int clientWithLimits(const std::shared_ptr<GMPIEnvironment> &environment) {
+    const auto spotter = std::make_shared<GTextSpotter>("has no effect for the MPI transport");
+    glogger.addLogTarget(spotter);
+    {
+        client_type client(environment, c2::Consumers::MPIConsumerConfig{});
+        client.setMaxTime(std::chrono::milliseconds(1));
+        client.run();
+    }
+    glogger.resetLogTargets();
+    return verdict(spotter->seen(), "the client warned that its time limit has no effect");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -160,6 +241,8 @@ int main(int argc, char **argv) {
         " | zero-clean-interval"
         " | idle-session"
         " | undecodable"
+        " | refusal"
+        " | client-limits"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
@@ -173,14 +256,33 @@ int main(int argc, char **argv) {
     if(scenario == "idle-session") {
         return idleSession(argc, argv);
     }
+    if(scenario == "refusal") {
+        return refusal(argc, argv);
+    }
     if(scenario != "clean" && scenario != "throwing" && scenario != "never-started" &&
-       scenario != "undecodable") {
+       scenario != "undecodable" && scenario != "client-limits") {
         std::println(stderr, "Unknown scenario: {}", scenario);
         return 2;
     }
 
-    // Declared before the consumer, so that it outlives it; it finalizes MPI at the end of main.
+    // Declared before the consumer and the client, so that it outlives them; it finalizes MPI at
+    // the end of main.
     const auto environment = std::make_shared<GMPIEnvironment>(&argc, &argv);
+
+    // Clients: serve the master until it tells them to stop.
+    if(environment->role() == c2::processRole::CLIENT) {
+        if(scenario == "client-limits") {
+            return clientWithLimits(environment);
+        }
+        if(scenario == "undecodable") {
+            // the first such item this rank is sent fails to load
+            GFaultyContainer::armLoadFaults(1);
+        }
+        client_type client(environment, c2::Consumers::MPIConsumerConfig{});
+        client.run();
+        return 0;
+    }
+
     auto consumer = std::make_shared<c2::GMPIConsumerT<GFaultyContainer>>(environment);
 
     if(scenario == "never-started") {
@@ -191,63 +293,62 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    if(consumer->isMasterNode()) {
-        consumer->startServer();
+    consumer->startServer();
+    if(scenario == "client-limits") {
+        // Let the client's time limit of 1 ms pass before it gets any work.
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
 
-        const bool throwing = (scenario == "throwing");
-        const bool undecodable = (scenario == "undecodable");
-        std::vector<std::unique_ptr<GFaultyContainer>> items;
-        items.reserve(N);
-        for(std::size_t i = 0; i < N; ++i) {
-            fault_mode mode = fault_mode::NONE;
-            if(throwing && (i % 5 == 0)) {
-                mode = fault_mode::THROW_PROCESSING;
-            }
-            else if(undecodable && (i % 10 == 0)) {
-                mode = fault_mode::THROW_LOADING;
-            }
-            items.push_back(std::make_unique<GFaultyContainer>(i, mode));
+    const bool throwing = (scenario == "throwing");
+    const bool undecodable = (scenario == "undecodable");
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.reserve(N);
+    for(std::size_t i = 0; i < N; ++i) {
+        fault_mode mode = fault_mode::NONE;
+        if(throwing && (i % 5 == 0)) {
+            mode = fault_mode::THROW_PROCESSING;
         }
-
-        // A throwing item is flagged by the worker and returned; the tolerant policy then refills
-        // its slot with a clone of a processed sibling. The clean scenario needs every evaluation.
-        consumer->processBatch(
-            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
-            throwing ? c2::GSubmissionPolicy::clone_on_partial_return()
-                     : c2::GSubmissionPolicy::full_success_or_fatal()
-        );
-
-        // The items the workers could not load came back through the lease. If none did, the
-        // scenario has not exercised what it is for.
-        const bool faults_seen = not undecodable || consumer->requeuedCount() > 0;
-        consumer->stopServer();
-
-        std::size_t processed = 0;
-        for(const auto &it : items) {
-            if(it && it->is_processed()) {
-                ++processed;
-            }
+        else if(undecodable && (i % 10 == 0)) {
+            mode = fault_mode::THROW_LOADING;
         }
+        items.push_back(std::make_unique<GFaultyContainer>(i, mode));
+    }
 
-        if(not faults_seen) {
-            std::println("FAIL: no item was put back, so no worker failed to load one");
-            return 1;
+    // A throwing item is flagged by the worker and returned; the tolerant policy then refills
+    // its slot with a clone of a processed sibling. The clean scenario needs every evaluation.
+    consumer->processBatch(
+        std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+        throwing ? c2::GSubmissionPolicy::clone_on_partial_return()
+                 : c2::GSubmissionPolicy::full_success_or_fatal()
+    );
+
+    // The items the workers could not load came back through the lease. If none did, the
+    // scenario has not exercised what it is for.
+    const bool faults_seen = not undecodable || consumer->requeuedCount() > 0;
+    consumer->stopServer();
+
+    std::size_t processed = 0;
+    for(const auto &it : items) {
+        if(it && it->is_processed()) {
+            ++processed;
         }
-        if(processed == N) {
-            std::println("OK: {}/{} items processed over MPI ({} ranks)",
-                         processed, N, consumer->getCommSize());
-            return 0;
-        }
-        std::println("FAIL: only {}/{} items processed", processed, N);
+    }
+
+    if(not faults_seen) {
+        std::println("FAIL: no item was put back, so no worker failed to load one");
         return 1;
     }
-
-    // Worker ranks: serve the master until it broadcasts the stop signal.
-    if(scenario == "undecodable") {
-        GFaultyContainer::armLoadFaults(1); // the first such item this rank is sent fails to load
+    if(processed == N) {
+        std::println(
+            "OK: {}/{} items processed over MPI ({} ranks)",
+            processed,
+            N,
+            environment->size()
+        );
+        return 0;
     }
-    consumer->runWorker();
-    return 0;
+    std::println("FAIL: only {}/{} items processed", processed, N);
+    return 1;
 }
 
 #else
