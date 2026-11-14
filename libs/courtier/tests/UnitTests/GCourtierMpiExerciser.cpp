@@ -70,9 +70,11 @@
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
+#include "courtier/transport/GMPIEnvironment.hpp"
 
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
+using Gem::Courtier::Consumers::GMPIEnvironment;
 namespace c2 = Gem::Courtier;
 
 namespace {
@@ -90,45 +92,46 @@ int lowThreadLevel(int argc, char **argv) {
     MPI_Init_thread(&argc, &argv, MPI_THREAD_SINGLE, &provided);
     bool refused = false;
     try {
-        const c2::GMPIConsumerT<GFaultyContainer> consumer(&argc, &argv);
+        const GMPIEnvironment environment(&argc, &argv);
     }
     catch(const geneva_exception &) {
         refused = true;
     }
-    MPI_Finalize();
+    MPI_Finalize(); // this program initialized MPI, so it finalizes it
     if(provided == MPI_THREAD_MULTIPLE) {
         std::println("SKIPPED: this MPI library grants MPI_THREAD_MULTIPLE when less is asked for");
         return 77;
     }
-    return verdict(refused, "a consumer was refused on MPI initialized with a lower thread level");
+    return verdict(
+        refused,
+        "an MPI environment was refused on MPI initialized with a lower thread level"
+    );
 }
 
 /** A cleanup interval of zero must be refused. */
 int zeroCleanInterval(int argc, char **argv) {
+    // The environment finalizes MPI when it goes out of scope, whether the consumer was built or
+    // not.
+    const auto environment = std::make_shared<GMPIEnvironment>(&argc, &argv);
     c2::Consumers::MPIConsumerConfig config;
     config.masterCleanSessIntervalMSec = 0;
     bool refused = false;
     try {
-        const c2::GMPIConsumerT<GFaultyContainer> consumer(&argc, &argv, config);
+        const c2::GMPIConsumerT<GFaultyContainer> consumer(environment, config);
     }
     catch(const geneva_exception &) {
         refused = true;
-    }
-    // A constructor that throws leaves MPI initialized; a consumer that was built has finalized it.
-    int finalized = 0;
-    MPI_Finalized(&finalized);
-    if(finalized == 0) {
-        MPI_Finalize();
     }
     return verdict(refused, "a consumer with a cleanup interval of 0 ms was refused");
 }
 
 /** A session that has not sent anything may be asked whether its send has completed. */
 int idleSession(int argc, char **argv) {
-    c2::Consumers::initializeMPI(&argc, &argv);
+    const GMPIEnvironment environment(&argc, &argv); // finalizes MPI when it goes out of scope
     bool completed = false;
     {
         c2::Consumers::GMPIConsumerSessionT<GFaultyContainer> session(
+            environment.communicator(),
             MPI_Status{},
             std::string{},
             [] { return std::unique_ptr<GFaultyContainer>{}; },
@@ -138,7 +141,6 @@ int idleSession(int argc, char **argv) {
         );
         completed = session.isCompleted();
     }
-    MPI_Finalize();
     return verdict(completed, "a session that has not sent anything counts as completed");
 }
 
@@ -177,7 +179,9 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    auto consumer = std::make_shared<c2::GMPIConsumerT<GFaultyContainer>>(&argc, &argv);
+    // Declared before the consumer, so that it outlives it; it finalizes MPI at the end of main.
+    const auto environment = std::make_shared<GMPIEnvironment>(&argc, &argv);
+    auto consumer = std::make_shared<c2::GMPIConsumerT<GFaultyContainer>>(environment);
 
     if(scenario == "never-started") {
         // The consumer's destructor stops the server. With a server that never ran there is nothing

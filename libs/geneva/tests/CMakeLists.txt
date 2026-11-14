@@ -29,6 +29,9 @@
 
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
+IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+	ADD_SUBDIRECTORY ( MPITests )
+ENDIF ()
 
 # With the MPI consumer built: no Geneva library, and no ordinary Geneva program, may need the MPI
 # library at load time -- MPI lives in the module libgemfony-geneva-mpi, loaded at run time, so that a

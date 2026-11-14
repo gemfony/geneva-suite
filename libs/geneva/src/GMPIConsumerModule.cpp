@@ -40,7 +40,9 @@
 
 // Standard headers
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 
 // Boost headers
@@ -49,16 +51,113 @@
 
 // Geneva headers
 #include "common/GCommonEnums.hpp"
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GModuleManifest.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
+#include "courtier/transport/GMPIEnvironment.hpp"
 #include "geneva/GConsumerPlugin.hpp"
 #include "geneva/GConsumerSetup.hpp"
+#include "geneva/GMPIEnvironmentAccess.hpp"
 
 namespace Gem::Geneva {
 
 namespace c2 = Gem::Courtier;
 namespace po = boost::program_options;
+
+/******************************************************************************/
+/*
+ * The one MPI environment of the process. This module is one shared library, so these objects
+ * exist once, whoever links what.
+ */
+namespace {
+
+using environment_type = c2::Consumers::GMPIEnvironment;
+
+/// Guards the two pointers below: the environment is created at most once while one is alive.
+std::mutex environmentMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// The environment, without keeping it: the holders (the consumer, the client, the optimizer)
+/// decide how long it lives, and MPI is finalized when the last of them lets go. Once it has
+/// expired, the next call builds a new one (whose constructor refuses if MPI was finalized
+/// meanwhile).
+std::weak_ptr<environment_type>
+    environment; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// "The anchor": keeps the environment alive from its creation until the first call of
+/// mpiEnvironment() or mpiEnvironmentOn() has returned it to a holder. It bridges the time between
+/// "what is my role" (mpiProcessRole(), which keeps nothing) and "build the consumer"; without it,
+/// the environment built for the question would die, and MPI be finalized, before the consumer
+/// exists. If no holder ever takes it (an error path), it lasts until static destruction.
+std::shared_ptr<environment_type>
+    anchor; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/** @brief The living environment, or a new one on @p make_base (anchored). Call with
+ *  environmentMutex held.
+ *  @param make_base Returns the base communicator once MPI is initialized
+ *  @return The environment */
+std::shared_ptr<environment_type> obtainLocked(const std::function<MPI_Comm()> &make_base) {
+    auto current = environment.lock();
+    if(not current) {
+        current = std::make_shared<environment_type>(nullptr, nullptr, make_base);
+        environment = current;
+        anchor = current;
+    }
+    return current;
+}
+
+/** @brief The base communicator of an environment built by default. */
+MPI_Comm worldCommunicator() {
+    return MPI_COMM_WORLD;
+}
+
+} // namespace
+
+/******************************************************************************/
+/**
+ * @brief The process's MPI environment for courtier, built on MPI_COMM_WORLD if none exists.
+ * @return The environment; the caller keeps it for as long as it uses MPI
+ */
+std::shared_ptr<c2::Consumers::GMPIEnvironment> mpiEnvironment() {
+    const std::scoped_lock lock(environmentMutex);
+    auto result = obtainLocked(worldCommunicator);
+    anchor.reset(); // a holder has it now
+    return result;
+}
+
+/******************************************************************************/
+/**
+ * @brief Builds the process's MPI environment on the communicator @p make_base returns.
+ * @param make_base Called once MPI is initialized; returns the base communicator
+ * @return The environment; the caller keeps it for as long as it uses MPI
+ * @throws geneva_exception if an environment exists already
+ */
+std::shared_ptr<c2::Consumers::GMPIEnvironment>
+mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
+    const std::scoped_lock lock(environmentMutex);
+    if(not environment.expired()) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In mpiEnvironmentOn(): Error!" << '\n'
+            << "An MPI environment exists already; mpiEnvironmentOn() must be the first call "
+            << "that builds it" << '\n'
+        );
+    }
+    auto result = obtainLocked(make_base);
+    anchor.reset(); // a holder has it now
+    return result;
+}
+
+/******************************************************************************/
+/**
+ * @brief The role of this process, without keeping the environment.
+ * @return The role on courtier's communicator
+ */
+c2::processRole mpiProcessRole() {
+    const std::scoped_lock lock(environmentMutex);
+    return obtainLocked(worldCommunicator)->role();
+}
 
 /******************************************************************************/
 /** @brief Provider for the MPI consumer (built on every rank; self-determines master vs worker). */
@@ -69,11 +168,13 @@ public:
     [[nodiscard]] bool needsClient() const override { return true; }
     // MPI is deliberately NOT a bindsListeningPort() consumer: it is built on every rank and
     // self-determines master/worker, so it is constructed normally rather than reused from the registry.
-    // The master/worker role is fixed by the process rank, discovered only when setup() runs on each rank.
+    // The master/worker role is fixed by the rank in courtier's communicator (see
+    // mpiEnvironment()), discovered only when setup() runs on each rank.
     [[nodiscard]] bool determinesRoleAtRuntime() const override { return true; }
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
-        // MPI fixes the master/worker split by rank; the consumer is built on every rank and branches.
+        // The process's role in the MPI environment fixes the master/worker split; the consumer is
+        // built on every rank and branches.
         // Forward the [mpi] command-line options into the consumer's config.
         Gem::Courtier::Consumers::MPIConsumerConfig mpi_config;
         mpi_config.useAsyncReq = spec.mpi_async_req;
@@ -83,8 +184,8 @@ public:
         }
         mpi_config.serializationMode = spec.serialization_mode;
         mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
-        auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
-            nullptr, nullptr, mpi_config);
+        auto consumer =
+            std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(mpiEnvironment(), mpi_config);
         ConsumerSetup setup;
         if(consumer->isMasterNode()) {
             consumer->setCloneFunction(individualCloneFunction());

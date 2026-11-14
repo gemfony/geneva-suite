@@ -57,6 +57,7 @@
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
+#include "courtier/transport/GMPIEnvironment.hpp"
 
 namespace c2 = Gem::Courtier;
 using Gem::Courtier::GRandomNumberContainer;
@@ -85,7 +86,9 @@ std::size_t serialized_size_of_one_item() {
 } // namespace
 
 int main(int argc, char **argv) {
-    auto consumer = std::make_shared<c2::GMPIConsumerT<GRandomNumberContainer>>(&argc, &argv);
+    // Declared before the consumer, so that it outlives it; it finalizes MPI at the end of main.
+    const auto environment = std::make_shared<c2::Consumers::GMPIEnvironment>(&argc, &argv);
+    auto consumer = std::make_shared<c2::GMPIConsumerT<GRandomNumberContainer>>(environment);
 
     if(consumer->isMasterNode()) {
         // Confirm the payload really is larger than the old cap, so a pass genuinely exercises the

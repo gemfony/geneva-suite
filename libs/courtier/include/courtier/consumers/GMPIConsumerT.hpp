@@ -40,14 +40,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 // MPI
 #include <mpi.h>
 
 // Geneva headers
-#include "courtier/GCourtierEnums.hpp" // GMPICONSUMERCHECKOUTWAIT
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
+#include "courtier/GCourtierEnums.hpp" // GMPICONSUMERCHECKOUTWAIT, processRole
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
-#include "courtier/transport/GMPITransportT.hpp" // reuse the existing master/worker nodes + MPI init
+#include "courtier/transport/GMPIEnvironment.hpp" // MPI initialization, communicator, role
+#include "courtier/transport/GMPITransportT.hpp"  // reuse the existing master/worker nodes
 
 namespace Gem::Courtier {
 
@@ -58,10 +62,14 @@ namespace Gem::Courtier {
  * work-item source/sink callbacks at master-node construction (they are required constructor
  * parameters -- the master cannot usefully run without them).
  *
- * MPI fixes the process layout at launch: rank 0 is the master (it runs the optimization and serves
- * work) and every other rank is a worker. So usage differs from the socket consumers -- the program
- * must branch on isMasterNode(): the master registers this consumer, startServer()s and runs the
- * optimization; a worker just runWorker()s until the master broadcasts the stop signal.
+ * The consumer works on the communicator of the GMPIEnvironment it is given, and the process's
+ * role on that communicator decides what it builds: the master node on the SUBMITTER (rank
+ * RANK_MASTER_NODE of the communicator, which need not be rank 0 of MPI_COMM_WORLD; it runs the
+ * optimization and serves work), the worker node on a CLIENT (every other rank), and nothing on a
+ * BYSTANDER (a process without a communicator). So usage differs from the socket consumers -- the
+ * program must branch on isMasterNode(): the master registers this consumer, startServer()s and
+ * runs the optimization; a worker just runWorker()s until the master broadcasts the stop signal.
+ * The consumer holds the environment, so MPI stays initialized while it exists.
  *
  * @tparam processable_type The work-item type distributed to the worker ranks and collected back.
  */
@@ -73,25 +81,33 @@ public:
     using config_type = Gem::Courtier::Consumers::MPIConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Initializes MPI (if not already done), learns this node's rank, and builds the
-     *  matching node (master on rank 0, worker otherwise).
+    /** @brief Builds the node that matches this process's role: the master node on the
+     *  submitter, the worker node on a client, neither on a bystander.
      *
-     *  @param argc Pointer to the program's argc, forwarded to MPI_Init (may be nullptr if MPI is already initialized)
-     *  @param argv Pointer to the program's argv, forwarded to MPI_Init (may be nullptr if MPI is already initialized)
-     *  @param config Configuration for the master/worker nodes (timeouts, buffer sizes, etc.) */
-    explicit GMPIConsumerT(int *argc = nullptr, char ***argv = nullptr, config_type config = config_type{})
-        : config_(config), i_initialized_mpi_(Gem::Courtier::Consumers::initializeMPI(argc, argv))
-    {
-        // Reuse the existing, correct MPI initialization (MPI_THREAD_MULTIPLE).
-        
+     *  @param environment The process's MPI environment; the consumer keeps it for as long as it
+     *         exists. Must not be null.
+     *  @param config Configuration for the master/worker nodes (timeouts, buffer sizes, etc.)
+     *  @throws geneva_exception if @p environment is null */
+    explicit GMPIConsumerT(
+        std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment,
+        config_type config = config_type{}
+    )
+      : config_(config)
+      , environment_(std::move(environment)) {
+        if(not environment_) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
+                << "The MPI environment must not be empty" << '\n'
+            );
+        }
 
-        MPI_Comm_size(MPI_COMM_WORLD, &comm_size_);
-        MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank_);
-
-        if(isMasterNode()) {
-            // Drive the master node from the courtier per-batch queue: the work-item source/sink
-            // are required constructor parameters of the master node.
+        switch(environment_->role()) {
+        case Gem::Courtier::processRole::SUBMITTER:
+            // Drive the master node from the courtier per-batch queue: the work-item
+            // source/sink are required constructor parameters of the master node.
             master_ = std::make_shared<master_node_type>(
+                environment_->communicator(),
                 config_,
                 [this]() -> std::unique_ptr<processable_type> {
                     return this->checkoutWait(checkout_wait_);
@@ -100,29 +116,28 @@ public:
                     this->checkin(std::move(frame));
                 }
             );
-        }
-        else {
+            break;
+
+        case Gem::Courtier::processRole::CLIENT:
             worker_ = std::make_shared<worker_node_type>(
-                comm_rank_,
+                environment_->communicator(),
+                environment_->rank(),
                 [this]() -> bool { return worker_halt_.load(); },
                 [this]() { ++n_worker_processed_; },
                 config_
             );
+            break;
+
+        case Gem::Courtier::processRole::BYSTANDER:
+            break; // takes no part in the protocol: no node
         }
     }
 
-    /** @brief The destructor stops the server (on the master) and finalizes MPI if this object
-     *  initialized it. */
+    /** @brief The destructor stops the server (on the master). MPI is finalized by the
+     *  environment, when its last holder lets go of it. */
     ~GMPIConsumerT() override {
         if(isMasterNode()) {
             this->stopServer();
-        }
-        if(i_initialized_mpi_) {
-            int finalized = 0;
-            MPI_Finalized(&finalized);
-            if(not finalized) {
-                MPI_Finalize();
-            }
         }
     }
 
@@ -133,14 +148,22 @@ public:
 
     /***************************************************************************/
     /** @brief Whether this node is the master.
-     *  @return true on rank 0 (the master), false on any worker rank. */
-    [[nodiscard]] bool isMasterNode() const noexcept { return comm_rank_ == 0; }
+     *  @return true on the submitter, false on a client or a bystander. */
+    [[nodiscard]] bool isMasterNode() const noexcept {
+        return environment_->role() == Gem::Courtier::processRole::SUBMITTER;
+    }
     /** @brief This node's MPI rank.
-     *  @return The rank within MPI_COMM_WORLD. */
-    [[nodiscard]] std::int32_t getRank() const noexcept { return comm_rank_; }
-    /** @brief The total number of MPI ranks.
-     *  @return The size of MPI_COMM_WORLD. */
-    [[nodiscard]] std::int32_t getCommSize() const noexcept { return comm_size_; }
+     *  @return The rank within courtier's communicator (see GMPIEnvironment).
+     *  @throws geneva_exception on a bystander, which has no communicator */
+    [[nodiscard]] std::int32_t getRank() const {
+        return environment_->rank();
+    }
+    /** @brief The number of ranks that take part.
+     *  @return The size of courtier's communicator (see GMPIEnvironment).
+     *  @throws geneva_exception on a bystander, which has no communicator */
+    [[nodiscard]] std::int32_t getCommSize() const {
+        return environment_->size();
+    }
 
     /** @brief (Master only) The number of distinct blobs the master has interned for transport
      *  (blob send-once). One per distinct genome structure across all worker ranks; 0 on a worker.
@@ -178,9 +201,9 @@ public:
 private:
     /***************************************************************************/
     config_type config_;
-    std::int32_t comm_size_ = 1;
-    std::int32_t comm_rank_ = 0;
-    bool i_initialized_mpi_ = false;
+    /// The process's MPI environment. Declared before the nodes, so that it is destroyed after
+    /// them: MPI must still be initialized while they shut down.
+    std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment_;
 
     std::shared_ptr<master_node_type> master_;
     std::shared_ptr<worker_node_type> worker_;

@@ -89,6 +89,7 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
             consumers/GMPIConsumerT.hpp)
     SET( TRANSPORT_INCLUDES
             ${TRANSPORT_INCLUDES}
+            transport/GMPIEnvironment.hpp
             transport/GMPITransportT.hpp)
 ENDIF ()
 

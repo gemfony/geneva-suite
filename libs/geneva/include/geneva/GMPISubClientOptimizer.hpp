@@ -34,11 +34,13 @@
 
 // Standard header files go here
 #include <functional>
+#include <memory>
 #include <optional>
 
 // Boost header files go here
 
 // Geneva headers go here
+#include "courtier/transport/GMPIEnvironment.hpp"
 #include "geneva/GMPISubClientIndividual.hpp"
 #include "geneva/Go2.hpp"
 
@@ -75,9 +77,9 @@ public:
     /** @brief Deleted copy constructor */
     GMPISubClientOptimizer(GMPISubClientOptimizer const &) = delete;
 
-    /** @brief The destructor: tears the consumer down first, then finalizes MPI if this object
-     *  initialized it (every rank must call MPI_Finalize, or mpirun treats the exit as abnormal
-     *  and kills the remaining ranks). */
+    /** @brief The destructor: tears the consumer down first, then lets go of the MPI environment,
+     *  which finalizes MPI if it initialized it and this was its last holder (every rank must call
+     *  MPI_Finalize, or mpirun treats the exit as abnormal and kills the remaining ranks). */
     ~GMPISubClientOptimizer() override;
 
     /**
@@ -154,11 +156,10 @@ private:
          */
     bool isSubClient_{};
     /**
-         * Whether THIS object performed the MPI initialization (and therefore owns the matching
-         * MPI_Finalize in the destructor). False when the user pre-initialized MPI (custom base
-         * communicator) or in a pure --update-configs run.
+         * The process's MPI environment, built on genevaComm_ (see mpiEnvironmentOn()). Held for as
+         * long as this object uses MPI; empty in a pure --update-configs run.
          */
-    bool i_initialized_mpi_{false};
+    std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment_;
     /**
          * Callback function which is executed by sub-clients when clientRun() is called
          */

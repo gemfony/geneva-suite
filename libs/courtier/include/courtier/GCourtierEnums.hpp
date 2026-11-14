@@ -97,6 +97,14 @@ enum class consumerType : Gem::Common::ENUMBASETYPE {
 };
 
 /******************************************************************************/
+/** What a process does in a consumer's protocol. */
+enum class processRole : Gem::Common::ENUMBASETYPE {
+    SUBMITTER = 0, ///< Builds the consumer and submits work through it
+    CLIENT = 1,    ///< Serves work
+    BYSTANDER = 2  ///< Takes no part in the consumer's protocol (in an MPI cascade: a sub-client)
+};
+
+/******************************************************************************/
 /**
  * Global variables for failed transfers and connection attempts.
  */
@@ -279,7 +287,7 @@ constexpr CORRELATION_ID_TYPE GCORRELATIONIDBATCHBITS = 40;
 using SUBMISSION_UUID_TYPE = std::array<std::uint64_t, 2>;
 
 /******************************************************************************/
-// GFrameKind and consumerType stream as their underlying
+// GFrameKind, consumerType and processRole stream as their underlying
 // numeric values through the shared machinery in GCommonEnums.hpp (marker
 // specializations after the namespace end). Re-export the operators so ADL
 // finds them for this namespace's enums. processingStatus keeps a hand-written
@@ -302,4 +310,6 @@ std::istream &operator>>(std::istream &i, Gem::Courtier::processingStatus &srm);
 namespace Gem::Common {
 template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::GFrameKind> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::consumerType> = true;
+template <>
+inline constexpr bool numeric_enum_io_v<Gem::Courtier::processRole> = true;
 } /* namespace Gem::Common */
