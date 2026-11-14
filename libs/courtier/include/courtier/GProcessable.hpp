@@ -36,6 +36,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -611,6 +612,17 @@ protected:
     processingStatus processing_status_ =
         processingStatus::UNPROCESSED; ///< By default no processing is initiated
 };
+
+/******************************************************************************/
+/**
+ * A function that processes one work item in place of the item's own process(). A client can be
+ * given one (GBaseClientT::setItemProcessor()); processWorkFrame() calls it for an item that is
+ * due. The function must leave the item processed or flagged, as process() does.
+ *
+ * @tparam processable_type The type of the work item
+ */
+template <typename processable_type>
+using GItemProcessorT = std::move_only_function<void(processable_type &) const>;
 
 /******************************************************************************/
 

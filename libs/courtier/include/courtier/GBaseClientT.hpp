@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
 // Boost headers go here
 
@@ -57,7 +58,8 @@ namespace Gem::Courtier {
  * network communication. Their task is to retrieve serialized objects from the server
  * over a given protocol (implemented in derived classes), to instantiate the
  * corresponding object, to process it and to deliver the results to the server.
- * This class assumes that the template parameter implements the "process()" call.
+ * This class assumes that the template parameter implements the "process()" call. A processor
+ * set with setItemProcessor() takes the place of that call for every item that is due.
  *
  * @tparam processable_type The work-item type the client retrieves, processes and returns (must derive GProcessable)
  *
@@ -223,6 +225,28 @@ public:
         close_requested_.store(true);
     }
 
+    //---------------------------------------------------------------------------
+    /**
+	  * @brief Replaces how this client processes a work item that is due.
+	  *
+	  * Without a processor (the default, and after passing an empty one) the client calls the
+	  * item's process(). With one, it calls the processor for every item that is due
+	  * (processingStatus::DO_PROCESS); an item that is not due and a frame without an item
+	  * never reach it. The processor must leave the item processed or flagged, as process()
+	  * does. If it throws, the item is returned flagged and the client keeps running.
+	  *
+	  * The processor must be safe to call from the thread(s) the client processes on: one for
+	  * the MPI client, as many as the prefetch depth for a socket client. Its call operator is
+	  * const (GItemProcessorT), so several threads may call the one object at the same time;
+	  * a processor with unguarded mutable state does not compile. To be set before run(); it
+	  * is not to be changed while the client runs.
+	  *
+	  * @param processor The function that processes a due item (empty: the item's process())
+	  */
+    void setItemProcessor(GItemProcessorT<processable_type> processor) {
+        item_processor_ = std::move(processor);
+    }
+
 protected:
     //---------------------------------------------------------------------------
     /**
@@ -240,6 +264,16 @@ protected:
 	  */
     void flagTerminalError() {
         terminal_error_.store(true);
+    }
+
+    //---------------------------------------------------------------------------
+    /**
+	  * @brief The processor set with setItemProcessor(), for processWorkFrame().
+	  *
+	  * @return A pointer to the processor, or nullptr if none is set (the item's process())
+	  */
+    [[nodiscard]] GItemProcessorT<processable_type> *itemProcessor() noexcept {
+        return item_processor_ ? &item_processor_ : nullptr;
     }
 
     //---------------------------------------------------------------------------
@@ -348,6 +382,9 @@ private:
         false
     }; ///< Indicates whether a the termination was requested by the server
     bool halt_logged_ = false; ///< Ensures the halt reason is logged only once (halt() is polled)
+
+    /// Processes a due item in place of its process(); empty: the item's process()
+    GItemProcessorT<processable_type> item_processor_;
 
     //---------------------------------------------------------------------------
 };

@@ -36,6 +36,7 @@
 
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
@@ -162,5 +163,94 @@ TEST_CASE(
     SECTION("a WORK frame without an item is a protocol error") {
         GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK};
         CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "test worker"));
+    }
+}
+
+/******************************************************************************/
+// A client can be given a processor that takes the place of a due item's process()
+// (GBaseClientT::setItemProcessor()). processWorkFrame() applies it; an item that is not due and a
+// frame without an item never reach it, and whatever it throws leaves the item flagged.
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one case, a section per rule
+TEST_CASE(
+    "courtier(client): processWorkFrame applies an item processor to a due item",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::GItemProcessorT;
+    using Gem::Courtier::processingStatus;
+
+    // GFaultyContainer's own process_() stores the result true; the marking processor stores false.
+    int calls = 0;
+    GItemProcessorT<GFaultyContainer> marking{[&calls](GFaultyContainer &item) {
+        ++calls;
+        item.markAsProcessedWith({false});
+    }};
+
+    const auto due_frame = [] {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        return GCommandContainerT<GFaultyContainer>{GFrameKind::WORK, std::move(item)};
+    };
+
+    SECTION("no processor") {
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", nullptr));
+        REQUIRE(frame.item() != nullptr);
+        REQUIRE(frame.item()->is_processed());
+        CHECK(frame.item()->getStoredResult());
+    }
+
+    SECTION("a processor that marks") {
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        REQUIRE(frame.item() != nullptr);
+        REQUIRE(frame.item()->is_processed());
+        CHECK_FALSE(frame.item()->getStoredResult());
+        CHECK(calls == 1);
+    }
+
+    SECTION("a processor that throws a std::exception") {
+        GItemProcessorT<GFaultyContainer> throwing{[](GFaultyContainer & /*item*/) {
+            throw std::runtime_error("injected");
+        }};
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &throwing));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(frame.item()->getStoredErrorDescriptions().contains("injected"));
+    }
+
+    SECTION("a processor that throws something that is not a std::exception") {
+        GItemProcessorT<GFaultyContainer> throwing{[](GFaultyContainer & /*item*/) {
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp): the case under test
+        }};
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &throwing));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(
+            frame.item()->getStoredErrorDescriptions().contains("not derived from std::exception")
+        );
+    }
+
+    SECTION("an item that is not due does not reach the processor") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        item->process();
+        REQUIRE(item->is_processed());
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        CHECK(calls == 0);
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+    }
+
+    SECTION("a WORK frame without an item does not reach the processor") {
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK};
+        CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        CHECK(calls == 0);
     }
 }

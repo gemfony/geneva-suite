@@ -35,6 +35,7 @@
 // Standard header files go here
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <span>
@@ -871,6 +872,28 @@ public:
             std::vector<individual_processing_result>()
     );
 
+    /** @brief An evaluation a caller supplies to process(): it gets the candidate, read-only,
+     *  and returns the raw results in the order evaluate() returns them (main criterion at
+     *  index 0, one entry per criterion). */
+    using evaluation_function = std::move_only_function<std::vector<double>(const GGenome &)>;
+
+    /**
+     * @brief Performs the evaluation of this candidate as process() does, with @p evaluation
+     * called where process() would call evaluate(). Everything else is the lifecycle of
+     * process(): only an item with the DO_PROCESS status is accepted; the pre-processor runs
+     * before the evaluation; a candidate that violates its constraints is not evaluated unless
+     * the evaluation policy says so (it then needs no call of @p evaluation); the processing time
+     * covers the evaluation; an exception out of it sets the fitnesses to the worst case, leaves
+     * the candidate with the EXCEPTION_CAUGHT status and is rethrown as a processing exception;
+     * the post-processor runs afterwards. This is how an execution environment that evaluates
+     * differently (a process group, a device) stays inside the lifecycle.
+     * @param evaluation Computes the raw results of this candidate; must not be empty. It must
+     *        return as many results as the candidate has criteria.
+     * @return The first stored result after processing
+     * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
+     */
+    individual_processing_result process(evaluation_function evaluation);
+
     /**
      * @brief Sets the vector of stored results to a given collection and marks the candidate PROCESSED.
      * @param result_cnt The new result vector (size must match the configured number of stored results)
@@ -1461,13 +1484,13 @@ protected:
     /***************************************************************************/
     // Pure-virtual hooks implemented by the genome layer.
 
-
     /** @brief The evaluation hook a concrete individual implements: computes and RETURNS this individual's
      *  raw result vector (size 1 for a single-criterion problem, one entry per criterion otherwise -- main
      *  at index 0). It reads the individual through @c this (genome via streamline(), any per-run context via
      *  the individual's own accessors) and RETURNS the results; the caller (@c runEvaluation_) writes them and
      *  applies feasibility + policy + PROCESSED, so the hook itself sets no fitness. The single evaluation
-     *  call site dispatches here for a locally-evaluated individual. Implemented by every concrete
+     *  call site dispatches here for a locally-evaluated individual; process(evaluation) calls the
+     *  supplied evaluation there instead. Implemented by every concrete
      *  individual (the value-bearing genome layer's problem definition).
      *  @return The raw result vector */
     virtual std::vector<double> evaluate() = 0;
@@ -1540,20 +1563,41 @@ private:
     /***************************************************************************/
     // Evaluation internals.
 
+    /** @brief The body of both process() overloads. @param res_vec Optional pre-computed raw
+     *  results @param evaluation The evaluation to call in place of evaluate(), or nullptr
+     *  @return The first stored result after processing */
+    individual_processing_result processWith_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
+
     /** @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec
-     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results */
-    void runEvaluation_(const std::vector<individual_processing_result> &res_vec);
+     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results
+     *  @param evaluation The evaluation to call in place of evaluate(), or nullptr */
+    void runEvaluation_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
     /** @brief runEvaluation_() feasible branch: adopt the raw results and apply the evaluation-policy
      *  transform (or worst-case the surface if the user flagged an error). @param res_vec Optional
-     *  pre-computed raw results */
-    void finalizeFeasibleEvaluation_(const std::vector<individual_processing_result> &res_vec);
+     *  pre-computed raw results @param evaluation The evaluation to call in place of evaluate(), or
+     *  nullptr */
+    void finalizeFeasibleEvaluation_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
-    /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec (external
-     *  GPU/network path) or from a local evaluate() -- returning the main (index-0) raw result and storing
-     *  the secondary criteria. Worst-cases the whole surface and rethrows on any failure. Extracted from
-     *  runEvaluation_(). @param res_vec Optional pre-computed raw results @return The main raw result */
-    double adoptRawResults_(const std::vector<individual_processing_result> &res_vec);
+    /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec
+     *  (external GPU/network path), from the evaluation supplied to process(), or from a local
+     *  evaluate() -- returning the main (index-0) raw result and storing the secondary criteria.
+     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_().
+     *  @param res_vec Optional pre-computed raw results @param evaluation The evaluation to call in
+     *  place of evaluate(), or nullptr @return The main raw result */
+    double adoptRawResults_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
     /** @brief Applies the configured invalidity policy (worst-case, or the sigmoid barrier value)
      *  to the whole quality surface of a constraint-violating candidate. Shared by

@@ -54,12 +54,16 @@
  *                     to build the client; each must be refused.
  *   client-limits  -- (two ranks) a time limit of 1 ms is set on the client. It must warn that the
  *                     limit has no effect, and serve until every item is processed.
+ *   item-processor -- (three ranks) each client is given an item processor that marks every item
+ *                     with the result false (an item's own processing stores true). Every item
+ *                     must come back processed by a processor.
  */
 
 #include "common/GGlobalDefines.hpp"
 
 #ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -243,6 +247,7 @@ int main(int argc, char **argv) {
         " | undecodable"
         " | refusal"
         " | client-limits"
+        " | item-processor"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
@@ -260,7 +265,7 @@ int main(int argc, char **argv) {
         return refusal(argc, argv);
     }
     if(scenario != "clean" && scenario != "throwing" && scenario != "never-started" &&
-       scenario != "undecodable" && scenario != "client-limits") {
+       scenario != "undecodable" && scenario != "client-limits" && scenario != "item-processor") {
         std::println(stderr, "Unknown scenario: {}", scenario);
         return 2;
     }
@@ -279,6 +284,12 @@ int main(int argc, char **argv) {
             GFaultyContainer::armLoadFaults(1);
         }
         client_type client(environment, c2::Consumers::MPIConsumerConfig{});
+        if(scenario == "item-processor") {
+            // an item's own processing stores true; this processor marks it with false
+            client.setItemProcessor([](GFaultyContainer &item) {
+                item.markAsProcessedWith({false});
+            });
+        }
         client.run();
         return 0;
     }
@@ -293,6 +304,11 @@ int main(int argc, char **argv) {
         return 0;
     }
 
+    if(scenario == "item-processor") {
+        // Nothing may be resubmitted behind the test's back: every item that comes back was
+        // processed by the client it was sent to.
+        consumer->setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
+    }
     consumer->startServer();
     if(scenario == "client-limits") {
         // Let the client's time limit of 1 ms pass before it gets any work.
@@ -337,6 +353,15 @@ int main(int argc, char **argv) {
     if(not faults_seen) {
         std::println("FAIL: no item was put back, so no worker failed to load one");
         return 1;
+    }
+    if(scenario == "item-processor") {
+        const auto own = std::ranges::count_if(items, [](const auto &it) {
+            return not it || not it->is_processed() || it->getStoredResult();
+        });
+        if(own != 0) {
+            std::println("FAIL: {}/{} items carry the result of their own process()", own, N);
+            return 1;
+        }
     }
     if(processed == N) {
         std::println(

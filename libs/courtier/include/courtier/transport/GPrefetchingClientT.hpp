@@ -117,7 +117,13 @@ protected:
             compute_pool_,
             [self, container = std::move(container), guard = std::move(guard)]() mutable {
                 // A failing evaluation leaves the item flagged; it is returned like any result.
-                Gem::Courtier::processWorkFrame(container, self->client_name_);
+                // The processor is read on the compute-pool threads and never written while the
+                // client runs.
+                Gem::Courtier::processWorkFrame(
+                    container,
+                    self->client_name_,
+                    self->itemProcessor()
+                );
                 // Hop back onto the io thread for the result transmission -- connection state must
                 // only be touched there.
                 boost::asio::post(

@@ -36,6 +36,7 @@
 #include <random>
 #include <ranges>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -703,6 +704,40 @@ individual_processing_result GGenome::getStoredResult(const std::size_t id) cons
  */
 individual_processing_result
 GGenome::process(const std::vector<individual_processing_result> &res_vec) {
+    return this->processWith_(res_vec, nullptr);
+}
+
+/******************************************************************************/
+/**
+ * @brief Performs the evaluation of this candidate as process() does, with @p evaluation called
+ * where process() would call evaluate() (see the header for the full sequence).
+ * @param evaluation Computes the raw results of this candidate; must not be empty
+ * @return The first stored result after processing
+ * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
+ */
+individual_processing_result GGenome::process(evaluation_function evaluation) {
+    if(not evaluation) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GGenome::process(evaluation): Error!" << '\n'
+            << "The evaluation is empty" << '\n'
+        );
+    }
+    return this->processWith_({}, &evaluation);
+}
+
+/******************************************************************************/
+/**
+ * @brief The body of both process() overloads: the processing lifecycle around the evaluation core.
+ * @param res_vec Optional pre-computed raw results; if empty, the evaluation or evaluate() is
+ *        invoked
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
+ * @return The first stored result after processing
+ */
+individual_processing_result GGenome::processWith_(
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
+) {
     // The full lifecycle (precondition, reset, timed pre -> core -> guarded post, exception funneling,
     // error epilogue) is stated ONCE, on GProcessable::runProcessingLifecycle_. Only the evaluation
     // core is geneva-specific: it consults the process-global fault injector (no-op unless a
@@ -712,7 +747,7 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
     this->runProcessingLifecycle_(
         "GGenome::process()",
         [this] { this->preProcess_(); },
-        [this, &res_vec] {
+        [this, &res_vec, evaluation] {
             GFaultInjector::Fault injected_fault = GFaultInjector::Fault::NONE;
             if(GFaultInjector *injector = GFaultInjectorRegistry::get(); injector != nullptr) {
                 // Rare (test-only) path: lease a proxy for the fault injector; the candidate holds no RNG.
@@ -727,7 +762,7 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
                 );
             }
 
-            this->runEvaluation_(res_vec);
+            this->runEvaluation_(res_vec, evaluation);
 
             // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
             if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
@@ -744,11 +779,18 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
 
 /******************************************************************************/
 /**
- * @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec adoption + the
- * evaluation-policy transform.
+ * @brief Adopts the raw results into the result store -- from a non-empty res_vec, from the
+ * evaluation supplied to process(), or from a local evaluate() -- returning the main (index-0) raw
+ * result and storing the secondary criteria. Worst-cases the whole surface and rethrows on any
+ * failure.
  * @param res_vec Optional pre-computed raw results
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
+ * @return The main raw result
  */
-double GGenome::adoptRawResults_(const std::vector<individual_processing_result> &res_vec) {
+double GGenome::adoptRawResults_(
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
+) {
     double main_raw_result = 0.;
 
     try {
@@ -775,17 +817,21 @@ double GGenome::adoptRawResults_(const std::vector<individual_processing_result>
             }
         }
         else {
-            // Local evaluation: the virtual evaluate() RETURNS the raw result vector (main at index 0,
-            // secondary criteria after) rather than writing into the individual, mirroring the res_vec
-            // path above so the evaluation-policy transform below sees a fully-populated result store.
-            // (External GPU/network results took the res_vec branch; both converge into the one
-            // feasibility + policy + PROCESSED pass in runEvaluation_().)
-            const std::vector<double> raw = this->evaluate();
+            // Evaluation here, inside the lifecycle: the evaluation supplied to process(), if
+            // any, otherwise the virtual evaluate(). Either RETURNS the raw result vector (main at
+            // index 0, secondary criteria after) rather than writing into the individual,
+            // mirroring the res_vec path above so the evaluation-policy transform below sees a
+            // fully-populated result store. (External GPU/network results took the res_vec
+            // branch; all converge into the one feasibility + policy + PROCESSED pass in
+            // runEvaluation_().)
+            const std::vector<double> raw =
+                evaluation != nullptr ? (*evaluation)(std::as_const(*this)) : this->evaluate();
             if(raw.size() != this->getNStoredResults()) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::adoptRawResults_(): Error!" << '\n'
-                    << "evaluate() returned " << raw.size() << " result(s), but " << '\n'
+                    << (evaluation != nullptr ? "The evaluation given to process()" : "evaluate()")
+                    << " returned " << raw.size() << " result(s), but " << '\n'
                     << this->getNStoredResults() << " were expected." << '\n'
                 );
             }
@@ -808,12 +854,16 @@ double GGenome::adoptRawResults_(const std::vector<individual_processing_result>
  * @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec adoption + the
  * evaluation-policy transform.
  * @param res_vec Optional pre-computed raw results
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
  */
-void GGenome::runEvaluation_(const std::vector<individual_processing_result> &res_vec) {
+void GGenome::runEvaluation_(
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
+) {
     // Find out whether this is a valid solution (must be called first, to fill validity_level_).
     if(this->fulfillsConstraints(validity_level_) ||
        evaluationPolicy::USESIMPLEEVALUATION == this->getEvaluationPolicy()) {
-        this->finalizeFeasibleEvaluation_(res_vec);
+        this->finalizeFeasibleEvaluation_(res_vec, evaluation);
     }
     else {
         // Some constraints were violated. Act on the chosen policy.
@@ -827,12 +877,15 @@ void GGenome::runEvaluation_(const std::vector<individual_processing_result> &re
  * evaluate()) and apply the evaluation-policy transform to every stored result -- unless the user flagged
  * an error without throwing, in which case the whole quality surface is worst-cased.
  *
- * @param res_vec Optional pre-computed raw results (empty -> a local evaluate() supplies them)
+ * @param res_vec Optional pre-computed raw results (empty -> the evaluation or a local
+ *        evaluate() supplies them)
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
  */
 void GGenome::finalizeFeasibleEvaluation_(
-    const std::vector<individual_processing_result> &res_vec
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
 ) {
-    const double main_raw_result = this->adoptRawResults_(res_vec);
+    const double main_raw_result = this->adoptRawResults_(res_vec, evaluation);
 
     this->setResult(0, main_raw_result);
     this->modifyStoredResult(0).setTransformedFitnessToRaw();

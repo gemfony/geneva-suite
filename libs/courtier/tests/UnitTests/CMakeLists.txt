@@ -185,6 +185,16 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
 	GENEVA_TEST_SIZE(GCourtierMpiClientLimitsTest M)
 
+	# A client given an item processor processes every item through it: no item comes back with
+	# the result of its own process().
+	ADD_TEST(NAME GCourtierMpiItemProcessorTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=item-processor
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiItemProcessorTest PROPERTIES
+			LABELS "courtier" PROCESSORS 3 TIMEOUT 60)
+	GENEVA_TEST_SIZE(GCourtierMpiItemProcessorTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)

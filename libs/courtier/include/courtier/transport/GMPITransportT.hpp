@@ -569,7 +569,8 @@ private:
             // the item flagged and is returned like any other result -- it must not end this rank.
             Gem::Courtier::processWorkFrame(
                 commandContainer_,
-                "GMPIConsumerWorkerNodeT with rank=" + std::to_string(commRank_)
+                "GMPIConsumerWorkerNodeT with rank=" + std::to_string(commRank_),
+                this->itemProcessor()
             );
 
             // increment the counter for processed items

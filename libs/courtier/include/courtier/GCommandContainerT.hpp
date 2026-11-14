@@ -35,9 +35,11 @@
 // Standard headers go here
 #include <cstdint>
 #include <exception>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 
 // Boost headers go here
@@ -291,29 +293,36 @@ public:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Processing of the carried work item. Delegates to the item's process() method.
+	  * @brief Processing of the carried work item: through @p processor if one is given and the
+	  * item is due, otherwise through the item's process() method.
 	  *
 	  * Errors during processing are handled one layer down: GProcessingContainerT::process()
 	  * wraps the user's process_() in a try/catch, records the failure on the item
 	  * (processing_status_ = EXCEPTION_CAUGHT plus stored error descriptions) and rethrows a
 	  * typed g_processing_exception. This method intentionally lets that exception propagate to
 	  * the caller (the worker compute loop), which catches it and returns the item carrying its
-	  * error state -- so a faulty work item never crashes the worker.
+	  * error state -- so a faulty work item never crashes the worker. An item that is not due is
+	  * handed to its own process() also when a processor is given: the processing lifecycle
+	  * refuses it there, and no processor is spent on it.
 	  *
+	  * @param processor Processes a due item in place of its process(); nullptr: process()
 	  * @throws geneva_exception if the frame holds no work item
 	  * @throws g_processing_exception (from the item) if processing flagged or threw an error
 	  */
-    void process() {
+    void process(GItemProcessorT<processable_type> *processor = nullptr) {
         auto *held = std::get_if<std::unique_ptr<processable_type>>(&payload_);
-        if(held != nullptr && *held) {
-            (*held)->process();
-        }
-        else {
+        if(held == nullptr || not *held) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommandContainerT<processable_type>::process():" << '\n'
                 << "Tried to process a work item while the frame carries none" << '\n'
             );
+        }
+        if(processor != nullptr && (*held)->is_due_for_processing()) {
+            (*processor)(**held);
+        }
+        else {
+            (*held)->process();
         }
     }
 
@@ -382,19 +391,49 @@ void makeReturnFrame(GCommandContainerT<processable_type> &container) {
  * what happens to the slot. Every transport's worker processes through this function, so the rule
  * is stated once.
  *
+ * A due item is processed by @p processor if one is given (a client's item processor, see
+ * GBaseClientT::setItemProcessor()), otherwise by its own process(). Any exception out of the
+ * item's processing or out of the processor, of whatever type -- a processor is user code and
+ * may throw something that is not a std::exception -- leaves the item flagged in the same way.
+ *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the work item to process
  * @param worker_name The worker's name, used in the warning
+ * @param processor Processes a due item in place of its process(); nullptr: the item's process()
  * @throws geneva_exception if the frame holds no work item (a WORK frame without an item is a
  * protocol error)
  */
 template <typename processable_type>
 void processWorkFrame(
     GCommandContainerT<processable_type> &container,
-    std::string_view worker_name
+    std::string_view worker_name,
+    // not deduced: a caller may pass nullptr, from which no type could be deduced
+    std::type_identity_t<GItemProcessorT<processable_type>> *processor = nullptr
 ) {
+    // Flags the item (unless it reports an error already) and puts it back into the frame.
+    const auto return_flagged = [&](std::string_view reason) {
+        auto item = container.releaseItem();
+        if(not item) {
+            return false; // no item to return: a protocol error, not a failed evaluation
+        }
+        if(not item->has_errors()) {
+            auto outcome = item->processingOutcome();
+            outcome.status = processingStatus::ERROR_FLAGGED;
+            outcome.error_descriptions += "The work item could not be processed: ";
+            outcome.error_descriptions += reason;
+            item->applyProcessingOutcome(outcome);
+        }
+        container.setItem(std::move(item));
+        glogger << "In " << worker_name << ":" << '\n'
+                << "The work item could not be processed:" << '\n'
+                << reason << '\n'
+                << "It is returned to the server flagged; the worker keeps running." << '\n'
+                << GWARNING;
+        return true;
+    };
+
     try {
-        container.process();
+        container.process(processor);
     }
     catch(const g_processing_exception &e) {
         glogger << "In " << worker_name << ":" << '\n'
@@ -404,23 +443,14 @@ void processWorkFrame(
                 << GWARNING;
     }
     catch(const std::exception &e) {
-        auto item = container.releaseItem();
-        if(not item) {
-            throw; // no item to return: a protocol error, not a failed evaluation
+        if(not return_flagged(e.what())) {
+            throw;
         }
-        if(not item->has_errors()) {
-            auto outcome = item->processingOutcome();
-            outcome.status = processingStatus::ERROR_FLAGGED;
-            outcome.error_descriptions += "The work item could not be processed: ";
-            outcome.error_descriptions += e.what();
-            item->applyProcessingOutcome(outcome);
+    }
+    catch(...) {
+        if(not return_flagged("an exception that is not derived from std::exception")) {
+            throw;
         }
-        container.setItem(std::move(item));
-        glogger << "In " << worker_name << ":" << '\n'
-                << "The work item could not be processed:" << '\n'
-                << e.what() << '\n'
-                << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GWARNING;
     }
 }
 

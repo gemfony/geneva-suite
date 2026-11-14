@@ -37,9 +37,15 @@
  */
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <ranges>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <tuple>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -52,6 +58,9 @@
 #include "courtier/GWireSerializationContext.hpp" // the worker-side wire scope
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GProblemStoreT.hpp"
+
+#include "common/GSerializableFunctionObjectT.hpp"    // the pre-processor of process(evaluation)
+#include "geneva/individuals/GFunctionIndividual.hpp" // GSphereConstraint
 
 using namespace Gem::Geneva;        // activityMode, serializationMode helpers
 using namespace Gem::Geneva::Genome;
@@ -474,4 +483,174 @@ TEST_CASE(
     CHECK(ind.has_errors());
     CHECK(ind.getProcessingStatus() == processingStatus::ERROR_FLAGGED);
     CHECK_FALSE(ind.is_processed());
+}
+
+/******************************************************************************/
+// process(evaluation): the evaluation a caller supplies is called where process() would call
+// evaluate(), inside the processing lifecycle (precondition, pre-processing, feasibility gate,
+// timing, exception funneling).
+
+namespace Gem::Tests {
+
+/** @brief What the cases of process(evaluation) observe: the calls of CountingSphere::evaluate()
+ *  and the order in which the pre-processor and the supplied evaluation ran. */
+struct SuppliedEvaluationLog {
+    std::size_t evaluateCalls = 0;
+    std::vector<std::string> order;
+};
+// Observed by single-threaded test cases only.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+SuppliedEvaluationLog suppliedEvaluationLog;
+
+/**
+ * A single-criterion flat individual (three doubles, all 1.0) whose evaluate() counts its calls in
+ * suppliedEvaluationLog, so a case can prove that process(evaluation) did not call it.
+ */
+class CountingSphere : public GGenomeT<CountingSphere> {
+public:
+    using genome_only = void; // genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+
+    CountingSphere() {
+        GGenomeBuilder b;
+        b.addDoubleGroup(3, -10., 10.).init(1.0); // structure only
+        this->setGenome(b.build());
+    }
+
+protected:
+    /** @brief Counts the call; the sum of squares of the double channel. */
+    std::vector<double> evaluate() override {
+        ++suppliedEvaluationLog.evaluateCalls;
+        std::vector<double> v;
+        this->streamline<double>(v);
+        return {std::ranges::fold_left(
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
+    }
+
+private:
+    friend struct Gem::Weft::access;
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<GGenomeT<CountingSphere>>(ar, "GGenomeT", *this);
+    }
+};
+
+/** @brief A pre-processor that assigns 2.0 to every double parameter and logs "pre". */
+class ParameterSettingPreProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    ParameterSettingPreProcessor() = default;
+
+protected:
+    bool process_(GGenome &p) override {
+        suppliedEvaluationLog.order.emplace_back("pre");
+        p.assignValueVector<double>(std::vector<double>(p.countParameters<double>(), 2.0));
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new ParameterSettingPreProcessor(*this);
+    }
+};
+
+} // namespace Gem::Tests
+
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::CountingSphere) // NOLINT
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a section per lifecycle rule
+TEST_CASE(
+    "GGenome: process(evaluation) calls the supplied evaluation inside the processing lifecycle",
+    "[candidate][evaluation]"
+) {
+    using Gem::Courtier::g_processing_exception;
+    using Gem::Courtier::processingStatus;
+    using Gem::Tests::CountingSphere;
+    using Gem::Tests::suppliedEvaluationLog;
+
+    suppliedEvaluationLog = {};
+    std::size_t evaluation_calls = 0;
+
+    CountingSphere ind;
+    ind.set_processing_status(processingStatus::DO_PROCESS);
+    REQUIRE(ind.is_due_for_processing());
+
+    SECTION("the evaluation is used") {
+        ind.process([&evaluation_calls](const GGenome &) {
+            ++evaluation_calls;
+            return std::vector<double>{42.};
+        });
+        CHECK(ind.getProcessingStatus() == processingStatus::PROCESSED);
+        CHECK(ind.raw_fitness(0) == 42.);
+        CHECK(evaluation_calls == 1);
+        CHECK(suppliedEvaluationLog.evaluateCalls == 0);
+    }
+
+    SECTION("pre-processing comes first") {
+        ind.registerPreProcessor(std::make_shared<Gem::Tests::ParameterSettingPreProcessor>());
+        std::vector<double> seen;
+        ind.process([&seen](const GGenome &candidate) {
+            suppliedEvaluationLog.order.emplace_back("evaluation");
+            candidate.streamline<double>(seen);
+            return std::vector<double>{1.};
+        });
+        CHECK(seen == std::vector<double>(3, 2.0));
+        CHECK(suppliedEvaluationLog.order == std::vector<std::string>{"pre", "evaluation"});
+    }
+
+    SECTION("the feasibility gate") {
+        // All parameters are 1.0: the norm sqrt(3) lies outside a sphere of diameter 0.5.
+        ind.registerConstraint(std::make_shared<Gem::Geneva::Individuals::GSphereConstraint>(0.5));
+        ind.setEvaluationPolicy(evaluationPolicy::USEWORSTCASEFORINVALID);
+        CHECK_NOTHROW(ind.process([&evaluation_calls](const GGenome &) {
+            ++evaluation_calls;
+            return std::vector<double>{1.};
+        }));
+        CHECK(evaluation_calls == 0);
+        CHECK(ind.raw_fitness(0) == ind.getWorstCase());
+    }
+
+    SECTION("the timing") {
+        ind.process([](const GGenome &) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            return std::vector<double>{1.};
+        });
+        CHECK(std::get<1>(ind.getProcessingTimes()) >= 0.02);
+    }
+
+    SECTION("an exception") {
+        CHECK_THROWS_AS(
+            ind.process([](const GGenome &) -> std::vector<double> {
+                throw std::runtime_error("injected");
+            }),
+            g_processing_exception
+        );
+        CHECK(ind.getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+        CHECK(ind.getStoredErrorDescriptions().contains("injected"));
+    }
+
+    SECTION("a wrong number of results") {
+        CHECK_THROWS_AS(
+            ind.process([](const GGenome &) { return std::vector<double>{1., 2.}; }),
+            g_processing_exception
+        );
+        CHECK(ind.getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+    }
+
+    SECTION("an empty evaluation") {
+        CHECK_THROWS_AS(ind.process(GGenome::evaluation_function{}), geneva_exception);
+        CHECK(ind.getProcessingStatus() == processingStatus::DO_PROCESS);
+    }
+
+    SECTION("an item that is not due") {
+        ind.set_processing_status(processingStatus::UNPROCESSED);
+        CHECK_THROWS(ind.process([&evaluation_calls](const GGenome &) {
+            ++evaluation_calls;
+            return std::vector<double>{1.};
+        }));
+        CHECK(evaluation_calls == 0);
+    }
 }

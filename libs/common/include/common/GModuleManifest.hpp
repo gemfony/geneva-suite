@@ -90,7 +90,7 @@
  * types), stamped into every manifest and matched EXACTLY by the loader. See the file comment for the
  * bump rule. A plain counter -- it is not derived from GENEVA_VERSION and does not follow it.
  */
-#define GENEVA_MODULE_ABI_VERSION 2u
+#define GENEVA_MODULE_ABI_VERSION 3u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal
  * (a module's own version string when it is a Geneva-shipped module). GENEVA_VERSION_PRERELEASE
