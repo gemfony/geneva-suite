@@ -42,6 +42,8 @@
  *                     the clone-on-partial-return policy must leave every slot processed.
  *   never-started  -- the master builds its consumer and destroys it without starting the server
  *                     (run with a single rank). The process must end normally.
+ *   low-thread-level -- the program initializes MPI itself, below MPI_THREAD_MULTIPLE (single
+ *                     rank). The consumer must refuse to be built.
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -55,6 +57,9 @@
 #include <string>
 #include <vector>
 
+#include <mpi.h>
+
+#include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -63,6 +68,36 @@
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
 namespace c2 = Gem::Courtier;
+
+namespace {
+
+/** Prints the outcome of a single-rank check and turns it into the exit code. */
+int verdict(bool ok, const char *what) {
+    std::println("{}: {}", ok ? "OK" : "FAIL", what);
+    return ok ? 0 : 1;
+}
+
+/** A program that initialized MPI below MPI_THREAD_MULTIPLE must be refused. Returns 77 (skipped)
+ *  if the MPI library grants MPI_THREAD_MULTIPLE whatever is asked for. */
+int lowThreadLevel(int argc, char **argv) {
+    int provided = 0;
+    MPI_Init_thread(&argc, &argv, MPI_THREAD_SINGLE, &provided);
+    bool refused = false;
+    try {
+        const c2::GMPIConsumerT<GFaultyContainer> consumer(&argc, &argv);
+    }
+    catch(const geneva_exception &) {
+        refused = true;
+    }
+    MPI_Finalize();
+    if(provided == MPI_THREAD_MULTIPLE) {
+        std::println("SKIPPED: this MPI library grants MPI_THREAD_MULTIPLE when less is asked for");
+        return 77;
+    }
+    return verdict(refused, "a consumer was refused on MPI initialized with a lower thread level");
+}
+
+} // namespace
 
 int main(int argc, char **argv) {
     constexpr std::size_t N = 120;
@@ -74,9 +109,13 @@ int main(int argc, char **argv) {
         scenario,
         std::string("clean"),
         "what to exercise: clean | throwing | never-started"
+        " | low-thread-level"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
+    }
+    if(scenario == "low-thread-level") {
+        return lowThreadLevel(argc, argv);
     }
     if(scenario != "clean" && scenario != "throwing" && scenario != "never-started") {
         std::println(stderr, "Unknown scenario: {}", scenario);

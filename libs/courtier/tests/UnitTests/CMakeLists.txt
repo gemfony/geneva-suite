@@ -133,6 +133,15 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES LABELS "courtier")
 	GENEVA_TEST_SIZE(GCourtierMpiNeverStartedTest M)
 
+	# A program that initialized MPI itself, below MPI_THREAD_MULTIPLE, is refused. An MPI library
+	# that grants the full level whatever is asked for cannot be checked; the entry is then skipped.
+	ADD_TEST(NAME GCourtierMpiThreadLevelTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=low-thread-level
+					${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiThreadLevelTest PROPERTIES LABELS "courtier" SKIP_RETURN_CODE 77)
+	GENEVA_TEST_SIZE(GCourtierMpiThreadLevelTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)

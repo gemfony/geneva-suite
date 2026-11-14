@@ -94,6 +94,10 @@ inline MPI_Comm MPI_COMMUNICATOR =
  * Relocated from the former GMPIConsumerT consumer class so it survives that class's removal; used by
  * the courtier MPI consumer and the MPI sub-client optimizer.
  *
+ * The thread level is checked in both cases. The master calls MPI from several threads at once, so
+ * a program that initialized MPI itself with a lower level would run into undefined behaviour;
+ * it is refused here instead.
+ *
  * @param argc Optional pointer to the program's argc, forwarded to MPI_Init_thread (may be nullptr)
  * @param argv Optional pointer to the program's argv, forwarded to MPI_Init_thread (may be nullptr)
  * @return true if this call performed the MPI initialization, false if MPI was already initialized
@@ -102,20 +106,28 @@ inline bool initializeMPI(int *argc = nullptr, char ***argv = nullptr) {
     int isAlreadyInitialized{0};
     MPI_Initialized(&isAlreadyInitialized);
 
+    int providedThreadingLevel = 0;
     if(!isAlreadyInitialized) {
-        int providedThreadingLevel = 0;
         MPI_Init_thread(argc, argv, MPI_THREAD_MULTIPLE, &providedThreadingLevel);
+    }
+    else {
+        MPI_Query_thread(&providedThreadingLevel);
+    }
 
-        if(providedThreadingLevel != MPI_THREAD_MULTIPLE) {
-            throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "Gem::Courtier::Consumers::initializeMPI():" << '\n'
-                << "Geneva requires an MPI implementation with level MPI_THREAD_MULTIPLE (a.k.a. "
-                << MPI_THREAD_MULTIPLE
-                << ") but the runtime environment only supports level " << providedThreadingLevel
-                << '\n'
-            );
-        }
+    if(providedThreadingLevel != MPI_THREAD_MULTIPLE) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "Gem::Courtier::Consumers::initializeMPI():" << '\n'
+            << "Geneva requires MPI with the thread level MPI_THREAD_MULTIPLE (a.k.a. "
+            << MPI_THREAD_MULTIPLE << "), but "
+            << (isAlreadyInitialized ? "the calling program initialized MPI with level "
+                                     : "the runtime environment only supports level ")
+            << providedThreadingLevel << '\n'
+            << (isAlreadyInitialized
+                    ? "Initialize MPI with MPI_Init_thread() and MPI_THREAD_MULTIPLE, or leave "
+                      "the initialization to Geneva.\n"
+                    : "")
+        );
     }
 
     return !isAlreadyInitialized;
