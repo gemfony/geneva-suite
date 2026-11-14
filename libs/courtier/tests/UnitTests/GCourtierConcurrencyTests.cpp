@@ -585,10 +585,42 @@ TEST_CASE(
 TEST_CASE("courtier(park): a late return is kept when its caller parks next", "[courtier][park]") {
     SimNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
+    consumer.setLeaseBootstrap(20ms);
+    consumer.setLeaseBounds(10ms, 200ms);
+    consumer.setSweepTick(5ms);
 
-    auto late = std::make_unique<GFaultyContainer>(42, fault_mode::NONE);
-    late->setCorrelationId(0); // no batch is active, so any id is a late one
-    consumer.checkin(std::move(late));
+    // Only the return of a slot that had not returned when its batch ended is kept, so a batch of
+    // two retires with the slot a slow worker holds still missing; the other slot returns, which
+    // lets the give-up window engage.
+    auto batch = make_tagged_batch(0, 2);
+    std::atomic<bool> done{false};
+    std::jthread submitter([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::clone_on_partial_return()
+        );
+        done.store(true);
+    });
+    item_ptr late;
+    while(not done.load()) {
+        auto p = consumer.checkout();
+        if(not p) {
+            std::this_thread::sleep_for(1ms);
+            continue;
+        }
+        if(not late) {
+            late = std::move(p); // the slow worker keeps it
+            continue;
+        }
+        if(p->getCorrelationId() == late->getCorrelationId()) {
+            continue; // the same slot handed out again after its lease: never returned either
+        }
+        evaluateAndReturn(consumer, std::move(p));
+    }
+    submitter.join();
+    REQUIRE(late);
+    late->process();
+    consumer.checkin(std::move(late)); // its batch has ended: a late return
     CHECK(consumer.checkoutOrPark([] { return true; }).parked);
 
     CHECK(consumer.lateReturnBufferSize() == 1);

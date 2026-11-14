@@ -183,15 +183,20 @@ public:
      * buffered late return can never be confused with a fresh batch. Evictions (cap or TTL) are counted
      * (lateReturnDroppedCount()) and warned once -- never silently lost.
      *
-     * PAYLOAD-ONLY late returns: a RETURN frame may carry only a library payload (computed values) rather
-     * than the whole work item, in which case there is no item to park -- the item it describes is the
-     * one the server dispatched, and by the time a LATE return arrives its batch has been reconciled and
-     * that item is gone. To make such a slow-but-alive worker's result usable, enabling this buffer ALSO
-     * makes dispatch_ retain a clone of every un-returned original (keyed by correlation id, bounded by
-     * the same cap + ttl_rounds). A late payload-only return is then applied TO that retained clone,
-     * which is parked like a full return; only one with NO matching retained clone (e.g. one that
-     * outlived the ttl) is DROPPED (and counted in lateReturnDroppedCount()), since there is nothing for
-     * the algorithm to reap.
+     * Enabling this buffer ALSO makes dispatch_ retain a clone of every un-returned original
+     * (keyed by correlation id, bounded by the same cap + ttl_rounds). A late return is parked only
+     * when such a retained original exists for its correlation id; the retained clone is consumed
+     * by it:
+     * @li A late return that CARRIES its work item is parked as it came, with the library-owned
+     *     scratch the wire strips grafted back from the retained original.
+     * @li A PAYLOAD-ONLY late return (a RETURN frame with only a library payload, no work item) is
+     *     applied TO the retained clone, which is then parked like a full return.
+     *
+     * A late return with NO matching retained original is DROPPED and counted in
+     * lateReturnDroppedCount(), whether or not it carries its item: either its slot was completed
+     * in time, so the frame duplicates a result the batch already used, or its original has
+     * outlived the ttl. Parking it would hand the algorithm a result it already has, or one that
+     * no longer belongs to a live round.
      *
      * @param cap Maximum number of late items held; 0 disables buffering (the default)
      * @param ttl_rounds A held item is evicted after this many dispatch rounds
@@ -211,16 +216,17 @@ public:
         return late_store_.retainedSize();
     }
     /** @brief Total late returns dropped since construction -- an observable, non-silent drop count.
-     *  Counts cap/TTL evictions, arrivals while buffering is disabled, and payload-only late returns
-     *  with no matching retained original to apply it to (see setLateReturnBuffer()).
+     *  Counts cap/TTL evictions, arrivals while buffering is disabled, and late returns (carrying
+     *  their item or payload-only) with no matching retained original (see setLateReturnBuffer()).
      *  @return The running total of dropped late returns */
     [[nodiscard]] std::uint64_t lateReturnDroppedCount() const {
         std::scoped_lock const lk(mtx_);
         return late_dropped_count_;
     }
 
-    /** @brief GBaseConsumerT hook: enable/size the late-return buffer (delegates to setLateReturnBuffer;
-     *  note that payload-only late returns with nothing retained are never buffered -- see there).
+    /** @brief GBaseConsumerT hook: enable/size the late-return buffer (delegates to
+     *  setLateReturnBuffer; note that late returns with nothing retained are never buffered -- see
+     *  there).
      *  @param cap Maximum number of late items held; 0 disables buffering
      *  @param ttl_rounds A held item is evicted after this many dispatch rounds */
     void enableLateReturns(std::size_t cap, std::uint64_t ttl_rounds) override {
@@ -229,8 +235,9 @@ public:
 
     /** @brief GBaseConsumerT hook: drain the late-return buffer, transferring the held items to the
      *  caller (the optimization algorithm reaps them in fixAfterJobSubmission). FIFO / arrival order.
-     *  Every parked item is a complete work item: a full late return as-is, or a payload-only late
-     *  return applied to the retained original it named on arrival (see setLateReturnBuffer()).
+     *  Every parked item is a complete work item: a full late return with the library-owned
+     *  scratch of its retained original grafted back, or a payload-only late return applied to the
+     *  retained original it named on arrival (see setLateReturnBuffer()).
      *  @return The buffered late items in arrival order (ownership transferred; the buffer is emptied) */
     std::vector<item_ptr> getLateReturns() override {
         return late_store_.drainParked();
@@ -703,8 +710,11 @@ private:
 
     /***************************************************************************/
     /** @brief Parks a late arrival (a return for a batch that already finished/timed out) instead of
-     *  dropping it silently. With buffering disabled (cap == 0, the default) the drop is merely COUNTED;
-     *  when enabled, a parked item is later reaped by the OA via getOldWorkItems(). Caller holds mtx_.
+     *  dropping it silently -- but only when an original was retained for its correlation id, i.e.
+     *  its slot had not returned when its batch ended. Without one (a duplicate of a slot completed
+     *  in time, an original past its ttl, or buffering disabled: cap == 0, the default) the drop is
+     *  merely COUNTED. A parked item is later reaped by the OA via getOldWorkItems(). Caller holds
+     *  mtx_.
      *  @param frame The late-arriving RETURN frame (its outcome routes it; its payload is applied)
      *  @param p The work item the frame carried, or null for a payload-only return */
     void bufferLateReturn_locked(const GCommandContainerT<processable_type> &frame, item_ptr p) {
@@ -727,11 +737,17 @@ private:
             );
         }
         else {
-            // A late return that carries its own work item is complete except for the library-owned
-            // scratch the wire strips; graft that back from the retained original before discarding it.
-            if(auto orig = late_store_.takeRetained(id)) {
-                p->graftOaScratchFrom(**orig);
+            // A late return that carries its own work item is complete except for the
+            // library-owned scratch the wire strips; graft that back from the retained original.
+            // Without a retained original the slot was completed in time (or its original has
+            // outlived the buffer): the frame is a duplicate, and parking it would hand the
+            // algorithm a result it already has.
+            auto orig = late_store_.takeRetained(id);
+            if(not orig) {
+                recordLateDrop_locked(1);
+                return;
             }
+            p->graftOaScratchFrom(**orig);
         }
         if(not late_store_.buffering()) {
             recordLateDrop_locked(1); // buffering off: count the drop, do not hold the item
@@ -741,8 +757,9 @@ private:
         recordLateDrop_locked(late_store_.park(std::move(p)));
     }
 
-    /** @brief Records that @p n late returns were dropped (disabled-buffer arrival, or cap/TTL
-     *  eviction) and warns ONCE so the loss is observable without log spam. Caller holds mtx_.
+    /** @brief Records that @p n late returns were dropped (disabled-buffer arrival, no retained
+     *  original, or cap/TTL eviction) and warns ONCE so the loss is observable without log spam.
+     *  Caller holds mtx_.
      *  @param n The number of late returns just dropped, added to the running total */
     void recordLateDrop_locked(std::uint64_t n) {
         if(n == 0) {
@@ -751,11 +768,12 @@ private:
         late_dropped_count_ += n;
         if(not late_drop_warned_) {
             late_drop_warned_ = true;
-            glogger << "In GNetworkedConsumerT: a late work-item return (a result for a batch that had" << '\n'
-                    << "already finished or timed out) was dropped. These are genuinely-distinct" << '\n'
-                    << "evaluations that arrived too late to be used this round. Enable/enlarge the" << '\n'
-                    << "late-return buffer (setLateReturnBuffer) to retain them for the optimization" << '\n'
-                    << "algorithm to reap; the running drop total is available via lateReturnDroppedCount()." << '\n'
+            glogger << "In GNetworkedConsumerT: a late work-item return (a result for a" << '\n'
+                    << "batch that had already finished or timed out) was dropped. It came" << '\n'
+                    << "too late to be used this round, or it duplicated a result that was" << '\n'
+                    << "used. Enable/enlarge the late-return buffer (setLateReturnBuffer)" << '\n'
+                    << "to retain the late ones for the optimization algorithm to reap; the" << '\n'
+                    << "running drop total is available via lateReturnDroppedCount()." << '\n'
                     << GWARNING;
         }
     }

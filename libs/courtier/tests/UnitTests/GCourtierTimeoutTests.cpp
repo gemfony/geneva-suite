@@ -199,17 +199,24 @@ void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE
     consumer.checkin(std::move(frame));
 }
 
-/** @brief Runs an n-item batch but ABANDONS the victim slot forever (never checks it in). The batch
- *  therefore retires with that slot still MISSING, which -- with the late-return buffer enabled -- makes
- *  the consumer retain a clone of the victim's original (keyed by its correlation id) so a later
- *  payload-only return can be applied to it. The other slots are processed normally (so at least one return is
- *  observed and the give-up window engages). The first (only) dispatch round has batch_id 0, so the
- *  victim slot's correlation id is simply its slot index. */
-void run_abandoning_forever(LateNetConsumer &consumer, std::vector<item_ptr> &batch,
-                            std::size_t victim_stored) {
+/** @brief Runs an n-item batch but ABANDONS the victim slots forever (never checks them in).
+ *  The batch therefore retires with those slots still MISSING, which -- with the late-return
+ *  buffer enabled -- makes the consumer retain a clone of each victim's original (keyed by its
+ *  correlation id) so a later return can be applied to it. The other slots are processed normally
+ *  (so at least one return is observed and the give-up window engages). The first copy handed out
+ *  for each victim is kept, as a slow worker would keep it, and returned unprocessed in the order
+ *  of @p victims; checking it in later is a late return of a slot that had not returned when its
+ *  batch ended. In the first dispatch round the batch_id is 0, so a victim slot's correlation id
+ *  is simply its slot index. */
+std::vector<item_ptr> run_abandoning_forever(
+    LateNetConsumer &consumer,
+    std::vector<item_ptr> &batch,
+    const std::vector<std::size_t> &victims
+) {
     consumer.setLeaseBootstrap(20ms);
     consumer.setLeaseBounds(10ms, 200ms);
     consumer.setSweepTick(5ms);
+    std::vector<item_ptr> slow(victims.size());
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
         consumer.processBatch(std::span<item_ptr>(batch.data(), batch.size()),
@@ -222,13 +229,20 @@ void run_abandoning_forever(LateNetConsumer &consumer, std::vector<item_ptr> &ba
             std::this_thread::sleep_for(1ms);
             continue;
         }
-        if(p->get_stored_number() == victim_stored) {
-            continue; // never check it in -> stays unreturned -> retired MISSING -> retained
+        const auto victim = std::ranges::find(victims, p->get_stored_number());
+        if(victim != victims.end()) {
+            // Never check it in -> stays unreturned -> retired MISSING -> retained
+            auto &held = slow[static_cast<std::size_t>(victim - victims.begin())];
+            if(not held) {
+                held = std::move(p);
+            }
+            continue;
         }
         p->process();
         consumer.checkin(std::move(p));
     }
     worker.join();
+    return slow;
 }
 
 } /* anonymous namespace */
@@ -287,14 +301,20 @@ TEST_CASE("courtier(clone): unresolved slots are refilled from the supplied temp
 /******************************************************************************/
 // Late-return buffer mechanism: a result that arrives after its batch finished/timed out is
 // no longer silently dropped -- with the buffer enabled it is parked (bounded + TTL'd), and every
-// drop (disabled buffer, capacity overflow, TTL expiry) is counted observably.
+// drop (disabled buffer, capacity overflow, TTL expiry) is counted observably. Only the return of a
+// slot that had not returned when its batch ended is parked, so these tests let a batch retire with
+// slots abandoned by a slow worker (run_abandoning_forever) and check in that worker's copies late.
 
 TEST_CASE("courtier(late): a late return for a finished batch is buffered, not silently dropped",
           "[courtier][latereturn]") {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
 
-    deliver_late(consumer, 42, /*corr*/ 0); // no batch active -> a late arrival
+    auto batch = make_batch(3);
+    auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2});
+    REQUIRE(slow[0]);
+    slow[0]->process();
+    consumer.checkin(std::move(slow[0])); // its batch has retired -> a late arrival
 
     CHECK(consumer.lateReturnBufferSize() == 1);   // held for a later getOldWorkItems() to reap
     CHECK(consumer.lateReturnDroppedCount() == 0);  // nothing dropped
@@ -305,15 +325,21 @@ TEST_CASE("courtier(late): getLateReturns() drains the buffer and transfers the 
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
 
-    deliver_late(consumer, 100, 0);
-    deliver_late(consumer, 101, 1);
+    auto batch = make_batch(4);
+    auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2, 1});
+    REQUIRE(slow[0]);
+    REQUIRE(slow[1]);
+    for(auto &late : slow) {
+        late->process();
+        consumer.checkin(std::move(late));
+    }
     REQUIRE(consumer.lateReturnBufferSize() == 2);
 
     auto reaped = consumer.getLateReturns(); // the OA-side getOldWorkItems() drains via this hook
     REQUIRE(reaped.size() == 2);
     CHECK(consumer.lateReturnBufferSize() == 0);             // buffer emptied
-    CHECK(reaped[0]->get_stored_number() == 100);            // FIFO / arrival order preserved
-    CHECK(reaped[1]->get_stored_number() == 101);
+    CHECK(reaped[0]->get_stored_number() == 2);              // FIFO / arrival order preserved
+    CHECK(reaped[1]->get_stored_number() == 1);
     CHECK(consumer.getLateReturns().empty());                // a second drain yields nothing
 }
 
@@ -333,12 +359,27 @@ TEST_CASE("courtier(late): the buffer is capacity-bounded, evicting and counting
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 2, /*ttl_rounds*/ 1000); // large TTL: only capacity evicts here
 
-    deliver_late(consumer, 10, 0);
-    deliver_late(consumer, 11, 1);
-    deliver_late(consumer, 12, 2); // exceeds the cap of 2 -> oldest evicted
+    // Two rounds, because the retained originals are bounded by the same cap of 2.
+    auto first_batch = make_batch(4);
+    auto first_slow = run_abandoning_forever(consumer, first_batch, /*victims*/ {1, 2});
+    for(auto &late : first_slow) {
+        REQUIRE(late);
+        late->process();
+        consumer.checkin(std::move(late));
+    }
+    REQUIRE(consumer.lateReturnBufferSize() == 2);
+    auto second_batch = make_batch(3);
+    auto second_slow = run_abandoning_forever(consumer, second_batch, /*victims*/ {1});
+    REQUIRE(second_slow[0]);
+    second_slow[0]->process();
+    consumer.checkin(std::move(second_slow[0])); // exceeds the cap of 2 -> oldest evicted
 
     CHECK(consumer.lateReturnBufferSize() == 2);
     CHECK(consumer.lateReturnDroppedCount() == 1);
+    auto reaped = consumer.getLateReturns();
+    REQUIRE(reaped.size() == 2);
+    CHECK(reaped[0]->get_stored_number() == 2); // the first round's slot 1 was the oldest
+    CHECK(reaped[1]->get_stored_number() == 1);
 }
 
 TEST_CASE("courtier(late): a buffered entry is evicted once it ages past its TTL in rounds",
@@ -346,13 +387,17 @@ TEST_CASE("courtier(late): a buffered entry is evicted once it ages past its TTL
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 100, /*ttl_rounds*/ 2); // TTL of 2 dispatch rounds
 
-    deliver_late(consumer, 7, 0);                 // buffered at epoch 0
+    auto batch = make_batch(3);
+    auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2}); // epoch -> 1
+    REQUIRE(slow[0]);
+    slow[0]->process();
+    consumer.checkin(std::move(slow[0])); // buffered at epoch 1
     REQUIRE(consumer.lateReturnBufferSize() == 1);
 
-    run_full_batch(consumer, 1);                  // epoch -> 1: age 1 < 2, still held
+    run_full_batch(consumer, 1); // epoch -> 2: age 1 < 2, still held
     CHECK(consumer.lateReturnBufferSize() == 1);
 
-    run_full_batch(consumer, 1);                  // epoch -> 2: age 2 >= 2, evicted on the retire sweep
+    run_full_batch(consumer, 1); // epoch -> 3: age 2 >= 2, evicted on retiring
     CHECK(consumer.lateReturnBufferSize() == 0);
     CHECK(consumer.lateReturnDroppedCount() == 1);
 }
@@ -373,7 +418,7 @@ TEST_CASE("courtier(late): a payload-only late return is applied to a retained o
     // Abandon slot 2 forever: the batch retires with it MISSING, so its original (stored id 2) is retained
     // under its correlation id (slot index, batch_id 0).
     auto batch = make_batch(3);
-    run_abandoning_forever(consumer, batch, /*victim_stored*/ 2);
+    run_abandoning_forever(consumer, batch, /*victims*/ {2});
     REQUIRE(consumer.retainedOriginalCount() == 1); // the un-returned original was retained
 
     // The slow worker's result finally arrives carrying only a payload, no work item. It must be applied
@@ -416,7 +461,7 @@ TEST_CASE("courtier(late): a retained original ages out of the retention store p
     // Abandon slot 2 forever so the batch retires with it MISSING -> its original is retained (as in the
     // applied case above), but here the slow worker NEVER returns a result to apply.
     auto batch = make_batch(3);
-    run_abandoning_forever(consumer, batch, /*victim_stored*/ 2);
+    run_abandoning_forever(consumer, batch, /*victims*/ {2});
     REQUIRE(consumer.retainedOriginalCount() == 1);
 
     // Advance the dispatch-round epoch well past the TTL. With no payload-only return ever arriving, the
@@ -426,6 +471,78 @@ TEST_CASE("courtier(late): a retained original ages out of the retention store p
     }
     CHECK(consumer.retainedOriginalCount() == 0); // aged out, not retained forever
     CHECK(consumer.lateReturnBufferSize() == 0);   // no result ever arrived, so nothing was buffered
+}
+
+/******************************************************************************/
+// A late return is parked only for a slot that had not returned when its batch ended. A second copy
+// of a result whose slot was completed in time is a duplicate: it is dropped and counted, never
+// handed to the algorithm as an extra work item.
+/******************************************************************************/
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- two linear sections; the count comes from the assertion macros
+TEST_CASE(
+    "courtier(late): a late duplicate of a result that was completed in time is not parked",
+    "[courtier][latereturn]"
+) {
+    LateNetConsumer consumer;
+    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on
+
+    SECTION("a second copy of a completed slot's result is dropped and counted") {
+        auto batch = make_batch(2);
+        item_ptr kept_item;
+        c2::GProcessingOutcome kept_outcome;
+        std::atomic<bool> finished{false};
+        std::jthread worker([&] {
+            consumer.processBatch(
+                std::span<item_ptr>(batch.data(), batch.size()),
+                c2::GSubmissionPolicy::full_success_or_fatal()
+            );
+            finished.store(true);
+        });
+        while(not finished.load()) {
+            auto p = consumer.checkout();
+            if(not p) {
+                std::this_thread::sleep_for(1ms);
+                continue;
+            }
+            p->process();
+            if(not kept_item) {
+                // A deep copy of the first returned item and its outcome, to send the result twice
+                kept_item = std::make_unique<GFaultyContainer>(*p);
+                kept_outcome = p->processingOutcome();
+            }
+            consumer.checkin(std::move(p));
+        }
+        worker.join();
+        REQUIRE(kept_item);
+        REQUIRE(count_processed(batch) == 2);
+        REQUIRE(consumer.retainedOriginalCount() == 0); // both slots returned in time
+        const auto dropped_before = consumer.lateReturnDroppedCount();
+
+        // The same result arrives again, carrying its item, after its batch has ended.
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        frame.setOutcome(kept_outcome);
+        frame.setItem(std::move(kept_item));
+        consumer.checkin(std::move(frame));
+
+        CHECK(consumer.lateReturnBufferSize() == 0);
+        CHECK(consumer.lateReturnDroppedCount() == dropped_before + 1);
+    }
+
+    SECTION("control: the late return of a slot that had not returned is parked") {
+        auto batch = make_batch(3);
+        auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2});
+        REQUIRE(slow.size() == 1);
+        REQUIRE(slow[0]);
+        REQUIRE(consumer.retainedOriginalCount() == 1);
+
+        slow[0]->process();
+        consumer.checkin(std::move(slow[0]));
+
+        CHECK(consumer.lateReturnBufferSize() == 1);
+        CHECK(consumer.lateReturnDroppedCount() == 0);
+        CHECK(consumer.retainedOriginalCount() == 0);
+    }
 }
 
 /******************************************************************************/
