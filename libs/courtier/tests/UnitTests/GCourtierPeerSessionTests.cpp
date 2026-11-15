@@ -1,0 +1,516 @@
+/********************************************************************************
+ *
+ * This file is part of the Geneva library collection. The following license
+ * applies to this file:
+ *
+ * ------------------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ------------------------------------------------------------------------------
+ *
+ * Note that other files in the Geneva library collection may use a different
+ * license. Please see the licensing information in each file.
+ *
+ ********************************************************************************
+ *
+ * See the NOTICE file in the top-level directory of the Geneva library
+ * collection for a list of contributors and copyright information.
+ *
+ ********************************************************************************/
+
+// The server's session over any peer (GPeerSessionT), on the in-process transport: the session
+// against a stand-in for the consumer (the hooks), with a test role at the client's end.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
+
+#include "GInProcessPeer.hpp"
+#include "GInProcessTestSupport.hpp"
+#include "courtier/GCommandContainerT.hpp"
+#include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GServerSessionLogic.hpp"
+#include "courtier/GWireCodec.hpp"
+#include "courtier/GWireSerializationContext.hpp"
+#include "courtier/transport/GPeerI.hpp"
+#include "courtier/transport/GPeerSessionT.hpp"
+
+using Gem::Courtier::GCheckoutResult;
+using Gem::Courtier::GCommandContainerT;
+using Gem::Courtier::GFaultyContainer;
+using Gem::Courtier::GFrameKind;
+using Gem::Courtier::GWakeFn;
+using Gem::Courtier::GWireBlobId;
+using Gem::Courtier::GWireBlobRegistry;
+using Gem::Courtier::GWirePeerId;
+using Gem::Courtier::Consumers::GPeerClose;
+using Gem::Courtier::Consumers::GPeerEnd;
+using Gem::Courtier::Consumers::GPeerHandlers;
+using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::closeName;
+using Gem::Courtier::Tests::endName;
+using Gem::Courtier::Tests::GInProcessPeer;
+using Gem::Courtier::Tests::IoThreads;
+using namespace std::chrono_literals;
+
+namespace {
+
+constexpr auto PATIENCE = 5s;    // how long a test waits for something that is due at once
+constexpr auto QUIET = 300ms;    // how long a test watches for something that must not come
+constexpr auto CLOSE_GRACE = 1s; // the ends' wait for an acknowledgement
+constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
+
+using session_type = Gem::Courtier::Consumers::GPeerSessionT<GFaultyContainer>;
+
+/** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
+template <typename Condition>
+bool eventually(Condition condition) {
+    return Gem::Courtier::Tests::eventually(condition, PATIENCE);
+}
+
+/******************************************************************************/
+/**
+ * A stand-in for the consumer: a list of item numbers that are pending, the wake functions of the
+ * parked sessions, and the hooks of each session. Like GNetworkedConsumerT it wakes as many parked
+ * callers as items became available, skipping one that is gone, and a session's lease puts back
+ * what the session held when the session goes.
+ */
+class FakeConsumer {
+public:
+    /** @brief Makes items available and wakes the parked sessions for them
+     *  @param numbers The numbers of the items */
+    void offer(const std::vector<std::size_t> &numbers) {
+        {
+            const std::scoped_lock lock(mutex_);
+            for(auto number : numbers) {
+                pending_.push_back(number);
+            }
+        }
+        this->wake_(numbers.size());
+    }
+
+    /** @brief Stops the consumer and wakes every parked session, as requestStop() does */
+    void stop() {
+        std::size_t n_parked = 0;
+        {
+            const std::scoped_lock lock(mutex_);
+            stopped_ = true;
+            n_parked = parked_.size();
+        }
+        this->wake_(n_parked);
+    }
+
+    /** @brief @return The hooks of one session */
+    session_type::SessionHooks hooks() {
+        auto lease = std::make_shared<Lease>(*this);
+        return session_type::SessionHooks{
+            .getPayloadItem =
+                [this, lease](GWakeFn wake) {
+                    GCheckoutResult<GFaultyContainer> result;
+                    const std::scoped_lock lock(mutex_);
+                    if(stopped_) {
+                        return result;
+                    }
+                    if(pending_.empty()) {
+                        parked_.push_back(std::move(wake));
+                        result.parked = true;
+                        return result;
+                    }
+                    const std::size_t number = pending_.front();
+                    pending_.pop_front();
+                    lease->held.insert(number);
+                    result.item = std::make_unique<GFaultyContainer>(number);
+                    result.item->setCorrelationId(number);
+                    return result;
+                },
+            .putPayloadItem =
+                [this, lease](GCommandContainerT<GFaultyContainer> frame) {
+                    const std::scoped_lock lock(mutex_);
+                    lease->held.erase(frame.outcome().correlation_id);
+                    ++n_checked_in_;
+                },
+            .abandonItems = [lease] { lease->giveBack(); },
+            .checkServerStopped =
+                [this] {
+                    const std::scoped_lock lock(mutex_);
+                    return stopped_;
+                },
+            .serverSignOn = [this](bool on) { n_sessions_.fetch_add(on ? 1 : -1); },
+        };
+    }
+
+    /** @brief @return How many sessions are signed on */
+    [[nodiscard]] int nSessions() const {
+        return n_sessions_.load();
+    }
+    /** @brief @return How many sessions are parked */
+    [[nodiscard]] std::size_t nParked() const {
+        const std::scoped_lock lock(mutex_);
+        return parked_.size();
+    }
+    /** @brief @return How many results have been checked in */
+    [[nodiscard]] std::size_t nCheckedIn() const {
+        const std::scoped_lock lock(mutex_);
+        return n_checked_in_;
+    }
+    /** @brief @return How many items are pending */
+    [[nodiscard]] std::size_t nPending() const {
+        const std::scoped_lock lock(mutex_);
+        return pending_.size();
+    }
+
+private:
+    /** @brief What one session holds; put back when the session's hooks go */
+    struct Lease {
+        explicit Lease(FakeConsumer &consumer)
+          : consumer_(consumer) { /* nothing */
+        }
+        ~Lease() {
+            this->giveBack();
+        }
+        Lease(const Lease &) = delete;
+        Lease(Lease &&) = delete;
+        Lease &operator=(const Lease &) = delete;
+        Lease &operator=(Lease &&) = delete;
+
+        /** @brief Puts back every item held */
+        void giveBack() {
+            std::vector<std::size_t> numbers;
+            {
+                const std::scoped_lock lock(consumer_.mutex_);
+                numbers.assign(held.begin(), held.end());
+                held.clear();
+            }
+            if(not numbers.empty()) {
+                consumer_.offer(numbers);
+            }
+        }
+
+        std::set<std::size_t> held; ///< Under the consumer's mutex
+
+    private:
+        FakeConsumer &consumer_; ///< Outlives every session
+    };
+
+    /** @brief Wakes up to @p n parked sessions, skipping those that are gone @param n How many */
+    void wake_(std::size_t n) {
+        while(n > 0) {
+            GWakeFn wake;
+            {
+                const std::scoped_lock lock(mutex_);
+                if(parked_.empty()) {
+                    return;
+                }
+                wake = std::move(parked_.front());
+                parked_.pop_front();
+            }
+            if(wake()) {
+                --n;
+            }
+        }
+    }
+
+    mutable std::mutex mutex_;
+    std::deque<std::size_t> pending_; ///< Items that can be checked out
+    std::deque<GWakeFn> parked_;      ///< Wake functions of parked sessions, oldest first
+    bool stopped_ = false;
+    std::size_t n_checked_in_ = 0;
+    std::atomic<int> n_sessions_{0};
+};
+
+/******************************************************************************/
+/** @brief The client's end of a session's connection: sends frames, records what arrives. */
+class ClientEnd : public std::enable_shared_from_this<ClientEnd> {
+public:
+    /** @brief Starts @p peer for this end @param peer The client's end of the pair */
+    void start(const std::shared_ptr<GPeerI> &peer) {
+        peer_ = peer;
+        auto self = this->shared_from_this();
+        peer->start(
+            GPeerHandlers{
+                .onOpen = {},
+                .onMessage =
+                    [self](std::string &&message) {
+                        const std::string bytes{std::move(message)};
+                        GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+                        Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+                        const std::scoped_lock lock(self->mutex_);
+                        self->kinds_.push_back(frame.kind());
+                    },
+                .onClosed =
+                    [self](GPeerEnd end, GPeerClose how, std::string_view) {
+                        const std::scoped_lock lock(self->mutex_);
+                        self->closed_ = endName(end) + ":" + closeName(how);
+                    },
+            }
+        );
+    }
+
+    /** @brief Sends a frame of the given kind (on the peer's executor) @param kind Its kind */
+    void send(GFrameKind kind) {
+        GCommandContainerT<GFaultyContainer> frame{kind};
+        if(kind == GFrameKind::RETURN || kind == GFrameKind::RESULT) {
+            frame.reset(kind, std::make_unique<GFaultyContainer>(0));
+        }
+        std::string bytes = Gem::Courtier::wireEncode(frame, nullptr, BIN);
+        if(auto peer = peer_.lock()) {
+            boost::asio::post(peer->executor(), [peer, bytes = std::move(bytes)]() mutable {
+                peer->send(std::move(bytes));
+            });
+        }
+    }
+
+    /** @brief Closes this end @param how What the session is told */
+    void close(GPeerClose how) {
+        if(auto peer = peer_.lock()) {
+            peer->close(how);
+        }
+    }
+
+    /** @brief @param kind A frame kind @return How many frames of it have arrived */
+    [[nodiscard]] std::size_t count(GFrameKind kind) const {
+        const std::scoped_lock lock(mutex_);
+        std::size_t n = 0;
+        for(auto k : kinds_) {
+            n += (k == kind) ? 1 : 0;
+        }
+        return n;
+    }
+    /** @brief @return How many frames have arrived */
+    [[nodiscard]] std::size_t nFrames() const {
+        const std::scoped_lock lock(mutex_);
+        return kinds_.size();
+    }
+    /** @brief @return "<end>:<how>" once the connection has ended, empty before */
+    [[nodiscard]] std::string closed() const {
+        const std::scoped_lock lock(mutex_);
+        return closed_;
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::vector<GFrameKind> kinds_; ///< The kinds of the frames that arrived, in order
+    std::string closed_;            ///< How the connection ended
+    std::weak_ptr<GPeerI> peer_;    ///< The client's end, weakly (rule 4)
+};
+
+/******************************************************************************/
+/** @brief One session and its client, on the given executors */
+struct Connection {
+    std::shared_ptr<ClientEnd> client = std::make_shared<ClientEnd>(); ///< The client's role
+    std::shared_ptr<GPeerI> clientPeer; ///< Held by the test so that it can be closed
+    std::weak_ptr<GPeerI> serverPeer;   ///< The session's end
+};
+
+/**
+ * @brief Starts a session for a new in-process connection.
+ * @param consumer The stand-in for the consumer
+ * @param server_executor Where the session runs
+ * @param client_executor Where the client's end runs
+ * @param registry The blob registry, or nullptr
+ * @param peer_id The connection's id in the registry
+ * @return The connection
+ */
+Connection connect(
+    FakeConsumer &consumer,
+    const boost::asio::any_io_executor &server_executor,
+    const boost::asio::any_io_executor &client_executor,
+    GWireBlobRegistry *registry = nullptr,
+    GWirePeerId peer_id = 1
+) {
+    auto [server_end, client_end] =
+        GInProcessPeer::makePair(server_executor, {}, client_executor, {}, CLOSE_GRACE);
+    Connection connection;
+    connection.clientPeer = client_end;
+    connection.serverPeer = server_end;
+    std::make_shared<session_type>(consumer.hooks(), BIN, registry, peer_id)->start(server_end);
+    connection.client->start(client_end);
+    return connection;
+}
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+/**
+ * A session that cannot serve a request is parked; woken for items, it answers every request it
+ * owes.
+ */
+TEST_CASE(
+    "GPeerSessionT: the requests a parked session owes are answered when it is woken",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        connection.client->send(GFrameKind::PULL);
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return consumer.nParked() == 1; }));
+        CHECK(connection.client->nFrames() == 0);
+
+        consumer.offer({1, 2});
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
+        CHECK(connection.client->nFrames() == 2);
+        CHECK(consumer.nPending() == 0);
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * A wake-up stands for an item. A session woken after its connection has ended still takes the
+ * item and gives it back when it goes, which wakes the next parked session: no item is lost and
+ * no session waits for an item that is there.
+ */
+TEST_CASE(
+    "GPeerSessionT: a session woken after its connection ended passes its item on",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    // The sessions run on a context this test drives itself, so that the order of their handlers
+    // is known: the close of the first connection is handled before its wake-up. The client's
+    // threads are joined before that context goes.
+    boost::asio::io_context server_ctx;
+    IoThreads client;
+    auto first = connect(consumer, server_ctx.get_executor(), client.executor(), nullptr, 1);
+    auto second = connect(consumer, server_ctx.get_executor(), client.executor(), nullptr, 2);
+
+    const auto drive_until = [&](auto condition) {
+        const auto give_up_at = std::chrono::steady_clock::now() + PATIENCE;
+        while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
+            server_ctx.restart();
+            server_ctx.run_for(5ms);
+        }
+        return condition();
+    };
+
+    first.client->send(GFrameKind::PULL);
+    REQUIRE(drive_until([&] { return consumer.nParked() == 1; }));
+    second.client->send(GFrameKind::PULL);
+    REQUIRE(drive_until([&] { return consumer.nParked() == 2; }));
+
+    // The first client closes; its close waits on the sessions' context, not handled yet.
+    first.client->close(GPeerClose::NORMAL);
+    std::atomic<bool> close_sent{false};
+    boost::asio::post(first.clientPeer->executor(), [&] { close_sent.store(true); });
+    REQUIRE(eventually([&] { return close_sent.load(); }));
+
+    // One item: the first session, parked longest, is woken for it, behind its close.
+    consumer.offer({7});
+    CHECK(consumer.nParked() == 1);
+
+    REQUIRE(drive_until([&] { return second.client->count(GFrameKind::WORK) == 1; }));
+    CHECK(first.client->nFrames() == 0);
+    CHECK(consumer.nPending() == 0);
+    CHECK(consumer.nSessions() == 1);
+
+    second.client->close(GPeerClose::NORMAL);
+    REQUIRE(drive_until([&] { return consumer.nSessions() == 0; }));
+    // Nothing of the sessions may outlive the context they ran on
+    server_ctx.restart();
+    server_ctx.run_for(QUIET);
+}
+
+/******************************************************************************/
+/** A RESULT is checked in and asks for nothing: one PULL after it is answered once. */
+TEST_CASE("GPeerSessionT: a RESULT is checked in and owes nothing", "[courtier][peer][session]") {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        consumer.offer({1, 2});
+        connection.client->send(GFrameKind::RESULT);
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) >= 1; }));
+        REQUIRE(eventually([&] { return consumer.nCheckedIn() == 1; }));
+        std::this_thread::sleep_for(QUIET);
+        CHECK(connection.client->count(GFrameKind::WORK) == 1);
+        CHECK(consumer.nPending() == 1);
+
+        // A RETURN is checked in and, like a PULL, is answered.
+        connection.client->send(GFrameKind::RETURN);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
+        CHECK(consumer.nCheckedIn() == 2);
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * When the server stops, a session that owes answers does not give them: it closes its connection
+ * with the word that the run has ended, and sends no NO_WORK.
+ */
+TEST_CASE(
+    "GPeerSessionT: at the stop a session with owed requests closes with RUN_ENDED",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        connection.client->send(GFrameKind::PULL);
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return consumer.nParked() == 1; }));
+
+        consumer.stop();
+        REQUIRE(eventually([&] { return not connection.client->closed().empty(); }));
+        CHECK(connection.client->closed() == "CLOSED_THERE:RUN_ENDED");
+        CHECK(connection.client->nFrames() == 0);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/** A session forgets its client's blob state, and signs off, when it goes. */
+TEST_CASE(
+    "GPeerSessionT: a session releases the blob state of its client in its destructor",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    GWireBlobRegistry registry;
+    const GWireBlobId blob{17, 4};
+    constexpr GWirePeerId PEER = 5;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor(), &registry, PEER);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 1; }));
+        registry.markPeerHasBlob(PEER, blob);
+        REQUIRE(registry.peerHasBlob(PEER, blob));
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+        CHECK_FALSE(registry.peerHasBlob(PEER, blob));
+    }
+}

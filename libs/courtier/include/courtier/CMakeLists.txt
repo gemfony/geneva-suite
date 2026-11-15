@@ -69,6 +69,7 @@ SET ( TRANSPORT_INCLUDES
     transport/GAsioTransportT.hpp
     transport/GIoContext.hpp
     transport/GPeerI.hpp
+    transport/GPeerSessionT.hpp
     transport/GPrefetchingClientT.hpp
     transport/GWebsocketPeer.hpp
     transport/GWebsocketTransportT.hpp

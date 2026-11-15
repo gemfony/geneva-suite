@@ -90,7 +90,10 @@ geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
 geneva_courtier_test(GCourtierWebsocketPeerTests M  GCourtierWebsocketPeerTests.cpp)
 # The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
 # directory, used by later tests of the roles as their transport)
-geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp)
+geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
+	GInProcessTestSupport.hpp)
+geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp GInProcessPeer.hpp
+	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six

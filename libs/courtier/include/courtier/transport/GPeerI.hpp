@@ -67,13 +67,20 @@
  *  2. **One executor, serialized.** send(), abort() and setOwnerBusy() are called on the peer's
  *     executor; close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
- *     after start() has returned is ordered after that work.
+ *     after start() has returned is ordered after that work. On a server the handlers run on the
+ *     executor the shell hands to the listener, and the transport moves the bytes on threads of
+ *     its own: a session may take any time in a handler without its connection, or another,
+ *     falling silent. A client's handlers run on the executor given to the connector, which the
+ *     transport shares: a client keeps its handlers short (GPrefetchingClientT encodes and
+ *     decodes on its compute pool).
  *  3. **No handler runs inside a call** of GPeerI, abort() excepted (see there). A failure found in
  *     send() is posted to the executor, not reported inline: the role's member function that
  *     called send() is still on the stack.
  *  4. **Ownership.** Pending work on the executor owns the peer; the peer owns the role through
  *     its handlers and drops them after onClosed; the role refers to the peer weakly. A peer keeps
- *     its executor's context busy (it has work pending there) from start() until it has ended.
+ *     its executor's context busy (it has work pending there) from start() until it has ended,
+ *     also when the transport works on threads of its own (it holds work on the handlers'
+ *     context, as GWebsocketPeer does).
  *  5. **onClosed at most once**, and exactly once while the executor runs. A peer whose pending
  *     work is discarded with its context ends without it. A role therefore releases what it holds
  *     in its destructor, never in onClosed.
@@ -81,10 +88,13 @@
  *     reach the other end, in order, before the close does; what the close says (GPeerClose)
  *     reaches the other end too. After close() a send() is dropped and nothing more is delivered
  *     to the role. abort() is the exception: it ends at once and may cut what has not been sent.
- *  7. **The transport's own work** (an accept loop, a poll: whatever it runs besides its peers)
- *     ends with GListenerI::endWork() on the server and with the destruction of the GConnectorI on
- *     the client; both happen when no handler runs any more, and before the executor's context is
- *     destroyed.
+ *  7. **The transport's own work** (an accept loop, a poll, its I/O threads: whatever it runs
+ *     besides its peers' handlers) ends with GListenerI::endWork() on the server and with the
+ *     destruction of the GConnectorI on the client; both happen when no handler runs any more, and
+ *     before the executor's context is destroyed. endWork() stops and joins the transport's
+ *     threads and shuts its I/O context down (GIoContext::shutdown(): the pending handlers go,
+ *     the context stays); the listener, and its context with it, is destroyed after the shell's
+ *     context.
  *  8. **The end of a run belongs to the process, not to a session.** The server's shell tells
  *     every peer that has not ended that the run is over (close(GPeerClose::RUN_ENDED)) and waits,
  *     at most GListenerI::stopGrace(), until they have ended. GListenerI::stop() only means "no new

@@ -53,6 +53,7 @@
 #include <boost/asio/strand.hpp>
 
 #include "GInProcessPeer.hpp"
+#include "GInProcessTestSupport.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 using Gem::Courtier::GWirePeerId;
@@ -60,17 +61,25 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::closeName;
+using Gem::Courtier::Tests::endName;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessPeer;
+using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
 
 namespace {
 
 constexpr auto PATIENCE = 5s;       // how long a test waits for something that is due at once
 constexpr auto CLOSE_GRACE = 300ms; // the ends' wait for an acknowledgement, where it matters
-constexpr std::size_t N_IO_THREADS = 4;
+
+/** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
+template <typename Condition>
+bool eventually(Condition condition) {
+    return Gem::Courtier::Tests::eventually(condition, PATIENCE);
+}
 
 /** @brief @return How deep this thread is inside calls of GPeerI made by a role (rule 3) */
 int &inPeerCall() {
@@ -91,79 +100,6 @@ struct InPeerCall {
     InPeerCall &operator=(const InPeerCall &) = delete;
     InPeerCall &operator=(InPeerCall &&) = delete;
 };
-
-/** @brief An io context with a few threads; stops and joins them when it goes */
-class IoThreads {
-public:
-    /** @brief @param n_threads How many threads run the context */
-    explicit IoThreads(std::size_t n_threads = N_IO_THREADS) {
-        for(std::size_t i = 0; i < n_threads; ++i) {
-            threads_.emplace_back([this] { ctx_.run(); });
-        }
-    }
-    ~IoThreads() {
-        guard_.reset();
-        ctx_.stop();
-        threads_.clear(); // joins
-    }
-    IoThreads(const IoThreads &) = delete;
-    IoThreads(IoThreads &&) = delete;
-    IoThreads &operator=(const IoThreads &) = delete;
-    IoThreads &operator=(IoThreads &&) = delete;
-
-    /** @brief @return The executor of the context */
-    boost::asio::any_io_executor executor() {
-        return ctx_.get_executor();
-    }
-
-private:
-    boost::asio::io_context ctx_;
-    boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard_ =
-        boost::asio::make_work_guard(ctx_);
-    std::vector<std::jthread> threads_;
-};
-
-/** @brief Polls @p condition until it holds or @p patience has passed
- *  @return Whether the condition held in time */
-template <typename Condition>
-bool eventually(Condition condition, std::chrono::milliseconds patience = PATIENCE) {
-    const auto give_up_at = std::chrono::steady_clock::now() + patience;
-    while(std::chrono::steady_clock::now() < give_up_at) {
-        if(condition()) {
-            return true;
-        }
-        std::this_thread::sleep_for(1ms);
-    }
-    return condition();
-}
-
-/** @brief @param end Why a connection ended @return Its name */
-std::string endName(GPeerEnd end) {
-    switch(end) {
-    case GPeerEnd::CLOSED_HERE:
-        return "CLOSED_HERE";
-    case GPeerEnd::CLOSED_THERE:
-        return "CLOSED_THERE";
-    case GPeerEnd::SILENT:
-        return "SILENT";
-    case GPeerEnd::FAILED:
-        return "FAILED";
-    }
-    return "?";
-}
-
-/** @brief @param how What a close said @return Its name */
-std::string closeName(GPeerClose how) {
-    switch(how) {
-    case GPeerClose::NORMAL:
-        return "NORMAL";
-    case GPeerClose::ERROR:
-        return "ERROR";
-    case GPeerClose::RUN_ENDED:
-        return "RUN_ENDED";
-    }
-    return "?";
-}
 
 /**
  * A role for the tests: records what its peer tells it ("open", "msg:<text>",
