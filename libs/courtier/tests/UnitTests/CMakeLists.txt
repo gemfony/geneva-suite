@@ -231,6 +231,18 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			LABELS "courtier" PROCESSORS 3 TIMEOUT 60)
 	GENEVA_TEST_SIZE(GCourtierMpiItemProcessorTest M)
 
+	# The binding of the MPI transport's calls to MPI (GMPICalls, courtier's MPI library) on two ranks:
+	# messages of three tags and lengths arrive in order, every send completes, a send is given up.
+	ADD_EXECUTABLE(GCourtierMpiCallsExerciser GCourtierMpiCallsExerciser.cpp)
+	TARGET_LINK_LIBRARIES(GCourtierMpiCallsExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME} MPI::MPI_CXX)
+	INSTALL(TARGETS GCourtierMpiCallsExerciser
+			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
+	ADD_TEST(NAME GCourtierMpiCallsTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS})
+	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
+	GENEVA_TEST_SIZE(GCourtierMpiCallsTest M)
+
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
 	ADD_EXECUTABLE(GCourtierMpiLargePayloadExerciser GCourtierMpiLargePayloadExerciser.cpp)
