@@ -479,6 +479,10 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     auto batch = make_tagged_batch(0, 1);
     std::atomic<bool> done{false};
     auto submitter = submit(consumer, batch, done);
+    // The parked callers count into these. They are declared before stop_at_end: its stop wakes
+    // the caller that is still parked at the end, and that must find its counter alive.
+    std::atomic<int> woken{0};
+    std::atomic<int> second_woken{0};
     const GStopAtEnd stop_at_end(consumer);
 
     // The first caller takes the only item and then loses its client. (It waits for the batch
@@ -490,7 +494,6 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
         return static_cast<bool>(first);
     }));
 
-    std::atomic<int> woken{0};
     const auto parked_caller = consumer.checkoutOrPark([&woken] {
         ++woken;
         return true;
@@ -498,7 +501,6 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     REQUIRE(parked_caller.parked);
     CHECK(woken.load() == 0);
 
-    std::atomic<int> second_woken{0};
     const auto second_caller = consumer.checkoutOrPark([&second_woken] {
         ++second_woken;
         return true;
