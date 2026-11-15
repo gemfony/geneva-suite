@@ -282,7 +282,10 @@ void runMatrix(double budget_s) {
 
 /******************************************************************************/
 
-TEST_CASE("OA benchmark: high-dimensional synthetic functions, equal time budget", "[.oabench]") {
+TEST_CASE(
+    "OA benchmark: high-dimensional synthetic functions with an equal time budget",
+    "[.oabench]"
+) {
     const char *budget_env = std::getenv("GBENCH_BUDGET");
     const double BUDGET = (budget_env != nullptr) ? std::atof(budget_env) : 5.0; // seconds per algorithm per problem
 

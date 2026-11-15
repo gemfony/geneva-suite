@@ -162,7 +162,7 @@ TEST_CASE("Module loader: both kinds served", "[common][moduleloader]") {
 }
 
 TEST_CASE(
-    "Module loader: good first, bad second -- no handler for the second kind",
+    "Module loader: good first and bad second -- no handler for the second kind",
     "[common][moduleloader]"
 ) {
     Recorder recorder;
@@ -186,7 +186,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Module loader: good first, bad second -- the second's check refuses",
+    "Module loader: good first and bad second -- the second's check refuses",
     "[common][moduleloader]"
 ) {
     Recorder recorder;
@@ -318,7 +318,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Module compat gate rejects a mismatched toolchain, naming the axis",
+    "Module compat gate rejects a mismatched toolchain and names the axis",
     "[common][moduleloader][compat]"
 ) {
     using Gem::Common::moduleCompatMismatch;

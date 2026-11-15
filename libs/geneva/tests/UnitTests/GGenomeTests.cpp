@@ -1502,7 +1502,10 @@ std::vector<double> valuesOf(ManyGroups &ind) {
 } // namespace
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: first item carries the layout, later items only the id", "[flat][wire]") {
+TEST_CASE(
+    "Wire send-once: first item carries the layout while later items carry only the id",
+    "[flat][wire]"
+) {
     using mode = Gem::Common::serializationMode;
 
     ManyGroups a(64);

@@ -636,8 +636,10 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (array form): missing opti
 // updateConfigFile: the update-in-place contract (drop stale keys, preserve
 // existing values, add newly-registered keys with defaults).
 
-TEST_CASE("GParserBuilder::updateConfigFile drops stale keys, preserves values, defaults new keys",
-          "[common][parser-builder]") {
+TEST_CASE(
+    "GParserBuilder::updateConfigFile drops stale keys and keeps values while defaulting new keys",
+    "[common][parser-builder]"
+) {
     namespace json = boost::json;
     auto cfg = scratch("update_inplace");
     std::filesystem::remove(cfg);
@@ -752,8 +754,11 @@ TEST_CASE("GParserBuilder: a multi-element vector round-trips as a JSON array (n
 // numbers / bools (not quoted strings), while a config hand-written in the earlier
 // all-strings form still loads (back-compat of the read path).
 
-TEST_CASE("GParserBuilder: arithmetic and bool scalars write as native JSON, old string form still reads",
-          "[common][parser-builder][regression]") {
+TEST_CASE(
+    "GParserBuilder: arithmetic and bool scalars write as native JSON and the old string form "
+    "still reads",
+    "[common][parser-builder][regression]"
+) {
     namespace json = boost::json;
     auto cfg = scratch("native_scalars");
     std::filesystem::remove(cfg);
@@ -815,8 +820,10 @@ TEST_CASE("GParserBuilder: arithmetic and bool scalars write as native JSON, old
 // conversion of "1" reads the character '1' (49) rather than the number 1; the scalar
 // helpers widen it so the numeric value survives, in both the native and the string form.
 
-TEST_CASE("GParserBuilder: a uint8_t scalar round-trips by value, not as a character",
-          "[common][parser-builder][regression]") {
+TEST_CASE(
+    "GParserBuilder: a uint8_t scalar round-trips by value and not as a character",
+    "[common][parser-builder][regression]"
+) {
     namespace json = boost::json;
     auto cfg = scratch("uint8_roundtrip");
     std::filesystem::remove(cfg);

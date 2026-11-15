@@ -53,7 +53,10 @@ TEST_CASE("GLoadOnceCellT: non-copyable and non-movable", "[common][cell]") {
 // ---------------------------------------------------------------------------
 // Externally-filled flavour: ensureLoaded() + loaded() + get()
 
-TEST_CASE("GLoadOnceCellT: fills once, reads immutably, refuses read-before-load", "[common][cell]") {
+TEST_CASE(
+    "GLoadOnceCellT: fills once and reads immutably but refuses a read before the load",
+    "[common][cell]"
+) {
     GLoadOnceCellT<std::vector<double>> cell;
 
     CHECK_FALSE(cell.loaded());

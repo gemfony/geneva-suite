@@ -753,6 +753,15 @@ IF (GENEVA_BUILD_TESTS)
 	)
 	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
+
+	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
+	ADD_TEST(
+		NAME TestCaseNamesSelectable
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckTestCaseNames.cmake
+	)
+	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
 ENDIF ()
 
 # Tests / examples / benchmarks are gated and dispatched inside each library's

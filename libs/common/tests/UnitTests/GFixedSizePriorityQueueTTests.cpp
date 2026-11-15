@@ -367,7 +367,7 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "GFixedSizePriorityQueueT: setMaxSize trims to the new bound, keeping the best",
+    "GFixedSizePriorityQueueT: setMaxSize trims to the new bound and keeps the best",
     "[common][priority-queue]",
     GFSPQ_ALL_HOLDERS
 ) {
@@ -622,8 +622,10 @@ TEMPLATE_TEST_CASE(
 // ---------------------------------------------------------------------------
 // Value storage
 
-TEST_CASE("GFixedSizePriorityQueueT<POD>: values are copied in, never aliased",
-          "[common][priority-queue][pod]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<POD>: values are copied in and never aliased",
+    "[common][priority-queue][pod]"
+) {
     PodPQ pq(5);
     double v = 2.5;
     pq.addClone(v);
@@ -647,8 +649,10 @@ TEST_CASE("GFixedSizePriorityQueueT<POD>: equal values are never deduplicated",
 // ---------------------------------------------------------------------------
 // Shared storage
 
-TEST_CASE("GFixedSizePriorityQueueT<shared_ptr>: addClone stores a copy, add co-owns the original",
-          "[common][priority-queue][shared]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<shared_ptr>: addClone stores a copy while add co-owns the original",
+    "[common][priority-queue][shared]"
+) {
     SharedPQ pq(5);
 
     SECTION("addClone leaves the caller's object untouched") {
@@ -713,8 +717,10 @@ TEST_CASE("GFixedSizePriorityQueueT<shared_ptr>: an empty handle is never admitt
 // ---------------------------------------------------------------------------
 // Unique storage
 
-TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: add takes ownership, addClone does not",
-          "[common][priority-queue][unique]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<unique_ptr>: add takes ownership but addClone does not",
+    "[common][priority-queue][unique]"
+) {
     UniquePQ pq(5);
 
     SECTION("add(std::move(handle)) transfers sole ownership into the queue") {

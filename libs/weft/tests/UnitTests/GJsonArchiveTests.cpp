@@ -122,7 +122,10 @@ enum class Color : std::uint8_t { red = 1, green = 2, blue = 250 };
 // ---------------------------------------------------------------------------
 // Scalars.
 
-TEST_CASE("GJsonArchive: integers, bool and enum round-trip through text", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: integers and bool and enum round-trip through text",
+    "[common][archive][json]"
+) {
     CHECK(roundtrip<std::int32_t>(-2000000000) == -2000000000);
     CHECK(roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
           std::numeric_limits<std::uint64_t>::max());
@@ -215,7 +218,10 @@ TEST_CASE("GJsonArchive: containers round-trip", "[common][archive][json]") {
 // ---------------------------------------------------------------------------
 // Serializable classes.
 
-TEST_CASE("GJsonArchive: classes (public, private-via-access, base_object) round-trip", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: classes (public / private-via-access / base_object) round-trip",
+    "[common][archive][json]"
+) {
     Point p{42, 3.5, "origin"};
     CHECK(roundtrip(p) == p);
 

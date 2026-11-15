@@ -64,7 +64,10 @@ private:
 
 // ---------------------------------------------------------------------------
 
-TEST_CASE("GProviderStoreT: registers, retrieves and hands out providers by mnemonic", "[common][providerstore]") {
+TEST_CASE(
+    "GProviderStoreT: registers providers by mnemonic and retrieves and hands them out",
+    "[common][providerstore]"
+) {
     auto store = providerStore<int>();
     REQUIRE(store);
 

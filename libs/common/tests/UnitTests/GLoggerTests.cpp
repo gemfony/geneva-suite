@@ -236,8 +236,10 @@ TEST_CASE("GLogger::setDefaultLogTarget(empty) throws",
                     geneva_exception);
 }
 
-TEST_CASE("GLogger: with no custom targets, log() falls back to the default target",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogger: without custom targets log() falls back to the default target",
+    "[common][logger]"
+) {
     GLogger g;
     auto def = std::make_shared<CapturingTarget>();
     g.setDefaultLogTarget(def);

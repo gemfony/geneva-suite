@@ -264,10 +264,7 @@ TEMPLATE_TEST_CASE(
 // standard test for clone/copy/load/compare, but that test skips the round-trip block
 // (they do not override modify_GUnitTests_), so the serialize path is validated here.
 // ============================================================================
-TEST_CASE(
-    "GDoubleSumConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -290,10 +287,7 @@ TEST_CASE(
     }
 }
 
-TEST_CASE(
-    "GSphereConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -316,10 +310,7 @@ TEST_CASE(
     }
 }
 
-TEST_CASE(
-    "GDoubleSumGapConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GDoubleSumGapConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -345,7 +336,7 @@ TEST_CASE(
 // so it was silently lost on (de)serialization. A non-default run_id_ must survive a
 // round-trip in all three modes.
 TEST_CASE(
-    "GExternalEvaluatorIndividual round-trips run_id_ in TEXT, XML and BINARY",
+    "GExternalEvaluatorIndividual round-trips run_id_ in TEXT/XML/BINARY",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -498,7 +489,7 @@ TEST_CASE(
 // default-value masking that hides a dropped member.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + TEXT/XML/BINARY wire round-trip) for oa::GSwarmAlgorithm's tied members
 TEST_CASE(
-    "oa::GSwarmAlgorithm round-trips its members in TEXT, XML, BINARY and via load()",
+    "oa::GSwarmAlgorithm round-trips its members in TEXT/XML/BINARY and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -575,7 +566,7 @@ TEST_CASE(
 // about-to-be-tied plain members to NON-DEFAULT values and verifies they survive a
 // wire round-trip AND an in-memory load() (clone path).
 TEST_CASE(
-    "oa::GParameterScan round-trips its members in TEXT, XML, BINARY and via load()",
+    "oa::GParameterScan round-trips its members in TEXT/XML/BINARY and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;

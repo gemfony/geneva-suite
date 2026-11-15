@@ -253,7 +253,7 @@ TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its
 // parked once.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario, run for two prefetch depths
 TEST_CASE(
-    "courtier(websocket): idle clients are parked, not sent away",
+    "courtier(websocket): idle clients are parked and not sent away",
     "[courtier][websocket][net][park]"
 ) {
     constexpr std::size_t CLIENTS = 4;

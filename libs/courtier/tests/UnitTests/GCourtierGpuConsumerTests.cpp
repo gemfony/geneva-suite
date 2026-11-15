@@ -254,7 +254,7 @@ std::vector<item_ptr> makeBatch(std::size_t n, std::size_t first_number) {
 } /* anonymous namespace */
 
 TEST_CASE(
-    "courtier(gpu): batches of concurrent submitters reach the device one at a time, from one "
+    "courtier(gpu): batches of concurrent submitters reach the device one at a time and from one "
     "thread",
     "[courtier][gpu]"
 ) {

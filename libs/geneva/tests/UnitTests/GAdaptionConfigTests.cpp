@@ -117,7 +117,7 @@ static oa::GEAAdaptionConfig authoredConfig(const AdaptCfgIndividual &ind) {
 }
 
 /******************************************************************************/
-TEST_CASE("GAdaptionConfig: built from a genome, addresses existing groups", "[flat][adaptcfg]") {
+TEST_CASE("GAdaptionConfig: built from a genome it addresses existing groups", "[flat][adaptcfg]") {
     AdaptCfgIndividual const ind;
     auto cfg = authoredConfig(ind);
 
@@ -153,7 +153,10 @@ TEST_CASE("GAdaptionConfig: label resolution is one-to-many", "[flat][adaptcfg]"
 }
 
 /******************************************************************************/
-TEST_CASE("GAdaptionConfig: checkConsistency accepts the authoring genome, rejects a different one", "[flat][adaptcfg]") {
+TEST_CASE(
+    "GAdaptionConfig: checkConsistency accepts the authoring genome and rejects a different one",
+    "[flat][adaptcfg]"
+) {
     AdaptCfgIndividual const ind;
     auto cfg = authoredConfig(ind);
 

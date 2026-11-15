@@ -216,8 +216,10 @@ TEST_CASE("GThreadPool tolerates concurrent submission from many producers",
 // setNThreads: grows and shrinks while staying functional. Mirrors the old
 // behaviour the manual GThreadPoolTest exercised, but as a fast unit test.
 
-TEST_CASE("GThreadPool setNThreads grows and shrinks, staying functional",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool setNThreads grows and shrinks and stays functional",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(2);
     REQUIRE(pool.getNThreads() == 2);
 

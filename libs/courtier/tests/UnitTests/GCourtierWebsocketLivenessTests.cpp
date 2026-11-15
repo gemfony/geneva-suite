@@ -216,7 +216,7 @@ private:
 } /* anonymous namespace */
 
 TEST_CASE(
-    "courtier(websocket): a client that falls silent is dropped, and nothing waits for it",
+    "courtier(websocket): a client that falls silent is dropped and nothing waits for it",
     "[courtier][websocket][liveness][net]"
 ) {
     // One io thread only: a session that blocked it while closing would stop the whole server.

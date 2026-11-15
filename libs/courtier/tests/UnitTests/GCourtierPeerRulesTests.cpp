@@ -291,7 +291,7 @@ std::shared_ptr<Role> makeRole() {
  * reach an end before it is started are kept, not lost, by this transport.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE("Peer rules (in-process): rule 1, two phases", "[courtier][peer]") {
+TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
     IoThreads io;
 
     SECTION("onOpen precedes the messages that arrived before start()") {
@@ -332,7 +332,7 @@ TEST_CASE("Peer rules (in-process): rule 1, two phases", "[courtier][peer]") {
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE(
-    "Peer rules (in-process): rules 2 and 3, one executor, no handler inside a call",
+    "Peer rules (in-process): rules 2 and 3 -- one executor and no handler inside a call",
     "[courtier][peer]"
 ) {
     IoThreads io;
@@ -368,7 +368,7 @@ TEST_CASE(
  * both close at once from two threads, and when close() is called twice.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE("Peer rules (in-process): rule 5, onClosed exactly once", "[courtier][peer]") {
+TEST_CASE("Peer rules (in-process): rule 5 -- onClosed exactly once", "[courtier][peer]") {
     IoThreads io;
     constexpr int ROUNDS = 100;
     for(int round = 0; round < ROUNDS; ++round) {
@@ -403,7 +403,7 @@ TEST_CASE("Peer rules (in-process): rule 5, onClosed exactly once", "[courtier][
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE(
-    "Peer rules (in-process): rule 6, what a close sends and what it stops",
+    "Peer rules (in-process): rule 6 -- what a close sends and what it stops",
     "[courtier][peer]"
 ) {
     IoThreads io;
@@ -465,7 +465,7 @@ TEST_CASE(
  * complexity the linter counts come from Catch2's macros and the local stopper class.)
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size)
-TEST_CASE("Peer rules (in-process): rule 4, ownership", "[courtier][peer]") {
+TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
     SECTION("roles and peers go when the connection has ended") {
         IoThreads io;
         std::weak_ptr<Role> weak_role_a;

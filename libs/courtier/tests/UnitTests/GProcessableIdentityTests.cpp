@@ -46,7 +46,10 @@ using namespace Gem::Courtier;
  * target's own id, and a serialized round-trip PRESERVES the id. A demo container (a GProcessingContainerT,
  * hence a GProcessable) exercises the base contract without pulling in geneva.
  */
-TEST_CASE("GProcessable lineage id: fresh on copy, kept on assign, preserved on serialize", "[proc][id]") {
+TEST_CASE(
+    "GProcessable lineage id: fresh on copy but kept on assign and on serialize",
+    "[proc][id]"
+) {
     GSimpleContainer const a(42);
     GSimpleContainer b(43);
 

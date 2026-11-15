@@ -124,7 +124,10 @@ TEST_CASE("Individual scratch: clone copies it; compare ignores it; resetPersona
 // The scratch rides make_wire_omitted_ptr_member: serialized by value on a checkpoint/file, but omitted
 // on the wire. Crucially, a wire load must leave the target's default (non-null) store in place rather
 // than nulling scratch_ -- scratch() dereferences it unguarded, so nulling it would be a latent crash.
-TEST_CASE("Individual scratch: kept on a checkpoint, omitted on the wire (target keeps its default)", "[aux][wire]") {
+TEST_CASE(
+    "Individual scratch: kept on a checkpoint and omitted on the wire (target keeps its default)",
+    "[aux][wire]"
+) {
     using Gem::Geneva::Individuals::GTestIndividual3;
     using mode = Gem::Common::serializationMode;
     namespace c2 = Gem::Courtier;

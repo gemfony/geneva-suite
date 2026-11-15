@@ -85,7 +85,7 @@ struct CheckedIn {
  * on is answered at once.
  */
 TEST_CASE(
-    "absorbServerRequest: PULL and RETURN are owed a work item, RESULT nothing",
+    "absorbServerRequest: PULL and RETURN are owed a work item but RESULT nothing",
     "[courtier][session-logic]"
 ) {
     CheckedIn checked_in;

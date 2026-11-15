@@ -243,7 +243,7 @@ TEST_CASE("GBinaryArchive: set and map round-trip", "[common][archive][binary]")
     CHECK(roundtrip(m) == m);
 }
 
-TEST_CASE("GBinaryArchive: pair, tuple and array round-trip", "[common][archive][binary]") {
+TEST_CASE("GBinaryArchive: pairs and tuples and arrays round-trip", "[common][archive][binary]") {
     std::pair<int, std::string> p{7, "seven"};
     CHECK(roundtrip(p) == p);
     std::tuple<int, double, std::string> t{1, 2.5, "x"};

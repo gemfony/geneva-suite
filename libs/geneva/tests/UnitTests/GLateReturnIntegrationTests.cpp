@@ -157,7 +157,10 @@ GEM_REGISTER_ARCHIVABLE(Gem::Tests::LRSphere) // NOLINT
 using namespace Gem::Tests;
 
 /******************************************************************************/
-TEST_CASE("late-return gate: a fresh test individual carries a non-zero, unique lineage UUID", "[lateret][id]") {
+TEST_CASE(
+    "late-return gate: a fresh test individual carries a non-zero and unique lineage UUID",
+    "[lateret][id]"
+) {
     LRSphere const a;
     LRSphere const b;
     CHECK(a.getSubmissionUuid() != SUBMISSION_UUID_TYPE{{0, 0}});
@@ -221,7 +224,7 @@ TEST_CASE("late-return gate: a lineage duplicated within the batch is kept exact
 }
 
 /******************************************************************************/
-TEST_CASE("late-return gate: distinct, clean lineages all survive", "[lateret][dedup]") {
+TEST_CASE("late-return gate: distinct clean lineages all survive", "[lateret][dedup]") {
     std::vector<std::unique_ptr<gen::GGenome>> items;
     for(std::uint64_t i = 0; i < 5; ++i) {
         items.push_back(make_processed(U(100 + i, 0)));

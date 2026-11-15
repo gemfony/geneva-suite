@@ -152,7 +152,7 @@ TEST_CASE("GGraph3D sets its axis titles after the draw command", "[plotting]") 
 /******************************************************************************/
 // BUG-5/6: function plotters emit a QUOTED draw option, and the 2D plotter honours
 // its configured drawing arguments (pre-fix it emitted an unquoted, and for 2D empty, option).
-TEST_CASE("function plotters emit a quoted, honoured draw option", "[plotting]") {
+TEST_CASE("function plotters emit a quoted and honoured draw option", "[plotting]") {
     const std::tuple<double, double> rx(-1., 1.);
     const std::tuple<double, double> ry(-1., 1.);
 
@@ -956,8 +956,10 @@ TEMPLATE_TEST_CASE(
 // emitted plotting code only for markers OUTSIDE the axis ranges and swallowed in-range markers.
 // The contract is the opposite: an in-range marker is drawn, an out-of-range one is clipped.
 
-TEST_CASE("GMarker clips to the plot boundaries (in-range drawn, out-of-range empty)",
-          "[plotting][decorators]") {
+TEST_CASE(
+    "GMarker clips to the plot boundaries (in-range drawn and out-of-range empty)",
+    "[plotting][decorators]"
+) {
     const GMarker<double> marker(
         std::tuple<double, double>(0.5, 0.5), gMarker::closedCircle, gColor::black, 0.05
     );
@@ -1039,7 +1041,10 @@ TEST_CASE("A surface projection is reported in the plot spec and its JSON", "[pl
     CHECK(not smallSurface(surfaceProjection::NONE)->plotSpec().projection.has_value());
 }
 
-TEST_CASE("makePlotter applies a projection and a 3-d curve, and refuses a projection elsewhere", "[plotting]") {
+TEST_CASE(
+    "makePlotter applies a projection and a 3-d curve and refuses a projection elsewhere",
+    "[plotting]"
+) {
     GPlotSpec spec(plotKind::graph_3d);
     spec.projection = surfaceProjection::CEILING;
     spec.plot_mode = graphPlotMode::CURVE;
@@ -1099,7 +1104,10 @@ TEST_CASE("The script backends draw a projected surface with their own means", "
     CHECK(oct.contains("zlim([0 4])"));
 }
 
-TEST_CASE("A projected map can be drawn without its surface, under points casting floor shadows", "[plotting]") {
+TEST_CASE(
+    "A projected map can be drawn without its surface under points casting floor shadows",
+    "[plotting]"
+) {
     // The map alone: the surface is not drawn, and with it goes the colour scale.
     auto map = smallSurface(surfaceProjection::FLOOR);
     map->setDrawSurface(false);
@@ -1295,7 +1303,7 @@ TEST_CASE(
 // itself; ROOT, matplotlib and Octave have to be told.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
 TEST_CASE(
-    "Overlaid graphs get colours, a legend and room in every backend",
+    "Overlaid graphs get colours and a legend and room in every backend",
     "[plotting][overlay]"
 ) {
     const auto overlaid = [] {

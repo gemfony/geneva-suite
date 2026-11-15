@@ -224,8 +224,10 @@ TEST_CASE("compare_t<int>: matching values increment success counter",
     CHECK(tok.expectationMet());
 }
 
-TEST_CASE("compare_t<int>: mismatched values are recorded as failures, not thrown",
-          "[common][expectations][compare_t]") {
+TEST_CASE(
+    "compare_t<int>: mismatched values are recorded as failures instead of thrown",
+    "[common][expectations][compare_t]"
+) {
     // compare_t catches g_expectation_violation and records into the token —
     // the call must NOT propagate.
     GToken tok("X", expectation::EQUALITY);
@@ -491,8 +493,10 @@ TEST_CASE("compare<vector<int>>: size mismatch + EQUALITY throws with diagnostic
                     g_expectation_violation);
 }
 
-TEST_CASE("compare<vector<int>>: same size, element mismatch + EQUALITY throws",
-          "[common][expectations][compare]") {
+TEST_CASE(
+    "compare<vector<int>>: an element mismatch at the same size throws under EQUALITY",
+    "[common][expectations][compare]"
+) {
     std::vector<int> const a{1, 2, 3};
     std::vector<int> const b{1, 99, 3};
     CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::EQUALITY),
@@ -532,8 +536,10 @@ TEST_CASE("compare<set<int>>: sets of different sizes + EQUALITY throw",
                     g_expectation_violation);
 }
 
-TEST_CASE("compare<set<int>>: same size, different elements + EQUALITY throw",
-          "[common][expectations][compare]") {
+TEST_CASE(
+    "compare<set<int>>: different elements at the same size throw under EQUALITY",
+    "[common][expectations][compare]"
+) {
     std::set<int> const a{1, 2, 3};
     std::set<int> const b{1, 2, 4};
     CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::EQUALITY),

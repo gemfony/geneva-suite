@@ -167,8 +167,10 @@ submit(SimNetConsumer &consumer, std::vector<item_ptr> &batch, std::atomic<bool>
 /******************************************************************************/
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent fan-in scenario: spawns a shared client pool plus per-batch submitter threads against one networked consumer, then verifies each batch's own slots come back correctly routed; splitting would scatter the capturing lambdas
-TEST_CASE("courtier(fanin): concurrent submitters to one networked consumer, results not cross-routed",
-          "[courtier][concurrency][fanin]") {
+TEST_CASE(
+    "courtier(fanin): concurrent submitters to one networked consumer get no results cross-routed",
+    "[courtier][concurrency][fanin]"
+) {
     constexpr std::size_t M = 6;  // concurrent submitters (inner algorithms)
     constexpr std::size_t N = 25; // items per batch
     constexpr std::size_t CLIENTS = 4;
@@ -344,7 +346,7 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "courtier(park): a new batch wakes one parked caller per item, the longest-waiting first",
+    "courtier(park): a new batch wakes one parked caller per item -- the longest-waiting first",
     "[courtier][park]"
 ) {
     constexpr std::size_t CALLERS = 10;

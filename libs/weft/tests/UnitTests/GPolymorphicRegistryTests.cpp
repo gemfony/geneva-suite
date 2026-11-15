@@ -118,7 +118,10 @@ TEST_CASE("GPolymorphicRegistry: tagOf uses the dynamic type through a base refe
 // ---------------------------------------------------------------------------
 // Idempotency and collision rules.
 
-TEST_CASE("GPolymorphicRegistry: identical (type,tag) re-registration is idempotent", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: identical (type and tag) re-registration is idempotent",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -167,7 +170,10 @@ TEST_CASE("GPolymorphicRegistry: tagOf() on an unregistered dynamic type throws"
 // ---------------------------------------------------------------------------
 // tags() is a sorted enumeration (basis for the boot-time completeness check).
 
-TEST_CASE("GPolymorphicRegistry: tags() returns every tag, sorted", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: tags() returns every tag in sorted order",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;

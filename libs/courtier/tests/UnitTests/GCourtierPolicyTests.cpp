@@ -305,7 +305,7 @@ std::vector<shape_ptr> roundBatch() {
 // Two short sections; the complexity counted is that of Catch2's macros.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 TEST_CASE(
-    "courtier: a work item with clone() is cloned through it, not copy-constructed",
+    "courtier: a work item with clone() is cloned through it and not copy-constructed",
     "[courtier][policy][clone]"
 ) {
     auto consumer = std::make_shared<GStdThreadConsumerT<ShapeItem>>();

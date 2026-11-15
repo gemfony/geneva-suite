@@ -64,7 +64,7 @@ auto sentinel_fill = [](std::uint64_t *dst, std::size_t n) {
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GSPSCStagingRingT: non-copyable, non-movable", "[common][spsc-ring]") {
+TEST_CASE("GSPSCStagingRingT: non-copyable and non-movable", "[common][spsc-ring]") {
     static_assert(not std::is_copy_constructible_v<Ring>);
     static_assert(not std::is_move_constructible_v<Ring>);
     static_assert(not std::is_copy_assignable_v<Ring>);

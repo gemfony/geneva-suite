@@ -137,7 +137,7 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "courtier(lifecycle): stopServer() may be called more than once, and the server is still "
+    "courtier(lifecycle): stopServer() may be called more than once and the server is still "
     "destroyed",
     "[courtier][lifecycle][net]",
     AsioConsumer,

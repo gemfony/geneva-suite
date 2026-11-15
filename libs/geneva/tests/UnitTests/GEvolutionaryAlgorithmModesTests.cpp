@@ -216,7 +216,7 @@ TEST_CASE("ea self-registers its mnemonic in the OA factory store", "[ea][oa]") 
 
 /******************************************************************************/
 
-TEST_CASE("ea SELF_ADAPT mode reproduces the classic algorithm, SCALED beats it", "[ea][oa]") {
+TEST_CASE("ea SELF_ADAPT mode reproduces the classic algorithm and SCALED beats it", "[ea][oa]") {
     // With stepControl=SELF_ADAPT, the EA IS the classic algorithm (no dimension scaling); with the same
     // budget + config the dimension-scaled mode must do at least as well -- demonstrating the scaling
     // is the lever. f start = 20*4 = 80.

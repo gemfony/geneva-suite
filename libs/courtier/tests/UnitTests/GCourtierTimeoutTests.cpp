@@ -311,8 +311,10 @@ TEST_CASE("courtier(clone): unresolved slots are refilled from the supplied temp
 // slot that had not returned when its batch ended is parked, so these tests let a batch retire with
 // slots abandoned by a slow worker (run_abandoning_forever) and check in that worker's copies late.
 
-TEST_CASE("courtier(late): a late return for a finished batch is buffered, not silently dropped",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): a late return for a finished batch is buffered and not silently dropped",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
 
@@ -360,8 +362,10 @@ TEST_CASE("courtier(late): buffering disabled (default) counts the drop but hold
     CHECK(consumer.lateReturnDroppedCount() == 2);  // but the drops are observable, not silent
 }
 
-TEST_CASE("courtier(late): the buffer is capacity-bounded, evicting and counting the oldest",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): the buffer is capacity-bounded and evicts and counts the oldest",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 2, /*ttl_rounds*/ 1000); // large TTL: only capacity evicts here
 
@@ -698,7 +702,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "courtier(routing): a return for a put-back slot is accepted, without a timing sample",
+    "courtier(routing): a return for a put-back slot is accepted without a timing sample",
     "[courtier][routing]"
 ) {
     auto batch = make_batch(1);

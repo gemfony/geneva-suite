@@ -253,8 +253,10 @@ TEST_CASE("GGenome: an external evaluation result is accepted verbatim", "[candi
 /******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (TEXT/XML/BINARY) via the shared check_format() helper
 TEST_CASE(
-    "GGenome: a processed candidate round-trips its structure, results and values in TEXT, XML and BINARY",
-    "[candidate][serialize]") {
+    "GGenome: a processed candidate round-trips its structure and results and values in "
+    "TEXT/XML/BINARY",
+    "[candidate][serialize]"
+) {
     using Gem::Common::serializationMode;
 
     NewSphere ind(5, 2, 3);

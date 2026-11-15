@@ -171,8 +171,10 @@ TEST_CASE("GHesseError(MINOS): captures an asymmetric (non-parabolic) minimum", 
     CHECK(std::abs(r.minos_low[0] - 1.757) < 2.e-2);
 }
 
-TEST_CASE("GHesseError(MINOS): an unbracketable direction is reported invalid, not fabricated",
-          "[geneva][hesse][minos]") {
+TEST_CASE(
+    "GHesseError(MINOS): an unbracketable direction is reported invalid and not fabricated",
+    "[geneva][hesse][minos]"
+) {
     // Regression test for the silent-wrong-result bug: f(x) = c x^2 / (1 + x^2) has POSITIVE curvature at
     // the minimum (so a symmetric HESSE error exists and the parameter is attempted) but is bounded above
     // by c. With c < UP (=1) the profiled objective can NEVER rise by UP, so neither MINOS side can bracket

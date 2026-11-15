@@ -48,7 +48,10 @@ using Store = GThreadSafeKeyedStoreT<std::string, int>;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GThreadSafeKeyedStoreT: non-copyable, default-constructible", "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: non-copyable and default-constructible",
+    "[common][keyed-store]"
+) {
     static_assert(std::is_default_constructible_v<Store>);
     static_assert(not std::is_copy_constructible_v<Store>);
     static_assert(not std::is_copy_assignable_v<Store>);
@@ -173,7 +176,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GThreadSafeKeyedStoreT: waitUntilEmpty returns on the last remove, and on clear",
+    "GThreadSafeKeyedStoreT: waitUntilEmpty returns on the last remove and on clear",
     "[common][keyed-store][concurrency]"
 ) {
     using namespace std::chrono_literals;
