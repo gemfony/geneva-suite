@@ -347,7 +347,8 @@ public:
      *
      * Threads added while the producers run are started at once, and the call returns when each of them
      * has finished its start, as the first getNewRandomContainer() does: without a time limit, with a
-     * warning while it waits.
+     * warning while it waits. If only some of the added threads can be created, those run and are
+     * counted; if none can, the call throws and the count stays as it was.
      *
      * @param n_producer_threads The desired number of threads producing random number packages
      */
@@ -392,6 +393,11 @@ public:
      * have finished their start. Every call, the first after its wait included, then waits at most
      * DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null pointer if none came
      * (counted in getNGetTimeouts()); callers retry.
+     *
+     * If only k of the n producer threads can be created, the factory runs with those k: the
+     * producer count (getNProducerThreads()) and the reservation in the thread budget become k, a
+     * warning names both numbers, and the start counts as done. If not one can be created, the call
+     * throws, and the factory stays as if never started: a later call tries again.
      *
      * @return A unique_ptr to a filled container, or a null pointer if none came within
      *         DEFAULTFACTORYGETWAIT milliseconds
@@ -454,6 +460,13 @@ private:
      * @return The state of this start
      */
     std::shared_ptr<GProducerStart> startProducers(std::uint16_t n_new);
+
+    /**
+     * @brief Makes the producers' reservation in the thread budget fit the producers that run.
+     *
+     * @param n_running The number of producer threads that run
+     */
+    void accountProducers(std::uint16_t n_running);
 
     /**
      * @brief Returns when each producer of a start has finished its start; warns while it waits.
@@ -614,6 +627,19 @@ void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
  * @return The number of sources that have reached the stage
  */
 [[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
+
+/**
+ * @brief Makes the creation of the factory's producer threads fail, as a lack of system resources
+ * would, or stops doing so (test hook).
+ *
+ * While it is on, the first @p n_pass creations from the call on succeed and every later one throws a
+ * std::system_error. Only available in builds with GEM_TESTING; otherwise it reports that the hook is
+ * unavailable.
+ *
+ * @param fail Whether creations fail
+ * @param n_pass How many creations succeed before the others fail
+ */
+void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass = 0);
 
 /**
  * @brief Sets how long the call that starts producer threads waits before its first warning about a

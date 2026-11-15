@@ -51,6 +51,7 @@
 
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GThreadBudget.hpp"
 #include "hap/GRandomFactory.hpp"
 
 using namespace Gem::Hap;
@@ -547,4 +548,74 @@ TEST_CASE(
     requireGpuChoice();
     REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) == 1);
     CHECK(nGpuRandomSources() == 0);
+}
+
+namespace {
+/**
+ * @brief The number of threads the process has reserved in its thread budget.
+ * @return The reserved total
+ */
+unsigned int reservedThreads() {
+    return Gem::Common::Concurrency::threadBudget().reserved();
+}
+
+/**
+ * @brief The number of producers that have finished their start since the process began.
+ * @return The number of finished starts
+ */
+std::size_t nFinishedStarts() {
+    return nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED);
+}
+} // namespace
+
+TEST_CASE(
+    "Only some producer threads can be created: the factory runs with those",
+    "[producer-creation-fails]"
+) {
+    const unsigned int reserved_before = reservedThreads();
+    randomFactory()->setNProducerThreads(4);
+
+    // The third creation fails: two producers run, they are counted and reserved, the start is done
+    failProducerThreadCreationsForTests(true, 2);
+    CHECK_NOTHROW(std::ignore = randomFactory()->getNewRandomContainer());
+    failProducerThreadCreationsForTests(false);
+    CHECK(randomFactory()->getNProducerThreads() == 2);
+    CHECK(nFinishedStarts() == 2);
+    CHECK(reservedThreads() - reserved_before == 2);
+
+    // A second draw starts nothing
+    CHECK_NOTHROW(std::ignore = randomFactory()->getNewRandomContainer());
+    CHECK(randomFactory()->getNProducerThreads() == 2);
+    CHECK(nFinishedStarts() == 2);
+    CHECK(reservedThreads() - reserved_before == 2);
+
+    // Adding two producers of which only one can be created: three run, three are reserved
+    failProducerThreadCreationsForTests(true, 1);
+    CHECK_NOTHROW(randomFactory()->setNProducerThreads(4));
+    failProducerThreadCreationsForTests(false);
+    CHECK(randomFactory()->getNProducerThreads() == 3);
+    CHECK(nFinishedStarts() == 3);
+    CHECK(reservedThreads() - reserved_before == 3);
+    requireRandomWords();
+}
+
+TEST_CASE(
+    "No producer thread can be created: the draw throws and a later draw tries again",
+    "[producer-creation-fails-all]"
+) {
+    const unsigned int reserved_before = reservedThreads();
+    randomFactory()->setNProducerThreads(2);
+
+    failProducerThreadCreationsForTests(true, 0);
+    CHECK_THROWS(std::ignore = randomFactory()->getNewRandomContainer());
+    CHECK(nFinishedStarts() == 0);
+    CHECK(reservedThreads() == reserved_before);
+
+    // The factory is as if never started: the next draw starts both producers
+    failProducerThreadCreationsForTests(false);
+    CHECK_NOTHROW(std::ignore = randomFactory()->getNewRandomContainer());
+    CHECK(randomFactory()->getNProducerThreads() == 2);
+    CHECK(nFinishedStarts() == 2);
+    CHECK(reservedThreads() - reserved_before == 2);
+    requireRandomWords();
 }

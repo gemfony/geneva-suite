@@ -67,6 +67,37 @@ constinit std::atomic<std::chrono::milliseconds::rep> g_producer_start_first_war
 constinit std::atomic<std::chrono::milliseconds::rep> g_producer_start_repeat_warning_ms{
     std::chrono::duration_cast<std::chrono::milliseconds>(PRODUCERSTARTREPEATWARNING).count()
 };
+
+/**
+ * The state of the test hook that makes the creation of producer threads fail: whether it is on, and
+ * how many creations may still succeed before the others fail. Constant-initialized; changed only by
+ * failProducerThreadCreationsForTests().
+ */
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<bool> g_producer_creation_fails{false};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::size_t> g_producer_creations_to_pass{0};
+
+/**
+ * Throws as a failing creation of a thread would, while the test hook asks for it. A no-op in builds
+ * without GEM_TESTING.
+ */
+void producerThreadCreationHook() {
+#ifdef GEM_TESTING
+    if(g_producer_creation_fails.load()) {
+        std::size_t n_pass = g_producer_creations_to_pass.load();
+        while(n_pass > 0 &&
+              not g_producer_creations_to_pass.compare_exchange_weak(n_pass, n_pass - 1)) {
+        }
+        if(0 == n_pass) {
+            throw std::system_error(
+                std::make_error_code(std::errc::resource_unavailable_try_again),
+                "The creation of a producer thread failed (test hook)"
+            );
+        }
+    }
+#endif /* GEM_TESTING */
+}
 } // namespace
 
 /******************************************************************************/
@@ -85,7 +116,7 @@ struct GRandomFactory::GProducerStart {
       , finished(n) { /* nothing */
     }
 
-    const std::uint16_t n_producers;       ///< How many producers this start launches
+    std::uint16_t n_producers;             ///< How many producers this start launched
     std::atomic<std::size_t> n_building;   ///< How many are building their engine
     std::atomic<std::size_t> n_filling{0}; ///< How many are filling their first container
     Gem::Common::Concurrency::GCompletionLatchT finished; ///< Counted down by each producer once
@@ -259,14 +290,18 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
         // thread_creation_mutex_, which only another setNProducerThreads() takes once the producers run:
         // a draw does not wait here.
         if(n_producer_threads_local > n_current) {
-            awaitStart(
-                *startProducers(static_cast<std::uint16_t>(n_producer_threads_local - n_current))
-            );
+            const auto start =
+                startProducers(static_cast<std::uint16_t>(n_producer_threads_local - n_current));
+            // Only the producers that could be started run and are counted
+            const auto n_running = static_cast<std::uint16_t>(n_current + start->n_producers);
+            accountProducers(n_running);
+            n_producer_threads_ = n_running;
+            awaitStart(*start);
         }
+        return;
     }
 
-    // Record the new count -- whether threads run already (so a later call starts its
-    // delta from the actual pool size) or are yet to be started lazily
+    // Record the count for the lazy start of the producer threads
     n_producer_threads_ = n_producer_threads_local;
 }
 
@@ -292,13 +327,13 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
             std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
             if(not threads_started_) { // double checked locking pattern
                 //---------------------------------------------------------
-                // Account the producers in the process-wide thread budget for their lifetime.
-                producer_budget_ = Gem::Common::Concurrency::threadBudget().reserve(
-                    "hap:producers",
-                    n_producer_threads_.load(),
-                    Gem::Common::Concurrency::ThreadElasticity::Elastic
-                );
+                // Throws only if no producer at all could be started: the factory is then as if
+                // never started, and a later draw tries again. Otherwise the factory runs with the
+                // producers it got, and the start counts as done.
                 start = startProducers(n_producer_threads_.load());
+                n_producer_threads_ = start->n_producers;
+                // Account the producers in the process-wide thread budget for their lifetime.
+                accountProducers(start->n_producers);
                 //---------------------------------------------------------
 
                 threads_started_.store(true);
@@ -329,19 +364,65 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
  * Must be called with thread_creation_mutex_ held. The caller then waits for their start with
  * awaitStart().
  *
+ * If the creation of the k-th of n threads fails (0 < k < n), the start goes on with the k
+ * producers that run: the returned state counts k producers, and a warning names both numbers.
+ * Only if not even the first thread can be created does the call throw; nothing is then started.
+ *
  * @param n_new The number of producer threads to start
- * @return The state of this start, which awaitStart() waits on
+ * @return The state of this start, which awaitStart() waits on; its n_producers is the number of
+ *   producers that were actually started
  */
 std::shared_ptr<GRandomFactory::GProducerStart>
 GRandomFactory::startProducers(std::uint16_t n_new) {
     // Shared with every new producer: the latch must outlive the last count_down() (see GCompletionLatchT)
     auto start = std::make_shared<GProducerStart>(n_new);
-    for(std::uint16_t i = 0; i < n_new; i++) {
-        producer_threads_.create_thread([this, start]() {
-            this->producer(this->getSeed(), start);
-        });
+    std::uint16_t n_started = 0;
+    try {
+        for(; n_started < n_new; n_started++) {
+            producerThreadCreationHook();
+            producer_threads_.create_thread([this, start]() {
+                this->producer(this->getSeed(), start);
+            });
+        }
+    }
+    catch(const std::exception &e) {
+        if(0 == n_started) {
+            throw;
+        }
+        glogger << "In GRandomFactory::startProducers(): Warning!" << '\n'
+                << "Only " << n_started << " of " << n_new
+                << " producer thread(s) could be started:" << '\n'
+                << e.what() << '\n'
+                << "Random-number production goes on with " << n_started << " producer thread(s)."
+                << '\n'
+                << GWARNING;
+    }
+
+    // The producers that were never started neither build an engine nor count down the latch
+    const auto n_missing = static_cast<std::size_t>(n_new - n_started);
+    start->n_producers = n_started;
+    start->n_building.fetch_sub(n_missing);
+    for(std::size_t i = 0; i < n_missing; i++) {
+        std::ignore = start->finished.count_down();
     }
     return start;
+}
+
+/******************************************************************************/
+/**
+ * @brief Makes the producers' reservation in the process-wide thread budget fit the producers that run.
+ *
+ * Must be called with thread_creation_mutex_ held.
+ *
+ * @param n_running The number of producer threads that run
+ */
+void GRandomFactory::accountProducers(std::uint16_t n_running) {
+    producer_budget_.release();
+    producer_budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+        "hap:producers",
+        n_running,
+        Gem::Common::Concurrency::ThreadElasticity::Elastic
+    );
 }
 
 /******************************************************************************/
@@ -607,6 +688,18 @@ void simulateGpuRandomFailureForTests(bool fail) {
 #else  /* GEM_TESTING */
     std::ignore = fail;
     Gem::Common::condnotset("Gem::Hap::simulateGpuRandomFailureForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass) {
+#ifdef GEM_TESTING
+    g_producer_creation_fails.store(false);
+    g_producer_creations_to_pass.store(n_pass);
+    g_producer_creation_fails.store(fail);
+#else  /* GEM_TESTING */
+    std::ignore = fail;
+    std::ignore = n_pass;
+    Gem::Common::condnotset("Gem::Hap::failProducerThreadCreationsForTests", "GEM_TESTING");
 #endif /* GEM_TESTING */
 }
 
