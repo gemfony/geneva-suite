@@ -50,6 +50,7 @@
 
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
+#include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -400,4 +401,34 @@ TEST_CASE(
         CHECK(shell.getNActiveSessions() == 0);
     }
     CHECK_FALSE(listener->workEnded());
+}
+
+/******************************************************************************/
+/**
+ * A listener whose start() throws (a port that cannot be bound) leaves the shell one that was never
+ * started: the exception reaches the caller, and neither stopServer() nor the destructor asks the
+ * listener to stop or to end its work, or gives back threads that were never reserved. A second
+ * startServer() is refused.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a listener whose start throws leaves the shell never started",
+    "[courtier][peer][shell]"
+) {
+    auto listener =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.startThrows = true});
+    auto &budget = Gem::Common::Concurrency::threadBudget();
+    const unsigned int reserved_before = budget.reserved();
+    {
+        Shell shell{listener, 3};
+        CHECK_THROWS(shell.startServer());
+        CHECK(budget.reserved() == reserved_before);
+        CHECK_THROWS(shell.startServer());
+        shell.stopServer();
+        CHECK(listener->nStops() == 0);
+        CHECK_FALSE(listener->workEnded());
+        CHECK(budget.reserved() == reserved_before);
+    }
+    CHECK(listener->nStops() == 0);
+    CHECK_FALSE(listener->workEnded());
+    CHECK(budget.reserved() == reserved_before);
 }

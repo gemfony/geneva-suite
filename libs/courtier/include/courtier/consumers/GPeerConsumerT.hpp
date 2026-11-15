@@ -177,21 +177,36 @@ public:
      * has been registered with the GConsumerRegistry and before any batch is submitted. Further
      * calls do nothing.
      *
-     * @throws whatever the listener's start() throws
+     * If the listener cannot be started (a port that cannot be bound, say), its exception reaches
+     * the caller and the consumer stays one that was never started: stopServer() and the
+     * destructor have nothing to stop, and the listener is not asked to stop or to end its work
+     * (GListenerI::start()). Such a consumer cannot be started any more; a further call throws.
+     *
+     * @throws whatever the listener's start() throws; geneva_exception if an earlier call failed
      */
     void startServer() {
-        if(started_.exchange(true)) {
+        if(start_called_.exchange(true)) {
+            if(not started_.load()) {
+                throw geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                    << "The listener could not be started before; this consumer cannot be "
+                       "started any more"
+                    << '\n'
+                );
+            }
             return;
         }
 
         // The listener calls back for every client, on a session thread. A session is owned by
-        // its peer from start() on.
+        // its peer from start() on. If start() throws, nothing has been started.
         listener_->start(
             io_context_.get_executor(),
             [this](std::shared_ptr<Consumers::GPeerI> peer, GWirePeerId peer_id) {
                 this->startSession_(peer, peer_id);
             }
         );
+        started_.store(true);
 
         budget_ = Gem::Common::Concurrency::threadBudget().reserve(
             consumer_name_ + ":sessions",
@@ -358,7 +373,8 @@ private:
     Gem::Common::Concurrency::GThreadBudget::Reservation budget_;
     Gem::Common::Concurrency::GThreadGroup threads_; ///< The session threads
 
-    std::atomic<bool> started_{false};         ///< startServer() has been called
+    std::atomic<bool> start_called_{false};    ///< startServer() has been called
+    std::atomic<bool> started_{false};         ///< The listener has been started
     std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
 };
 

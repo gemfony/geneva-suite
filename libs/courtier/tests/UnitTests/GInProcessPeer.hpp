@@ -39,6 +39,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -429,6 +430,7 @@ public:
         std::chrono::milliseconds closeGrace{1000}; ///< The ends' wait for an acknowledgement
         std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
         bool detectsLoss = true;                    ///< What detectsLoss() answers
+        bool startThrows = false; ///< start() throws, as one whose port cannot be bound
     };
 
     /** @brief @param options What the pairs are made with */
@@ -440,6 +442,10 @@ public:
      *  @param executor Where the server ends and on_peer run
      *  @param on_peer What is called for every connection */
     void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        if(options_.startThrows) {
+            // As GListenerI::start() demands: nothing is kept of a start that failed.
+            throw std::runtime_error("the test made the listener's start() fail");
+        }
         const std::scoped_lock lock(mutex_);
         executor_ = std::move(executor);
         accept_strand_.emplace(boost::asio::make_strand(executor_));
@@ -451,6 +457,7 @@ public:
     void stop() override {
         const std::scoped_lock lock(mutex_);
         accepting_ = false;
+        n_stops_.fetch_add(1);
     }
 
     /** @brief Nothing of its own runs; lets go of on_peer and of everything that refers to the
@@ -513,6 +520,10 @@ public:
     [[nodiscard]] bool workEnded() const {
         return work_ended_.load();
     }
+    /** @brief @return How often stop() has been called */
+    [[nodiscard]] std::size_t nStops() const {
+        return n_stops_.load();
+    }
 
 private:
     Options options_; ///< What the pairs are made with
@@ -525,6 +536,7 @@ private:
     on_peer_type on_peer_;                               ///< Set by start(), dropped by endWork()
     bool accepting_ = false;                             ///< Between start() and stop()
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
+    std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called
     std::atomic<Gem::Courtier::GWirePeerId> next_id_{1}; ///< The id of the next connection
 };
 

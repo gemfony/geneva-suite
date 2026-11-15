@@ -202,8 +202,11 @@ public:
     GListenerI &operator=(const GListenerI &) = delete;
     GListenerI &operator=(GListenerI &&) = delete;
 
-    /** @brief Starts making peers. Once. May throw (a port that cannot be bound). The peers'
-     *  handlers run on strands of the executor; on_peer is called on one of its threads. */
+    /** @brief Starts making peers. Once. The peers' handlers run on strands of the executor;
+     *  on_peer is called on one of its threads. May throw (a port that cannot be bound); a start()
+     *  that throws leaves the listener as if it had not been started: it holds nothing of the
+     *  executor and of on_peer, and runs nothing. Its owner then calls neither stop() nor
+     *  endWork(), and does not call start() again. */
     virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
 
     /** @brief No new peers from here on. It does not wait for clients (the shell does, rule 8)
