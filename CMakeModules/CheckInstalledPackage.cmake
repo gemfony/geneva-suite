@@ -35,7 +35,7 @@
 #  2. that installation is renamed: nothing in it may still name the prefix it
 #     was installed to (the exported targets, the config package, the run paths);
 #     a staged install (DESTDIR) is usable in the same way;
-#     every installed libgemfony-* library and module must then resolve all its
+#     every installed library, module and program must then resolve all its
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
 #  3. the quickstart (libs/geneva/quickstart) is configured standalone with
 #     find_package(Geneva CONFIG) against the moved installation and GStarter is
@@ -54,7 +54,7 @@
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
 #     was configured.
 #
-# Steps 3 to 6 do not depend on each other. Each runs as a "lane": this script
+# The ldd check and steps 3 to 6 do not depend on each other. Each runs as a "lane": this script
 # started once more with -DLANE=<name>, all lanes at the same time, each writing
 # its own logs. The test then takes as long as its longest lane (the quickstart),
 # not as the sum of them. The probes are built with Ninja where it is found
@@ -122,6 +122,52 @@ FUNCTION(gip_common_args _out)
 		LIST(APPEND _args -G "${GENERATOR}")
 	ENDIF()
 	SET(${_out} "${_args}" PARENT_SCOPE)
+ENDFUNCTION()
+
+# 2. Every library, module and program of the moved installation finds what it needs on its own.
+FUNCTION(gip_lane_ldd)
+	FIND_PROGRAM(_ldd ldd)
+	IF(NOT _ldd)
+		MESSAGE(STATUS "ldd: not found, the run paths are checked by the probes' runs only")
+		RETURN()
+	ENDIF()
+	FILE(GLOB_RECURSE _files LIST_DIRECTORIES FALSE "${ROOT}/moved/*")
+	SET(_n_elf 0)
+	SET(_n_libs 0)
+	SET(_unresolved "")
+	FOREACH(_file IN LISTS _files)
+		IF(IS_SYMLINK "${_file}")
+			CONTINUE()
+		ENDIF()
+		FILE(READ "${_file}" _magic LIMIT 4 HEX)
+		IF(NOT _magic STREQUAL "7f454c46")
+			CONTINUE()
+		ENDIF()
+		MATH(EXPR _n_elf "${_n_elf} + 1")
+		IF(_file MATCHES "/lib/libgemfony-[^/]*\\.so[^/]*$")
+			MATH(EXPR _n_libs "${_n_libs} + 1")
+		ENDIF()
+		EXECUTE_PROCESS(
+			COMMAND "${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${_ldd}" "${_file}"
+			OUTPUT_VARIABLE _ldd_out
+			ERROR_VARIABLE _ldd_out
+		)
+		IF(_ldd_out MATCHES "not found")
+			STRING(REGEX MATCHALL "[^\n]*not found" _missing "${_ldd_out}")
+			STRING(REPLACE "${ROOT}/moved/" "" _rel "${_file}")
+			STRING(APPEND _unresolved "${_rel}: ${_missing}\n")
+		ENDIF()
+	ENDFOREACH()
+	IF(_n_libs EQUAL 0)
+		MESSAGE(FATAL_ERROR "No libgemfony-* library in ${ROOT}/moved/lib")
+	ENDIF()
+	IF(NOT _unresolved STREQUAL "")
+		MESSAGE(FATAL_ERROR
+			"Installed files that do not find all their dependencies through their run paths:\n"
+			"${_unresolved}")
+	ENDIF()
+	MESSAGE(STATUS
+		"ldd: ${_n_elf} installed libraries, modules and programs resolve on their own")
 ENDFUNCTION()
 
 # 3. The quickstart: the config package must be the one of the moved installation.
@@ -236,7 +282,9 @@ FUNCTION(gip_lane_flags _mode)
 ENDFUNCTION()
 
 IF(DEFINED LANE)
-	IF(LANE STREQUAL "quickstart")
+	IF(LANE STREQUAL "ldd")
+		gip_lane_ldd()
+	ELSEIF(LANE STREQUAL "quickstart")
 		gip_lane_quickstart()
 	ELSEIF(LANE STREQUAL "mpi-probe")
 		gip_lane_mpi_probe()
@@ -282,35 +330,9 @@ ENDIF()
 
 # 2. Move.
 FILE(RENAME "${ROOT}/installed" "${ROOT}/moved")
-SET(_prefix "${ROOT}/moved")
 
-# The libraries and modules of the moved installation find what they need on their own.
-FIND_PROGRAM(_ldd ldd)
-IF(_ldd)
-	FILE(GLOB _installed_libs "${_prefix}/lib/libgemfony-*.so*")
-	SET(_n_libs 0)
-	FOREACH(_lib IN LISTS _installed_libs)
-		IF(IS_SYMLINK "${_lib}")
-			CONTINUE()
-		ENDIF()
-		MATH(EXPR _n_libs "${_n_libs} + 1")
-		EXECUTE_PROCESS(
-			COMMAND "${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${_ldd}" "${_lib}"
-			OUTPUT_VARIABLE _ldd_out
-			ERROR_VARIABLE _ldd_out
-		)
-		IF(_ldd_out MATCHES "not found")
-			gip_fail("${_lib} does not find all its dependencies through its run path:\n${_ldd_out}")
-		ENDIF()
-	ENDFOREACH()
-	IF(_n_libs EQUAL 0)
-		gip_fail("No libgemfony-* library in ${_prefix}/lib.")
-	ENDIF()
-	MESSAGE(STATUS "ldd: ${_n_libs} installed libraries and modules resolve on their own")
-ENDIF()
-
-# 3 to 6: the lanes, all at the same time.
-SET(_lanes quickstart findgeneva flags-CONFIG flags-MODULE)
+# The ldd check of step 2 and steps 3 to 6: the lanes, all at the same time.
+SET(_lanes ldd quickstart findgeneva flags-CONFIG flags-MODULE)
 IF(WITH_MPI)
 	LIST(APPEND _lanes mpi-probe)
 ENDIF()

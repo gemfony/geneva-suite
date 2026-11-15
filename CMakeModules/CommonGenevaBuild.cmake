@@ -312,9 +312,12 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# so an installed binary relied on the loader's default search path; once individuals / algorithms /
 	# consumers ship as modules alongside the libs this must be self-locating. The Geneva libraries always
 	# install into <prefix>/lib (INSTALL_PREFIX_LIBS); executables land at various depths under the prefix
-	# (<prefix>/..., <prefix>/examples/<name>/, ...), so the RPATH lists $ORIGIN-relative entries covering
-	# those depths (relocatable) plus the absolute lib dir as a backstop. USE_LINK_PATH also records the
-	# link-time dependency dirs (e.g. Boost). A user-supplied CMAKE_INSTALL_RPATH is respected.
+	# (<prefix>/..., <prefix>/examples/<name>/, down to <prefix>/benchmarks/<lib>/<group>/<name>/ and
+	# <prefix>/tests/<lib>/<group>/<name>/), so the RPATH lists $ORIGIN-relative entries covering those
+	# depths (relocatable) plus the absolute lib dir as a backstop. GenevaInstalledPackageProbes checks
+	# every installed file with ldd after the installation has been moved, so a program installed
+	# deeper fails it. USE_LINK_PATH also records the link-time dependency dirs (e.g. Boost). A
+	# user-supplied CMAKE_INSTALL_RPATH is respected.
 	IF (NOT CMAKE_INSTALL_RPATH)
 		# The backstop names the library directory at the configured prefix; a relative destination
 		# is made absolute against CMAKE_INSTALL_PREFIX. After a move the $ORIGIN entries, which
@@ -325,7 +328,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 			SET (_geneva_installed_libdir "${CMAKE_INSTALL_PREFIX}/${INSTALL_PREFIX_LIBS}")
 		ENDIF ()
 		SET (CMAKE_INSTALL_RPATH
-			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;${_geneva_installed_libdir}")
+			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;$ORIGIN/../../../../lib;${_geneva_installed_libdir}")
 	ENDIF ()
 	SET (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
