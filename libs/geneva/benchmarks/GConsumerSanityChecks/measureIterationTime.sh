@@ -56,12 +56,18 @@
 #   SRVOPTS    further options for the server (for MPI: for every rank)
 #   MPISTART   seconds to wait after mpirun before rank 0 is looked up (8)
 #
+# The server waits until all N clients are connected (--waitForClients N) before
+# it starts the run, so that no iteration is slowed down by clients that are still
+# starting. A consumer that cannot tell how many clients it has (MPI) is not waited
+# for; its RESULT line then ends with UNGATED, and its first iterations may include
+# the start of the clients.
+#
 # What a RESULT line holds: the number of iterations seen, the smallest, median,
-# largest and mean iteration time in seconds (the first two iterations are left
-# out), the age of the last iteration line when the run was stopped (a batch
-# that hangs shows as a large age), the CPU use of the server process (for MPI:
-# of rank 0) over the last ten seconds in percent of one core, with the raw
-# clock ticks, the same for all processes of the benchmark together, and the
+# largest and mean iteration time in seconds (the first two iterations after the
+# clients were all connected are left out), the age of the last iteration line
+# when the run was stopped (a batch that hangs shows as a large age), the CPU use
+# of the server process (for MPI: of rank 0) over the last ten seconds in percent
+# of one core, with the raw clock ticks, the same for all processes of the benchmark together, and the
 # name and thread count of the process that was measured.
 #
 # The runs take place one after another. Nothing else should run on the host,
@@ -117,7 +123,8 @@ P
     else
         PORT=$((11000 + RANDOM % 2000))
         # shellcheck disable=SC2086
-        stdbuf -oL "$X" -c "$C" "--${C}_port" $PORT ${SRVOPTS:-} > >(stamp) 2>&1 &
+        stdbuf -oL "$X" -c "$C" "--${C}_port" $PORT --waitForClients "$N" ${SRVOPTS:-} \
+            > >(stamp) 2>&1 &
         WRAP=$!
         sleep 2
         S=$(pgrep -P $WRAP -x "$NAME" | head -1)
@@ -141,8 +148,17 @@ import sys
 tend, label, c, n, pop, delay, st, at, hz, who = sys.argv[1:]
 # Only what the server printed up to the end of the measurement counts; it may run on for a
 # moment after the signal that ends it.
-ts = [float(l.split()[0]) for l in open('srv.log') if 'best past' in l]
-ts = [t for t in ts if t <= float(tend)]
+# The statistics start when all clients are connected: after the gate's line (GSpeedupMeasurement.hpp,
+# waitForClients()). Without it (a consumer that cannot tell) they start with the run, marked UNGATED.
+lines = open('srv.log').read().splitlines()
+gate = [float(l.split()[0]) for l in lines if 'clients connected after' in l]
+if gate:
+    g0 = gate[0]
+else:
+    g0 = 0.0
+    who += " UNGATED"
+ts = [float(l.split()[0]) for l in lines if 'best past' in l]
+ts = [t for t in ts if g0 < t <= float(tend)]
 d = sorted(b - a for a, b in zip(ts[2:], ts[3:]))
 scpu = int(st) * 100.0 / (int(hz) * 10); acpu = int(at) * 100.0 / (int(hz) * 10)
 head = "%s %s clients=%s pop=%s delay=%s iters=%d" % (label, c, n, pop, delay, len(ts))

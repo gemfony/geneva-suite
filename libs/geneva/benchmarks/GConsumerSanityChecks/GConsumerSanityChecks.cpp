@@ -47,6 +47,9 @@
 #include "geneva/individuals/GDelayIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 
+// The gate that waits for the clients before the run (shared with GParallelisationOverhead)
+#include "GSpeedupMeasurement.hpp"
+
 using namespace Gem::Geneva;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
 namespace po = boost::program_options;
@@ -60,6 +63,7 @@ int main(int argc, char **argv) {
     // We want to add additional command line options
 
     std::string monitorTimings = "empty";
+    SpeedupMeasurement::ClientGate gate; // --waitForClients, --clientWaitLimit
 
     // Assemble command line options
     boost::program_options::options_description user_options;
@@ -70,6 +74,7 @@ int main(int argc, char **argv) {
             ->default_value("empty"),
         "Logs the times for all processing steps"
     );
+    SpeedupMeasurement::addClientGateOptions(user_options, gate);
 
     Go2 go(argc, argv, "./config/Go2.json", user_options);
 
@@ -129,6 +134,10 @@ int main(int argc, char **argv) {
     // you specify other algorithms on the command line. You can also add a smart
     // pointer to an optimization algorithm here instead of its mnemonic.
     go.registerDefaultAlgorithm("ea");
+
+    // Wait for the clients, so that the first iterations are not slowed down by clients that are
+    // still starting (--waitForClients; nothing is waited for by default)
+    SpeedupMeasurement::waitForClients(go, gate);
 
     // Perform the actual optimization
     auto const p =
