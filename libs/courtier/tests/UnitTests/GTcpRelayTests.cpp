@@ -282,6 +282,16 @@ TEST_CASE("GTcpRelay refuses while it does not accept and accepts again", "[cour
     const Client refused(relay.port(), ok);
     CHECK_FALSE(ok);
 
+    // Meanwhile the port stays the relay's: nobody else can bind it
+    boost::asio::io_context other;
+    tcp::acceptor intruder(other);
+    intruder.open(tcp::v4());
+    boost::system::error_code bound;
+    std::ignore =
+        intruder.bind(tcp::endpoint(boost::asio::ip::address_v4::loopback(), relay.port()), bound);
+    CHECK(bound == boost::asio::error::address_in_use);
+    std::ignore = intruder.close(bound);
+
     relay.setAccepting(true);
     Client accepted(relay.port(), ok);
     REQUIRE(ok);

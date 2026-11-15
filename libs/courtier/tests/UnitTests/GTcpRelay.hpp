@@ -34,6 +34,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -96,6 +97,7 @@ public:
         this->call_([this] {
             error_code ignored;
             std::ignore = acceptor_.close(ignored);
+            std::ignore = holder_.close(ignored);
             for(const auto &pair : pairs_) {
                 pair->close();
             }
@@ -122,19 +124,26 @@ public:
     }
 
     /** @brief false: the acceptor is closed, a connect is refused; true: it is opened again on the
-     *  same port @param accepting Whether connections are accepted */
+     *  same port. While it refuses, the port stays bound by a socket that does not listen, so that
+     *  no other process can take it (a connect to it is refused all the same).
+     *  @param accepting Whether connections are accepted */
     void setAccepting(bool accepting) {
         this->call_([this, accepting] {
             if(accepting == acceptor_.is_open()) {
                 return;
             }
+            error_code ignored;
             if(accepting) {
+                std::ignore = holder_.close(ignored);
                 this->open_(port_);
                 this->accept_();
             }
             else {
-                error_code ignored;
                 std::ignore = acceptor_.close(ignored);
+                const tcp::endpoint endpoint(boost::asio::ip::address_v4::loopback(), port_);
+                holder_.open(endpoint.protocol());
+                holder_.set_option(tcp::socket::reuse_address(true));
+                holder_.bind(endpoint);
             }
         });
     }
@@ -355,15 +364,25 @@ private:
         std::shared_ptr<std::atomic<std::size_t>> n_open_; ///< Open connections
     };
 
-    /** @brief Runs @p work on the relay's thread and waits for it @param work What runs */
+    /** @brief Runs @p work on the relay's thread and waits for it; what it throws is thrown here
+     *  @param work What runs */
     template <typename work_type>
     void call_(work_type work) {
         auto latch = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(ctx_, [latch, work = std::move(work)]() mutable {
-            work();
+        auto failure = std::make_shared<std::exception_ptr>();
+        boost::asio::post(ctx_, [latch, failure, work = std::move(work)]() mutable {
+            try {
+                work();
+            }
+            catch(...) { // not on the relay's thread: the caller hears of it
+                *failure = std::current_exception();
+            }
             latch->count_down();
         });
         latch->wait();
+        if(*failure) {
+            std::rethrow_exception(*failure);
+        }
     }
 
     /** @brief Opens, binds and listens on 127.0.0.1 @param port The port (0: any) */
@@ -408,6 +427,7 @@ private:
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard_ =
         boost::asio::make_work_guard(ctx_);     ///< Keeps the thread in run() until the destructor
     tcp::acceptor acceptor_{ctx_};              ///< Where clients connect
+    tcp::socket holder_{ctx_}; ///< Keeps the port bound while the acceptor is closed
     unsigned short port_ = 0;                   ///< The acceptor's port
     unsigned short upstream_ = 0;               ///< The server's port (relay thread)
     std::vector<std::shared_ptr<Pair>> pairs_;  ///< Every connection made (relay thread)
