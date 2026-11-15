@@ -50,10 +50,12 @@
 #     without LD_LIBRARY_PATH, so the run paths of the installed libraries and of
 #     the module have to suffice;
 #  5. FindGeneva.cmake, the module-mode fallback, is used against the moved
-#     installation by a small project written here: it must define the same
-#     targets the config package exports (with the MPI consumer also
-#     Geneva::courtier-mpi and Geneva::geneva-mpi, and GENEVA_MPI); with the MPI
-#     consumer the probe's source is built and run against those targets;
+#     installation (the module the installation carries) by a small project
+#     written here: it must define the same targets the config package exports
+#     (with the MPI consumer also Geneva::courtier-mpi and Geneva::geneva-mpi,
+#     and GENEVA_MPI); with the MPI consumer the probe's source is built and run
+#     against those targets. The module and the config package must ask for the
+#     same Boost version and components;
 #  6. both the config package and FindGeneva.cmake say whether the installation has
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
 #     was configured.
@@ -237,16 +239,38 @@ FUNCTION(gip_lane_mpi_probe)
 		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${ROOT}/mpi-probe/GenevaMpiModuleProbe")
 ENDFUNCTION()
 
+# The Boost version and components a file of the moved installation asks find_dependency() for,
+# as a sorted list in _out ("<version>;<component>;...").
+FUNCTION(gip_boost_request _file _out)
+	FILE(READ "${_file}" _text)
+	STRING(REGEX MATCH "[Ff][Ii][Nn][Dd]_[Dd][Ee][Pp][Ee][Nn][Dd][Ee][Nn][Cc][Yy] *\\( *Boost ([^)]*)\\)"
+		_call "${_text}")
+	IF(NOT _call)
+		MESSAGE(FATAL_ERROR "${_file} asks for no Boost")
+	ENDIF()
+	STRING(REGEX REPLACE "[ \t\n]+" ";" _words "${CMAKE_MATCH_1}")
+	LIST(REMOVE_ITEM _words "" CONFIG REQUIRED COMPONENTS)
+	LIST(POP_FRONT _words _version)
+	LIST(SORT _words)
+	SET(${_out} "${_version};${_words}" PARENT_SCOPE)
+ENDFUNCTION()
+
 # 5. FindGeneva.cmake against the same installation.
 FUNCTION(gip_lane_findgeneva)
 	gip_common_args(_args)
+	gip_boost_request("${ROOT}/moved/CMakeModules/FindGeneva.cmake" _module_boost)
+	gip_boost_request("${ROOT}/moved/lib/cmake/Geneva/GenevaConfig.cmake" _package_boost)
+	IF(NOT _module_boost STREQUAL _package_boost)
+		MESSAGE(FATAL_ERROR "FindGeneva.cmake asks for Boost ${_module_boost}, the config "
+			"package for Boost ${_package_boost}")
+	ENDIF()
 	SET(_fg_src "${ROOT}/findgeneva-src")
 	FILE(MAKE_DIRECTORY "${_fg_src}")
 	SET(_probe_cpp "${SOURCE_DIR}/libs/geneva/tests/OutOfTree/MpiModuleProbe/GenevaMpiModuleProbe.cpp")
 	STRING(CONCAT _fg_lists
 		"cmake_minimum_required(VERSION 3.27)\n"
 		"project(FindGenevaProbe CXX)\n"
-		"list(APPEND CMAKE_MODULE_PATH \"${SOURCE_DIR}/CMakeModules\")\n"
+		"list(APPEND CMAKE_MODULE_PATH \"${ROOT}/moved/CMakeModules\")\n"
 		"set(GENEVA_ROOT \"${ROOT}/moved\")\n"
 		"find_package(Geneva MODULE REQUIRED)\n"
 		"foreach(_t weft common dietrich hap courtier geneva)\n"
@@ -299,7 +323,7 @@ FUNCTION(gip_lane_flags _mode)
 	STRING(CONCAT _flags_lists
 		"cmake_minimum_required(VERSION 3.27)\n"
 		"project(GenevaFlagsProbe CXX)\n"
-		"list(APPEND CMAKE_MODULE_PATH \"${SOURCE_DIR}/CMakeModules\")\n"
+		"list(APPEND CMAKE_MODULE_PATH \"${ROOT}/moved/CMakeModules\")\n"
 		"set(GENEVA_ROOT \"${ROOT}/moved\")\n"
 		"find_package(Geneva ${_mode} REQUIRED)\n"
 		"foreach(_f MPI GPU)\n"

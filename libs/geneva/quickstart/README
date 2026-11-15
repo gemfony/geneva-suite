@@ -50,7 +50,8 @@ project.
 
    The build prefers the installed CMake config package
    (find_package(Geneva CONFIG)). If that is not present it falls back
-   to the bundled FindGeneva.cmake module. If Boost is in a
+   to the FindGeneva.cmake module of the installation (in its CMakeModules
+   directory). If Boost is in a
    non-standard location, also pass -DBOOST_ROOT=<boost-prefix>.
 
 3. GStarter runs from the build directory as it is: CMake gives it a run

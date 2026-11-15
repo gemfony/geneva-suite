@@ -27,10 +27,15 @@
 #
 ################################################################################
 
+# FindGeneva.cmake, the MODULE-mode fallback for finding an installed Geneva, names the Boost
+# version and components the build was made with; it is generated from them, so that the fact is
+# stated once (GENEVA_MIN_BOOST_VERSION, GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake).
+CONFIGURE_FILE ( FindGeneva.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake @ONLY )
+
 SET ( CMAKEFILES
 	README
 	CommonGenevaBuild.cmake
-	FindGeneva.cmake
+	${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake
 	# Other macro files
 	CleanCmakeTemporaries.cmake
 	IdentifySystemParameters.cmake

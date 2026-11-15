@@ -323,15 +323,12 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS (
 IF (GENEVA_FOUND)
 	# Geneva exposes Boost through its public headers; re-find it so the
 	# imported targets can carry the Boost include dirs and link libraries,
-	# matching the behaviour of the config-file package. The component list
-	# mirrors GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake. CONFIG: Boost's own package, as in
-	# the config-file package (CMake's FindBoost module is gone, see CMP0167).
-	FIND_DEPENDENCY (Boost 1.91 CONFIG COMPONENTS
-		json
-		program_options
-		regex
-		atomic
-	)
+	# matching the behaviour of the config-file package. The version and the
+	# components are those the build was made with (GENEVA_MIN_BOOST_VERSION and
+	# GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake, filled in when this file is
+	# generated from FindGeneva.cmake.in). CONFIG: Boost's own package, as in the
+	# config-file package (CMake's FindBoost module is gone, see CMP0167).
+	FIND_DEPENDENCY (Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST_LIBS@)
 
 	IF (NOT TARGET Geneva::weft)
 		ADD_LIBRARY (Geneva::weft UNKNOWN IMPORTED)
