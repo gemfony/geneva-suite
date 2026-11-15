@@ -239,7 +239,7 @@ public:
 
 /******************************************************************************/
 /**
- * The client side of a transport: makes a peer to the server. Destroying it
+ * The client side of a transport: makes a peer to the server, as often as asked. Destroying it
  * cancels an attempt in progress and ends the transport's own work (rule 7); it is destroyed
  * after the executor's context has stopped running and before that context is destroyed.
  *
@@ -264,13 +264,14 @@ public:
 
     /** @brief Makes a connection to the server; one attempt at a time. From any thread, also
      *  before the executor runs, but not at the same time as cancel(). done is called on the
-     *  executor, never inside this call, and not after cancel(). It may be called again after an
-     *  attempt that made no connection (a retry of the first contact); a client does not connect
-     *  again after the end of a connection it had (GPeerClientT). */
+     *  executor, never inside this call, and not after cancel(). */
     virtual void connect(boost::asio::any_io_executor, done_type) = 0;
 
     /** @brief Gives up an attempt in progress; done is then not called. On the executor. */
     virtual void cancel() = 0;
+
+    /** @brief Whether a new peer can be made after a loss (connect() may be called again). */
+    [[nodiscard]] virtual bool reconnectable() const = 0;
 };
 
 /******************************************************************************/

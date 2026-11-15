@@ -167,7 +167,8 @@ private:
  * started; a handshake that fails ends that peer (FAILED). Its handlers run on the executor given
  * to connect(), which also moves its bytes: a client keeps its handlers short.
  *
- * Every connect() is an attempt of its own, with a fresh resolver and socket.
+ * Every connect() is an attempt of its own, with a fresh resolver and socket, so the connector can
+ * be asked again after a loss (reconnectable() is true).
  *
  * Threads: everything on the executor given to connect(), which must run its handlers one at a
  * time (a client runs its io context on one thread); the destructor after that context has stopped
@@ -190,6 +191,8 @@ public:
     void connect(boost::asio::any_io_executor, done_type) override;
     /** @brief Gives up the attempt in progress; its done is not called. */
     void cancel() override;
+    /** @brief @return true: a new attempt can be made after a loss */
+    [[nodiscard]] bool reconnectable() const override;
 
 private:
     struct GAttempt; ///< Resolver, socket and callback of one attempt; owned by its pending work

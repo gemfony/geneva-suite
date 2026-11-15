@@ -692,13 +692,15 @@ private:
  */
 class GInProcessConnector final : public Gem::Courtier::Consumers::GConnectorI {
 public:
-    /** @brief @param listener The server
+    /** @brief @param listener The server @param reconnectable What reconnectable() answers
      *  @param watch Where the client ends made are recorded (may be empty) */
     explicit GInProcessConnector(
         std::weak_ptr<GInProcessListener> listener,
+        bool reconnectable = true,
         std::shared_ptr<GInProcessPeerWatch> watch = nullptr
     )
       : listener_(std::move(listener))
+      , reconnectable_(reconnectable)
       , watch_(std::move(watch)) { /* nothing */
     }
 
@@ -745,8 +747,14 @@ public:
         }
     }
 
+    /** @brief @return What the constructor was told */
+    [[nodiscard]] bool reconnectable() const override {
+        return reconnectable_;
+    }
+
 private:
     std::weak_ptr<GInProcessListener> listener_; ///< The server
+    bool reconnectable_;                         ///< What reconnectable() answers
     std::shared_ptr<GInProcessPeerWatch> watch_; ///< Where the client ends are recorded, or empty
     std::shared_ptr<std::atomic<bool>> cancelled_; ///< The flag of the last attempt
 };

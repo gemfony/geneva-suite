@@ -114,10 +114,6 @@ struct GPeerClientOptions {
  * that were running when it was reached. While its compute pool evaluates an item the client tells
  * its peer that it is busy (GPeerI::setOwnerBusy()).
  *
- * The client does not connect again. Once its connection has ended, for whatever reason, the items
- * it holds or still decodes are dropped (the server puts them back); one that is being evaluated
- * runs to its end, its result is neither encoded nor sent, and the client ends after it.
- *
  * A message it cannot decode is reported to the server with UNREADABLE (after the pause that follows
  * a NO_WORK), which asks for the next
  * item in place of the request whose answer was lost: the server puts back what the client held and
@@ -292,11 +288,11 @@ private:
                     << "This will terminate the client." << '\n'
                     << GLOGGING;
         }
-        // No result can be delivered any more (the client does not connect again): items that wait
-        // for the compute pool, or are still being decoded, are not evaluated, and one that is
-        // being evaluated runs to its end without its result being encoded.
-        drop_held_();
-        this->dropResults_();
+        if(how == GPeerClose::RUN_ENDED || not connector_->reconnectable()) {
+            // No result can be delivered any more: items that wait for the compute pool, or are
+            // still being decoded, are not evaluated (one that is being evaluated runs to its end).
+            drop_held_();
+        }
         this->stopPipelineTimers_();
     }
 
