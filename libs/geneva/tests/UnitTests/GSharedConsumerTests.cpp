@@ -50,8 +50,10 @@
 #include <string_view>
 #include <thread>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
@@ -542,6 +544,54 @@ TEST_CASE(
 
     // Without the option the documented default applies, not the number of hardware threads.
     CHECK(beast_threads({}) == Gem::Courtier::GCONSUMERLISTENERTHREADS);
+}
+
+// ---------------------------------------------------------------------------
+// The serialization options name the modes there are (their help text used to offer the removed
+// Boost archives TEXTMODE, XMLMODE and BINARYMODE), and the parser refuses a value that names none.
+TEST_CASE(
+    "the serialization options name the modes there are and refuse others",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+    po::options_description all;
+    all.add(visible).add(hidden);
+    CHECK(
+        all.find("beast_serializationMode", false)
+            .description()
+            .contains(Gem::Common::serializationModeChoices())
+    );
+    for(const auto &option : all.options()) {
+        for(const std::string_view stale :
+            {"TEXTMODE", "XMLMODE", "BINARYMODE (", "GEM_JSONMODE"}) {
+            INFO(option->long_name() << ": " << stale);
+            CHECK_FALSE(option->description().contains(stale));
+        }
+    }
+
+    const auto parse = [&all](const std::string &value) {
+        po::variables_map vm;
+        po::store(
+            po::command_line_parser(std::vector<std::string>{"--beast_serializationMode", value})
+                .options(all)
+                .run(),
+            vm
+        );
+        po::notify(vm);
+        return Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+                   Gem::Geneva::specFromCommandLine("beast", vm)
+        )
+            .serializationMode;
+    };
+    for(const auto mode : Gem::Common::SERIALIZATIONMODES) {
+        CHECK(parse(std::to_string(std::to_underlying(mode))) == mode);
+    }
+    CHECK_THROWS(parse("0")); // the removed text archive
+    CHECK_THROWS(parse("2")); // the removed binary archive
 }
 
 // ---------------------------------------------------------------------------

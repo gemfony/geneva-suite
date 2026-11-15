@@ -172,8 +172,7 @@ public:
         hidden.add_options()(
             "mpi_serializationMode",
             po::value<serializationMode>()->default_value(defaults.serializationMode),
-            "\t[mpi] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), "
-            "GEM_BINARYMODE (3) or GEM_JSONMODE (4)"
+            ("\t[mpi] Serialization in " + Gem::Common::serializationModeChoices()).c_str()
         );
     }
 };

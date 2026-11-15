@@ -201,7 +201,7 @@ public:
         hidden.add_options()(
             "beast_serializationMode",
             po::value<serializationMode>()->default_value(defaults.serializationMode),
-            "\t[beast] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
+            ("\t[beast] Serialization in " + Gem::Common::serializationModeChoices()).c_str())(
             "beast_nListenerThreads",
             po::value<std::size_t>()->default_value(defaults.nThreads),
             "\t[beast] The number of io threads of the server, and of the threads its sessions run "

@@ -146,8 +146,7 @@ bool parseCommandLine(
         "serializationMode",
         serMode,
         DEFAULTSERMODE,
-        "Specifies whether serialization shall be done in TEXTMODE (0), XMLMODE (1) or BINARYMODE "
-        "(2)"
+        "Specifies the serialization: " + Gem::Common::serializationModeChoices()
     );
 
     gpb.registerCLParameter<bool>(
