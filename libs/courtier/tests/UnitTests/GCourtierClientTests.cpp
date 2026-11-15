@@ -34,6 +34,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <memory>
@@ -46,6 +47,7 @@
 
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GProcessingContainerT.hpp"
 #include "courtier/transport/GPrefetchingClientT.hpp"
 
 using Gem::Courtier::GCommandContainerT;
@@ -56,15 +58,20 @@ using namespace std::chrono_literals;
 namespace {
 
 /** @brief A client without a transport. It supplies the hooks the pipeline calls and lets a test
- *  arrange the order in which the pipeline's timer handlers run. */
-class ProbeClient final
-  : public GPrefetchingClientT<ProbeClient, GFaultyContainer>
-  , public std::enable_shared_from_this<ProbeClient> {
-    friend class GPrefetchingClientT<ProbeClient, GFaultyContainer>;
-    using pipeline_base = GPrefetchingClientT<ProbeClient, GFaultyContainer>;
+ *  arrange the order in which the pipeline's timer handlers run.
+ *  @tparam item_type The work item */
+template <typename item_type>
+class ProbeClientT final
+  : public GPrefetchingClientT<ProbeClientT<item_type>, item_type>
+  , public std::enable_shared_from_this<ProbeClientT<item_type>> {
+    friend class GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
+    using pipeline_base = GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
+    using pipeline_base::computing_;
+    using pipeline_base::io_context_;
+    using pipeline_base::pending_pulls_;
 
 public:
-    ProbeClient()
+    ProbeClientT()
       : pipeline_base("ProbeClient", /*prefetch_depth=*/1) { /* nothing */
     }
 
@@ -152,6 +159,50 @@ private:
 
     boost::asio::steady_timer stop_timer_{io_context_};
     std::size_t n_results_ = 0; ///< Encoded results handed to the transport
+};
+
+using ProbeClient = ProbeClientT<GFaultyContainer>;
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> slowDropArmed{false}; ///< The next GSlowDropItem destroyed takes its time
+
+/** @brief A work item whose destruction takes 500 ms once it has been evaluated: the compute
+ *  pool's handler, which holds the evaluated item, is then destroyed long after it has handed the
+ *  result to the io thread. */
+class GSlowDropItem final : public Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>>(
+            ar,
+            "GProcessingContainerT_GSlowDropItem",
+            *this
+        );
+    }
+
+public:
+    GSlowDropItem()
+      : Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>(1) { /* nothing */
+    }
+    GSlowDropItem(const GSlowDropItem &) = default;
+    GSlowDropItem(GSlowDropItem &&) = delete;
+    GSlowDropItem &operator=(const GSlowDropItem &) = delete;
+    GSlowDropItem &operator=(GSlowDropItem &&) = delete;
+    /** @brief Takes its time if it was evaluated with the slow drop armed */
+    ~GSlowDropItem() override {
+        if(slow_) {
+            std::this_thread::sleep_for(500ms);
+        }
+    }
+
+private:
+    /** @brief Marks this item to be dropped slowly */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
+        slow_ = slowDropArmed.exchange(false);
+    }
+
+    bool slow_ = false; ///< Its destruction takes its time
 };
 
 } /* anonymous namespace */
@@ -339,4 +390,35 @@ TEST_CASE(
     CHECK(client->computing() == 0);
     CHECK(client->pendingPulls() == 1);
     CHECK(client->getNProcessed() == 1);
+}
+
+/******************************************************************************/
+/**
+ * The compute pool's handler gives up its hold on the client as soon as it has handed the result to
+ * the io thread. Were it to keep it until the handler is destroyed (here: until the evaluated item
+ * has been dropped, 500 ms later), the client could see its last other owner go meanwhile -- the
+ * thread whose run() has returned -- and be destroyed on a thread of its own pool, which cannot
+ * join itself (seen once as a crash at the end of a test).
+ */
+TEST_CASE(
+    "courtier(client): the compute pool does not hold the client after the result is handed over",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GSlowDropItem>();
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    const GCommandContainerT<GSlowDropItem> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClientT<GSlowDropItem>>();
+    slowDropArmed.store(true);
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    std::this_thread::sleep_for(100ms); // the pool's handler is still dropping the item
+    CHECK(client.use_count() == 1);
+    std::this_thread::sleep_for(600ms); // whatever the outcome, the pool is done with the client
 }
