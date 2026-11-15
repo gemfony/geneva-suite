@@ -129,6 +129,9 @@ void GWebsocketPeer::configure_() {
                              [[maybe_unused]] boost::beast::string_view payload
                          ) {
         last_inbound_ = std::chrono::steady_clock::now();
+        if(kind == boost::beast::websocket::frame_type::close) {
+            close_received_ = true;
+        }
         if(options_.verboseControlFrames) {
             glogger << options_.name << " has received a " << frameName(kind) << " frame" << '\n'
                     << GLOGGING;
@@ -391,7 +394,7 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     finished_ = true;
     closing_ = true;
 
-    if(cause == boost::beast::error::timeout && open_) {
+    if(cause == boost::beast::error::timeout && open_ && not close_received_) {
         // Which end gave up, and after how much silence: the other end is either gone, or it could
         // not answer a ping in time because its executor was busy (with a large message, say).
         const auto silent_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -418,7 +421,12 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
         std::ignore = ws_.next_layer().close(ignored);
     }
 
-    const error_code reported = local_close_ ? error_code{} : cause;
+    // The other end's close is its close, also if the end of the TCP connection then failed or
+    // timed out: it did say that it closes.
+    const error_code reported = local_close_ ? error_code{}
+                                : close_received_
+                                    ? error_code{boost::beast::websocket::error::closed}
+                                    : cause;
     if(report_inline) {
         this->report_(reported);
     }

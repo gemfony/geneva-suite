@@ -35,9 +35,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
 #include <thread>
@@ -476,6 +478,58 @@ TEST_CASE(
     CHECK(client_seen.messages.front() == "answer");
     CHECK(client_seen.nClosed == 1);
     CHECK_FALSE(client_seen.cause); // the client closed; it did not give up on a silent server
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.cause == boost::beast::websocket::error::closed);
+}
+
+/******************************************************************************/
+// The other end's close is its close, also when the end of the connection is not completed: here
+// the other end sends a close frame and then neither reads nor ends the TCP connection, so the
+// close handshake cannot finish and Beast ends it by its time limit. The peer must still report a
+// regular close by the other end, not an expired idle limit -- the other end did say that it
+// closes. (In a gate run the same case once came about by chance: a client's close arrived just
+// as the server's keep-alive timer expired.)
+TEST_CASE(
+    "GWebsocketPeer reports a close of the other end as such when the connection does not end",
+    "[courtier][websocket][peer]"
+) {
+    using namespace std::chrono_literals;
+    boost::asio::io_context ctx;
+    tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+
+    std::promise<void> release;
+    const std::jthread other_end([port = acceptor.local_endpoint().port(),
+                                  held = release.get_future()]() mutable {
+        boost::asio::io_context own;
+        boost::beast::websocket::stream<tcp::socket> ws(own);
+        ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
+        ws.handshake("localhost", "/");
+        // A close frame written by hand (masked, as a client's frames are; code 1000)
+        const std::array<unsigned char, 8> close_frame{0x88, 0x82, 0, 0, 0, 0, 0x03, 0xE8};
+        boost::asio::write(ws.next_layer(), boost::asio::buffer(close_frame));
+        held.wait_for(15s); // holds the connection open, and reads nothing
+    });
+
+    GSeen server_seen;
+    auto server = std::make_shared<GWebsocketPeer>(
+        acceptor.accept(),
+        GWebsocketPeer::GOptions{.name = "test peer", .pingInterval = 1s},
+        GWebsocketPeer::GHandlers{
+            .onOpen = [&server_seen] { ++server_seen.nOpen; },
+            .onMessage = [&server_seen](const std::string &m) { server_seen.messages.push_back(m); },
+            .onClosed =
+                [&server_seen](const boost::system::error_code &cause) {
+                    ++server_seen.nClosed;
+                    server_seen.cause = cause;
+                }
+        }
+    );
+    server->acceptHandshake();
+    server.reset();
+
+    const bool dry = runsDry(ctx);
+    release.set_value();
+    REQUIRE(dry);
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.cause == boost::beast::websocket::error::closed);
 }

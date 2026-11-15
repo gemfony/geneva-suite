@@ -121,8 +121,9 @@ public:
         std::move_only_function<void(std::string &&)> onMessage;
         /// The connection is over; called exactly once. The error code says why: none if this end
         /// closed it, boost::beast::websocket::error::closed if the other end closed it in the
-        /// regular way, boost::beast::error::timeout if a time limit expired, and the transport's
-        /// error otherwise.
+        /// regular way (its close frame arrived, whatever became of the TCP connection after
+        /// it), boost::beast::error::timeout if a time limit expired, and the transport's error
+        /// otherwise.
         std::move_only_function<void(const boost::system::error_code &)> onClosed;
     };
 
@@ -192,6 +193,7 @@ private:
     bool closing_ =
         false; ///< A close has begun, or the connection is over: nothing is sent any more
     bool local_close_ = false;                 ///< This end began the close
+    bool close_received_ = false;              ///< The other end's close frame has arrived
     std::atomic<bool> close_requested_{false}; ///< close() was called (from any thread)
     bool finished_ = false;                    ///< onClosed has been called
 
