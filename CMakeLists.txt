@@ -680,6 +680,15 @@ ELSE ()
 	SET(GENEVA_INSTALLED_WITH_MPI FALSE)
 ENDIF ()
 
+# Record whether this install was built with the GPU consumer: its backends are then compiled into
+# Geneva::courtier. The GPU headers are installed in any case (Inv 19), so a program can tell only
+# from this variable whether using them will link.
+IF (GENEVA_GPU_CONSUMER_ENABLED)
+	SET(GENEVA_INSTALLED_WITH_GPU TRUE)
+ELSE ()
+	SET(GENEVA_INSTALLED_WITH_GPU FALSE)
+ENDIF ()
+
 # Generate GenevaConfig.cmake from the template. PATH_VARS / INSTALL_DESTINATION
 # allow the file to be relocatable.
 CONFIGURE_PACKAGE_CONFIG_FILE(
@@ -731,6 +740,7 @@ IF (GENEVA_BUILD_TESTS)
 				-DBOOST_DIR=${Boost_DIR}
 				-DCATCH2_DIR=${Catch2_DIR}
 				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
+				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)

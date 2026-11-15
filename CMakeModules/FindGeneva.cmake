@@ -82,6 +82,9 @@
 #                               (the same build-flavor variable the config package exports)
 # GENEVA_MPI                  - TRUE if the installation has the MPI consumer (both MPI
 #                               libraries were found), as the config package exports it
+# GENEVA_GPU                  - TRUE if the installation has the GPU consumer (its backends
+#                               are compiled into the courtier library), as the config package
+#                               exports it
 # GENEVA_FOUND                - TRUE if all required Geneva components were found
 #
 # Note: the former GENEVA_INDIVIDUAL_LIBRARY is gone -- the geneva-individuals
@@ -266,6 +269,30 @@ IF (GENEVA_GENEVA_LIBRARY)
 	ENDIF ()
 	IF (_GENEVA_NM_OUT MATCHES "Catch")
 		SET (GENEVA_TESTING "TRUE")
+	ENDIF ()
+ENDIF ()
+
+# The GPU consumer's backends are compiled into the courtier library when the installation has
+# the GPU consumer; its headers are installed in any case. The config package records this at
+# generate time; here the library is probed for the entry point of the CUDA driver
+# (Gem::Courtier::GPU::cudaDriver(), defined only by the backends), with the same conservative
+# answer as above: a library that cannot be inspected reads FALSE.
+SET (GENEVA_GPU "FALSE")
+IF (GENEVA_COURTIER_LIBRARY)
+	EXECUTE_PROCESS(
+		COMMAND ${CMAKE_NM} -D --defined-only "${GENEVA_COURTIER_LIBRARY}"
+		OUTPUT_VARIABLE _GENEVA_NM_COURTIER
+		ERROR_QUIET
+	)
+	IF (NOT _GENEVA_NM_COURTIER)
+		EXECUTE_PROCESS(
+			COMMAND nm -D --defined-only "${GENEVA_COURTIER_LIBRARY}"
+			OUTPUT_VARIABLE _GENEVA_NM_COURTIER
+			ERROR_QUIET
+		)
+	ENDIF ()
+	IF (_GENEVA_NM_COURTIER MATCHES "_ZN3Gem8Courtier3GPU10cudaDriverEv")
+		SET (GENEVA_GPU "TRUE")
 	ENDIF ()
 ENDIF ()
 

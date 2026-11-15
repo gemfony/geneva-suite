@@ -49,7 +49,10 @@
 #     installation by a small project written here: it must define the same
 #     targets the config package exports (with the MPI consumer also
 #     Geneva::courtier-mpi and Geneva::geneva-mpi, and GENEVA_MPI); with the MPI
-#     consumer the probe's source is built and run against those targets.
+#     consumer the probe's source is built and run against those targets;
+#  6. both the config package and FindGeneva.cmake say whether the installation has
+#     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
+#     was configured.
 #
 # On success the directory is removed; on failure it is kept and named.
 #
@@ -61,6 +64,7 @@
 #   BOOST_DIR        Boost's CMake package directory, as the build found it
 #   CATCH2_DIR       Catch2's CMake package directory (a testing-enabled install needs it)
 #   WITH_MPI         ON if the build has the MPI consumer
+#   WITH_GPU         TRUE if the build has the GPU consumer
 #   JOBS             parallel build jobs for the probes
 #
 ################################################################################
@@ -204,6 +208,46 @@ IF(WITH_MPI)
 	gip_run("run it without LD_LIBRARY_PATH" "${ROOT}/findgeneva-run.log"
 		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${ROOT}/findgeneva/GenevaMpiModuleProbe")
 ENDIF()
+
+# 6. What the installation has: GENEVA_MPI and GENEVA_GPU, from the config package and from
+#    FindGeneva.cmake, must say what the build was configured with.
+IF(WITH_MPI)
+	SET(_want_mpi TRUE)
+ELSE()
+	SET(_want_mpi FALSE)
+ENDIF()
+IF(WITH_GPU)
+	SET(_want_gpu TRUE)
+ELSE()
+	SET(_want_gpu FALSE)
+ENDIF()
+FOREACH(_mode CONFIG MODULE)
+	SET(_flags_src "${ROOT}/flags-${_mode}-src")
+	FILE(MAKE_DIRECTORY "${_flags_src}")
+	STRING(CONCAT _flags_lists
+		"cmake_minimum_required(VERSION 3.27)\n"
+		"project(GenevaFlagsProbe CXX)\n"
+		"list(APPEND CMAKE_MODULE_PATH \"${SOURCE_DIR}/CMakeModules\")\n"
+		"set(GENEVA_ROOT \"${_prefix}\")\n"
+		"find_package(Geneva ${_mode} REQUIRED)\n"
+		"foreach(_f MPI GPU)\n"
+		"  if(GENEVA_\${_f})\n"
+		"    set(_have TRUE)\n"
+		"  else()\n"
+		"    set(_have FALSE)\n"
+		"  endif()\n"
+		"  message(STATUS \"GENEVA_\${_f}=\${_have}\")\n"
+		"endforeach()\n"
+		"if(GENEVA_MPI)\n  set(_mpi TRUE)\nelse()\n  set(_mpi FALSE)\nendif()\n"
+		"if(GENEVA_GPU)\n  set(_gpu TRUE)\nelse()\n  set(_gpu FALSE)\nendif()\n"
+		"if(NOT _mpi STREQUAL \"${_want_mpi}\" OR NOT _gpu STREQUAL \"${_want_gpu}\")\n"
+		"  message(FATAL_ERROR \"${_mode}: GENEVA_MPI=\${_mpi} GENEVA_GPU=\${_gpu}, the build has "
+		"MPI=${_want_mpi} GPU=${_want_gpu}\")\n"
+		"endif()\n")
+	FILE(WRITE "${_flags_src}/CMakeLists.txt" "${_flags_lists}")
+	gip_run("say MPI and GPU through find_package(Geneva ${_mode})" "${ROOT}/flags-${_mode}.log"
+		"${CMAKE_COMMAND}" -S "${_flags_src}" -B "${ROOT}/flags-${_mode}" ${_common_args})
+ENDFOREACH()
 
 FILE(REMOVE_RECURSE "${ROOT}")
 MESSAGE(STATUS "The moved installation serves programs outside the tree")
