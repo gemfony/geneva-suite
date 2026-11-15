@@ -290,6 +290,12 @@ Geneva::dietrich, Geneva::courtier and Geneva::geneva; linking Geneva::geneva
 pulls in the layers beneath it, the C++23
 requirement and the Boost dependency transitively.
 
+An installation made without the separate INSTALL_PREFIX_* locations (the
+default) is relocatable: everything in it refers to the installation's own
+location, so it may be moved, installed with "cmake --install --prefix", or
+staged with DESTDIR and used from there. With the four INSTALL_PREFIX_*
+variables set, the exported targets name those absolute directories.
+
 libs/geneva/quickstart/ is a working project of exactly this shape and the
 recommended starting point: it is not built by the in-tree build, it locates
 Geneva only through the installed package, and it can be copied out of the tree

@@ -29,6 +29,13 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
 
+# Relative install destinations: see CMP0177 in CMakeModules/CommonGenevaBuild.cmake, which sets it
+# for the functions it defines (their own policy scope); this sets it for the install() calls of
+# this project's directories.
+IF (POLICY CMP0177)
+	CMAKE_POLICY(SET CMP0177 NEW)
+ENDIF ()
+
 MESSAGE ("")
 
 # C is enabled alongside CXX so the C compiler that the build scripts pass (CMAKE_C_COMPILER) is
@@ -407,8 +414,9 @@ endif()
 #   INSTALL_PREFIX_DATA     -> installation folder for other files like
 #                              examples, tests and other scripts
 # If none of these variables is set, the whole Geneva binary tree is installed
-# (as expected) in "CMAKE_INSTALL_PREFIX". The default value for this last
-# variable is set here, and further handled in the 'CommonGenevaBuild' module.
+# (as expected) in "CMAKE_INSTALL_PREFIX", with destinations relative to it, so
+# that the installation can be moved (see the 'CommonGenevaBuild' module). The
+# default value for this last variable is set here.
 # Generally, this can be provided through a custom genevaConfig.gcfg, in
 # conjunction with the prepareBuild.sh script.
 
@@ -704,6 +712,35 @@ INSTALL(
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaRunQuiet.cmake
 	DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
 )
+
+################################################################################
+# The installation serves programs outside the tree: the build is installed into a fresh
+# directory, the installation is moved, and the quickstart, the MPI module probe and a project
+# that uses FindGeneva.cmake are built against the moved installation and run, without
+# LD_LIBRARY_PATH (CMakeModules/CheckInstalledPackage.cmake says how). Not registered in a
+# sanitizer build: a program built without -fsanitize cannot run against instrumented libraries.
+IF (GENEVA_BUILD_TESTS)
+	IF (GENEVA_SANITIZER STREQUAL "none")
+		ADD_TEST(
+			NAME GenevaInstalledPackageProbes
+			COMMAND ${CMAKE_COMMAND}
+				-DBUILD_DIR=${CMAKE_BINARY_DIR}
+				-DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+				-DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+				-DBUILD_TYPE=${CMAKE_BUILD_TYPE}
+				-DBOOST_DIR=${Boost_DIR}
+				-DCATCH2_DIR=${Catch2_DIR}
+				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
+				-DJOBS=4
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install")
+		GENEVA_TEST_SIZE(GenevaInstalledPackageProbes L)
+	ELSE ()
+		MESSAGE(STATUS "GenevaInstalledPackageProbes not registered: a sanitizer build "
+			"(GENEVA_SANITIZER=${GENEVA_SANITIZER}) cannot serve uninstrumented programs")
+	ENDIF ()
+ENDIF ()
 
 # Tests / examples / benchmarks are gated and dispatched inside each library's
 # own CMakeLists.txt (common/, hap/, courtier/, geneva/) now that the legacy

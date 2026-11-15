@@ -175,6 +175,15 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	if(POLICY CMP0153)
 		cmake_policy(SET CMP0153 NEW)
 	endif()
+	# The install destinations of a one-tree installation are relative to the prefix, and the
+	# data and documentation destinations are "." (see below): "./examples/..." is to mean
+	# "examples/...". CMake 3.31 and later normalize such a path only under the NEW behaviour of
+	# CMP0177; the OLD one warns about every such destination. (Set here for the functions this
+	# file defines, such as GENEVA_MATERIALIZE_CONFIGS; the top-level CMakeLists.txt sets it for
+	# its directories.)
+	if(POLICY CMP0177)
+		cmake_policy(SET CMP0177 NEW)
+	endif()
 
 	# Search for the required libraries
 	MESSAGE("Searching for Boost...\n")
@@ -264,28 +273,32 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	IF (INSTALL_PREFIX_INCLUDES AND INSTALL_PREFIX_LIBS
 			AND INSTALL_PREFIX_DOCS AND INSTALL_PREFIX_DATA)
 		# All are set, we ignore CMAKE_INSTALL_PREFIX and install
-		# each kind of files in its own location
+		# each kind of files in its own location. These are absolute paths, and the exported targets
+		# name them: such an installation is not relocatable (see the branch below for one that is).
 		SET( INFO_INSTALL_PREFIX                       "\n\t\t(libs)\t\t${INSTALL_PREFIX_LIBS}" )
 		SET( INFO_INSTALL_PREFIX "${INFO_INSTALL_PREFIX}\n\t\t(headers)\t${INSTALL_PREFIX_INCLUDES}" )
 		SET( INFO_INSTALL_PREFIX "${INFO_INSTALL_PREFIX}\n\t\t(docs)\t\t${INSTALL_PREFIX_DOCS}" )
 		SET( INFO_INSTALL_PREFIX "${INFO_INSTALL_PREFIX}\n\t\t(other files)\t${INSTALL_PREFIX_DATA}" )
 	ELSEIF (NOT INSTALL_PREFIX_INCLUDES AND NOT INSTALL_PREFIX_LIBS
 			AND NOT INSTALL_PREFIX_DOCS AND NOT INSTALL_PREFIX_DATA)
-		# All unset, Geneva is installed as a standalone tree in CMAKE_INSTALL_PREFIX
-		IF (NOT INSTALL_PREFIX_ROOT)
-			IF (CMAKE_INSTALL_PREFIX)
-				SET( INSTALL_PREFIX_ROOT ${CMAKE_INSTALL_PREFIX} )
-			ELSE ()
-				# If no value was set, use relative paths
-				SET( INSTALL_PREFIX_ROOT "." )
-			ENDIF ()
+		# All unset, Geneva is installed as a standalone tree in CMAKE_INSTALL_PREFIX. The
+		# destinations are RELATIVE to it, so that the installation can be moved: CMake then
+		# writes the exported targets (GenevaTargets*.cmake) and the config package relative to
+		# their own location, and a tree installed elsewhere -- by "cmake --install --prefix",
+		# or staged with DESTDIR -- is as usable as one at the configured prefix. (With absolute
+		# destinations the exported targets name the configured prefix, and only an installation
+		# at exactly that place can be built against.)
+		IF (INSTALL_PREFIX_ROOT)
+			# A root given explicitly (or the default of the top-level CMakeLists.txt when
+			# CMAKE_INSTALL_PREFIX is empty) is the prefix the relative destinations refer to.
+			SET( CMAKE_INSTALL_PREFIX "${INSTALL_PREFIX_ROOT}" )
 		ENDIF ()
 
-		SET( INSTALL_PREFIX_INCLUDES "${INSTALL_PREFIX_ROOT}/include" )
-		SET( INSTALL_PREFIX_LIBS     "${INSTALL_PREFIX_ROOT}/lib" )
-		SET( INSTALL_PREFIX_DOCS     "${INSTALL_PREFIX_ROOT}" )
-		SET( INSTALL_PREFIX_DATA     "${INSTALL_PREFIX_ROOT}" )
-		SET( INFO_INSTALL_PREFIX     "${INSTALL_PREFIX_ROOT}" )
+		SET( INSTALL_PREFIX_INCLUDES "include" )
+		SET( INSTALL_PREFIX_LIBS     "lib" )
+		SET( INSTALL_PREFIX_DOCS     "." )
+		SET( INSTALL_PREFIX_DATA     "." )
+		SET( INFO_INSTALL_PREFIX     "${CMAKE_INSTALL_PREFIX}" )
 	ELSE ()
 		# Inconsistent settings
 		MESSAGE (FATAL_ERROR "Please set either all four or none of the"
@@ -303,8 +316,16 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# those depths (relocatable) plus the absolute lib dir as a backstop. USE_LINK_PATH also records the
 	# link-time dependency dirs (e.g. Boost). A user-supplied CMAKE_INSTALL_RPATH is respected.
 	IF (NOT CMAKE_INSTALL_RPATH)
+		# The backstop names the library directory at the configured prefix; a relative destination
+		# is made absolute against CMAKE_INSTALL_PREFIX. After a move the $ORIGIN entries, which
+		# come first, find the libraries.
+		IF (IS_ABSOLUTE "${INSTALL_PREFIX_LIBS}")
+			SET (_geneva_installed_libdir "${INSTALL_PREFIX_LIBS}")
+		ELSE ()
+			SET (_geneva_installed_libdir "${CMAKE_INSTALL_PREFIX}/${INSTALL_PREFIX_LIBS}")
+		ENDIF ()
 		SET (CMAKE_INSTALL_RPATH
-			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;${INSTALL_PREFIX_LIBS}")
+			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;${_geneva_installed_libdir}")
 	ENDIF ()
 	SET (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
