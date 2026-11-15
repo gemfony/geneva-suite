@@ -31,8 +31,9 @@
 
 #include "common/GGlobalDefines.hpp"
 
-// The whole consumer is only available when the MPI consumer was enabled at configure time.
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: only a program that uses MPI includes this header,
+// and that definition belongs to the collection's own build, which a program outside it does not
+// have (see courtier/mpi/GMPIEnvironment.hpp).
 
 // Standard headers
 #include <atomic>
@@ -177,5 +178,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Courtier */
-
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */

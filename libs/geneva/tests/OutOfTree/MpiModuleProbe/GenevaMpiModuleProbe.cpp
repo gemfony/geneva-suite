@@ -39,10 +39,18 @@
  */
 
 #include <cstdio>
+#include <type_traits>
 
+#include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GMPISubClientOptimizer.hpp"
+#include "geneva/genome/GGenome.hpp"
+
+// The MPI consumer is a class template in an installed header: it must be there for a program
+// outside the tree, which knows none of the collection's own compile definitions. (Whether a class
+// is polymorphic can only be told from its complete definition, so this instantiates it.)
+static_assert(std::is_polymorphic_v<Gem::Courtier::GMPIConsumerT<Gem::Geneva::Genome::GGenome>>);
 
 int main(int argc, char **argv) {
     // Linked: the sub-client optimizer from libgemfony-geneva-mpi and the environment's functions
