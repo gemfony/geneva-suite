@@ -36,6 +36,8 @@ iterations.
       websockets: every client is an MPI job of its own, whose rank 0 is the
       client and lead (a group of one is started without mpirun)
 
+As there, --waitForClients C makes the server wait for its C clients before its
+first run (the MPI consumer cannot tell how many it has and is not waited for).
 runWithClients.sh beside GParallelisationOverhead starts both modes (GROUP=n in
 its environment), and GSpeedupFigure there draws the tables of several runs
 into one figure. Run everything from a work directory outside the source tree.

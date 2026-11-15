@@ -333,6 +333,8 @@ TEST_CASE(
         shell.startServer();
         role->connect(connector, clients.executor());
         REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
+        // The consumer's answer to how many clients are connected (GBaseConsumerT)
+        CHECK(shell.connectedClients() == std::optional<std::size_t>{1});
 
         const auto stop_began = std::chrono::steady_clock::now();
         shell.stopServer();

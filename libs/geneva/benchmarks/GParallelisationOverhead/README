@@ -25,7 +25,12 @@ example a server and its clients:
   ./GParallelisationOverhead -c beast --client      (once per worker)
 
 It reads the stored reference, runs the delays of config/GDelayIndividual.json
-and writes the plot. The reference and the measurement must use the same
+and writes the plot. With --waitForClients N the server waits, before its
+first (unmeasured) run, until its consumer reports N connected clients, so
+that the measurement starts when all clients run, not when the server starts;
+it prints how long it waited, and ends with an error if fewer than N have come
+within --clientWaitLimit seconds (600 by default). A consumer that cannot tell
+how many clients it has (the MPI one) is not waited for; the log says so. The reference and the measurement must use the same
 config/GEvolutionaryAlgorithm.json. Both halves used to run in one process;
 an algorithm submits through the one consumer of its process, so that
 reference ran on the same workers as the measurement.
@@ -48,7 +53,8 @@ provided you have installed ROOT on your system (see http://root.cern.ch
 for further information).
 
 runWithClients.sh does the two runs for a server and N clients on one host and
-leaves the results in a work directory outside the source tree. With the
+leaves the results in a work directory outside the source tree; the server
+waits for the N clients (--waitForClients N). With the
 consumer mpi it starts one mpirun with N + 1 ranks instead (rank 0 is the
 server); everything else -- the work directory, the server options, the
 reference -- is the same for every consumer. Several runs can share one serial

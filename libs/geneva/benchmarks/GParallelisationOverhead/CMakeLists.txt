@@ -101,6 +101,16 @@ IF (Python3_Interpreter_FOUND)
 		FIXTURES_SETUP ${EXECUTABLENAME}SharedReference)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}RunWithClients M)
 
+	# The server waits for its clients before its first run (--waitForClients): a client started
+	# seconds after the other is waited for, one client too few ends the server at the limit.
+	ADD_TEST(NAME ${EXECUTABLENAME}ClientGate
+		COMMAND ${SPEEDUP_TOOLS_CHECK} gate $<TARGET_FILE:${EXECUTABLENAME}>
+			${CMAKE_CURRENT_BINARY_DIR}/check-gate ${CMAKE_CURRENT_BINARY_DIR}/check-run-beast)
+	SET_TESTS_PROPERTIES(${EXECUTABLENAME}ClientGate PROPERTIES
+		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
+		FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
+	GENEVA_TEST_SIZE(${EXECUTABLENAME}ClientGate L)
+
 	ADD_TEST(NAME ${EXECUTABLENAME}ShortReferenceRefused
 		COMMAND ${SPEEDUP_TOOLS_CHECK} refusal $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-refusal)

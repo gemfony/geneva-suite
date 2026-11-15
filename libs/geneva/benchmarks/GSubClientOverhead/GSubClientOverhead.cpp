@@ -121,32 +121,41 @@ Role readRole(int argc, char **argv) {
 }
 
 /******************************************************************************/
+/** What the options of the benchmark set (Go2's parse) */
+struct Settings {
+    bool referenceRun = false;                       ///< --reference
+    std::string referenceFile = "referenceLine.txt"; ///< --referenceFile
+    unsigned int group = 1;                          ///< --group
+    SpeedupMeasurement::ClientGate gate;             ///< --waitForClients, --clientWaitLimit
+};
+
 /**
  * The options of the benchmark, for Go2's parse.
  *
- * @param reference_run Set by --reference
- * @param reference_file Set by --referenceFile
- * @param group Set by --group
+ * @param settings Where the values go
  * @return The option descriptions
  */
-boost::program_options::options_description
-benchmarkOptions(bool &reference_run, std::string &reference_file, unsigned int &group) {
+boost::program_options::options_description benchmarkOptions(Settings &settings) {
     boost::program_options::options_description options;
     options.add_options()(
         "reference",
-        boost::program_options::value<bool>(&reference_run)->implicit_value(true)->default_value(false),
+        boost::program_options::value<bool>(&settings.referenceRun)
+            ->implicit_value(true)
+            ->default_value(false),
         "Measure the serial reference (on one local worker, in a group of one) and store its line "
         "in --referenceFile, instead of measuring the parallel times"
     )(
         "referenceFile",
-        boost::program_options::value<std::string>(&reference_file)->default_value(reference_file),
+        boost::program_options::value<std::string>(&settings.referenceFile)
+            ->default_value(settings.referenceFile),
         "The file that holds the line of the serial reference"
     )(
         "group",
-        boost::program_options::value<unsigned int>(&group)->default_value(group),
+        boost::program_options::value<unsigned int>(&settings.group)->default_value(settings.group),
         "A networked client: the processes of its group, started as one MPI job (1: no sub-clients, "
         "no MPI)"
     );
+    SpeedupMeasurement::addClientGateOptions(options, settings.gate);
     return options;
 }
 
@@ -156,11 +165,10 @@ benchmarkOptions(bool &reference_run, std::string &reference_file, unsigned int 
  * @p go.
  *
  * @param go The optimization wrapper
- * @param reference_run Whether this is the reference run
- * @param reference_file The file of the reference line
+ * @param settings What the options set
  * @return The exit code
  */
-int measure(Go2 &go, bool reference_run, const std::string &reference_file) {
+int measure(Go2 &go, const Settings &settings) {
     const auto config_ref =
         GSleepGroupIndividual::readConfig("./config/GSleepGroupIndividual-reference.json");
     const auto config_par =
@@ -181,18 +189,19 @@ int measure(Go2 &go, bool reference_run, const std::string &reference_file) {
             .inter_measurement_delay = c.inter_measurement_delay
         };
     };
-    const auto &config = reference_run ? config_ref : config_par;
+    const auto &config = settings.referenceRun ? config_ref : config_par;
     SpeedupMeasurement::run(
         go,
-        reference_run,
-        reference_file,
+        settings.referenceRun,
+        settings.referenceFile,
         to_schedule(config_ref),
         to_schedule(config_par),
         [&config](const std::chrono::duration<double> &delay) -> std::shared_ptr<gen::GGenome> {
             return GSleepGroupIndividual::create(config, delay);
         },
         config_par.result_file,
-        config_par.short_result_file
+        config_par.short_result_file,
+        settings.gate
     );
     return 0;
 }
@@ -202,24 +211,18 @@ int measure(Go2 &go, bool reference_run, const std::string &reference_file) {
  * One MPI job for everything: rank 0 is the server, the others are clients (leads) and their
  * sub-clients, split by GMPISubClientOptimizer.
  */
-int runMPIJob(
-    int argc,
-    char **argv,
-    bool &reference_run,
-    std::string &reference_file,
-    unsigned int &group
-) {
+int runMPIJob(int argc, char **argv, Settings &settings) {
     GMPISubClientOptimizer go(
         argc,
         argv,
         "./config/GMPISubClientOptimizer.json",
-        benchmarkOptions(reference_run, reference_file, group)
+        benchmarkOptions(settings)
     );
     go.registerSubClientJob([](MPI_Comm sub_group) {
         return SubClientOverhead::serveGroup(sub_group);
     });
     if(not go.clientMode()) {
-        return measure(go, reference_run, reference_file);
+        return measure(go, settings);
     }
     if(go.isSubClient()) {
         return go.clientRun(); // runs serveGroup() until the lead releases the group
@@ -235,14 +238,7 @@ int runMPIJob(
  * A client of a networked consumer. In a group of more than one it is an MPI job of its own:
  * rank 0 is the client and lead, the other ranks serve it and construct no Geneva object.
  */
-int runNetworkedClient(
-    int argc,
-    char **argv,
-    const Role &role,
-    bool &reference_run,
-    std::string &reference_file,
-    unsigned int &group
-) {
+int runNetworkedClient(int argc, char **argv, const Role &role, Settings &settings) {
     std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment;
     if(role.group > 1) {
         environment = Gem::Courtier::mpiEnvironment(); // initializes MPI
@@ -263,12 +259,7 @@ int runNetworkedClient(
     }
     int status = 0;
     {
-        Go2 go(
-            argc,
-            argv,
-            "./config/Go2.json",
-            benchmarkOptions(reference_run, reference_file, group)
-        );
+        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
         status = go.clientRun();
     }
     SubClientOverhead::releaseGroup(SubClientOverhead::processGroup());
@@ -289,9 +280,7 @@ int main(int argc, char **argv) try {
         {.min = std::chrono::microseconds(config.poll_pause_min),
          .max = std::chrono::microseconds(config.poll_pause_max)}
     );
-    bool reference_run = false;
-    std::string reference_file = "referenceLine.txt";
-    unsigned int group = 1;
+    Settings settings;
 
     if(role.updateConfigs) {
         // Both configuration files of Go2 that the benchmark reads: the MPI job's (which adds the
@@ -301,25 +290,20 @@ int main(int argc, char **argv) try {
                 argc,
                 argv,
                 "./config/GMPISubClientOptimizer.json",
-                benchmarkOptions(reference_run, reference_file, group)
+                benchmarkOptions(settings)
             );
         }
-        Go2 go(
-            argc,
-            argv,
-            "./config/Go2.json",
-            benchmarkOptions(reference_run, reference_file, group)
-        );
-        return measure(go, reference_run, reference_file);
+        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
+        return measure(go, settings);
     }
     if(role.consumer == "mpi") {
-        return runMPIJob(argc, argv, reference_run, reference_file, group);
+        return runMPIJob(argc, argv, settings);
     }
     if(role.client) {
-        return runNetworkedClient(argc, argv, role, reference_run, reference_file, group);
+        return runNetworkedClient(argc, argv, role, settings);
     }
-    Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(reference_run, reference_file, group));
-    return measure(go, reference_run, reference_file);
+    Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
+    return measure(go, settings);
 }
 catch(const std::exception &e) {
     std::cerr << "GSubClientOverhead: " << e.what() << '\n';

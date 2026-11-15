@@ -38,6 +38,7 @@
 #include <functional>
 #include <memory>
 #include <algorithm>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string>
@@ -98,6 +99,15 @@ public:
      *  emptying the buffer. Default: none. Networked consumers override this to drain their buffer.
      *  @return The buffered late-return items (ownership transferred); empty if the consumer buffers none */
     virtual std::vector<item_ptr> getLateReturns() { return {}; }
+
+    /***************************************************************************/
+    /** @brief How many clients are connected to this consumer now: the one question about its
+     *  clients that every consumer answers, so that a caller need not know the transport. A
+     *  consumer without clients (a local one) answers 0, the default; a networked consumer that
+     *  cannot tell answers std::nullopt (GNetworkedConsumerT); one that can, its count. From any
+     *  thread.
+     *  @return The number of connected clients, or std::nullopt if this consumer cannot tell */
+    [[nodiscard]] virtual std::optional<std::size_t> connectedClients() const { return 0; }
 
     /***************************************************************************/
     /**

@@ -68,6 +68,15 @@
 #            two looks for a message (unset: the configuration's)
 #   CLIENT_GRACE  seconds the networked clients have to end by themselves after
 #            their server (default 30); the rest are ended and counted
+#   EXPECT_CLIENTS  how many clients the server waits for before its first run
+#            (--waitForClients; default: the number of clients started). The
+#            measurement's clock starts when they are all connected, not when the
+#            server starts. A consumer that cannot tell how many clients it has
+#            (the MPI one) is not waited for; its log says so.
+#   CLIENT_WAIT_LIMIT  seconds the server waits for them (--clientWaitLimit,
+#            default 600); with fewer clients by then the server ends with an error
+#   LAST_CLIENT_DELAY  seconds the last networked client is started after the
+#            others (default 0)
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients goes
@@ -122,14 +131,18 @@ if [ ! -s referenceLine.txt ] || [ "${REFRESH_REFERENCE:-0}" = 1 ]; then
     "$X" --reference > reference.log 2>&1; echo "reference exit: $?"
 fi
 
+# The server starts its clock when the clients it waits for are connected.
+GATE=(--waitForClients "${EXPECT_CLIENTS:-$N}" --clientWaitLimit "${CLIENT_WAIT_LIMIT:-600}")
+
 if [ "$C" = mpi ]; then
     # The ranks take their roles from MPI; the server options reach every rank.
     # shellcheck disable=SC2086
-    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "$@" > server.log 2>&1
+    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" "$@" \
+        > server.log 2>&1
     STATUS=$?
 else
     PORT=$((15000 + RANDOM % 2000))
-    "$X" -c "$C" "--${C}_port" $PORT "$@" > server.log 2>&1 &
+    "$X" -c "$C" "--${C}_port" $PORT "${GATE[@]}" "$@" > server.log 2>&1 &
     SRV=$!
     sleep 2
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
@@ -139,7 +152,10 @@ else
         LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP"); GROUPOPT=(--group "$GROUP")
     fi
     PIDS=()
-    for _ in $(seq 1 "$N"); do
+    for i in $(seq 1 "$N"); do
+        if [ "$i" = "$N" ] && [ "${LAST_CLIENT_DELAY:-0}" != 0 ]; then
+            sleep "$LAST_CLIENT_DELAY"
+        fi
         "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" >> clients.log 2>&1 &
         PIDS+=($!)
     done

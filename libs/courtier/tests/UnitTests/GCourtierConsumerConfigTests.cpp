@@ -54,6 +54,7 @@
 #include <concepts>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <mutex>
 #include <set>
 #include <span>
@@ -197,6 +198,8 @@ TEST_CASE(
         );
         CHECK(runBatch(*consumer, seen, 16) == 16);
         CHECK(seen.ids.size() == 1);
+        // A local consumer has no clients: GBaseConsumerT's answer
+        CHECK(consumer->connectedClients() == std::optional<std::size_t>{0});
     }
 
     SECTION("built without arguments") {

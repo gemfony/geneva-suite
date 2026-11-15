@@ -169,6 +169,12 @@ public:
         return peers_.size();
     }
 
+    /** @brief The connected clients are the sessions that are alive (GBaseConsumerT).
+     *  @return getNActiveSessions() */
+    [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
+        return this->getNActiveSessions();
+    }
+
     /** @brief How many clients did not confirm the end of the run at the last stopServer(): those
      *  whose peers had not ended within the listener's stopGrace(), and those whose close ended
      *  without the client's confirmation. From any thread; 0 before a stop.

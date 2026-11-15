@@ -43,6 +43,10 @@ Usage:
       group of three, and every process ends by itself
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
+  testSpeedupTools.py gate <GParallelisationOverhead> <workdir> <reference dir>
+      the server waits for its clients before the first run: a client started seconds after the
+      other is waited for; with one client too few the server ends at the limit, non-zero, and
+      says how many came
 
 The work directory is created; it must lie outside the source tree.
 """
@@ -174,6 +178,12 @@ def check_run(program, workdir, consumer, reference_dir):
                                     encoding='utf-8') if not l.startswith('#')]
     if len(rows) != 1 or float(rows[0][0]) != 0.01 or not float(rows[0][5]) > 0.:
         fail(f'unexpected table {rows}')
+    log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
+    if consumer == 'mpi':
+        if 'cannot tell how many clients are connected' not in log:
+            fail('the MPI server did not say that it cannot wait for its clients')
+    elif 'Waiting for clients: 2 of 2 clients connected after' not in log:
+        fail('the server did not wait for its two clients')
     if reference_dir:
         line = open(os.path.join(reference_dir, 'referenceLine.txt'), encoding='utf-8').read()
         a, _, b, _ = (float(v) for v in line.split())
@@ -230,6 +240,50 @@ def check_refusal(program, workdir):
     print('a reference of two measurements is refused')
 
 
+def gate_run(program, workdir, reference_dir, env):
+    """A run of runWithClients.sh with two websocket clients and the shared reference."""
+    os.makedirs(workdir, exist_ok=True)
+    for name in ('shortDelayResults.txt', 'referenceLine.txt', 'server.log', 'clients.log'):
+        if os.path.exists(os.path.join(workdir, name)):
+            os.remove(os.path.join(workdir, name))
+    shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    status = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                             'beast', '2', '4', '2', '(0,10)', '(0,10), (0,20), (0,30)', '1'],
+                            env=dict(os.environ, INTER_DELAY='0', **env), check=False,
+                            timeout=240).returncode
+    log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
+    return status, log
+
+
+def check_gate(program, workdir, reference_dir):
+    """The server waits for its clients before its first run, within a limit."""
+    delay = 4
+    status, log = gate_run(program, os.path.join(workdir, 'late'), reference_dir,
+                           {'LAST_CLIENT_DELAY': str(delay)})
+    if status != 0:
+        fail(f'the run with a late client exited with {status}: {log[-500:]}')
+    waited = [l for l in log.splitlines() if l.startswith('Waiting for clients: ')]
+    if len(waited) != 1 or not waited[0].startswith('Waiting for clients: 2 of 2 clients'):
+        fail(f'the server did not wait for both clients: {waited}')
+    seconds = float(waited[0].split()[-2])
+    # The server starts 2 s before the clients (runWithClients.sh); the late one comes later still.
+    if seconds < delay:
+        fail(f'the server waited {seconds} s, less than the {delay} s the last client came later')
+    if log.find('Waiting for clients: ') > log.find('Warm-up run'):
+        fail('the first run began before the clients were all connected')
+    print(f'the server waited {seconds} s for its late client')
+
+    status, log = gate_run(program, os.path.join(workdir, 'short'), reference_dir,
+                           {'EXPECT_CLIENTS': '3', 'CLIENT_WAIT_LIMIT': '3',
+                            'CLIENT_GRACE': '5'})
+    message = 'only 2 of 3 clients connected within the limit of 3 s'
+    if status == 0 or message not in log:
+        fail(f'one client too few was not refused at the limit (exit {status}): {log[-500:]}')
+    if 'Warm-up run' in log:
+        fail('the server began to run although a client was missing')
+    print('one client too few ends the server at the limit, with the message')
+
+
 def main(args):
     if len(args) >= 3 and args[0] == 'figure':
         check_figure(os.path.abspath(args[1]), args[2])
@@ -239,6 +293,8 @@ def main(args):
     elif len(args) >= 4 and args[0] == 'subclients':
         check_subclients(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
                          os.path.abspath(args[4]) if len(args) > 4 else None)
+    elif len(args) >= 4 and args[0] == 'gate':
+        check_gate(os.path.abspath(args[1]), os.path.abspath(args[2]), os.path.abspath(args[3]))
     elif len(args) >= 3 and args[0] == 'refusal':
         check_refusal(os.path.abspath(args[1]), os.path.abspath(args[2]))
     else:

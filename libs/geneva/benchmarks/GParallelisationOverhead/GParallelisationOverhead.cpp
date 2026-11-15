@@ -71,6 +71,8 @@ int main(int argc, char **argv) try {
         boost::program_options::value<std::string>(&reference_file)->default_value(reference_file),
         "The file that holds the line of the serial reference"
     );
+    SpeedupMeasurement::ClientGate gate;
+    SpeedupMeasurement::addClientGateOptions(user_options, gate);
 
     // For the parallel measurement
     Go2 go_parallel(argc, argv, "./config/Go2.json", user_options);
@@ -123,7 +125,8 @@ int main(int argc, char **argv) try {
             return gind::GDelayIndividual::create(delay_config, delay);
         },
         delay_config_par.result_file,
-        delay_config_par.short_result_file
+        delay_config_par.short_result_file,
+        gate
     );
     return 0;
 }

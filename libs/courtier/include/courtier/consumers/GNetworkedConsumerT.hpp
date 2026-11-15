@@ -245,6 +245,13 @@ public:
         return late_store_.drainParked();
     }
 
+    /** @brief A networked consumer has clients, and one that does not count them cannot tell how
+     *  many are connected: std::nullopt, unless a derived consumer knows (GPeerConsumerT).
+     *  @return std::nullopt */
+    [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
+        return std::nullopt;
+    }
+
     /***************************************************************************/
     /** @brief The largest batch a single dispatch round can hold: the range of the slot index in
      *  the correlation id. A larger span is refused with a fatal error rather than routed wrongly.

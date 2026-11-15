@@ -182,6 +182,13 @@ public:
     void registerConsumer(
         std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
 
+    /** @brief The consumer this run submits through, on the submitting process: the one given to
+     *  registerConsumer(), or the one of the chosen mnemonic, which is built here if the run has
+     *  not been configured yet (as optimize() would). A caller may ask it, for example, how many
+     *  clients are connected (connectedClients()) before the first optimize().
+     *  @return The consumer; empty in a client or bystander process */
+    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer();
+
     /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "beast",
      *  "mpi", "gpu") -- the programmatic equivalent of the --consumer command-line option / the "consumer"
      *  config key. It takes effect when the run is configured (at the first of optimize() / clientRun() /
