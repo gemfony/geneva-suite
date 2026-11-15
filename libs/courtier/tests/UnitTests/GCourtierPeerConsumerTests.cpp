@@ -1,0 +1,403 @@
+/********************************************************************************
+ *
+ * This file is part of the Geneva library collection. The following license
+ * applies to this file:
+ *
+ * ------------------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ------------------------------------------------------------------------------
+ *
+ * Note that other files in the Geneva library collection may use a different
+ * license. Please see the licensing information in each file.
+ *
+ ********************************************************************************
+ *
+ * See the NOTICE file in the top-level directory of the Geneva library
+ * collection for a list of contributors and copyright information.
+ *
+ ********************************************************************************/
+
+// The server's shell over any listener (GPeerConsumerT), on the in-process transport: the end of a
+// run, the bound on it, the items of a lost client and the registry of peers. The clients are test
+// roles that send their requests by hand.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <future>
+#include <memory>
+#include <mutex>
+#include <span>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/post.hpp>
+
+#include "GInProcessPeer.hpp"
+#include "GInProcessTestSupport.hpp"
+#include "courtier/GCommandContainerT.hpp"
+#include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/GWireCodec.hpp"
+#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
+#include "courtier/consumers/GPeerConsumerT.hpp"
+#include "courtier/transport/GPeerI.hpp"
+
+using Gem::Courtier::GCommandContainerT;
+using Gem::Courtier::GFaultyContainer;
+using Gem::Courtier::GFrameKind;
+using Gem::Courtier::Consumers::GPeerClose;
+using Gem::Courtier::Consumers::GPeerEnd;
+using Gem::Courtier::Consumers::GPeerHandlers;
+using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::closeName;
+using Gem::Courtier::Tests::endName;
+using Gem::Courtier::Tests::GInProcessConnector;
+using Gem::Courtier::Tests::GInProcessFaults;
+using Gem::Courtier::Tests::GInProcessListener;
+using Gem::Courtier::Tests::GInProcessListenerRef;
+using Gem::Courtier::Tests::IoThreads;
+using namespace std::chrono_literals;
+
+namespace {
+
+constexpr auto PATIENCE = 5s; // how long a test waits for something that is due at once
+constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
+
+/** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
+template <typename Condition>
+bool eventually(Condition condition) {
+    return Gem::Courtier::Tests::eventually(condition, PATIENCE);
+}
+
+/******************************************************************************/
+/** @brief The shell under test, with its protected answer to "time lease?" made public */
+class Shell final : public Gem::Courtier::GPeerConsumerT<GFaultyContainer> {
+public:
+    /** @brief @param listener The in-process listener the shell owns a reference to
+     *  @param n_threads The session threads */
+    Shell(const std::shared_ptr<GInProcessListener> &listener, std::size_t n_threads)
+      : Gem::Courtier::GPeerConsumerT<GFaultyContainer>(
+            "Shell",
+            std::make_unique<GInProcessListenerRef>(listener),
+            n_threads,
+            BIN
+        ) {
+        // Nothing is given up on time: a lost item must come back through the session's lease.
+        Gem::Courtier::GNetworkedTimeoutConfig config;
+        config.treatment = "wait_indefinitely";
+        this->applyTimeoutConfig(config);
+    }
+
+    using Gem::Courtier::GPeerConsumerT<GFaultyContainer>::usesTimeLease;
+};
+
+/******************************************************************************/
+/**
+ * A client that sends its requests by hand: some PULLs when the connection is open, and for every
+ * WORK either a RETURN of the evaluated item (which asks for the next) or nothing (it holds the
+ * item). It records what it got and how its connection ended.
+ */
+class ScriptedClient : public std::enable_shared_from_this<ScriptedClient> {
+public:
+    /** @brief @param n_pulls PULLs sent when the connection is open
+     *  @param returns Whether a WORK is evaluated and returned */
+    ScriptedClient(std::size_t n_pulls, bool returns)
+      : n_pulls_(n_pulls)
+      , returns_(returns) { /* nothing */
+    }
+
+    /** @brief Connects through @p connector on @p executor and starts the peer it gets
+     *  @param connector The connector, kept alive by the caller @param executor Where it runs */
+    void connect(GInProcessConnector &connector, const boost::asio::any_io_executor &executor) {
+        connector.connect(
+            executor,
+            [self =
+                 this->shared_from_this()](const std::shared_ptr<GPeerI> &peer, std::string_view) {
+                if(peer) {
+                    self->start_(peer);
+                }
+            }
+        );
+    }
+
+    /** @brief Ends the connection at once, as a client that is lost does (on the peer's executor) */
+    void abort() {
+        if(auto peer = this->peer_()) {
+            boost::asio::post(peer->executor(), [peer] { peer->abort(); });
+        }
+    }
+
+    /** @brief @return Whether the connection is open */
+    [[nodiscard]] bool open() const {
+        return open_.load();
+    }
+    /** @brief @return How many WORK frames arrived */
+    [[nodiscard]] std::size_t nWork() const {
+        return n_work_.load();
+    }
+    /** @brief @return How many frames arrived */
+    [[nodiscard]] std::size_t nFrames() const {
+        return n_frames_.load();
+    }
+    /** @brief @return "<end>:<how>" once the connection has ended, empty before */
+    [[nodiscard]] std::string closed() const {
+        const std::scoped_lock lock(mutex_);
+        return closed_;
+    }
+
+private:
+    /** @brief @return The peer, if there is one */
+    std::shared_ptr<GPeerI> peer_() const {
+        const std::scoped_lock lock(mutex_);
+        return peer_weak_.lock();
+    }
+
+    /** @brief Starts the peer (on its executor) @param peer The client's end */
+    void start_(const std::shared_ptr<GPeerI> &peer) {
+        {
+            const std::scoped_lock lock(mutex_);
+            peer_weak_ = peer;
+        }
+        auto self = this->shared_from_this();
+        peer->start(
+            GPeerHandlers{
+                .onOpen =
+                    [self] {
+                        self->open_.store(true);
+                        for(std::size_t i = 0; i < self->n_pulls_; ++i) {
+                            self->send_(GCommandContainerT<GFaultyContainer>{GFrameKind::PULL});
+                        }
+                    },
+                .onMessage = [self](std::string &&message) { self->received_(std::move(message)); },
+                .onClosed =
+                    [self](GPeerEnd end, GPeerClose how, std::string_view) {
+                        self->open_.store(false);
+                        const std::scoped_lock lock(self->mutex_);
+                        self->closed_ = endName(end) + ":" + closeName(how);
+                    },
+            }
+        );
+    }
+
+    /** @brief A message from the server, on the peer's executor @param message Its bytes */
+    void received_(std::string &&message) {
+        const std::string bytes{std::move(message)};
+        n_frames_.fetch_add(1);
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+        Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+        if(frame.kind() != GFrameKind::WORK) {
+            return;
+        }
+        n_work_.fetch_add(1);
+        if(returns_) {
+            Gem::Courtier::processWorkFrame(frame, "ScriptedClient");
+            Gem::Courtier::makeReturnFrame(frame);
+            this->send_(frame);
+        }
+    }
+
+    /** @brief Encodes and sends a frame, on the peer's executor @param frame The frame */
+    void send_(const GCommandContainerT<GFaultyContainer> &frame) {
+        if(auto peer = this->peer_()) {
+            peer->send(Gem::Courtier::wireEncode(frame, nullptr, BIN));
+        }
+    }
+
+    const std::size_t n_pulls_;
+    const bool returns_;
+    mutable std::mutex mutex_;
+    std::weak_ptr<GPeerI> peer_weak_; ///< Under mutex_
+    std::string closed_;              ///< Under mutex_
+    std::atomic<bool> open_{false};
+    std::atomic<std::size_t> n_work_{0};
+    std::atomic<std::size_t> n_frames_{0};
+};
+
+/** @brief @param n How many @return n items, numbered from 0 */
+std::vector<std::unique_ptr<GFaultyContainer>> makeBatch(std::size_t n) {
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.reserve(n);
+    for(std::size_t i = 0; i < n; ++i) {
+        items.push_back(std::make_unique<GFaultyContainer>(i));
+    }
+    return items;
+}
+
+/** @brief @param since A moment @return The milliseconds since then */
+long long msSince(std::chrono::steady_clock::time_point since) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now() - since
+    )
+        .count();
+}
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+/**
+ * The end of a run: every client is told RUN_ENDED, the parked ones and those that wait for
+ * nothing alike, and the shell does not wait out its grace when they confirm.
+ */
+TEST_CASE(
+    "GPeerConsumerT: at the stop forty clients hear RUN_ENDED and the registry empties",
+    "[courtier][peer][shell]"
+) {
+    constexpr std::size_t N_PARKED = 20;
+    constexpr std::size_t N_IDLE = 20;
+    auto listener = std::make_shared<GInProcessListener>(
+        GInProcessListener::Options{.closeGrace = 2s, .stopGrace = 3s}
+    );
+    IoThreads clients;
+    GInProcessConnector connector{listener};
+    std::vector<std::shared_ptr<ScriptedClient>> roles;
+    roles.reserve(N_PARKED + N_IDLE);
+    {
+        Shell shell{listener, 4};
+        shell.startServer();
+        for(std::size_t i = 0; i < N_PARKED + N_IDLE; ++i) {
+            // The first ones ask for work that is not there and are parked; the others ask for
+            // nothing (as a client does while it evaluates).
+            roles.push_back(std::make_shared<ScriptedClient>(i < N_PARKED ? 1 : 0, true));
+            roles.back()->connect(connector, clients.executor());
+        }
+        REQUIRE(eventually([&] { return shell.getNActiveSessions() == N_PARKED + N_IDLE; }));
+
+        const auto stop_began = std::chrono::steady_clock::now();
+        shell.stopServer();
+        const auto stop_ms = msSince(stop_began);
+        INFO("stopServer() took " << stop_ms << " ms");
+        CHECK(stop_ms < 1500);
+        CHECK(shell.getNActiveSessions() == 0);
+        CHECK(listener->workEnded());
+    }
+    for(const auto &role : roles) {
+        CHECK(role->closed() == "CLOSED_THERE:RUN_ENDED");
+        CHECK(role->nFrames() == 0);
+    }
+}
+
+/******************************************************************************/
+/** A client that never confirms the end keeps the shell no longer than the listener's grace. */
+TEST_CASE(
+    "GPeerConsumerT: a client that never confirms the end costs the stop one grace",
+    "[courtier][peer][shell]"
+) {
+    constexpr auto STOP_GRACE = 500ms;
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
+        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
+        .closeGrace = 10s, // the peer itself would wait this long
+        .stopGrace = STOP_GRACE
+    });
+    IoThreads clients;
+    GInProcessConnector connector{listener};
+    auto role = std::make_shared<ScriptedClient>(0, true);
+    {
+        Shell shell{listener, 2};
+        shell.startServer();
+        role->connect(connector, clients.executor());
+        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
+
+        const auto stop_began = std::chrono::steady_clock::now();
+        shell.stopServer();
+        const auto stop_ms = msSince(stop_began);
+        INFO("stopServer() took " << stop_ms << " ms");
+        CHECK(stop_ms >= STOP_GRACE.count());
+        CHECK(stop_ms < STOP_GRACE.count() + 1000);
+        // The session that did not confirm lives until the shell goes.
+        CHECK(shell.getNActiveSessions() == 1);
+        CHECK(listener->workEnded());
+    }
+}
+
+/******************************************************************************/
+/**
+ * A client that is lost while it holds items: its session puts them back at once, and another
+ * client gets them. Nothing is given up on time here (wait_indefinitely), so only the lease can.
+ */
+TEST_CASE(
+    "GPeerConsumerT: the items of a lost client are served to another one",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    IoThreads clients;
+    GInProcessConnector connector{listener};
+    Shell shell{listener, 2};
+    shell.startServer();
+
+    auto items = makeBatch(4);
+    auto batch = std::async(std::launch::async, [&] {
+        shell.processBatch(
+            std::span(items.data(), items.size()),
+            Gem::Courtier::GSubmissionPolicy::clone_on_partial_return()
+        );
+    });
+
+    // The first client takes two items and holds them, then is lost.
+    auto lost = std::make_shared<ScriptedClient>(2, false);
+    lost->connect(connector, clients.executor());
+    REQUIRE(eventually([&] { return lost->nWork() == 2; }));
+    lost->abort();
+    REQUIRE(eventually([&] { return shell.getNActiveSessions() == 0; }));
+
+    // The second client evaluates everything there is, the two put back among it.
+    auto worker = std::make_shared<ScriptedClient>(1, true);
+    worker->connect(connector, clients.executor());
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    shell.stopServer(); // ends the batch if it is not done
+    batch.get();
+    REQUIRE(done);
+    CHECK(worker->nWork() == 4);
+    std::size_t n_processed = 0;
+    for(const auto &item : items) {
+        n_processed += (item && item->is_processed()) ? 1 : 0;
+    }
+    CHECK(n_processed == 4);
+}
+
+/******************************************************************************/
+/** The time lease is used exactly where the transport does not notice a lost client itself. */
+TEST_CASE(
+    "GPeerConsumerT: the time lease follows the listener's detectsLoss()",
+    "[courtier][peer][shell]"
+) {
+    auto noticing =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = true});
+    auto blind =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
+    const Shell with_loss_detection{noticing, 1};
+    const Shell without_loss_detection{blind, 1};
+    CHECK_FALSE(with_loss_detection.usesTimeLease());
+    CHECK(without_loss_detection.usesTimeLease());
+}
+
+/******************************************************************************/
+/** A shell that was never started stops at once and does not end its listener's work. */
+TEST_CASE(
+    "GPeerConsumerT: a shell that was never started has nothing to stop",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    {
+        Shell shell{listener, 1};
+        shell.stopServer();
+        CHECK(shell.getNActiveSessions() == 0);
+    }
+    CHECK_FALSE(listener->workEnded());
+}

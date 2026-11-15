@@ -37,6 +37,7 @@
 #include <deque>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -439,21 +440,27 @@ public:
      *  @param executor Where the server ends and on_peer run
      *  @param on_peer What is called for every connection */
     void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        const std::scoped_lock lock(mutex_);
         executor_ = std::move(executor);
         accept_strand_.emplace(boost::asio::make_strand(executor_));
         on_peer_ = std::move(on_peer);
-        accepting_.store(true); // publishes the three above to connect_()
+        accepting_ = true;
     }
 
     /** @brief No new connections */
     void stop() override {
-        accepting_.store(false);
+        const std::scoped_lock lock(mutex_);
+        accepting_ = false;
     }
 
-    /** @brief Nothing of its own runs; lets go of on_peer */
+    /** @brief Nothing of its own runs; lets go of on_peer and of everything that refers to the
+     *  executor's context, which is destroyed before this listener (GPeerI.hpp, rule 7) */
     void endWork() override {
-        accepting_.store(false);
+        const std::scoped_lock lock(mutex_);
+        accepting_ = false;
         on_peer_ = nullptr;
+        accept_strand_.reset();
+        executor_ = boost::asio::any_io_executor{};
         work_ended_.store(true);
     }
 
@@ -477,7 +484,8 @@ public:
      */
     std::shared_ptr<Gem::Courtier::Consumers::GPeerI>
     connect_(const boost::asio::any_io_executor &client_executor) {
-        if(not accepting_.load()) {
+        const std::scoped_lock lock(mutex_);
+        if(not accepting_) {
             return nullptr;
         }
         auto [server_end, client_end] = GInProcessPeer::makePair(
@@ -507,14 +515,55 @@ public:
     }
 
 private:
-    Options options_;                       ///< What the pairs are made with
-    boost::asio::any_io_executor executor_; ///< Set by start()
-    /// Serializes the calls of on_peer; set by start()
+    Options options_; ///< What the pairs are made with
+    /// Guards executor_, accept_strand_ and accepting_: connect_() runs on a client's executor,
+    /// start(), stop() and endWork() on the shell's side
+    std::mutex mutex_;
+    boost::asio::any_io_executor executor_; ///< Set by start(), dropped by endWork()
+    /// Serializes the calls of on_peer; set by start(), dropped by endWork()
     std::optional<boost::asio::strand<boost::asio::any_io_executor>> accept_strand_;
     on_peer_type on_peer_;                               ///< Set by start(), dropped by endWork()
-    std::atomic<bool> accepting_{false};                 ///< Between start() and stop()
+    bool accepting_ = false;                             ///< Between start() and stop()
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
     std::atomic<Gem::Courtier::GWirePeerId> next_id_{1}; ///< The id of the next connection
+};
+
+/******************************************************************************/
+/**
+ * A listener that a server's shell can own (it takes a std::unique_ptr<GListenerI>) while the test
+ * keeps the GInProcessListener it forwards to, for its connectors (which hold it weakly) and for
+ * what it observes.
+ */
+class GInProcessListenerRef final : public Gem::Courtier::Consumers::GListenerI {
+public:
+    /** @brief @param listener The listener every call is forwarded to */
+    explicit GInProcessListenerRef(std::shared_ptr<GInProcessListener> listener)
+      : listener_(std::move(listener)) { /* nothing */
+    }
+
+    /** @brief Forwards @param executor See GListenerI @param on_peer See GListenerI */
+    void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        listener_->start(std::move(executor), std::move(on_peer));
+    }
+    /** @brief Forwards */
+    void stop() override {
+        listener_->stop();
+    }
+    /** @brief Forwards */
+    void endWork() override {
+        listener_->endWork();
+    }
+    /** @brief Forwards @return What the listener says */
+    [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
+        return listener_->stopGrace();
+    }
+    /** @brief Forwards @return What the listener says */
+    [[nodiscard]] bool detectsLoss() const override {
+        return listener_->detectsLoss();
+    }
+
+private:
+    std::shared_ptr<GInProcessListener> listener_; ///< Where every call goes
 };
 
 /******************************************************************************/

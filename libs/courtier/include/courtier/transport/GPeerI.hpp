@@ -213,7 +213,9 @@ public:
 
     /** @brief Ends the transport's own work (rule 7). Called once, by the shell, when no handler
      *  runs any more (after the executor's threads have been joined) and before the executor's
-     *  context is destroyed. Peers that have not ended are let go without onClosed (rule 5). */
+     *  context is destroyed. Peers that have not ended are let go without onClosed (rule 5).
+     *  Afterwards the listener holds nothing that refers to that context (no executor, no strand,
+     *  no handler): the context is destroyed before the listener. */
     virtual void endWork() = 0;
 
     /** @brief How long the shell waits, after it has told every client that the run has ended,

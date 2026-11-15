@@ -55,6 +55,7 @@ SET ( CONSUMER_INCLUDES
     consumers/GMPIConsumerConfig.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
+    consumers/GPeerConsumerT.hpp
     consumers/GStdThreadConsumerConfig.hpp
     consumers/GStdThreadConsumerT.hpp
     consumers/GTcpAcceptingConsumerT.hpp
