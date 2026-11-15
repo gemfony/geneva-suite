@@ -607,3 +607,28 @@ TEST_CASE(
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
 }
+
+/******************************************************************************/
+// A close asked for while the handshake is under way, and a handshake that then fails: the end could
+// not be opened, and says so (rule 1), not that it was closed here.
+TEST_CASE(
+    "GWebsocketPeer reports a failed handshake as FAILED also after a close",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+
+    auto server = serverEnd(std::move(accepted));
+    startRecording(server, server_seen);
+    server->close(GPeerClose::RUN_ENDED);
+    server.reset();
+
+    connecting.close(); // the other end goes away without a handshake
+
+    REQUIRE(runsDry(ctx));
+
+    CHECK(server_seen.nOpen == 0);
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.end == GPeerEnd::FAILED);
+}

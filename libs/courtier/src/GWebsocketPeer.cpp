@@ -459,9 +459,11 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
  * closes the socket, and tells the role on its strand -- after the messages handed to it before,
  * which it may still handle. abort() has the role told at once instead: no handler runs then.
  *
- * Why it ended: CLOSED_HERE if this end began the close; CLOSED_THERE if the other end's close
- * frame arrived, whatever became of the TCP connection after it; SILENT if a time limit expired;
- * FAILED for any other error (a handshake that failed among them).
+ * Why it ended: CLOSED_HERE if this end began the close (and the connection had opened, or nothing
+ * failed); CLOSED_THERE if the other end's close frame arrived, whatever became of the TCP
+ * connection after it; SILENT if a time limit expired; FAILED for any other error -- a handshake
+ * that failed among them, also when a close had been asked for while it was under way (rule 1: a
+ * peer that cannot be opened reports FAILED).
  *
  * @param cause The error that ended it; none if this end began the close
  * @param report_inline Whether the role is told here and now (abort()) instead of on its strand
@@ -509,7 +511,7 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     // The other end's close is its close, also if the end of the TCP connection then failed or
     // timed out: it did say that it closes.
     GPeerEnd end = GPeerEnd::FAILED;
-    if(local_close_) {
+    if(local_close_ && (open_ || not cause)) {
         end = GPeerEnd::CLOSED_HERE;
     }
     else if(close_received_) {
