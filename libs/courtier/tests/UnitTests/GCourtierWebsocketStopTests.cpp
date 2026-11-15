@@ -264,3 +264,104 @@ TEST_CASE(
     CHECK(took >= GRACE);
     CHECK(took < GRACE + 1500ms);
 }
+
+/******************************************************************************/
+namespace {
+
+/**
+ * A GWebsocketListener whose calls of on_peer are held until 200 ms after its stop() has begun:
+ * a client whose session is on its way when the server stops.
+ */
+class HeldOnPeerListener final : public Gem::Courtier::Consumers::GListenerI {
+public:
+    /** @brief @param listener The websocket listener */
+    explicit HeldOnPeerListener(std::unique_ptr<Gem::Courtier::Consumers::GWebsocketListener> listener)
+      : listener_(std::move(listener)) { /* nothing */
+    }
+    /** @brief Holds every call of on_peer @param executor See GListenerI @param on_peer See GListenerI */
+    void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        listener_->start(
+            std::move(executor),
+            [stopping = stopping_, entered = entered_, on_peer = std::move(on_peer)](
+                std::shared_ptr<Gem::Courtier::Consumers::GPeerI> peer,
+                Gem::Courtier::GWirePeerId id
+            ) mutable {
+                entered->store(true);
+                const auto give_up_at = std::chrono::steady_clock::now() + PATIENCE;
+                while(not stopping->load() && std::chrono::steady_clock::now() < give_up_at) {
+                    std::this_thread::sleep_for(1ms);
+                }
+                std::this_thread::sleep_for(200ms);
+                on_peer(std::move(peer), id);
+            }
+        );
+    }
+    /** @brief Lets the held calls go on soon, and stops the listener */
+    void stop() override {
+        stopping_->store(true);
+        listener_->stop();
+    }
+    /** @brief Forwards */
+    void endWork() override {
+        listener_->endWork();
+    }
+    /** @brief Forwards @return The websocket listener's grace */
+    [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
+        return listener_->stopGrace();
+    }
+    /** @brief Forwards @return The websocket listener's answer */
+    [[nodiscard]] bool detectsLoss() const override {
+        return listener_->detectsLoss();
+    }
+    /** @brief @return The port the websocket listener has bound */
+    [[nodiscard]] unsigned short getPort() const {
+        return listener_->getPort();
+    }
+    /** @brief @return Whether a call of on_peer has been held */
+    [[nodiscard]] bool entered() const {
+        return entered_->load();
+    }
+
+private:
+    std::unique_ptr<Gem::Courtier::Consumers::GWebsocketListener> listener_;
+    std::shared_ptr<std::atomic<bool>> stopping_ = std::make_shared<std::atomic<bool>>(false);
+    std::shared_ptr<std::atomic<bool>> entered_ = std::make_shared<std::atomic<bool>>(false);
+};
+
+} /* anonymous namespace */
+
+/**
+ * A client whose session is on its way when the server stops (the call of on_peer is held on a
+ * session thread): stop() of the websocket listener waits for that call, so the shell finds the
+ * session and the client is told that the run has ended (GListenerI::stop()).
+ */
+TEST_CASE(
+    "courtier(websocket): a client whose session is on its way at the stop is told the run has ended",
+    "[courtier][websocket][stop]"
+) {
+    constexpr auto GRACE = 5s;
+    auto held = std::make_unique<HeldOnPeerListener>(
+        std::make_unique<Gem::Courtier::Consumers::GWebsocketListener>(
+            "held listener",
+            0,
+            Gem::Courtier::Consumers::GWebsocketPeer::GOptions{
+                .name = "held listener",
+                .mode = BIN,
+                .pingInterval = 1s
+            },
+            1,
+            GRACE
+        )
+    );
+    auto &listener = *held;
+    Gem::Courtier::GPeerConsumerT<GFaultyContainer> shell{"Shell", std::move(held), 2, BIN};
+    shell.startServer();
+    {
+        Clients clients(listener.getPort(), 1, 10ms);
+        REQUIRE(eventually([&] { return listener.entered(); }));
+        const auto took = timed([&] { shell.stopServer(); });
+        CHECK(took < GRACE);
+        REQUIRE(eventually([&] { return clients.done(); }));
+        CHECK(clients.nToldTheEnd() == 1);
+    }
+}

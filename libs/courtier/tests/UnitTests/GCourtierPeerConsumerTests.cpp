@@ -44,6 +44,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -592,17 +593,21 @@ private:
 /**
  * The shell never closes a peer before that peer has been started (GPeerI.hpp, rule 2): a session
  * enters the registry only after its peer's start(). The stop comes while a session thread is held
- * in the start() of a new peer; the stop neither closes that peer early nor waits its grace for a
- * peer whose close was lost.
+ * in the start() of a new peer for longer than the listener's stop() waits for it; the stop neither
+ * closes that peer early nor waits its grace for a peer whose close was lost.
  */
 TEST_CASE(
     "GPeerConsumerT: a peer is never closed before it has been started",
     "[courtier][peer][shell]"
 ) {
     constexpr auto STOP_GRACE = 1500ms;
-    auto listener = std::make_shared<GInProcessListener>(
-        GInProcessListener::Options{.closeGrace = 3s, .stopGrace = STOP_GRACE}
-    );
+    // The listener's own wait for the calls of on_peer gives up before the start() is let go: the
+    // order of start and sign-on alone keeps rule 2 then.
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
+        .closeGrace = 3s,
+        .stopGrace = STOP_GRACE,
+        .stopBound = 100ms
+    });
     auto hold = std::make_shared<StartHold>();
     IoThreads clients;
     GInProcessConnector connector{listener};
@@ -622,7 +627,58 @@ TEST_CASE(
         shell.stopServer();
         const auto stop_ms = msSince(stop_began);
         INFO("stopServer() took " << stop_ms << " ms");
+        CHECK(listener->nStopBoundsHit() == 1);
         CHECK(hold->closesBeforeStart.load() == 0);
         CHECK(stop_ms < STOP_GRACE.count());
     }
+}
+
+/******************************************************************************/
+/**
+ * A client that connects while the strand the listener calls on_peer on is busy: its session is on
+ * its way when the server stops. stop() of the listener waits for that call, so the shell finds the
+ * session and the client hears that the run has ended (GListenerI::stop()).
+ */
+TEST_CASE(
+    "GPeerConsumerT: a client whose session is on its way at the stop hears RUN_ENDED",
+    "[courtier][peer][shell]"
+) {
+    constexpr auto STOP_GRACE = 3000ms;
+    auto listener = std::make_shared<GInProcessListener>(
+        GInProcessListener::Options{.closeGrace = 2s, .stopGrace = STOP_GRACE}
+    );
+    IoThreads clients;
+    GInProcessConnector connector{listener};
+    auto role = std::make_shared<ScriptedClient>(0, true);
+    long long stop_ms = 0;
+    {
+        Shell shell{listener, 2};
+        shell.startServer();
+        std::promise<void> release;
+        auto released = release.get_future().share();
+        auto holding = std::make_shared<std::atomic<bool>>(false);
+        listener->holdAcceptStrand([holding, released] {
+            holding->store(true);
+            released.wait();
+        });
+        const bool held = eventually([&] { return holding->load(); });
+        role->connect(connector, clients.executor());
+        const bool connected = eventually([&] { return listener->nConnections() == 1; });
+        auto stop = std::async(std::launch::async, [&shell] {
+            const auto stop_began = std::chrono::steady_clock::now();
+            shell.stopServer();
+            return msSince(stop_began);
+        });
+        const bool stopping = eventually([&] { return listener->nStops() == 1; });
+        std::this_thread::sleep_for(100ms); // the stop waits for the call of on_peer now
+        release.set_value();
+        stop_ms = stop.get();
+        REQUIRE(held);
+        REQUIRE(connected);
+        REQUIRE(stopping);
+        CHECK(listener->nStopBoundsHit() == 0);
+    }
+    INFO("stopServer() took " << stop_ms << " ms");
+    CHECK(eventually([&] { return role->closed() == "CLOSED_THERE:RUN_ENDED"; }));
+    CHECK(stop_ms < STOP_GRACE.count());
 }

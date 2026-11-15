@@ -54,8 +54,9 @@ namespace {
 using error_code = boost::system::error_code;
 using boost::asio::ip::tcp;
 
-/// How long stop() waits for the accept loop to close the acceptor. Short and independent of the
-/// stop grace, so that a stop takes one grace (the shell's wait for its clients), not two.
+/// How long stop() waits for the accept loop to close the acceptor and for the calls of on_peer
+/// under way. Short and independent of the stop grace, so that a stop takes one grace (the shell's
+/// wait for its clients), not two.
 constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
 
 } /* anonymous namespace */
@@ -215,11 +216,28 @@ void GWebsocketListener::whenAccepted_(const error_code &ec, tcp::socket socket)
     }
     const GWirePeerId peer_id = next_peer_id_++;
     auto peer = std::make_shared<GWebsocketPeer>(std::move(socket), options_, handler_executor_);
-    // on_peer_ is dropped only by endWork(), when the shell's threads no longer run this.
+    // The call is counted before it is posted, so that stop() -- which closes the acceptor on this
+    // strand first -- sees every call that will come. on_peer_ is dropped only by endWork(), when
+    // the shell's threads no longer run this.
+    on_peer_calls_.set(peer_id, true);
     boost::asio::post(*on_peer_strand_, [this, peer = std::move(peer), peer_id]() mutable {
-        if(on_peer_) {
-            on_peer_(std::move(peer), peer_id);
+        // No exception leaves a thread of the shell's executor: a client whose session cannot
+        // be made is dropped (its connection ends with the peer), and the call is counted out.
+        try {
+            if(on_peer_) {
+                on_peer_(std::move(peer), peer_id);
+            }
         }
+        catch(const std::exception &e) {
+            glogger << "In " << name_ << ": a new client could not be taken on: " << e.what()
+                    << '\n'
+                    << GWARNING;
+        }
+        catch(...) {
+            glogger << "In " << name_ << ": a new client could not be taken on" << '\n'
+                    << GWARNING;
+        }
+        on_peer_calls_.remove(peer_id);
     });
 
     this->accept_();
@@ -236,13 +254,18 @@ void GWebsocketListener::closeAcceptor_() {
 
 /******************************************************************************/
 /**
- * No new peers: the acceptor is closed on its strand, so that a client that connects from now on
- * is refused, and this call waits for that, at most LISTENER_STOP_BOUND. Not on an I/O thread.
+ * No new peers, and none on its way (GListenerI::stop()): the acceptor is closed on its strand, so
+ * that a client that connects from now on is refused, and this call waits for that and then for the
+ * calls of on_peer already posted to the shell's executor, at most LISTENER_STOP_BOUND for both.
+ * Once the acceptor is closed no accept handler runs any more that could post a call (they run on
+ * the same strand and look at the stop first). Not on an I/O thread, and not on a thread of the
+ * shell's executor (the calls waited for run there).
  */
 void GWebsocketListener::stop() {
     if(not running_.load() || stopped_.exchange(true)) {
         return;
     }
+    const auto give_up_at = std::chrono::steady_clock::now() + LISTENER_STOP_BOUND;
     // The latch is shared with the handler: this call may give up waiting before it has run.
     auto closed = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     boost::asio::post(accept_strand_, [this, closed] {
@@ -252,6 +275,17 @@ void GWebsocketListener::stop() {
     if(not closed->wait_for(LISTENER_STOP_BOUND)) {
         glogger << "In " << name_ << ": the accept loop did not stop within "
                 << LISTENER_STOP_BOUND.count() << " ms" << '\n'
+                << GWARNING;
+        return;
+    }
+    const auto left = std::max(
+        std::chrono::steady_clock::duration::zero(),
+        give_up_at - std::chrono::steady_clock::now()
+    );
+    if(not on_peer_calls_.waitUntilEmpty(left)) {
+        glogger << "In " << name_ << ": " << on_peer_calls_.size()
+                << " new client(s) did not reach the server within "
+                << LISTENER_STOP_BOUND.count() << " ms of the stop" << '\n'
                 << GWARNING;
     }
 }

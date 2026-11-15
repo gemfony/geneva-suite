@@ -54,6 +54,7 @@
 #include <boost/system/error_code.hpp>
 
 // Geneva headers go here
+#include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
 #include "courtier/GWireSerializationContext.hpp" // GWirePeerId
 #include "courtier/transport/GPeerI.hpp"
 
@@ -470,7 +471,9 @@ private:
 /**
  * The server side of the in-process transport. A GInProcessConnector asks it for a connection;
  * it makes a pair, hands the server end to the shell (on_peer, on a strand of the executor given
- * to start()) and the client end to the connector. It has no work of its own.
+ * to start()) and the client end to the connector. It has no work of its own. stop() waits, at most
+ * Options::stopBound, for the calls of on_peer it has posted (GListenerI::stop()); a test can hold
+ * the strand those calls run on (holdAcceptStrand()).
  */
 class GInProcessListener final : public Gem::Courtier::Consumers::GListenerI {
 public:
@@ -482,6 +485,8 @@ public:
         std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
         bool detectsLoss = true;                    ///< What detectsLoss() answers
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
+        /// How long stop() waits for the calls of on_peer under way
+        std::chrono::milliseconds stopBound{1000};
     };
 
     /** @brief @param options What the pairs are made with */
@@ -504,11 +509,17 @@ public:
         accepting_ = true;
     }
 
-    /** @brief No new connections */
+    /** @brief No new connections, and no call of on_peer under way: waits for those posted, at
+     *  most Options::stopBound (GListenerI::stop()) */
     void stop() override {
-        const std::scoped_lock lock(mutex_);
-        accepting_ = false;
-        n_stops_.fetch_add(1);
+        {
+            const std::scoped_lock lock(mutex_);
+            accepting_ = false;
+            n_stops_.fetch_add(1);
+        }
+        if(not on_peer_calls_.waitUntilEmpty(options_.stopBound)) {
+            n_stop_bounds_hit_.fetch_add(1);
+        }
     }
 
     /** @brief Nothing of its own runs; lets go of on_peer and of everything that refers to the
@@ -554,13 +565,23 @@ public:
             options_.closeGrace
         );
         const Gem::Courtier::GWirePeerId id = next_id_.fetch_add(1);
+        // Counted under the lock that stop() takes first: a call posted before it is waited for.
+        on_peer_calls_.set(id, true);
         boost::asio::post(*accept_strand_, [this, server_end, id] {
             // endWork() runs when no handler runs, so on_peer_ cannot change under this.
             if(on_peer_) {
                 on_peer_(server_end, id);
             }
+            on_peer_calls_.remove(id);
         });
         return client_end;
+    }
+
+    /** @brief Runs @p hold on the strand the calls of on_peer run on: a call posted while it
+     *  runs waits for it. After start(). @param hold What occupies the strand */
+    void holdAcceptStrand(std::move_only_function<void()> hold) {
+        const std::scoped_lock lock(mutex_);
+        boost::asio::post(*accept_strand_, std::move(hold));
     }
 
     /** @brief @return How many connections have been made */
@@ -575,6 +596,10 @@ public:
     [[nodiscard]] std::size_t nStops() const {
         return n_stops_.load();
     }
+    /** @brief @return How often stop() gave up waiting for the calls of on_peer */
+    [[nodiscard]] std::size_t nStopBoundsHit() const {
+        return n_stop_bounds_hit_.load();
+    }
 
 private:
     Options options_; ///< What the pairs are made with
@@ -588,6 +613,10 @@ private:
     bool accepting_ = false;                             ///< Between start() and stop()
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
     std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called
+    std::atomic<std::size_t> n_stop_bounds_hit_{0}; ///< How often stop() gave up waiting
+    /// The calls of on_peer posted and not returned, by connection id (stop() waits for them)
+    Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::GWirePeerId, bool>
+        on_peer_calls_;
     std::atomic<Gem::Courtier::GWirePeerId> next_id_{1}; ///< The id of the next connection
 };
 

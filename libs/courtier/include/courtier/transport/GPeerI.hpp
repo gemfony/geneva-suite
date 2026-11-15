@@ -97,8 +97,10 @@
  *     context.
  *  8. **The end of a run belongs to the process, not to a session.** The server's shell tells
  *     every peer that has not ended that the run is over (close(GPeerClose::RUN_ENDED)) and waits,
- *     at most GListenerI::stopGrace(), until they have ended. GListenerI::stop() only means "no new
- *     peers". A client that is told RUN_ENDED does not come back.
+ *     at most GListenerI::stopGrace(), until they have ended. GListenerI::stop() means "no new
+ *     peers, and no call of on_peer under way": every peer the listener has made before has
+ *     reached the shell when stop() returns, so the shell's look at its peers after the stop
+ *     finds them all. A client that is told RUN_ENDED does not come back.
  */
 
 namespace Gem::Courtier::Consumers {
@@ -209,9 +211,13 @@ public:
      *  endWork(), and does not call start() again. */
     virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
 
-    /** @brief No new peers from here on. It does not wait for clients (the shell does, rule 8)
-     *  and returns within a short bound of its own, so that a stop takes one grace, not two. Not
-     *  on a thread of the executor; the executor still runs. Idempotent. */
+    /** @brief No new peers from here on, and none on its way: when stop() returns, no call of
+     *  on_peer is under way and none will come. A listener counts the calls of on_peer it has
+     *  posted and waits until they have returned; they are short (a session is made and
+     *  started). It does not wait for clients (the shell does, rule 8), and its wait has a short
+     *  bound of its own, so that a stop takes one grace, not two; a listener whose bound is hit
+     *  says so in the log. Not on a thread of the executor; the executor still runs.
+     *  Idempotent. */
     virtual void stop() = 0;
 
     /** @brief Ends the transport's own work (rule 7). Called once, by the shell, when no handler

@@ -83,8 +83,10 @@ namespace Gem::Courtier {
  * (startSession_()).
  *
  * The end of a run (stopServer()): the consumer is told to stop (parked sessions wake up and close
- * their connections with GPeerClose::RUN_ENDED); the listener makes no new peers; every peer in the
- * registry is closed with RUN_ENDED (also a session that waits for nothing, e.g. one whose client
+ * their connections with GPeerClose::RUN_ENDED); the listener makes no new peers, and its stop()
+ * returns only when the calls of on_peer it had begun have returned (GListenerI::stop()), so every
+ * session on its way has been made and has entered the registry; every peer in the registry is
+ * closed with RUN_ENDED (also a session that waits for nothing, e.g. one whose client
  * is evaluating); the shell waits until the registry is empty, but not longer than the listener's
  * stopGrace(), and logs how many peers did not confirm; the session threads are joined; the
  * listener ends its own work (endWork(): its threads joined, its I/O context shut down). The
