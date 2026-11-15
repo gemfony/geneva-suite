@@ -40,6 +40,8 @@
 #include <cstdint>
 #include <memory>
 #include <set>
+#include <thread>
+#include <tuple>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -92,6 +94,53 @@ void requireGpuSource() {
     }
 }
 
+/**
+ * Holds every source that starts on the GPU at one stage, and lets them go when it leaves scope -- also
+ * when a REQUIRE ends the test case, so that no producer waits on the hold while the process ends.
+ */
+class GStartHold {
+public:
+    /** @brief Holds starting GPU sources at the given stage. @param stage The stage */
+    explicit GStartHold(GpuSourceStartStage stage)
+      : stage_(stage) {
+        holdGpuRandomSourceStartsForTests(stage_, true);
+    }
+
+    /** @brief Lets the held sources go on. */
+    void release() {
+        holdGpuRandomSourceStartsForTests(stage_, false);
+    }
+
+    /** @brief Lets the held sources go on. */
+    ~GStartHold() {
+        release();
+    }
+
+    GStartHold(GStartHold const &) = delete;
+    GStartHold &operator=(GStartHold const &) = delete;
+
+private:
+    GpuSourceStartStage stage_;
+};
+
+/**
+ * Starts a single producer thread and waits until its source reaches the given stage of a GPU start;
+ * skips the test case if it does not (no CUDA backend in this build, or no device).
+ *
+ * @param stage The stage to wait for
+ */
+void startOneSourceAndWaitFor(GpuSourceStartStage stage) {
+    randomFactory()->setNProducerThreads(1);
+    std::ignore = randomFactory()->getNewRandomContainer(); // starts the producer; it may time out
+    auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while(nGpuRandomSourceStartsForTests(stage) == 0) {
+        if(std::chrono::steady_clock::now() > deadline) {
+            SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+}
+
 } // namespace
 
 TEST_CASE("GPU switched off before the first draw: no source uses the GPU", "[gpu-off-at-start]") {
@@ -125,5 +174,55 @@ TEST_CASE("A failing GPU source moves to the CPU and keeps delivering", "[gpu-fa
     // Failed sources stay on the CPU, even though GPU use is still allowed
     REQUIRE(gpuRandomNumbersAllowed());
     requireRandomWords();
+    REQUIRE(nGpuRandomSources() == 0);
+}
+
+TEST_CASE(
+    "GPU switched off while a source creates its GPU resources: the source is counted",
+    "[gpu-off-while-creating]"
+) {
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    startOneSourceAndWaitFor(GpuSourceStartStage::CONTEXT_CREATION);
+
+    setGpuRandomNumbersAllowed(false);
+    // The source is about to use the GPU, so a caller waiting for the count to reach 0 must wait for it
+    REQUIRE(nGpuRandomSources() == 1);
+
+    hold.release();
+    REQUIRE(drawUntil([]() { return nGpuRandomSources() == 0; }));
+    requireRandomWords();
+}
+
+TEST_CASE(
+    "GPU fails while a source creates its GPU resources: the source is counted",
+    "[gpu-failure-while-creating]"
+) {
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    startOneSourceAndWaitFor(GpuSourceStartStage::CONTEXT_CREATION);
+
+    simulateGpuRandomFailureForTests(true);
+    REQUIRE(nGpuRandomSources() == 1);
+
+    hold.release();
+    REQUIRE(drawUntil([]() { return nGpuRandomSources() == 0; }));
+    simulateGpuRandomFailureForTests(false);
+    requireRandomWords();
+    REQUIRE(nGpuRandomSources() == 0);
+}
+
+TEST_CASE(
+    "GPU switched off after a source chose it: the source starts on the CPU",
+    "[gpu-off-after-choice]"
+) {
+    GStartHold hold(GpuSourceStartStage::GPU_CHOSEN);
+    startOneSourceAndWaitFor(GpuSourceStartStage::GPU_CHOSEN);
+
+    setGpuRandomNumbersAllowed(false);
+    REQUIRE(nGpuRandomSources() == 0);
+
+    hold.release();
+    requireRandomWords(); // the only producer has left its start: its words reached the factory
+    // Switched off before it counted itself, the source never began to use the GPU
+    REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) == 0);
     REQUIRE(nGpuRandomSources() == 0);
 }

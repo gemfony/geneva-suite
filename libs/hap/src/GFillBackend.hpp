@@ -56,6 +56,7 @@ namespace Gem::Hap::detail {
 // Defined in GRandomFactory.cpp next to the process-wide GPU switch.
 void countGpuRandomSource(bool engaged) noexcept; ///< +1 when a source starts using the GPU, -1 when it stops
 [[nodiscard]] bool gpuRandomFailureSimulated() noexcept; ///< the GEM_TESTING failure hook
+void gpuRandomSourceStartStage(GpuSourceStartStage stage); ///< the GEM_TESTING start hook (a no-op without it)
 
 /******************************************************************************/
 /**
@@ -103,6 +104,14 @@ void countGpuRandomSource(bool engaged) noexcept; ///< +1 when a source starts u
  * fall-back never comes as a surprise. The runtime device probe means a CUDA-enabled binary still
  * runs correctly (just on the CPU engine) on a machine without a GPU.
  *
+ * @par Counting GPU sources
+ * A backend counts itself in nGpuRandomSources() as soon as it has chosen the GPU, before it creates
+ * its CUDA resources (which can take long on a busy device), and reads the switch
+ * setGpuRandomNumbersAllowed() once more after counting. A caller that has switched GPU use off and
+ * then sees the count at 0 therefore knows that no backend uses the GPU and that none will begin to:
+ * a backend that counted itself before the count was read is still waited for, and one that counts
+ * itself afterwards finds the switch off and stays on the CPU.
+ *
  * @par Leaving the GPU
  * A GPU backend moves to its CPU engine for good, and stops counting in nGpuRandomSources(), when
  * a CUDA or cuRAND call fails (one warning per process) or when GPU use has been switched off
@@ -126,16 +135,24 @@ public:
 #endif
     {
 #if defined(HAP_USE_CUDA)
-        const bool allowed = gpuRandomNumbersAllowed();
-        const bool device  = allowed && GCudaRNG::deviceAvailable();
+        bool allowed = gpuRandomNumbersAllowed();
+        const bool device = allowed && GCudaRNG::deviceAvailable();
         if(device) {
-            cuda_.emplace(static_cast<std::uint64_t>(seed));
-            if(cuda_->failed()) { // e.g. no memory left on the device for another context
-                cuda_.reset();
-                logGpuFailure_();
+            gpuRandomSourceStartStage(GpuSourceStartStage::GPU_CHOSEN);
+            // Count first, then look at the switch again: whoever switches GPU use off and then sees
+            // the count at 0 knows that no source uses the GPU or is about to (see the class notes).
+            countGpuRandomSource(true);
+            allowed = gpuRandomNumbersAllowed();
+            if(not allowed) {
+                countGpuRandomSource(false);
             }
             else {
-                countGpuRandomSource(true);
+                gpuRandomSourceStartStage(GpuSourceStartStage::CONTEXT_CREATION);
+                cuda_.emplace(static_cast<std::uint64_t>(seed));
+                if(cuda_->failed()) { // e.g. no memory left on the device for another context
+                    releaseGpu_();
+                    logGpuFailure_();
+                }
             }
         }
 

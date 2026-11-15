@@ -32,6 +32,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "hap/GRandomDefines.hpp"
 #include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar) + fill seam
 #include <array>
@@ -368,6 +369,34 @@ void GRandomFactory::producer(std::uint32_t seed) {
 
 /******************************************************************************/
 /**
+ * The state of the test hook that holds GPU source starts, one entry per GpuSourceStartStage. It is
+ * defined before the lifecycle guard below, so it is destroyed only after the guard has joined the
+ * producer threads, which may wait on it.
+ */
+namespace {
+#ifdef GEM_TESTING
+struct GGpuSourceStartHold {
+    std::atomic<bool> held{false};         ///< Whether starting sources wait at this stage
+    std::atomic<std::size_t> n_reached{0}; ///< How many sources have reached this stage
+    Gem::Common::Concurrency::GCompletionLatchT gate; ///< Opened on release
+};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::array<GGpuSourceStartHold, 2> g_gpu_source_start_holds;
+
+/**
+ * @brief The hold entry of a stage.
+ *
+ * @param stage The stage
+ * @return The entry of that stage
+ */
+GGpuSourceStartHold &gpuSourceStartHold(GpuSourceStartStage stage) {
+    return g_gpu_source_start_holds.at(static_cast<std::size_t>(stage));
+}
+#endif /* GEM_TESTING */
+} // namespace
+
+/******************************************************************************/
+/**
  * @brief Process-lifetime guard that brackets the global random-number factory around main().
  *
  * A single object with static storage duration, living in the hap library. It is constructed during
@@ -444,7 +473,66 @@ void countGpuRandomSource(bool engaged) noexcept {
 }
 
 bool gpuRandomFailureSimulated() noexcept { return g_gpu_random_failure_simulated.load(); }
+
+/**
+ * Marks that a bulk source starting on the GPU has reached a stage of its start, and holds it there while
+ * a test asks for it (holdGpuRandomSourceStartsForTests()). A no-op in builds without GEM_TESTING. Only
+ * called while a source starts, never on a refill.
+ *
+ * @param stage The stage the source has reached
+ */
+void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
+#ifdef GEM_TESTING
+    auto &h = gpuSourceStartHold(stage);
+    h.n_reached.fetch_add(1);
+    if(h.held.load()) {
+        // Bounded, so that a test that forgets to release the stage cannot hang the process forever
+        std::ignore = h.gate.wait_for(std::chrono::seconds(60));
+    }
+#endif /* GEM_TESTING */
+}
 } /* namespace detail */
+
+/**
+ * Holds bulk sources that start on the GPU at the given stage, or lets the held ones go.
+ *
+ * @param stage The stage to hold or to release
+ * @param hold Whether starting sources should wait at that stage
+ */
+void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold) {
+#ifdef GEM_TESTING
+    auto &h = gpuSourceStartHold(stage);
+    if(hold) {
+        if(not h.held.load()) {
+            h.gate.arm(1);
+            h.held.store(true);
+        }
+    }
+    else if(h.held.exchange(false)) {
+        std::ignore = h.gate.count_down();
+    }
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    std::ignore = hold;
+    Gem::Common::condnotset("Gem::Hap::holdGpuRandomSourceStartsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+/**
+ * Reports how many bulk sources have reached the given stage of a GPU start since the process began.
+ *
+ * @param stage The stage asked about
+ * @return The number of sources that have reached the stage
+ */
+std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage) {
+#ifdef GEM_TESTING
+    return gpuSourceStartHold(stage).n_reached.load();
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    Gem::Common::condnotset("Gem::Hap::nGpuRandomSourceStartsForTests", "GEM_TESTING");
+    return 0;
+#endif /* GEM_TESTING */
+}
 
 /******************************************************************************/
 

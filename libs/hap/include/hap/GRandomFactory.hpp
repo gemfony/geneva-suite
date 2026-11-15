@@ -506,8 +506,10 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
 /**
  * @brief Reports how many bulk random-number sources currently draw from the GPU.
  *
- * A source stops counting when it switches to the CPU, either because GPU use was forbidden or
- * because a CUDA call failed. Always 0 in a build without the CUDA backend.
+ * A source counts from the moment it has chosen the GPU, before its CUDA resources exist, and stops
+ * counting when it switches to the CPU, either because GPU use was forbidden or because a CUDA call
+ * failed. Once setGpuRandomNumbersAllowed(false) has returned and this count has been seen at 0, no
+ * source uses the GPU and none begins to. Always 0 in a build without the CUDA backend.
  *
  * @return The number of sources that currently use the GPU
  */
@@ -521,6 +523,38 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
  * @param fail Whether GPU calls should be treated as failed
  */
 void simulateGpuRandomFailureForTests(bool fail);
+
+/**
+ * @brief The two stages a bulk random-number source passes when it starts on the GPU (test hook).
+ */
+enum class GpuSourceStartStage {
+    GPU_CHOSEN = 0,      ///< The source has found GPU use allowed and a device present
+    CONTEXT_CREATION = 1 ///< The source is about to create its CUDA resources (the slow step)
+};
+
+/**
+ * @brief Holds every bulk source that starts on the GPU at the given stage, or lets the held ones go
+ * (test hook).
+ *
+ * Starting sources wait at a held stage until it is released, or for at most 60 seconds. Call it from
+ * one thread only, and release every stage it held before the process ends. Only available in builds
+ * with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage to hold or to release
+ * @param hold Whether starting sources should wait at that stage
+ */
+void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold);
+
+/**
+ * @brief Reports how many bulk sources have reached the given stage of a GPU start since the process
+ * began, including those held there (test hook).
+ *
+ * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage asked about
+ * @return The number of sources that have reached the stage
+ */
+[[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
 
 /******************************************************************************/
 /**
