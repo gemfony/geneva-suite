@@ -42,6 +42,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -1248,4 +1249,73 @@ TEST_CASE(
         INFO("item " << i);
         CHECK(limited->of(i) + other->of(i) == 1);
     }
+}
+
+/******************************************************************************/
+// A client that is still connecting notices a halt: the connector's attempt is given up and run()
+// returns.
+
+namespace {
+
+/** @brief A connector whose attempt never completes; it keeps the executor busy until cancel() */
+class NeverConnector final : public Gem::Courtier::Consumers::GConnectorI {
+public:
+    /** @brief Keeps the attempt, and work on @p executor @param executor Where it would run
+     *  @param done Never called */
+    void connect(boost::asio::any_io_executor executor, done_type done) override {
+        done_ = std::move(done);
+        work_.emplace(boost::asio::make_work_guard(executor));
+    }
+    /** @brief Gives the attempt up */
+    void cancel() override {
+        n_cancels_->fetch_add(1);
+        done_ = nullptr;
+        work_.reset();
+    }
+    /** @brief @return true */
+    [[nodiscard]] bool reconnectable() const override {
+        return true;
+    }
+    /** @brief @return How often cancel() was called */
+    [[nodiscard]] std::shared_ptr<std::atomic<int>> cancels() const {
+        return n_cancels_;
+    }
+
+private:
+    done_type done_;
+    std::optional<boost::asio::executor_work_guard<boost::asio::any_io_executor>> work_;
+    std::shared_ptr<std::atomic<int>> n_cancels_ = std::make_shared<std::atomic<int>>(0);
+};
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "GPeerClientT: a client that is still connecting notices a halt",
+    "[courtier][peer][client]"
+) {
+    auto connector = std::make_unique<NeverConnector>();
+    auto cancels = connector->cancels();
+    auto client = std::make_shared<client_type>(
+        std::move(connector),
+        GPeerClientOptions{.name = "connecting client", .mode = BIN}
+    );
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    std::jthread runner([client, done] {
+        client->run();
+        done->store(true);
+    });
+    std::this_thread::sleep_for(100ms);
+    const auto asked = std::chrono::steady_clock::now();
+    client->flagCloseRequested();
+    const bool returned = Gem::Courtier::Tests::eventually(
+        [&done] { return done->load(); },
+        std::chrono::milliseconds(5000)
+    );
+    const auto took = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - asked
+    );
+    INFO("run() returned after " << took.count() << " ms");
+    REQUIRE(returned);
+    CHECK(took < 2500ms);
+    CHECK(cancels->load() >= 1);
 }

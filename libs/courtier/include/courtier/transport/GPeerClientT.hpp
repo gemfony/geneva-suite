@@ -201,10 +201,12 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief The main run-loop: asks the connector for a connection, runs the io_context until no
-     * work remains, then makes sure the connection is over.
+     * work remains, then makes sure the connection is over. The halt timer runs from here on, so
+     * that a client that is still connecting notices a halt (haltShutdown_() gives the attempt up).
      */
     void run_() override {
         auto self = this->shared_from_this();
+        start_halt_timer();
         connector_->connect(
             io_context_.get_executor(),
             [self](const std::shared_ptr<GPeerI> &peer, std::string_view error) {
@@ -239,6 +241,7 @@ private:
                     << "No connection to the server: " << error << '\n'
                     << "This will terminate the client." << '\n'
                     << GLOGGING;
+            this->stopPipelineTimers_();
             return;
         }
 
@@ -258,9 +261,9 @@ private:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Called when the connection is usable: starts the halt timer and asks for work. */
+    /** @brief Called when the connection is usable: asks for work (the halt timer runs since
+     *  run_()). */
     void when_open_() {
-        start_halt_timer();
         request_more_();
     }
 
@@ -570,8 +573,14 @@ private:
     }
 
     /** @brief Halt hook (the halt timer): closes the connection in the regular way when a halt
-     *  condition is reached, after the evaluations that run (see the class comment). */
+     *  condition is reached, after the evaluations that run (see the class comment). A client
+     *  that has no connection yet gives up the connector's attempt instead, so that run() returns. */
     void haltShutdown_() {
+        if(not peer_.lock()) {
+            connector_->cancel();
+            this->stopPipelineTimers_();
+            return;
+        }
         this->closeWhenIdle_();
     }
 
