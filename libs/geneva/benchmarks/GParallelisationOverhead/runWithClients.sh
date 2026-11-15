@@ -35,7 +35,7 @@
 #   ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population> \
 #       <iterations> "<delays>" "<reference delays>" <measurements> [server options]
 #
-#     binary       the GParallelisationOverhead executable of a build tree
+#     binary       the GParallelisationOverhead (or GSubClientOverhead) executable
 #     workdir      a directory OUTSIDE the source tree
 #     consumer     the consumer to measure: a networked one such as beast (a
 #                  server process and N client processes), or mpi (one mpirun
@@ -58,6 +58,20 @@
 #   MPIRUN   how mpi is started, followed by the rank count (default
 #            "mpirun --oversubscribe -np": Open MPI needs the flag when there are
 #            more ranks than cores; MPICH's mpiexec knows no such flag)
+#   GROUP    processes per client group (default 1), for GSubClientOverhead: every
+#            client shares its evaluations with GROUP - 1 sub-clients. With mpi
+#            the job has 1 + clients x GROUP ranks; with a networked consumer
+#            every client is an MPI job of GROUP ranks of its own.
+#   INTER_DELAY  seconds to wait after the measurements of an evaluation time
+#            (the configuration's inter_measurement_delay, 1 unless set here)
+#   POLL_PAUSES  GSubClientOverhead: min:max microseconds a process pauses between
+#            two looks for a message (unset: the configuration's)
+#   CLIENT_GRACE  seconds the networked clients have to end by themselves after
+#            their server (default 30); the rest are ended and counted
+#
+# The program may be GParallelisationOverhead or GSubClientOverhead: the script
+# sets the configuration of either individual. The output of the clients goes
+# to clients.log.
 ####################################################################
 
 set -u
@@ -68,6 +82,7 @@ if [ $# -lt 9 ]; then
     exit 1
 fi
 
+GROUP=${GROUP:-1}
 X=$(readlink -f "$1"); W=$2; C=$3; N=$4; POP=$5; ITER=$6; DELAYS=$7; REFDELAYS=$8; NMEAS=$9
 shift 9
 if [ ! -x "$X" ]; then
@@ -76,16 +91,31 @@ fi
 mkdir -p "$W" && cd "$W" || exit 1
 rm -rf config && cp -r "$(dirname "$X")/config" config
 
-python3 - "$POP" "$ITER" "$DELAYS" "$REFDELAYS" "$NMEAS" <<'P'
-import json, sys
-pop, iterations, delays, refdelays, nmeas = sys.argv[1:6]
+python3 - "$POP" "$ITER" "$DELAYS" "$REFDELAYS" "$NMEAS" "$GROUP" <<'P' || exit 1
+import glob, json, os, sys
+pop, iterations, delays, refdelays, nmeas, group = sys.argv[1:7]
 f = 'config/GEvolutionaryAlgorithm.json'; d = json.load(open(f))
 d['population']['size']['value'] = int(pop); d['max_iteration']['value'] = int(iterations)
 d['max_stall_iteration']['value'] = 0; json.dump(d, open(f, 'w'), indent=1)
-for f, dl in (('config/GDelayIndividual.json', delays),
-              ('config/GDelayIndividual-reference.json', refdelays)):
+# The configuration of the individual and of its reference (GDelayIndividual's, or the one of
+# GSubClientOverhead's individual, which has the same keys)
+for f, dl in [(f, delays) for f in glob.glob('config/*Individual.json')] + \
+             [(f, refdelays) for f in glob.glob('config/*Individual-reference.json')]:
     d = json.load(open(f)); d['delays']['value'] = dl; d['n_measurements']['value'] = int(nmeas)
-    d['n_variables']['value'] = 100; json.dump(d, open(f, 'w'), indent=1)
+    d['n_variables']['value'] = 100
+    if 'INTER_DELAY' in os.environ:
+        d['inter_measurement_delay']['value'] = int(os.environ['INTER_DELAY'])
+    if os.environ.get('POLL_PAUSES') and 'poll_pause_min' in d:
+        low, high = os.environ['POLL_PAUSES'].split(':')
+        d['poll_pause_min']['value'] = int(low); d['poll_pause_max']['value'] = int(high)
+    json.dump(d, open(f, 'w'), indent=1)
+# The group size of an MPI job with sub-clients
+f = 'config/GMPISubClientOptimizer.json'
+if os.path.exists(f):
+    d = json.load(open(f)); d['sub_client_group_size']['value'] = int(group)
+    json.dump(d, open(f, 'w'), indent=1)
+elif int(group) != 1:
+    sys.exit('this program has no sub-clients; GROUP must be 1')
 P
 
 if [ ! -s referenceLine.txt ] || [ "${REFRESH_REFERENCE:-0}" = 1 ]; then
@@ -95,18 +125,33 @@ fi
 if [ "$C" = mpi ]; then
     # The ranks take their roles from MPI; the server options reach every rank.
     # shellcheck disable=SC2086
-    ${MPIRUN:-mpirun --oversubscribe -np} $((N + 1)) "$X" -c mpi "$@" > server.log 2>&1
+    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "$@" > server.log 2>&1
     STATUS=$?
 else
     PORT=$((15000 + RANDOM % 2000))
     "$X" -c "$C" "--${C}_port" $PORT "$@" > server.log 2>&1 &
     SRV=$!
     sleep 2
+    # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
+    LAUNCH=(); GROUPOPT=()
+    if [ "$GROUP" -gt 1 ]; then
+        # shellcheck disable=SC2206
+        LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP"); GROUPOPT=(--group "$GROUP")
+    fi
     PIDS=()
     for _ in $(seq 1 "$N"); do
-        "$X" -c "$C" --client "--${C}_port" $PORT > /dev/null 2>&1 & PIDS+=($!)
+        "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" >> clients.log 2>&1 &
+        PIDS+=($!)
     done
     wait $SRV; STATUS=$?
+    # The clients end by themselves once their server is gone; those still there after the grace
+    # period are ended and counted.
+    left() { local n=0 p; for p in "${PIDS[@]}"; do kill -0 "$p" 2>/dev/null && n=$((n + 1)); done; echo $n; }
+    for _ in $(seq 1 "${CLIENT_GRACE:-30}"); do
+        [ "$(left)" = 0 ] && break
+        sleep 1
+    done
+    echo "clients that did not end by themselves: $(left)"
     kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
 fi
 echo "server exit: $STATUS"

@@ -62,6 +62,10 @@ The serial reference fits a line with errors through its measurements, so it
 needs at least three of them (delays times n_measurements in
 config/GDelayIndividual-reference.json); fewer are refused.
 
+The measurement itself (GSpeedupMeasurement.hpp) is shared with
+GSubClientOverhead, whose clients share their evaluations with MPI
+sub-clients; runWithClients.sh starts that program too (see its header).
+
 GSpeedupFigure draws the tables of several runs into one figure with linear
 axes, one series per label, with error bars and the ideal speed-up as a line:
 

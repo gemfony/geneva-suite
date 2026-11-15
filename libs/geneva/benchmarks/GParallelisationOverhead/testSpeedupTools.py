@@ -38,6 +38,9 @@ Usage:
       a short run of runWithClients.sh with two clients; with a reference dir, the serial reference
       of that earlier run is used instead of a new one (MPIRUN in the environment says how mpi is
       started)
+  testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
+      a short run with two clients of two sub-clients each: every evaluation is done once, in a
+      group of three, and every process ends by itself
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
 
@@ -159,6 +162,41 @@ def check_run(program, workdir, consumer, reference_dir):
     print(f'{consumer}: speed-up {rows[0][5]} with two clients')
 
 
+def check_subclients(program, workdir, consumer, reference_dir):
+    """Two clients of two sub-clients each: every evaluation once, every process ends by itself."""
+    os.makedirs(workdir, exist_ok=True)
+    for name in ('shortDelayResults.txt', 'referenceLine.txt', 'reference.log', 'clients.log',
+                 'server.log'):
+        if os.path.exists(os.path.join(workdir, name)):
+            os.remove(os.path.join(workdir, name))
+    if reference_dir:
+        shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                          consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1'],
+                         env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0'),
+                         capture_output=True, text=True, check=False, timeout=240)
+    if run.returncode != 0:
+        fail(f'runWithClients.sh exited with {run.returncode}: {run.stdout}')
+    if 'clients that did not end by themselves: 0' not in run.stdout and consumer != 'mpi':
+        fail(f'a client had to be ended: {run.stdout}')
+    log = ''
+    for name in ('server.log', 'clients.log'):
+        if os.path.exists(os.path.join(workdir, name)):
+            log += open(os.path.join(workdir, name), encoding='utf-8').read()
+    leads = [int(l.split()[6]) for l in log.splitlines()
+             if l.startswith('GSleepGroup: lead of 3 processes led')]
+    members = sorted(int(l.split()[-2]) for l in log.splitlines()
+                     if l.startswith('GSleepGroup: member'))
+    # Population 4 with 2 parents, 3 iterations: 4 + 2 * 2 evaluations per run; a warm-up run and
+    # one measured run.
+    expected = 2 * (4 + 2 * 2)
+    if len(leads) != 2 or sum(leads) != expected:
+        fail(f'the leads led {leads} rounds instead of {expected} together')
+    if members != sorted(leads * 2):
+        fail(f'the members served {members} parts, their leads led {leads} rounds')
+    print(f'{consumer}: {expected} evaluations, each in a group of three; every process ended')
+
+
 def check_refusal(program, workdir):
     """A reference of two measurements cannot give its line an error and must be refused."""
     os.makedirs(workdir, exist_ok=True)
@@ -178,6 +216,9 @@ def main(args):
     elif len(args) >= 4 and args[0] == 'run':
         check_run(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
                   os.path.abspath(args[4]) if len(args) > 4 else None)
+    elif len(args) >= 4 and args[0] == 'subclients':
+        check_subclients(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
+                         os.path.abspath(args[4]) if len(args) > 4 else None)
     elif len(args) >= 3 and args[0] == 'refusal':
         check_refusal(os.path.abspath(args[1]), os.path.abspath(args[2]))
     else:
