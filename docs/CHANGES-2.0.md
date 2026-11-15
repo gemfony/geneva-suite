@@ -200,10 +200,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   15 s) applies to the server and to the client: after that much silence a ping is sent, and after
   twice as much without any inbound data the connection is closed. The same limit bounds the
   websocket handshake and the close handshake, so a peer that has stopped answering cannot hold
-  a connection or a thread. A client answers pings while it evaluates, so an evaluation may take
-  any length of time. There is no limit on the size of a message.
-- **The number of io threads of a socket server** is set with `--asio_nProcessingThreads` and
-  `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11.
+  a connection or a thread. A client answers pings while it evaluates, and both ends answer them
+  while they encode or decode a message (neither does that on the thread that moves the
+  connection's bytes), so an evaluation, and the encoding of a message, may take any length of
+  time. There is no limit on the size of a message.
+- **The number of threads of a socket server** is set with `--asio_nProcessingThreads` and
+  `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11; the
+  websocket server runs its sessions on as many threads again.
   Development snapshots of the redesign ignored these options and ran one io thread per hardware
   thread. In measurements with 400 clients the iteration time did not depend on the number, and
   four threads used the least server CPU.

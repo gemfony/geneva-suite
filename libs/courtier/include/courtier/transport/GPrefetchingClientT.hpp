@@ -49,6 +49,7 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GWireCodec.hpp"
 #include "courtier/GWireSerializationContext.hpp"
 
 namespace Gem::Courtier::Consumers {
@@ -61,12 +62,26 @@ namespace Gem::Courtier::Consumers {
  * timer. That whole pipeline -- the in-flight bookkeeping, the compute-pool dispatch with its
  * work-guard discipline, the shared result prologue, the jittered NO_WORK refill timer and the
  * halt-poll timer -- lives here ONCE, as a CRTP base between GBaseClientT and the concrete client.
- * A concrete client contributes only its transport specifics through three hooks it befriends the
- * base for:
  *
- *  - refill_()                       -- issue pulls until the pipeline is at depth (transport send)
- *  - sendResultAndRefill_(container) -- transmit a finished RETURN and top the pipeline back up
- *  - haltShutdown_()                 -- tear the transport down when halt() is reached
+ * Threads. The io thread moves the connection's bytes, answers its pings and keeps the books
+ * (pending_pulls_, computing_, the timers); every decision about an item is taken there. It never
+ * encodes or decodes a work item: a message is decoded on a strand of the compute pool
+ * (dispatch_message_()), and the RETURN of an evaluated item is built and encoded on the compute
+ * thread that evaluated it (dispatch_compute_()). However long that takes, the io thread stays free
+ * for the connection.
+ *
+ * A concrete client contributes only its transport specifics through hooks it befriends the base
+ * for:
+ *
+ *  - refill_()                              -- issue pulls until the pipeline is at depth
+ *  - sendEncodedAndRefill_(bytes, error)    -- transmit an encoded RETURN (or give up if it could
+ *                                              not be encoded) and top the pipeline back up
+ *  - haltShutdown_()                        -- tear the transport down when halt() is reached
+ *  - when_decoded_(kind)                    -- a message other than WORK has arrived (only for a
+ *                                              client that uses dispatch_message_())
+ *  - when_unreadable_(error)                -- a message could not be decoded (likewise)
+ *  - prepareReturn_(container)              -- optional: adjusts a RETURN before it is encoded, on
+ *                                              the compute thread
  *
  * @tparam Derived The concrete client type (CRTP; must also inherit enable_shared_from_this)
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
@@ -98,19 +113,88 @@ protected:
 
     //-------------------------------------------------------------------------
     /**
+     * @brief Decodes a message from the server off the io thread and hands the result back to it.
+     * The message is decoded on a strand of the compute pool, so messages are decoded one at a time
+     * and in the order they arrived (an item whose blob travels by id is decoded after the item
+     * that carried it). The decoded frame goes to the io thread at once (decoded_()), WORK
+     * included: the io thread does the books and starts the evaluation.
+     *
+     * @param message One complete message from the server
+     */
+    void dispatch_message_(std::string message) {
+        auto self = derived().shared_from_this();
+        auto guard = boost::asio::make_work_guard(io_context_);
+        boost::asio::post(
+            decode_strand_,
+            [self, message = std::move(message), guard = std::move(guard)]() mutable {
+                GCommandContainerT<processable_type> container{GFrameKind::NONE};
+                std::string error;
+                try {
+                    Gem::Courtier::wireDecode(
+                        message,
+                        container,
+                        &self->wire_ctx_,
+                        self->wire_ctx_.mode
+                    );
+                }
+                catch(const std::exception &e) {
+                    error = e.what();
+                }
+                boost::asio::post(
+                    self->io_context_,
+                    [self,
+                     container = std::move(container),
+                     error = std::move(error),
+                     guard = std::move(guard)]() mutable {
+                        self->decoded_(std::move(container), error);
+                    }
+                );
+            }
+        );
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Runs on the io thread for every decoded message. WORK and NO_WORK both answer a pull
+     * sent earlier, so one pull is resolved; a WORK item is then counted as computing and handed
+     * to the compute pool, anything else goes to the concrete client (when_decoded_()). A message
+     * that could not be decoded goes to when_unreadable_().
+     *
+     * @param container The decoded frame
+     * @param error Why the message could not be decoded; empty if it could
+     */
+    void decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+        if(not error.empty()) {
+            derived().when_unreadable_(error);
+            return;
+        }
+        if(pending_pulls_ > 0) {
+            --pending_pulls_;
+        }
+        if(container.kind() == GFrameKind::WORK) {
+            // One pull became one computation: the in-flight total is unchanged.
+            ++computing_;
+            this->dispatch_compute_(std::move(container));
+            return;
+        }
+        derived().when_decoded_(container.kind());
+    }
+
+    //-------------------------------------------------------------------------
+    /**
      * @brief Hands the given work item to the compute pool for evaluation, keeping the io thread free
-     * for transport work (pings / connection exchanges). A work guard pins io_context::run() open from
-     * here until finish_compute_() has run, so the posted result is always delivered -- no premature
-     * drain and no leftover-handler leak on shutdown. Each evaluation owns its OWN container (moved
-     * into the worker lambda), so several items compute concurrently without sharing state; the
-     * container travels back to the io thread for the result transmission (all connection state must
-     * only be touched there).
+     * for transport work (pings / connection exchanges). The compute thread evaluates the item,
+     * rewrites the frame into the RETURN the using library wants (makeReturnFrame -- this is where
+     * the library, not courtier, decides whether the whole item or a payload of its own travels
+     * back) and encodes it; only the bytes travel back to the io thread (finish_compute_()). A work
+     * guard pins io_context::run() open from here until finish_compute_() has run, so the posted
+     * result is always delivered -- no premature drain and no leftover-handler leak on shutdown.
+     * Each evaluation owns its OWN container (moved into the worker lambda), so several items
+     * compute concurrently without sharing state.
      *
      * @param container The frame holding the WORK item to evaluate (moved into the worker)
      */
-    void dispatch_compute_(
-        GCommandContainerT<processable_type> container
-    ) {
+    void dispatch_compute_(GCommandContainerT<processable_type> container) {
         auto self = derived().shared_from_this();
         auto guard = boost::asio::make_work_guard(io_context_);
         boost::asio::post(
@@ -124,12 +208,35 @@ protected:
                     self->client_name_,
                     self->itemProcessor()
                 );
-                // Hop back onto the io thread for the result transmission -- connection state must
-                // only be touched there.
+                Gem::Courtier::makeReturnFrame(container);
+                if constexpr(requires(Derived &d, GCommandContainerT<processable_type> &c) {
+                                 d.prepareReturn_(c);
+                             }) {
+                    self->prepareReturn_(container);
+                }
+                std::string bytes;
+                std::string error;
+                try {
+                    // The wire context is only read here: a client never interns a blob
+                    // (may_intern_blobs is false), so its RETURN carries every blob inline.
+                    bytes = Gem::Courtier::wireEncode(
+                        container,
+                        &self->wire_ctx_,
+                        self->wire_ctx_.mode
+                    );
+                }
+                catch(const std::exception &e) {
+                    error = e.what();
+                }
+                // Hop back onto the io thread for the books and the transmission -- connection
+                // state must only be touched there.
                 boost::asio::post(
                     self->io_context_,
-                    [self, container = std::move(container), guard = std::move(guard)]() mutable {
-                        self->finish_compute_(std::move(container));
+                    [self,
+                     bytes = std::move(bytes),
+                     error = std::move(error),
+                     guard = std::move(guard)]() mutable {
+                        self->finish_compute_(std::move(bytes), error);
                     }
                 );
             }
@@ -137,24 +244,20 @@ protected:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Runs on the io thread once an evaluation has completed: accounts for the finished item,
-     *  rewrites the frame into the RETURN the using library wants (makeReturnFrame -- this is where the
-     *  library, not courtier, decides whether the whole item or a payload of its own travels back) and
-     *  hands it to the transport-specific sendResultAndRefill_() hook. A RETURN doubles as a pull: the
-     *  server answers it with the next item. The work guard captured by the posting lambda is released
-     *  when this returns.
+    /** @brief Runs on the io thread once an evaluation has completed and its RETURN is encoded:
+     *  accounts for the finished item and hands the bytes to the transport-specific
+     *  sendEncodedAndRefill_() hook. A RETURN doubles as a pull: the server answers it with the
+     *  next item. The work guard captured by the posting lambda is released when this returns.
      *
-     *  @param container The frame holding the just-evaluated work item, rewritten into a RETURN */
-    void finish_compute_(
-        GCommandContainerT<processable_type> container
-    ) {
+     *  @param bytes The encoded RETURN
+     *  @param error Why the RETURN could not be encoded; empty if it could */
+    void finish_compute_(std::string bytes, const std::string &error) {
         this->incrementProcessingCounter();
         if(computing_ > 0) {
             --computing_;
         }
-        Gem::Courtier::makeReturnFrame(container);
         ++pending_pulls_; // the RETURN we are about to send is a pull (the server replies with an item)
-        derived().sendResultAndRefill_(std::move(container));
+        derived().sendEncodedAndRefill_(std::move(bytes), error);
     }
 
     //-------------------------------------------------------------------------
@@ -283,6 +386,11 @@ protected:
     /// depth so all in-flight items can compute concurrently. Declared last so it is destroyed (and its
     /// threads joined) before io_context_ and the other pipeline state.
     boost::asio::thread_pool compute_pool_;
+
+    /// Decodes the messages of the server one at a time, in arrival order, on the compute pool
+    boost::asio::strand<boost::asio::thread_pool::executor_type> decode_strand_{
+        boost::asio::make_strand(compute_pool_)
+    };
 
 private:
     //-------------------------------------------------------------------------

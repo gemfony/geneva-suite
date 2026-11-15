@@ -136,6 +136,13 @@ constexpr std::size_t GWEBSOCKETMAXMESSAGEBYTES = 0;
 /// The write buffer of a websocket stream, in bytes. With fragmenting on, a message goes out in
 /// frames of at most this size, so that a control frame never waits behind a large message.
 constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
+/// How many messages a websocket peer reads ahead of its role: while the role has this many
+/// received messages still to handle, the peer stops reading until it has caught up. The protocol
+/// keeps the number far lower (each end sends only what the other has asked for: at most the
+/// client's prefetch depth per direction); the limit only stops a peer that floods. A paused peer
+/// reads nothing, so it answers no ping either: the other end, the one that floods, sees no pong
+/// and is closed by its own idle limit if the pause lasts two ping intervals.
+constexpr std::size_t GWEBSOCKETMAXUNHANDLEDMESSAGES = 1024;
 
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:

@@ -53,6 +53,7 @@
 #include "courtier/GCourtierEnums.hpp"            // GCONSUMERACCEPTRETRYPAUSE
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: shared registry
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
+#include "courtier/transport/GIoContext.hpp"
 
 namespace Gem::Courtier {
 
@@ -153,6 +154,7 @@ public:
             );
         }
 
+        this->startTransport_();
         this->async_start_accept();
 
         // Account the io threads in the process-wide thread budget (io threads mostly block, but
@@ -178,6 +180,9 @@ public:
             return;
         }
         this->requestStop();
+
+        // The transport's own threads (if any) first, so that no session runs any more.
+        this->stopTransport_();
 
         // Drop the work guard and stop the context so run() returns on every io thread.
         work_guard_.reset();
@@ -229,6 +234,17 @@ protected:
     virtual void start_session_(boost::asio::ip::tcp::socket socket) = 0;
 
     /***************************************************************************/
+    /** @brief Starts what the concrete consumer runs besides the io threads (called by
+     *  startServer() before the first accept). Default: nothing. */
+    virtual void startTransport_() { /* nothing */
+    }
+
+    /** @brief Stops and joins what startTransport_() started (called by stopServer() before the
+     *  io threads are stopped). Default: nothing. */
+    virtual void stopTransport_() { /* nothing */
+    }
+
+    /***************************************************************************/
     /** @brief Adjusts the live-session counter from a session's sign-on/sign-off callback.
      *  @param sign_on True when a session starts, false when it ends */
     void adjustSessionCount(bool sign_on) noexcept {
@@ -260,7 +276,7 @@ private:
 
 protected:
     /// The io context all sessions run on; accessible to the concrete session factory.
-    boost::asio::io_context io_context_;
+    Gem::Courtier::Consumers::GIoContext io_context_;
 
 private:
     /***************************************************************************/

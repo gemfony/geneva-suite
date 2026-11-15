@@ -67,6 +67,7 @@ SET ( CONSUMER_INCLUDES
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
     transport/GAsioTransportT.hpp
+    transport/GIoContext.hpp
     transport/GPeerI.hpp
     transport/GPrefetchingClientT.hpp
     transport/GWebsocketPeer.hpp

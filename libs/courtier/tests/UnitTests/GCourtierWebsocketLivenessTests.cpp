@@ -58,6 +58,7 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
@@ -66,6 +67,75 @@ namespace {
 /// As many check-ins of a GSimpleContainer throw as this says (see the seam below).
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<int> checkInsToFail{0};
+
+/** @brief Which of the four codec runs of an item's round trip is slow (see GSlowCodecItem). */
+enum class CodecRun : int {
+    NONE = 0,
+    SERVER_ENCODES = 1, ///< the server writes the WORK frame
+    CLIENT_DECODES = 2, ///< the client reads the WORK frame
+    CLIENT_ENCODES = 3, ///< the client writes the RETURN frame
+    SERVER_DECODES = 4  ///< the server reads the RETURN frame
+};
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<CodecRun> slowRun{CodecRun::NONE}; ///< The run of every item that takes SLOW_CODEC
+std::atomic<int> slowRunsDone{0};              ///< How many slow runs have happened
+std::atomic<int> evaluations{0};               ///< How many items have been evaluated
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// How long the slow run takes: three ping intervals (see PING_INTERVAL_S below), more than the
+/// idle limit of two. It is a sleep, so it does not depend on how busy the host is.
+constexpr auto SLOW_CODEC = std::chrono::seconds(3);
+
+/**
+ * A work item whose (de)serialization can be made slow, separately for each of the four codec runs
+ * of a round trip. The run is told apart by the direction of the archive and by the item's state:
+ * an item is unprocessed on its way out and processed on its way back.
+ */
+class GSlowCodecItem final : public Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool>>(
+            ar,
+            "GProcessingContainerT_GSlowCodecItem",
+            *this
+        );
+        Gem::Common::archive_named(ar, "id_", id_);
+        const bool back = this->is_processed();
+        CodecRun run = CodecRun::NONE;
+        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+            run = back ? CodecRun::CLIENT_ENCODES : CodecRun::SERVER_ENCODES;
+        }
+        else {
+            run = back ? CodecRun::SERVER_DECODES : CodecRun::CLIENT_DECODES;
+        }
+        if(run == slowRun.load()) {
+            slowRunsDone.fetch_add(1);
+            std::this_thread::sleep_for(SLOW_CODEC);
+        }
+    }
+
+public:
+    /** @brief An item with an id. @param id Tells the items apart */
+    explicit GSlowCodecItem(std::size_t id)
+      : Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool>(1)
+      , id_(id) { /* nothing */
+    }
+
+private:
+    /** @brief For loading only */
+    GSlowCodecItem()
+      : Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool>(1) { /* nothing */
+    }
+    /** @brief Counts the evaluation */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
+        evaluations.fetch_add(1);
+    }
+
+    std::size_t id_ = 0; ///< Tells the items apart
+};
 } /* anonymous namespace */
 
 namespace Gem::Courtier {
@@ -617,4 +687,123 @@ TEST_CASE(
     CHECK(items.back()->is_processed());        // one that succeeded
     CHECK(consumer->getNActiveSessions() == 1); // and the client is still there
     client->flagCloseRequested();
+}
+
+/******************************************************************************/
+// A message whose encoding or decoding takes longer than the idle limit must not cost its
+// connection: while one end works on a message it still has to answer the other end's pings. Each
+// case makes one of the four codec runs of every item take three ping intervals and checks that
+// no connection is lost, that every item is evaluated once and that every result arrives.
+
+namespace {
+
+/** @brief One case of slow codec work: which run is slow, and the shape of the server. */
+struct SlowCodecCase {
+    CodecRun run;              ///< The codec run of every item that is slow
+    std::size_t serverThreads; ///< The server's io threads (nThreads)
+    std::size_t clients;       ///< How many clients take part, each with its own connection
+};
+
+/** @brief Runs one batch of one item per client with the given run slow, and checks that every
+ *  connection survives it. */
+// NOLINTNEXTLINE(readability-function-size) -- one linear scenario; the count comes from the assertion macros
+void runSlowCodecCase(const SlowCodecCase &c) {
+    slowRun.store(c.run);
+    slowRunsDone.store(0);
+    evaluations.store(0);
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
+
+    auto consumer = startedServer<GSlowCodecItem>(c.serverThreads);
+    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
+    std::vector<std::shared_ptr<GWebsocketClientT<GSlowCodecItem>>> clients;
+    std::vector<std::jthread> client_threads;
+    clients.reserve(c.clients);
+    client_threads.reserve(c.clients);
+    for(std::size_t i = 0; i < c.clients; ++i) {
+        clients.push_back(matchingClient<GSlowCodecItem>(consumer->getPort()));
+        client_threads.emplace_back([client = clients.back()] { client->run(); });
+    }
+    REQUIRE(eventually([&] { return consumer->getNActiveSessions() == c.clients; }));
+
+    std::vector<std::unique_ptr<GSlowCodecItem>> items;
+    items.reserve(c.clients);
+    for(std::size_t i = 0; i < c.clients; ++i) {
+        items.push_back(std::make_unique<GSlowCodecItem>(i));
+    }
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GSlowCodecItem>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    // Every slow run may wait for the others (on a server with fewer threads than clients),
+    // plus the time the rest of the round trip needs.
+    const auto patience = static_cast<int>(c.clients) * SLOW_CODEC + PATIENCE;
+    const bool done = batch.wait_for(patience) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+
+    CHECK(slowRunsDone.load() >= 1); // the case did exercise the slow run
+    for(const auto &item : items) {
+        CHECK(item->is_processed());
+    }
+    CHECK(evaluations.load() == static_cast<int>(c.clients)); // each item evaluated once
+    CHECK(consumer->requeuedCount() == 0);                    // nothing was taken back
+    CHECK(consumer->getNActiveSessions() == c.clients);       // no connection was lost
+    CHECK_FALSE(log->hasLineWith({"the idle limit of"}));     // and no end gave up on the other
+
+    slowRun.store(CodecRun::NONE);
+    glogger.resetLogTargets();
+    for(auto &client : clients) {
+        client->flagCloseRequested();
+    }
+}
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "courtier(websocket): a server that encodes a work item slowly keeps its client",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::SERVER_ENCODES, .serverThreads = 2, .clients = 1});
+}
+
+TEST_CASE(
+    "courtier(websocket): a client that decodes a work item slowly keeps its server",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::CLIENT_DECODES, .serverThreads = 2, .clients = 1});
+}
+
+TEST_CASE(
+    "courtier(websocket): a client that encodes its result slowly keeps its server",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::CLIENT_ENCODES, .serverThreads = 2, .clients = 1});
+}
+
+TEST_CASE(
+    "courtier(websocket): a server that decodes a result slowly keeps its client",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::SERVER_DECODES, .serverThreads = 2, .clients = 1});
+}
+
+TEST_CASE(
+    "courtier(websocket): a server with one io thread that encodes slowly keeps all its clients",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::SERVER_ENCODES, .serverThreads = 1, .clients = 2});
+}
+
+TEST_CASE(
+    "courtier(websocket): more sessions encode slowly than the server has io threads",
+    "[courtier][websocket][liveness][net][slowcodec]"
+) {
+    runSlowCodecCase({.run = CodecRun::SERVER_ENCODES, .serverThreads = 2, .clients = 3});
 }

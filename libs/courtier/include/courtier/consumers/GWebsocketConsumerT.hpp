@@ -32,15 +32,21 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <thread>
 #include <utility>
 
 // Boost headers
 #include <boost/asio.hpp>
 
 // Geneva headers
+#include "common/concurrency/GThreadBudget.hpp"
+#include "common/concurrency/GThreadGroup.hpp"
+#include "courtier/GCourtierEnums.hpp"
 #include "courtier/consumers/GTcpAcceptingConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp" // the session, the client, the protocol
@@ -63,6 +69,10 @@ namespace Gem::Courtier {
  *
  * It is configured by a GWebsocketConsumerConfig, the struct its client is built from too.
  *
+ * Threads. The connections do their I/O on the io threads of the shell (nThreads of them), which
+ * run nothing else; the sessions run on as many threads of their own. A session may therefore take
+ * as long as it likes over a message without its connection, or any other, missing a ping.
+ *
  * @tparam processable_type The work-item type handed to clients and reconciled back into the population
  */
 template <typename processable_type>
@@ -75,8 +85,9 @@ public:
     /***************************************************************************/
     /** @brief Constructs the websocket consumer from the configuration of its family.
      *
-     *  @param config Reads port (0 lets the OS pick; the chosen port is read back), nThreads (io
-     *         threads; 0 selects the hardware concurrency), serializationMode (the wire format),
+     *  @param config Reads port (0 lets the OS pick; the chosen port is read back), nThreads (the
+     *         io threads, and as many threads for the sessions; 0 selects the hardware
+     *         concurrency), serializationMode (the wire format),
      *         pingInterval (seconds of silence after which a session pings its client; after twice
      *         that time without any inbound data the client is presumed gone; 0 switches this off)
      *         and verboseControlFrames. The client members (ip, clientPrefetchDepth) are
@@ -87,6 +98,10 @@ public:
             config.port,
             config.nThreads
         )
+      , n_session_threads_(
+            config.nThreads == 0 ? std::max(1U, std::thread::hardware_concurrency())
+                                 : config.nThreads
+        )
       , serialization_mode_(config.serializationMode)
       , ping_interval_(config.pingInterval)
       , verbose_control_frames_(config.verboseControlFrames) { /* nothing */
@@ -95,6 +110,10 @@ public:
     /** @brief Stops the server while this object is still complete (see the base class). */
     ~GWebsocketConsumerT() override {
         this->stopServerNoThrow_();
+        // No thread runs now. The connections refer to both contexts (see GIoContext): the I/O
+        // context's pending handlers go first, while the sessions' context still exists; the rest
+        // goes with session_context_, while the I/O context's services still exist.
+        this->io_context_.shutdown();
     }
 
     GWebsocketConsumerT(const GWebsocketConsumerT &) = delete;
@@ -110,6 +129,27 @@ protected:
     [[nodiscard]] bool usesTimeLease() const override { return false; }
 
 private:
+    /***************************************************************************/
+    /** @brief Starts the threads the sessions run on. */
+    void startTransport_() override {
+        session_budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+            "Gem::Courtier::GWebsocketConsumerT:sessions",
+            static_cast<unsigned int>(n_session_threads_),
+            Gem::Common::Concurrency::ThreadElasticity::Elastic
+        );
+        for(std::size_t t = 0; t < n_session_threads_; ++t) {
+            session_threads_.create_thread([this] { session_context_.run(); });
+        }
+    }
+
+    /** @brief Stops the threads the sessions run on and joins them. */
+    void stopTransport_() override {
+        session_work_.reset();
+        session_context_.stop();
+        session_threads_.join_all();
+        session_budget_.release();
+    }
+
     /***************************************************************************/
     /** @brief Starts one persistent websocket session for a freshly accepted connection, with a
      *  CheckoutLease that requeues any in-flight items if the client dies.
@@ -153,10 +193,20 @@ private:
             &this->wire_registry_,
             next_peer_id_.fetch_add(1) // a fresh peer id per session (connection)
         )
-            ->async_start_run();
+            ->async_start_run(session_context_.get_executor());
     }
 
     /***************************************************************************/
+    std::size_t n_session_threads_; ///< The threads the sessions run on
+    /// Where the sessions run: their handlers, and with them the encoding and decoding of
+    /// messages, the check-out and the check-in. Declared after nothing it refers to; destroyed
+    /// before the shell's io context (see the destructor).
+    boost::asio::io_context session_context_;
+    std::optional<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
+        session_work_{boost::asio::make_work_guard(session_context_)};
+    Gem::Common::Concurrency::GThreadGroup session_threads_;
+    Gem::Common::Concurrency::GThreadBudget::Reservation session_budget_;
+
     Gem::Common::serializationMode serialization_mode_;
     std::size_t ping_interval_;
     bool verbose_control_frames_;

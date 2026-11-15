@@ -35,7 +35,10 @@
 
 // Boost headers go here
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/execution/outstanding_work.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/prefer.hpp>
+#include <boost/asio/strand.hpp>
 
 // Geneva headers go here
 #include "common/GLogger.hpp"
@@ -84,15 +87,26 @@ const char *frameName(boost::beast::websocket::frame_type kind) {
  * @param socket The connected socket; its executor must serialize the handlers it runs
  * @param options How this end is set up
  * @param handlers What the role wants to be told
+ * @param handler_executor Where the role's handlers run (on a strand of it); empty: on the socket's
+ *        executor
  */
 GWebsocketPeer::GWebsocketPeer(
     boost::asio::ip::tcp::socket socket,
     GOptions options,
-    GHandlers handlers
+    GHandlers handlers,
+    const boost::asio::any_io_executor &handler_executor
 )
   : ws_(std::move(socket))
   , options_(std::move(options))
-  , handlers_(std::move(handlers)) {
+  , handlers_(std::move(handlers))
+  , io_executor_(ws_.get_executor())
+  , handler_strand_(
+        handler_executor ? boost::asio::any_io_executor(boost::asio::make_strand(handler_executor))
+                         : io_executor_
+    )
+  , owner_work_(
+        boost::asio::prefer(handler_strand_, boost::asio::execution::outstanding_work_t::tracked)
+    ) {
     this->configure_();
 }
 
@@ -164,9 +178,11 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
     open_ = true;
     last_inbound_ = std::chrono::steady_clock::now();
     this->read_();
-    if(handlers_.onOpen) {
-        handlers_.onOpen();
-    }
+    boost::asio::post(handler_strand_, [self = this->shared_from_this()] {
+        if(self->handlers_.onOpen) {
+            self->handlers_.onOpen();
+        }
+    });
 }
 
 /******************************************************************************/
@@ -180,10 +196,12 @@ void GWebsocketPeer::read_() {
 
 /******************************************************************************/
 /**
- * Called when a read has completed: hands the message to the role and reads on. An error ends the
- * connection; this is also where an expired idle limit and the other end's close arrive. A message
- * that arrives after close() was called is not handed on: the role has said that it is done, and a
- * client would otherwise start an evaluation it can no longer return.
+ * Called when a read has completed: hands the message to the role's strand and reads on at once, so
+ * that the keep-alive goes on while the role works on the message. Reading pauses only while the
+ * role has GWEBSOCKETMAXUNHANDLEDMESSAGES messages still to handle. An error ends the connection;
+ * this is also where an expired idle limit and the other end's close arrive. A message that arrives
+ * after close() was called is not handed on: the role has said that it is done, and a client would
+ * otherwise start an evaluation it can no longer return.
  *
  * @param ec The outcome of the read
  */
@@ -194,30 +212,70 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
     }
 
     last_inbound_ = std::chrono::steady_clock::now();
-    const std::string message = boost::beast::buffers_to_string(incoming_.data());
+    std::string message = boost::beast::buffers_to_string(incoming_.data());
     incoming_.consume(incoming_.size());
-    if(handlers_.onMessage && not close_requested_.load()) {
-        handlers_.onMessage(message);
+    if(not close_requested_.load()) {
+        if(unhandled_.fetch_add(1) + 1 >= GWEBSOCKETMAXUNHANDLEDMESSAGES) {
+            read_paused_ = true;
+        }
+        boost::asio::post(
+            handler_strand_,
+            [self = this->shared_from_this(), message = std::move(message)]() mutable {
+                self->deliver_(message);
+            }
+        );
     }
 
-    if(not closing_) {
+    if(not closing_ && not read_paused_) {
         this->read_();
     }
 }
 
 /******************************************************************************/
 /**
- * Queues a message and starts writing if no write is outstanding. A message handed over before the
- * handshake has completed, or after a close has begun, is dropped.
+ * On the handler strand: hands one message to the role (unless close() has been called since), and
+ * lets reading go on if it waited for the role.
+ *
+ * @param message The message, as it arrived
+ */
+void GWebsocketPeer::deliver_(std::string &message) {
+    if(handlers_.onMessage && not close_requested_.load()) {
+        handlers_.onMessage(std::move(message));
+    }
+    if(unhandled_.fetch_sub(1) == GWEBSOCKETMAXUNHANDLEDMESSAGES) {
+        boost::asio::post(io_executor_, [self = this->shared_from_this()] {
+            self->resumeReading_();
+        });
+    }
+}
+
+/******************************************************************************/
+/** On the socket's executor: reads on after a pause, if the connection is still open. */
+void GWebsocketPeer::resumeReading_() {
+    if(read_paused_ && not closing_) {
+        read_paused_ = false;
+        this->read_();
+    }
+}
+
+/******************************************************************************/
+/**
+ * Queues a message on the socket's executor and starts writing if no write is outstanding. A message
+ * handed over before the handshake has completed, or after a close has begun, is dropped.
  *
  * @param message The complete message to send
  */
 void GWebsocketPeer::send(std::string message) {
-    if(closing_ || not open_) {
-        return;
-    }
-    write_queue_.push_back(std::move(message));
-    this->pump_();
+    boost::asio::post(
+        io_executor_,
+        [self = this->shared_from_this(), message = std::move(message)]() mutable {
+            if(self->closing_ || not self->open_) {
+                return;
+            }
+            self->write_queue_.push_back(std::move(message));
+            self->pump_();
+        }
+    );
 }
 
 /******************************************************************************/
@@ -265,7 +323,7 @@ void GWebsocketPeer::writeDone_(const error_code &ec) {
 void GWebsocketPeer::close(close_code code) {
     close_requested_.store(true);
     auto self = this->shared_from_this();
-    boost::asio::post(ws_.get_executor(), [self, code] { self->beginClose_(code); });
+    boost::asio::post(io_executor_, [self, code] { self->beginClose_(code); });
 }
 
 /******************************************************************************/
@@ -304,26 +362,30 @@ void GWebsocketPeer::beginClose_(close_code code) {
 void GWebsocketPeer::abort() {
     closing_ = true;
     local_close_ = true;
-    this->finish_({});
+    this->finish_({}, /*report_inline=*/true);
 }
 
 /******************************************************************************/
-/** @return The executor all handlers of this peer run on (to post work that came from elsewhere) */
+/** @return The strand all handlers of this peer run on (to post work that came from elsewhere) */
 boost::asio::any_io_executor GWebsocketPeer::executor() {
-    return ws_.get_executor();
+    return handler_strand_;
 }
 
 /******************************************************************************/
 /**
  * The end of the connection, whatever led to it. Runs its body once: switches Beast's time limits
  * off (Beast leaves its timer armed after a failed read, which would keep the io context busy),
- * closes the socket, tells the role, and drops the handlers and with them this peer's hold on the
- * role.
+ * closes the socket, and tells the role on its strand -- after the messages handed to it before,
+ * which it may still handle. abort() has the role told at once instead: no handler runs then.
  *
  * @param cause Why the connection ended; reported as "no error" if this end began the close
+ * @param report_inline Whether the role is told here and now (abort()) instead of on its strand
  */
-void GWebsocketPeer::finish_(const error_code &cause) {
+void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     if(finished_) {
+        if(report_inline) {
+            this->report_({}); // a report posted before may never run: its context has stopped
+        }
         return;
     }
     finished_ = true;
@@ -356,11 +418,32 @@ void GWebsocketPeer::finish_(const error_code &cause) {
         std::ignore = ws_.next_layer().close(ignored);
     }
 
+    const error_code reported = local_close_ ? error_code{} : cause;
+    if(report_inline) {
+        this->report_(reported);
+    }
+    else {
+        boost::asio::post(handler_strand_, [self = this->shared_from_this(), reported] {
+            self->report_(reported);
+        });
+    }
+}
+
+/******************************************************************************/
+/**
+ * On the handler strand (or, from abort(), where no handler runs): tells the role that the
+ * connection is over, once, drops the handlers and with them this peer's hold on the role, and
+ * lets go of the handler context.
+ *
+ * @param cause What onClosed is told
+ */
+void GWebsocketPeer::report_(const error_code &cause) {
     GHandlers handlers = std::move(handlers_);
     handlers_ = GHandlers{};
     if(handlers.onClosed) {
-        handlers.onClosed(local_close_ ? error_code{} : cause);
+        handlers.onClosed(cause);
     }
+    owner_work_ = {};
 }
 
 /******************************************************************************/

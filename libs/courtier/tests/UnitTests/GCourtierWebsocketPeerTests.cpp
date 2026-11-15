@@ -40,6 +40,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -380,4 +381,101 @@ TEST_CASE(
         peer->abort(); // idempotent
     }
     CHECK(n_closed_calls == 1);
+}
+
+/******************************************************************************/
+// A role may take longer over a message than the idle limit allows without costing its connection,
+// as long as the peer's I/O runs on a thread that does not run the role: the peer goes on reading,
+// and answering the other end's pings, while the role works. Here the server's role takes three
+// ping intervals over the question; the connection must survive it and end in the regular way.
+// Each end does its I/O on a thread of its own, so the client notices if the server falls silent.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "GWebsocketPeer keeps its connection while its role works on a message for three ping "
+    "intervals",
+    "[courtier][websocket][peer]"
+) {
+    using namespace std::chrono_literals;
+    boost::asio::io_context server_io; // the I/O of the server's end
+    boost::asio::io_context client_io; // the I/O of the client's end
+    boost::asio::io_context role_ctx;  // the handlers of both ends
+    tcp::acceptor acceptor(server_io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    tcp::socket connecting(client_io);
+    connecting.connect(acceptor.local_endpoint());
+    tcp::socket accepted = acceptor.accept();
+    GSeen server_seen;
+    GSeen client_seen;
+    const GWebsocketPeer::GOptions options{.name = "test peer", .pingInterval = 1s};
+
+    std::weak_ptr<GWebsocketPeer> server_weak;
+    std::weak_ptr<GWebsocketPeer> client_weak;
+    auto server = std::make_shared<GWebsocketPeer>(
+        std::move(accepted),
+        options,
+        GWebsocketPeer::GHandlers{
+            .onOpen = [&server_seen] { ++server_seen.nOpen; },
+            .onMessage =
+                [&server_seen, &server_weak](const std::string &message) {
+                    server_seen.messages.push_back(message);
+                    std::this_thread::sleep_for(3s); // longer than the idle limit of 2 s
+                    if(auto peer = server_weak.lock()) {
+                        peer->send("answer");
+                    }
+                },
+            .onClosed =
+                [&server_seen](const boost::system::error_code &cause) {
+                    ++server_seen.nClosed;
+                    server_seen.cause = cause;
+                }
+        },
+        role_ctx.get_executor()
+    );
+    auto client = std::make_shared<GWebsocketPeer>(
+        std::move(connecting),
+        options,
+        GWebsocketPeer::GHandlers{
+            .onOpen =
+                [&client_seen, &client_weak] {
+                    ++client_seen.nOpen;
+                    if(auto peer = client_weak.lock()) {
+                        peer->send("question");
+                    }
+                },
+            .onMessage =
+                [&client_seen, &client_weak](const std::string &message) {
+                    client_seen.messages.push_back(message);
+                    if(auto peer = client_weak.lock()) {
+                        peer->close(GWebsocketPeer::close_code::normal);
+                    }
+                },
+            .onClosed =
+                [&client_seen](const boost::system::error_code &cause) {
+                    ++client_seen.nClosed;
+                    client_seen.cause = cause;
+                }
+        },
+        role_ctx.get_executor()
+    );
+    server_weak = server;
+    client_weak = client;
+
+    server->acceptHandshake();
+    client->connectHandshake("localhost");
+    server.reset();
+    client.reset();
+
+    {
+        const std::jthread server_thread([&server_io] { server_io.run_for(20s); });
+        const std::jthread client_thread([&client_io] { client_io.run_for(20s); });
+        role_ctx.run_for(20s); // returns when both ends have been told that the connection is over
+    }
+
+    REQUIRE(server_seen.messages.size() == 1);
+    CHECK(server_seen.messages.front() == "question");
+    REQUIRE(client_seen.messages.size() == 1);
+    CHECK(client_seen.messages.front() == "answer");
+    CHECK(client_seen.nClosed == 1);
+    CHECK_FALSE(client_seen.cause); // the client closed; it did not give up on a silent server
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.cause == boost::beast::websocket::error::closed);
 }

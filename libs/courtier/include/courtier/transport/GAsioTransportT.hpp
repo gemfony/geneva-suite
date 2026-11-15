@@ -94,7 +94,7 @@ class GAsioConsumerClientT final
   : public GPrefetchingClientT<GAsioConsumerClientT<processable_type>, processable_type>
   , public std::enable_shared_from_this<GAsioConsumerClientT<processable_type>> {
     // The pipeline base drives the compute dispatch / refill / halt machinery and calls our
-    // private transport hooks (refill_ / sendResultAndRefill_ / haltShutdown_).
+    // private transport hooks (refill_ / sendEncodedAndRefill_ / haltShutdown_ / prepareReturn_).
     friend class GPrefetchingClientT<GAsioConsumerClientT<processable_type>, processable_type>;
 
     using pipeline_base = GPrefetchingClientT<GAsioConsumerClientT<processable_type>, processable_type>;
@@ -608,30 +608,34 @@ private:
     }
 
     //-------------------------------------------------------------------------
+    /** @brief Called by the pipeline base on the compute thread before a RETURN is encoded:
+     *  announces this client's stable peer id (blob send-once). peer_id_ is set in the
+     *  constructor and only read afterwards.
+     *
+     *  @param container The RETURN frame the base built from the evaluated work item */
+    void prepareReturn_(GCommandContainerT<processable_type> &container) const {
+        container.setPeerId(peer_id_);
+    }
+
+    //-------------------------------------------------------------------------
     /** @brief Result-transmission hook driven by the pipeline base: queues a RETURN exchange that
 		 *  returns the result AND fetches a replacement in one connection, then tops the pipeline up.
+		 *  The RETURN was encoded on the compute thread, under the wire scope, so its (unchanged)
+		 *  blob is sent in full to the server only the first time, by id thereafter.
 		 *
-		 *  @param container The RETURN frame the base built from the evaluated work item */
-    void sendResultAndRefill_(
-        GCommandContainerT<processable_type> container
-    ) {
-        container.setPeerId(peer_id_); // announce our stable peer id (blob send-once)
-        try {
-            // Serialize the returned item under the wire scope so its (unchanged) blob is sent in full
-            // to the server only the first time, by id thereafter (blob send-once).
-            exchange_queue_.push_back(
-                Gem::Courtier::wireEncode(container, &wire_ctx_, serialization_mode_)
-            );
-        }
-        catch(const std::exception &e) {
+		 *  @param bytes The encoded RETURN
+		 *  @param error Why it could not be encoded; empty if it could */
+    void sendEncodedAndRefill_(std::string bytes, const std::string &error) {
+        if(not error.empty()) {
             --pending_pulls_;
-            glogger << "In GAsioConsumerClientT<processable_type>::sendResultAndRefill_(): " << e.what()
-                    << '\n'
+            glogger << "In GAsioConsumerClientT<processable_type>::sendEncodedAndRefill_(): "
+                    << error << '\n'
                     << "The client will shut down." << '\n'
                     << GWARNING;
             this->shutdown();
             return;
         }
+        exchange_queue_.push_back(std::move(bytes));
         kick_exchange_();
         maintain_(); // cover any deficit left by an earlier NO_WORK (a no-op when already at full depth)
     }

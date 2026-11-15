@@ -35,10 +35,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <boost/asio.hpp>
 
@@ -84,6 +86,46 @@ public:
         std::this_thread::sleep_for(1100ms);
     }
 
+    /** @brief Counts one request as sent and unanswered, as refill_() would. On the io thread
+     *  (the test's thread, while the io context does not run). */
+    void expectAnswer() {
+        ++pending_pulls_;
+    }
+
+    /** @brief Hands a message from the server to the pipeline, as a transport does.
+     *  @param message The encoded frame */
+    void receive(std::string message) {
+        this->dispatch_message_(std::move(message));
+    }
+
+    /** @brief Runs the io context on this thread until @p condition holds, at most for @p limit.
+     *  The condition is evaluated between two handlers, i.e. as the io thread sees the books.
+     *  @return Whether the condition held in time */
+    template <typename Condition>
+    [[nodiscard]] bool runUntil(Condition condition, std::chrono::milliseconds limit) {
+        const auto give_up_at = std::chrono::steady_clock::now() + limit;
+        while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
+            if(io_context_.stopped()) {
+                io_context_.restart();
+            }
+            io_context_.run_one_for(10ms);
+        }
+        return condition();
+    }
+
+    /** @return The items being evaluated, as the io thread counts them */
+    [[nodiscard]] std::size_t computing() const {
+        return computing_;
+    }
+    /** @return The requests sent and not answered yet, as the io thread counts them */
+    [[nodiscard]] std::size_t pendingPulls() const {
+        return pending_pulls_;
+    }
+    /** @return The encoded results handed to the transport so far */
+    [[nodiscard]] std::size_t nResults() const {
+        return n_results_;
+    }
+
     /** @brief Runs the io context for at most @p limit.
      *  @return Whether it ran out of work, i.e. whether a client's run() would have returned */
     [[nodiscard]] bool runsOutOfWork(std::chrono::milliseconds limit) {
@@ -96,12 +138,20 @@ private:
     }
     void refill_() { /* no transport to pull from */
     }
-    void sendResultAndRefill_(GCommandContainerT<GFaultyContainer> /*container*/) { /* nothing */
+    void sendEncodedAndRefill_(std::string bytes, const std::string &error) {
+        if(error.empty() && not bytes.empty()) {
+            ++n_results_;
+        }
+    }
+    void when_decoded_(Gem::Courtier::GFrameKind /*kind*/) { /* nothing to act on */
+    }
+    void when_unreadable_(const std::string & /*error*/) { /* nothing to act on */
     }
     void haltShutdown_() { /* no transport to close */
     }
 
     boost::asio::steady_timer stop_timer_{io_context_};
+    std::size_t n_results_ = 0; ///< Encoded results handed to the transport
 };
 
 } /* anonymous namespace */
@@ -253,4 +303,40 @@ TEST_CASE(
         CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "w", &marking));
         CHECK(calls == 0);
     }
+}
+
+/******************************************************************************/
+// The io thread keeps the books of the pipeline, also while it does no codec work: a WORK frame is
+// decoded on the compute pool, but it reaches the io thread before its item is evaluated. From
+// then until the result the item counts as computing and the request it answers as answered --
+// the state look-ahead, the busy rule and the end of a run are decided on.
+
+TEST_CASE(
+    "courtier(client): the io thread counts an item as computing while it is evaluated",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GFaultyContainer>(0, fault_mode::SLEEP, /*sleep_ms=*/1000);
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClient>();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+
+    // While the item sleeps in its evaluation the io thread knows of it.
+    REQUIRE(client->runUntil([&client] { return client->computing() == 1; }, 800ms));
+    CHECK(client->pendingPulls() == 0);
+    CHECK(client->getNProcessed() == 0); // the evaluation is not over yet
+
+    // Then its result: one encoded RETURN, which is a request again.
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    CHECK(client->computing() == 0);
+    CHECK(client->pendingPulls() == 1);
+    CHECK(client->getNProcessed() == 1);
 }

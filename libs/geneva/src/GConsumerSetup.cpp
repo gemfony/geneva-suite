@@ -263,8 +263,8 @@ public:
             "\t[beast] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
             "beast_nListenerThreads",
             po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
-            "\t[beast] The number of io threads of the server (0 == as many as the machine has "
-            "hardware threads)")(
+            "\t[beast] The number of io threads of the server, and of the threads its sessions run "
+            "on (0 == as many as the machine has hardware threads)")(
             "beast_pingInterval",
             po::value<std::size_t>()->default_value(c2::GBEASTCONSUMERPINGINTERVAL),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "

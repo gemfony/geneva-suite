@@ -82,8 +82,10 @@ namespace Gem::Courtier::Consumers {
  * length of time; and a server that has fallen silent is noticed by the peer's idle limit.
  *
  * All connection state (the in-flight counters and the peer) is touched only on the single io
- * thread; the compute pool threads only ever touch the work-item container handed to them and then
- * post the result back onto the io thread.
+ * thread, and every decision about an item is taken there. The io thread neither decodes nor
+ * encodes a work item: messages are decoded on a strand of the compute pool and each RETURN is
+ * encoded on the compute thread that evaluated it (see GPrefetchingClientT), so a large item cannot
+ * keep the client from answering the server's pings.
  *
  * The wire protocol is unchanged: PULL and RETURN are both "pulls" that the server answers with one
  * WORK/NO_WORK, so the server (and its sessions) need no knowledge of the client's prefetch depth.
@@ -99,7 +101,8 @@ class GWebsocketClientT final
   : public GPrefetchingClientT<GWebsocketClientT<processable_type>, processable_type>
   , public std::enable_shared_from_this<GWebsocketClientT<processable_type>> {
     // The pipeline base drives the compute dispatch / refill / halt machinery and calls our
-    // private transport hooks (refill_ / sendResultAndRefill_ / haltShutdown_).
+    // private transport hooks (refill_ / sendEncodedAndRefill_ / haltShutdown_ / when_decoded_ /
+    // when_unreadable_).
     friend class GPrefetchingClientT<GWebsocketClientT<processable_type>, processable_type>;
 
     using pipeline_base = GPrefetchingClientT<GWebsocketClientT<processable_type>, processable_type>;
@@ -111,9 +114,8 @@ class GWebsocketClientT final
     using close_code = GWebsocketPeer::close_code;
 
     // Members and helpers of the dependent pipeline base, pulled into scope
-    using pipeline_base::command_container_;
     using pipeline_base::computing_;
-    using pipeline_base::dispatch_compute_;
+    using pipeline_base::dispatch_message_;
     using pipeline_base::io_context_;
     using pipeline_base::n_nodata_;
     using pipeline_base::pending_pulls_;
@@ -264,7 +266,8 @@ private:
             },
             GWebsocketPeer::GHandlers{
                 .onOpen = [self] { self->when_open_(); },
-                .onMessage = [self](const std::string &message) { self->handle_message(message); },
+                .onMessage =
+                    [self](std::string &&message) { self->dispatch_message_(std::move(message)); },
                 .onClosed =
                     [self](const boost::system::error_code &cause) { self->when_closed_(cause); }
             }
@@ -307,65 +310,43 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Processing of incoming messages takes place here. A WORK item is moved to the compute
-	  * pool; NO_WORK triggers a backoff refill; bad messages shut the client down.
+	  * @brief Called on the io thread for a decoded message other than WORK (WORK is counted and
+	  * evaluated by the pipeline base, see GPrefetchingClientT::decoded_()). NO_WORK triggers a
+	  * backoff refill; an unknown or invalid frame is unrecoverable and shuts the client down (it
+	  * does NOT throw -- that would unwind the io thread).
 	  *
-	  * @param message One complete message from the server
+	  * @param kind The kind of the frame decoded
 	  */
-    void handle_message(const std::string &message) {
-        // De-serialize the object. A malformed/truncated message makes this throw; that must
-        // not escape into io_context::run() (it would unwind the client's only io thread).
-        try {
-            Gem::Courtier::wireDecode(message, command_container_, &wire_ctx_, serialization_mode_);
-        }
-        catch(const std::exception &e) {
-            glogger << "In GWebsocketClientT<processable_type>::handle_message():" << '\n'
-                    << "Could not de-serialize an incoming message:" << '\n'
-                    << e.what() << '\n'
-                    << "The client will shut down." << '\n'
-                    << GWARNING;
-            do_close(close_code::internal_error);
-            return;
-        }
-
-        // Both WORK and NO_WORK are answers to a pull (a PULL or RETURN we sent earlier), so one
-        // pull is now resolved.
-        if(pending_pulls_ > 0) {
-            --pending_pulls_;
-        }
-
-        // Act on the frame received
-        switch(command_container_.kind()) {
-            using enum Gem::Courtier::GFrameKind;
-        case WORK:
-            // Work arrived. Move it out (so command_container_ is free for the next message) and
-            // hand the (possibly long-running, unbounded) evaluation to the compute pool, so the io thread
-            // stays free while it runs. The result is written back from the pipeline base's
-            // finish_compute_() once the worker is done. One more item is now computing; the in-flight
-            // total is unchanged (one pull became one computation), so no top-up is needed here.
-            ++computing_;
-            dispatch_compute_(std::move(command_container_));
-            break;
-
-        case NO_WORK:
+    void when_decoded_(Gem::Courtier::GFrameKind kind) {
+        if(kind == Gem::Courtier::GFrameKind::NO_WORK) {
             // No work available yet. The in-flight total has dropped by one; back off, then top up
             // again. The wait is an async timer (NOT a blocking sleep): at depth > 1 other items are
             // still computing and their results must not be stalled on the io thread.
             n_nodata_++;
             schedule_refill_();
-            break;
-
-        default:
-            // An unknown/invalid frame is unrecoverable; log and shut down cleanly (do NOT throw
-            // -- that would unwind the io thread).
-            glogger << "In GWebsocketClientT<processable_type>::handle_message():" << '\n'
-                    << "Received invalid frame " << fkToStr(command_container_.kind())
-                    << '\n'
-                    << "The client will shut down." << '\n'
-                    << GWARNING;
-            do_close(close_code::internal_error);
-            break;
+            return;
         }
+        glogger << "In GWebsocketClientT<processable_type>::when_decoded_():" << '\n'
+                << "Received invalid frame " << fkToStr(kind) << '\n'
+                << "The client will shut down." << '\n'
+                << GWARNING;
+        do_close(close_code::internal_error);
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+	  * @brief Called on the io thread for a message that could not be decoded (malformed or
+	  * truncated): the client shuts down.
+	  *
+	  * @param error Why the message could not be decoded
+	  */
+    void when_unreadable_(const std::string &error) {
+        glogger << "In GWebsocketClientT<processable_type>:" << '\n'
+                << "Could not de-serialize an incoming message:" << '\n'
+                << error << '\n'
+                << "The client will shut down." << '\n'
+                << GWARNING;
+        do_close(close_code::internal_error);
     }
 
     //-------------------------------------------------------------------------
@@ -428,11 +409,25 @@ private:
      *  prefetch depth (see request_more_()). */
     void refill_() { request_more_(); }
 
-    /** @brief Result-transmission hook: writes the RETURN to the server and tops the pipeline
-     *  back up (the RETURN itself is a pull; request_more_ covers any NO_WORK-left deficit).
-     *  @param container The RETURN frame the base built from the evaluated work item */
-    void sendResultAndRefill_(GCommandContainerT<processable_type> container) {
-        send_command_(container);
+    /** @brief Result-transmission hook for a RETURN encoded on the compute thread: sends its
+     *  bytes, or shuts the client down if it could not be encoded; then tops the pipeline back up
+     *  (the RETURN itself is a pull; request_more_ covers any NO_WORK-left deficit).
+     *  @param bytes The encoded RETURN
+     *  @param error Why it could not be encoded; empty if it could */
+    void sendEncodedAndRefill_(std::string bytes, const std::string &error) {
+        if(not error.empty()) {
+            glogger << "In GWebsocketClientT<processable_type>: could not serialize a result:"
+                    << '\n'
+                    << error << '\n'
+                    << "The client will shut down." << '\n'
+                    << GWARNING;
+            do_close(close_code::internal_error);
+            return;
+        }
+        auto peer = peer_.lock();
+        if(peer && not this->halt()) {
+            peer->send(std::move(bytes));
+        }
         request_more_();
     }
 
@@ -566,8 +561,11 @@ public:
 	  * @brief Turns the accepted socket into a GWebsocketPeer and waits for the client's websocket
 	  * handshake. Returns at once; all work proceeds asynchronously. From here on the peer owns this
 	  * session through its handlers.
+	  *
+	  * @param handler_executor Where this session runs (on a strand of it); the socket's own
+	  *        executor does the I/O
 	  */
-    void async_start_run() {
+    void async_start_run(const boost::asio::any_io_executor &handler_executor) {
         auto self = this->shared_from_this();
         auto peer = std::make_shared<GWebsocketPeer>(
             std::move(socket_),
@@ -582,7 +580,8 @@ public:
                 .onMessage = [self](const std::string &message) { self->when_message_(message); },
                 .onClosed =
                     [self](const boost::system::error_code &cause) { self->when_closed_(cause); }
-            }
+            },
+            handler_executor
         );
         peer_ = peer;
         peer->acceptHandshake();

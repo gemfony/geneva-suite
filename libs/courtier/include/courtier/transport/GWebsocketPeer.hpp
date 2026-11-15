@@ -75,16 +75,28 @@ namespace Gem::Courtier::Consumers {
  *    the queue are dropped, and nothing that arrives after the call to close() is delivered. Both
  *    roles can live with that: an item that did not get through is put back by the server.
  *
- * Threads. The socket's executor must serialize the handlers it runs: the server accepts each
- * connection onto its own strand, and a client runs its io context on one thread. The handlers are
- * called on that executor, and send() and abort() are to be called there. A handshake starts the
- * connection and may be requested from anywhere, as long as nothing else is done with the peer
- * until it has completed; close() may be called from any thread at any time.
+ * Threads. The peer works on two executors. The stream lives on the socket's executor, which must
+ * serialize the handlers it runs (the server accepts each connection onto a strand of its own, a
+ * client runs its io context on one thread): reading, writing, the keep-alive and the close happen
+ * there and nowhere else. The role's handlers run on a strand of the handler executor given to the
+ * constructor (the socket's executor if none is given). The two are apart so that the role may take
+ * as long as it likes over a message -- decoding it, encoding the answer -- without the connection
+ * looking idle: the peer goes on reading, and answering pings, while the role works. Messages that
+ * arrive meanwhile wait for the role, in order; at GWEBSOCKETMAXUNHANDLEDMESSAGES of them the peer
+ * stops reading until the role has caught up. send() and abort() are to be called on the handler
+ * strand (executor() hands it out); a handshake starts the connection and may be requested from
+ * anywhere, as long as nothing else is done with the peer until it has completed; close() may be
+ * called from any thread at any time. Liveness therefore needs the socket's executor to have threads
+ * that do not run role code; with one executor for both it is as live as the role is quick.
  *
  * Ownership. Pending operations own the peer, and the peer owns the role through its handlers; the
  * role refers to the peer only weakly. A peer whose operations are discarded with their io context
  * is therefore destroyed, and its role with it. When the connection ends in the regular way, the
- * peer drops its handlers right after it has called onClosed.
+ * peer drops its handlers right after it has called onClosed. The peer keeps the handler executor's
+ * context busy until onClosed has run (or abort() has ended it), so that a role whose only work is
+ * this connection does not see its io context run dry while the connection lasts. Whoever owns the
+ * two contexts destroys the I/O context's pending handlers before the handler context (see
+ * GIoContext).
  */
 class GWebsocketPeer final : public std::enable_shared_from_this<GWebsocketPeer> {
 public:
@@ -101,12 +113,12 @@ public:
         std::chrono::milliseconds pingInterval{std::chrono::seconds(GBEASTCONSUMERPINGINTERVAL)};
     };
 
-    /** @brief What the role wants to be told. All three are called on the socket's executor. */
+    /** @brief What the role wants to be told. All three are called on the handler strand. */
     struct GHandlers {
         /// The handshake is done and messages may be sent.
         std::move_only_function<void()> onOpen;
-        /// One complete message has arrived.
-        std::move_only_function<void(const std::string &)> onMessage;
+        /// One complete message has arrived. The role may take the string.
+        std::move_only_function<void(std::string &&)> onMessage;
         /// The connection is over; called exactly once. The error code says why: none if this end
         /// closed it, boost::beast::websocket::error::closed if the other end closed it in the
         /// regular way, boost::beast::error::timeout if a time limit expired, and the transport's
@@ -114,8 +126,14 @@ public:
         std::move_only_function<void(const boost::system::error_code &)> onClosed;
     };
 
-    /** @brief Takes over a connected TCP socket. One of the two handshakes must follow. */
-    GWebsocketPeer(boost::asio::ip::tcp::socket socket, GOptions options, GHandlers handlers);
+    /** @brief Takes over a connected TCP socket. One of the two handshakes must follow. The role's
+     *  handlers run on a strand of @p handler_executor, or on the socket's executor if it is empty. */
+    GWebsocketPeer(
+        boost::asio::ip::tcp::socket socket,
+        GOptions options,
+        GHandlers handlers,
+        const boost::asio::any_io_executor &handler_executor = {}
+    );
     ~GWebsocketPeer() = default;
 
     GWebsocketPeer(const GWebsocketPeer &) = delete;
@@ -128,13 +146,16 @@ public:
     /** @brief Client side: performs the websocket handshake with the server, then reads. */
     void connectHandshake(const std::string &host);
     /** @brief Queues a message; messages are written one after another, in this order, until a
-     *  close begins. */
+     *  close begins. On the handler strand; the write itself is done on the socket's executor. */
     void send(std::string message);
     /** @brief Closes the connection in the regular way, from any thread. Idempotent. */
     void close(close_code code);
-    /** @brief Ends the connection at once, without a close handshake. Not inside a handler. */
+    /** @brief Ends the connection at once, without a close handshake. Not inside a handler, and
+     *  only when the socket's executor runs no handler of this peer (on it, or after its context
+     *  has stopped). */
     void abort();
-    /** @brief The executor all handlers of this peer run on. May be asked for from any thread. */
+    /** @brief The strand all handlers of this peer run on (to post work that came from
+     *  elsewhere). May be asked for from any thread. */
     [[nodiscard]] boost::asio::any_io_executor executor();
 
 private:
@@ -142,14 +163,25 @@ private:
     void handshakeDone_(const boost::system::error_code &ec);
     void read_();
     void readDone_(const boost::system::error_code &ec);
+    void deliver_(std::string &message);
+    void resumeReading_();
+    void report_(const boost::system::error_code &cause);
     void pump_();
     void writeDone_(const boost::system::error_code &ec);
     void beginClose_(close_code code);
-    void finish_(const boost::system::error_code &cause);
+    void finish_(const boost::system::error_code &cause, bool report_inline = false);
 
     boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws_; ///< The connection
     GOptions options_;
-    GHandlers handlers_; ///< Dropped once the connection is over
+    GHandlers handlers_; ///< On the handler strand; dropped once the connection is over
+
+    boost::asio::any_io_executor io_executor_;    ///< The socket's executor (where the bytes move)
+    boost::asio::any_io_executor handler_strand_; ///< Where the role's handlers run
+    boost::asio::any_io_executor owner_work_;     ///< Keeps the handler context busy until the end
+    /// Received messages not yet handled by the role (incremented on the socket's executor,
+    /// decremented on the handler strand)
+    std::atomic<std::size_t> unhandled_{0};
+    bool read_paused_ = false; ///< Reading waits for the role to catch up (socket's executor)
 
     boost::beast::multi_buffer incoming_; ///< Receives the message being read
     std::deque<std::string> write_queue_; ///< Messages waiting to be written

@@ -43,13 +43,27 @@ SET(LIBRARIES_TO_LINK
 # <size> is S, M, L or XL, measured -- see the "Running the test suite" section of INSTALL. It
 # is a required argument on purpose: a new test cannot be added without saying what it costs,
 # because the size is what decides whether a gate runs it.
+#
+# An optional "SPEC <test spec>" before the sources makes the entry run only the Catch2 test cases
+# the spec selects (see geneva_courtier_test_entry() for a second entry of the same executable).
 FUNCTION(geneva_courtier_test name size)
-	ADD_EXECUTABLE(${name} ${ARGN})
+	CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 2 arg "" "SPEC" "")
+	ADD_EXECUTABLE(${name} ${arg_UNPARSED_ARGUMENTS})
 	TARGET_LINK_LIBRARIES(${name} ${LIBRARIES_TO_LINK})
-	ADD_TEST(${name} ${name})
+	ADD_TEST(${name} ${name} ${arg_SPEC})
 	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "courtier")
 	GENEVA_TEST_SIZE(${name} ${size})
 	INSTALL(TARGETS ${name} DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
+ENDFUNCTION()
+
+# Helper: a further CTest entry of an executable declared with geneva_courtier_test(), running the
+# test cases <spec> selects
+#
+#     geneva_courtier_test_entry(<entry-name> <exe-name> <size> <spec>)
+FUNCTION(geneva_courtier_test_entry entry exe size spec)
+	ADD_TEST(${entry} ${exe} ${spec})
+	SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier")
+	GENEVA_TEST_SIZE(${entry} ${size})
 ENDFUNCTION()
 
 # Submission-path unit tests (formerly courtier2/tests/UnitTests, merged in at Stage E). The test
@@ -78,7 +92,10 @@ geneva_courtier_test(GCourtierWebsocketPeerTests S  GCourtierWebsocketPeerTests.
 # directory, used by later tests of the roles as their transport)
 geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
-geneva_courtier_test(GCourtierWebsocketLivenessTests L  GCourtierWebsocketLivenessTests.cpp)
+geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp)
+# A connection survives a message that takes one end three ping intervals to encode or decode: six
+# cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
+geneva_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")
 
 # The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
 # consumer's backend factory is, and that is compiled into the library only with the GPU consumer.
