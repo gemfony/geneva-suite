@@ -32,6 +32,7 @@
 // Standard headers go here
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -162,6 +163,11 @@ public:
         ranks_.at(static_cast<std::size_t>(rank)).faults.push_back(GArmedFault{fault, standard});
     }
 
+    /** @brief Every startSend() takes @p delay before it registers the send (0: none) */
+    void delaySends(std::chrono::microseconds delay) {
+        send_delay_us_.store(delay.count());
+    }
+
     /** @brief @param rank A rank @return What happened on it so far */
     GCounts counts(int rank) const {
         const std::scoped_lock lock(mutex_);
@@ -274,6 +280,7 @@ private:
     std::map<std::uint64_t, GRequest> requests_; ///< Sends under way, by id
     std::uint64_t next_request_ = 1;             ///< The id of the next send
     std::vector<std::string> violations_;        ///< What went against the contract
+    std::atomic<std::chrono::microseconds::rep> send_delay_us_{0}; ///< See delaySends()
 };
 
 /******************************************************************************/
@@ -351,6 +358,9 @@ inline std::string GMPIFakeCalls::receive(const Gem::Courtier::Consumers::GMPIPr
 
 inline Gem::Courtier::Consumers::GMPIRequest
 GMPIFakeCalls::startSend(int rank, int tag, std::string_view bytes) {
+    if(const auto delay = world_->send_delay_us_.load(); delay > 0) {
+        std::this_thread::sleep_for(std::chrono::microseconds(delay));
+    }
     const std::scoped_lock lock(world_->mutex_);
     const std::uint64_t id = world_->next_request_++;
     world_->requests_[id] =

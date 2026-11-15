@@ -155,6 +155,9 @@ public:
  * up the sends that have not completed; its owner calls it when no handler of the executors runs
  * any more.
  *
+ * shutdown() is its owner's duty. If the owner did not call it -- an exception on its way, say --,
+ * the destructor does, so that no send under way loses its bytes; the calls are still held then.
+ *
  * Ownership: the pending handlers of the chain and the owner (the MPI listener or connector) hold
  * the poll; the poll holds the receivers until shutdown(); a receiver refers to the poll weakly.
  * The poll holds the calls, and with them whatever keeps MPI initialized. Made with
@@ -170,8 +173,8 @@ public:
         GMPIPollTiming = {}
     );
 
-    /** @brief The destructor; makes no call to MPI (see shutdown()) */
-    ~GMPIPollCore() = default;
+    /** @brief The destructor; calls shutdown() if its owner has not (see there) */
+    ~GMPIPollCore();
 
     GMPIPollCore(const GMPIPollCore &) = delete;
     GMPIPollCore(GMPIPollCore &&) = delete;
@@ -185,8 +188,8 @@ public:
     /** @brief Starts the chain. Once, after the receivers have been added. From any thread. */
     void start();
 
-    /** @brief Starts the send of one message and hands it to the poll. From any thread; the
-     *  calls of one sender are sent in the order they are made. */
+    /** @brief Starts the send of one message and hands it to the poll. From any thread, also while
+     *  shutdown() runs; the calls of one sender are sent in the order they are made. */
     void startSend(int, int, std::string);
 
     /** @brief A receiver tells that it has ended and will send nothing more. Once per receiver,
@@ -260,6 +263,9 @@ private:
     std::atomic<bool> started_chain_{false}; ///< start() has been called
     std::atomic<bool> chain_ended_{false};   ///< No further link runs
     std::atomic<bool> shut_down_{false};     ///< shutdown() has run
+    std::atomic<int> sends_in_progress_{
+        0
+    }; ///< startSend() calls under way; shutdown() waits for them
 
     std::atomic<std::uint64_t> n_received_{0}; ///< Messages received
     std::atomic<std::uint64_t> n_sent_{0};     ///< Sends started

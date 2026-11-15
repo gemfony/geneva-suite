@@ -91,6 +91,21 @@ GMPIPollCore::GMPIPollCore(
 
 /******************************************************************************/
 /**
+ * The destructor. If the owner has not called shutdown(), it is called here, so that the sends
+ * under way are given up rather than lose their bytes while MPI may still read them. No exception
+ * leaves it.
+ */
+GMPIPollCore::~GMPIPollCore() {
+    try {
+        std::ignore = this->shutdown();
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
+        // never let an exception escape a destructor
+    }
+}
+
+/******************************************************************************/
+/**
  * Adds the receiver of one rank's messages. Before start(), from one thread; one receiver per
  * rank. The receiver's executor is asked here, once.
  *
@@ -147,8 +162,9 @@ void GMPIPollCore::start() {
  * that the answer to this send is looked for at once. One kick serves every send started before it
  * runs.
  *
- * From any thread (a peer calls it on its strand); the sends of one caller go out in the order of
- * the calls. A send after shutdown() is dropped.
+ * From any thread (a peer calls it on its strand), also while shutdown() runs; the sends of one
+ * caller go out in the order of the calls. A send that finds shutdown() begun is dropped; one that
+ * has begun before is waited for by shutdown(), which then gives it up if it has not completed.
  *
  * @param rank The receiving rank
  * @param tag The kind of message
@@ -164,6 +180,24 @@ void GMPIPollCore::startSend(int rank, int tag, std::string message) {
             << '\n'
         );
     }
+    // Counted in before the end is looked at, and out on every way out of this call. shutdown()
+    // sets its flag before it looks at the count (both sequentially consistent): either this call
+    // sees the flag, or shutdown() sees the call and waits for it.
+    sends_in_progress_.fetch_add(1);
+    struct GSendScope {
+        explicit GSendScope(std::atomic<int> &count)
+          : n(count) { /* nothing */
+        }
+        std::atomic<int> &n;
+        GSendScope(const GSendScope &) = delete;
+        GSendScope &operator=(const GSendScope &) = delete;
+        ~GSendScope() {
+            if(n.fetch_sub(1) == 1) {
+                n.notify_all();
+            }
+        }
+    } const scope(sends_in_progress_);
+
     if(shut_down_.load()) {
         glogger << "GMPIPollCore: a send to rank " << rank
                 << " after the end of the poll was dropped" << '\n'
@@ -206,13 +240,19 @@ void GMPIPollCore::receiverEnded(int rank) {
  *
  * To be called when no handler of the poll's executor or of the receivers' executors runs any more
  * -- their threads are joined, or run() has returned -- and before those contexts are destroyed.
- * Idempotent.
+ * Idempotent. startSend() may still be called from other threads meanwhile: a call that has begun
+ * is waited for and its send given up, a later one is dropped.
  *
  * @return The number of sends given up by this call
  */
 std::size_t GMPIPollCore::shutdown() {
     if(shut_down_.exchange(true)) {
         return 0;
+    }
+    // A startSend() that began before the flag was set hands its send over before it returns; wait
+    // for those calls (they are short), so that the look below takes their sends over.
+    for(int n = sends_in_progress_.load(); n != 0; n = sends_in_progress_.load()) {
+        sends_in_progress_.wait(n);
     }
     chain_ended_.store(true);
     timer_.cancel();

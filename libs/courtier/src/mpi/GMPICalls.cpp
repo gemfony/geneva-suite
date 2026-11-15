@@ -213,8 +213,19 @@ GMPIRequest GMPICalls::startSend(int rank, int tag, std::string_view bytes) {
         communicator_,
         &request
     );
-    // The request is completed by testSome() or given up by giveUp(), through its handle.
-    return toHandle(request); // NOLINT(clang-analyzer-optin.mpi.MPI-Checker)
+    // The request is completed by testSome() or given up by giveUp(), through its handle. A request
+    // that cannot be made into a handle is cancelled and waited for before the exception leaves:
+    // the caller frees the bytes while it unwinds, and MPI must have stopped reading them by then.
+    // MPI_Wait on a send marked for cancellation returns whatever the other rank does. (No test:
+    // neither MPICH nor Open MPI makes such a request.)
+    try {
+        return toHandle(request); // NOLINT(clang-analyzer-optin.mpi.MPI-Checker)
+    }
+    catch(...) {
+        MPI_Cancel(&request);
+        MPI_Wait(&request, MPI_STATUS_IGNORE);
+        throw;
+    }
 }
 
 /******************************************************************************/

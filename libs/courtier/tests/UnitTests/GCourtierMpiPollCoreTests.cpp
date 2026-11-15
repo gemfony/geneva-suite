@@ -682,3 +682,60 @@ TEST_CASE("A call of the poll that throws ends the chain and tells every receive
     CHECK(one->discards() == 1);
     CHECK(two->discards() == 1);
 }
+
+/******************************************************************************/
+// startSend() is allowed from any thread, also while shutdown() runs: a send that has begun is taken
+// over by shutdown() and given up, never left with its bytes freed. Each round has a sender that
+// sends without pause to a rank that never receives (each send takes 200 us in the fake, between
+// the poll's look at its end and the hand-over) while shutdown() runs.
+TEST_CASE("A send from another thread during shutdown() is taken over or dropped and never lost") {
+    constexpr int N_ROUNDS = 50;
+    int n_lost = 0;
+    for(int round = 0; round < N_ROUNDS; ++round) {
+        auto world = std::make_shared<GMPIFakeWorld>(2);
+        world->swallow(1);
+        world->delaySends(200us);
+        Threads threads(1);
+        auto core = std::make_shared<GMPIPollCore>(world->calls(0), threads.executor());
+        core->addReceiver(1, std::make_shared<Receiver>(threads.executor()));
+        core->start();
+
+        std::atomic<bool> stop{false};
+        std::thread sender([&] {
+            while(not stop.load()) {
+                core->startSend(1, 50, "to nobody");
+            }
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(1 + round % 3));
+        threads.join();
+        std::ignore = core->shutdown();
+        stop.store(true);
+        sender.join();
+        n_lost += static_cast<int>(world->sendsUnderWay());
+
+        threads.shutdown();
+        core.reset();
+        CHECK(world->violations().empty());
+    }
+    CHECK(n_lost == 0);
+}
+
+/******************************************************************************/
+TEST_CASE("A poll whose owner did not call shutdown() gives up its sends when it goes") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    world->swallow(1);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(0), threads.executor());
+    auto one = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(1, one);
+    core->start();
+    core->startSend(1, 50, "swallowed");
+    REQUIRE(eventually([&] { return world->counts(0).probes >= 2; }, 5s));
+
+    threads.join();
+    threads.shutdown();
+    core.reset(); // without shutdown()
+    CHECK(world->sendsUnderWay() == 0);
+    CHECK(world->counts(0).givenUp == 1);
+    CHECK(one->discards() == 1);
+}
