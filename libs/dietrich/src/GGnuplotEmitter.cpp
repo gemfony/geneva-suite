@@ -131,7 +131,23 @@ std::string datasetSpec(const GBasePlotter &p, scriptKind k) {
         default: // unreachable: validateScriptPads rejected the histogram kinds up front
             break;
     }
+    if(p.lineWidth() > 0 && (k == scriptKind::g2d || k == scriptKind::g2ed)) {
+        spec << " linewidth " << p.lineWidth();
+    }
     return spec.str();
+}
+
+/** @brief gnuplot's name of a legend corner ("bottom right", ...); AUTO has none */
+std::string gnuplotKeyPosition(legendPosition position) {
+    switch(position) {
+        case legendPosition::TOP_LEFT:     return "top left";
+        case legendPosition::TOP_RIGHT:    return "top right";
+        case legendPosition::BOTTOM_LEFT:  return "bottom left";
+        case legendPosition::BOTTOM_RIGHT: return "bottom right";
+        case legendPosition::CENTER_RIGHT: return "right center";
+        case legendPosition::AUTO:         break;
+    }
+    return {};
 }
 
 /** @brief A plotter's data rows (one point per line). Used as the body of a gnuplot `$Dn << EOD`
@@ -244,6 +260,7 @@ void emitDatablocks(
  * @param rows The number of pad rows (c_y_div)
  * @param cols The number of pad columns (c_x_div)
  * @param canvas_label The overall canvas title
+ * @param show_canvas_label Whether the canvas title is shown
  * @param indent The per-line indentation string
  */
 void emitMultiplot(
@@ -253,11 +270,16 @@ void emitMultiplot(
     std::size_t rows,
     std::size_t cols,
     const std::string &canvas_label,
+    bool show_canvas_label,
     const std::string &indent
 ) {
-    // The multiplot grid (rows = c_y_div, cols = c_x_div).
-    result << "set multiplot layout " << rows << "," << cols << " title \""
-           << backslashEscape(canvas_label) << "\"" << '\n' << '\n';
+    // The multiplot grid (rows = c_y_div, cols = c_x_div), with the canvas label as its title
+    // unless the figure leaves it out.
+    result << "set multiplot layout " << rows << "," << cols;
+    if(show_canvas_label) {
+        result << " title \"" << backslashEscape(canvas_label) << "\"";
+    }
+    result << '\n' << '\n';
 
     // Per pad: axis labels / title, then a plot/splot referencing the datablocks. The datablock counter
     // advances in the SAME order as emitDatablocks(), so $Dn lines up with its data.
@@ -282,7 +304,12 @@ void emitMultiplot(
         if(three_d) {
             result << indent << "set zlabel \"" << backslashEscape(p->zAxisLabel()) << "\"" << '\n';
         }
-        result << indent << "set title \"" << backslashEscape(p->plotLabel()) << "\"" << '\n';
+        result << indent << "set title \"" << backslashEscape(p->padTitleOrLabel()) << "\"" << '\n';
+        // A legend placed in a corner; the default is restored after the pad's plot command.
+        const std::string key_position = gnuplotKeyPosition(p->getLegendPosition());
+        if(not key_position.empty()) {
+            result << indent << "set key " << key_position << '\n';
+        }
         if(p->xAxisLogarithmic() != log_x_in_force) {
             log_x_in_force = p->xAxisLogarithmic();
             result << indent << (log_x_in_force ? "set" : "unset") << " logscale x" << '\n';
@@ -352,6 +379,9 @@ void emitMultiplot(
             ++db_ref;
         }
         result << '\n' << '\n';
+        if(not key_position.empty()) {
+            result << indent << "set key default" << '\n';
+        }
 
         if(proj != surfaceProjection::NONE) {
             // Restore the defaults for the next pad of the multiplot.
@@ -398,7 +428,7 @@ std::string GnuplotEmitter::emitDocument(const GPlotDesigner &gpd) const {
     // the multiplot grid (pass 2). Both passes walk the plotters in the same order, so `$Dn` lines up.
     emitDatablocks(result, gpd.plotters_cnt_, max_plots);
     result << '\n';
-    emitMultiplot(result, gpd.plotters_cnt_, max_plots, rows, cols, gpd.getCanvasLabel(), gpd.indent());
+    emitMultiplot(result, gpd.plotters_cnt_, max_plots, rows, cols, gpd.getCanvasLabel(), gpd.getShowCanvasLabel(), gpd.indent());
 
     return result.str();
 }

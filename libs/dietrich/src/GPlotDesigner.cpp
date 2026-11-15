@@ -123,6 +123,9 @@ GBasePlotter::GBasePlotter(const GBasePlotter &cp)
   , y_axis_logarithmic_(cp.y_axis_logarithmic_)
   , plot_label_(cp.plot_label_)
   , ds_marker_(cp.ds_marker_)
+  , pad_title_(cp.pad_title_)
+  , legend_position_(cp.legend_position_)
+  , line_width_(cp.line_width_)
   , id_(cp.id_) {
     // Note: Explicit scope needed for name resolution of clone -- compare
     // https://isocpp.org/wiki/faq/templates#nondependent-name-lookup-members
@@ -154,6 +157,9 @@ GBasePlotter &GBasePlotter::operator=(GBasePlotter const &cp) {
     y_axis_logarithmic_ = cp.y_axis_logarithmic_;
     plot_label_ = cp.plot_label_;
     ds_marker_ = cp.ds_marker_;
+    pad_title_ = cp.pad_title_;
+    legend_position_ = cp.legend_position_;
+    line_width_ = cp.line_width_;
     id_ = cp.id_;
 
     Gem::Common::copyCloneableSmartPointerContainer(cp.secondary_plotter_, secondary_plotter_);
@@ -293,6 +299,62 @@ std::string GBasePlotter::plotLabel() const {
 
 /******************************************************************************/
 /**
+ * Sets the title of the pad this (primary) plotter draws into, apart from its plot label.
+ *
+ * @param pad_title The title of the pad (empty: the plot label is the title, as before)
+ */
+void GBasePlotter::setPadTitle(std::string pad_title) {
+    pad_title_ = std::move(pad_title);
+}
+
+/**
+ * @return The pad title set apart from the plot label, empty if none was set
+ */
+std::string GBasePlotter::padTitle() const {
+    return pad_title_;
+}
+
+/**
+ * @return The title the pad shows: the pad title if one was set, otherwise the plot label
+ */
+std::string GBasePlotter::padTitleOrLabel() const {
+    return pad_title_.empty() ? plot_label_ : pad_title_;
+}
+
+/**
+ * Sets where the legend of this (primary) plotter's pad lies, if the pad holds several series.
+ *
+ * @param position A corner, or AUTO (the backend's own choice)
+ */
+void GBasePlotter::setLegendPosition(legendPosition position) {
+    legend_position_ = position;
+}
+
+/**
+ * @return Where the legend of this plotter's pad lies
+ */
+legendPosition GBasePlotter::getLegendPosition() const {
+    return legend_position_;
+}
+
+/**
+ * Sets the width of the line this plotter draws (2-d graphs); its legend sample follows it.
+ *
+ * @param line_width The width in the backend's units (0: the backend's default)
+ */
+void GBasePlotter::setLineWidth(std::uint32_t line_width) {
+    line_width_ = line_width;
+}
+
+/**
+ * @return The width of the line this plotter draws, 0 for the backend's default
+ */
+std::uint32_t GBasePlotter::lineWidth() const {
+    return line_width_;
+}
+
+/******************************************************************************/
+/**
  * Reports this plotter's choice as a GPlotSpec value. The base fills the common
  * fields (name, labels, drawing args) and a default kind; concrete plotters override
  * this to set their kind, their column names and (for histograms) the bin counts.
@@ -309,6 +371,13 @@ GPlotSpec GBasePlotter::plotSpec() const {
     spec.x_log = x_axis_logarithmic_;
     spec.y_log = y_axis_logarithmic_;
     spec.drawing_args = drawing_arguments_;
+    spec.pad_title = pad_title_;
+    if(legend_position_ != legendPosition::AUTO) {
+        spec.legend = legend_position_;
+    }
+    if(line_width_ > 0) {
+        spec.line_width = line_width_;
+    }
     return spec;
 }
 
@@ -428,6 +497,9 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     p->setXAxisLogarithmic(spec.x_log);
     p->setYAxisLogarithmic(spec.y_log);
     p->setDrawingArguments(spec.drawing_args);
+    p->setPadTitle(spec.pad_title);
+    p->setLegendPosition(spec.legend.value_or(legendPosition::AUTO));
+    p->setLineWidth(spec.line_width.value_or(0));
 
     // The plot mode (scatter vs. curve) is a GGraph2D / GGraph2ED render choice; apply it
     // when the spec carries one and the built plotter supports it.
@@ -683,7 +755,17 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
 
     // Several plotters share this pad: give them one frame and a legend.
     if(not secondary_plotter_.empty()) {
-        emitRootOverlayFrameAndLegend(footer_data, indent);
+        emitRootOverlayFrameAndLegend(
+            footer_data,
+            indent,
+            legend_position_,
+            1 + secondary_plotter_.size()
+        );
+    }
+    // A pad title set apart from the first series' label replaces that label as the title, once
+    // the legend has taken the label.
+    if(not pad_title_.empty()) {
+        emitRootPadTitle(footer_data, indent, pad_title_);
     }
 
     return footer_data.str();
@@ -724,6 +806,7 @@ GPlotDesigner::GPlotDesigner(const GPlotDesigner &cp)
   , c_y_dim_(cp.c_y_dim_)
   , canvas_label_(cp.canvas_label_)
   , add_print_command_(cp.add_print_command_)
+  , show_canvas_label_(cp.show_canvas_label_)
   , n_indention_spaces_(cp.n_indention_spaces_) {
     // Copy any secondary plotters over
     copyCloneableSmartPointerContainer<GBasePlotter>(cp.plotters_cnt_, plotters_cnt_);
@@ -746,6 +829,7 @@ GPlotDesigner &GPlotDesigner::operator=(GPlotDesigner const &cp) {
     c_y_dim_ = cp.c_y_dim_;
     canvas_label_ = cp.canvas_label_;
     add_print_command_ = cp.add_print_command_;
+    show_canvas_label_ = cp.show_canvas_label_;
     n_indention_spaces_ = cp.n_indention_spaces_;
 
     // Copy any secondary plotters over
@@ -884,12 +968,22 @@ std::string GPlotDesigner::staticHeader(const std::string &indent) const {
            << indent << R"(TCanvas *cc = new TCanvas("cc", "cc",0,0,)" << c_x_dim_ << ","
            << c_y_dim_ << ");" << '\n'
            << '\n'
-           << indent << "TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \""
-           << rootEscape(canvas_label_) << "\");" << '\n'
-           << indent << "canvasTitle->Draw();" << '\n'
-           << '\n'
-           << indent << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
-           << '\n'
+           ;
+    // The canvas label is the title of the figure, in a box above the pads; without it the pads
+    // take the whole canvas.
+    if(show_canvas_label_) {
+        result << indent << "TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \""
+               << rootEscape(canvas_label_) << "\");" << '\n'
+               << indent << "canvasTitle->Draw();" << '\n'
+               << '\n'
+               << indent << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
+               << '\n';
+    }
+    else {
+        result << indent << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.99);)"
+               << '\n';
+    }
+    result
            << indent << "graphPad->Draw();" << '\n'
            << indent << "graphPad->Divide(" << c_x_div_ << "," << c_y_div_ << ");" << '\n'
            << '\n';
@@ -990,6 +1084,24 @@ void GPlotDesigner::setAddPrintCommand(bool add_print_command) {
  */
 bool GPlotDesigner::getAddPrintCommand() const {
     return add_print_command_;
+}
+
+/******************************************************************************/
+/**
+ * Whether the canvas label is shown as the title of the whole figure (by default it is).
+ *
+ * @param show_canvas_label Whether to show the canvas label
+ */
+void GPlotDesigner::setShowCanvasLabel(bool show_canvas_label) {
+    show_canvas_label_ = show_canvas_label;
+}
+
+/******************************************************************************/
+/**
+ * @return Whether the figure shows the canvas label as its title
+ */
+bool GPlotDesigner::getShowCanvasLabel() const {
+    return show_canvas_label_;
 }
 
 /******************************************************************************/

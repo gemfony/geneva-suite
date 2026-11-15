@@ -29,12 +29,13 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection
+#include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection, legendPosition
 
 namespace Gem::Dietrich {
 
@@ -151,6 +152,12 @@ struct GPlotSpec {
     std::optional<bool>
         floor_shadow; ///< 3-d graphs only: true draws every point again, small and grey, on the floor
 
+    std::string pad_title; ///< the title of the pad, apart from name (empty: name is the title)
+
+    std::optional<legendPosition> legend; ///< where the pad's legend lies (absent: the backend's choice)
+
+    std::optional<std::uint32_t> line_width; ///< 2-d graphs: the width of the line (absent: default)
+
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
     GPlotSpec() : role(defaultRole(kind)) { /* nothing */ }
@@ -228,6 +235,26 @@ struct GPlotSpec {
         if(floor_shadow.has_value()) {
             out += std::string(", \"floor_shadow\": ") + (*floor_shadow ? "true" : "false");
         }
+        // The three settings of a pad and a line appear only when set, so the JSON of a plot that
+        // does not use them is what it was before they existed.
+        if(not pad_title.empty()) {
+            out += ", \"pad_title\": \"" + jsonEscape(pad_title) + "\"";
+        }
+        if(legend.has_value()) {
+            out += ", \"legend\": \"";
+            switch(*legend) {
+                case legendPosition::AUTO:         out += "auto"; break;
+                case legendPosition::TOP_LEFT:     out += "top_left"; break;
+                case legendPosition::TOP_RIGHT:    out += "top_right"; break;
+                case legendPosition::BOTTOM_LEFT:  out += "bottom_left"; break;
+                case legendPosition::BOTTOM_RIGHT: out += "bottom_right"; break;
+                case legendPosition::CENTER_RIGHT: out += "center_right"; break;
+            }
+            out += "\"";
+        }
+        if(line_width.has_value()) {
+            out += ", \"line_width\": " + std::to_string(*line_width);
+        }
         out += "}";
         return out;
     }
@@ -251,6 +278,33 @@ struct GPlotSpec {
         return out;
     }
 };
+
+/******************************************************************************/
+/**
+ * The box a legend placed in a corner takes in a ROOT pad, in coordinates of the pad (0 to 1,
+ * inside ROOT's default margins of a tenth), sized to its number of entries. A program that
+ * wants to know whether a corner is free of its data can compare its data with it.
+ *
+ * @param position The place (AUTO has no box of its own; it gets the lower right's)
+ * @param n_series The number of entries
+ * @return x1, y1, x2, y2
+ */
+[[nodiscard]] inline std::tuple<double, double, double, double>
+legendBox(legendPosition position, std::size_t n_series) {
+    constexpr double WIDTH = 0.32;
+    constexpr double ENTRY_HEIGHT = 0.065;
+    constexpr double PADDING = 0.03;
+    const double height =
+        (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
+    const bool left = position == legendPosition::TOP_LEFT or position == legendPosition::BOTTOM_LEFT;
+    const bool top = position == legendPosition::TOP_LEFT or position == legendPosition::TOP_RIGHT;
+    const double x1 = left ? 0.12 : 0.88 - WIDTH;
+    double y1 = top ? 0.88 - height : 0.13;
+    if(position == legendPosition::CENTER_RIGHT) {
+        y1 = 0.5 - (height / 2.);
+    }
+    return {x1, y1, x1 + WIDTH, y1 + height};
+}
 
 /******************************************************************************/
 

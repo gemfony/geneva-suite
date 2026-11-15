@@ -88,6 +88,24 @@ namespace {
 // skeleton is the shared script-backend driver in detail/GPlotDetail.hpp; only the
 // matplotlib-specific plotting calls live here.
 
+/** @brief The keyword argument for a line width that was set (", linewidth=N"), or nothing */
+std::string lineWidthArgument(const GBasePlotter &p) {
+    return p.lineWidth() > 0 ? ", linewidth=" + std::to_string(p.lineWidth()) : std::string{};
+}
+
+/** @brief matplotlib's name of a legend corner ("lower right", ...); AUTO has none */
+std::string matplotlibLegendLocation(legendPosition position) {
+    switch(position) {
+        case legendPosition::TOP_LEFT:     return "upper left";
+        case legendPosition::TOP_RIGHT:    return "upper right";
+        case legendPosition::BOTTOM_LEFT:  return "lower left";
+        case legendPosition::BOTTOM_RIGHT: return "lower right";
+        case legendPosition::CENTER_RIGHT: return "center right";
+        case legendPosition::AUTO:         break;
+    }
+    return {};
+}
+
 /** @brief Emit the matplotlib plotting call(s) for ONE plotter into the named Axes `ax`. The data are
  *  written as inline Python list literals; `ax` is a 2-d Axes for g2d/g2ed/hist*, a 3-d Axes for
  *  g3d/g4d. `fig` is the figure name (used for the g4d/hist2d colourbar). All statements are emitted at
@@ -108,13 +126,14 @@ std::string mplPlotCall(
     switch(k) {
         case scriptKind::g2d: {
             call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[1]) << ", marker=\"o\", label=\"" << label << "\")" << '\n';
+                 << bracketedRowCol(cols[1]) << ", marker=\"o\", label=\"" << label << "\""
+                 << lineWidthArgument(p) << ")" << '\n';
         } break;
         case scriptKind::g2ed: {
             call << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
                  << bracketedRowCol(cols[2]) << ", xerr=" << bracketedRowCol(cols[1])
-                 << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"o\", label=\"" << label << "\")"
-                 << '\n';
+                 << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"o\", label=\"" << label << "\""
+                 << lineWidthArgument(p) << ")" << '\n';
         } break;
         case scriptKind::g3d: {
             if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
@@ -230,8 +249,11 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
            << "from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 (registers the 3d projection)"
            << '\n' << '\n'
            << "fig = plt.figure(figsize=(" << (cols == 0 ? 1 : cols) * 5 << ", "
-           << (rows == 0 ? 1 : rows) * 4 << "))" << '\n'
-           << "fig.suptitle(\"" << backslashEscape(gpd.getCanvasLabel()) << "\")" << '\n' << '\n';
+           << (rows == 0 ? 1 : rows) * 4 << "))" << '\n';
+    if(gpd.getShowCanvasLabel()) {
+        result << "fig.suptitle(\"" << backslashEscape(gpd.getCanvasLabel()) << "\")" << '\n';
+    }
+    result << '\n';
 
     // Per pad: create the Axes with the right projection, set labels/title, then plot the pad's
     // primary-and-secondary plotters into it (secondaries overlay on the same Axes).
@@ -259,7 +281,7 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(not three_d && p->yAxisLogarithmic()) {
             result << "ax.set_yscale(\"log\")" << '\n';
         }
-        result << "ax.set_title(\"" << backslashEscape(p->plotLabel()) << "\")" << '\n';
+        result << "ax.set_title(\"" << backslashEscape(p->padTitleOrLabel()) << "\")" << '\n';
 
         // The primary plotter, then any secondary plotters overlaid on the same Axes.
         result << mplPlotCall(*p, k, "ax", "fig");
@@ -273,7 +295,13 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
         }
         // Several series in one pad are told apart by a legend (each call above set its label).
         if(not p->secondaryPlotters().empty()) {
-            result << "ax.legend()" << '\n';
+            const std::string location = matplotlibLegendLocation(p->getLegendPosition());
+            if(location.empty()) {
+                result << "ax.legend()" << '\n';
+            }
+            else {
+                result << "ax.legend(loc=\"" << location << "\")" << '\n';
+            }
         }
         result << '\n';
     }
