@@ -209,8 +209,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11; the
   websocket server runs its sessions on as many threads again.
   Development snapshots of the redesign ignored these options and ran one io thread per hardware
-  thread. In measurements with 400 clients the iteration time did not depend on the number, and
-  four threads used the least server CPU.
+  thread. Measured with 400 websocket clients and evaluations of 10 ms, an iteration took 25.8 ms
+  with 4 threads, 26.8 ms with 2 and 26.5 ms with 8; the server needed 1.4, 1.1 and 2.4 cores.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
 - **A websocket server tells its clients that the run has ended.** `stopServer()` closes every
