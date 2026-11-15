@@ -605,8 +605,9 @@ protected:
 
     /// A thread pool that runs the (possibly long, unbounded) work-item evaluations OFF the io thread,
     /// so the io thread stays free for transport work while items are computed, and that decodes the
-    /// messages (decode_strand_). poolThreads_() threads. Declared last so it is destroyed (and its threads joined) before io_context_ and the
-    /// other pipeline state.
+    /// messages (decode_strand_). poolThreads_() threads. Declared after io_context_ and the other
+    /// pipeline state, so that it is destroyed (and its threads joined) before them; only the
+    /// decode strand follows it, whose implementation the pool's handlers share.
     boost::asio::thread_pool compute_pool_;
 
     /// Decodes the messages of the server one at a time, in arrival order, on the compute pool

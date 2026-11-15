@@ -88,6 +88,10 @@
  *     reach the other end, in order, before the close does; what the close says (GPeerClose)
  *     reaches the other end too. After close() a send() is dropped and nothing more is delivered
  *     to the role. abort() is the exception: it ends at once and may cut what has not been sent.
+ *     "Before" is the order of the calls: a send() that has returned before close() is called
+ *     (on the same thread, or ordered by the role). A send() on the executor and a close() from
+ *     another thread at the same moment are not ordered; the message may be dropped. Nothing is
+ *     lost by that: the server's lease puts back what the client held.
  *  7. **The transport's own work** (an accept loop, a poll, its I/O threads: whatever it runs
  *     besides its peers' handlers) ends with GListenerI::endWork() on the server and with the
  *     destruction of the GConnectorI on the client; both happen when no handler runs any more, and
