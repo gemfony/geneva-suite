@@ -63,17 +63,16 @@ const GenevaContribution CONTRIBUTION{
     .make_factory = abortingFactory
 };
 
-// Written field by field in manifest order, as GStaleAbiModule is: the order the loader reads.
-// NOLINTNEXTLINE(modernize-use-designated-initializers)
+// Written field by field, as GStaleAbiModule is, so that one of the stamp's fields can be wrong.
 const GenevaModuleManifest MANIFEST{
-    GENEVA_BUILD_FINGERPRINT,
-    GENEVA_MODULE_ABI_VERSION,
-    static_cast<std::uint32_t>(sizeof(GenevaModuleManifest)),
-    static_cast<std::uint32_t>(sizeof(GenevaContribution) + 8u), // the defect
-    "GContributionSizeModule",
-    GENEVA_VERSION_STRING,
-    &CONTRIBUTION,
-    1u
+    .compat = GENEVA_BUILD_FINGERPRINT,
+    .abi_version = GENEVA_MODULE_ABI_VERSION,
+    .manifest_size = static_cast<std::uint32_t>(sizeof(GenevaModuleManifest)),
+    .contribution_size = static_cast<std::uint32_t>(sizeof(GenevaContribution) + 8u), // the defect
+    .module_name = "GContributionSizeModule",
+    .module_version = GENEVA_VERSION_STRING,
+    .contributions = &CONTRIBUTION,
+    .contributions_count = 1u
 };
 
 } // anonymous namespace
