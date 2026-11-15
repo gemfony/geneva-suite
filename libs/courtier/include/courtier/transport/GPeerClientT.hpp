@@ -528,7 +528,9 @@ private:
 
     //-------------------------------------------------------------------------
     /** @brief Called by the halt poll when no halt condition holds: a connection that has been
-     *  open for the contact time is contact; without a connection, the limit is looked at. */
+     *  open for the contact time is contact; without a connection, the limit is looked at -- but
+     *  not while the messages of a lost connection are still being decoded (DRAINING): that
+     *  connection has only just ended, and its loss is not booked yet. */
     void when_polled_() {
         const auto now = clock::now();
         if(state_ == LinkState::OPEN) {
@@ -538,7 +540,7 @@ private:
             return;
         }
         if(state_ != LinkState::ATTEMPT && state_ != LinkState::OPENING &&
-           state_ != LinkState::PAUSE && state_ != LinkState::DRAINING) {
+           state_ != LinkState::PAUSE) {
             return;
         }
         if(not contact_ever_ && options_.firstContactLimit.count() > 0 &&
@@ -749,6 +751,12 @@ private:
     void lost_(std::string_view detail) {
         n_losses_.fetch_add(1);
         lost_at_ = clock::now();
+        // The end of a connection with contact is noted when it ends, not when its loss is booked
+        // after the drain; bookLoss_() notes it once more if an answer decoded in the drain was
+        // the contact.
+        if(contact_on_connection_) {
+            last_contact_end_ = lost_at_;
+        }
         glogger << "In " << options_.name << ": the connection to the server was lost:" << '\n'
                 << detail << '\n'
                 << "The client connects again." << '\n'

@@ -1935,12 +1935,14 @@ TEST_CASE("GPeerClientT: the server answers no message twice", "[courtier][peer]
 namespace {
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<std::size_t> gatedDecodes{0};   ///< Work items whose decoding on a client has begun
-std::atomic<bool> secondDecodeHeld{false};  ///< The second decode waits while this is set
-std::atomic<bool> secondDecodeWaits{false}; ///< The second decode has begun to wait
+std::atomic<std::size_t> gatedDecodes{0}; ///< Work items whose decoding on a client has begun
+std::atomic<std::size_t> heldDecode{1};   ///< Which decode waits (0: the first)
+std::atomic<bool> decodeHeld{false};      ///< That decode waits while this is set
+std::atomic<bool> decodeWaits{false};     ///< That decode has begun to wait
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-/** @brief A work item whose second decode on a client waits as long as the test holds it */
+/** @brief A work item whose decode on a client waits as long as the test holds it: the
+ *  heldDecode-th one (0: the first) of the process */
 class GHeldDecodeItem final : public Gem::Courtier::GProcessingContainerT<GHeldDecodeItem, bool> {
     friend struct Gem::Weft::access;
 
@@ -1953,10 +1955,10 @@ class GHeldDecodeItem final : public Gem::Courtier::GProcessingContainerT<GHeldD
             *this
         );
         if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
-            if(this->is_due_for_processing() && gatedDecodes.fetch_add(1) == 1) {
-                secondDecodeWaits.store(true);
+            if(this->is_due_for_processing() && gatedDecodes.fetch_add(1) == heldDecode.load()) {
+                decodeWaits.store(true);
                 Gem::Courtier::Tests::eventually(
-                    [] { return not secondDecodeHeld.load(); },
+                    [] { return not decodeHeld.load(); },
                     std::chrono::milliseconds(10'000)
                 );
             }
@@ -1981,14 +1983,18 @@ private:
  * The client returns its first result as a RETURN; the server answers it with the second item, and
  * the connection is lost while that answer is being decoded. The answer proves the RETURN: it is
  * not sent again on the next connection, and the second item is evaluated and delivered there.
+ * The decode is held for longer than the halt poll's interval: the limits are not looked at while
+ * the lost connection's messages are decoded (a client with contact gave up at its first loss
+ * when the poll fell into the drain, because the end of its last contact was not yet noted).
  */
 TEST_CASE(
     "GPeerClientT: an answer decoded after a loss is booked against the lost connection",
     "[courtier][peer][client]"
 ) {
     gatedDecodes.store(0);
-    secondDecodeHeld.store(true);
-    secondDecodeWaits.store(false);
+    heldDecode.store(1);
+    decodeHeld.store(true);
+    decodeWaits.store(false);
     using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     auto watch = std::make_shared<GInProcessPeerWatch>();
@@ -2020,14 +2026,15 @@ TEST_CASE(
             );
         });
 
-        REQUIRE(eventually([] { return secondDecodeWaits.load(); }));
+        REQUIRE(eventually([] { return decodeWaits.load(); }));
         watch->last()->sever();
         REQUIRE(eventually([&] { return client->losses() == 1; }));
         // The loss waits for the decode: no new attempt is made meanwhile (the first pause would
-        // be over long before this).
-        std::this_thread::sleep_for(600ms);
+        // be over long before this), and the halt poll (every second) finds no limit run out.
+        std::this_thread::sleep_for(1600ms);
         CHECK(client->connections() == 1);
-        secondDecodeHeld.store(false);
+        CHECK_FALSE(client->terminalErrorFlagged());
+        decodeHeld.store(false);
 
         done = batch.wait_for(PATIENCE) == std::future_status::ready;
         if(not done) {
@@ -2040,6 +2047,83 @@ TEST_CASE(
     CHECK(client->connections() == 2);
     CHECK(client->resultsResent() == 0);
     CHECK(gatedDecodes.load() == 2);
+    CHECK_FALSE(client->terminalErrorFlagged());
+}
+
+/**
+ * A second loss long after the first: the reconnect limit counts from the end of the connection
+ * that was just lost, also while its messages are still being decoded -- not from the end of the
+ * first one, which lies further back than the limit.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: a second loss long after the first is not held against the reconnect limit",
+    "[courtier][peer][client]"
+) {
+    gatedDecodes.store(0);
+    heldDecode.store(3); // the second item of the second batch
+    decodeHeld.store(true);
+    decodeWaits.store(false);
+    using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    const auto makeItems = [] {
+        std::vector<std::unique_ptr<GHeldDecodeItem>> items;
+        items.push_back(std::make_unique<GHeldDecodeItem>());
+        items.push_back(std::make_unique<GHeldDecodeItem>());
+        return items;
+    };
+    auto first = makeItems();
+    auto second = makeItems();
+    std::shared_ptr<held_client_type> client;
+    bool done = false;
+    {
+        Gem::Courtier::GPeerConsumerT<GHeldDecodeItem>
+            shell("Shell", std::make_unique<GInProcessListenerRef>(listener), 2, BIN);
+        Gem::Courtier::GNetworkedTimeoutConfig config;
+        config.treatment = "wait_indefinitely";
+        shell.applyTimeoutConfig(config);
+        shell.startServer();
+        client = std::make_shared<held_client_type>(
+            std::make_unique<GInProcessConnector>(
+                std::make_shared<GInProcessRoute>(listener),
+                true,
+                watch
+            ),
+            GPeerClientOptions{.name = "held client", .mode = BIN, .reconnectLimit = 2s}
+        );
+        const std::jthread runner([client] { client->run(); });
+        shell.processBatch(
+            std::span(first.data(), first.size()),
+            Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+        );
+        watch->last()->sever(); // the first loss, of a connection with contact
+        REQUIRE(eventually([&] { return client->connections() == 2; }));
+        std::this_thread::sleep_for(2500ms); // longer than the limit since the first loss
+
+        auto batch = std::async(std::launch::async, [&] {
+            shell.processBatch(
+                std::span(second.data(), second.size()),
+                Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+            );
+        });
+        REQUIRE(eventually([] { return decodeWaits.load(); }));
+        watch->last()->sever(); // the second loss, while an answer of it is decoded
+        REQUIRE(eventually([&] { return client->losses() == 2; }));
+        std::this_thread::sleep_for(1600ms); // the halt poll runs during the drain
+        CHECK_FALSE(client->terminalErrorFlagged());
+        decodeHeld.store(false);
+
+        done = batch.wait_for(PATIENCE) == std::future_status::ready;
+        if(not done) {
+            shell.stopServer();
+        }
+        batch.get();
+        shell.stopServer();
+    }
+    CHECK(done);
+    CHECK(client->connections() == 3);
+    CHECK_FALSE(client->terminalErrorFlagged());
 }
 
 /******************************************************************************/
