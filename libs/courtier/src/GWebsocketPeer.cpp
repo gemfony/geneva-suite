@@ -200,8 +200,8 @@ void GWebsocketPeer::start(GPeerHandlers handlers) {
 /******************************************************************************/
 /**
  * Called when either handshake has completed. On success the read that stays outstanding for the
- * rest of the connection is started, and the role is told that it may send. A close requested in
- * the meantime has ended the connection already.
+ * rest of the connection is started, and the role is told that it may send -- unless it has asked
+ * for the close meanwhile (rule 6: nothing is delivered after close()); the close then follows.
  *
  * @param ec The outcome of the handshake
  */
@@ -217,7 +217,8 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
     last_inbound_ = std::chrono::steady_clock::now();
     this->read_();
     boost::asio::post(handler_strand_, [self = this->shared_from_this()] {
-        if(self->handlers_.onOpen) {
+        // After close() nothing is delivered to the role (rule 6), onOpen included.
+        if(self->handlers_.onOpen && not self->close_requested_.load()) {
             self->handlers_.onOpen();
         }
     });

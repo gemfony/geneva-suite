@@ -632,3 +632,32 @@ TEST_CASE(
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::FAILED);
 }
+
+/******************************************************************************/
+// Nothing is delivered to the role after its close() (rule 6), onOpen included: a close asked for
+// while the handshake is under way, and a handshake that then succeeds.
+TEST_CASE(
+    "GWebsocketPeer does not report onOpen after close()",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+    GSeen client_seen;
+
+    auto server = serverEnd(std::move(accepted));
+    startRecording(server, server_seen);
+    server->close(GPeerClose::RUN_ENDED);
+    server.reset();
+    ctx.run_for(50ms); // the server's end waits for the handshake
+
+    auto client = clientEnd(std::move(connecting));
+    startRecording(client, client_seen);
+    client.reset();
+
+    REQUIRE(runsDry(ctx));
+    CHECK(server_seen.nOpen == 0);
+    CHECK(server_seen.nClosed == 1);
+    CHECK(client_seen.nClosed == 1);
+    CHECK(client_seen.how == GPeerClose::RUN_ENDED);
+}
