@@ -165,6 +165,9 @@ TEST_CASE("GPU switched off while sources use it: they move to the CPU", "[gpu-o
 }
 
 TEST_CASE("A failing GPU source moves to the CPU and keeps delivering", "[gpu-failure]") {
+    // One producer, so that the source seen on the GPU is the only one: with more, a producer thread
+    // that starts only after the simulated failure has ended may legitimately take the GPU.
+    randomFactory()->setNProducerThreads(1);
     requireGpuSource();
 
     simulateGpuRandomFailureForTests(true);
