@@ -32,7 +32,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/GMPIEnvironmentAccess.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GMPISubClientIndividual.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -47,11 +47,12 @@ namespace Gem::Geneva {
  * @brief Constructs the optimizer, sets up the MPI sub-client topology and splits communicators.
  *
  * Verifies that the MPI consumer is in use, re-parses the configuration file to pick up this
- * class's own options, and then obtains the process's MPI environment (mpiEnvironmentOn()), which
- * initializes MPI unless the program did. Once MPI is initialized, the environment lets this
- * constructor partition the processes into the geneva server, geneva clients and sub-clients; the
- * communicator of the server and the clients becomes the environment's base (a sub-client has
- * none and is a bystander), the sub-client communicator is handed to GMPISubClientIndividual.
+ * class's own options, and then obtains the process's MPI environment
+ * (Gem::Courtier::mpiEnvironmentOn()), which initializes MPI unless the program did. Once MPI is
+ * initialized, the environment lets this constructor partition the processes into the geneva
+ * server, geneva clients and sub-clients; the communicator of the server and the clients becomes
+ * the environment's base (a sub-client has none and is a bystander), the sub-client communicator
+ * is handed to GMPISubClientIndividual.
  *
  * @param argc Argument count forwarded to the Go2 base class for command-line parsing.
  * @param argv Argument vector forwarded to the Go2 base class for command-line parsing.
@@ -106,7 +107,7 @@ GMPISubClientOptimizer::GMPISubClientOptimizer(
     // the rank arithmetic and the splits below need. The communicator of the server and the geneva
     // clients becomes courtier's base; a sub-client gets MPI_COMM_NULL from its split and is a
     // bystander.
-    environment_ = Gem::Geneva::mpiEnvironmentOn([&]() -> MPI_Comm {
+    environment_ = Gem::Courtier::mpiEnvironmentOn([&]() -> MPI_Comm {
         // initialize position in MPI world e.g. in the outermost communicator
         MPI_Comm_rank(baseCommunicator, &baseCommRank_);
         MPI_Comm_size(baseCommunicator, &baseCommSize_);

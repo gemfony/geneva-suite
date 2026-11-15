@@ -30,20 +30,21 @@
 /*
  * The MPI consumer as a module of its own (libgemfony-geneva-mpi).
  *
- * MPI is the one consumer that needs a library not every machine has. Linked into libgemfony-geneva, it
- * kept every Geneva program from starting where no MPI library is installed -- even for a run on the
- * thread-pool consumer. Here, its provider lives in a library that Geneva loads at run time when it is
- * present next to libgemfony-geneva (see loadOptionalConsumerModules() in GConsumerSetup.cpp); the
- * consumer "mpi" exists exactly when that load succeeds. The library also carries GMPISubClientOptimizer
- * and GMPISubClientIndividual, which a program that uses them links directly.
+ * MPI is the one consumer that needs a library not every machine has. Linked into
+ * libgemfony-geneva, it kept every Geneva program from starting where no MPI library is installed
+ * -- even for a run on the thread-pool consumer. Here, its provider lives in a library that Geneva
+ * loads at run time when it is present next to libgemfony-geneva (see loadOptionalConsumerModules()
+ * in GConsumerSetup.cpp); the consumer "mpi" exists exactly when that load succeeds. The library
+ * also carries GMPISubClientOptimizer and GMPISubClientIndividual, which a program that uses them
+ * links directly. The process's one MPI environment is not defined here but in courtier's MPI
+ * library (libgemfony-courtier-mpi), which this module links: the module, the program and any other
+ * library of the process share it.
  */
 
 // Standard headers
 #include <any>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
 
 // Boost headers
@@ -58,108 +59,14 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
-#include "courtier/transport/GMPIEnvironment.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerPlugin.hpp"
 #include "geneva/GConsumerSetup.hpp"
-#include "geneva/GMPIEnvironmentAccess.hpp"
 
 namespace Gem::Geneva {
 
 namespace c2 = Gem::Courtier;
 namespace po = boost::program_options;
-
-/******************************************************************************/
-/*
- * The one MPI environment of the process. This module is one shared library, so these objects
- * exist once, whoever links what.
- */
-namespace {
-
-using environment_type = c2::Consumers::GMPIEnvironment;
-
-/// Guards the two pointers below: the environment is created at most once while one is alive.
-std::mutex environmentMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-/// The environment, without keeping it: the holders (the consumer, the client, the optimizer)
-/// decide how long it lives, and MPI is finalized when the last of them lets go. Once it has
-/// expired, the next call builds a new one (whose constructor refuses if MPI was finalized
-/// meanwhile).
-std::weak_ptr<environment_type>
-    environment; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-/// "The anchor": keeps the environment alive from its creation until the first call of
-/// mpiEnvironment() or mpiEnvironmentOn() has returned it to a holder. It bridges the time between
-/// "what is my role" (mpiProcessRole(), which keeps nothing) and "build the consumer"; without it,
-/// the environment built for the question would die, and MPI be finalized, before the consumer
-/// exists. If no holder ever takes it (an error path), it lasts until static destruction.
-std::shared_ptr<environment_type>
-    anchor; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-/** @brief The living environment, or a new one on @p make_base (anchored). Call with
- *  environmentMutex held.
- *  @param make_base Returns the base communicator once MPI is initialized
- *  @return The environment */
-std::shared_ptr<environment_type> obtainLocked(const std::function<MPI_Comm()> &make_base) {
-    auto current = environment.lock();
-    if(not current) {
-        current = std::make_shared<environment_type>(nullptr, nullptr, make_base);
-        environment = current;
-        anchor = current;
-    }
-    return current;
-}
-
-/** @brief The base communicator of an environment built by default. */
-MPI_Comm worldCommunicator() {
-    return MPI_COMM_WORLD;
-}
-
-} // namespace
-
-/******************************************************************************/
-/**
- * @brief The process's MPI environment for courtier, built on MPI_COMM_WORLD if none exists.
- * @return The environment; the caller keeps it for as long as it uses MPI
- */
-std::shared_ptr<c2::Consumers::GMPIEnvironment> mpiEnvironment() {
-    const std::scoped_lock lock(environmentMutex);
-    auto result = obtainLocked(worldCommunicator);
-    anchor.reset(); // a holder has it now
-    return result;
-}
-
-/******************************************************************************/
-/**
- * @brief Builds the process's MPI environment on the communicator @p make_base returns.
- * @param make_base Called once MPI is initialized; returns the base communicator
- * @return The environment; the caller keeps it for as long as it uses MPI
- * @throws geneva_exception if an environment exists already
- */
-std::shared_ptr<c2::Consumers::GMPIEnvironment>
-mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
-    const std::scoped_lock lock(environmentMutex);
-    if(not environment.expired()) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In mpiEnvironmentOn(): Error!" << '\n'
-            << "An MPI environment exists already; mpiEnvironmentOn() must be the first call "
-            << "that builds it" << '\n'
-        );
-    }
-    auto result = obtainLocked(make_base);
-    anchor.reset(); // a holder has it now
-    return result;
-}
-
-/******************************************************************************/
-/**
- * @brief The role of this process, without keeping the environment.
- * @return The role on courtier's communicator
- */
-c2::processRole mpiProcessRole() {
-    const std::scoped_lock lock(environmentMutex);
-    return obtainLocked(worldCommunicator)->role();
-}
 
 /******************************************************************************/
 namespace {
@@ -168,7 +75,7 @@ namespace {
  *  @param wanted The role the caller is for
  *  @param caller The name of the calling function, for the message */
 void requireRole(c2::processRole wanted, const char *caller) {
-    const c2::processRole actual = mpiProcessRole();
+    const c2::processRole actual = c2::mpiProcessRole();
     if(actual != wanted) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -184,8 +91,8 @@ void requireRole(c2::processRole wanted, const char *caller) {
 
 /******************************************************************************/
 /** @brief Provider for the MPI consumer. The role of a process follows its rank in courtier's
- *  communicator (see mpiEnvironment()): the submitter builds the consumer, a client the MPI
- *  client, a bystander neither. */
+ *  communicator (see Gem::Courtier::mpiEnvironment()): the submitter builds the consumer, a client
+ *  the MPI client, a bystander neither. */
 class GMPIConsumerProvider final : public GConsumerProviderT {
 public:
     [[nodiscard]] std::string getMnemonic() const override { return "mpi"; }
@@ -199,13 +106,13 @@ public:
      *  @return The role of this process */
     [[nodiscard]] c2::processRole
     role(const c2::ConsumerSpec & /*spec*/, bool /*client_requested*/) const override {
-        return mpiProcessRole();
+        return c2::mpiProcessRole();
     }
 
     std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         requireRole(c2::processRole::SUBMITTER, "setup");
         auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
-            mpiEnvironment(),
+            c2::mpiEnvironment(),
             c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
         consumer->startServer();
@@ -236,7 +143,7 @@ public:
     buildClient(const c2::ConsumerSpec &spec) const override {
         requireRole(c2::processRole::CLIENT, "buildClient");
         return std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<gen::GGenome>>(
-            mpiEnvironment(),
+            c2::mpiEnvironment(),
             c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
     }

@@ -41,7 +41,15 @@
 #
 # Linking Geneva::geneva transitively brings in the other four targets, the
 # Geneva include directory, the required Boost components and the C++23
-# requirement.
+# requirement. An installation built with the MPI consumer also has
+#
+#   Geneva::courtier-mpi - courtier's MPI library: the process's one MPI
+#                          environment (courtier/mpi/); carries MPI::MPI_CXX
+#   Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
+#                          libgemfony-geneva; linked only by a program that
+#                          uses GMPISubClientOptimizer
+#
+# None of the five targets above needs MPI.
 #
 ################################################################################
 
@@ -73,6 +81,13 @@ find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ COMPONENTS @GENEVA_BOOST_LIBS@)
 set(GENEVA_TESTING @GENEVA_INSTALLED_WITH_TESTING@)
 if(GENEVA_TESTING)
     find_dependency(Catch2 3)
+endif()
+
+# An installation built with the MPI consumer exports Geneva::courtier-mpi, whose
+# interface names MPI::MPI_CXX (its headers include mpi.h).
+set(GENEVA_MPI @GENEVA_INSTALLED_WITH_MPI@)
+if(GENEVA_MPI)
+    find_dependency(MPI COMPONENTS CXX)
 endif()
 
 # Pull in the exported Geneva::* imported targets.

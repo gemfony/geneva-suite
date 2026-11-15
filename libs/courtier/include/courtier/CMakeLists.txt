@@ -94,19 +94,24 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
             consumers/GMPIConsumerT.hpp)
     SET( TRANSPORT_INCLUDES
             ${TRANSPORT_INCLUDES}
-            transport/GMPIEnvironment.hpp
             transport/GMPITransportT.hpp)
+    # The headers of courtier's MPI library (libgemfony-courtier-mpi)
+    SET( MPI_INCLUDES
+            mpi/GMPIEnvironment.hpp
+            mpi/GMPIEnvironmentAccess.hpp)
 ENDIF ()
 
 set_source_files_properties(
     ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
+    ${MPI_INCLUDES}
     PROPERTIES
     LANGUAGE CXX
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
 ADD_CUSTOM_TARGET(CLION_ALL_COURTIER_HEADERS
-    SOURCES ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES})
+    SOURCES ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
+    ${MPI_INCLUDES})
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
 # cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)

@@ -63,15 +63,19 @@ GENEVA_TEST_SIZE ( GMPISubClientBaseCommTest L )
 
 # A bystander in a plain Go2 program: three ranks, of which the MPI consumer's communicator holds
 # two. The third must be in client mode, and its clientRun() must return at once. Each rank runs in
-# a directory of its own, because the program writes its configuration files where it starts.
+# a directory of its own, because the program writes its configuration files where it starts. The
+# program links courtier's MPI library, where it builds the environment, and not Geneva's MPI
+# module, which libgemfony-geneva loads at run time: the roles show that both find the same
+# environment.
 ADD_EXECUTABLE ( GMPIBystanderTest GMPIBystanderTest.cpp )
 TARGET_LINK_LIBRARIES ( GMPIBystanderTest
 	GFunctionIndividual-obj
-	${GENEVA_MPI_LIBNAME}
+	${COURTIER_MPI_LIBNAME}
 	${GENEVA_LIBRARIES}
 	${Boost_LIBRARIES}
 	MPI::MPI_CXX
 )
+ADD_DEPENDENCIES ( GMPIBystanderTest ${GENEVA_MPI_LIBNAME} )
 SET ( BYSTANDER_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/bystander )
 FILE ( MAKE_DIRECTORY ${BYSTANDER_WORKDIR} )
 ADD_TEST ( NAME GMPIBystanderTest

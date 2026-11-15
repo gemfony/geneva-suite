@@ -32,8 +32,9 @@
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
 
-// The environment is only available when the MPI consumer was enabled at configure time.
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: only a program that uses MPI includes this header,
+// and that definition belongs to the collection's own build, which a program outside it does not
+// have.
 
 // Standard headers go here
 #include <functional>
@@ -53,7 +54,8 @@ namespace Gem::Courtier::Consumers {
  * What the MPI transport needs to know about the process it runs in: MPI is initialized with the
  * thread level the transport needs, there is a communicator that belongs to courtier alone, and
  * the process has a role on it. One object states all of that; the consumer and the client hold
- * it for as long as they use MPI.
+ * it for as long as they use MPI. A process has one such object, which mpiEnvironment() and its
+ * siblings in courtier/mpi/GMPIEnvironmentAccess.hpp (libgemfony-courtier-mpi) hand out.
  *
  * The constructor does everything, so there is no state to set afterwards:
  *  - It initializes MPI with MPI_THREAD_MULTIPLE unless that has been done, and checks the level
@@ -254,5 +256,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Courtier::Consumers */
-
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */

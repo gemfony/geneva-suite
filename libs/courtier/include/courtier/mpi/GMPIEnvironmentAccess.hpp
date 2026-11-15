@@ -32,8 +32,7 @@
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
 
-// The environment is only available when the MPI consumer was enabled at configure time.
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
 
 // Standard header files go here
 #include <functional>
@@ -44,25 +43,28 @@
 
 // Geneva header files go here
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/transport/GMPIEnvironment.hpp"
+#include "courtier/mpi/GMPIEnvironment.hpp"
 
-namespace Gem::Geneva {
+/*
+ * The one MPI environment of a process. Its state is defined in libgemfony-courtier-mpi (out of
+ * tree: the target Geneva::courtier-mpi), a shared library, and so exists once in a process: the
+ * program, Geneva's MPI module and any other library that call these functions share it, whatever
+ * links what. A program that names them links that library.
+ */
+namespace Gem::Courtier {
 
 /** The process's MPI environment for courtier, kept by the caller for as long as it uses MPI.
- *  Built on MPI_COMM_WORLD if none exists. A program that names these functions links the MPI
- *  module (Geneva::geneva-mpi); the module holds the one object there is. */
-[[nodiscard]] std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> mpiEnvironment();
+ *  Built on MPI_COMM_WORLD if none exists. */
+[[nodiscard]] std::shared_ptr<Consumers::GMPIEnvironment> mpiEnvironment();
 
 /** Builds the environment on the communicator @p make_base returns; it is called once MPI is
  *  initialized. For a program that brings or splits its own communicator. Must be the first of
  *  these functions to be called: it throws if an environment exists already. */
-[[nodiscard]] std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment>
+[[nodiscard]] std::shared_ptr<Consumers::GMPIEnvironment>
 mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base);
 
 /** The role of this process, without keeping the environment (builds it on MPI_COMM_WORLD if
  *  none exists). */
-[[nodiscard]] Gem::Courtier::processRole mpiProcessRole();
+[[nodiscard]] processRole mpiProcessRole();
 
-} // namespace Gem::Geneva
-
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
+} /* namespace Gem::Courtier */

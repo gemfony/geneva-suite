@@ -49,7 +49,7 @@
 #include "common/GExceptions.hpp"
 #include "courtier/GCourtierEnums.hpp" // GMPICONSUMERCHECKOUTWAIT, processRole
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
-#include "courtier/transport/GMPIEnvironment.hpp" // MPI initialization, communicator, role
+#include "courtier/mpi/GMPIEnvironment.hpp"       // MPI initialization, communicator, role
 #include "courtier/transport/GMPITransportT.hpp"  // the master node
 
 namespace Gem::Courtier {

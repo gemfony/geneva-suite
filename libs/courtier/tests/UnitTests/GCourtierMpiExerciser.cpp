@@ -85,7 +85,7 @@
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
-#include "courtier/transport/GMPIEnvironment.hpp"
+#include "courtier/mpi/GMPIEnvironment.hpp"
 
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;

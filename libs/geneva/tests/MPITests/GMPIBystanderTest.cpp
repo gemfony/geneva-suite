@@ -30,14 +30,18 @@
 /*
  * A bystander in a plain Go2 program on the MPI consumer.
  *
- * The program initializes MPI itself and splits MPI_COMM_WORLD: ranks 0 and 1 share a
- * communicator, rank 2 gets MPI_COMM_NULL. It hands that communicator to the MPI module
- * (mpiEnvironmentOn()) and keeps the environment, so rank 0 is the submitter, rank 1 a client and
- * rank 2 a bystander, which takes no part in the consumer's protocol. Every rank checks its role
- * through consumerRole() and then runs as a Go2 program does: rank 2 must be in client mode, and
- * its clientRun() must return 0 at once; ranks 0 and 1 run one iteration. Rank 0 checks that the
- * end of the run (the consumer's shutdown) takes well below the shutdown grace. Each rank lets go
- * of everything before it finalizes MPI. Run with three ranks, each in a directory of its own.
+ * The program initializes MPI itself and splits MPI_COMM_WORLD: ranks 0 and 1 share a communicator,
+ * rank 2 gets MPI_COMM_NULL. It hands that communicator to courtier's MPI library
+ * (Gem::Courtier::mpiEnvironmentOn()) and keeps the environment, so rank 0 is the submitter, rank 1
+ * a client and rank 2 a bystander, which takes no part in the consumer's protocol. Every rank
+ * checks its role through consumerRole(), which Geneva's MPI module answers. The program links
+ * courtier's MPI library but not the module, which Geneva loads at run time: the roles are right
+ * only if the module finds the environment the program built, in the same object (an environment of
+ * its own would be built on MPI_COMM_WORLD, where rank 2 is a client). Then every rank runs as a
+ * Go2 program does: rank 2 must be in client mode, and its clientRun() must return 0 at once; ranks
+ * 0 and 1 run one iteration. Rank 0 checks that the end of the run (the consumer's shutdown) takes
+ * well below the shutdown grace. Each rank lets go of everything before it finalizes MPI. Run with
+ * three ranks, each in a directory of its own.
  */
 
 // Standard header files go here
@@ -52,8 +56,8 @@
 
 // Geneva header files go here
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerSetup.hpp"
-#include "geneva/GMPIEnvironmentAccess.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -152,7 +156,8 @@ int runTest(int argc, char **argv) {
 
     int result = 0;
     {
-        const auto environment = mpiEnvironmentOn([base]() -> MPI_Comm { return base; });
+        const auto environment =
+            Gem::Courtier::mpiEnvironmentOn([base]() -> MPI_Comm { return base; });
 
         constexpr std::array<processRole, 3> EXPECTED{
             processRole::SUBMITTER,

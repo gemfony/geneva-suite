@@ -72,7 +72,7 @@
 #include "courtier/GWireCodec.hpp"                // shared scope-wrapped (de)serialization + blob fetch
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: registry + wire scope
 #include "courtier/consumers/GMPIConsumerConfig.hpp" // MPIConsumerConfig
-#include "courtier/transport/GMPIEnvironment.hpp" // the communicator and the role of a process
+#include "courtier/mpi/GMPIEnvironment.hpp"          // the communicator and the role of a process
 
 // TODO: extract double buffering to GBaseConsumerClientT
 

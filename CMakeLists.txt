@@ -664,6 +664,14 @@ ELSE ()
 	SET(GENEVA_INSTALLED_WITH_TESTING FALSE)
 ENDIF ()
 
+# Record whether this install was built with the MPI consumer: Geneva::courtier-mpi (and the MPI
+# module) then carry MPI::MPI_CXX in their interface, and the config package must find MPI for it.
+IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+	SET(GENEVA_INSTALLED_WITH_MPI TRUE)
+ELSE ()
+	SET(GENEVA_INSTALLED_WITH_MPI FALSE)
+ENDIF ()
+
 # Generate GenevaConfig.cmake from the template. PATH_VARS / INSTALL_DESTINATION
 # allow the file to be relocatable.
 CONFIGURE_PACKAGE_CONFIG_FILE(

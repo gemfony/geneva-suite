@@ -31,16 +31,19 @@ ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
 	ADD_SUBDIRECTORY ( MPITests )
+	ADD_SUBDIRECTORY ( OutOfTree )
 ENDIF ()
 
 # With the MPI consumer built: no Geneva library, and no ordinary Geneva program, may need the MPI
-# library at load time -- MPI lives in the module libgemfony-geneva-mpi, loaded at run time, so that a
-# Geneva program still starts on a machine without MPI. GenevaStandardTests stands for the programs.
+# library or courtier's MPI library at load time -- MPI lives in the module libgemfony-geneva-mpi,
+# loaded at run time, and in libgemfony-courtier-mpi, which only the module and programs that use
+# MPI link, so that a Geneva program still starts on a machine without MPI. GenevaStandardTests
+# stands for the programs.
 IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
 	ADD_TEST ( NAME GenevaNoMpiLink
 		COMMAND ${CMAKE_COMMAND}
 			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>;$<TARGET_FILE:${GENEVA_LIBNAME}>;$<TARGET_FILE:GenevaStandardTests>"
-			"-DPATTERN=libmpi\\.so"
+			"-DPATTERN=libmpi\\.so|libgemfony-courtier-mpi"
 			-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( GenevaNoMpiLink PROPERTIES LABELS "geneva" )
 	GENEVA_TEST_SIZE ( GenevaNoMpiLink S )

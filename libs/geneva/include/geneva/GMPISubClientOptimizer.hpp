@@ -40,7 +40,7 @@
 // Boost header files go here
 
 // Geneva headers go here
-#include "courtier/transport/GMPIEnvironment.hpp"
+#include "courtier/mpi/GMPIEnvironment.hpp"
 #include "geneva/GMPISubClientIndividual.hpp"
 #include "geneva/Go2.hpp"
 
@@ -156,8 +156,9 @@ private:
          */
     bool isSubClient_{};
     /**
-         * The process's MPI environment, built on genevaComm_ (see mpiEnvironmentOn()). Held for as
-         * long as this object uses MPI; empty in a pure --update-configs run.
+         * The process's MPI environment, built on genevaComm_ (see
+         * Gem::Courtier::mpiEnvironmentOn()). Held for as long as this object uses MPI; empty in a
+         * pure --update-configs run.
          */
     std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment_;
     /**

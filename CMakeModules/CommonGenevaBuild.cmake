@@ -211,6 +211,9 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	SET ( DIETRICH_LIBNAME          "gemfony-dietrich" )
 	SET ( HAP_LIBNAME               "gemfony-hap" )
 	SET ( COURTIER_LIBNAME          "gemfony-courtier" )
+	# Courtier's MPI library: built only with the MPI consumer; holds the process's one MPI
+	# environment (libs/courtier/src/mpi). Nothing that does not use MPI links it.
+	SET ( COURTIER_MPI_LIBNAME      "gemfony-courtier-mpi" )
 	# The GPU consumer is folded INTO gemfony-courtier as an opt-in add-on (GENEVA_BUILD_WITH_GPU_CONSUMER):
 	# when enabled, courtier carries the CUDA backend and loads the CUDA driver at run time; when disabled,
 	# no GPU code is compiled. There is no separate GPU library. The MPI consumer, by contrast, lives in a

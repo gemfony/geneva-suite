@@ -55,14 +55,17 @@
  *    what turns such a disagreement into a diagnostic instead of a misread pointer.
  *
  * @par When to bump GENEVA_MODULE_ABI_VERSION
- * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any change
- * to the layout of the two structs; to the numeric value or meaning of a contribution kind; or to the C++
- * type a kind's @c void* payload denotes or any class reachable from it (e.g. redefining
- * @c GOAProviderPtr, or changing the interface of the consumer provider a @c GConsumerProviderPtr
- * points at, or a type its functions take, such as @c ConsumerSpec). Adding a NEW kind number does
- * not require a bump -- an older loader already rejects a kind it does not know. Before 2.0 bumping is free
- * (every module is rebuilt anyway); afterwards a bump is a major-release event, so the counter is expected
- * to move rarely and only alongside a deliberate module-ABI decision.
+ * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any
+ * change to the layout of the two structs; to the numeric value or meaning of a contribution kind;
+ * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g.
+ * redefining @c GOAProviderPtr, or changing the interface of the consumer provider a
+ * @c GConsumerProviderPtr points at, or a type its functions take, such as @c ConsumerSpec). Also when
+ * state that a module and its host must share moves from the module into a library of the
+ * collection: an older module would keep its own copy next to the library's (version 5: the MPI
+ * module's environment moved into libgemfony-courtier-mpi). Adding a NEW kind number does not
+ * require a bump -- an older loader already rejects a kind it does not know. Before 2.0 bumping is
+ * free (every module is rebuilt anyway); afterwards a bump is a major-release event, so the counter
+ * is expected to move rarely and only alongside a deliberate module-ABI decision.
  */
 
 // Global checks, defines and includes needed for all of Geneva
@@ -94,7 +97,7 @@
  */
 // A macro, not an enum: it is part of the plain-C contract of this header, like the kinds above.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum)
-#define GENEVA_MODULE_ABI_VERSION 4u
+#define GENEVA_MODULE_ABI_VERSION 5u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal
  * (a module's own version string when it is a Geneva-shipped module). GENEVA_VERSION_PRERELEASE

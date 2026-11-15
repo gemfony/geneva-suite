@@ -136,13 +136,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   its own orchestration pool while their sub-optimizations submit to the one process
   consumer — so the consumer is never re-entered.
 - **The MPI consumer is a module of its own.** `libgemfony-geneva-mpi` carries the `mpi`
-  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`; no other Geneva library
-  links MPI any more, so Geneva programs start on machines without an MPI library. The module
+  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`. The process's one MPI
+  environment lives in courtier's MPI library `libgemfony-courtier-mpi`, which the module links:
+  `Gem::Courtier::mpiEnvironment()`, `mpiEnvironmentOn()` and `mpiProcessRole()` in
+  `courtier/mpi/GMPIEnvironmentAccess.hpp`, next to the environment class
+  (`courtier/mpi/GMPIEnvironment.hpp`, formerly under `courtier/transport/`). No other Geneva
+  library links MPI, so Geneva programs start on machines without an MPI library. The module
   is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
   first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
   names the reason. **Source-breaking for users of the sub-client classes:** a program that
   uses `GMPISubClientOptimizer` or `GMPISubClientIndividual` links `gemfony-geneva-mpi`
-  (out of tree: `Geneva::geneva-mpi`) and MPI itself, in addition to Geneva.
+  (out of tree: `Geneva::geneva-mpi`, which brings `Geneva::courtier-mpi` and MPI with it) in
+  addition to Geneva; a program that names the environment's functions links
+  `gemfony-courtier-mpi` (`Geneva::courtier-mpi`, which carries MPI; `find_package(Geneva)`
+  finds MPI for it).
 - **A program that builds its consumer without Go2 passes the configuration struct of the
   consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
   `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names

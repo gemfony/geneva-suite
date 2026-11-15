@@ -26,20 +26,22 @@
 # collection for a list of contributors and copyright information.
 #
 
-# An out-of-tree program against an INSTALLED Geneva built with the MPI consumer. It is not part of the
-# in-tree build: the release harness (ReleaseTests, outoftree/mpi-module) and the container image build
+# An out-of-tree program against an INSTALLED Geneva built with the MPI consumer. The release
+# harness (ReleaseTests, outoftree/mpi-module) and the container image build
 # (containers/geneva/Containerfile) configure it standalone, with CMAKE_PREFIX_PATH naming the
 # installation, as a user's own project would be. It checks that the installed package exports
-# Geneva::geneva-mpi, that a program can link it, and that the "mpi" consumer is loaded at run time
-# from the module installed next to libgemfony-geneva.
+# Geneva::geneva-mpi and Geneva::courtier-mpi with what their headers need, that a program can link
+# both, and that the "mpi" consumer is loaded at run time from the module installed next to
+# libgemfony-geneva. The normal build compiles, links and runs the same source with the same usage
+# requirements and nothing else (../CMakeLists.txt).
 
 cmake_minimum_required(VERSION 3.27)
 project(GenevaMpiModuleProbe CXX)
 
+# The package finds MPI itself when Geneva was built with it: Geneva::courtier-mpi carries
+# MPI::MPI_CXX.
 find_package(Geneva CONFIG REQUIRED)
-# The module links no Geneva library and no MPI usage requirement travels with it, so a program that
-# uses its classes links Geneva and MPI itself.
-find_package(MPI REQUIRED)
 
 add_executable(GenevaMpiModuleProbe GenevaMpiModuleProbe.cpp)
-target_link_libraries(GenevaMpiModuleProbe PRIVATE Geneva::geneva-mpi Geneva::geneva MPI::MPI_CXX)
+target_link_libraries(GenevaMpiModuleProbe
+    PRIVATE Geneva::geneva-mpi Geneva::courtier-mpi Geneva::geneva)
