@@ -2930,7 +2930,11 @@ TEST_CASE(
     watch->last()->sever();
     REQUIRE(eventually([&] { return client->losses() == 1; }));
     client->flagCloseRequested();
-    std::this_thread::sleep_for(1500ms); // the halt poll has seen it: no more attempts
+    // From here on no attempt is made, whether the halt poll has run or not: an attempt is made
+    // only by the retry timer, which looks at the halt itself, and an attempt under way was
+    // refused (the route is cleared) long before the route is set again. The wait is not
+    // load-bearing.
+    std::this_thread::sleep_for(1500ms);
     const std::size_t attempts_before = world.listener()->nConnections();
     world.route().set(world.listener());
     std::this_thread::sleep_for(500ms);
@@ -3075,6 +3079,49 @@ TEST_CASE(
     const auto saved = loadSaved(files.front());
     REQUIRE(saved);
     CHECK(saved->get_stored_number() == 7);
+}
+
+/**
+ * A result counts its sends only where it was handed to an open connection: one that finished
+ * while there was no connection is sent on the next one for the first time, and a loss of that
+ * connection does not bring it to the resend limit. Here it is sent on a second connection, which
+ * is lost before anything answers it, and delivered on a third.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: a result is counted as sent only on an open connection",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(11));
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN},
+        evaluations,
+        0ms,
+        watch,
+        withGate(evaluations, gate)
+    );
+    auto batch = openBatch(world, items);
+    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+    world.route().clear();
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return client->losses() == 1; }));
+    gate->open(); // finished while there is no connection: appended, not sent
+    std::this_thread::sleep_for(200ms);
+    world.route().set(world.listener());
+    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready); // the server has the result
+    batch.get();
+    watch->last()->sever(); // nothing has answered the result's request on this connection
+    REQUIRE(eventually([&] { return client->losses() == 2 && client->connections() == 3; }));
+    CHECK(client->resultsGivenUp() == 0);
+    CHECK(client->resultsResent() == 1); // on the third connection only
+    CHECK(evaluations->of(11) == 1);
+    client->flagCloseRequested();
 }
 
 /** After the server has announced the end of the run nobody needs the result: nothing is saved. */

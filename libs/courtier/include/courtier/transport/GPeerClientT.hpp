@@ -328,7 +328,11 @@ private:
     struct Entry {
         EntryKind kind = EntryKind::ASK; ///< What it is
         GMessage bytes;                  ///< The message, shared with the transport
-        std::uint8_t sentOn = 0;         ///< On how many connections it was sent
+        /// On how many connections it was sent: it counts a hand-over to a connection that is open
+        /// (the client's OPEN), never one while there is none. A message the transport drops
+        /// because the other end's close is arriving at that moment counts too -- the client
+        /// cannot see that; the resend limit is about connections, not bytes.
+        std::uint8_t sentOn = 0;
         /// The connection it was sent on last (connection_); 0 if it has not been sent
         std::uint64_t sentOnConnection = 0;
         /// A result's evaluated item, kept until the result is known to have arrived (to be
@@ -721,7 +725,9 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief Saves the evaluated item of a result that cannot be delivered, unless the run has
-     * ended (see the class comment). A directory that cannot be written is a warning.
+     * ended (see the class comment). A directory that cannot be written is a warning. It writes on
+     * the io thread, which nothing else needs while the client ends; a result given up at a loss
+     * delays the next attempt by the time of the write, which is accepted.
      *
      * @param item The evaluated item; empty if the result carries none (a failed item)
      */
@@ -985,7 +991,8 @@ private:
         }
     }
 
-    /** @brief Hands one message of the list to the peer @param message The message */
+    /** @brief Hands one message of the list to the open connection's peer (only in OPEN: post_()
+     *  and when_open_() call it there) @param message The message */
     void transmitEntry_(Entry &message) {
         ++message.sentOn;
         message.sentOnConnection = connection_;
