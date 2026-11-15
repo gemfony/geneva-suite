@@ -102,15 +102,18 @@ namespace Gem::Courtier::Consumers {
  *                                              n_decoding_ counts those still being decoded
  *  - when_polled_()                         -- optional: the halt poll found no halt condition
  *
- * Compute width. The pool evaluates at most compute_width_ items at a time (by default as many as
- * the prefetch depth). A WORK item that arrives while that many are evaluated is held on the io
- * thread (held_) and handed to the pool when an evaluation ends. Held items count towards the
- * prefetch depth; a concrete client may drop them (drop_held_()) when their results can no longer
- * be delivered, and with them every item still being decoded. With a width equal to the depth no
- * item is ever held. The messages are decoded on a strand of the same pool. With a width below the
- * depth the pool has one thread more than the width (poolThreads_()), so that an item that arrives
- * while compute_width_ items are evaluated is decoded at once and is ready when an evaluation ends;
- * the books on the io thread still let no more than compute_width_ items be evaluated at a time.
+ * Parallel evaluations. A client has two numbers: the prefetch depth n, how many work items it
+ * holds at once (those being evaluated and those fetched ahead, so that the transfer of the next
+ * item overlaps the evaluation of the current one), and m (parallel_evaluations_), how many of
+ * them it evaluates at the same time -- 1 unless told otherwise, and never more than n. A WORK
+ * item that arrives while m items are evaluated is held on the io thread (held_) and handed to the
+ * pool when an evaluation ends. Held items count towards the prefetch depth; a concrete client may
+ * drop them (drop_held_()) when their results can no longer be delivered, and with them every
+ * item still being decoded. With m equal to n no item is ever held. The messages are decoded on a
+ * strand of the same pool. With m below n the pool has one thread more than m (poolThreads_()), so
+ * that an item that arrives while m items are evaluated is decoded at once and is ready when an
+ * evaluation ends; the books on the io thread still let no more than m items be evaluated at a
+ * time.
  *
  * @tparam derived_type The concrete client type (CRTP; must also inherit enable_shared_from_this)
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
@@ -122,19 +125,19 @@ protected:
     /** @brief Initializes the pipeline state.
      *
      *  @param client_name The concrete client's name, used in diagnostics
-     *  @param prefetch_depth Maximum number of work items kept in flight at once (0 is treated as 1)
-     *  @param compute_width How many items are evaluated at the same time; 0 (the default) means
-     *         as many as the prefetch depth, more than the depth is the depth. A width below the
-     *         depth lets the client hold items ahead of those it evaluates. */
+     *  @param prefetch_depth n: how many work items the client holds at once (0 is treated as 1)
+     *  @param parallel_evaluations m: how many of them it evaluates at the same time (1 by
+     *         default); m below n lets the client hold items ahead of those it evaluates
+     *  @throws geneva_exception if m is 0 or above n (it could never be reached) */
     GPrefetchingClientT(
         std::string_view client_name,
         std::size_t prefetch_depth,
-        std::size_t compute_width = 0
+        std::size_t parallel_evaluations = 1
     )
       : client_name_(client_name)
       , prefetch_depth_(prefetch_depth == 0 ? 1 : prefetch_depth)
-      , compute_width_(
-            compute_width == 0 ? prefetch_depth_ : std::min(compute_width, prefetch_depth_)
+      , parallel_evaluations_(
+            checkedParallelEvaluations_(client_name, parallel_evaluations, prefetch_depth_)
         )
       , compute_pool_(this->poolThreads_()) { /* nothing */
     }
@@ -202,7 +205,7 @@ protected:
     /**
      * @brief Runs on the io thread for every decoded message. WORK and NO_WORK both answer a pull
      * sent earlier, so one pull is resolved; a WORK item is then counted as computing and handed
-     * to the compute pool (or held, see "Compute width"), and the concrete client is told
+     * to the compute pool (or held, see "Parallel evaluations"), and the concrete client is told
      * (when_work_(), if it has one); anything else goes to the concrete client (when_decoded_()).
      * A message that could not be decoded goes to when_unreadable_(), and so does a WORK frame
      * that carries no work item.
@@ -243,14 +246,14 @@ protected:
         }
         if(container.kind() == GFrameKind::WORK) {
             // One pull became one item: the in-flight total is unchanged. It is evaluated at once
-            // if the compute width allows, held otherwise -- or dropped, if its result could not
+            // if fewer than m items are evaluated, held otherwise -- or dropped, if its result could not
             // be delivered any more (see drop_held_()), or if a halt condition holds: a client
             // that halts starts no evaluation (the server puts the item back when the connection
             // ends).
             if(work_unwanted_ || this->halt()) {
                 return;
             }
-            if(computing_ < compute_width_) {
+            if(computing_ < parallel_evaluations_) {
                 ++computing_;
                 this->dispatch_compute_(std::move(container));
                 this->busy_changed_();
@@ -442,7 +445,7 @@ protected:
         if(this->halt()) {
             this->drop_held_();
         }
-        if(not held_.empty() && computing_ < compute_width_) {
+        if(not held_.empty() && computing_ < parallel_evaluations_) {
             ++computing_;
             auto next = std::move(held_.front());
             held_.pop_front();
@@ -566,10 +569,10 @@ protected:
     /// Messages handed to the decode strand whose books are not done yet (io thread)
     std::size_t n_decoding_ = 0;
 
-    /// How many items are evaluated at the same time (the width of the compute pool); at most the
+    /// m: how many items are evaluated at the same time (the compute threads); at most the
     /// prefetch depth
-    std::size_t compute_width_ = 1;
-    /// WORK items that arrived while compute_width_ items were evaluated, oldest first (io thread)
+    std::size_t parallel_evaluations_ = 1;
+    /// WORK items that arrived while m items were evaluated, oldest first (io thread)
     std::deque<GCommandContainerT<processable_type>> held_;
     /// Set by drop_held_(): a WORK item decoded from now on is dropped (io thread)
     bool work_unwanted_ = false;
@@ -594,7 +597,7 @@ protected:
     }; ///< Backoff timer that retries a PULL top-up after a NO_WORK reply (async, never blocks)
 
     /// The compute pool's reservation in the process-wide thread budget: Fixed, because the pool
-    /// must hold its poolThreads_() workers to keep compute_width_ items computing. Declared
+    /// must hold its poolThreads_() workers to keep m items computing. Declared
     /// before the pool so it is released only after the pool's threads are joined.
     Gem::Common::Concurrency::GThreadBudget::Reservation compute_budget_{
         Gem::Common::Concurrency::threadBudget().reserve(
@@ -618,13 +621,40 @@ protected:
 
 private:
     //-------------------------------------------------------------------------
-    /** @brief How many threads the compute pool has: the compute width, and one more if the width
-     *  is below the prefetch depth -- the thread that decodes an item held ahead while compute_width_
-     *  items are evaluated. With a width equal to the depth nothing is held ahead, and an item is
-     *  decoded only when a thread is free anyway.
+    /** @brief How many threads the compute pool has: m, and one more if m is below the prefetch
+     *  depth -- the thread that decodes an item held ahead while m items are evaluated. With m
+     *  equal to the depth nothing is held ahead, and an item is decoded only when a thread is
+     *  free anyway.
      *  @return The number of threads */
     [[nodiscard]] std::size_t poolThreads_() const noexcept {
-        return compute_width_ < prefetch_depth_ ? compute_width_ + 1 : compute_width_;
+        return parallel_evaluations_ < prefetch_depth_ ? parallel_evaluations_ + 1
+                                                       : parallel_evaluations_;
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Checks m against n: m is at least 1 and at most n (a client cannot evaluate more
+     *  items than it holds).
+     *  @param client_name The client, for the message
+     *  @param parallel_evaluations m
+     *  @param prefetch_depth n (at least 1)
+     *  @return m
+     *  @throws geneva_exception if m is 0 or above n */
+    static std::size_t checkedParallelEvaluations_(
+        std::string_view client_name,
+        std::size_t parallel_evaluations,
+        std::size_t prefetch_depth
+    ) {
+        if(parallel_evaluations == 0 || parallel_evaluations > prefetch_depth) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << client_name << ": Error!" << '\n'
+                << "The client is to evaluate " << parallel_evaluations
+                << " items at the same time (parallel evaluations), but it holds at most "
+                << prefetch_depth << " (the prefetch depth). The parallel evaluations must lie "
+                << "between 1 and the prefetch depth." << '\n'
+            );
+        }
+        return parallel_evaluations;
     }
 
     //-------------------------------------------------------------------------

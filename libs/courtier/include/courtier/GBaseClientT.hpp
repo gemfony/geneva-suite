@@ -239,8 +239,9 @@ public:
 	  * does. If it throws, the item is returned flagged and the client keeps running.
 	  *
 	  * The processor must be safe to call from the thread(s) the client processes on: one for
-	  * the MPI client, as many as the prefetch depth for a socket client. Its call operator is
-	  * const (GItemProcessorT), so several threads may call the one object at the same time;
+	  * the MPI client, as many as its parallel evaluations for a socket client (1 by default).
+	  * Its call operator is const (GItemProcessorT), so several threads may call the one object
+	  * at the same time;
 	  * a processor with unguarded mutable state does not compile. To be set before run(); it
 	  * is not to be changed while the client runs.
 	  *

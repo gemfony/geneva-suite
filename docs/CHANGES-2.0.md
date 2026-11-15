@@ -238,6 +238,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   directory); the log names the file. Nothing is saved after the server has announced the end of
   the run. A message whose kind a server cannot read now ends the connection (the client connects
   again) instead of being answered with NO_WORK.
+- **A websocket client evaluates one item at a time unless told otherwise.** It has two
+  numbers: `--beast_prefetchDepth` n, how many items it holds at once (those evaluated and those
+  fetched ahead, so that the transfer of the next item overlaps the evaluation of the current
+  one), and `--beast_parallelEvaluations` m (`clientParallelEvaluations`), how many of them it
+  evaluates at the same time -- 1 by default, from 1 to n. A client with a depth above 1 used to
+  evaluate as many items side by side as its depth; it now evaluates them one after the other.
+  `--beast_parallelEvaluations` set to the depth gives that back. In `GPeerClientOptions` the
+  member `computeWidth` (0: as many as the depth) is now `parallelEvaluations` (default 1); m
+  above n, or 0, is refused when the client is built.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
 - **A websocket server tells its clients that the run has ended.** `stopServer()` closes every

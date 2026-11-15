@@ -163,6 +163,9 @@ public:
         if(vm.contains("beast_prefetchDepth")) {
             config.clientPrefetchDepth = vm["beast_prefetchDepth"].as<std::size_t>();
         }
+        if(vm.contains("beast_parallelEvaluations")) {
+            config.clientParallelEvaluations = vm["beast_parallelEvaluations"].as<std::size_t>();
+        }
         if(vm.contains("beast_nListenerThreads")) {
             config.nThreads = vm["beast_nListenerThreads"].as<std::size_t>();
         }
@@ -213,7 +216,13 @@ public:
             "\t[beast] Announce ping/pong/close frames")(
             "beast_prefetchDepth",
             po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
-            "\t[beast] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)")(
+            "\t[beast] n: how many work items a client holds at once -- the one(s) being evaluated "
+            "and those fetched ahead, so that the transfer of the next item overlaps the evaluation "
+            "of the current one (how many it evaluates at once: --beast_parallelEvaluations)")(
+            "beast_parallelEvaluations",
+            po::value<std::size_t>()->default_value(defaults.clientParallelEvaluations),
+            "\t[beast] m: how many of the items a client holds (--beast_prefetchDepth) it "
+            "evaluates at the same time; from 1 to the prefetch depth")(
             "beast_firstContactLimit",
             po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),
             "\t[beast] Seconds a client tries to reach its server before it gives up (0 == for as "

@@ -41,6 +41,7 @@
 #include <cstddef>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <thread>
 #include <vector>
@@ -179,6 +180,76 @@ TEST_CASE("courtier(websocket): prefetch + throwing items refilled under clone-o
                      /*n_clients=*/3, /*prefetch_depth=*/4);
     CHECK(items.size() == 120);
     CHECK(count_processed(items) == 120);
+}
+
+/******************************************************************************/
+// A client holds n items and evaluates m of them at a time; m is 1 unless it is set. A client of
+// a default configuration with a depth of 3 therefore never evaluates two items at once; with
+// m = 2 it evaluates two at once, never three.
+
+namespace {
+
+/** @brief How many evaluations ran at once, at most */
+struct AtOnce {
+    std::mutex mutex;
+    std::size_t now = 0;
+    std::size_t most = 0;
+};
+
+/** @brief Runs a batch through one websocket client of @p config whose evaluations take a while,
+ *  and counts how many ran at once @param config The family's configuration (depth and m)
+ *  @return The largest number of evaluations at once */
+std::size_t mostAtOnce(c2::GWebsocketConsumerConfig config) {
+    constexpr std::size_t ITEMS = 18;
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(config);
+    consumer->startServer();
+    config.port = consumer->getPort();
+    auto at_once = std::make_shared<AtOnce>();
+    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
+    client->setItemProcessor([at_once](GFaultyContainer &item) {
+        {
+            const std::scoped_lock lock(at_once->mutex);
+            at_once->most = std::max(at_once->most, ++at_once->now);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        {
+            const std::scoped_lock lock(at_once->mutex);
+            --at_once->now;
+        }
+        item.markAsProcessedWith({true});
+    });
+    std::jthread runner([client] { client->run(); });
+    auto items = make_batch(ITEMS);
+    consumer->processBatch(
+        std::span<item_ptr>(items.data(), items.size()),
+        c2::GSubmissionPolicy::full_success_or_fatal()
+    );
+    client->flagCloseRequested();
+    runner.join();
+    consumer->stopServer();
+    CHECK(count_processed(items) == ITEMS);
+    const std::scoped_lock lock(at_once->mutex);
+    return at_once->most;
+}
+
+} /* anonymous namespace */
+
+TEST_CASE(
+    "courtier(websocket): a client evaluates one item at a time unless told otherwise",
+    "[courtier][websocket][net]"
+) {
+    const c2::GWebsocketConsumerConfig defaults;
+    CHECK(defaults.clientParallelEvaluations == 1);
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 3,
+    };
+    CHECK(mostAtOnce(config) == 1);
+
+    config.clientParallelEvaluations = 2;
+    CHECK(mostAtOnce(config) == 2);
 }
 
 /******************************************************************************/

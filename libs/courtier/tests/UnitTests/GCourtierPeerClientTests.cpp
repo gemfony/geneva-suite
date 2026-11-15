@@ -29,9 +29,10 @@
 
 // The client over any connector (GPeerClientT), against the server's shell (GPeerConsumerT) on the
 // in-process transport: look-ahead, RESULT, the halt with an item limit, the end of the run with
-// held items, the compute width, the item processor, the busy signal, and scarce work.
+// held items, the parallel evaluations, the item processor, the busy signal, and scarce work.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -437,13 +438,13 @@ std::vector<std::unique_ptr<GFaultyContainer>> makeBatch(std::size_t n, std::siz
 /** @brief A client set up without anything more */
 constexpr auto AS_IS = [](client_type &) {};
 
-/** @brief @return The options of a look-ahead client: depth 2, width 1 */
+/** @brief @return The options of a look-ahead client: depth 2, one evaluation at a time */
 GPeerClientOptions lookAhead() {
     return GPeerClientOptions{
         .name = "look-ahead client",
         .mode = BIN,
         .prefetchDepth = 2,
-        .computeWidth = 1,
+        .parallelEvaluations = 1,
         .lookAhead = true
     };
 }
@@ -533,7 +534,7 @@ TEST_CASE(
                 .name = "holding client",
                 .mode = BIN,
                 .prefetchDepth = 2,
-                .computeWidth = 1
+                .parallelEvaluations = 1
             },
             evaluations,
             500ms,
@@ -566,10 +567,10 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** A client evaluates no more items at once than its compute width allows, and uses its item
- *  processor for every one. */
+/** A client evaluates no more items at once than its parallel evaluations allow, and uses its
+ *  item processor for every one. */
 TEST_CASE(
-    "GPeerClientT: the compute width bounds the evaluations and the item processor does them",
+    "GPeerClientT: the parallel evaluations bound the evaluations and the item processor does them",
     "[courtier][peer][client]"
 ) {
     auto evaluations = std::make_shared<Evaluations>();
@@ -579,7 +580,7 @@ TEST_CASE(
             .name = "wide client",
             .mode = BIN,
             .prefetchDepth = 4,
-            .computeWidth = 2
+            .parallelEvaluations = 2
         },
         evaluations,
         10ms,
@@ -826,7 +827,7 @@ TEST_CASE(
                 .name = "slowly returning client",
                 .mode = BIN,
                 .prefetchDepth = 2,
-                .computeWidth = 2,
+                .parallelEvaluations = 2,
                 .lookAhead = true
             }
         );
@@ -933,7 +934,7 @@ GPeerClientOptions watchedClient() {
         .name = "watched client",
         .mode = BIN,
         .prefetchDepth = 2,
-        .computeWidth = 1,
+        .parallelEvaluations = 1,
         .lookAhead = true
     };
 }
@@ -1006,7 +1007,7 @@ private:
 
 /******************************************************************************/
 /**
- * A look-ahead client (compute width 1, depth 2) decodes the item it holds ahead while it
+ * A look-ahead client (one evaluation at a time, depth 2) decodes the item it holds ahead while it
  * evaluates the other one, so that the item is ready when the evaluation ends; it still evaluates
  * one item at a time.
  */
@@ -1259,7 +1260,7 @@ TEST_CASE(
 /**
  * A client that reaches its item limit starts no evaluation after it, sends the results of those
  * that run as they finish, and closes when none runs: nothing it evaluated is put back. Depth 4,
- * width 2, limit 2: two items are evaluated and two held; the first result lets a held item start,
+ * two parallel evaluations, limit 2: two items are evaluated and two held; the first result lets a held item start,
  * the second reaches the limit and the other held item is dropped; the third result is sent before
  * the close. A second client then evaluates the rest; no item is evaluated twice.
  */
@@ -1275,7 +1276,7 @@ TEST_CASE(
             .name = "limited client",
             .mode = BIN,
             .prefetchDepth = 4,
-            .computeWidth = 2
+            .parallelEvaluations = 2
         },
         limited,
         300ms,
@@ -1364,6 +1365,34 @@ TEST_CASE(
     REQUIRE(returned);
     CHECK(took < 2500ms);
     CHECK(cancels->load() >= 1);
+}
+
+/******************************************************************************/
+/** A client cannot evaluate more items than it holds, nor none: m above n, and m = 0, are refused
+ *  when the client is built, with a message that names both. */
+TEST_CASE(
+    "GPeerClientT: more parallel evaluations than the prefetch depth are refused",
+    "[courtier][peer][client]"
+) {
+    const auto build = [](std::size_t depth, std::size_t parallel) {
+        return std::make_shared<client_type>(
+            std::make_unique<NeverConnector>(),
+            GPeerClientOptions{
+                .name = "client",
+                .mode = BIN,
+                .prefetchDepth = depth,
+                .parallelEvaluations = parallel
+            }
+        );
+    };
+    CHECK_THROWS_WITH(
+        build(2, 3),
+        Catch::Matchers::ContainsSubstring("evaluate 3 items at the same time") &&
+            Catch::Matchers::ContainsSubstring("it holds at most 2")
+    );
+    CHECK_THROWS_WITH(build(2, 0), Catch::Matchers::ContainsSubstring("evaluate 0 items"));
+    CHECK_NOTHROW(build(3, 3));
+    CHECK_NOTHROW(build(3, 1));
 }
 
 /******************************************************************************/

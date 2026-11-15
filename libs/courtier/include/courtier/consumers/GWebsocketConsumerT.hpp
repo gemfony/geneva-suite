@@ -79,7 +79,7 @@ public:
      *         sessions; 0 selects the hardware concurrency), serializationMode (the wire format),
      *         pingInterval (seconds of silence after which a ping is sent; after twice that time
      *         without any inbound data the client is presumed gone; 0 switches this off) and
-     *         verboseControlFrames. The client members (ip, clientPrefetchDepth) are ignored.
+     *         verboseControlFrames. The client members (ip, clientPrefetchDepth, ...) are ignored.
      *  @param stop_grace How long stopServer() waits for the clients to confirm the end of the run */
     explicit GWebsocketConsumerT(
         const config_type &config,

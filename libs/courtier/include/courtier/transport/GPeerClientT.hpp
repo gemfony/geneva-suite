@@ -76,13 +76,18 @@ struct GPeerClientOptions {
     std::string name = "GPeerClientT<processable_type>"; ///< Who this client is, for its log lines
     Gem::Common::serializationMode mode =
         Gem::Common::serializationMode::GEM_BINARY; ///< The wire format
-    /// Maximum number of work items kept in flight at once (0 is treated as 1)
+    /// n: how many work items the client holds at once -- the one(s) being evaluated and those
+    /// fetched ahead, so that the transfer of the next item overlaps the evaluation of the current
+    /// one (0 is treated as 1). How many of them are evaluated at the same time is
+    /// parallelEvaluations.
     std::size_t prefetchDepth = 1;
-    /// How many items are evaluated at the same time (0: as many as the prefetch depth)
-    std::size_t computeWidth = 0;
+    /// m: how many of the items it holds (prefetchDepth) the client evaluates at the same time; 1
+    /// by default, whatever the depth. More than prefetchDepth is refused when the client is
+    /// built, and so is 0.
+    std::size_t parallelEvaluations = 1;
     /// At most one request is unanswered at any time, and a result that finishes while one is
-    /// unanswered travels as a RESULT (see the class comment). Meant for a depth of 2 with a
-    /// compute width of 1: one item is evaluated and at most one more is held or asked for.
+    /// unanswered travels as a RESULT (see the class comment). Meant for a depth of 2 with one
+    /// evaluation at a time: one item is evaluated and at most one more is held or asked for.
     bool lookAhead = false;
     /// How long the client tries to reach a server before its first contact with one; 0: for as
     /// long as it runs (see the class comment)
@@ -226,7 +231,7 @@ public:
      * @param options The settings of this client
      */
     GPeerClientT(std::unique_ptr<GConnectorI> connector, GPeerClientOptions options)
-      : pipeline_base(options.name, options.prefetchDepth, options.computeWidth)
+      : pipeline_base(options.name, options.prefetchDepth, options.parallelEvaluations)
       , options_(std::move(options))
       , connector_(std::move(connector)) {
         // Engage the blob send-once wire form. The client caches every blob it receives, keyed by

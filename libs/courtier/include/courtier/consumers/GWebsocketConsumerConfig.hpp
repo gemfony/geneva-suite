@@ -72,8 +72,14 @@ struct GWebsocketConsumerConfig {
     std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;
     /// Both: whether ping, pong and close frames are announced in the log
     bool verboseControlFrames = false;
-    /// Client: the largest number of work items it holds at once (1: one after the other)
+    /// Client: n, how many work items it holds at once -- the one(s) being evaluated and those
+    /// fetched ahead, so that the transfer of the next item overlaps the evaluation of the
+    /// current one (1: it asks for the next item when it returns the current one). How many it
+    /// evaluates at the same time is clientParallelEvaluations.
     std::size_t clientPrefetchDepth = 1;
+    /// Client: m, how many of the items it holds (clientPrefetchDepth) it evaluates at the same
+    /// time; 1 by default, whatever the depth; from 1 to clientPrefetchDepth
+    std::size_t clientParallelEvaluations = 1;
     /// Client: seconds it tries to reach the server before its first contact with it (0: for as
     /// long as it runs)
     std::size_t clientFirstContactLimit =
