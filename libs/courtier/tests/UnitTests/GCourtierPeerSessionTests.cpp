@@ -113,6 +113,13 @@ public:
         this->wake_(numbers.size());
     }
 
+    /** @brief The next checkout finds the consumer stopped, as one does that runs at the moment
+     *  requestStop() sets the flag: after the session has looked at the stop */
+    void stopAtNextCheckout() {
+        const std::scoped_lock lock(mutex_);
+        stop_at_checkout_ = true;
+    }
+
     /** @brief Stops the consumer and wakes every parked session, as requestStop() does */
     void stop() {
         std::size_t n_parked = 0;
@@ -132,6 +139,9 @@ public:
                 [this, lease](GWakeFn wake) {
                     GCheckoutResult<GFaultyContainer> result;
                     const std::scoped_lock lock(mutex_);
+                    if(stop_at_checkout_) {
+                        stopped_ = true;
+                    }
                     if(stopped_) {
                         return result;
                     }
@@ -238,6 +248,7 @@ private:
     std::deque<std::size_t> pending_; ///< Items that can be checked out
     std::deque<GWakeFn> parked_;      ///< Wake functions of parked sessions, oldest first
     bool stopped_ = false;
+    bool stop_at_checkout_ = false;
     std::size_t n_checked_in_ = 0;
     std::atomic<int> n_sessions_{0};
 };
@@ -484,6 +495,31 @@ TEST_CASE(
         REQUIRE(eventually([&] { return consumer.nParked() == 1; }));
 
         consumer.stop();
+        REQUIRE(eventually([&] { return not connection.client->closed().empty(); }));
+        CHECK(connection.client->closed() == "CLOSED_THERE:RUN_ENDED");
+        CHECK(connection.client->nFrames() == 0);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * The stop can come between the session's look at it and its checkout: the consumer then hands out
+ * neither an item nor a promise. The request is not answered with NO_WORK; the connection is closed
+ * with RUN_ENDED.
+ */
+TEST_CASE(
+    "GPeerSessionT: a stop that comes during the checkout closes with RUN_ENDED and no NO_WORK",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        REQUIRE(eventually([&] { return consumer.nSessions() == 1; }));
+        consumer.stopAtNextCheckout();
+        connection.client->send(GFrameKind::PULL);
         REQUIRE(eventually([&] { return not connection.client->closed().empty(); }));
         CHECK(connection.client->closed() == "CLOSED_THERE:RUN_ENDED");
         CHECK(connection.client->nFrames() == 0);

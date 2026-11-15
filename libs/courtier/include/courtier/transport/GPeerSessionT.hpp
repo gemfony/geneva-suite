@@ -228,16 +228,17 @@ private:
             return;
         }
 
-        while(owed_replies_ > 0 && not parked_) {
+        while(owed_replies_ > 0 && not parked_ && not stopping_) {
             if(auto answer = this->answer_pull_()) {
                 --owed_replies_;
                 peer.send(std::move(*answer));
             }
         }
 
-        // The stop may have come while the loop ran; a session that was not parked then is not
-        // woken for it.
-        if(this->check_server_stopped_()) {
+        // The stop may have come while the loop ran (the consumer then hands out neither an item
+        // nor a promise, see answer_pull_()); a session that was not parked then is not woken
+        // for it.
+        if(stopping_ || this->check_server_stopped_()) {
             peer.close(GPeerClose::RUN_ENDED);
         }
     }
@@ -338,14 +339,20 @@ private:
      * @brief Answers one request: checks an item out and encodes it under this session's wire
      * scope (blob send-once), or parks the session if nothing is pending.
      *
-     * @return The answer (WORK; NO_WORK only if the server is stopping or the item had to be
-     * refused); nothing if the session is parked instead
+     * @return The answer (WORK; NO_WORK only if the item had to be refused); nothing if the
+     * session is parked instead, or if the server is stopping
      */
     std::optional<std::string> answer_pull_() {
         return this->refusing_([&]() -> std::optional<std::string> {
             auto result = get_payload_item_(this->wake_function_());
             if(result.parked) {
                 parked_ = true;
+                return std::nullopt;
+            }
+            if(not result.item) {
+                // Neither an item nor a promise: the server is stopping. The request is not
+                // answered; the connection is closed with RUN_ENDED instead (serve_()).
+                stopping_ = true;
                 return std::nullopt;
             }
             Gem::Courtier::serveWorkItem(command_container_, [&result] {
@@ -419,6 +426,7 @@ private:
 
     std::size_t owed_replies_ = 0; ///< Requests of the client that have no answer yet
     bool parked_ = false; ///< The consumer holds this session's wake function; nothing is served
+    bool stopping_ = false; ///< The consumer said it is stopping: nothing is served any more
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
     /// installed around (de)serialisation so a work item's blob is sent to this peer only once
