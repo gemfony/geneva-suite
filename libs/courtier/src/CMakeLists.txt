@@ -31,6 +31,7 @@ SET(COMMUNICATIONSOURCES
         GCourtierHelperFunctions.cpp
         GCourtierEnums.cpp
         GDemoProcessingContainers.cpp
+        GMPIPollCore.cpp
         GWebsocketPeer.cpp
         GWebsocketPeerTransport.cpp
         )
@@ -38,7 +39,9 @@ SET(COMMUNICATIONSOURCES
 # The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp,
 # GMPIHelperFunctions.hpp): this library links no MPI. It is instantiated in Geneva's MPI module
 # (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start. What
-# must exist once per process and calls MPI lives in courtier's MPI library (below).
+# must exist once per process and calls MPI lives in courtier's MPI library (below). The MPI poll
+# (GMPIPollCore.cpp) is compiled here all the same: it makes its MPI calls through
+# transport/GMPICallsI.hpp, whose binding to MPI is part of courtier's MPI library.
 
 # The GPU consumer is optional, and is folded into this one courtier library: the device backends compile in (and CUDA links in) only when requested. The backend
 # source list + toolkit detection come from gpu/GPUBackends.cmake (which sets COURTIER_GPU_SRCS and the

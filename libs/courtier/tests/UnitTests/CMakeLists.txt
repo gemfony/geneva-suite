@@ -102,6 +102,10 @@ geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cp
 geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
+# The MPI poll on an in-memory stand-in for MPI (GMPIFakeCalls.hpp): no mpirun, and so also in the
+# build with ThreadSanitizer, which has no MPI
+geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp GMPIFakeCalls.hpp
+	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L

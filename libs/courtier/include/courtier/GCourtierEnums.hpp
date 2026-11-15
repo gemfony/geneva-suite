@@ -245,6 +245,20 @@ constexpr std::chrono::milliseconds GMPICONSUMERPOLLPAUSE{1};
 /// The default time in ms between two checks whether the send of a work item has completed.
 constexpr std::uint32_t GMPICONSUMERMASTERCLEANSESSINTERVALMSEC = 1'000;
 
+/******************************************************************************
+ * Constants of the MPI poll core (transport/GMPIPollCore.hpp), the defaults of GMPIPollTiming:
+ */
+/// The pause of the MPI poll between two looks without traffic: it starts at the lower bound and
+/// doubles up to the upper one. A received message and a started send reset it.
+constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMIN{50};
+constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMAX{1'000};
+/// How many messages the MPI poll receives in one go before it lets other handlers of its
+/// executor have their turn.
+constexpr int GMPIPEERPOLLROUNDS = 16;
+/// How long the MPI poll keeps looking after its last receiver has ended, for sends that have not
+/// completed (a large message to a rank that no longer receives never does).
+constexpr std::chrono::seconds GMPIPEERDRAINGRACE{2};
+
 /******************************************************************************/
 /** @brief The default number of threads for parallelization with threads */
 constexpr std::uint16_t DEFAULTNSTDTHREADS = 2;
