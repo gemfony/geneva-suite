@@ -61,7 +61,9 @@ include(CMakeFindDependencyMacro)
 # compatible Boost. The component list is GENEVA_BOOST_LIBS from
 # CommonGenevaBuild.cmake, filled in when the package is configured, so it
 # cannot drift from what the build itself requires.
-find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ COMPONENTS @GENEVA_BOOST_LIBS@)
+# CONFIG: Boost's own BoostConfig.cmake, as the build itself uses (CMP0167); CMake's FindBoost
+# module is gone from CMake 4, and asking for it warns in every project that has not set CMP0167.
+find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST_LIBS@)
 
 # The build flavor of this installation: TRUE if it was built with testing
 # support (GENEVA_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.

@@ -57,6 +57,8 @@
 #  6. both the config package and FindGeneva.cmake say whether the installation has
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
 #     was configured.
+# Configuring a project against the installation (steps 3, 5, 6) prints no CMake
+# warning.
 #
 # The ldd check and steps 3 to 6 do not depend on each other. Each runs as a "lane": this script
 # started once more with -DLANE=<name>, all lanes at the same time, each writing
@@ -106,6 +108,15 @@ FUNCTION(gip_run _what _log)
 			"--- output ---\n${_out}\n--- errors ---\n${_err}")
 	ENDIF()
 	MESSAGE(STATUS "${_what}: done")
+ENDFUNCTION()
+
+# Fails if configuring a probe printed a CMake warning (written to <log>.err by gip_run()):
+# finding an installed Geneva must not warn in the project that finds it.
+FUNCTION(gip_no_warnings _what _log)
+	FILE(READ "${_log}.err" _err)
+	IF(_err MATCHES "CMake Warning")
+		MESSAGE(FATAL_ERROR "${_what} printed a CMake warning:\n${_err}")
+	ENDIF()
 ENDFUNCTION()
 
 ################################################################################
@@ -181,6 +192,7 @@ FUNCTION(gip_lane_quickstart)
 		"${CMAKE_COMMAND}" -S "${SOURCE_DIR}/libs/geneva/quickstart" -B "${ROOT}/quickstart"
 		${_args} "-DCMAKE_INSTALL_PREFIX=${ROOT}/quickstart-installed"
 		-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON)
+	gip_no_warnings("configure the quickstart" "${ROOT}/quickstart-cmake.log")
 	FILE(STRINGS "${ROOT}/quickstart/CMakeCache.txt" _geneva_dir REGEX "^Geneva_DIR:")
 	IF(NOT _geneva_dir STREQUAL "Geneva_DIR:PATH=${ROOT}/moved/lib/cmake/Geneva")
 		MESSAGE(FATAL_ERROR
@@ -259,6 +271,7 @@ FUNCTION(gip_lane_findgeneva)
 	FILE(WRITE "${_fg_src}/CMakeLists.txt" "${_fg_lists}")
 	gip_run("configure a project with FindGeneva.cmake" "${ROOT}/findgeneva-cmake.log"
 		"${CMAKE_COMMAND}" -S "${_fg_src}" -B "${ROOT}/findgeneva" ${_args})
+	gip_no_warnings("configure a project with FindGeneva.cmake" "${ROOT}/findgeneva-cmake.log")
 	IF(WITH_MPI)
 		gip_run("build the MPI module probe with FindGeneva's targets" "${ROOT}/findgeneva-build.log"
 			"${CMAKE_COMMAND}" --build "${ROOT}/findgeneva" -j ${JOBS})
@@ -306,6 +319,7 @@ FUNCTION(gip_lane_flags _mode)
 	FILE(WRITE "${_flags_src}/CMakeLists.txt" "${_flags_lists}")
 	gip_run("say MPI and GPU through find_package(Geneva ${_mode})" "${ROOT}/flags-${_mode}.log"
 		"${CMAKE_COMMAND}" -S "${_flags_src}" -B "${ROOT}/flags-${_mode}" ${_args})
+	gip_no_warnings("find_package(Geneva ${_mode})" "${ROOT}/flags-${_mode}.log")
 ENDFUNCTION()
 
 IF(DEFINED LANE)

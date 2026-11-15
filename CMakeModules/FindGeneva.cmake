@@ -324,8 +324,9 @@ IF (GENEVA_FOUND)
 	# Geneva exposes Boost through its public headers; re-find it so the
 	# imported targets can carry the Boost include dirs and link libraries,
 	# matching the behaviour of the config-file package. The component list
-	# mirrors GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake.
-	FIND_DEPENDENCY (Boost 1.91 COMPONENTS
+	# mirrors GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake. CONFIG: Boost's own package, as in
+	# the config-file package (CMake's FindBoost module is gone, see CMP0167).
+	FIND_DEPENDENCY (Boost 1.91 CONFIG COMPONENTS
 		json
 		program_options
 		regex
