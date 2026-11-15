@@ -103,6 +103,15 @@ geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp G
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 # The TCP relay that stands between a client and its server in the tests of a lost connection
 geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.hpp)
+# A result that a client carries from one server process to another is dropped there; the first
+# server runs in a process of its own (the helper below), because a server tells the items of
+# another process from its own by a salt drawn once per process
+ADD_EXECUTABLE(GCourtierHelperServer GCourtierHelperServer.cpp)
+TARGET_LINK_LIBRARIES(GCourtierHelperServer ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+geneva_courtier_test(GCourtierForeignResultTests M GCourtierForeignResultTests.cpp GTcpRelay.hpp)
+TARGET_COMPILE_DEFINITIONS(GCourtierForeignResultTests
+	PRIVATE GCOURTIER_HELPER_SERVER="$<TARGET_FILE:GCourtierHelperServer>")
+ADD_DEPENDENCIES(GCourtierForeignResultTests GCourtierHelperServer)
 # The MPI poll on an in-memory stand-in for MPI (GMPIFakeCalls.hpp): no mpirun, and so also in the
 # build with ThreadSanitizer, which has no MPI
 geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp GMPIFakeCalls.hpp
