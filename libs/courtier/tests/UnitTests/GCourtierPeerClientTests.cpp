@@ -37,8 +37,11 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <future>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -53,8 +56,11 @@
 
 #include <boost/asio/any_io_executor.hpp>
 
+#include <unistd.h> // getpid()
+
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
@@ -1521,6 +1527,48 @@ auto withGate(const std::shared_ptr<Evaluations> &evaluations, const std::shared
     };
 }
 
+/** @brief A directory of its own for the files of one test; removed with what is in it */
+class UndeliveredDir {
+public:
+    UndeliveredDir()
+      : path_(
+            std::filesystem::temp_directory_path() /
+            ("geneva-undelivered-test-" + std::to_string(::getpid()) + "-" +
+             std::to_string(counter().fetch_add(1)))
+        ) {
+        std::filesystem::create_directories(path_);
+    }
+    ~UndeliveredDir() {
+        std::error_code ignored;
+        std::filesystem::remove_all(path_, ignored);
+    }
+    UndeliveredDir(const UndeliveredDir &) = delete;
+    UndeliveredDir(UndeliveredDir &&) = delete;
+    UndeliveredDir &operator=(const UndeliveredDir &) = delete;
+    UndeliveredDir &operator=(UndeliveredDir &&) = delete;
+
+    /** @brief @return Its path */
+    [[nodiscard]] const std::filesystem::path &path() const {
+        return path_;
+    }
+    /** @brief @return The files in it */
+    [[nodiscard]] std::vector<std::filesystem::path> files() const {
+        std::vector<std::filesystem::path> found;
+        for(const auto &entry : std::filesystem::directory_iterator(path_)) {
+            found.push_back(entry.path());
+        }
+        return found;
+    }
+
+private:
+    /** @brief @return A count that tells the directories of one process apart */
+    static std::atomic<int> &counter() {
+        static std::atomic<int> n{0};
+        return n;
+    }
+    std::filesystem::path path_; ///< Where it is
+};
+
 /** @brief Whether @p bytes are a RETURN frame (a close's payload is not a frame)
  *  @param bytes What an in-process end hands over @return true for a RETURN */
 bool isReturn(std::string_view bytes) {
@@ -1703,9 +1751,10 @@ TEST_CASE(
             }
         });
     });
+    const UndeliveredDir dir;
     World world;
     auto client = world.client(
-        GPeerClientOptions{.name = "unlucky client", .mode = BIN},
+        GPeerClientOptions{.name = "unlucky client", .mode = BIN, .undeliveredDir = dir.path()},
         evaluations,
         1ms,
         watch,
@@ -1717,6 +1766,7 @@ TEST_CASE(
     CHECK(client->resultsGivenUp() == 1);
     CHECK(client->losses() == Gem::Courtier::GCLIENTRESENDLIMIT);
     CHECK(evaluations->of(0) == 2); // handed out again by the server
+    CHECK(dir.files().size() == 1); // the result given up is saved
 }
 
 /******************************************************************************/
@@ -1757,13 +1807,17 @@ TEST_CASE(
     auto evaluations = std::make_shared<Evaluations>();
     auto watch = std::make_shared<GInProcessPeerWatch>();
     const DroppingServer dropping;
+    // The last RETURN waited at the server for an answer: the client cannot know that it arrived,
+    // sends it again, gives it up at the resend limit and saves it
+    const UndeliveredDir dir;
     World world;
     auto client = world.client(
         GPeerClientOptions{
             .name = "limited client",
             .mode = BIN,
             .reconnectLimit = 3s,
-            .contactTime = 300ms
+            .contactTime = 300ms,
+            .undeliveredDir = dir.path()
         },
         evaluations,
         1ms,
@@ -1957,4 +2011,223 @@ TEST_CASE(
     CHECK(client->connections() == 2);
     CHECK(client->resultsResent() == 0);
     CHECK(gatedDecodes.load() == 2);
+}
+
+/******************************************************************************/
+// A finished result that can no longer be delivered is saved: the evaluated item, one file each,
+// in the client's undeliveredDir. Evaluations are never cut; a client that halts without a
+// connection makes one last attempt to deliver what it has finished.
+
+namespace {
+
+/** @brief @param file A saved item @return The item it holds, loaded as the type loads; empty if it
+ *  cannot be loaded */
+std::shared_ptr<GFaultyContainer> loadSaved(const std::filesystem::path &file) {
+    std::ifstream in(file, std::ios::binary);
+    const std::string bytes{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    return Gem::Common::sharedPtrFromString<GFaultyContainer>(bytes, BIN);
+}
+
+/** @brief A batch that may end without its results: its slots are then filled with clones of a
+ *  template (not fatal) @param world Where it runs @param items Its items @return It, running */
+std::future<void> openBatch(World &world, std::vector<std::unique_ptr<GFaultyContainer>> &items) {
+    return std::async(std::launch::async, [&world, &items] {
+        auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+        policy.fatal_on_none_returned = false;
+        auto clone_template = std::make_unique<GFaultyContainer>(99);
+        clone_template->markAsProcessedWith({true});
+        world.shell()
+            .processBatch(std::span(items.data(), items.size()), policy, std::move(clone_template));
+    });
+}
+
+} /* anonymous namespace */
+
+/** A client that halts while it has no connection and evaluates an item lets the evaluation end and
+ *  delivers its result with one last attempt; nothing is saved. */
+TEST_CASE(
+    "GPeerClientT: a halt without a connection delivers the running evaluation with a last attempt",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+        evaluations,
+        0ms,
+        watch,
+        withGate(evaluations, gate)
+    );
+    auto items = makeBatch(1);
+    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+    world.route().clear();
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return client->losses() == 1; }));
+    client->flagCloseRequested();
+    std::this_thread::sleep_for(1500ms); // the halt poll has seen it: no more attempts
+    const std::size_t attempts_before = world.listener()->nConnections();
+    world.route().set(world.listener());
+    std::this_thread::sleep_for(500ms);
+    CHECK(world.listener()->nConnections() == attempts_before); // it does not try while it halts
+
+    gate->open();
+    REQUIRE(batch.get());
+    REQUIRE(eventually([&] { return world.clientsDone(); }));
+    CHECK(evaluations->of(0) == 1);
+    CHECK(client->connections() == 2); // the last attempt
+    CHECK(dir.files().empty());
+}
+
+/** The same, and the last attempt fails: the evaluated item is saved, and it loads back. */
+TEST_CASE(
+    "GPeerClientT: a result that cannot be delivered after a halt is saved as the evaluated item",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(41));
+    {
+        World world;
+        auto client = world.client(
+            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+            evaluations,
+            0ms,
+            watch,
+            withGate(evaluations, gate)
+        );
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+        world.route().clear();
+        watch->last()->sever();
+        REQUIRE(eventually([&] { return client->losses() == 1; }));
+        client->flagCloseRequested();
+        std::this_thread::sleep_for(1500ms);
+        gate->open();
+        REQUIRE(eventually([&] { return world.clientsDone(); }));
+        CHECK(client->connections() == 1); // the last attempt was refused
+        world.shell().stopServer();
+        batch.get();
+    }
+    const auto files = dir.files();
+    REQUIRE(files.size() == 1);
+    INFO("saved as " << files.front().string());
+    const auto saved = loadSaved(files.front());
+    REQUIRE(saved);
+    CHECK(saved->get_stored_number() == 41);
+    CHECK(saved->is_processed());
+}
+
+/** The reconnect limit runs out while the client holds a finished result: it is saved. */
+TEST_CASE(
+    "GPeerClientT: a result held when the reconnect limit runs out is saved",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(7));
+    {
+        World world;
+        auto client = world.client(
+            GPeerClientOptions{
+                .name = "limited client",
+                .mode = BIN,
+                .reconnectLimit = 1s,
+                .contactTime = 300ms,
+                .undeliveredDir = dir.path()
+            },
+            evaluations,
+            0ms,
+            watch,
+            withGate(evaluations, gate)
+        );
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+        std::this_thread::sleep_for(1200ms); // open for the contact time: contact
+        world.route().clear();
+        watch->last()->sever();
+        gate->open(); // finished while there is no connection
+        REQUIRE(eventually([&] { return world.clientsDone(); }));
+        CHECK(client->terminalErrorFlagged());
+        world.shell().stopServer();
+        batch.get();
+    }
+    const auto files = dir.files();
+    REQUIRE(files.size() == 1);
+    const auto saved = loadSaved(files.front());
+    REQUIRE(saved);
+    CHECK(saved->get_stored_number() == 7);
+}
+
+/** After the server has announced the end of the run nobody needs the result: nothing is saved. */
+TEST_CASE(
+    "GPeerClientT: a result finished after the end of the run is not saved",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(3));
+    {
+        World world;
+        world.client(
+            GPeerClientOptions{.name = "late client", .mode = BIN, .undeliveredDir = dir.path()},
+            evaluations,
+            0ms,
+            nullptr,
+            withGate(evaluations, gate)
+        );
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+        world.shell().stopServer(); // RUN_ENDED while the item is evaluated
+        batch.get();
+        gate->open();
+        REQUIRE(eventually([&] { return world.clientsDone(); }));
+    }
+    CHECK(dir.files().empty());
+}
+
+/** A directory that cannot be written: a warning, and the client ends as it would. */
+TEST_CASE(
+    "GPeerClientT: a result that cannot be saved is reported and the client ends",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(5));
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{
+            .name = "client",
+            .mode = BIN,
+            .undeliveredDir = "/proc/geneva-cannot-be-written-here"
+        },
+        evaluations,
+        0ms,
+        watch,
+        withGate(evaluations, gate)
+    );
+    auto batch = openBatch(world, items);
+    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+    world.route().clear();
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return client->losses() == 1; }));
+    client->flagCloseRequested();
+    gate->open();
+    CHECK(eventually([&] { return world.clientsDone(); }));
+    CHECK(client->resultsUnsaved() == 1);
+    world.shell().stopServer();
+    batch.get();
 }

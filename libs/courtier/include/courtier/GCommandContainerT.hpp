@@ -355,9 +355,11 @@ private:
  *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the just-processed work item; rewritten in place into a RETURN
+ * @return The processed work item if the RETURN does not ship it (a library payload replaces it),
+ *         for a caller that keeps it; empty if the frame holds it
  */
 template <typename processable_type>
-void makeReturnFrame(GCommandContainerT<processable_type> &container) {
+std::unique_ptr<processable_type> makeReturnFrame(GCommandContainerT<processable_type> &container) {
     auto item_ptr = container.releaseItem();
     GProcessingOutcome outcome;
     std::uint32_t tag = 0;
@@ -374,10 +376,10 @@ void makeReturnFrame(GCommandContainerT<processable_type> &container) {
     container.setOutcome(std::move(outcome));
     if(ships_item) {
         container.setItem(std::move(item_ptr));
+        return nullptr;
     }
-    else {
-        container.setLibraryPayload(std::move(payload));
-    }
+    container.setLibraryPayload(std::move(payload));
+    return item_ptr;
 }
 
 /******************************************************************************/

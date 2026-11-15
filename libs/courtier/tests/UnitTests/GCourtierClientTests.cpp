@@ -172,7 +172,8 @@ private:
     void sendResult_(
         std::string bytes,
         const std::string &error,
-        Gem::Courtier::GCommandContainerT<item_type> frame
+        Gem::Courtier::GCommandContainerT<item_type> frame,
+        [[maybe_unused]] std::unique_ptr<item_type> item
     ) {
         if(frame.kind() == Gem::Courtier::GFrameKind::RETURN) {
             ++pending_pulls_;

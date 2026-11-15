@@ -40,11 +40,17 @@
 #include <cstdint>
 #include <deque>
 #include <exception>
+#include <filesystem>
+#include <format>
+#include <fstream>
 #include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include <unistd.h> // getpid()
 
 // Boost headers go here
 #include <boost/asio/post.hpp>
@@ -53,6 +59,7 @@
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
 #include "common/GLogger.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp" // sharedPtrToString()
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
@@ -86,6 +93,9 @@ struct GPeerClientOptions {
     std::chrono::milliseconds reconnectLimit = GCLIENTRECONNECTLIMIT;
     /// How long a connection without an answer must have been open to count as contact
     std::chrono::milliseconds contactTime = GCLIENTCONTACTTIME;
+    /// Where a finished result that can no longer be delivered is saved, one file per evaluated
+    /// item (see the class comment); the client's working directory by default
+    std::filesystem::path undeliveredDir = ".";
 };
 
 /******************************************************************************/
@@ -161,6 +171,19 @@ struct GPeerClientOptions {
  * still being decoded have been (LinkState::DRAINING): an answer that arrived before the loss
  * proves what it proves. A result that arrives twice at the server (it had read it after all) is
  * dropped there as a duplicate. The new peer is told whether the client is busy.
+ *
+ * Results that cannot be delivered. An evaluation is never cut short (it may be an external
+ * process). A client that reaches a halt while it has no connection -- a halt condition, a limit
+ * without a server, a lost connection of a connector that cannot connect again -- tries no more:
+ * it lets its evaluations end (LinkState::FINISHING), then makes one last attempt (bounded by the
+ * transport's own limits) to deliver what it has finished. Whatever it still cannot deliver --
+ * also a result given up at the resend limit, a result left when a close of its own was not
+ * acknowledged, and a result that finishes after the client has ended -- is saved: the evaluated
+ * work item, one file per item, in GPeerClientOptions::undeliveredDir, written with the item's
+ * toFile() where its type has one and with sharedPtrToString() otherwise (it loads back with
+ * fromFile() or sharedPtrFromString()). The file name (process id, correlation id, a count) is
+ * logged. Nothing is saved once the server has announced the end of the run: nobody needs it. A
+ * client with nothing finished and nothing being evaluated ends at once.
  *
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
@@ -250,6 +273,16 @@ public:
     [[nodiscard]] std::uint64_t resultsResent() const noexcept {
         return n_results_resent_.load();
     }
+    /** @brief How many undeliverable results were saved (see the class comment). From any
+     *  thread. @return The count */
+    [[nodiscard]] std::uint64_t resultsSaved() const noexcept {
+        return n_results_saved_.load();
+    }
+    /** @brief How many undeliverable results could not be saved (no item, or the file could not
+     *  be written). From any thread. @return The count */
+    [[nodiscard]] std::uint64_t resultsUnsaved() const noexcept {
+        return n_results_unsaved_.load();
+    }
     /** @brief How many results were given up at the resend limit. From any thread.
      *  @return The count */
     [[nodiscard]] std::uint64_t resultsGivenUp() const noexcept {
@@ -270,6 +303,7 @@ private:
         OPEN,    ///< The connection is usable
         CLOSING, ///< This client closes the connection (a halt, an error)
         DRAINING, ///< The connection was lost; its messages are still being decoded
+        FINISHING, ///< Halted without a connection: waits for its evaluations to end
         PAUSE,   ///< Waits before the next attempt
         ENDED    ///< Nothing is attempted any more
     };
@@ -286,6 +320,9 @@ private:
         EntryKind kind = EntryKind::ASK; ///< What it is
         GMessage bytes;                  ///< The message, shared with the transport
         std::uint8_t sentOn = 0;         ///< On how many connections it was sent
+        /// A result's evaluated item, kept until the result is known to have arrived (to be
+        /// saved if it cannot be delivered); empty for a request and for a failed item
+        std::unique_ptr<processable_type> item;
     };
 
     //-------------------------------------------------------------------------
@@ -367,6 +404,14 @@ private:
      * @param reason Why
      */
     void attemptFailed_(std::string_view reason) {
+        if(last_attempt_) {
+            glogger << "In " << options_.name << ": the last attempt to deliver failed: " << reason
+                    << '\n'
+                    << GLOGGING;
+            this->saveUndelivered_();
+            this->endClient_();
+            return;
+        }
         if(not connector_->reconnectable()) {
             glogger << "In " << options_.name << ":" << '\n'
                     << "No connection to the server: " << reason << '\n'
@@ -420,6 +465,10 @@ private:
                 n_results_resent_.fetch_add(1);
             }
             this->transmitEntry_(message);
+        }
+        if(last_attempt_) {
+            do_close_(GPeerClose::NORMAL); // after what it sent; an acknowledged close proves it
+            return;
         }
         if(busy_) {
             if(auto peer = peer_.lock()) {
@@ -529,31 +578,156 @@ private:
         const LinkState was = state_;
         if(how == GPeerClose::RUN_ENDED) {
             // The server has announced the end of the run: this client is done, whatever else is
-            // set on it.
+            // set on it. No result is needed any more: items that wait for the compute pool, or
+            // are still being decoded, are not evaluated (one that is being evaluated runs to its
+            // end), and nothing is saved.
             this->flagCloseRequested();
             glogger << options_.name << ": the server announced the end of the run" << '\n'
                     << GLOGGING;
+            run_ended_ = true;
+            drop_held_();
+            unanswered_.clear();
+            pending_pulls_ = 0;
+            this->endClient_();
+            return;
         }
-        else if(was == LinkState::OPENING && not this->halt()) {
+        if(was == LinkState::OPENING && (last_attempt_ || not this->halt())) {
             this->attemptFailed_(detail); // the connection never opened (a failed handshake)
             return;
         }
-        else if(was == LinkState::OPEN && not this->halt() && connector_->reconnectable()) {
+        if(was == LinkState::OPEN && not this->halt() && connector_->reconnectable()) {
             this->lost_(detail);
             return;
         }
-        else if(end != GPeerEnd::CLOSED_HERE) {
+        if(end != GPeerEnd::CLOSED_HERE) {
             glogger << "In " << options_.name << ": the connection to the server has ended:" << '\n'
                     << detail << '\n'
-                    << "This will terminate the client." << '\n'
                     << GLOGGING;
         }
-        if(how == GPeerClose::RUN_ENDED || not connector_->reconnectable()) {
-            // No result can be delivered any more: items that wait for the compute pool, or are
-            // still being decoded, are not evaluated (one that is being evaluated runs to its end).
-            drop_held_();
+        if(was == LinkState::CLOSING) {
+            if(end == GPeerEnd::CLOSED_HERE) {
+                // The server confirmed the close: it has read everything sent before it
+                std::erase_if(unanswered_, [](const Entry &message) { return message.sentOn > 0; });
+            }
+            this->saveUndelivered_();
+            this->endClient_();
+            return;
         }
+        // Lost while halting, or by a connector that cannot connect again
+        this->windUp_();
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief The client halts while it has no connection (see the class comment): it tries no
+     * more, starts nothing new and lets its evaluations end; then it makes one last attempt to
+     * deliver what it has finished, or saves it. Called again by the last result to come back.
+     * On the io thread.
+     */
+    void windUp_() {
+        state_ = LinkState::FINISHING;
+        this->stopPipelineTimers_();
+        retry_timer_.cancel();
+        drop_held_();
+        n_unreadable_owed_ = 0;
+        std::erase_if(unanswered_, [](const Entry &message) {
+            return message.kind == EntryKind::ASK;
+        });
+        pending_pulls_ = static_cast<std::size_t>(
+            std::ranges::count(unanswered_, EntryKind::RETURN, &Entry::kind)
+        );
+        if(computing_ > 0 || n_reencoding_ > 0) {
+            return; // afterResult_() calls again
+        }
+        if(not unanswered_.empty() && connector_->reconnectable() && not last_attempt_) {
+            last_attempt_ = true;
+            glogger << "In " << options_.name << ": " << unanswered_.size()
+                    << " finished result(s) not known to have arrived; one last attempt to "
+                       "deliver them"
+                    << '\n'
+                    << GLOGGING;
+            this->attempt_();
+            return;
+        }
+        this->saveUndelivered_();
         this->endClient_();
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Saves every result in the list that cannot be delivered any more (see the class
+     *  comment) and empties the list. On the io thread. */
+    void saveUndelivered_() {
+        for(auto &message : unanswered_) {
+            if(message.kind != EntryKind::ASK) {
+                this->saveResult_(std::move(message.item));
+            }
+        }
+        unanswered_.clear();
+        pending_pulls_ = 0;
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Saves the evaluated item of a result that cannot be delivered, unless the run has
+     * ended (see the class comment). A directory that cannot be written is a warning.
+     *
+     * @param item The evaluated item; empty if the result carries none (a failed item)
+     */
+    void saveResult_(std::unique_ptr<processable_type> item) {
+        if(run_ended_) {
+            return;
+        }
+        if(not item) {
+            n_results_unsaved_.fetch_add(1);
+            glogger << "In " << options_.name
+                    << ": a result that cannot be delivered holds no item (its item failed); it "
+                       "is lost"
+                    << '\n'
+                    << GWARNING;
+            return;
+        }
+        const bool binary = options_.mode == Gem::Common::serializationMode::GEM_BINARY;
+        const std::filesystem::path file =
+            options_.undeliveredDir / std::format(
+                                          "undelivered-{}-{}-{}.{}",
+                                          ::getpid(),
+                                          item->getCorrelationId(),
+                                          Gem::Courtier::nextUndeliveredFileNumber(),
+                                          binary ? "bin" : "json"
+                                      );
+        try {
+            if constexpr(requires(const processable_type &p) {
+                             p.toFile(file, Gem::Common::serializationMode::GEM_BINARY);
+                         }) {
+                item->toFile(file, options_.mode);
+            }
+            else {
+                std::ofstream out(file, std::ios::binary | std::ios::trunc);
+                out << Gem::Common::sharedPtrToString(
+                    std::shared_ptr<processable_type>(std::move(item)),
+                    options_.mode
+                );
+                out.close();
+                if(not out) {
+                    throw std::runtime_error("the file could not be written");
+                }
+            }
+            n_results_saved_.fetch_add(1);
+            glogger << "In " << options_.name
+                    << ": a finished result could not be delivered; its evaluated item was saved "
+                       "as "
+                    << file.string() << '\n'
+                    << GWARNING;
+        }
+        catch(...) {
+            n_results_unsaved_.fetch_add(1);
+            glogger << "In " << options_.name
+                    << ": a finished result could not be delivered, and its item could not be "
+                       "saved as "
+                    << file.string() << ": "
+                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                    << GWARNING;
+        }
     }
 
     //-------------------------------------------------------------------------
@@ -585,12 +759,14 @@ private:
             last_contact_end_ = lost_at_;
         }
         n_unreadable_owed_ = 0; // the new session sends every blob in full anyway
-        std::erase_if(unanswered_, [this](const Entry &message) {
+        std::vector<std::unique_ptr<processable_type>> given_up;
+        std::erase_if(unanswered_, [this, &given_up](Entry &message) {
             if(message.kind == EntryKind::ASK) {
                 return true;
             }
             if(message.sentOn >= GCLIENTRESENDLIMIT) {
                 n_results_given_up_.fetch_add(1);
+                given_up.push_back(std::move(message.item));
                 glogger << "In " << options_.name << ": a result was sent "
                         << static_cast<int>(message.sentOn)
                         << " times on connections that were lost; it is given up" << '\n'
@@ -602,9 +778,12 @@ private:
         pending_pulls_ = static_cast<std::size_t>(
             std::ranges::count(unanswered_, EntryKind::RETURN, &Entry::kind)
         );
+        for(auto &item : given_up) {
+            this->saveResult_(std::move(item));
+        }
         this->refreshResultKindHint_();
         if(this->halt()) {
-            this->endClient_();
+            this->windUp_();
             return;
         }
         this->pause_();
@@ -728,6 +907,13 @@ private:
      *  otherwise it waits for the next one. A request is counted in pending_pulls_. On the io
      *  thread. @param message The message */
     void post_(Entry message) {
+        if(state_ == LinkState::ENDED) {
+            // The client has ended (an error, or the end of the run): nothing can be delivered
+            if(message.kind != EntryKind::ASK) {
+                this->saveResult_(std::move(message.item));
+            }
+            return;
+        }
         if(message.kind != EntryKind::RESULT) {
             ++pending_pulls_;
         }
@@ -817,13 +1003,16 @@ private:
      * @param bytes The result as the compute thread encoded it
      * @param error Why it could not be encoded; empty if it could
      * @param frame The result's frame (its kind says how it was encoded)
+     * @param kept The evaluated item if the frame does not carry it; empty otherwise
      */
     void sendResult_(
         std::string bytes,
         const std::string &error,
-        GCommandContainerT<processable_type> frame
+        GCommandContainerT<processable_type> frame,
+        std::unique_ptr<processable_type> kept
     ) {
         if(not error.empty()) {
+            this->saveResult_(kept ? std::move(kept) : frame.releaseItem());
             glogger << "In " << options_.name << ": could not serialize a result:" << '\n'
                     << error << '\n'
                     << "The client will shut down." << '\n'
@@ -835,31 +1024,42 @@ private:
         const bool may_ask = this->mayAsk_();
         if(frame.kind() == GFrameKind::RETURN && not may_ask) {
             // Encoded as a request, but the client may not ask now: encode it as a RESULT.
-            this->reencodeAsResult_(std::move(frame));
+            this->reencodeAsResult_(std::move(frame), std::move(kept));
             return;
         }
         // A RETURN is a request (the server replies with an item); post_() counts it
+        const EntryKind kind =
+            frame.kind() == GFrameKind::RETURN ? EntryKind::RETURN : EntryKind::RESULT;
         this->post_(
             Entry{
-                .kind = frame.kind() == GFrameKind::RETURN ? EntryKind::RETURN : EntryKind::RESULT,
-                .bytes = makeMessage(std::move(bytes))
+                .kind = kind,
+                .bytes = makeMessage(std::move(bytes)),
+                .item = kept ? std::move(kept) : frame.releaseItem()
             }
         );
         this->afterResult_();
     }
 
     /** @brief Encodes @p frame as a RESULT on the compute pool and sends it on the io thread.
-     *  @param frame The finished result's frame */
-    void reencodeAsResult_(GCommandContainerT<processable_type> frame) {
+     *  @param frame The finished result's frame
+     *  @param kept The evaluated item if the frame does not carry it; empty otherwise */
+    void reencodeAsResult_(
+        GCommandContainerT<processable_type> frame,
+        std::unique_ptr<processable_type> kept
+    ) {
         ++n_reencoding_;
         auto self = this->shared_from_this();
         auto guard = boost::asio::make_work_guard(io_context_);
         boost::asio::post(
             compute_pool_,
-            [self, frame = std::move(frame), guard = std::move(guard)]() mutable {
+            [self,
+             frame = std::move(frame),
+             kept = std::move(kept),
+             guard = std::move(guard)]() mutable {
                 frame.setKind(GFrameKind::RESULT);
                 std::string error;
                 std::string bytes = self->encodeResult_(frame, error);
+                auto item = kept ? std::move(kept) : frame.releaseItem();
                 // The pool's handler gives up its hold on the client here: if it kept it until it is
                 // destroyed, after the io thread may have finished with the client, the client could be
                 // destroyed on a thread of its own pool, which cannot join itself.
@@ -869,8 +1069,9 @@ private:
                     [self = std::move(self),
                      bytes = std::move(bytes),
                      error = std::move(error),
+                     item = std::move(item),
                      guard = std::move(guard)]() mutable {
-                        self->reencoded_(std::move(bytes), error);
+                        self->reencoded_(std::move(bytes), error, std::move(item));
                     }
                 );
             }
@@ -879,10 +1080,16 @@ private:
 
     /** @brief On the io thread, once a result has been encoded as a RESULT once more: sends it,
      *  then carries out a close that waited for it, or goes on.
-     *  @param bytes The RESULT @param error Why it could not be encoded; empty if it could */
-    void reencoded_(std::string bytes, const std::string &error) {
+     *  @param bytes The RESULT @param error Why it could not be encoded; empty if it could
+     *  @param item The evaluated item (empty for a failed one) */
+    void reencoded_(
+        std::string bytes,
+        const std::string &error,
+        std::unique_ptr<processable_type> item
+    ) {
         --n_reencoding_;
         if(not error.empty()) {
+            this->saveResult_(std::move(item));
             glogger << "In " << options_.name << ": could not serialize a result:" << '\n'
                     << error << '\n'
                     << "The client will shut down." << '\n'
@@ -890,7 +1097,13 @@ private:
             do_close_(GPeerClose::ERROR);
             return;
         }
-        this->post_(Entry{.kind = EntryKind::RESULT, .bytes = makeMessage(std::move(bytes))});
+        this->post_(
+            Entry{
+                .kind = EntryKind::RESULT,
+                .bytes = makeMessage(std::move(bytes)),
+                .item = std::move(item)
+            }
+        );
         if(close_pending_ && n_reencoding_ == 0) {
             close_pending_ = false;
             do_close_(close_after_reencoding_);
@@ -902,8 +1115,12 @@ private:
     /** @brief After a result has been sent: a client that halts closes once no evaluation runs
      *  any more (see the class comment), any other asks for more. */
     void afterResult_() {
+        if(state_ == LinkState::FINISHING) {
+            this->windUp_();
+            return;
+        }
         if(this->halt()) {
-            this->closeWhenIdle_();
+            this->haltShutdown_();
             return;
         }
         request_more_();
@@ -932,12 +1149,13 @@ private:
             break;
         case LinkState::ATTEMPT:
             connector_->cancel();
-            this->endClient_();
+            this->windUp_();
             break;
         case LinkState::PAUSE:
         case LinkState::DRAINING:
-            this->endClient_();
+            this->windUp_();
             break;
+        case LinkState::FINISHING:
         case LinkState::CLOSING:
         case LinkState::ENDED:
             break;
@@ -978,6 +1196,10 @@ private:
     /// The end of the last connection on which there was contact (io thread)
     clock::time_point last_contact_end_;
     bool busy_ = false; ///< What when_busy_() was told last (io thread)
+    bool last_attempt_ = false; ///< The last attempt to deliver has been made (io thread)
+    bool run_ended_ = false;    ///< The server announced the end of the run (io thread)
+    std::atomic<std::uint64_t> n_results_saved_{0};   ///< Undeliverable results saved
+    std::atomic<std::uint64_t> n_results_unsaved_{0}; ///< Undeliverable results not saved
 
     /// The messages handed to the peer and not known to have been read, in the order they were
     /// handed over (see the class comment; io thread)

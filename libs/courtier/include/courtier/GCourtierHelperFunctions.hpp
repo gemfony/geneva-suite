@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <cstdint>
 #include <exception>
 #include <string>
 
@@ -65,6 +66,15 @@ std::string fkToStr(const GFrameKind &fk);
  * @return Its description
  */
 std::string describeException(const std::exception_ptr &failure);
+
+/******************************************************************************/
+/**
+ * @brief A number that tells apart the files a process writes for results that a client could not
+ * deliver (GPeerClientT): every call in a process returns another one.
+ *
+ * @return The next number
+ */
+std::uint64_t nextUndeliveredFileNumber();
 
 /******************************************************************************/
 

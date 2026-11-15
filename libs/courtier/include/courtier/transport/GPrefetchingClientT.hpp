@@ -81,13 +81,15 @@ namespace Gem::Courtier::Consumers {
  *  - haltShutdown_()                        -- tear the transport down when halt() is reached
  *  - when_decoded_(kind)                    -- a message other than WORK has arrived
  *  - when_unreadable_(error)                -- a message could not be decoded
- *  - resultKindHint_() and sendResult_(bytes, error, frame)
+ *  - resultKindHint_() and sendResult_(bytes, error, frame, item)
  *                                           -- the concrete client decides whether a finished
  *                                              result is a RETURN (it asks for the next item) or a
  *                                              RESULT (it asks for nothing). The compute thread
  *                                              encodes it as the hint says (any thread);
  *                                              sendResult_() gets the bytes and the frame on the io
- *                                              thread, decides with the books and does them
+ *                                              thread, decides with the books and does them;
+ *                                              item is the evaluated work item if the frame does
+ *                                              not carry it (a library payload replaces it)
  *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
  *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
  *                                              0 (io thread)
@@ -293,6 +295,7 @@ protected:
                 const Gem::Courtier::SUBMISSION_UUID_TYPE uuid =
                     work != nullptr ? work->getSubmissionUuid()
                                     : Gem::Courtier::SUBMISSION_UUID_TYPE{};
+                std::unique_ptr<processable_type> kept; // the item, if the frame does not ship it
                 try {
                     // A failing evaluation leaves the item flagged; it is returned like any result.
                     // The processor is read on the compute-pool threads and never written while the
@@ -302,7 +305,7 @@ protected:
                         self->client_name_,
                         self->itemProcessor()
                     );
-                    Gem::Courtier::makeReturnFrame(container);
+                    kept = Gem::Courtier::makeReturnFrame(container);
                 }
                 catch(...) {
                     self->returnFailed_(container, id, uuid, std::current_exception());
@@ -324,8 +327,14 @@ protected:
                      bytes = std::move(bytes),
                      error = std::move(error),
                      frame = std::move(container),
+                     kept = std::move(kept),
                      guard = std::move(guard)]() mutable {
-                        self->finish_compute_(std::move(bytes), error, std::move(frame));
+                        self->finish_compute_(
+                            std::move(bytes),
+                            error,
+                            std::move(frame),
+                            std::move(kept)
+                        );
                     }
                 );
             }
@@ -417,11 +426,13 @@ protected:
      *  @param bytes The encoded result
      *  @param error Why the result could not be encoded; empty if it could
      *  @param frame The result's frame (its kind says how it was encoded), in case it has to be
-     *         encoded once more */
+     *         encoded once more
+     *  @param item The evaluated item if the frame does not carry it; empty otherwise */
     void finish_compute_(
         std::string bytes,
         const std::string &error,
-        GCommandContainerT<processable_type> frame
+        GCommandContainerT<processable_type> frame,
+        std::unique_ptr<processable_type> item
     ) {
         this->incrementProcessingCounter();
         if(computing_ > 0) {
@@ -438,7 +449,7 @@ protected:
             this->dispatch_compute_(std::move(next));
         }
         this->busy_changed_();
-        derived().sendResult_(std::move(bytes), error, std::move(frame));
+        derived().sendResult_(std::move(bytes), error, std::move(frame), std::move(item));
     }
 
     //-------------------------------------------------------------------------

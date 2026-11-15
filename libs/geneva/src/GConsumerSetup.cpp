@@ -166,6 +166,9 @@ public:
         if(vm.contains("beast_nListenerThreads")) {
             config.nThreads = vm["beast_nListenerThreads"].as<std::size_t>();
         }
+        if(vm.contains("beast_undeliveredDir")) {
+            config.clientUndeliveredDir = vm["beast_undeliveredDir"].as<std::string>();
+        }
         return config;
     }
 
@@ -204,7 +207,11 @@ public:
             "\t[beast] Announce ping/pong/close frames")(
             "beast_prefetchDepth",
             po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
-            "\t[beast] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
+            "\t[beast] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)")(
+            "beast_undeliveredDir",
+            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
+            "\t[beast] Where a client saves a finished result it can no longer deliver (the "
+            "evaluated item, one file each)");
     }
 };
 

@@ -74,7 +74,8 @@ public:
      *        after twice that time without any inbound data the connection ends; 0 switches this
      *        off), clientFirstContactLimit (seconds the client tries to reach the server before
      *        it gives up; 0: no limit) and clientReconnectLimit (seconds it tries to reach it again
-     *        after a lost connection; 0: no limit). nThreads is ignored.
+     *        after a lost connection; 0: no limit) and clientUndeliveredDir (where results that
+     *        cannot be delivered are saved). nThreads is ignored.
      */
     explicit GWebsocketClientT(const config_type &config)
       : GPeerClientT<processable_type>(
@@ -93,7 +94,8 @@ public:
                 .mode = config.serializationMode,
                 .prefetchDepth = config.clientPrefetchDepth,
                 .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit),
-                .reconnectLimit = std::chrono::seconds(config.clientReconnectLimit)
+                .reconnectLimit = std::chrono::seconds(config.clientReconnectLimit),
+                .undeliveredDir = config.clientUndeliveredDir
             }
         ) { /* nothing */
     }
