@@ -54,6 +54,7 @@
 #include "GInProcessTestSupport.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
@@ -74,6 +75,7 @@ using Gem::Courtier::Consumers::GPeerI;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessPeerWatch;
+using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
 
 namespace {
@@ -663,4 +665,176 @@ TEST_CASE(
         n_clients_with_work += e->total.load();
     }
     CHECK(n_clients_with_work == 2);
+}
+
+/******************************************************************************/
+// A result whose RETURN may no longer ask by the time its bytes reach the io thread, because a
+// refill PULL went out meanwhile (from the back-off timer after a NO_WORK). The server's end is a
+// script here, so that it can answer NO_WORK, which the server's shell never does for a request it
+// can park.
+
+namespace {
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> noWorkSent{false}; ///< The scripted server has answered with NO_WORK
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// How long the client takes to encode its evaluated item: longer than the longest back-off after
+/// a NO_WORK (GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC)
+constexpr auto SLOW_ENCODE = 800ms;
+/// How long an evaluation waits after the NO_WORK has been sent before it ends: the client has
+/// decoded the NO_WORK by then
+constexpr auto AFTER_NO_WORK = 100ms;
+
+/**
+ * A work item that is encoded slowly once it has been evaluated (on its way back), and whose
+ * evaluation ends only after the scripted server has sent its NO_WORK.
+ */
+class GSlowReturnItem final : public Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool>>(
+            ar,
+            "GProcessingContainerT_GSlowReturnItem",
+            *this
+        );
+        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+            if(this->is_processed()) {
+                std::this_thread::sleep_for(SLOW_ENCODE);
+            }
+        }
+    }
+
+public:
+    /** @brief The default constructor (also for loading) */
+    GSlowReturnItem()
+      : Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Ends after the NO_WORK has reached the client */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
+        while(not noWorkSent.load()) {
+            std::this_thread::sleep_for(1ms);
+        }
+        std::this_thread::sleep_for(AFTER_NO_WORK);
+    }
+};
+
+using slow_client_type = Gem::Courtier::Consumers::GPeerClientT<GSlowReturnItem>;
+
+/**
+ * The server's end as a script: the first request is answered with an item, the second with
+ * NO_WORK, every later one is kept waiting. It counts the requests without an answer and the
+ * results.
+ */
+class ScriptedServer final : public std::enable_shared_from_this<ScriptedServer> {
+public:
+    /** @brief Starts @p peer with this script as its role @param peer The server's end */
+    void start(const std::shared_ptr<GPeerI> &peer) {
+        peer_ = peer;
+        auto self = this->shared_from_this();
+        peer->start(
+            GPeerHandlers{
+                .onOpen = {},
+                .onMessage = [self](std::string &&message) { self->received_(std::move(message)); },
+                .onClosed = [](GPeerEnd, GPeerClose, std::string_view) {},
+            }
+        );
+    }
+    /** @brief Ends the run for the client */
+    void endRun() {
+        if(auto peer = peer_.lock()) {
+            peer->close(GPeerClose::RUN_ENDED);
+        }
+    }
+
+    std::atomic<std::size_t> maxUnanswered{0}; ///< The most requests without an answer
+    std::atomic<std::size_t> nReturns{0};      ///< RETURN frames received
+    std::atomic<std::size_t> nResults{0};      ///< RESULT frames received
+
+private:
+    /** @brief On the end's strand @param message A message of the client */
+    void received_(std::string &&message) {
+        const std::string bytes = std::move(message);
+        GCommandContainerT<GSlowReturnItem> frame{GFrameKind::NONE};
+        Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+        const GFrameKind kind = frame.kind();
+        if(kind == GFrameKind::RETURN) {
+            nReturns.fetch_add(1);
+        }
+        if(kind == GFrameKind::RESULT) {
+            nResults.fetch_add(1);
+        }
+        if(kind != GFrameKind::PULL && kind != GFrameKind::RETURN) {
+            return;
+        }
+        ++requests_;
+        maxUnanswered.store(std::max(maxUnanswered.load(), requests_ - answers_));
+        auto peer = peer_.lock();
+        if(not peer || requests_ > 2) {
+            return; // kept waiting
+        }
+        ++answers_;
+        if(requests_ == 1) {
+            auto item = std::make_unique<GSlowReturnItem>();
+            item->mark_as_due_for_processing();
+            const GCommandContainerT<GSlowReturnItem> work{GFrameKind::WORK, std::move(item)};
+            peer->send(Gem::Courtier::wireEncode(work, nullptr, BIN));
+            return;
+        }
+        const GCommandContainerT<GSlowReturnItem> no_work{GFrameKind::NO_WORK};
+        peer->send(Gem::Courtier::wireEncode(no_work, nullptr, BIN));
+        noWorkSent.store(true);
+    }
+
+    std::weak_ptr<GPeerI> peer_; ///< The server's end
+    std::size_t requests_ = 0;   ///< Requests received (on the strand)
+    std::size_t answers_ = 0;    ///< Answers sent (on the strand)
+};
+
+} /* anonymous namespace */
+
+/**
+ * With look-ahead, a NO_WORK leaves the client without a request; its result is then encoded as a
+ * RETURN. While that encoding takes its time, the back-off timer sends a refill PULL. The RETURN
+ * may no longer ask: it is encoded once more and arrives as a RESULT, so that the server never has
+ * two requests of this client without an answer.
+ */
+TEST_CASE(
+    "GPeerClientT: a result whose request a refill PULL took over arrives as a RESULT",
+    "[courtier][peer][client]"
+) {
+    noWorkSent.store(false);
+    auto server = std::make_shared<ScriptedServer>();
+    {
+        IoThreads io{2};
+        auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+        listener->start(io.executor(), [server](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
+            server->start(peer);
+        });
+        auto client = std::make_shared<slow_client_type>(
+            std::make_unique<GInProcessConnector>(listener),
+            GPeerClientOptions{
+                .name = "slowly returning client",
+                .mode = BIN,
+                .prefetchDepth = 2,
+                .computeWidth = 2,
+                .lookAhead = true
+            }
+        );
+        std::jthread runner([client] { client->run(); });
+        REQUIRE(eventually([&] { return server->nResults.load() + server->nReturns.load() > 0; }));
+        std::this_thread::sleep_for(100ms); // anything that would follow the result
+        CHECK(server->nResults.load() == 1);
+        CHECK(server->nReturns.load() == 0);
+        CHECK(server->maxUnanswered.load() == 1);
+        server->endRun();
+        runner.join();
+        listener->stop();
+        listener->endWork();
+    }
 }
