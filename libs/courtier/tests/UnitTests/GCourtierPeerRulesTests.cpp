@@ -32,6 +32,7 @@
 // that is added later can be run through the same cases.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -738,4 +739,59 @@ TEST_CASE(
     CHECK(n_opened == 0);
     CHECK(n_closed == 1);
     CHECK(end->ended());
+}
+
+/******************************************************************************/
+/**
+ * An on_peer that throws: as with the websocket listener, the exception does not leave the thread
+ * that runs it, and the call is counted out, so that stop() does not wait for it until its bound.
+ */
+TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[courtier][peer]") {
+    const bool standard = GENERATE(true, false);
+    INFO((standard ? "on_peer throws a std::exception" : "on_peer throws an int"));
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
+        .stopBound = 5s,
+    });
+    boost::asio::io_context ctx;
+    auto guard = boost::asio::make_work_guard(ctx);
+    std::atomic<int> escaped{0};
+    std::thread runner([&ctx, &escaped] {
+        while(true) {
+            try {
+                ctx.run();
+                return;
+            }
+            catch(...) {
+                escaped.fetch_add(1);
+            }
+        }
+    });
+
+    std::atomic<int> calls{0};
+    listener->start(
+        ctx.get_executor(),
+        [&calls, standard](const std::shared_ptr<GPeerI> &, GWirePeerId) {
+            calls.fetch_add(1);
+            if(standard) {
+                throw std::runtime_error("on_peer refused by the test");
+            }
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+        }
+    );
+    auto client_end = listener->connect_(ctx.get_executor());
+    REQUIRE(client_end != nullptr);
+    REQUIRE(eventually([&] { return calls.load() == 1; }));
+
+    const auto stop_began = std::chrono::steady_clock::now();
+    listener->stop();
+    const auto took = std::chrono::steady_clock::now() - stop_began;
+    CHECK(listener->nStopBoundsHit() == 0);
+    CHECK(took < 2s);
+    CHECK(escaped.load() == 0);
+
+    client_end.reset();
+    guard.reset();
+    ctx.stop();
+    runner.join();
+    listener->endWork();
 }

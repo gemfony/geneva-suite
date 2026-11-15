@@ -582,9 +582,15 @@ public:
         // Counted under the lock that stop() takes first: a call posted before it is waited for.
         on_peer_calls_.set(id, true);
         boost::asio::post(*accept_strand_, [this, server_end, id] {
-            // endWork() runs when no handler runs, so on_peer_ cannot change under this.
-            if(on_peer_) {
-                on_peer_(server_end, id);
+            // endWork() runs when no handler runs, so on_peer_ cannot change under this. As with
+            // the websocket listener, no exception leaves a thread of the shell's executor: a
+            // client whose session cannot be made is dropped, and the call is counted out.
+            try {
+                if(on_peer_) {
+                    on_peer_(server_end, id);
+                }
+            }
+            catch(...) { // NOLINT(bugprone-empty-catch) -- the connection ends with its server end
             }
             on_peer_calls_.remove(id);
         });
