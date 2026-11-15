@@ -88,19 +88,21 @@ std::size_t count_processed(const std::vector<item_ptr> &v) {
 
 void run_over_sockets(std::vector<item_ptr> &items, const c2::GSubmissionPolicy &policy,
                       std::size_t n_clients = 1, std::size_t prefetch_depth = 1) {
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(
-        /*port=*/0, /*threads=*/2, BIN
-    );
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = prefetch_depth,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(config);
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GFaultyContainer>>> clients;
     std::vector<std::jthread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, prefetch_depth
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -214,7 +216,7 @@ TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its
     });
 
     auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-        "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/1
+        c2::GWebsocketConsumerConfig{.ip = "127.0.0.1", .port = port, .serializationMode = BIN}
     );
     std::atomic<bool> returned{false};
     std::jthread const client_thread([client, &returned] {
@@ -258,25 +260,20 @@ TEST_CASE(
     constexpr std::size_t ITEMS = 40;
 
     for(const std::size_t prefetch_depth : {std::size_t{1}, std::size_t{3}}) {
-        auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(
-            /*port=*/0,
-            /*threads=*/2,
-            BIN
-        );
+        c2::GWebsocketConsumerConfig config{
+            .ip = "127.0.0.1",
+            .serializationMode = BIN,
+            .nThreads = 2,
+            .clientPrefetchDepth = prefetch_depth,
+        };
+        auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(config);
         consumer->startServer();
+        config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
         std::vector<std::shared_ptr<ccons::GWebsocketClientT<GFaultyContainer>>> clients;
         std::vector<std::jthread> client_threads;
         for(std::size_t c = 0; c < CLIENTS; ++c) {
-            clients.push_back(
-                std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-                    "127.0.0.1",
-                    consumer->getPort(),
-                    BIN,
-                    /*verbose_control_frames=*/false,
-                    prefetch_depth
-                )
-            );
+            clients.push_back(std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config));
             client_threads.emplace_back([client = clients.back()] { client->run(); });
         }
 
@@ -330,13 +327,7 @@ TEST_CASE(
         // Their entries are still in the list of parked callers, ahead of the client that comes
         // now. One item means one wake-up, and it must not be spent on a session that has ended.
         CHECK(consumer->parkedCount() == CLIENTS);
-        auto late_client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-            "127.0.0.1",
-            consumer->getPort(),
-            BIN,
-            /*verbose_control_frames=*/false,
-            prefetch_depth
-        );
+        auto late_client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
         const std::jthread late_thread([late_client] { late_client->run(); });
         const auto late_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         while(consumer->parkedCount() != CLIENTS + 1 &&

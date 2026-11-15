@@ -284,7 +284,9 @@ TEST_CASE("courtier(clone): unresolved slots are refilled from the supplied temp
     tmpl->set_processing_status(Gem::Courtier::processingStatus::DO_PROCESS);
     tmpl->process(); // a valid, evaluated template
 
-    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(4);
+    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(
+        c2::GStdThreadConsumerConfig{.nThreads = 4}
+    );
 
     const std::vector<std::size_t> faulty{2, 5, 9};
     auto batch = make_batch(12, faulty, fault_mode::THROW_PROCESSING);

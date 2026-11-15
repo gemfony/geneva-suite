@@ -76,7 +76,9 @@ constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 /** @brief Builds a started server of the given kind on a port the system chooses. */
 template <typename Consumer>
 std::shared_ptr<Consumer> startedServer() {
-    auto consumer = std::make_shared<Consumer>(/*port=*/0, /*threads=*/2, BIN);
+    auto consumer = std::make_shared<Consumer>(
+        typename Consumer::config_type{.serializationMode = BIN, .nThreads = 2}
+    );
     consumer->startServer();
     return consumer;
 }
@@ -86,18 +88,21 @@ template <typename Consumer>
 std::shared_ptr<GBaseClientT<GFaultyContainer>> matchingClient(unsigned short port) {
     if constexpr(std::is_same_v<Consumer, AsioConsumer>) {
         return std::make_shared<GAsioConsumerClientT<GFaultyContainer>>(
-            "127.0.0.1",
-            port,
-            BIN,
-            /*max_reconnects=*/1
+            Gem::Courtier::GAsioConsumerConfig{
+                .ip = "127.0.0.1",
+                .port = port,
+                .serializationMode = BIN,
+                .maxReconnects = 1,
+            }
         );
     }
     else {
         return std::make_shared<GWebsocketClientT<GFaultyContainer>>(
-            "127.0.0.1",
-            port,
-            BIN,
-            /*verbose_control_frames=*/false
+            Gem::Courtier::GWebsocketConsumerConfig{
+                .ip = "127.0.0.1",
+                .port = port,
+                .serializationMode = BIN,
+            }
         );
     }
 }

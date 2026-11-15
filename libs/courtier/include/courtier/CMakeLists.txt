@@ -48,10 +48,13 @@ SET ( COMMUNICATIONINCLUDES
 # Consumer classes (namespace Gem::Courtier): the span+policy submission consumers (formerly the
 # courtier2 rework, merged in at Stage E).
 SET ( CONSUMER_INCLUDES
+    consumers/GAsioConsumerConfig.hpp
     consumers/GAsioConsumerT.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GTcpAcceptingConsumerT.hpp
+    consumers/GStdThreadConsumerConfig.hpp
     consumers/GStdThreadConsumerT.hpp
+    consumers/GWebsocketConsumerConfig.hpp
     consumers/GWebsocketConsumerT.hpp
 )
 

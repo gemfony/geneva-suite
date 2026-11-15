@@ -103,7 +103,9 @@ int main(int argc, char **argv) {
         return 2;
     }
 
-    auto consumer = std::make_shared<GStdThreadConsumerT<GFaultyContainer>>(4);
+    auto consumer = std::make_shared<GStdThreadConsumerT<GFaultyContainer>>(
+        GStdThreadConsumerConfig{.nThreads = 4}
+    );
     auto workOn = [&consumer](std::vector<item_ptr> &batch, const GSubmissionPolicy &policy) {
         consumer->processBatch(std::span<item_ptr>(batch.data(), batch.size()), policy);
     };

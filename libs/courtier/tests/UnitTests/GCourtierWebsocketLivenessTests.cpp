@@ -126,12 +126,12 @@ constexpr auto PATIENCE = 8s; // how long a test waits for something due after a
 /** @brief A started websocket server for work items of type @p Item. */
 template <typename Item>
 std::shared_ptr<GWebsocketConsumerT<Item>> startedServer(std::size_t n_threads) {
-    auto consumer = std::make_shared<GWebsocketConsumerT<Item>>(
-        /*port=*/0,
-        n_threads,
-        BIN,
-        PING_INTERVAL_S
-    );
+    auto consumer =
+        std::make_shared<GWebsocketConsumerT<Item>>(Gem::Courtier::GWebsocketConsumerConfig{
+            .serializationMode = BIN,
+            .nThreads = n_threads,
+            .pingInterval = PING_INTERVAL_S,
+        });
     consumer->startServer();
     return consumer;
 }
@@ -139,14 +139,12 @@ std::shared_ptr<GWebsocketConsumerT<Item>> startedServer(std::size_t n_threads) 
 /** @brief A client for @p port with the same keep-alive as the servers of these tests. */
 template <typename Item>
 std::shared_ptr<GWebsocketClientT<Item>> matchingClient(unsigned short port) {
-    return std::make_shared<GWebsocketClientT<Item>>(
-        "127.0.0.1",
-        port,
-        BIN,
-        /*verbose_control_frames=*/false,
-        /*prefetch_depth=*/1,
-        PING_INTERVAL_S
-    );
+    return std::make_shared<GWebsocketClientT<Item>>(Gem::Courtier::GWebsocketConsumerConfig{
+        .ip = "127.0.0.1",
+        .port = port,
+        .serializationMode = BIN,
+        .pingInterval = PING_INTERVAL_S,
+    });
 }
 
 /** @brief Polls @p condition until it holds or @p patience has passed.

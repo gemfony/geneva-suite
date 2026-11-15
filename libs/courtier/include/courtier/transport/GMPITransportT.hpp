@@ -47,6 +47,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -85,19 +86,13 @@ namespace Gem::Courtier::Consumers {
 // code does guard against is a peer that falls SILENT: see the two time limits above.
 
 /**
-     * Stores configuration options which are used by master node and worker nodes
-     */
+ * The configuration of the MPI consumer GMPIConsumerT and of its client (mnemonic "mpi"), used by
+ * the master node and the worker nodes alike. A plain aggregate, shared by the consumer and its
+ * client and to be copied freely; it can be written with designated initializers.
+ */
 struct MPIConsumerConfig {
-    /**
-     * @brief Default constructor. Seeds nHandlerThreads with the hardware recommendation.
-     *
-     * The value may later be overwritten by user-defined command line options.
-     */
-    MPIConsumerConfig() : nHandlerThreads(this->nHandlerThreadsRecommendation()) {
-        // Set the handler threads to the hardware recommendation as a default value
-        // This can later be overwritten by user-defined command line options
-        
-    }
+    /// The mnemonic of the consumer family this struct configures, as chosen with --consumer
+    static constexpr std::string_view MNEMONIC = "mpi";
 
     /**
          * Whether the clients should issue a request for the next work item while the current work item is still being processed
@@ -109,8 +104,9 @@ struct MPIConsumerConfig {
     Gem::Common::serializationMode serializationMode{Gem::Common::serializationMode::GEM_BINARY};
     /**
          * The number of threads in a thread pool which is used to handle incoming requests.
+         * Starts as the recommendation for this machine (nHandlerThreadsRecommendation()).
          */
-    std::uint32_t nHandlerThreads{0};
+    std::uint32_t nHandlerThreads{nHandlerThreadsRecommendation()};
     /**
          * The time in ms between each check of completion of the send operation of a new work item to a worker node.
          */

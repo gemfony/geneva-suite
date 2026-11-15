@@ -94,17 +94,22 @@ std::size_t count_processed(const std::vector<item_ptr> &v) {
  *  batch through the executor, then tears everything down cleanly. */
 void run_over_sockets(std::vector<item_ptr> &items, const c2::GSubmissionPolicy &policy,
                       std::size_t n_clients = 1, std::size_t prefetch_depth = 1) {
-    auto consumer = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(/*port=*/0, /*threads=*/2, BIN);
+    c2::GAsioConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .maxReconnects = 50,
+        .clientPrefetchDepth = prefetch_depth,
+    };
+    auto consumer = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(config);
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     std::vector<std::shared_ptr<ccons::GAsioConsumerClientT<GFaultyContainer>>> clients;
     std::vector<std::jthread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(
-            "127.0.0.1", port, BIN, /*max_reconnects=*/50, prefetch_depth
-        );
+        auto client = std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -214,8 +219,9 @@ TEST_CASE(
     "courtier(asio): a request the server cannot decode is answered with NO_WORK",
     "[courtier][asio][net]"
 ) {
-    auto consumer =
-        std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(/*port=*/0, /*threads=*/2, BIN);
+    auto consumer = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(
+        c2::GAsioConsumerConfig{.serializationMode = BIN, .nThreads = 2}
+    );
     consumer->startServer();
 
     // An empty reply would make a real client fail to decode it and shut down.
@@ -230,8 +236,9 @@ TEST_CASE(
     "courtier(asio): a frame a client must not send is answered with NO_WORK",
     "[courtier][asio][net]"
 ) {
-    auto consumer =
-        std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(/*port=*/0, /*threads=*/2, BIN);
+    auto consumer = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(
+        c2::GAsioConsumerConfig{.serializationMode = BIN, .nThreads = 2}
+    );
     consumer->startServer();
 
     // WORK travels from the server to the client only; the server's dispatch does not know it.
@@ -263,12 +270,13 @@ TEST_CASE("courtier(asio): a client whose server never answers gives up", "[cour
     accept_next();
     const std::jthread silent_server([&] { ctx.run(); });
 
-    auto client = std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(
-        "127.0.0.1",
-        acceptor.local_endpoint().port(),
-        BIN,
-        /*max_reconnects=*/0
-    );
+    auto client =
+        std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(c2::GAsioConsumerConfig{
+            .ip = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+            .serializationMode = BIN,
+            .maxReconnects = 0,
+        });
     client->setReplyTimeout(200ms);
 
     std::atomic<bool> finished{false};

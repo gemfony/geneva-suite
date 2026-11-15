@@ -67,6 +67,7 @@
 #include "courtier/GServerSessionLogic.hpp"       // shared synchronous server dispatch (PULL/RETURN/...)
 #include "courtier/GWireCodec.hpp"                // shared scope-wrapped (de)serialization + blob fetch
 #include "courtier/GWireSerializationContext.hpp"
+#include "courtier/consumers/GAsioConsumerConfig.hpp" // the configuration of the family
 #include "courtier/transport/GPrefetchingClientT.hpp" // blob send-once: registry + wire scope
 
 namespace Gem::Courtier::Consumers {
@@ -83,6 +84,8 @@ namespace Gem::Courtier::Consumers {
  * the next in the same connection. A configurable prefetch depth keeps spare items in flight so the
  * evaluation of one item overlaps the fetch/return connections of others (a depth of 1 reproduces
  * the classic strictly-serial behaviour).
+ *
+ * It is configured by a GAsioConsumerConfig, the struct its server is built from too.
  *
  * @tparam processable_type The work-item type transported and evaluated by this client.
  */
@@ -118,28 +121,25 @@ class GAsioConsumerClientT final
     using pipeline_base::wire_registry_;
 
 public:
+    /// The configuration this client (and its server) is built from
+    using config_type = Gem::Courtier::GAsioConsumerConfig;
+
     //-------------------------------------------------------------------------
     /**
-	  * @brief Initialization with host/ip and port.
+	  * @brief Initialization from the configuration of the asio family.
 	  *
-	  * @param address The IP address or host name of the server to connect to
-	  * @param port The TCP port the server listens on
-	  * @param serialization_mode The serialization format used on the wire (text, XML or binary)
-	  * @param max_reconnects Maximum number of consecutive failed connection attempts before the client gives up
-	  * @param prefetch_depth Maximum number of work items kept in flight at once; a value of 0 is clamped to 1 (strictly serial)
+	  * @param config Reads ip (the name or address of the server), port (the server's port),
+	  *        serializationMode (the wire format), maxReconnects (consecutive failed connection
+	  *        attempts before the client gives up) and clientPrefetchDepth (the largest number of
+	  *        work items in flight at once; 0 is clamped to 1, strictly serial). nThreads is
+	  *        ignored.
 	  */
-    GAsioConsumerClientT(
-        std::string address,
-        unsigned short port,
-        Gem::Common::serializationMode serialization_mode,
-        std::size_t max_reconnects,
-        std::size_t prefetch_depth = 1
-    )
-      : pipeline_base("GAsioConsumerClientT<processable_type>", prefetch_depth)
-      , address_(std::move(address))
-      , port_(port)
-      , serialization_mode_(serialization_mode)
-      , max_reconnects_(max_reconnects) {
+    explicit GAsioConsumerClientT(const config_type &config)
+      : pipeline_base("GAsioConsumerClientT<processable_type>", config.clientPrefetchDepth)
+      , address_(config.ip)
+      , port_(config.port)
+      , serialization_mode_(config.serializationMode)
+      , max_reconnects_(config.maxReconnects) {
         // blob send-once. ASIO uses a fresh one-shot connection per exchange, so there is no
         // persistent per-connection peer identity for the server to key its per-peer "already holds this
         // blob" tracking on. The client therefore mints ONE stable, process-unique peer id at startup

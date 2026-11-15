@@ -58,6 +58,7 @@
 #include "courtier/GServerSessionLogic.hpp"       // shared synchronous server dispatch (PULL/RETURN/...)
 #include "courtier/GWireCodec.hpp"                // shared scope-wrapped (de)serialization
 #include "courtier/GWireSerializationContext.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp" // the configuration of the family
 #include "courtier/transport/GPrefetchingClientT.hpp" // the client's work pipeline
 #include "courtier/transport/GWebsocketPeer.hpp"      // the connection, shared by both ends
 
@@ -86,6 +87,8 @@ namespace Gem::Courtier::Consumers {
  * WORK/NO_WORK, so the server (and its sessions) need no knowledge of the client's prefetch depth.
  * The client treats a late result as an ordinary RETURN -- whether it still matters is entirely the
  * server's concern (it reconciles by correlation id and silently drops results for finished batches).
+ *
+ * It is configured by a GWebsocketConsumerConfig, the struct its server is built from too.
  *
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
@@ -119,33 +122,27 @@ class GWebsocketClientT final
     using pipeline_base::wire_registry_;
 
 public:
+    /// The configuration this client (and its server) is built from
+    using config_type = Gem::Courtier::GWebsocketConsumerConfig;
+
     //-------------------------------------------------------------------------
     /**
-	  * @brief Initialization with host/ip and port.
+	  * @brief Initialization from the configuration of the websocket family.
 	  *
-	  * @param address The IP address or host name of the server to connect to
-	  * @param port The TCP port the server is listening on
-	  * @param serialization_mode Which serialization format (binary or JSON) the wire protocol uses
-	  * @param verbose_control_frames If true, a diagnostic message is logged for every control frame received
-	  * @param prefetch_depth Maximum number of work items kept in flight at once (a value of 0 is treated as 1)
-	  * @param ping_interval Seconds of silence after which a ping is sent; after twice that time
-	  *        without any inbound data the server is presumed gone and the client terminates (0
-	  *        switches this off)
+	  * @param config Reads ip (the name or address of the server), port (the server's port),
+	  *        serializationMode (the wire format), verboseControlFrames (log every control frame
+	  *        received), clientPrefetchDepth (the largest number of work items in flight at once; 0
+	  *        is treated as 1) and pingInterval (seconds of silence after which a ping is sent;
+	  *        after twice that time without any inbound data the server is presumed gone and the
+	  *        client terminates; 0 switches this off). nThreads is ignored.
 	  */
-    GWebsocketClientT(
-        std::string address,
-        unsigned short port,
-        Gem::Common::serializationMode serialization_mode,
-        bool verbose_control_frames,
-        std::size_t prefetch_depth = 1,
-        std::size_t ping_interval = Gem::Courtier::GBEASTCONSUMERPINGINTERVAL
-    )
-      : pipeline_base("GWebsocketClientT<processable_type>", prefetch_depth)
-      , address_(std::move(address))
-      , port_(port)
-      , serialization_mode_(serialization_mode)
-      , verbose_control_frames_(verbose_control_frames)
-      , ping_interval_(ping_interval) {
+    explicit GWebsocketClientT(const config_type &config)
+      : pipeline_base("GWebsocketClientT<processable_type>", config.clientPrefetchDepth)
+      , address_(config.ip)
+      , port_(config.port)
+      , serialization_mode_(config.serializationMode)
+      , verbose_control_frames_(config.verboseControlFrames)
+      , ping_interval_(config.pingInterval) {
         // Engage the blob send-once wire form. The client caches every blob it receives,
         // keyed by content id, so an id-only work item resolves locally. No fetch_blob is installed: on
         // websocket the server sends the full blob inline on the first item of each (re)connection and

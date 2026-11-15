@@ -64,7 +64,10 @@ using item_ptr = std::unique_ptr<GFaultyContainer>;
 template <typename ConsumerT>
 struct LocalFixtureT {
     explicit LocalFixtureT(unsigned int n_threads = 0)
-      : consumer(std::make_shared<ConsumerT>(n_threads)) {}
+      : consumer(
+            std::make_shared<ConsumerT>(typename ConsumerT::config_type{.nThreads = n_threads})
+        ) {
+    }
 
     std::shared_ptr<GBaseConsumerT<GFaultyContainer>> consumer;
 

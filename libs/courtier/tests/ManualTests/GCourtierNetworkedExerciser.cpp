@@ -72,11 +72,15 @@ int run_server(const std::string &consumer, unsigned short port, std::size_t n, 
     std::shared_ptr<c2::GAsioConsumerT<GFaultyContainer>> asio;
     std::shared_ptr<c2::GWebsocketConsumerT<GFaultyContainer>> beast;
     if(consumer == "beast") {
-        beast = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(port, 0, BIN);
+        beast = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(
+            c2::GWebsocketConsumerConfig{.port = port, .serializationMode = BIN}
+        );
         base = beast;
     }
     else {
-        asio = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(port, 0, BIN);
+        asio = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(
+            c2::GAsioConsumerConfig{.port = port, .serializationMode = BIN}
+        );
         base = asio;
     }
 
@@ -133,13 +137,19 @@ int run_client(const std::string &consumer, const std::string &ip, unsigned shor
     std::cout << "[client] connecting to " << ip << ":" << port << " (" << consumer << ")\n"
               << std::flush;
     if(consumer == "beast") {
-        auto client =
-            std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(ip, port, BIN, false);
+        auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
+            c2::GWebsocketConsumerConfig{.ip = ip, .port = port, .serializationMode = BIN}
+        );
         client->run();
     }
     else {
         auto client =
-            std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(ip, port, BIN, 50);
+            std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(c2::GAsioConsumerConfig{
+                .ip = ip,
+                .port = port,
+                .serializationMode = BIN,
+                .maxReconnects = 50,
+            });
         client->run();
     }
     return 0;

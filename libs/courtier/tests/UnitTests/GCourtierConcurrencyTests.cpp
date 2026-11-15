@@ -307,7 +307,9 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
     constexpr std::size_t M = 8;
     constexpr std::size_t N = 30;
 
-    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(4);
+    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(
+        c2::GStdThreadConsumerConfig{.nThreads = 4}
+    );
 
     std::vector<std::vector<item_ptr>> batches;
     batches.reserve(M);

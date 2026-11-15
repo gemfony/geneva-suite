@@ -42,6 +42,7 @@
 
 // Geneva headers
 #include "courtier/GCourtierEnums.hpp" // GASIOSESSIONTIMEOUT
+#include "courtier/consumers/GAsioConsumerConfig.hpp"
 #include "courtier/consumers/GTcpAcceptingConsumerT.hpp"
 #include "courtier/transport/GAsioTransportT.hpp" // reuse the existing session + client + wire protocol
 
@@ -61,28 +62,32 @@ namespace Gem::Courtier {
  * Gem::Courtier::Consumers::GAsioConsumerClientT can serve a courtier server (the rework is
  * behaviour-neutral at the protocol level).
  *
+ * It is configured by a GAsioConsumerConfig, the struct its client is built from too.
+ *
  * @tparam processable_type The work-item type served to clients and collected back from them.
  */
 template <typename processable_type>
 class GAsioConsumerT final : public GTcpAcceptingConsumerT<processable_type> {
 public:
     using session_type = Gem::Courtier::Consumers::GAsioConsumerSessionT<processable_type>;
+    /// The configuration this consumer (and its client) is built from
+    using config_type = GAsioConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Initialization with the listen port, the number of io threads and the serialization
-     *  mode used on the wire.
+    /** @brief Initialization from the configuration of the asio family.
      *
-     *  @param port The TCP port to listen on (0 lets the OS pick an ephemeral port, learned in startServer())
-     *  @param n_threads Number of io threads to run; 0 means use the hardware concurrency
-     *  @param serialization_mode The serialization format used on the wire (defaults to binary) */
-    explicit GAsioConsumerT(
-        unsigned short port,
-        std::size_t n_threads = 0,
-        Gem::Common::serializationMode serialization_mode = Gem::Common::serializationMode::GEM_BINARY
-    )
-        : GTcpAcceptingConsumerT<processable_type>("Gem::Courtier::GAsioConsumerT", port, n_threads)
-        , serialization_mode_(serialization_mode)
-    { /* nothing */ }
+     *  @param config Reads port (0 lets the OS pick an ephemeral port, learned in startServer()),
+     *         nThreads (io threads; 0 means the hardware concurrency) and serializationMode (the
+     *         wire format). The client members (ip, maxReconnects, clientPrefetchDepth) are
+     *         ignored. */
+    explicit GAsioConsumerT(const config_type &config)
+      : GTcpAcceptingConsumerT<processable_type>(
+            "Gem::Courtier::GAsioConsumerT",
+            config.port,
+            config.nThreads
+        )
+      , serialization_mode_(config.serializationMode) { /* nothing */
+    }
 
     /** @brief Stops the server while this object is still complete (see the base class). */
     ~GAsioConsumerT() override {

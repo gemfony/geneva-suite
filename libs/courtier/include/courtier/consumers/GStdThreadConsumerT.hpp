@@ -42,6 +42,7 @@
 // Geneva headers (reused from the common library)
 #include "common/concurrency/GThreadPool.hpp"
 #include "courtier/GBaseConsumerT.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 
 namespace Gem::Courtier {
 
@@ -54,23 +55,27 @@ namespace Gem::Courtier {
  * here so it never escapes the worker thread). Reconciliation against the policy is inherited
  * from GBaseConsumerT.
  *
+ * It is configured by a GStdThreadConsumerConfig.
+ *
  * @tparam processable_type The work-item type evaluated by the worker threads.
  */
 template <typename processable_type>
 class GStdThreadConsumerT final : public GBaseConsumerT<processable_type> {
 public:
     using item_ptr = typename GBaseConsumerT<processable_type>::item_ptr;
+    /// The configuration this consumer is built from
+    using config_type = GStdThreadConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Initialization with the number of worker threads (0 == hardware concurrency).
-     *  @param n_threads Number of worker threads in the pool; 0 means use the hardware concurrency. */
-    explicit GStdThreadConsumerT(unsigned int n_threads = 0)
-        : pool_(
-              "consumer:stc",
-              n_threads == 0 ? default_threads() : n_threads,
-              Gem::Common::Concurrency::ThreadElasticity::Elastic
-          )
-    {
+    /** @brief Initialization from the configuration of the thread-pool consumer.
+     *  @param config Reads nThreads, the number of worker threads in the pool (0: as many as the
+     *         machine has hardware threads) */
+    explicit GStdThreadConsumerT(const config_type &config = {})
+      : pool_(
+            "consumer:stc",
+            config.nThreads == 0 ? default_threads() : config.nThreads,
+            Gem::Common::Concurrency::ThreadElasticity::Elastic
+        ) {
         instances_constructed().fetch_add(1, std::memory_order_relaxed);
     }
 

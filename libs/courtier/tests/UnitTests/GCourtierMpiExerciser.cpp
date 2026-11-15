@@ -72,6 +72,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -91,6 +92,9 @@ using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::Consumers::GMPIEnvironment;
 namespace c2 = Gem::Courtier;
 using client_type = c2::Consumers::GMPIConsumerWorkerNodeT<GFaultyContainer>;
+
+// The configuration of the MPI family is an aggregate: it takes designated initializers.
+static_assert(std::is_aggregate_v<c2::Consumers::MPIConsumerConfig>);
 
 namespace {
 
@@ -128,8 +132,7 @@ int zeroCleanInterval(int argc, char **argv) {
     // The environment finalizes MPI when it goes out of scope, whether the consumer was built or
     // not.
     const auto environment = std::make_shared<GMPIEnvironment>(&argc, &argv);
-    c2::Consumers::MPIConsumerConfig config;
-    config.masterCleanSessIntervalMSec = 0;
+    const c2::Consumers::MPIConsumerConfig config{.masterCleanSessIntervalMSec = 0};
     bool refused = false;
     try {
         const c2::GMPIConsumerT<GFaultyContainer> consumer(environment, config);

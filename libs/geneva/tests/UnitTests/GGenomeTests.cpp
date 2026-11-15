@@ -2017,24 +2017,27 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
         items.push_back(std::move(ind));
     }
 
-    auto consumer =
-        std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     // The work item is the abstract GGenome base, so the consumer needs a polymorphic clone
     // (copy-construction would slice). This mirrors GConsumerSetup's individualCloneFunction().
     consumer->setCloneFunction(
         [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
     );
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2099,21 +2102,26 @@ TEST_CASE("Wire send-once over a real ASIO loopback interns one layout", "[flat]
         items.push_back(std::move(ind));
     }
 
-    auto consumer = std::make_shared<c2::GAsioConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
+    c2::GAsioConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .maxReconnects = 50,
+        .clientPrefetchDepth = 8,
+    };
+    auto consumer = std::make_shared<c2::GAsioConsumerT<GGenome>>(config);
     consumer->setCloneFunction(
         [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
     );
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GAsioConsumerClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GAsioConsumerClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*max_reconnects=*/50, /*prefetch_depth=*/8
-        );
+        auto client = std::make_shared<ccons::GAsioConsumerClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2182,21 +2190,25 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
         | std::views::transform([](const auto &it) -> const GGenome * { return it.get(); })
         | std::ranges::to<std::vector<const GGenome *>>();
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->setCloneFunction(
         [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
     );
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2265,22 +2277,26 @@ TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay c
         items.push_back(std::move(ind));
     }
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->setCloneFunction(
         [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
     );
     consumer->setInternedBlobCapacity(2); // below the 4 distinct layouts -> eviction is forced
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2336,20 +2352,24 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
     constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/4, BIN);
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 4,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->setCloneFunction(
         [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
     );
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < 4; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try { client->run(); } catch(...) { any_threw.store(true); }

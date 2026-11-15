@@ -85,6 +85,40 @@ namespace po = boost::program_options;
 
 namespace {
 
+/** @brief The configuration of the thread-pool consumer, from a consumer specification.
+ *  @param spec The consumer specification @return The configuration */
+c2::GStdThreadConsumerConfig stdThreadConfigFrom(const ConsumerSpec &spec) {
+    return {.nThreads = spec.n_threads};
+}
+
+/** @brief The configuration of the asio consumer and its client, from a consumer specification.
+ *  @param spec The consumer specification @return The configuration */
+c2::GAsioConsumerConfig asioConfigFrom(const ConsumerSpec &spec) {
+    return {
+        .ip = spec.ip,
+        .port = spec.port,
+        .serializationMode = spec.serialization_mode,
+        .nThreads = spec.n_threads,
+        .maxReconnects = spec.max_reconnects,
+        .clientPrefetchDepth = spec.client_prefetch_depth,
+    };
+}
+
+/** @brief The configuration of the websocket consumer and its client, from a consumer
+ *  specification.
+ *  @param spec The consumer specification @return The configuration */
+c2::GWebsocketConsumerConfig websocketConfigFrom(const ConsumerSpec &spec) {
+    return {
+        .ip = spec.ip,
+        .port = spec.port,
+        .serializationMode = spec.serialization_mode,
+        .nThreads = spec.n_threads,
+        .pingInterval = spec.ping_interval,
+        .verboseControlFrames = spec.verbose_control_frames,
+        .clientPrefetchDepth = spec.client_prefetch_depth,
+    };
+}
+
 } /* anonymous namespace */
 
 /**
@@ -116,7 +150,8 @@ public:
     [[nodiscard]] bool needsClient() const override { return false; }
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(spec.n_threads);
+        auto consumer =
+            std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(stdThreadConfigFrom(spec));
         consumer->setCloneFunction(individualCloneFunction());
         ConsumerSetup setup;
         setup.consumer = consumer;
@@ -155,8 +190,7 @@ public:
     [[nodiscard]] bool bindsListeningPort() const override { return true; }
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(
-            spec.port, spec.n_threads, spec.serialization_mode);
+        auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(asioConfigFrom(spec));
         consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
@@ -187,7 +221,8 @@ public:
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
     buildClient(const ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GAsioConsumerClientT<gen::GGenome>>(
-            spec.ip, spec.port, spec.serialization_mode, spec.max_reconnects, spec.client_prefetch_depth);
+            asioConfigFrom(spec)
+        );
     }
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
@@ -223,13 +258,8 @@ public:
     [[nodiscard]] bool bindsListeningPort() const override { return true; }
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(
-            spec.port,
-            spec.n_threads,
-            spec.serialization_mode,
-            spec.ping_interval,
-            spec.verbose_control_frames
-        );
+        auto consumer =
+            std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(websocketConfigFrom(spec));
         consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
@@ -263,12 +293,7 @@ public:
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
     buildClient(const ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GWebsocketClientT<gen::GGenome>>(
-            spec.ip,
-            spec.port,
-            spec.serialization_mode,
-            spec.verbose_control_frames,
-            spec.client_prefetch_depth,
-            spec.ping_interval
+            websocketConfigFrom(spec)
         );
     }
 

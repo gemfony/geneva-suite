@@ -41,8 +41,9 @@
 #include <boost/asio.hpp>
 
 // Geneva headers
-#include "courtier/transport/GWebsocketTransportT.hpp" // reuse the existing session + client + protocol
 #include "courtier/consumers/GTcpAcceptingConsumerT.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
+#include "courtier/transport/GWebsocketTransportT.hpp" // the session, the client, the protocol
 
 namespace Gem::Courtier {
 
@@ -60,38 +61,35 @@ namespace Gem::Courtier {
  * (Gem::Courtier::Consumers::GWebsocketConsumerSessionT) and GCommandContainerT wire protocol, so an
  * unmodified Gem::Courtier::Consumers::GWebsocketClientT serves a courtier server.
  *
+ * It is configured by a GWebsocketConsumerConfig, the struct its client is built from too.
+ *
  * @tparam processable_type The work-item type handed to clients and reconciled back into the population
  */
 template <typename processable_type>
 class GWebsocketConsumerT final : public GTcpAcceptingConsumerT<processable_type> {
 public:
     using session_type = Gem::Courtier::Consumers::GWebsocketConsumerSessionT<processable_type>;
+    /// The configuration this consumer (and its client) is built from
+    using config_type = GWebsocketConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Constructs the websocket consumer.
+    /** @brief Constructs the websocket consumer from the configuration of its family.
      *
-     *  @param port The TCP port the server listens on (0 lets the OS pick; the chosen port is read back)
-     *  @param n_threads Number of io threads to run; 0 selects the hardware concurrency
-     *  @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
-     *  @param ping_interval Seconds of silence after which a session pings its client; after twice
-     *         that time without any inbound data the client is presumed gone (0 switches this off)
-     *  @param verbose_control_frames If true, sessions log a diagnostic message for every control frame */
-    explicit GWebsocketConsumerT(
-        unsigned short port,
-        std::size_t n_threads = 0,
-        Gem::Common::serializationMode serialization_mode =
-            Gem::Common::serializationMode::GEM_BINARY,
-        std::size_t ping_interval = GBEASTCONSUMERPINGINTERVAL,
-        bool verbose_control_frames = false
-    )
+     *  @param config Reads port (0 lets the OS pick; the chosen port is read back), nThreads (io
+     *         threads; 0 selects the hardware concurrency), serializationMode (the wire format),
+     *         pingInterval (seconds of silence after which a session pings its client; after twice
+     *         that time without any inbound data the client is presumed gone; 0 switches this off)
+     *         and verboseControlFrames. The client members (ip, clientPrefetchDepth) are
+     *         ignored. */
+    explicit GWebsocketConsumerT(const config_type &config)
       : GTcpAcceptingConsumerT<processable_type>(
             "Gem::Courtier::GWebsocketConsumerT",
-            port,
-            n_threads
+            config.port,
+            config.nThreads
         )
-      , serialization_mode_(serialization_mode)
-      , ping_interval_(ping_interval)
-      , verbose_control_frames_(verbose_control_frames) { /* nothing */
+      , serialization_mode_(config.serializationMode)
+      , ping_interval_(config.pingInterval)
+      , verbose_control_frames_(config.verboseControlFrames) { /* nothing */
     }
 
     /** @brief Stops the server while this object is still complete (see the base class). */
