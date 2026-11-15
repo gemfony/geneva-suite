@@ -91,7 +91,7 @@ public:
      * concurrent ones) get the same consumer, so a process has at most one. The factory runs under the
      * lock (consumer construction is cheap and one-shot).
      *
-     * @param factory Builds a ready consumer (clone function set) when none is present
+     * @param factory Builds a ready consumer when none is present
      * @return The process consumer (the pre-existing one, or the freshly built+registered one)
      */
     consumer_ptr ensureConsumer(const std::function<consumer_ptr()> &factory) {

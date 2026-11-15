@@ -51,6 +51,12 @@
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 
+// For the polymorphic work items of the clone case
+#include <stdexcept>
+#include <string>
+
+#include "courtier/GProcessingContainerT.hpp"
+
 using namespace Gem::Courtier;
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
@@ -210,3 +216,122 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+
+/******************************************************************************/
+// A work item whose type is a polymorphic base: clone_item_() must copy it through its own clone(),
+// as a copy construction of the base would slice a derived item.
+namespace {
+
+/** @brief A concrete, copy-constructible base item with a virtual clone() and a kind() that names
+ *  the dynamic type. Built to fail, its process_() throws. */
+class ShapeItem : public GProcessingContainerT<ShapeItem, bool> {
+    ///////////////////////////////////////////////////////////////////////
+    friend struct Gem::Weft::access;
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<GProcessingContainerT<ShapeItem, bool>>(
+            ar,
+            "GProcessingContainerT_ShapeItem",
+            *this
+        );
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+public:
+    /** @brief An item due for processing
+     *  @param fail Whether process_() is to throw */
+    explicit ShapeItem(bool fail)
+      : fail_(fail) {
+        this->mark_as_due_for_processing();
+    }
+    /** @brief For deserialization only */
+    ShapeItem() = default;
+    ShapeItem(const ShapeItem &) = default;
+    ShapeItem &operator=(const ShapeItem &) = default;
+    ShapeItem(ShapeItem &&) noexcept = default;
+    ShapeItem &operator=(ShapeItem &&) noexcept = default;
+    ~ShapeItem() override = default;
+
+    /** @brief A deep copy of this item, of its dynamic type @return The copy */
+    [[nodiscard]] virtual std::unique_ptr<ShapeItem> clone() const {
+        return std::make_unique<ShapeItem>(*this);
+    }
+    /** @brief The dynamic type of this item @return "base" */
+    [[nodiscard]] virtual std::string kind() const {
+        return "base";
+    }
+
+private:
+    /** @brief Throws if the item was built to fail, registers a result otherwise */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec = std::vector<bool>()) final {
+        if(fail_) {
+            throw std::runtime_error("ShapeItem: built to fail");
+        }
+        this->registerResult(0, true);
+    }
+
+    bool fail_ = false; ///< Whether process_() throws
+};
+
+/** @brief A derived item: its clone() keeps the dynamic type. */
+class RoundItem final : public ShapeItem {
+public:
+    using ShapeItem::ShapeItem;
+
+    /** @brief A deep copy of this item, of its dynamic type @return The copy */
+    [[nodiscard]] std::unique_ptr<ShapeItem> clone() const override {
+        return std::make_unique<RoundItem>(*this);
+    }
+    /** @brief The dynamic type of this item @return "round" */
+    [[nodiscard]] std::string kind() const override {
+        return "round";
+    }
+};
+
+using shape_ptr = std::unique_ptr<ShapeItem>;
+
+/** @brief Four round items, the last built to fail @return The batch */
+std::vector<shape_ptr> roundBatch() {
+    std::vector<shape_ptr> batch;
+    batch.reserve(4);
+    for(std::size_t i = 0; i < 4; ++i) {
+        batch.push_back(std::make_unique<RoundItem>(/*fail=*/i == 3));
+    }
+    return batch;
+}
+
+} // anonymous namespace
+
+// Two short sections; the complexity counted is that of Catch2's macros.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE(
+    "courtier: a work item with clone() is cloned through it, not copy-constructed",
+    "[courtier][policy][clone]"
+) {
+    auto consumer = std::make_shared<GStdThreadConsumerT<ShapeItem>>();
+    auto batch = roundBatch();
+
+    SECTION("the refill has the dynamic type of its source") {
+        consumer->processBatch(
+            std::span<shape_ptr>(batch.data(), batch.size()),
+            GSubmissionPolicy::clone_on_partial_return()
+        );
+        REQUIRE(batch[3]);
+        CHECK(batch[3]->is_processed());
+        CHECK(batch[3]->kind() == "round");
+        CHECK(dynamic_cast<const RoundItem *>(batch[3].get()) != nullptr);
+    }
+
+    SECTION("a function that was set comes first") {
+        consumer->setCloneFunction([](const shape_ptr &src) -> shape_ptr {
+            return std::make_unique<ShapeItem>(*src);
+        });
+        consumer->processBatch(
+            std::span<shape_ptr>(batch.data(), batch.size()),
+            GSubmissionPolicy::clone_on_partial_return()
+        );
+        REQUIRE(batch[3]);
+        CHECK(batch[3]->is_processed());
+        CHECK(batch[3]->kind() == "base");
+    }
+}

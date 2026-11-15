@@ -33,7 +33,6 @@
 
 // Standard headers
 #include <cstddef>
-#include <functional>
 #include <memory>
 #include <string>
 
@@ -94,7 +93,7 @@ struct ConsumerSpec {
  * The result of building a courtier setup for the current process, a submitter.
  */
 struct ConsumerSetup {
-    /** @brief The ready consumer (clone function set, server started for networked consumers), also
+    /** @brief The ready consumer (server started for networked consumers), also
      *  registered as the process's single consumer in GConsumerRegistry. Null only for an unknown
      *  mnemonic. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer;
@@ -184,8 +183,8 @@ public:
  * @brief Builds a courtier setup (the consumer) for the current process, a submitter, from a spec.
  *
  * Resolves @c spec.mnemonic against @c consumerProviderStore() and invokes the matching provider's
- * @c setup(): it constructs the consumer, sets the polymorphic GGenome clone function (required by
- * clone-on-partial-return), and -- for networked consumers -- starts the server. The freshly-built
+ * @c setup(): it constructs the consumer and -- for networked consumers -- starts the server. (A
+ * consumer copies a GGenome through its virtual clone() by itself.) The freshly-built
  * consumer is registered in GConsumerRegistry as the process's single consumer. A socket consumer
  * whose process already holds a consumer reuses it rather than binding the port again. Call it on a
  * submitter only (see consumerRole()); a provider refuses to build on any other role.
@@ -329,18 +328,6 @@ std::size_t consumerCount();
  * @return One line per module that could not be loaded; empty if there is none.
  */
 std::string optionalConsumerNotes();
-
-/******************************************************************************/
-/**
- * @brief The polymorphic clone function every consumer is given for clone-on-partial-return.
- *
- * Copy-construction would slice the held individual, so the individual's virtual clone() is used. Exposed
- * for consumer providers that live in modules of their own.
- *
- * @return A functor that deep-copies a GGenome via its virtual clone()
- */
-std::function<std::unique_ptr<gen::GGenome>(const std::unique_ptr<gen::GGenome> &)>
-individualCloneFunction();
 
 /******************************************************************************/
 

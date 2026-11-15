@@ -167,8 +167,8 @@ int runParityCheck(int n, const std::string &consumerConfig) {
     // GPU: build the device marshaller + consumer directly (the same GGPUConsumerT the "gpu" mnemonic
     // builds) and evaluate the whole batch in one bulk launch. full_success_or_fatal: every item must be evaluated.
     auto marshaller = std::make_shared<FunctionGPU::GFunctionGPUMarshaller>();
-    auto consumer = std::make_shared<gpu::GGPUConsumerT<GGenome, double>>(consumerConfig, marshaller);
-    consumer->setCloneFunction([](const std::unique_ptr<GGenome> &p) { return p->clone(); });
+    auto consumer =
+        std::make_shared<gpu::GGPUConsumerT<GGenome, double>>(consumerConfig, marshaller);
     consumer->processBatch(
         std::span<std::unique_ptr<GGenome>>(gpuBatch.data(), gpuBatch.size()),
         Gem::Courtier::GSubmissionPolicy::full_success_or_fatal());

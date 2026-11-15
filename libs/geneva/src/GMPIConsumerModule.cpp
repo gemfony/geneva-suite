@@ -221,7 +221,6 @@ public:
             mpiEnvironment(),
             mpiConfigFrom(spec)
         );
-        consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
         setup.consumer = consumer;

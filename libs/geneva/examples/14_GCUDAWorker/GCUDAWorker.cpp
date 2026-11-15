@@ -200,9 +200,6 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
     auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
     auto consumer =
         std::make_shared<gpu::GGPUConsumerT<GGenome, gimage_fp_t>>(consumerConfig, marshaller);
-    consumer->setCloneFunction([](const std::unique_ptr<GGenome> &p) {
-        return p->clone();
-    });
     consumer->processBatch(
         std::span<std::unique_ptr<GGenome>>(gpuBatch.data(), gpuBatch.size()),
         Gem::Courtier::GSubmissionPolicy::full_success_or_fatal());

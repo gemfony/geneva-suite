@@ -1822,7 +1822,6 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
     using namespace std::chrono_literals;
 
     Gem::Tests::LateReturnConsumer consumer;
-    consumer.setCloneFunction([](const std::unique_ptr<GGenome> &p) { return p->clone(); });
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
     consumer.setLeaseBootstrap(20ms);
     consumer.setLeaseBounds(10ms, 200ms);
@@ -2024,11 +2023,6 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
         .clientPrefetchDepth = 4,
     };
     auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
-    // The work item is the abstract GGenome base, so the consumer needs a polymorphic clone
-    // (copy-construction would slice). This mirrors GConsumerSetup's individualCloneFunction().
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
     consumer->startServer();
     config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
@@ -2110,9 +2104,6 @@ TEST_CASE("Wire send-once over a real ASIO loopback interns one layout", "[flat]
         .clientPrefetchDepth = 8,
     };
     auto consumer = std::make_shared<c2::GAsioConsumerT<GGenome>>(config);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
     consumer->startServer();
     config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
@@ -2197,9 +2188,6 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
         .clientPrefetchDepth = 4,
     };
     auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
     consumer->startServer();
     config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
@@ -2284,9 +2272,6 @@ TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay c
         .clientPrefetchDepth = 4,
     };
     auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
     consumer->setInternedBlobCapacity(2); // below the 4 distinct layouts -> eviction is forced
     consumer->startServer();
     config.port = consumer->getPort(); // the server chose a free port; its clients are told
@@ -2359,9 +2344,6 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
         .clientPrefetchDepth = 4,
     };
     auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
     consumer->startServer();
     config.port = consumer->getPort(); // the server chose a free port; its clients are told
 

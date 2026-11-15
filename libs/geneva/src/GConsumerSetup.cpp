@@ -32,13 +32,12 @@
 // Standard headers
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <mutex>
-#include <cstdint>
 #include <format>
-#include <functional>
 #include <memory>
+#include <mutex>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -119,22 +118,6 @@ c2::GWebsocketConsumerConfig websocketConfigFrom(const ConsumerSpec &spec) {
     };
 }
 
-} /* anonymous namespace */
-
-/**
- * @brief Builds the polymorphic clone functor for GGenome.
- *
- * Copy-construction would slice the held individual, so a virtual clone() is used instead.
- *
- * @return A functor that deep-copies a GGenome via its virtual clone()
- */
-std::function<std::unique_ptr<gen::GGenome>(const std::unique_ptr<gen::GGenome> &)>
-individualCloneFunction() {
-    return [](const std::unique_ptr<gen::GGenome> &p) { return p->clone(); };
-}
-
-namespace {
-
 /******************************************************************************/
 // The concrete consumer providers. Each moves the construction / option / client logic that the old
 // hard-coded table + switch held for one mnemonic into its own provider; they register into
@@ -152,7 +135,6 @@ public:
     ConsumerSetup setup(const ConsumerSpec &spec) override {
         auto consumer =
             std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(stdThreadConfigFrom(spec));
-        consumer->setCloneFunction(individualCloneFunction());
         ConsumerSetup setup;
         setup.consumer = consumer;
         return setup;
@@ -191,7 +173,6 @@ public:
 
     ConsumerSetup setup(const ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(asioConfigFrom(spec));
-        consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
         setup.consumer = consumer;
@@ -260,7 +241,6 @@ public:
     ConsumerSetup setup(const ConsumerSpec &spec) override {
         auto consumer =
             std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(websocketConfigFrom(spec));
-        consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
         ConsumerSetup setup;
         setup.consumer = consumer;
@@ -397,7 +377,7 @@ private:
      * @tparam scalar_type The device scalar the marshaller was built for (matched to its scalarKind())
      * @param handle The scalar-agnostic marshaller handle from the store
      * @param configFile The GPU-consumer config file (backend + kernel selection)
-     * @return The ready GPU consumer (clone function set)
+     * @return The ready GPU consumer
      */
     template <typename scalar_type>
     static std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>>
@@ -411,9 +391,11 @@ private:
                 << "The registered GPU marshaller does not match its own declared scalar kind." << '\n'
             );
         }
-        auto consumer = std::make_shared<
-            Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome, scalar_type>>(configFile, marshaller);
-        consumer->setCloneFunction(individualCloneFunction());
+        auto consumer =
+            std::make_shared<Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome, scalar_type>>(
+                configFile,
+                marshaller
+            );
         return consumer;
     }
 };

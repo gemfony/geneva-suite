@@ -173,8 +173,8 @@ public:
      */
     Go2 &operator&(std::string const &mn);
 
-    /** @brief Supplies a custom, ready-to-use courtier consumer (clone function set, and -- for
-     *  networked consumers -- server started) for this run, OVERRIDING the mnemonic-based consumer
+    /** @brief Supplies a custom, ready-to-use courtier consumer (for networked consumers: with its
+     *  server started) for this run, OVERRIDING the mnemonic-based consumer
      *  selection. Used to plug in a custom consumer (e.g. a GPU consumer) that Go2 does not know how to
      *  build itself; it becomes the process's single consumer that every algorithm submits through. Call
      *  after construction and before optimize().

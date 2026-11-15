@@ -44,6 +44,9 @@
 #include <type_traits>
 #include <vector>
 
+// std::convertible_to, for the item's own clone() (clone_item_())
+#include <concepts>
+
 // Geneva headers (reused from the common + courtier libraries)
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -251,23 +254,30 @@ protected:
     }
 
     /***************************************************************************/
-    /** @brief Deep-clones one (uniquely owned) work item into a fresh owning item. Uses the polymorphic
-     *  clone functor when set (required for polymorphic item types such as GGenome, to avoid
-     *  slicing), otherwise copy-construction (correct for leaf/concrete item types). Used both by the
-     *  refill path and by the networked consumers when handing a session a copy to ship.
+    /** @brief Deep-clones one (uniquely owned) work item into a fresh owning item. In this order:
+     *  the clone function, if one was set (setCloneFunction()); else the item's own clone(), if it
+     *  yields the item pointer (so a polymorphic base such as GGenome is copied with its dynamic
+     *  type, not sliced); else copy construction (correct for leaf/concrete item types). Used both
+     *  by the refill path and by the networked consumers when handing a session a copy to ship.
      *  @param src The (borrowed) uniquely owned work item to clone from
      *  @return A fresh owning copy of @p src; an empty item_ptr if cloning is impossible (after fatal exit) */
     [[nodiscard]] item_ptr clone_item_(const item_ptr &src) const {
         if(clone_fn_) {
             return clone_fn_(src);
         }
-        if constexpr(std::is_copy_constructible_v<processable_type>) {
+        if constexpr(requires(const processable_type &item) {
+                         { item.clone() } -> std::convertible_to<item_ptr>;
+                     }) {
+            return src->clone();
+        }
+        else if constexpr(std::is_copy_constructible_v<processable_type>) {
             return std::make_unique<processable_type>(*src);
         }
         else {
             this->fatal_(
-                "cloning a work item needs a clone function (setCloneFunction) or a "
-                "copy-constructible work item."
+                "cloning a work item needs a clone function (setCloneFunction), a clone() "
+                "member function that yields the item pointer, or a copy-constructible work "
+                "item."
             );
         }
         return {};
@@ -275,11 +285,11 @@ protected:
 
 public:
     /***************************************************************************/
-    /** @brief Sets a polymorphic clone function for clone-on-partial-return. REQUIRED when the work
-     *  item is a polymorphic base (e.g. GGenome holding a concrete individual): plain
-     *  copy-construction of processable_type would SLICE it. The functor should deep-clone via the
-     *  type's own clone mechanism, e.g. `[](const item_ptr& p){ return p->template clone<T>(); }`.
-     *  When unset, refill falls back to copy-construction (correct for leaf/concrete item types).
+    /** @brief Sets the function that copies a work item, used before anything else (see
+     *  clone_item_()). Without one, an item is copied through its own clone() if that yields the
+     *  item pointer -- which covers a polymorphic base such as GGenome -- and by copy construction
+     *  otherwise. A function is needed only for an item type that has no fitting clone() and must
+     *  not be copy-constructed, or to copy in a special way (a test double).
      *  @param fn The deep-clone functor taking a borrowed source item and returning a fresh owning copy */
     void setCloneFunction(std::function<item_ptr(const item_ptr &)> fn) { clone_fn_ = std::move(fn); }
 
@@ -329,7 +339,7 @@ private:
     }
 
     /***************************************************************************/
-    std::function<item_ptr(const item_ptr &)> clone_fn_; ///< Polymorphic clone (see setCloneFunction)
+    std::function<item_ptr(const item_ptr &)> clone_fn_; ///< The clone function, if one was set
 };
 
 /******************************************************************************/
