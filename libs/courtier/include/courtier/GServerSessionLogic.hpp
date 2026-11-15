@@ -35,9 +35,9 @@
 // Standard headers go here
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
@@ -56,9 +56,10 @@ namespace Gem::Courtier {
 /**
  * Transport-agnostic server-side session logic for the networked consumer protocol. A server session,
  * on receiving a request from a worker, decides what to do with it: serve a work item (PULL), sink a
- * returned result and serve the next (RETURN), or answer a blob cache-miss fetch (BLOB_REQUEST). The
- * three transports all make the same decisions; only how they pull/sink items (a callable wrapping the
- * consumer's checkout/checkin) and how they drive their I/O differs. The decision pieces live here once.
+ * returned result and serve the next (RETURN), sink one and owe nothing (RESULT), or answer a blob
+ * cache-miss fetch (BLOB_REQUEST). The three transports all make the same decisions; only how
+ * they pull/sink items (a callable wrapping the consumer's checkout/checkin) and how they drive
+ * their I/O differs. The decision pieces live here once.
  *
  * Three helpers, matching the server styles:
  *
@@ -68,9 +69,10 @@ namespace Gem::Courtier {
  *    are split across its asynchronous receive/send).
  *
  *  - absorbServerRequest(): everything a request asks for except the work item: a returned result
- *    is checked in, a blob request or an unknown frame is answered. It tells the caller whether a
- *    pull is now due. Used directly by a transport that may let the pull wait (the websocket
- *    session, which parks instead of answering NO_WORK).
+ *    is checked in, a blob request or an unknown frame is answered. It tells the caller what it
+ *    owes now: that answer, a work item, or nothing (GAbsorbResult). Used directly by a transport
+ *    that may let the pull wait (the websocket session, which parks instead of answering
+ *    NO_WORK).
  *
  *  - handleServerRequest(): the full synchronous request -> response-bytes dispatch used by the
  *    request/response transport (Asio): absorbServerRequest(), then serveWorkItem(). It takes an
@@ -108,6 +110,20 @@ struct GCheckoutResult {
     std::unique_ptr<ProcessableT> item; ///< Set: an item was checked out
     bool parked = false; ///< True: nothing was pending; the caller will be woken once
 };
+
+/******************************************************************************/
+/** @brief absorbServerRequest(): the sender is owed a work item (it sent a PULL or a RETURN). */
+struct GPullDue {};
+
+/** @brief absorbServerRequest(): the sender is owed nothing (it sent a RESULT, which has been
+ *  checked in and asks for nothing). */
+struct GNothingDue {};
+
+/**
+ * @brief What absorbServerRequest() leaves its caller owing the sender: the serialized answer to
+ * send, a work item (to be served now or when one is there), or nothing.
+ */
+using GAbsorbResult = std::variant<std::string, GPullDue, GNothingDue>;
 
 /******************************************************************************/
 /**
@@ -158,20 +174,22 @@ std::string refusalReply(Gem::Common::serializationMode ser_mode) {
  * its sender may be due.
  *
  * A RETURN hands the whole inbound frame to the sink (the consumer applies its outcome and its
- * library payload to the slot); like a PULL it leaves a pull to be served. A BLOB_REQUEST is
- * answered from the shared registry (under a null scope, via the codec). An unknown frame logs a
- * warning and is answered with NO_WORK (see refusalReply()).
+ * library payload to the slot); like a PULL it leaves a work item owed. A RESULT is checked in the
+ * same way and leaves nothing owed: its sender has a request with the server already. A
+ * BLOB_REQUEST is answered from the shared registry (under a null scope, via the codec). An unknown
+ * frame logs a warning and is answered with NO_WORK (see refusalReply()).
  *
  * @tparam ProcessableT The payload type of the command container
  * @tparam PutItemF A callable (GCommandContainerT<ProcessableT>&&) -> void (the checkin)
- * @param container The already-deserialized inbound frame (cleared after a RETURN)
+ * @param container The already-deserialized inbound frame (cleared after a RETURN or a RESULT)
  * @param put_item The checkin callable
  * @param registry The shared blob registry (for BLOB_REQUEST; may be nullptr)
  * @param ser_mode The serialization format to use
- * @return The serialized answer if the request is answered by it; nothing if a pull is now due
+ * @return The answer if the request is answered by it (a string); GPullDue if a work item is now
+ *         owed; GNothingDue if nothing is
  */
 template <typename ProcessableT, typename PutItemF>
-std::optional<std::string> absorbServerRequest(
+GAbsorbResult absorbServerRequest(
     GCommandContainerT<ProcessableT> &container,
     PutItemF &&put_item,
     GWireBlobRegistry *registry,
@@ -180,15 +198,20 @@ std::optional<std::string> absorbServerRequest(
     switch(container.kind()) {
         using enum GFrameKind;
     case PULL: {
-        return std::nullopt;
+        return GPullDue{};
     }
-    case RETURN: {
-        // Hand the whole return frame to the sink -- outcome, library tag and payload together. The
-        // (now cleared) frame is free for the answer to the pull.
+    case RETURN:
+    case RESULT: {
+        // Hand the whole frame to the sink -- outcome, library tag and payload together. The (now
+        // cleared) frame is free for the answer to the pull a RETURN carries.
+        const bool pull_due = container.kind() == RETURN;
         GCommandContainerT<ProcessableT> inbound{std::move(container)};
         container.reset();
         std::forward<PutItemF>(put_item)(std::move(inbound));
-        return std::nullopt;
+        if(pull_due) {
+            return GPullDue{};
+        }
+        return GNothingDue{};
     }
     case BLOB_REQUEST: {
         // Blob cache-miss fetch: answer with the serialized blob from the shared registry (empty
@@ -216,7 +239,9 @@ std::optional<std::string> absorbServerRequest(
  * serialized response. Used by the request/response transport (Asio).
  *
  * absorbServerRequest() deals with the frame; if a pull is due afterwards (a PULL or a RETURN), a
- * work item is served, serialized under @p respCtx so its blob is sent send-once.
+ * work item is served, serialized under @p respCtx so its blob is sent send-once. A RESULT asks for
+ * nothing, but a request/response exchange must be answered: it is checked in and answered with
+ * NO_WORK, as a refused request is (the asio client never sends one).
  *
  * @tparam processable_type The payload type of the command container
  * @tparam GetItemF A callable () -> std::unique_ptr<processable_type> (the checkout)
@@ -238,9 +263,14 @@ std::string handleServerRequest(
     const GWireSerializationContext *respCtx,
     Gem::Common::serializationMode serMode
 ) {
-    if(auto answer =
-           absorbServerRequest(container, std::forward<PutItemF>(putItem), registry, serMode)) {
+    auto absorbed =
+        absorbServerRequest(container, std::forward<PutItemF>(putItem), registry, serMode);
+    if(auto *answer = std::get_if<std::string>(&absorbed)) {
         return std::move(*answer);
+    }
+    if(std::holds_alternative<GNothingDue>(absorbed)) {
+        // Nothing is owed, but this exchange needs an answer: the one a refused request gets.
+        return refusalReply<processable_type>(serMode);
     }
     serveWorkItem(container, std::forward<GetItemF>(getItem));
     return wireEncode(container, respCtx, serMode);

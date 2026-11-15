@@ -100,6 +100,9 @@ std::string fkToStr(const GFrameKind &fk) {
 
     case BLOB_REPLY:
         return "BLOB_REPLY";
+
+    case RESULT:
+        return "RESULT";
     }
 
     // Make the compiler happy

@@ -40,7 +40,9 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 // Boost headers go here
 #include <boost/asio/connect.hpp>
@@ -609,12 +611,14 @@ private:
         if(not peer) {
             return;
         }
-        if(auto answer = this->absorb_(message)) {
+        auto absorbed = this->absorb_(message);
+        if(auto *answer = std::get_if<std::string>(&absorbed)) {
             peer->send(std::move(*answer));
         }
-        else {
+        else if(std::holds_alternative<Gem::Courtier::GPullDue>(absorbed)) {
             ++owed_replies_;
         }
+        // GNothingDue: a RESULT, which asks for nothing (this session's clients send none)
         this->serve_(*peer);
     }
 
@@ -709,10 +713,10 @@ private:
 	  *
 	  * @param message One complete message from the client
 	  * @return The answer if the message is answered by it (NO_WORK if it had to be refused);
-	  * nothing if the client is now owed a work item
+	  * GPullDue if the client is now owed a work item; GNothingDue if it is owed nothing
 	  */
-    std::optional<std::string> absorb_(const std::string &message) {
-        return this->refusing_([&] {
+    Gem::Courtier::GAbsorbResult absorb_(const std::string &message) {
+        return this->refusing_([&]() -> Gem::Courtier::GAbsorbResult {
             // De-serialize the object (under the wire scope, so an id-referenced blob in a returned
             // result resolves against this server's registry).
             Gem::Courtier::wireDecode(
@@ -764,12 +768,12 @@ private:
 	  * @brief Runs one step of the request handling and turns a failure into a refusal, so that
 	  * no exception reaches the io thread.
 	  *
-	  * @tparam StepF A callable () -> std::optional<std::string>
+	  * @tparam StepF A callable () -> R, where R is std::optional<std::string> or GAbsorbResult
 	  * @param step The step to run
 	  * @return What @p step returns, or the NO_WORK answer if it threw
 	  */
     template <typename StepF>
-    std::optional<std::string> refusing_(StepF &&step) {
+    std::invoke_result_t<StepF> refusing_(StepF &&step) {
         try {
             return std::forward<StepF>(step)();
         }

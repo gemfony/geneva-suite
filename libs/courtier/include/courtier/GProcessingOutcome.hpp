@@ -61,7 +61,8 @@ struct GProcessingOutcome {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De)serialises the outcome. Written only for RETURN frames (see GCommandContainerT).
+     * @brief (De)serialises the outcome. Written only for RETURN and RESULT frames (see
+     * GCommandContainerT).
      * @tparam Archive The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The (unused) serialization version number

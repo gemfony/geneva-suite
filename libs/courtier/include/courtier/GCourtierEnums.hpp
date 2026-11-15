@@ -70,6 +70,10 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * from its own registry (BLOB_REPLY). Both are served entirely inside courtier, hence frames rather than
  * library tags.
  *
+ * RESULT is a RETURN that asks for nothing: a client that has a request unanswered already sends a
+ * finished result as RESULT, so that it never has more than one request with the server. The server
+ * checks it in and owes no answer.
+ *
  * NONE is the cleared/default state of a frame container, never a transmitted frame.
  */
 //! [courtier-frame-kind]
@@ -81,7 +85,8 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     RETURN = 4,       ///< worker -> server: a processed slot's outcome (+ item or library payload)
     SHUTDOWN = 5,     ///< server -> worker: stop working and terminate
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
-    BLOB_REPLY = 7    ///< server -> worker: the requested blob (empty on a registry miss)
+    BLOB_REPLY = 7,   ///< server -> worker: the requested blob (empty on a registry miss)
+    RESULT = 8        ///< worker -> server: an outcome, like RETURN, that asks for nothing
 };
 //! [courtier-frame-kind]
 

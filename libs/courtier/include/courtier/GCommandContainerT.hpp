@@ -89,8 +89,8 @@ class GCommandContainerT {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De-)serializes the frame header, the payload variant and -- for a RETURN frame -- the
-     * processing outcome.
+     * @brief (De-)serializes the frame header, the payload variant and -- for a RETURN or a RESULT
+     * frame -- the processing outcome.
      *
      * The payload rides Weft's native, index-tagged std::variant support, so the stream stays
      * self-describing and each frame writes only its own alternative. The outcome is written only where
@@ -108,7 +108,7 @@ class GCommandContainerT {
         archive_named(ar, "tag_", tag_);
         archive_named(ar, "peer_id_", peer_id_);
         archive_named(ar, "payload_", payload_);
-        if(kind_ == GFrameKind::RETURN) {
+        if(kind_ == GFrameKind::RETURN || kind_ == GFrameKind::RESULT) {
             archive_named(ar, "outcome_", outcome_);
         }
     }
@@ -334,7 +334,7 @@ private:
     std::uint32_t tag_{0};              ///< What this frame means to the using library (relayed only)
     GWirePeerId peer_id_{0};            ///< Stable announcing-peer id (ASIO); 0 == none
     payload_variant payload_;           ///< What the frame carries (one alternative per purpose)
-    GProcessingOutcome outcome_;        ///< The worker's lifecycle report; meaningful on RETURN only
+    GProcessingOutcome outcome_;        ///< The worker's lifecycle report (RETURN and RESULT)
 
     //-------------------------------------------------------------------------
 };

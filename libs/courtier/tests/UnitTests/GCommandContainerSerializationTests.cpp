@@ -163,6 +163,29 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.outcome().correlation_id == 0xABCDEF);
             CHECK(got.item() != nullptr);
         }
+
+        // --- a RESULT frame: a RETURN that asks for nothing. Its outcome travels with it, the
+        // lineage id among it: the server's check-in routes the result by the one and checks it
+        // by the other ---------------------------------------------------------------------------
+        {
+            test_container_type sent{GFrameKind::RESULT};
+            GProcessingOutcome outcome;
+            outcome.status = processingStatus::PROCESSED;
+            outcome.processing_time = 0.25;
+            outcome.correlation_id = 0x5150;
+            outcome.submission_uuid = {0x1111'2222'3333'4444ULL, 77};
+            sent.setOutcome(outcome);
+            sent.setItem(std::make_unique<GSimpleContainer>(4));
+
+            test_container_type got{GFrameKind::NONE};
+            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
+            CHECK(got.kind() == GFrameKind::RESULT);
+            CHECK(got.outcome().status == processingStatus::PROCESSED);
+            CHECK(got.outcome().processing_time == 0.25);
+            CHECK(got.outcome().correlation_id == 0x5150);
+            CHECK(got.outcome().submission_uuid == outcome.submission_uuid);
+            CHECK(got.item() != nullptr);
+        }
     }
 }
 
