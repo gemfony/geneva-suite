@@ -34,6 +34,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <csignal>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -42,6 +44,11 @@
 #include <thread>
 #include <tuple>
 #include <vector>
+
+#include <pthread.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <boost/asio.hpp>
 
@@ -368,4 +375,74 @@ TEST_CASE(
     listener.endWork();
     CHECK(n_closed_server.load() == 0);
     CHECK(token_seen.expired());
+}
+
+/******************************************************************************/
+/**
+ * A start() whose I/O threads cannot all be created leaves the listener as if it had not been
+ * started (GListenerI::start()): it throws, no thread is left running, and its destructor returns.
+ * The threads are made to fail half way in a child process: every new thread gets a stack of
+ * 128 MiB, and the address space is limited to what the child uses and room for two and a half
+ * such stacks, so the third thread cannot be made (its stack cannot be mapped). The parent waits
+ * for the child, at most ten seconds.
+ */
+TEST_CASE(
+    "GWebsocketListener: a start whose threads cannot all be created leaves nothing running",
+    "[courtier][websocket][transport]"
+) {
+    const pid_t child = ::fork();
+    REQUIRE(child >= 0);
+    if(child == 0) {
+        // The child: large stacks, and room for two and a half of them
+        constexpr std::size_t STACK_BYTES = std::size_t{128} << 20U;
+        pthread_attr_t attributes;
+        if(::pthread_attr_init(&attributes) != 0 ||
+           ::pthread_attr_setstacksize(&attributes, STACK_BYTES) != 0 ||
+           ::pthread_setattr_default_np(&attributes) != 0) {
+            ::_exit(4);
+        }
+        std::size_t pages = 0;
+        if(std::FILE *statm = std::fopen("/proc/self/statm", "r")) {
+            if(std::fscanf(statm, "%zu", &pages) != 1) {
+                pages = 0;
+            }
+            std::fclose(statm);
+        }
+        const auto used = static_cast<rlim_t>(pages) * static_cast<rlim_t>(::sysconf(_SC_PAGESIZE));
+        const rlimit limit{
+            .rlim_cur = used + static_cast<rlim_t>(STACK_BYTES) * 5U / 2U,
+            .rlim_max = RLIM_INFINITY
+        };
+        if(pages == 0 || ::setrlimit(RLIMIT_AS, &limit) != 0) {
+            ::_exit(3);
+        }
+        int code = 2; // start() did not throw
+        {
+            boost::asio::io_context sessions; // never runs: no peer is made here
+            GWebsocketListener listener("listener test", 0, withPing(1s), 64);
+            try {
+                listener.start(sessions.get_executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {});
+            }
+            catch(...) {
+                code = 0;
+            }
+        } // the destructor must return
+        ::_exit(code);
+    }
+
+    int status = 0;
+    const auto give_up_at = std::chrono::steady_clock::now() + 10s;
+    pid_t done = 0;
+    while((done = ::waitpid(child, &status, WNOHANG)) == 0 &&
+          std::chrono::steady_clock::now() < give_up_at) {
+        std::this_thread::sleep_for(10ms);
+    }
+    if(done == 0) {
+        ::kill(child, SIGKILL);
+        ::waitpid(child, &status, 0);
+    }
+    INFO("the child " << (done == 0 ? "hung and was killed" : "ended") << ", status " << status);
+    CHECK(done == child);
+    CHECK(WIFEXITED(status));
+    CHECK(WEXITSTATUS(status) == 0);
 }

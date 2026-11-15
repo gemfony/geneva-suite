@@ -108,12 +108,14 @@ GWebsocketListener::~GWebsocketListener() {
 /******************************************************************************/
 /**
  * Opens the acceptor on the port, binds and listens, writes the bound port back, starts the I/O
- * threads and arms the first accept. If the port cannot be had, the acceptor is closed again, no
- * thread has been started and nothing of @p executor and @p on_peer is kept (GListenerI::start()).
+ * threads and arms the first accept. If the port cannot be had, or not every I/O thread can be
+ * made, the acceptor is closed again, no thread runs and nothing of @p executor and @p on_peer is
+ * kept (GListenerI::start()).
  *
  * @param executor Where on_peer and the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every accepted connection, on a strand of @p executor
- * @throws geneva_exception if the acceptor cannot be opened, bound or set to listen
+ * @throws geneva_exception if the acceptor cannot be opened, bound or set to listen, or if the I/O
+ *         threads cannot be started
  */
 void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     const auto fail = [this](std::string_view what, const error_code &ec) {
@@ -153,8 +155,28 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         static_cast<unsigned int>(n_threads_),
         Gem::Common::Concurrency::ThreadElasticity::Elastic
     );
-    for(std::size_t t = 0; t < n_threads_; ++t) {
-        threads_.create_thread([this] { io_context_.run(); });
+    try {
+        for(std::size_t t = 0; t < n_threads_; ++t) {
+            threads_.create_thread([this] { io_context_.run(); });
+        }
+    }
+    catch(const std::exception &e) {
+        // Not all threads could be made: those that run are stopped and joined, and the listener
+        // is as if it had not been started (GListenerI::start()).
+        work_guard_.reset();
+        io_context_.stop();
+        threads_.join_all();
+        io_context_.restart();
+        budget_.release();
+        error_code ignored;
+        std::ignore = acceptor_.close(ignored);
+        on_peer_ = nullptr;
+        on_peer_strand_.reset();
+        handler_executor_ = boost::asio::any_io_executor{};
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In " << name_ << ": could not start the I/O threads: " << e.what() << '\n'
+        );
     }
     running_.store(true);
 
