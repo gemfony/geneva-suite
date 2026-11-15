@@ -99,8 +99,9 @@ GWebsocketPeer::GWebsocketPeer(
 /******************************************************************************/
 /**
  * Sets the stream options: fragmenting (so control frames are delivered in time), the write buffer,
- * Beast's time limits, no limit on the size of a message, the frame type, and the logging of
- * control frames.
+ * Beast's time limits, no limit on the size of a message, the frame type, and what happens on a
+ * control frame: its arrival is noted (for the log when the idle limit expires), and it is logged
+ * if that was asked for. The callback runs inside the peer's read, on the peer's executor.
  */
 void GWebsocketPeer::configure_() {
     ws_.auto_fragment(true);
@@ -109,15 +110,16 @@ void GWebsocketPeer::configure_() {
     ws_.read_message_max(GWEBSOCKETMAXMESSAGEBYTES);
     ws_.binary(options_.mode == Gem::Common::serializationMode::GEM_BINARY);
 
-    if(options_.verboseControlFrames) {
-        ws_.control_callback([name = options_.name](
-                                 boost::beast::websocket::frame_type kind,
-                                 [[maybe_unused]] boost::beast::string_view payload
-                             ) {
-            glogger << name << " has received a " << frameName(kind) << " frame" << '\n'
+    ws_.control_callback([this](
+                             boost::beast::websocket::frame_type kind,
+                             [[maybe_unused]] boost::beast::string_view payload
+                         ) {
+        last_inbound_ = std::chrono::steady_clock::now();
+        if(options_.verboseControlFrames) {
+            glogger << options_.name << " has received a " << frameName(kind) << " frame" << '\n'
                     << GLOGGING;
-        });
-    }
+        }
+    });
 }
 
 /******************************************************************************/
@@ -160,6 +162,7 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
         return;
     }
     open_ = true;
+    last_inbound_ = std::chrono::steady_clock::now();
     this->read_();
     if(handlers_.onOpen) {
         handlers_.onOpen();
@@ -190,6 +193,7 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
         return;
     }
 
+    last_inbound_ = std::chrono::steady_clock::now();
     const std::string message = boost::beast::buffers_to_string(incoming_.data());
     incoming_.consume(incoming_.size());
     if(handlers_.onMessage && not close_requested_.load()) {
@@ -324,6 +328,18 @@ void GWebsocketPeer::finish_(const error_code &cause) {
     }
     finished_ = true;
     closing_ = true;
+
+    if(cause == boost::beast::error::timeout && open_) {
+        // Which end gave up, and after how much silence: the other end is either gone, or it could
+        // not answer a ping in time because its executor was busy (with a large message, say).
+        const auto silent_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - last_inbound_
+        );
+        glogger << options_.name << ": the idle limit of " << (2 * options_.pingInterval).count()
+                << " ms has expired; the last complete message or control frame of the other end"
+                << " arrived " << silent_ms.count() << " ms ago" << '\n'
+                << GLOGGING;
+    }
 
     ws_.set_option(
         stream_base::timeout{

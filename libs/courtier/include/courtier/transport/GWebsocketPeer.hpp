@@ -162,6 +162,10 @@ private:
     bool local_close_ = false;                 ///< This end began the close
     std::atomic<bool> close_requested_{false}; ///< close() was called (from any thread)
     bool finished_ = false;                    ///< onClosed has been called
+
+    /// When the last complete message or control frame of the other end arrived (or the handshake
+    /// completed): what the log names when the idle limit has expired
+    std::chrono::steady_clock::time_point last_inbound_;
 };
 
 /******************************************************************************/
