@@ -33,24 +33,18 @@
 
 // Standard headers
 #include <any>
-#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <string_view>
-#include <typeinfo>
 
 // Boost headers
-#include <boost/core/demangle.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 
 // Geneva headers
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
-#include "common/GErrorStreamer.hpp"
-#include "common/GExceptions.hpp"
 #include "common/GProviderStoreT.hpp"
 #include "courtier/GBaseConsumerT.hpp"
+#include "courtier/GConsumerSpec.hpp" // ConsumerSpec, ConsumerConfig, configOf()
 #include "courtier/GCourtierEnums.hpp" // processRole
 #include "geneva/genome/GGenome.hpp"
 
@@ -60,68 +54,6 @@ class GBaseClientT; // the networked client base (wire-compatible with the court
 } /* namespace Gem::Courtier */
 
 namespace Gem::Geneva {
-
-/******************************************************************************/
-/** @brief The mnemonic of the consumer a process falls back to when none was chosen -- the local
- *  thread-pool consumer. Stated once, here, because this layer owns the consumer catalog: it is both the
- *  command-line default (Go2's GO2_DEF_CONSUMER binds to it) and the consumer ensureProcessConsumer()
- *  builds for a standalone algorithm that was never given one. */
-const std::string GDEFAULTCONSUMERMNEMONIC{"stc"}; // NOLINT
-
-/******************************************************************************/
-/**
- * @brief What a consumer is to be built from: its mnemonic and the configuration of its family.
- *
- * @c config holds the configuration struct of the family the mnemonic names (for example a
- * @c Gem::Courtier::GWebsocketConsumerConfig for "beast"), or nothing, which stands for that
- * family's defaults. A program that knows its consumer when it is compiled does not write a spec:
- * it passes the struct to buildConsumer() or buildConsumerClient() (the overloads for a
- * ConsumerConfig), which cannot pair a struct with the wrong mnemonic. The spec is what a caller
- * keeps when the mnemonic is known only at run time (Go2, from --consumer). A provider reads
- * @c config with configOf(), never with std::any_cast.
- */
-struct ConsumerSpec {
-    std::string mnemonic; ///< The consumer, as chosen with --consumer ("stc", "beast", ...)
-    std::any config;      ///< The family's configuration struct; empty: the family's defaults
-};
-
-/******************************************************************************/
-/**
- * @brief A configuration struct of a consumer family: it names the mnemonic of its family and can
- * be copied (std::any holds copies).
- */
-template <typename T>
-concept ConsumerConfig = std::copy_constructible<T> && requires {
-    { T::MNEMONIC } -> std::convertible_to<std::string_view>;
-};
-
-/******************************************************************************/
-/**
- * @brief The configuration a spec carries, as the struct of the family that reads it.
- *
- * @tparam ConfigT The configuration struct the caller's family reads
- * @param spec The consumer specification
- * @return A copy of @c spec.config, or a default-constructed @p ConfigT if the spec carries none
- * @throws geneva_exception if @c spec.config holds another type; the message names the mnemonic,
- *         the expected and the found type
- */
-template <typename ConfigT>
-[[nodiscard]] ConfigT configOf(const ConsumerSpec &spec) {
-    if(not spec.config.has_value()) {
-        return ConfigT{};
-    }
-    if(const auto *config = std::any_cast<ConfigT>(&spec.config)) {
-        return *config;
-    }
-    throw geneva_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In configOf(): Error!" << '\n'
-        << "The consumer \"" << spec.mnemonic << "\" is configured with a "
-        << boost::core::demangle(typeid(ConfigT).name()) << "," << '\n'
-        << "but its specification carries a " << boost::core::demangle(spec.config.type().name())
-        << "." << '\n'
-    );
-}
 
 /******************************************************************************/
 /**
@@ -151,7 +83,7 @@ public:
      *  role()).
      *  @param spec The consumer specification. @return The consumer for this process. */
     virtual std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
-    setup(const ConsumerSpec &spec) = 0;
+    setup(const Gem::Courtier::ConsumerSpec &spec) = 0;
     /** @brief Reads this consumer's command-line options out of @p vm into the configuration of its
      *  family. @param vm The parsed program-options map. @return The configuration struct of the
      *  family (in a std::any), or an empty std::any for a consumer that has no configuration. */
@@ -166,7 +98,7 @@ public:
      *  Called on a client only (see role()).
      *  @param spec The consumer specification. @return The client, or nullptr. */
     [[nodiscard]] virtual std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const = 0;
+    buildClient(const Gem::Courtier::ConsumerSpec &spec) const = 0;
     /** @brief Whether a process selecting this consumer can run as a networked client.
      *  @return true for networked consumers (asio/beast/mpi), false otherwise. */
     [[nodiscard]] virtual bool needsClient() const = 0;
@@ -186,7 +118,7 @@ public:
      *  @param client_requested Whether the program was started as a client (--client)
      *  @return The role of this process */
     [[nodiscard]] virtual Gem::Courtier::processRole
-    role(const ConsumerSpec &spec, bool client_requested) const {
+    role(const Gem::Courtier::ConsumerSpec &spec, bool client_requested) const {
         (void)spec;
         return client_requested && this->needsClient() ? Gem::Courtier::processRole::CLIENT
                                                        : Gem::Courtier::processRole::SUBMITTER;
@@ -229,7 +161,7 @@ public:
  * @throws geneva_exception if @c spec.config holds the configuration of another family
  */
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
-buildConsumer(const ConsumerSpec &spec);
+buildConsumer(const Gem::Courtier::ConsumerSpec &spec);
 
 /******************************************************************************/
 /**
@@ -238,12 +170,12 @@ buildConsumer(const ConsumerSpec &spec);
  *
  * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
  * @param config The configuration of the consumer
- * @return As buildConsumer(const ConsumerSpec &)
+ * @return As buildConsumer(const Gem::Courtier::ConsumerSpec &)
  */
-template <ConsumerConfig ConfigT>
+template <Gem::Courtier::ConsumerConfig ConfigT>
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> buildConsumer(const ConfigT &config) {
     return buildConsumer(
-        ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+        Gem::Courtier::ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
     );
 }
 
@@ -257,9 +189,9 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> buildConsumer(const
  * select a consumer) and not with courtier (whose registry knows only that there must be exactly one
  * consumer, never which). A process that went through Go2, through buildConsumer(), or through
  * GConsumerRegistry::setConsumer() already has its consumer and gets it back unchanged; a standalone
- * algorithm that was never given one gets @c GDEFAULTCONSUMERMNEMONIC built from the provider store,
- * so a bare alg->optimize() works out of the box. Idempotent and race-free: the registry runs the build
- * at most once per process.
+ * algorithm that was never given one gets @c Gem::Courtier::GDEFAULTCONSUMERMNEMONIC built from the
+ * provider store, so a bare alg->optimize() works out of the box. Idempotent and race-free: the
+ * registry runs the build at most once per process.
  *
  * @return The process's single consumer (never null)
  */
@@ -277,8 +209,8 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
  * @param vm The parsed program-options variables map to read consumer option values from.
  * @return The populated ConsumerSpec. An unknown mnemonic yields a spec carrying only the mnemonic.
  */
-ConsumerSpec specFromCommandLine(
-    const std::string &mnemonic, const boost::program_options::variables_map &vm);
+Gem::Courtier::ConsumerSpec
+specFromCommandLine(const std::string &mnemonic, const boost::program_options::variables_map &vm);
 
 /******************************************************************************/
 /**
@@ -295,7 +227,7 @@ ConsumerSpec specFromCommandLine(
  *   client (stc is local).
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-buildConsumerClient(const ConsumerSpec &spec);
+buildConsumerClient(const Gem::Courtier::ConsumerSpec &spec);
 
 /******************************************************************************/
 /**
@@ -304,13 +236,13 @@ buildConsumerClient(const ConsumerSpec &spec);
  *
  * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
  * @param config The configuration of the consumer
- * @return As buildConsumerClient(const ConsumerSpec &)
+ * @return As buildConsumerClient(const Gem::Courtier::ConsumerSpec &)
  */
-template <ConsumerConfig ConfigT>
+template <Gem::Courtier::ConsumerConfig ConfigT>
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const ConfigT &config) {
     return buildConsumerClient(
-        ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+        Gem::Courtier::ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
     );
 }
 
@@ -381,7 +313,7 @@ bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic);
  * @throws geneva_exception for a mnemonic no provider is registered for
  */
 [[nodiscard]] Gem::Courtier::processRole
-consumerRole(const ConsumerSpec &spec, bool client_requested = false);
+consumerRole(const Gem::Courtier::ConsumerSpec &spec, bool client_requested = false);
 
 /******************************************************************************/
 /**

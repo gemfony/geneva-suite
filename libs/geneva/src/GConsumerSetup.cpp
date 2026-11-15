@@ -100,9 +100,9 @@ public:
     [[nodiscard]] std::string getName() const override { return "GStdThreadConsumerT"; }
     [[nodiscard]] bool needsClient() const override { return false; }
 
-    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         return std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(
-            configOf<c2::GStdThreadConsumerConfig>(spec)
+            c2::configOf<c2::GStdThreadConsumerConfig>(spec)
         );
     }
 
@@ -115,7 +115,7 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
+    buildClient(const c2::ConsumerSpec & /*spec*/) const override {
         return nullptr; // local-only
     }
 
@@ -137,9 +137,9 @@ public:
     [[nodiscard]] bool needsClient() const override { return true; }
     [[nodiscard]] bool bindsListeningPort() const override { return true; }
 
-    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(
-            configOf<c2::GAsioConsumerConfig>(spec)
+            c2::configOf<c2::GAsioConsumerConfig>(spec)
         );
         consumer->startServer();
         return consumer;
@@ -170,9 +170,9 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const override {
+    buildClient(const c2::ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GAsioConsumerClientT<gen::GGenome>>(
-            configOf<c2::GAsioConsumerConfig>(spec)
+            c2::configOf<c2::GAsioConsumerConfig>(spec)
         );
     }
 
@@ -208,9 +208,9 @@ public:
     [[nodiscard]] bool needsClient() const override { return true; }
     [[nodiscard]] bool bindsListeningPort() const override { return true; }
 
-    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(
-            configOf<c2::GWebsocketConsumerConfig>(spec)
+            c2::configOf<c2::GWebsocketConsumerConfig>(spec)
         );
         consumer->startServer();
         return consumer;
@@ -244,9 +244,9 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const override {
+    buildClient(const c2::ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GWebsocketClientT<gen::GGenome>>(
-            configOf<c2::GWebsocketConsumerConfig>(spec)
+            c2::configOf<c2::GWebsocketConsumerConfig>(spec)
         );
     }
 
@@ -305,7 +305,7 @@ public:
      *  not read: the GPU consumer's configuration is the file the marshaller was registered
      *  with. */
     std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>>
-    setup(const ConsumerSpec & /*spec*/) override {
+    setup(const c2::ConsumerSpec & /*spec*/) override {
         // The problem contributes its GPU marshaller into marshallerProviderStore() (compiled-in: before
         // constructing Go2; a loaded individual module: at module load). Its absence means "--consumer gpu"
         // was selected for a problem that never registered a device marshaller.
@@ -341,7 +341,7 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
+    buildClient(const c2::ConsumerSpec & /*spec*/) const override {
         return nullptr;
     }
 
@@ -390,7 +390,10 @@ private:
 struct ConsumerProviderRegistrar {
     ConsumerProviderRegistrar() {
         auto store = consumerProviderStore();
-        store->setOnce(GDEFAULTCONSUMERMNEMONIC, std::make_shared<GStdThreadConsumerProvider>());
+        store->setOnce(
+            std::string(c2::GDEFAULTCONSUMERMNEMONIC),
+            std::make_shared<GStdThreadConsumerProvider>()
+        );
         store->setOnce("asio", std::make_shared<GAsioConsumerProvider>());
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
@@ -501,7 +504,7 @@ std::vector<std::shared_ptr<GConsumerProviderT>> allConsumerProviders() {
  * @param spec The consumer specification (mnemonic plus the configuration of its family)
  * @return The consumer; null for an unknown mnemonic
  */
-std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const ConsumerSpec &spec) {
+std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::ConsumerSpec &spec) {
     auto &registry = c2::GConsumerRegistryT<gen::GGenome>::instance();
 
     auto provider = lookupConsumerProvider(spec.mnemonic);
@@ -562,18 +565,21 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const ConsumerSp
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsumer() {
     return c2::GConsumerRegistryT<gen::GGenome>::instance().ensureConsumer(
         []() -> std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> {
-            auto provider = lookupConsumerProvider(GDEFAULTCONSUMERMNEMONIC);
+            auto provider = lookupConsumerProvider(std::string(c2::GDEFAULTCONSUMERMNEMONIC));
             if(not provider) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In Gem::Geneva::ensureProcessConsumer(): Error!" << '\n'
-                    << "The default consumer \"" << GDEFAULTCONSUMERMNEMONIC << "\" is not registered"
-                    << '\n'
+                    << "The default consumer \"" << c2::GDEFAULTCONSUMERMNEMONIC
+                    << "\" is not registered" << '\n'
                     << "in the consumer-provider store." << '\n'
                 );
             }
-            return provider->setup(ConsumerSpec{.mnemonic = GDEFAULTCONSUMERMNEMONIC});
-        });
+            return provider->setup(
+                c2::ConsumerSpec{.mnemonic = std::string(c2::GDEFAULTCONSUMERMNEMONIC)}
+            );
+        }
+    );
 }
 
 /******************************************************************************/
@@ -587,13 +593,13 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
  * @param vm The parsed program-options map produced during command-line parsing
  * @return A ConsumerSpec populated from vm for the given mnemonic
  */
-ConsumerSpec specFromCommandLine(
-    const std::string &mnemonic, const boost::program_options::variables_map &vm) {
+c2::ConsumerSpec
+specFromCommandLine(const std::string &mnemonic, const boost::program_options::variables_map &vm) {
     auto provider = lookupConsumerProvider(mnemonic);
     if(not provider) {
-        return ConsumerSpec{.mnemonic = mnemonic};
+        return c2::ConsumerSpec{.mnemonic = mnemonic};
     }
-    return ConsumerSpec{.mnemonic = mnemonic, .config = provider->configFromCommandLine(vm)};
+    return c2::ConsumerSpec{.mnemonic = mnemonic, .config = provider->configFromCommandLine(vm)};
 }
 
 /******************************************************************************/
@@ -606,7 +612,7 @@ ConsumerSpec specFromCommandLine(
  * @return A client for asio/beast/mpi; nullptr for local-only or non-client consumers
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-buildConsumerClient(const ConsumerSpec &spec) {
+buildConsumerClient(const c2::ConsumerSpec &spec) {
     auto provider = lookupConsumerProvider(spec.mnemonic);
     return provider ? provider->buildClient(spec) : nullptr;
 }
@@ -697,7 +703,7 @@ bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic) {
  * @return The role of this process
  * @throws geneva_exception for a mnemonic no provider is registered for
  */
-Gem::Courtier::processRole consumerRole(const ConsumerSpec &spec, bool client_requested) {
+Gem::Courtier::processRole consumerRole(const c2::ConsumerSpec &spec, bool client_requested) {
     auto provider = lookupConsumerProvider(spec.mnemonic);
     if(not provider) {
         throw geneva_exception(

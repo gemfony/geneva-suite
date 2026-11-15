@@ -256,7 +256,7 @@ int main(int argc, char **argv) {
     // Ask for the role of this process. A client serves work items until the master tells it to
     // stop, then exits; a bystander takes no part. The submitter builds the MPI consumer through
     // the shared courtier factory: the process consumer to submit through.
-    const Gem::Geneva::ConsumerSpec spec{.mnemonic = "mpi"};
+    const Gem::Courtier::ConsumerSpec spec{.mnemonic = "mpi"};
     switch(Gem::Geneva::consumerRole(spec)) {
     case Gem::Courtier::processRole::SUBMITTER:
         break;

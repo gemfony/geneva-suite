@@ -74,7 +74,7 @@ public:
 
     /** @brief Builds no consumer. @return nullptr */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>
-    setup(const Gem::Geneva::ConsumerSpec & /*spec*/) override {
+    setup(const Gem::Courtier::ConsumerSpec & /*spec*/) override {
         return nullptr;
     }
 
@@ -86,7 +86,7 @@ public:
 
     /** @brief Builds no client. @return nullptr */
     [[nodiscard]] std::shared_ptr<Gem::Courtier::GBaseClientT<Gem::Geneva::Genome::GGenome>>
-    buildClient(const Gem::Geneva::ConsumerSpec & /*spec*/) const override {
+    buildClient(const Gem::Courtier::ConsumerSpec & /*spec*/) const override {
         return nullptr;
     }
 

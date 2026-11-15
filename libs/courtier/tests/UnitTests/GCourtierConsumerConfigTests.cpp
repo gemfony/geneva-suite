@@ -58,10 +58,13 @@
 #include <mutex>
 #include <set>
 #include <span>
+#include <string>
 #include <thread>
 #include <type_traits>
 #include <vector>
 
+#include "common/GExceptions.hpp"
+#include "courtier/GConsumerSpec.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -217,3 +220,57 @@ TEST_CASE(
         CHECK_FALSE(seen.ids.empty());
     }
 }
+
+/******************************************************************************/
+// A spec carries the configuration struct of its family in a std::any. configOf() is the one way a
+// provider reads it: an empty spec means the family's defaults, and the struct of another family is
+// refused with a message that says what was expected and what was found -- not with the
+// std::bad_any_cast that std::any_cast would throw.
+TEST_CASE("configOf() gives the defaults for an empty configuration", "[courtier][config]") {
+    using Gem::Courtier::configOf;
+    using Gem::Courtier::ConsumerSpec;
+
+    const GWebsocketConsumerConfig reference{};
+    const auto defaults = configOf<GWebsocketConsumerConfig>(ConsumerSpec{.mnemonic = "beast"});
+    CHECK(defaults.ip == reference.ip);
+    CHECK(defaults.port == reference.port);
+    CHECK(defaults.nThreads == reference.nThreads);
+    CHECK(defaults.pingInterval == reference.pingInterval);
+    CHECK(defaults.clientPrefetchDepth == reference.clientPrefetchDepth);
+
+    const ConsumerSpec carried{
+        .mnemonic = "beast",
+        .config = GWebsocketConsumerConfig{.ip = "server", .port = 4711}
+    };
+    CHECK(configOf<GWebsocketConsumerConfig>(carried).ip == "server");
+    CHECK(configOf<GWebsocketConsumerConfig>(carried).port == 4711);
+}
+
+/******************************************************************************/
+TEST_CASE("configOf() refuses the configuration of another family", "[courtier][config]") {
+    const Gem::Courtier::ConsumerSpec mismatched{
+        .mnemonic = "beast",
+        .config = GStdThreadConsumerConfig{.nThreads = 2}
+    };
+    std::string message;
+    try {
+        (void)Gem::Courtier::configOf<GWebsocketConsumerConfig>(mismatched);
+    }
+    catch(const geneva_exception &e) {
+        message = e.what();
+    }
+    REQUIRE_FALSE(message.empty());
+    CHECK(message.contains("\"beast\""));
+    CHECK(message.contains("Gem::Courtier::GWebsocketConsumerConfig"));
+    CHECK(message.contains("Gem::Courtier::GStdThreadConsumerConfig"));
+}
+
+/******************************************************************************/
+// The default consumer is the thread-pool consumer, by the mnemonic of its struct; the family
+// structs satisfy the concept the typed front door is constrained on, a plain value does not.
+static_assert(Gem::Courtier::GDEFAULTCONSUMERMNEMONIC == GStdThreadConsumerConfig::MNEMONIC);
+static_assert(Gem::Courtier::ConsumerConfig<GStdThreadConsumerConfig>);
+static_assert(Gem::Courtier::ConsumerConfig<GWebsocketConsumerConfig>);
+static_assert(Gem::Courtier::ConsumerConfig<GAsioConsumerConfig>);
+static_assert(Gem::Courtier::ConsumerConfig<MPIConsumerConfig>);
+static_assert(not Gem::Courtier::ConsumerConfig<int>);

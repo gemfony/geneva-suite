@@ -73,9 +73,9 @@ const std::string GO2_DEF_DEFAULTCONFIGFILE{"config/Go2.json"}; // NOLINT
 constexpr bool GO2_DEF_CLIENTMODE = false;
 constexpr std::uint16_t GO2_DEF_NPRODUCERTHREADS = 0;
 const std::string GO2_DEF_NOCONSUMER{"none"}; // NOLINT
-// The default consumer mnemonic is the setup layer's (GConsumerSetup.hpp), stated once there: the
+// The default consumer mnemonic is courtier's (courtier/GConsumerSpec.hpp), stated once there: the
 // command line and a standalone algorithm must fall back to the same consumer.
-const std::string GO2_DEF_CONSUMER{GDEFAULTCONSUMERMNEMONIC}; // NOLINT
+const std::string GO2_DEF_CONSUMER{Gem::Courtier::GDEFAULTCONSUMERMNEMONIC}; // NOLINT
 constexpr bool GO2_DEF_COPYBESTINDIVIDUALSONLY = true;
 
 /******************************************************************************/
@@ -588,7 +588,7 @@ private:
      *  setupChosenConsumer(). Held so clientRun_() can build the matching networked client through the
      *  courtier setup layer (buildConsumerClient) without re-touching the command line or the
      *  concrete consumer types. */
-    ConsumerSpec consumer_spec_;
+    Gem::Courtier::ConsumerSpec consumer_spec_;
 
     //---------------------------------------------------------------------------
     // Parameters for the random number generator

@@ -125,7 +125,7 @@ int runTest(int argc, char **argv) {
         GMPISubClientOptimizer optimizer(argc, argv, CONFIGFILE, {}, base);
 
         const processRole expected = expectedRole(base_rank);
-        const processRole role = consumerRole(ConsumerSpec{.mnemonic = "mpi"});
+        const processRole role = consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"});
         const bool client_mode_expected = (expected != processRole::SUBMITTER);
         if(optimizer.clientMode() != client_mode_expected) {
             std::println(

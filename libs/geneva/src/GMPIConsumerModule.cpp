@@ -198,15 +198,15 @@ public:
     /** @brief The role of this process in the MPI environment; --client plays no part.
      *  @return The role of this process */
     [[nodiscard]] c2::processRole
-    role(const ConsumerSpec & /*spec*/, bool /*client_requested*/) const override {
+    role(const c2::ConsumerSpec & /*spec*/, bool /*client_requested*/) const override {
         return mpiProcessRole();
     }
 
-    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         requireRole(c2::processRole::SUBMITTER, "setup");
         auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
             mpiEnvironment(),
-            configOf<c2::Consumers::MPIConsumerConfig>(spec)
+            c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
         consumer->startServer();
         return consumer;
@@ -233,11 +233,11 @@ public:
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const override {
+    buildClient(const c2::ConsumerSpec &spec) const override {
         requireRole(c2::processRole::CLIENT, "buildClient");
         return std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<gen::GGenome>>(
             mpiEnvironment(),
-            configOf<c2::Consumers::MPIConsumerConfig>(spec)
+            c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
     }
 

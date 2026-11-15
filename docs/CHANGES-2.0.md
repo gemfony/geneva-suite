@@ -151,9 +151,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GAsioConsumerConfig` and `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none
   includes a network or MPI header). Development snapshots of the redesign had a `ConsumerSpec`
   with one field per option of every consumer and a function `buildConsumerSetup()` returning a
-  `ConsumerSetup`; `ConsumerSpec` is now a mnemonic plus a `std::any config` (empty: the family's
-  defaults), for a mnemonic known only at run time, `buildConsumer()` returns the consumer, and a
-  provider reads the struct with `configOf<ConfigT>(spec)`, which names both types when they differ.
+  `ConsumerSetup`; `Gem::Courtier::ConsumerSpec` (`courtier/GConsumerSpec.hpp`) is now a mnemonic
+  plus a `std::any config` (empty: the family's defaults), for a mnemonic known only at run time,
+  `buildConsumer()` returns the consumer, and a provider reads the struct with
+  `Gem::Courtier::configOf<ConfigT>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer

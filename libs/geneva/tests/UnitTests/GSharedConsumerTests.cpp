@@ -184,8 +184,8 @@ public:
     /** @brief Records the configuration of @p spec and builds a thread-pool consumer from it.
      *  @param spec The consumer specification @return The consumer */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
-    setup(const Gem::Geneva::ConsumerSpec &spec) override {
-        const auto config = Gem::Geneva::configOf<GProbeConsumerConfig>(spec);
+    setup(const Gem::Courtier::ConsumerSpec &spec) override {
+        const auto config = Gem::Courtier::configOf<GProbeConsumerConfig>(spec);
         configsSeen.push_back(config);
         return std::make_shared<Gem::Courtier::GStdThreadConsumerT<gen::GGenome>>(
             Gem::Courtier::GStdThreadConsumerConfig{.nThreads = config.nThreads}
@@ -201,8 +201,8 @@ public:
     /** @brief Records the configuration of @p spec; the probe has no client.
      *  @param spec The consumer specification @return nullptr */
     [[nodiscard]] std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-    buildClient(const Gem::Geneva::ConsumerSpec &spec) const override {
-        clientConfigsSeen.push_back(Gem::Geneva::configOf<GProbeConsumerConfig>(spec));
+    buildClient(const Gem::Courtier::ConsumerSpec &spec) const override {
+        clientConfigsSeen.push_back(Gem::Courtier::configOf<GProbeConsumerConfig>(spec));
         return nullptr;
     }
 
@@ -379,7 +379,7 @@ TEST_CASE("buildConsumer registers the process consumer", "[consumer][sharing][r
     auto &reg = Registry::instance();
     reg.clear();
 
-    auto stc = Gem::Geneva::buildConsumer(Gem::Geneva::ConsumerSpec{.mnemonic = "stc"});
+    auto stc = Gem::Geneva::buildConsumer(Gem::Courtier::ConsumerSpec{.mnemonic = "stc"});
     REQUIRE(stc);
     CHECK(reg.consumer() == stc); // registered, so un-injected algorithms submit through it
 
@@ -390,50 +390,6 @@ TEST_CASE("buildConsumer registers the process consumer", "[consumer][sharing][r
     CHECK(reg.consumer() == stc2);
 
     reg.clear();
-}
-
-// ---------------------------------------------------------------------------
-// A spec carries the configuration struct of its family in a std::any. configOf() is the one way a
-// provider reads it: an empty spec means the family's defaults, and the struct of another family is
-// refused with a message that says what was expected and what was found -- not with the
-// std::bad_any_cast that std::any_cast would throw.
-TEST_CASE("configOf() gives the defaults for an empty configuration", "[consumer][setup][config]") {
-    using Gem::Courtier::GWebsocketConsumerConfig;
-    using Gem::Geneva::configOf;
-    using Gem::Geneva::ConsumerSpec;
-
-    const GWebsocketConsumerConfig reference{};
-    const auto defaults = configOf<GWebsocketConsumerConfig>(ConsumerSpec{.mnemonic = "beast"});
-    CHECK(defaults.ip == reference.ip);
-    CHECK(defaults.port == reference.port);
-    CHECK(defaults.nThreads == reference.nThreads);
-    CHECK(defaults.pingInterval == reference.pingInterval);
-    CHECK(defaults.clientPrefetchDepth == reference.clientPrefetchDepth);
-
-    const ConsumerSpec carried{
-        .mnemonic = "beast",
-        .config = GWebsocketConsumerConfig{.ip = "server", .port = 4711}
-    };
-    CHECK(configOf<GWebsocketConsumerConfig>(carried).ip == "server");
-    CHECK(configOf<GWebsocketConsumerConfig>(carried).port == 4711);
-}
-
-TEST_CASE("configOf() refuses the configuration of another family", "[consumer][setup][config]") {
-    const Gem::Geneva::ConsumerSpec mismatched{
-        .mnemonic = "beast",
-        .config = Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 2}
-    };
-    std::string message;
-    try {
-        (void)Gem::Geneva::configOf<Gem::Courtier::GWebsocketConsumerConfig>(mismatched);
-    }
-    catch(const geneva_exception &e) {
-        message = e.what();
-    }
-    REQUIRE_FALSE(message.empty());
-    CHECK(message.contains("\"beast\""));
-    CHECK(message.contains("Gem::Courtier::GWebsocketConsumerConfig"));
-    CHECK(message.contains("Gem::Courtier::GStdThreadConsumerConfig"));
 }
 
 // ---------------------------------------------------------------------------
@@ -451,7 +407,7 @@ TEST_CASE("the typed front door and a spec build the same consumer", "[consumer]
     const GProbeConsumerConfig config{.nThreads = 2, .label = "chosen in code"};
     auto typed = Gem::Geneva::buildConsumer(config);
     auto by_spec = Gem::Geneva::buildConsumer(
-        Gem::Geneva::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
+        Gem::Courtier::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
     );
     REQUIRE(typed);
     REQUIRE(by_spec);
@@ -474,7 +430,7 @@ TEST_CASE("the typed front door and a spec build the same client", "[consumer][s
     const GProbeConsumerConfig config{.label = "chosen in code"};
     (void)Gem::Geneva::buildConsumerClient(config);
     (void)Gem::Geneva::buildConsumerClient(
-        Gem::Geneva::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
+        Gem::Courtier::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
     );
     REQUIRE(probe.provider->clientConfigsSeen.size() == 2);
     CHECK(probe.provider->clientConfigsSeen[0].label == "chosen in code");
@@ -576,13 +532,13 @@ TEST_CASE(
             return Gem::Geneva::specFromCommandLine(mnemonic, vm);
         };
     const auto beast_threads = [&spec_for](const std::vector<std::string> &args) {
-        return Gem::Geneva::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+        return Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
                    spec_for("beast", args)
         )
             .nThreads;
     };
     const auto asio_threads = [&spec_for](const std::vector<std::string> &args) {
-        return Gem::Geneva::configOf<Gem::Courtier::GAsioConsumerConfig>(spec_for("asio", args))
+        return Gem::Courtier::configOf<Gem::Courtier::GAsioConsumerConfig>(spec_for("asio", args))
             .nThreads;
     };
 

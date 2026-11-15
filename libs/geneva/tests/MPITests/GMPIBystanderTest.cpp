@@ -159,7 +159,7 @@ int runTest(int argc, char **argv) {
             processRole::CLIENT,
             processRole::BYSTANDER
         };
-        const processRole role = consumerRole(ConsumerSpec{.mnemonic = "mpi"});
+        const processRole role = consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"});
         if(world_rank > 2 || role != EXPECTED.at(static_cast<std::size_t>(world_rank))) {
             std::println("FAIL: rank {} has the role {}", world_rank, static_cast<int>(role));
             result = 1;
