@@ -107,6 +107,7 @@ struct ServerCounts {
     std::atomic<std::size_t> nReturns{0};      ///< RETURN frames received
     std::atomic<GFrameKind> lastResult{GFrameKind::NONE}; ///< The kind of the last result received
     std::atomic<std::size_t> nWork{0};                    ///< WORK frames sent
+    std::atomic<std::size_t> overAnswered{0}; ///< Answers sent beyond the requests received
 
     /** @brief Notes the unanswered requests of one connection @param n Their number */
     void unanswered(std::size_t n) {
@@ -154,7 +155,8 @@ public:
                     [self,
                      on_message = std::move(handlers.onMessage)](std::string &&message) mutable {
                         const GFrameKind kind = kindOf(message);
-                        if(kind == GFrameKind::PULL || kind == GFrameKind::RETURN) {
+                        if(kind == GFrameKind::PULL || kind == GFrameKind::RETURN ||
+                           kind == GFrameKind::UNREADABLE) {
                             ++self->requests_;
                             self->counts_->unanswered(self->requests_ - self->answers_);
                         }
@@ -177,6 +179,9 @@ public:
         const GFrameKind kind = kindOf(*message);
         if(kind == GFrameKind::WORK || kind == GFrameKind::NO_WORK) {
             ++answers_;
+            if(answers_ > requests_) {
+                counts_->overAnswered.fetch_add(1);
+            }
         }
         if(kind == GFrameKind::WORK) {
             counts_->nWork.fetch_add(1);
@@ -373,6 +378,10 @@ public:
     /** @brief @return What the server's ends counted */
     ServerCounts &counts() {
         return *counts_;
+    }
+    /** @brief @return What the server's ends counted, to be read after this world has gone */
+    [[nodiscard]] std::shared_ptr<ServerCounts> sharedCounts() const {
+        return counts_;
     }
     /** @brief @return Whether every client's run() has returned */
     bool clientsDone() const {
@@ -1460,4 +1469,492 @@ TEST_CASE(
     REQUIRE(world.runBatch(items));
     CHECK(evaluations->total.load() == 3);
     CHECK_FALSE(client->terminalErrorFlagged());
+}
+
+/******************************************************************************/
+// A lost connection: the client connects again, sends what the server may not have read, and goes
+// on; what it holds is evaluated and delivered on the next connection.
+
+namespace {
+
+/** @brief A gate an item processor waits at until the test opens it */
+struct Gate {
+    std::promise<void> opened;                                     ///< Set to open it
+    std::shared_future<void> waited = opened.get_future().share(); ///< Where processors wait
+    std::atomic<std::size_t> waiting{0};                           ///< Evaluations that arrived
+
+    /** @brief Opens the gate (once) */
+    void open() {
+        if(not open_.exchange(true)) {
+            opened.set_value();
+        }
+    }
+
+private:
+    std::atomic<bool> open_{false};
+};
+
+/**
+ * @brief An item processor that counts (as countingProcessor()), and waits at @p gate before it
+ * marks the item processed.
+ * @param evaluations Where it counts @param gate Where it waits
+ */
+Gem::Courtier::GItemProcessorT<GFaultyContainer>
+gatedProcessor(const std::shared_ptr<Evaluations> &evaluations, const std::shared_ptr<Gate> &gate) {
+    return [evaluations, gate](GFaultyContainer &item) {
+        {
+            const std::scoped_lock lock(evaluations->mutex);
+            ++evaluations->perItem[item.get_stored_number()];
+        }
+        evaluations->total.fetch_add(1);
+        gate->waiting.fetch_add(1);
+        gate->waited.wait_for(PATIENCE);
+        item.markAsProcessedWith({true});
+    };
+}
+
+/** @brief @param options The settings of a client @return A client that is set up with a gated
+ *  processor @param evaluations Where it counts @param gate Where it waits */
+auto withGate(const std::shared_ptr<Evaluations> &evaluations, const std::shared_ptr<Gate> &gate) {
+    return [evaluations, gate](client_type &client) {
+        client.setItemProcessor(gatedProcessor(evaluations, gate));
+    };
+}
+
+/** @brief Whether @p bytes are a RETURN frame (a close's payload is not a frame)
+ *  @param bytes What an in-process end hands over @return true for a RETURN */
+bool isReturn(std::string_view bytes) {
+    try {
+        return kindOf(std::string(bytes)) == GFrameKind::RETURN;
+    }
+    catch(...) {
+        return false;
+    }
+}
+
+/** @brief A listener whose server ends close every connection as soon as it is open, and its
+ *  threads. It refers to nothing else. */
+class DroppingServer {
+public:
+    /** @brief @param how What the close says; NORMAL: closed at once, ERROR: closed with ERROR on
+     *  the first message */
+    explicit DroppingServer(GPeerClose how = GPeerClose::NORMAL) {
+        listener_->start(io_.executor(), [how](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
+            const std::weak_ptr<GPeerI> weak = peer;
+            peer->start(
+                GPeerHandlers{
+                    .onOpen = {},
+                    .onMessage =
+                        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+                    [weak, how](std::string &&) {
+                        if(auto end = weak.lock(); end && how == GPeerClose::ERROR) {
+                            end->close(GPeerClose::ERROR);
+                        }
+                    },
+                    .onClosed = [](GPeerEnd, GPeerClose, std::string_view) {},
+                }
+            );
+            if(how == GPeerClose::NORMAL) {
+                peer->close(GPeerClose::NORMAL);
+            }
+        });
+    }
+    /** @brief Stops the listener while its threads run */
+    ~DroppingServer() {
+        try {
+            listener_->stop();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- it does not throw here
+        }
+        listener_->endWork();
+    }
+    DroppingServer(const DroppingServer &) = delete;
+    DroppingServer(DroppingServer &&) = delete;
+    DroppingServer &operator=(const DroppingServer &) = delete;
+    DroppingServer &operator=(DroppingServer &&) = delete;
+
+    /** @brief @return The listener (for a route) */
+    [[nodiscard]] const std::shared_ptr<GInProcessListener> &listener() const {
+        return listener_;
+    }
+
+private:
+    IoThreads io_{2};
+    std::shared_ptr<GInProcessListener> listener_ =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+};
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+/** A result that is finished while the client has no connection is delivered on the next one, once:
+ *  the item is not evaluated a second time. */
+TEST_CASE(
+    "GPeerClientT: a result finished while there is no connection is delivered once",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "losing client", .mode = BIN},
+        evaluations,
+        0ms,
+        watch,
+        withGate(evaluations, gate)
+    );
+    auto items = makeBatch(1);
+    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+
+    world.route().clear();
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return client->losses() == 1; }));
+    gate->open(); // the result is finished while every attempt is refused
+    std::this_thread::sleep_for(300ms);
+    CHECK(client->connections() == 1);
+
+    world.route().set(world.listener());
+    REQUIRE(batch.get());
+    CHECK(evaluations->of(0) == 1);
+    CHECK(client->connections() == 2);
+    CHECK(client->resultsResent() == 0); // it had never been sent
+}
+
+/******************************************************************************/
+/** A client at depth 1 whose request waits at the server (no work) loses its connection: on the
+ *  next one it asks again and works. */
+TEST_CASE(
+    "GPeerClientT: a parked client at depth 1 works after a loss",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "parked client", .mode = BIN},
+        evaluations,
+        1ms,
+        watch,
+        AS_IS
+    );
+    REQUIRE(eventually([&] { return client->connections() == 1; }));
+    std::this_thread::sleep_for(100ms); // its PULL waits at the server
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return client->connections() == 2; }));
+
+    auto items = makeBatch(3);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->total.load() == 3);
+}
+
+/******************************************************************************/
+/** The new peer of a client that evaluates is told so. */
+TEST_CASE(
+    "GPeerClientT: a new connection is told that the client is busy",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "busy client", .mode = BIN},
+        evaluations,
+        0ms,
+        watch,
+        withGate(evaluations, gate)
+    );
+    auto items = makeBatch(1);
+    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+    auto first = watch->last();
+    REQUIRE(first);
+    CHECK(eventually([&] { return first->ownerBusy(); }));
+
+    first->sever();
+    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    auto second = watch->last();
+    REQUIRE(second);
+    CHECK(second != first);
+    CHECK(eventually([&] { return second->ownerBusy(); }));
+
+    gate->open();
+    REQUIRE(batch.get());
+    CHECK(evaluations->of(0) == 1);
+}
+
+/******************************************************************************/
+/** A RETURN that ends every connection it is sent on is given up after the resend limit; the server
+ *  hands its item out again, and the batch is done. */
+TEST_CASE(
+    "GPeerClientT: a result lost on every connection is given up at the resend limit",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    auto cuts = std::make_shared<std::atomic<int>>(0);
+    watch->setOnMade([cuts](Gem::Courtier::Tests::GInProcessPeer &end) {
+        end.setTransmitHook([&end, cuts](std::string_view bytes) {
+            if(isReturn(bytes) && cuts->load() < Gem::Courtier::GCLIENTRESENDLIMIT) {
+                cuts->fetch_add(1);
+                end.sever(); // the RETURN is not delivered
+            }
+        });
+    });
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "unlucky client", .mode = BIN},
+        evaluations,
+        1ms,
+        watch,
+        AS_IS
+    );
+    auto items = makeBatch(1);
+    REQUIRE(world.runBatch(items));
+    CHECK(cuts->load() == Gem::Courtier::GCLIENTRESENDLIMIT);
+    CHECK(client->resultsGivenUp() == 1);
+    CHECK(client->losses() == Gem::Courtier::GCLIENTRESENDLIMIT);
+    CHECK(evaluations->of(0) == 2); // handed out again by the server
+}
+
+/******************************************************************************/
+/** A server that closes with ERROR (a message whose kind it could not read) ends the connection,
+ *  not the client: it connects again. */
+TEST_CASE(
+    "GPeerClientT: a connection the server closes with ERROR is a loss",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    const DroppingServer erring(GPeerClose::ERROR);
+    World world;
+    world.route().set(erring.listener());
+    auto client = world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    REQUIRE(eventually([&] { return client->losses() >= 1; }));
+    world.route().set(world.listener());
+    auto items = makeBatch(2);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->total.load() == 2);
+    CHECK_FALSE(client->terminalErrorFlagged());
+}
+
+/******************************************************************************/
+/**
+ * Contact. A server that accepts and drops at once gives no contact: the pause grows, and the
+ * reconnect limit, counted from the end of the last connection that had contact, ends the client.
+ */
+TEST_CASE(
+    "GPeerClientT: a server that drops every connection at once does not keep a client",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    const DroppingServer dropping;
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{
+            .name = "limited client",
+            .mode = BIN,
+            .reconnectLimit = 3s,
+            .contactTime = 300ms
+        },
+        evaluations,
+        1ms,
+        watch,
+        AS_IS
+    );
+    auto items = makeBatch(1);
+    REQUIRE(world.runBatch(items)); // an answer: contact
+
+    world.route().set(dropping.listener());
+    const auto lost = std::chrono::steady_clock::now();
+    watch->last()->sever();
+    REQUIRE(eventually([&] { return world.clientsDone(); }));
+    const auto took = std::chrono::steady_clock::now() - lost;
+    CHECK(client->terminalErrorFlagged());
+    CHECK(took >= 3s);
+    CHECK(took < 6s);
+    // Pauses of 0.125-0.25, 0.25-0.5, 0.5-1, 1-2 s ... within about 3 s
+    INFO("connections dropped: " << dropping.listener()->nConnections());
+    CHECK(dropping.listener()->nConnections() <= 7);
+}
+
+/**
+ * A connection that had contact long ago (a parked client) and is then lost: the reconnect limit
+ * counts from the loss, not from the last answer.
+ */
+TEST_CASE(
+    "GPeerClientT: the reconnect limit counts from the end of the connection",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "patient client", .mode = BIN, .reconnectLimit = 1500ms},
+        evaluations,
+        1ms,
+        watch,
+        AS_IS
+    );
+    auto first = makeBatch(1);
+    REQUIRE(world.runBatch(first));      // an answer: contact
+    std::this_thread::sleep_for(2500ms); // parked for longer than the limit
+
+    world.route().clear();
+    watch->last()->sever();
+    std::this_thread::sleep_for(500ms);
+    world.route().set(world.listener());
+    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    CHECK_FALSE(world.clientsDone());
+    auto second = makeBatch(1, 1);
+    REQUIRE(world.runBatch(second));
+    CHECK_FALSE(client->terminalErrorFlagged());
+}
+
+/******************************************************************************/
+/**
+ * At most one answer per request read: with RESULTs (look-ahead), parked requests, a lost
+ * connection and the end of the run. (UNREADABLE cannot be made here: the counting server end
+ * decodes every message itself, which would use up the load fault that makes a client's load fail.)
+ */
+TEST_CASE("GPeerClientT: the server answers no message twice", "[courtier][peer][client]") {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::shared_ptr<ServerCounts> counts;
+    {
+        World world;
+        counts = world.sharedCounts();
+        auto client = world.client(lookAhead(), evaluations, 5ms, watch, AS_IS);
+        auto items = makeBatch(6, 0);
+        REQUIRE(world.runBatch(items));
+        std::this_thread::sleep_for(100ms); // parked
+        watch->last()->sever();
+        REQUIRE(eventually([&] { return client->connections() == 2; }));
+        auto more = makeBatch(4, 10);
+        REQUIRE(world.runBatch(more));
+        CHECK(world.counts().nResults.load() + world.counts().nReturns.load() >= 10);
+    }
+    CHECK(counts->overAnswered.load() == 0);
+}
+
+/******************************************************************************/
+// The order of a loss: an answer that arrived before the connection was lost, and is decoded only
+// afterwards, is booked against the lost connection first.
+
+namespace {
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<std::size_t> gatedDecodes{0};   ///< Work items whose decoding on a client has begun
+std::atomic<bool> secondDecodeHeld{false};  ///< The second decode waits while this is set
+std::atomic<bool> secondDecodeWaits{false}; ///< The second decode has begun to wait
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+/** @brief A work item whose second decode on a client waits as long as the test holds it */
+class GHeldDecodeItem final : public Gem::Courtier::GProcessingContainerT<GHeldDecodeItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GHeldDecodeItem, bool>>(
+            ar,
+            "GProcessingContainerT_GHeldDecodeItem",
+            *this
+        );
+        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
+            if(this->is_due_for_processing() && gatedDecodes.fetch_add(1) == 1) {
+                secondDecodeWaits.store(true);
+                Gem::Courtier::Tests::eventually(
+                    [] { return not secondDecodeHeld.load(); },
+                    std::chrono::milliseconds(10'000)
+                );
+            }
+        }
+    }
+
+public:
+    /** @brief The default constructor (also for loading) */
+    GHeldDecodeItem()
+      : Gem::Courtier::GProcessingContainerT<GHeldDecodeItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Nothing to compute */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
+};
+
+} /* anonymous namespace */
+
+/**
+ * The client returns its first result as a RETURN; the server answers it with the second item, and
+ * the connection is lost while that answer is being decoded. The answer proves the RETURN: it is
+ * not sent again on the next connection, and the second item is evaluated and delivered there.
+ */
+TEST_CASE(
+    "GPeerClientT: an answer decoded after a loss is booked against the lost connection",
+    "[courtier][peer][client]"
+) {
+    gatedDecodes.store(0);
+    secondDecodeHeld.store(true);
+    secondDecodeWaits.store(false);
+    using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    std::vector<std::unique_ptr<GHeldDecodeItem>> items;
+    items.push_back(std::make_unique<GHeldDecodeItem>());
+    items.push_back(std::make_unique<GHeldDecodeItem>());
+    std::shared_ptr<held_client_type> client;
+    bool done = false;
+    {
+        Gem::Courtier::GPeerConsumerT<GHeldDecodeItem>
+            shell("Shell", std::make_unique<GInProcessListenerRef>(listener), 2, BIN);
+        Gem::Courtier::GNetworkedTimeoutConfig config;
+        config.treatment = "wait_indefinitely";
+        shell.applyTimeoutConfig(config);
+        shell.startServer();
+        client = std::make_shared<held_client_type>(
+            std::make_unique<GInProcessConnector>(
+                std::make_shared<GInProcessRoute>(listener),
+                true,
+                watch
+            ),
+            GPeerClientOptions{.name = "held client", .mode = BIN}
+        );
+        const std::jthread runner([client] { client->run(); });
+        auto batch = std::async(std::launch::async, [&] {
+            shell.processBatch(
+                std::span(items.data(), items.size()),
+                Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+            );
+        });
+
+        REQUIRE(eventually([] { return secondDecodeWaits.load(); }));
+        watch->last()->sever();
+        REQUIRE(eventually([&] { return client->losses() == 1; }));
+        // The loss waits for the decode: no new attempt is made meanwhile (the first pause would
+        // be over long before this).
+        std::this_thread::sleep_for(600ms);
+        CHECK(client->connections() == 1);
+        secondDecodeHeld.store(false);
+
+        done = batch.wait_for(PATIENCE) == std::future_status::ready;
+        if(not done) {
+            shell.stopServer();
+        }
+        batch.get();
+        shell.stopServer();
+    }
+    CHECK(done);
+    CHECK(client->connections() == 2);
+    CHECK(client->resultsResent() == 0);
+    CHECK(gatedDecodes.load() == 2);
 }

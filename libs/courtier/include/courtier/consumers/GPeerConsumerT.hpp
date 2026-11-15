@@ -407,7 +407,10 @@ private:
                             checkout = lease->remove(id);
                         }
                         try {
-                            this->checkin(std::move(frame));
+                            // A result of an item this session did not hand out (sent again
+                            // after a lost connection) gives no sample of the return time: it
+                            // includes the outage.
+                            this->checkin(std::move(frame), checkout.has_value());
                         }
                         catch(...) {
                             if(checkout) {

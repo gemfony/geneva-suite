@@ -168,6 +168,12 @@ constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
 /// How long a networked client tries to reach a server before its first contact with one; 0: for
 /// as long as it runs (the batch system bounds it).
 constexpr std::chrono::seconds GCLIENTFIRSTCONTACTLIMIT{0};
+/// How long a networked client tries to reach a server again after it has lost its connection,
+/// counted from the end of the last connection on which it had contact; 0: for as long as it runs.
+constexpr std::chrono::seconds GCLIENTRECONNECTLIMIT{600};
+/// How often a networked client sends a result on a connection that is lost before the result is
+/// known to have arrived; a result lost so often is given up (the server hands its item out again).
+constexpr std::uint8_t GCLIENTRESENDLIMIT = 2;
 /// A connection on which no answer has arrived counts as contact with a server once it has been
 /// open this long: a session that has no work for the client answers nothing, and a connection
 /// that is not alive is cut by the keep-alive (twice the ping interval) before this.

@@ -64,6 +64,8 @@
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
+#include "GTcpRelay.hpp"
+
 namespace {
 /// As many check-ins of a GSimpleContainer throw as this says (see the seam below).
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -332,10 +334,12 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "courtier(websocket): a client whose server falls silent terminates on its own",
+    "courtier(websocket): a client whose server falls silent ends at its first-contact limit",
     "[courtier][websocket][liveness][net]"
 ) {
-    // A "server" that completes the handshake and then does nothing: no reply, no pong.
+    // A "server" that completes the handshake and then does nothing: no reply, no pong. It accepts
+    // one connection; later connects are refused. The client had no contact (no answer, and the
+    // connection was open for less than the contact time): its first-contact limit ends it.
     boost::asio::io_context server_ctx;
     tcp::acceptor acceptor(server_ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     const unsigned short port = acceptor.local_endpoint().port();
@@ -343,6 +347,7 @@ TEST_CASE(
     const std::jthread server_thread([&acceptor, held = release.get_future()]() mutable {
         boost::system::error_code ec;
         Websocket::stream<tcp::socket> ws(acceptor.accept(ec));
+        std::ignore = acceptor.close(ec);
         if(not ec) {
             ws.accept(ec);
         }
@@ -353,15 +358,26 @@ TEST_CASE(
     auto log = std::make_shared<CapturedLog>();
     glogger.addLogTarget(log);
 
-    auto client = matchingClient<GFaultyContainer>(port);
+    auto client = std::make_shared<GWebsocketClientT<GFaultyContainer>>(
+        Gem::Courtier::GWebsocketConsumerConfig{
+            .ip = "127.0.0.1",
+            .port = port,
+            .serializationMode = BIN,
+            .pingInterval = PING_INTERVAL_S,
+            .clientFirstContactLimit = 3,
+        }
+    );
     std::atomic<bool> returned{false};
     const std::jthread client_thread([client, &returned] {
         client->run();
         returned.store(true);
     });
 
-    // Nothing arrives, not even a pong: after two ping intervals the client must give up.
+    // Nothing arrives, not even a pong: after two ping intervals the connection ends, and the
+    // client, refused from then on, ends at its limit.
     CHECK(eventually([&] { return returned.load(); }));
+    CHECK(client->losses() == 1);
+    CHECK(client->terminalErrorFlagged());
 
     // The log says which end gave up and how long the other end had been silent: what is needed to
     // tell a dead peer from a busy one.
@@ -827,6 +843,9 @@ void runSlowCodecCase(const SlowCodecCase &c) {
     CHECK(consumer->requeuedCount() == 0);                    // nothing was taken back
     CHECK(consumer->getNActiveSessions() == c.clients);       // no connection was lost
     CHECK_FALSE(log->hasLineWith({"the idle limit of"}));     // and no end gave up on the other
+    for(const auto &client : clients) {
+        CHECK(client->losses() == 0); // not even one that the client made good by connecting again
+    }
 
     slowRun.store(CodecRun::NONE);
     glogger.resetLogTargets();
@@ -877,4 +896,85 @@ TEST_CASE(
     "[courtier][websocket][liveness][net][slowcodec]"
 ) {
     runSlowCodecCase({.run = CodecRun::SERVER_ENCODES, .serverThreads = 2, .clients = 3});
+}
+
+/******************************************************************************/
+// A connection that is lost: the client connects again (through a relay that cuts or freezes the
+// connection) and the batch is done.
+
+TEST_CASE(
+    "courtier(websocket): a result cut in the middle arrives once after the client connects again",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GRandomNumberContainer>(/*n_threads=*/2);
+    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
+    Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
+    auto client = matchingClient<GRandomNumberContainer>(relay.port());
+    std::atomic<int> n_evaluated{0};
+    std::promise<void> release;
+    const auto released = release.get_future().share();
+    client->setItemProcessor([&n_evaluated, released](GRandomNumberContainer &item) {
+        n_evaluated.fetch_add(1);
+        released.wait_for(PATIENCE);
+        item.markAsProcessedWith({true});
+    });
+    const std::jthread client_thread([client] { client->run(); });
+
+    std::vector<std::unique_ptr<GRandomNumberContainer>> items;
+    items.push_back(std::make_unique<GRandomNumberContainer>(100'000)); // a RETURN of about 800 kB
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GRandomNumberContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+    REQUIRE(eventually([&] { return n_evaluated.load() == 1; }));
+    relay.cutAfter(Gem::Courtier::Tests::relayDirection::TO_SERVER, 400'000);
+    release.set_value();
+
+    const bool done = batch.wait_for(2 * PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer();
+        batch.wait();
+    }
+    CHECK(n_evaluated.load() == 1); // the result was sent again, the item not evaluated again
+    CHECK(client->losses() == 1);
+    CHECK(client->resultsResent() == 1);
+    CHECK(relay.nConnections() == 2);
+    client->flagCloseRequested();
+}
+
+TEST_CASE(
+    "courtier(websocket): a client whose connection goes silent connects again",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+    Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
+    auto client = matchingClient<GFaultyContainer>(relay.port());
+    const std::jthread client_thread([client] { client->run(); });
+    REQUIRE(eventually([&] { return client->connections() == 1; }));
+
+    relay.freeze(); // half-open at both ends: nothing passes, nothing is closed
+    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    CHECK(client->losses() == 1);
+
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.reserve(3);
+    for(std::size_t i = 0; i < 3; ++i) {
+        items.push_back(std::make_unique<GFaultyContainer>(i, fault_mode::NONE));
+    }
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer();
+        batch.wait();
+    }
+    client->flagCloseRequested();
 }

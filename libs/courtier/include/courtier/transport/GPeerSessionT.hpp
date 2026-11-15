@@ -84,9 +84,12 @@ namespace Gem::Courtier::Consumers {
  * Messages that cannot be read. A message from the client that cannot be decoded is attributed by
  * its kind, which is read first (the frame is reset to NONE before each decode). A RESULT is not
  * answered (it asked for nothing); a request (PULL, RETURN, UNREADABLE) is answered with NO_WORK,
- * and so is a message whose kind could not be read either, or a frame of a kind a client does not
- * send (WORK, say). In every case the session gives back
- * what it holds: it can no longer tell which items the client still works on. An UNREADABLE from
+ * and so is a frame of a kind a client does not send (WORK, say). A message whose kind could not
+ * be read either ends the connection (GPeerClose::ERROR): it may have been a RESULT, which asks for
+ * no answer, or a request, which does, and a client counts the answers to its requests -- an
+ * answer too many or too few would make it lose track of what the server has read. The client
+ * connects again. In every case the session gives back what it holds: it can no longer tell which
+ * items the client still works on. An UNREADABLE from
  * the client says that it could not read the session's last answer: the session forgets which
  * blobs the client holds (they are sent in full again), gives back what it holds, and owes the
  * client the next item.
@@ -416,11 +419,12 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief What a message gets that could not be read or handled, by its kind: a RESULT asked
-     * for nothing and is not answered; anything else is answered with NO_WORK. The session gives
-     * back what it holds in either case.
+     * for nothing and is not answered; a message whose kind could not be read ends the connection;
+     * anything else is answered with NO_WORK. The session gives back what it holds in every case.
      *
      * @param kind The kind the message was read as; NONE if not even that could be read
-     * @return GNothingDue for a RESULT, the NO_WORK answer otherwise
+     * @return GNothingDue for a RESULT and for a message without a kind, the NO_WORK answer
+     * otherwise
      */
     Gem::Courtier::GAbsorbResult refused_(GFrameKind kind) {
         try {
@@ -454,8 +458,13 @@ private:
         if(kind == GFrameKind::NONE) {
             glogger
                 << "GPeerSessionT<processable_type>: not even the kind of the message of client "
-                << peer_id_ << " could be read; it is answered as a request" << '\n'
+                << peer_id_ << " could be read; the connection is closed" << '\n'
                 << GLOGGING;
+            if(auto peer = peer_.lock()) {
+                peer->close(GPeerClose::ERROR);
+            }
+            stopping_ = true; // nothing more is served on this connection
+            return Gem::Courtier::GNothingDue{};
         }
         return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
     }

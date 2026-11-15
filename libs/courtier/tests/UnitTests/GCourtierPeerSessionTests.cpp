@@ -651,8 +651,8 @@ TEST_CASE(
 /**
  * The same under the JSON codec, where the whole document is parsed before anything is read: a
  * RESULT that is a JSON document but cannot be loaded has its kind read and is not answered; a
- * message that is not JSON at all has no kind and is answered with NO_WORK. Either way what the
- * client held comes back.
+ * message that is not JSON at all has no kind and ends the connection with ERROR. Either way what
+ * the client held comes back.
  */
 TEST_CASE(
     "GPeerSessionT: under JSON a RESULT whose payload cannot be loaded is not answered",
@@ -680,10 +680,37 @@ TEST_CASE(
         connection.client->send(GFrameKind::PULL);
         REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
         connection.client->sendBytes("this is not JSON");
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::NO_WORK) == 1; }));
+        REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
+        CHECK(connection.client->count(GFrameKind::NO_WORK) == 0);
         CHECK(consumer.nPending() == 1);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
 
-        connection.client->close(GPeerClose::NORMAL);
+/******************************************************************************/
+/**
+ * A message whose kind cannot be read may have been a RESULT (no answer) or a request (one
+ * answer): the session answers neither way, ends the connection with ERROR and gives back what the
+ * client held. The client counts the answers to its requests, so a guess would put it out of step.
+ */
+TEST_CASE(
+    "GPeerSessionT: a message whose kind cannot be read ends the connection with ERROR",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        consumer.offer({1});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        REQUIRE(consumer.nPending() == 0);
+
+        connection.client->sendBytes("x");
+        REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
+        CHECK(connection.client->nFrames() == 1); // no answer
+        CHECK(consumer.nPending() == 1);          // what the client held is back
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
     }
 }

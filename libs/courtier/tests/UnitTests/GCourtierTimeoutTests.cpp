@@ -973,3 +973,47 @@ TEST_CASE(
     CHECK(processing_time(batch[0]) != FOREIGN_TIME);
     CHECK(consumer.foreignReturnCount() == 1);
 }
+
+/******************************************************************************/
+/**
+ * A result that arrives on another connection than the one its item went out on (a client that
+ * sends it again after a lost connection) gives no sample of the return time: the outage is in it.
+ */
+TEST_CASE(
+    "Networked: a result that does not count its return time leaves the lease as it is",
+    "[courtier][timeout]"
+) {
+    SimNetConsumer consumer;
+    auto batch = make_batch(2);
+    std::atomic<bool> finished{false};
+    std::jthread worker([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+        finished.store(true);
+    });
+    auto first = consumer.checkout();
+    while(not first) {
+        std::this_thread::sleep_for(1ms);
+        first = consumer.checkout();
+    }
+    first->process();
+    std::this_thread::sleep_for(100ms);
+    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+    frame.setOutcome(first->processingOutcome());
+    frame.setItem(std::move(first));
+    consumer.checkin(std::move(frame), /*count_return_time=*/false);
+    CHECK(consumer.currentLease() == c2::GNETWORKEDLEASEBOOTSTRAP); // still no sample
+
+    auto second = consumer.checkout();
+    while(not second) {
+        std::this_thread::sleep_for(1ms);
+        second = consumer.checkout();
+    }
+    second->process();
+    consumer.checkin(std::move(second));
+    CHECK(consumer.currentLease() != c2::GNETWORKEDLEASEBOOTSTRAP); // one sample
+    worker.join();
+    CHECK(finished.load());
+}

@@ -46,9 +46,10 @@
 #include <vector>
 
 #include "courtier/GDemoProcessingContainers.hpp"
-#include "courtier/transport/GWebsocketTransportT.hpp" // the (reused) client
 #include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/GWireCodec.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
+#include "courtier/transport/GWebsocketTransportT.hpp" // the (reused) client
 
 #include "GTcpRelay.hpp"
 
@@ -182,15 +183,18 @@ TEST_CASE("courtier(websocket): prefetch + throwing items refilled under clone-o
 
 /******************************************************************************/
 
-TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its own",
-          "[courtier][websocket][net]") {
+TEST_CASE(
+    "courtier(websocket): a client whose server vanishes ends at its reconnect limit",
+    "[courtier][websocket][net]"
+) {
     // Regression (2026-07-18): every fatal client transport path (read/write error, decode
     // failure, invalid command) set close_code_ but never tore the connection down, so the
     // 1-second halt-poll timer kept io_context::run() alive forever -- the client hung instead
     // of terminating. A minimal one-shot server stands in for a crashed server process: it
-    // completes the websocket handshake, reads the client's first pull, then hard-closes the
-    // TCP socket without a websocket close handshake. The client's outstanding read errors and
-    // its run() must return BY ITSELF (no flagCloseRequested from the outside).
+    // completes the websocket handshake, answers the client's first pull with NO_WORK (contact),
+    // closes its acceptor and hard-closes the TCP socket without a websocket close handshake. The
+    // client connects again, is refused, and its run() must return BY ITSELF at its reconnect
+    // limit (no flagCloseRequested from the outside).
     namespace bws = boost::beast::websocket;
     using boost::asio::ip::tcp;
 
@@ -213,13 +217,20 @@ TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its
         }
         boost::beast::flat_buffer buf;
         ws.read(buf, ec); // the client's first PULL frame
-        // No reply, no close frame: slam the TCP connection shut like a killed server process.
+        const c2::GCommandContainerT<GFaultyContainer> no_work{c2::GFrameKind::NO_WORK};
+        ws.write(boost::asio::buffer(c2::wireEncode(no_work, nullptr, BIN)), ec);
+        std::ignore = acceptor.close(ec); // the server process is gone: connects are refused
+        // No close frame: slam the TCP connection shut like a killed server process.
         ws.next_layer().close(ec);
     });
 
-    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-        c2::GWebsocketConsumerConfig{.ip = "127.0.0.1", .port = port, .serializationMode = BIN}
-    );
+    auto client =
+        std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(c2::GWebsocketConsumerConfig{
+            .ip = "127.0.0.1",
+            .port = port,
+            .serializationMode = BIN,
+            .clientReconnectLimit = 2
+        });
     std::atomic<bool> returned{false};
     std::jthread const client_thread([client, &returned] {
         try {
@@ -236,6 +247,8 @@ TEST_CASE("courtier(websocket): a client whose server vanishes terminates on its
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
     CHECK(returned.load());
+    CHECK(client->losses() == 1);
+    CHECK(client->terminalErrorFlagged()); // the limit, not a halt from outside
 
     if(not returned.load()) {
         // Rescue a hung client (the pre-fix behaviour) so the jthread can join and the test

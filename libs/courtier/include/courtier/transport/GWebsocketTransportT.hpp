@@ -48,8 +48,9 @@ namespace Gem::Courtier::Consumers {
  * The client of the courtier websocket consumer (GWebsocketConsumerT): a GPeerClientT over a
  * GWebsocketConnector. The connection is kept open while items are evaluated; the keep-alive goes
  * on meanwhile, so an evaluation may take any length of time, and a server that has fallen silent
- * is noticed by the idle limit. A client that is told that the run has ended ends; one that cannot
- * read a message tells the server and stays (see GPeerClientT).
+ * is noticed by the idle limit: the connection ends and the client connects again (see
+ * GPeerClientT). A client that is told that the run has ended ends; one that cannot read a message
+ * tells the server and stays.
  *
  * It is configured by a GWebsocketConsumerConfig, the struct its server is built from too. The
  * client must be held by a std::shared_ptr.
@@ -71,8 +72,9 @@ public:
      *        received), clientPrefetchDepth (the largest number of work items in flight at once; 0
      *        is treated as 1), pingInterval (seconds of silence after which a ping is sent;
      *        after twice that time without any inbound data the connection ends; 0 switches this
-     *        off) and clientFirstContactLimit (seconds the client tries to reach the server before
-     *        it gives up; 0: no limit). nThreads is ignored.
+     *        off), clientFirstContactLimit (seconds the client tries to reach the server before
+     *        it gives up; 0: no limit) and clientReconnectLimit (seconds it tries to reach it again
+     *        after a lost connection; 0: no limit). nThreads is ignored.
      */
     explicit GWebsocketClientT(const config_type &config)
       : GPeerClientT<processable_type>(
@@ -90,7 +92,8 @@ public:
                 .name = "GWebsocketClientT<processable_type>",
                 .mode = config.serializationMode,
                 .prefetchDepth = config.clientPrefetchDepth,
-                .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit)
+                .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit),
+                .reconnectLimit = std::chrono::seconds(config.clientReconnectLimit)
             }
         ) { /* nothing */
     }

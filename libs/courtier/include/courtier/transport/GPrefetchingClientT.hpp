@@ -93,6 +93,11 @@ namespace Gem::Courtier::Consumers {
  *                                              0 (io thread)
  *  - when_answered_(kind)                   -- optional: a message has been decoded (io thread),
  *                                              before the books are done; NONE if it could not be
+ *                                              read. A client that has it keeps pending_pulls_
+ *                                              itself; without it the base counts one request
+ *                                              answered for every message that could be read
+ *  - after_decoded_()                       -- optional: the books of a decoded message are done;
+ *                                              n_decoding_ counts those still being decoded
  *  - when_polled_()                         -- optional: the halt poll found no halt condition
  *
  * Compute width. The pool evaluates at most compute_width_ items at a time (by default as many as
@@ -155,6 +160,7 @@ protected:
      * @param message One complete message from the server
      */
     void dispatch_message_(std::string message) {
+        ++n_decoding_;
         auto self = derived().shared_from_this();
         auto guard = boost::asio::make_work_guard(io_context_);
         boost::asio::post(
@@ -203,8 +209,25 @@ protected:
      * @param error Why the message could not be decoded; empty if it could
      */
     void decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+        --n_decoding_;
+        this->book_decoded_(std::move(container), error);
+        if constexpr(requires(derived_type &d) { d.after_decoded_(); }) {
+            derived().after_decoded_();
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief The books of decoded_() @param container The decoded frame
+     *  @param error Why the message could not be decoded; empty if it could */
+    void book_decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+        // A WORK frame that decodes but carries no work item cannot be read either.
+        const bool readable =
+            error.empty() && (container.kind() != GFrameKind::WORK || container.item() != nullptr);
         if constexpr(requires(derived_type &d) { d.when_answered_(GFrameKind::NONE); }) {
-            derived().when_answered_(error.empty() ? container.kind() : GFrameKind::NONE);
+            derived().when_answered_(readable ? container.kind() : GFrameKind::NONE);
+        }
+        else if(readable && pending_pulls_ > 0) {
+            --pending_pulls_;
         }
         if(not error.empty()) {
             derived().when_unreadable_(error);
@@ -215,9 +238,6 @@ protected:
         if(container.kind() == GFrameKind::WORK && container.item() == nullptr) {
             derived().when_unreadable_("a WORK frame without a work item");
             return;
-        }
-        if(pending_pulls_ > 0) {
-            --pending_pulls_;
         }
         if(container.kind() == GFrameKind::WORK) {
             // One pull became one item: the in-flight total is unchanged. It is evaluated at once
@@ -532,6 +552,8 @@ protected:
     /// keeps pending_pulls_ + computing_ == prefetch_depth_ whenever work is available.
     std::size_t pending_pulls_ = 0;
     std::size_t computing_ = 0;
+    /// Messages handed to the decode strand whose books are not done yet (io thread)
+    std::size_t n_decoding_ = 0;
 
     /// How many items are evaluated at the same time (the width of the compute pool); at most the
     /// prefetch depth

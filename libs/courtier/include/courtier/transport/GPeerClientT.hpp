@@ -33,10 +33,12 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <exception>
 #include <memory>
 #include <random>
@@ -78,6 +80,10 @@ struct GPeerClientOptions {
     /// How long the client tries to reach a server before its first contact with one; 0: for as
     /// long as it runs (see the class comment)
     std::chrono::milliseconds firstContactLimit = GCLIENTFIRSTCONTACTLIMIT;
+    /// How long the client tries to reach a server again after it has lost its connection,
+    /// counted from the end of the last connection on which it had contact; 0: for as long as it
+    /// runs (see the class comment)
+    std::chrono::milliseconds reconnectLimit = GCLIENTRECONNECTLIMIT;
     /// How long a connection without an answer must have been open to count as contact
     std::chrono::milliseconds contactTime = GCLIENTCONTACTTIME;
 };
@@ -136,7 +142,25 @@ struct GPeerClientOptions {
  * client that has had no contact within GPeerClientOptions::firstContactLimit (0: no limit) gives
  * up: it flags a terminal error and ends. The limit is looked at while the client has no
  * connection; a connection that is open is not held against it. A connector that cannot connect
- * again (GConnectorI::reconnectable()) gets one attempt. A connection that is lost ends the client.
+ * again (GConnectorI::reconnectable()) gets one attempt.
+ *
+ * A lost connection. A connection that ends without the end of the run and without a halt (the
+ * server closed it, reset it, fell silent and was cut by the idle limit) is lost; the client
+ * connects again, as above, until GPeerClientOptions::reconnectLimit has passed since the end of
+ * the last connection on which it had contact (0: no limit). What it held is kept: items held for
+ * the compute pool and items whose answer is still being decoded are evaluated, and their results
+ * go to the next connection. What the server may not have read is sent again there, in order:
+ * every message the client hands to its peer stays in a list (unanswered_) until it is known to
+ * have been read. The server answers every request it reads (PULL, RETURN, UNREADABLE) with one
+ * WORK or NO_WORK, in order, and nothing else (a RESULT asks for nothing): an answer proves the
+ * oldest request without one, and every message sent before it. At a loss the requests that asked
+ * for nothing but work are dropped (the old session gives back what they asked for); RETURN and
+ * RESULT stay and are sent again first on the next connection. A result that has been sent
+ * GCLIENTRESENDLIMIT times on connections that were lost is given up; its item is handed out
+ * again by the server. The loss is booked only after the messages of the lost connection that are
+ * still being decoded have been (LinkState::DRAINING): an answer that arrived before the loss
+ * proves what it proves. A result that arrives twice at the server (it had read it after all) is
+ * dropped there as a duplicate. The new peer is told whether the client is busy.
  *
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
@@ -157,6 +181,7 @@ class GPeerClientT
     using pipeline_base::drop_held_;
     using pipeline_base::in_flight_;
     using pipeline_base::io_context_;
+    using pipeline_base::n_decoding_;
     using pipeline_base::n_nodata_;
     using pipeline_base::pending_pulls_;
     using pipeline_base::prefetch_depth_;
@@ -211,6 +236,25 @@ public:
     [[nodiscard]] GPeerEnd connectionEnd() const noexcept {
         return end_;
     }
+    /** @brief How many connections have opened. From any thread. @return The count */
+    [[nodiscard]] std::uint64_t connections() const noexcept {
+        return n_connections_.load();
+    }
+    /** @brief How many connections were lost (see the class comment). From any thread.
+     *  @return The count */
+    [[nodiscard]] std::uint64_t losses() const noexcept {
+        return n_losses_.load();
+    }
+    /** @brief How often a result was sent once more on a new connection. From any thread.
+     *  @return The count */
+    [[nodiscard]] std::uint64_t resultsResent() const noexcept {
+        return n_results_resent_.load();
+    }
+    /** @brief How many results were given up at the resend limit. From any thread.
+     *  @return The count */
+    [[nodiscard]] std::uint64_t resultsGivenUp() const noexcept {
+        return n_results_given_up_.load();
+    }
     /** @brief How often a NO_WORK answer was received. From any thread.
      *  @return The count */
     [[nodiscard]] std::uint64_t noWorkCount() const noexcept {
@@ -225,8 +269,23 @@ private:
         OPENING, ///< A peer was made and started; it has not opened yet
         OPEN,    ///< The connection is usable
         CLOSING, ///< This client closes the connection (a halt, an error)
+        DRAINING, ///< The connection was lost; its messages are still being decoded
         PAUSE,   ///< Waits before the next attempt
         ENDED    ///< Nothing is attempted any more
+    };
+
+    //-------------------------------------------------------------------------
+    /// What a message in the list of those not known to have been read is
+    enum class EntryKind : std::uint8_t {
+        ASK,    ///< A PULL or an UNREADABLE: a request for work, nothing else
+        RETURN, ///< A result that asks for the next item: a request
+        RESULT  ///< A result that asks for nothing
+    };
+    /** @brief A message handed to the peer and not known to have been read */
+    struct Entry {
+        EntryKind kind = EntryKind::ASK; ///< What it is
+        GMessage bytes;                  ///< The message, shared with the transport
+        std::uint8_t sentOn = 0;         ///< On how many connections it was sent
     };
 
     //-------------------------------------------------------------------------
@@ -353,7 +412,21 @@ private:
         state_ = LinkState::OPEN;
         opened_at_ = clock::now();
         contact_on_connection_ = false;
-        request_more_();
+        n_connections_.fetch_add(1);
+        // What the last connection may not have delivered goes first, in its order; the server
+        // checks a result in before it answers the request it carries.
+        for(auto &message : unanswered_) {
+            if(message.sentOn > 0) {
+                n_results_resent_.fetch_add(1);
+            }
+            this->transmitEntry_(message);
+        }
+        if(busy_) {
+            if(auto peer = peer_.lock()) {
+                peer->setOwnerBusy(true);
+            }
+        }
+        refill_();
     }
 
     //-------------------------------------------------------------------------
@@ -368,10 +441,33 @@ private:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Called by the pipeline for every decoded message: an answer of the server (one that
-     *  could not be decoded included) is contact with it. @param kind What was decoded */
-    void when_answered_([[maybe_unused]] GFrameKind kind) {
+    /** @brief Called by the pipeline for every decoded message, before its books: an answer of the
+     *  server (WORK, NO_WORK, or a message that could not be read) is contact with it, and proves
+     *  the oldest request without an answer and every message before it (see the class comment).
+     *  Any other kind is a protocol error (when_decoded_()). @param kind What was decoded; NONE if
+     *  the message could not be read */
+    void when_answered_(GFrameKind kind) {
+        if(kind != GFrameKind::WORK && kind != GFrameKind::NO_WORK && kind != GFrameKind::NONE) {
+            return;
+        }
         this->noteContact_();
+        while(not unanswered_.empty()) {
+            const bool request = unanswered_.front().kind != EntryKind::RESULT;
+            unanswered_.pop_front();
+            if(request) {
+                --pending_pulls_;
+                return;
+            }
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Called by the pipeline when the books of a decoded message are done: the loss of a
+     *  connection is booked once its last message is (see the class comment). */
+    void after_decoded_() {
+        if(state_ == LinkState::DRAINING && n_decoding_ == 0) {
+            this->bookLoss_();
+        }
     }
 
     //-------------------------------------------------------------------------
@@ -386,12 +482,18 @@ private:
             return;
         }
         if(state_ != LinkState::ATTEMPT && state_ != LinkState::OPENING &&
-           state_ != LinkState::PAUSE) {
+           state_ != LinkState::PAUSE && state_ != LinkState::DRAINING) {
             return;
         }
         if(not contact_ever_ && options_.firstContactLimit.count() > 0 &&
            now - run_started_at_ >= options_.firstContactLimit) {
             this->limitReached_(options_.firstContactLimit, "first contact");
+        }
+        else if(
+            contact_ever_ && options_.reconnectLimit.count() > 0 &&
+            now - last_contact_end_ >= options_.reconnectLimit
+        ) {
+            this->limitReached_(options_.reconnectLimit, "after a loss");
         }
     }
 
@@ -415,8 +517,8 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief Called once when a connection is over, for whatever reason: the client ends (the end
-     * of the run, a close of its own, a lost connection), or tries again (a peer that ended before
-     * it opened).
+     * of the run, a close of its own), or tries again (a peer that ended before it opened, a lost
+     * connection; see the class comment).
      *
      * @param end Why the connection ended
      * @param how What the server said, if it closed in the regular way
@@ -436,6 +538,10 @@ private:
             this->attemptFailed_(detail); // the connection never opened (a failed handshake)
             return;
         }
+        else if(was == LinkState::OPEN && not this->halt() && connector_->reconnectable()) {
+            this->lost_(detail);
+            return;
+        }
         else if(end != GPeerEnd::CLOSED_HERE) {
             glogger << "In " << options_.name << ": the connection to the server has ended:" << '\n'
                     << detail << '\n'
@@ -448,6 +554,60 @@ private:
             drop_held_();
         }
         this->endClient_();
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief The connection was lost (see the class comment). The loss is booked once the
+     * messages of the connection that are still being decoded have been. On the io thread.
+     *
+     * @param detail The transport's words about it
+     */
+    void lost_(std::string_view detail) {
+        n_losses_.fetch_add(1);
+        lost_at_ = clock::now();
+        glogger << "In " << options_.name << ": the connection to the server was lost:" << '\n'
+                << detail << '\n'
+                << "The client connects again." << '\n'
+                << GLOGGING;
+        this->nodata_timer_.cancel();
+        state_ = LinkState::DRAINING;
+        if(n_decoding_ == 0) {
+            this->bookLoss_();
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Books a loss (see the class comment): drops the requests that only asked for work
+     *  and the results that reached the resend limit, then pauses before the next attempt. */
+    void bookLoss_() {
+        if(contact_on_connection_) {
+            last_contact_end_ = lost_at_;
+        }
+        n_unreadable_owed_ = 0; // the new session sends every blob in full anyway
+        std::erase_if(unanswered_, [this](const Entry &message) {
+            if(message.kind == EntryKind::ASK) {
+                return true;
+            }
+            if(message.sentOn >= GCLIENTRESENDLIMIT) {
+                n_results_given_up_.fetch_add(1);
+                glogger << "In " << options_.name << ": a result was sent "
+                        << static_cast<int>(message.sentOn)
+                        << " times on connections that were lost; it is given up" << '\n'
+                        << GWARNING;
+                return true;
+            }
+            return false;
+        });
+        pending_pulls_ = static_cast<std::size_t>(
+            std::ranges::count(unanswered_, EntryKind::RETURN, &Entry::kind)
+        );
+        this->refreshResultKindHint_();
+        if(this->halt()) {
+            this->endClient_();
+            return;
+        }
+        this->pause_();
     }
 
     //-------------------------------------------------------------------------
@@ -495,9 +655,9 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Called on the io thread for a message that could not be decoded: it answered a request,
-     * and the client says so with UNREADABLE, which is a request again (the number of unanswered
-     * requests stays as it is). What identifies the item travels inside the item that failed to
+     * @brief Called on the io thread for a message that could not be decoded: it answered a request
+     * (when_answered_() has booked that), and the client says so with UNREADABLE, which is a
+     * request again (it counts as one from now on). What identifies the item travels inside the item that failed to
      * load, so the server puts back everything the client held. The UNREADABLE is sent after the
      * pause that follows a NO_WORK: an item that no load can read must not make the client and the
      * server pass it back and forth as fast as they can. A client that halts asks for nothing
@@ -512,13 +672,12 @@ private:
                 << "The client tells the server after a pause and asks again." << '\n'
                 << GWARNING;
         if(this->halt()) {
-            if(pending_pulls_ > 0) {
-                --pending_pulls_;
-            }
             this->refreshResultKindHint_();
-            return;
+            return; // the request was answered (when_answered_()); nothing more is asked for
         }
+        // The UNREADABLE that is owed takes the place of the request that was answered
         ++n_unreadable_owed_;
+        ++pending_pulls_;
         schedule_refill_();
     }
 
@@ -529,9 +688,8 @@ private:
      * the io thread.
      */
     void request_more_() {
-        while(not this->halt() && in_flight_() < prefetch_depth_ &&
+        while(state_ == LinkState::OPEN && not this->halt() && in_flight_() < prefetch_depth_ &&
               not(options_.lookAhead && pending_pulls_ > 0)) {
-            ++pending_pulls_;
             const GCommandContainerT<processable_type> pull{GFrameKind::PULL};
             send_command_(pull);
         }
@@ -539,29 +697,51 @@ private:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Serializes @p container (a PULL or an UNREADABLE: nothing to speak of) and hands it
-     *  to the peer,
-     *  guarding against serialization failures (which must not unwind the io thread). Nothing is
-     *  sent once the connection is gone.
+    /** @brief Serializes @p container (a PULL or an UNREADABLE: nothing to speak of; a request)
+     *  and hands it to the peer (post_()), guarding against serialization failures (which must
+     *  not unwind the io thread).
      *
      *  @param container The command container to serialize and transmit */
     void send_command_(const GCommandContainerT<processable_type> &container) {
-        auto peer = peer_.lock();
-        if(not peer) {
-            return;
-        }
         try {
-            peer->send(
-                makeMessage(Gem::Courtier::wireEncode(container, &wire_ctx_, options_.mode))
+            this->post_(
+                Entry{
+                    .kind = EntryKind::ASK,
+                    .bytes =
+                        makeMessage(Gem::Courtier::wireEncode(container, &wire_ctx_, options_.mode))
+                }
             );
         }
-        catch(const std::exception &e) {
+        catch(...) {
             glogger << "In " << options_.name << "::send_command_():" << '\n'
                     << "Could not serialize the outgoing message:" << '\n'
-                    << e.what() << '\n'
+                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
                     << "The client will shut down." << '\n'
                     << GWARNING;
             do_close_(GPeerClose::ERROR);
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief The only way a message reaches the peer: it joins the list of messages that are not
+     *  known to have been read (see the class comment) and is sent if the connection is open;
+     *  otherwise it waits for the next one. A request is counted in pending_pulls_. On the io
+     *  thread. @param message The message */
+    void post_(Entry message) {
+        if(message.kind != EntryKind::RESULT) {
+            ++pending_pulls_;
+        }
+        unanswered_.push_back(std::move(message));
+        if(state_ == LinkState::OPEN) {
+            this->transmitEntry_(unanswered_.back());
+        }
+    }
+
+    /** @brief Hands one message of the list to the peer @param message The message */
+    void transmitEntry_(Entry &message) {
+        ++message.sentOn;
+        if(auto peer = peer_.lock()) {
+            peer->send(message.bytes);
         }
     }
 
@@ -609,7 +789,11 @@ private:
     /** @brief Pipeline-refill hook: sends the UNREADABLE frames that are due (see
      *  when_unreadable_()), then issues PULL frames (see request_more_()). */
     void refill_() {
+        if(state_ != LinkState::OPEN) {
+            return; // the next connection asks (when_open_())
+        }
         for(; n_unreadable_owed_ > 0; --n_unreadable_owed_) {
+            --pending_pulls_; // counted while owed; send_command_() counts it as sent
             const GCommandContainerT<processable_type> unreadable{GFrameKind::UNREADABLE};
             send_command_(unreadable);
         }
@@ -654,10 +838,13 @@ private:
             this->reencodeAsResult_(std::move(frame));
             return;
         }
-        if(frame.kind() == GFrameKind::RETURN) {
-            ++pending_pulls_; // the RETURN is a request (the server replies with an item)
-        }
-        this->transmit_(std::move(bytes));
+        // A RETURN is a request (the server replies with an item); post_() counts it
+        this->post_(
+            Entry{
+                .kind = frame.kind() == GFrameKind::RETURN ? EntryKind::RETURN : EntryKind::RESULT,
+                .bytes = makeMessage(std::move(bytes))
+            }
+        );
         this->afterResult_();
     }
 
@@ -703,7 +890,7 @@ private:
             do_close_(GPeerClose::ERROR);
             return;
         }
-        this->transmit_(std::move(bytes));
+        this->post_(Entry{.kind = EntryKind::RESULT, .bytes = makeMessage(std::move(bytes))});
         if(close_pending_ && n_reencoding_ == 0) {
             close_pending_ = false;
             do_close_(close_after_reencoding_);
@@ -731,13 +918,6 @@ private:
         }
     }
 
-    /** @brief Hands a message to the peer, if there is one (io thread). @param bytes The message */
-    void transmit_(std::string bytes) {
-        if(auto peer = peer_.lock()) {
-            peer->send(makeMessage(std::move(bytes)));
-        }
-    }
-
     /** @brief Halt hook (the halt timer, a limit, the retry timer): closes the connection in the
      *  regular way when a halt condition is reached, after the evaluations that run (see the class
      *  comment). A client that is still connecting gives up the connector's attempt, or closes the
@@ -755,6 +935,7 @@ private:
             this->endClient_();
             break;
         case LinkState::PAUSE:
+        case LinkState::DRAINING:
             this->endClient_();
             break;
         case LinkState::CLOSING:
@@ -766,6 +947,7 @@ private:
     /** @brief Busy hook: tells the peer whether the compute pool evaluates an item.
      *  @param busy Whether it does */
     void when_busy_(bool busy) {
+        busy_ = busy;
         if(auto peer = peer_.lock()) {
             peer->setOwnerBusy(busy);
         }
@@ -791,7 +973,20 @@ private:
     clock::time_point opened_at_;      ///< When the current connection opened (io thread)
     bool contact_ever_ = false;        ///< There was contact with a server (io thread)
     bool contact_on_connection_ =
-        false; ///< There was contact on the current connection (io thread)
+        false;                  ///< There was contact on the current connection (io thread)
+    clock::time_point lost_at_; ///< When the last connection was lost (io thread)
+    /// The end of the last connection on which there was contact (io thread)
+    clock::time_point last_contact_end_;
+    bool busy_ = false; ///< What when_busy_() was told last (io thread)
+
+    /// The messages handed to the peer and not known to have been read, in the order they were
+    /// handed over (see the class comment; io thread)
+    std::deque<Entry> unanswered_;
+
+    std::atomic<std::uint64_t> n_connections_{0};      ///< Connections that opened
+    std::atomic<std::uint64_t> n_losses_{0};           ///< Connections lost
+    std::atomic<std::uint64_t> n_results_resent_{0};   ///< Messages sent once more
+    std::atomic<std::uint64_t> n_results_given_up_{0}; ///< Results given up at the resend limit
 
     /// What mayAsk_() said last on the io thread; read by the compute threads
     std::atomic<bool> may_ask_hint_{true};

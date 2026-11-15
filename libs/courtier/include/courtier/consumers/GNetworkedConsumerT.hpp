@@ -426,8 +426,13 @@ protected:
      *  to the GWireProtocolT seam, which knows what an evaluation RESULT means. Courtier never inspects
      *  the latter.
      *
-     *  @param frame The deserialized RETURN frame (ownership transferred) */
-    void checkin(GCommandContainerT<processable_type> &&frame) {
+     *  @param frame The deserialized RETURN frame (ownership transferred)
+     *  @param count_return_time Whether the time from checkout to this return is a sample of the
+     *         adaptive lease and give-up window. A transport passes false for a result that arrives
+     *         on another connection than the one its item was handed out on (a client that sends
+     *         it again after a lost connection): its time includes the outage. */
+    // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved) -- consumed in place
+    void checkin(GCommandContainerT<processable_type> &&frame, bool count_return_time = true) {
         item_ptr returned = frame.releaseItem();
         std::scoped_lock const lk(mtx_);
         // A result whose item was handed out by another server process (a client that outlived
@@ -466,7 +471,7 @@ protected:
         // slot that was put back at least once gives no usable sample: its checkout time may belong
         // to a second holder, and a sample that is too short would shrink the lease for everyone.
         const auto now = clock::now();
-        if(not b.reclaimed[slot]) {
+        if(count_return_time && not b.reclaimed[slot]) {
             recordReturnTime_(now - b.checked_out_at[slot]);
         }
         b.last_progress = now;

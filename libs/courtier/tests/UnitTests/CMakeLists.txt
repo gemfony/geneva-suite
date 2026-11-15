@@ -107,7 +107,8 @@ geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.h
 # build with ThreadSanitizer, which has no MPI
 geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp)
-geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp)
+geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp
+	GTcpRelay.hpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
 geneva_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")

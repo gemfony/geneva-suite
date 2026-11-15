@@ -78,6 +78,9 @@ struct GWebsocketConsumerConfig {
     /// long as it runs)
     std::size_t clientFirstContactLimit =
         static_cast<std::size_t>(GCLIENTFIRSTCONTACTLIMIT.count());
+    /// Client: seconds it tries to reach the server again after it has lost its connection (0: for
+    /// as long as it runs)
+    std::size_t clientReconnectLimit = static_cast<std::size_t>(GCLIENTRECONNECTLIMIT.count());
 };
 
 /******************************************************************************/
