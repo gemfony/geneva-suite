@@ -205,7 +205,8 @@ protected:
      * sent earlier, so one pull is resolved; a WORK item is then counted as computing and handed
      * to the compute pool (or held, see "Compute width"), and the concrete client is told
      * (when_work_(), if it has one); anything else goes to the concrete client (when_decoded_()).
-     * A message that could not be decoded goes to when_unreadable_().
+     * A message that could not be decoded goes to when_unreadable_(), and so does a WORK frame
+     * that carries no work item.
      *
      * @param container The decoded frame
      * @param error Why the message could not be decoded; empty if it could
@@ -213,6 +214,12 @@ protected:
     void decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
         if(not error.empty()) {
             derived().when_unreadable_(error);
+            return;
+        }
+        // A WORK frame that decodes but carries no work item cannot be read either: its kind and
+        // its payload disagree. It is not counted as WORK.
+        if(container.kind() == GFrameKind::WORK && container.item() == nullptr) {
+            derived().when_unreadable_("a WORK frame without a work item");
             return;
         }
         if(pending_pulls_ > 0) {

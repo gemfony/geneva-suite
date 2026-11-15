@@ -142,6 +142,11 @@ public:
         );
     }
 
+    /** @return How many messages could not be read */
+    [[nodiscard]] std::size_t nUnreadable() const {
+        return n_unreadable_;
+    }
+
     /** @return The encoded results handed to the transport so far */
     [[nodiscard]] std::size_t nResults() const {
         return n_results_;
@@ -167,7 +172,8 @@ private:
     }
     void when_decoded_(Gem::Courtier::GFrameKind /*kind*/) { /* nothing to act on */
     }
-    void when_unreadable_(const std::string & /*error*/) { /* nothing to act on */
+    void when_unreadable_(const std::string & /*error*/) {
+        ++n_unreadable_;
     }
     void haltShutdown_() { /* no transport to close */
     }
@@ -182,6 +188,7 @@ private:
     std::size_t n_results_ = 0; ///< Encoded results handed to the transport
     std::atomic<bool> throw_in_prepare_{false}; ///< See throwInPrepareReturn()
     std::string last_result_;                     ///< The last result handed to the transport
+    std::size_t n_unreadable_ = 0;                ///< Messages that could not be read (io thread)
 };
 
 using ProbeClient = ProbeClientT<GFaultyContainer>;
@@ -479,4 +486,29 @@ TEST_CASE(
     CHECK(returned.item() == nullptr);
     CHECK(returned.outcome().status == processingStatus::ERROR_FLAGGED);
     CHECK(returned.outcome().correlation_id == 4711);
+}
+
+/******************************************************************************/
+/**
+ * Nothing a server sends can end a client: a WORK frame that decodes but carries no work item is a
+ * message that cannot be read (its kind and payload disagree). It is not counted as WORK, nothing
+ * is evaluated, and the client reports it (UNREADABLE).
+ */
+TEST_CASE(
+    "courtier(client): a WORK frame without a work item cannot be read",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+
+    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK};
+    auto client = std::make_shared<ProbeClient>();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nUnreadable() == 1; }, 2000ms));
+    CHECK(client->runsOutOfWork(200ms));
+    CHECK(client->computing() == 0);
+    CHECK(client->nResults() == 0);
+    CHECK(client->pendingPulls() == 1); // the request whose answer was lost is still owed
 }
