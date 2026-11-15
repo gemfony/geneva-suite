@@ -61,3 +61,14 @@ allow. Both describe their arguments in their header.
 The serial reference fits a line with errors through its measurements, so it
 needs at least three of them (delays times n_measurements in
 config/GDelayIndividual-reference.json); fewer are refused.
+
+GSpeedupFigure draws the tables of several runs into one figure with linear
+axes, one series per label, with error bars and the ideal speed-up as a line:
+
+  ./GSpeedupFigure --ideal 400 --figure comparison.C \
+      websocket=run-1/shortDelayResults.txt MPI=run-2/shortDelayResults.txt ...
+
+Tables with the same label are averaged as compareSpeedups.py does. Further
+pads show the short evaluation times alone, which a linear axis crowds at the
+left (--zoom). It writes a ROOT script unless --backend names another one;
+GSpeedupFigure --help lists the options.

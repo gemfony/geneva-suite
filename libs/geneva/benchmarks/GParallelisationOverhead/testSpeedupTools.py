@@ -31,6 +31,9 @@
 """Checks the tools of the speed-up benchmark; registered as tests of the build.
 
 Usage:
+  testSpeedupTools.py figure <GSpeedupFigure> <workdir>
+      draws prepared tables of two labels (two runs of the first) and checks the figure and that
+      the means it shows are those of compareSpeedups.py
   testSpeedupTools.py run <GParallelisationOverhead> <workdir> <consumer> [<reference dir>]
       a short run of runWithClients.sh with two clients; with a reference dir, the serial reference
       of that earlier run is used instead of a new one (MPIRUN in the environment says how mpi is
@@ -40,6 +43,7 @@ Usage:
 
 The work directory is created; it must lie outside the source tree.
 """
+import importlib.util
 import math
 import os
 import shutil
@@ -47,11 +51,80 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+HEADER = ('# evaluation time [s]; serial run time [s] (fitted) and its error; parallel run time '
+          '[s] and its error; speed-up and its error\n')
 
 
 def fail(message):
     """Ends the test with a message."""
     sys.exit('FAILED: ' + message)
+
+
+def compare_speedups():
+    """Loads compareSpeedups.py as a module, so that its rule of combining runs can be called."""
+    spec = importlib.util.spec_from_file_location('compareSpeedups',
+                                                  os.path.join(HERE, 'compareSpeedups.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def write_table(name, rows):
+    """Writes a speed-up table; rows are (evaluation time, speed-up, its error)."""
+    with open(name, 'w', encoding='utf-8') as out:
+        out.write(HEADER)
+        for time, speedup, error in rows:
+            out.write(f'{time}\t1\t0.1\t1\t0.1\t{speedup}\t{error}\n')
+
+
+def check_figure(program, workdir):
+    """Draws prepared tables and checks the figure and the means behind it."""
+    os.makedirs(workdir, exist_ok=True)
+    os.chdir(workdir)
+    # Two runs of "fast": at 0.01 s they disagree, so their scatter makes the error; at 0.1 s they
+    # agree, so the errors of the single runs make it. "slow" is one run with a third time.
+    write_table('fast-1.txt', [(0.01, 3.0, 0.1), (0.1, 3.8, 0.05)])
+    write_table('fast-2.txt', [(0.01, 3.4, 0.1), (0.1, 3.81, 0.05)])
+    write_table('slow.txt', [(0.01, 1.0, 0.2), (0.1, 2.0, 0.1), (1, 3.9, 0.01)])
+    run = subprocess.run([program, '--ideal', '4', '--figure', 'figure.C', '--means', 'means.txt',
+                          'fast=fast-1.txt', 'fast=fast-2.txt', 'slow=slow.txt'],
+                         capture_output=True, text=True, check=False)
+    if run.returncode != 0:
+        fail(f'GSpeedupFigure exited with {run.returncode}: {run.stderr}')
+
+    figure = open('figure.C', encoding='utf-8').read()
+    # Two pads (all times, and those up to 0.1 s), each with both labels and the ideal line
+    for text, count in (('TGraphErrors(', 6), ('BuildLegend', 2), ('Divide(1,2)', 1),
+                        ('"All evaluation times: fast"', 1), ('"Up to 0.1 s: fast"', 1),
+                        ('"slow"', 2), ('"ideal (4)"', 2)):
+        if figure.count(text) != count:
+            fail(f'the figure holds "{text}" {figure.count(text)} times instead of {count}')
+    if 'SetLogx' in figure or 'SetLogy' in figure:
+        fail('the figure has a logarithmic axis')
+
+    means = {}
+    for line in open('means.txt', encoding='utf-8'):
+        if not line.startswith('#'):
+            label, time, mean, error, runs = line.split('\t')
+            means[(label, float(time))] = (float(mean), float(error), int(runs))
+    reference = compare_speedups()
+    for label, tables in (('fast', ['fast-1.txt', 'fast-2.txt']), ('slow', ['slow.txt'])):
+        for time, (mean, error, runs) in reference.combine([reference.read(t) for t in tables]).items():
+            got = means.get((label, time))
+            if got is None:
+                fail(f'no mean for {label} at {time} s')
+            if (not math.isclose(got[0], mean, rel_tol=1e-12) or
+                    not math.isclose(got[1], error, rel_tol=1e-12) or got[2] != runs):
+                fail(f'{label} at {time} s: GSpeedupFigure gives {got}, compareSpeedups.py '
+                     f'{(mean, error, runs)}')
+    if len(means) != 5:
+        fail(f'{len(means)} means instead of 5')
+
+    bad = subprocess.run([program, 'fast=missing.txt'], capture_output=True, text=True,
+                         check=False)
+    if bad.returncode == 0 or 'missing.txt' not in bad.stderr:
+        fail('a missing table is not refused with its name')
+    print('figure and means as expected')
 
 
 def run_script(program, workdir, consumer, rows, reference_delays):
@@ -100,7 +173,9 @@ def check_refusal(program, workdir):
 
 
 def main(args):
-    if len(args) >= 4 and args[0] == 'run':
+    if len(args) >= 3 and args[0] == 'figure':
+        check_figure(os.path.abspath(args[1]), args[2])
+    elif len(args) >= 4 and args[0] == 'run':
         check_run(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
                   os.path.abspath(args[4]) if len(args) > 4 else None)
     elif len(args) >= 3 and args[0] == 'refusal':

@@ -51,7 +51,8 @@
 # consumers, and their speed-ups are measured against the same serial time. The
 # results are shortDelayResults.txt (the table) and the plot script the
 # configuration names; server.log holds the output of the server (for mpi: of
-# all ranks). compareSpeedups.py compares the tables of several runs.
+# all ranks). compareSpeedups.py compares the tables of several runs,
+# GSpeedupFigure draws them into one figure.
 #
 # Environment:
 #   MPIRUN   how mpi is started, followed by the rank count (default

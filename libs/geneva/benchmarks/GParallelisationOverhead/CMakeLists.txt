@@ -70,7 +70,14 @@ GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
 
-# The tools around this benchmark are checked with short runs (they are not measurements): a run of
+# Draws the speed-up tables of several runs (for example of two consumers) into one figure. It reads
+# result tables only and needs nothing of Geneva but the plotting library.
+ADD_EXECUTABLE(GSpeedupFigure GSpeedupFigure.cpp)
+TARGET_LINK_LIBRARIES(GSpeedupFigure ${DIETRICH_LIBNAME} ${COMMON_LIBNAME} ${Boost_LIBRARIES})
+INSTALL ( TARGETS GSpeedupFigure DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
+
+# The tools around this benchmark are checked with short runs (they are not measurements): the
+# figure of prepared tables, whose means must be those of compareSpeedups.py; a run of
 # runWithClients.sh with two websocket clients, and one with the MPI consumer that shares its serial
 # reference; and the refusal of a reference too short to give its line an error. A Python 3
 # interpreter and an MPI launcher are dependencies of these tests only, so a test is registered
@@ -79,6 +86,12 @@ FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
 IF (Python3_Interpreter_FOUND)
 	SET(SPEEDUP_TOOLS_CHECK ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
 		${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/testSpeedupTools.py)
+
+	ADD_TEST(NAME GSpeedupFigureMeans
+		COMMAND ${SPEEDUP_TOOLS_CHECK} figure $<TARGET_FILE:GSpeedupFigure>
+			${CMAKE_CURRENT_BINARY_DIR}/check-figure)
+	SET_TESTS_PROPERTIES(GSpeedupFigureMeans PROPERTIES LABELS "benchmark" TIMEOUT 60)
+	GENEVA_TEST_SIZE(GSpeedupFigureMeans S)
 
 	ADD_TEST(NAME ${EXECUTABLENAME}RunWithClients
 		COMMAND ${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
