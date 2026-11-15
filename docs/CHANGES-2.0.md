@@ -217,15 +217,19 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   connection with the close code 4000 (`GCONSUMERCLOSECODERUNENDED`), also those of clients that
   evaluate or wait for work, and waits for the clients to confirm, at most a grace
   (`GWEBSOCKETCONSUMERSTOPGRACE`, 10 s; the second argument of the consumer's constructor). A
-  client that is told so ends. A client that has a time or an item limit sends what it has finished
-  and closes; the server keeps that last result.
+  client that is told so ends. A client that reaches a time or an item limit starts no further
+  evaluation, sends the results of those that run as they finish, and closes when none runs; the
+  server keeps these results (the processed count may pass an item limit by them). A client that
+  is still connecting when a limit is reached gives the attempt up.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
   does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
   A websocket client that cannot read an item tells the server (`unreadable`), which puts back what
   the client held and sends it its blobs anew; the client stays. A result that
-  cannot be applied to its item marks the item as failed. In each case the submission policy
+  cannot be applied to its item marks the item as failed, and so does an item that the server
+  cannot encode for a client, or whose result the client cannot encode or return (the client
+  then sends the outcome alone, marked as failed, and stays). In each case the submission policy
   decides what happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
