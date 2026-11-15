@@ -45,6 +45,7 @@
 #include <tuple>
 #include <vector>
 
+#include <fcntl.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
@@ -52,6 +53,7 @@
 
 #include <boost/asio.hpp>
 
+#include "common/GLogger.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeerTransport.hpp"
 
@@ -442,6 +444,122 @@ TEST_CASE(
         ::waitpid(child, &status, 0);
     }
     INFO("the child " << (done == 0 ? "hung and was killed" : "ended") << ", status " << status);
+    CHECK(done == child);
+    CHECK(WIFEXITED(status));
+    CHECK(WEXITSTATUS(status) == 0);
+}
+
+/******************************************************************************/
+/**
+ * An accept that fails for want of a descriptor is retried after a pause, not at once and not
+ * never. In a child process the client's socket is made, and then every descriptor up to a low
+ * limit is taken, so that the listener's accept has none for the connection: the listener must
+ * neither spin (it warns once per failed accept; at most 30 in one second, the pause being 100 ms)
+ * nor stop accepting (once descriptors are free again, the waiting connection reaches on_peer). The
+ * parent waits for the child, at most twenty seconds; the child's exit code says what went wrong.
+ */
+TEST_CASE(
+    "GWebsocketListener pauses after an accept that fails for want of descriptors and goes on",
+    "[courtier][websocket][transport]"
+) {
+    const pid_t child = ::fork();
+    REQUIRE(child >= 0);
+    if(child == 0) {
+        // Counts the warnings of failed accepts
+        struct GAcceptFailures : Gem::Common::GBaseLogTarget {
+            void log(const std::string &message) const override {
+                if(message.find("pausing before the next accept") != std::string::npos) {
+                    n.fetch_add(1);
+                }
+            }
+            void logWithSource(const std::string &message, const std::string &) const override {
+                log(message);
+            }
+            mutable std::atomic<int> n{0};
+        };
+        auto failures = std::make_shared<GAcceptFailures>();
+        glogger.addLogTarget(failures);
+
+        OneThread sessions;
+        std::atomic<int> n_peers{0};
+        GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+        listener.start(
+            sessions.executor(),
+            [&n_peers](const std::shared_ptr<GPeerI> &, GWirePeerId) { n_peers.fetch_add(1); }
+        );
+
+        // A low limit, and every descriptor below it taken
+        const int probe_fd = ::open("/dev/null", O_RDONLY);
+        if(probe_fd < 0) {
+            ::_exit(3);
+        }
+        ::close(probe_fd);
+        rlimit limit{};
+        if(::getrlimit(RLIMIT_NOFILE, &limit) != 0) {
+            ::_exit(3);
+        }
+        limit.rlim_cur = static_cast<rlim_t>(probe_fd) + 64U;
+        if(::setrlimit(RLIMIT_NOFILE, &limit) != 0) {
+            ::_exit(3);
+        }
+        // The client's socket is made before, so that it has its descriptor
+        boost::asio::io_context client_ctx;
+        tcp::socket client(client_ctx);
+        client.open(tcp::v4());
+        std::vector<int> fillers;
+        for(int fd = ::open("/dev/null", O_RDONLY); fd >= 0; fd = ::open("/dev/null", O_RDONLY)) {
+            fillers.push_back(fd);
+        }
+        if(fillers.empty()) {
+            ::_exit(3);
+        }
+
+        // The connection waits in the backlog; the listener has no descriptor to accept it with
+        boost::system::error_code ec;
+        std::ignore =
+            client.connect({boost::asio::ip::address_v4::loopback(), listener.getPort()}, ec);
+        if(ec) {
+            ::_exit(4);
+        }
+
+        std::this_thread::sleep_for(1s);
+        const int n_failed = failures->n.load();
+        int code = 0;
+        if(n_failed < 2) {
+            code = 5; // the accept was not retried
+        }
+        else if(n_failed > 30) {
+            code = 6; // the accept was retried without a pause
+        }
+
+        for(const int fd : fillers) {
+            ::close(fd);
+        }
+        if(code == 0 && not eventually([&n_peers] { return n_peers.load() == 1; })) {
+            code = 7; // the listener did not accept again
+        }
+        listener.stop();
+        listener.endWork();
+        glogger.resetLogTargets();
+        ::_exit(code);
+    }
+
+    int status = 0;
+    const auto give_up_at = std::chrono::steady_clock::now() + 20s;
+    pid_t done = 0;
+    while((done = ::waitpid(child, &status, WNOHANG)) == 0 &&
+          std::chrono::steady_clock::now() < give_up_at) {
+        std::this_thread::sleep_for(10ms);
+    }
+    if(done == 0) {
+        ::kill(child, SIGKILL);
+        ::waitpid(child, &status, 0);
+    }
+    INFO(
+        "the child " << (done == 0 ? "hung and was killed" : "ended") << ", status " << status
+                     << " (exit code 5: no retry, 6: retried without a pause, 7: did not accept "
+                        "again)"
+    );
     CHECK(done == child);
     CHECK(WIFEXITED(status));
     CHECK(WEXITSTATUS(status) == 0);

@@ -220,9 +220,8 @@ void GWebsocketListener::whenAccepted_(const error_code &ec, tcp::socket socket)
             return;
         }
         // Anything else -- "too many open files" above all -- must not be retried at once: that
-        // would occupy an I/O thread and never let descriptors be given back. (Not tested: short
-        // of exhausting the descriptors of the test process, which would disturb everything else
-        // in it, nothing makes an accept fail without a seam in the listener for that alone.)
+        // would occupy an I/O thread and never let descriptors be given back. (Tested in a child
+        // process whose descriptors are used up: GCourtierWebsocketTransportTests.)
         glogger << "In " << name_ << ": " << ec.message() << " -- pausing before the next accept"
                 << '\n'
                 << GWARNING;
