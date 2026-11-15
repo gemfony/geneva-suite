@@ -36,6 +36,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -67,6 +68,9 @@ namespace {
 /// As many check-ins of a GSimpleContainer throw as this says (see the seam below).
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<int> checkInsToFail{0};
+/// Whether such a check-in throws a std::exception (true) or an int, which is not one
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> checkInsThrowStandard{true};
 
 /** @brief Which of the four codec runs of an item's round trip is slow (see GSlowCodecItem). */
 enum class CodecRun : int {
@@ -168,7 +172,10 @@ struct GWireProtocolT<GSimpleContainer> {
         while(left > 0 && not checkInsToFail.compare_exchange_weak(left, left - 1)) {
         }
         if(left > 0) {
-            throw std::runtime_error("this test makes the check-in fail");
+            if(checkInsThrowStandard.load()) {
+                throw std::runtime_error("this test makes the check-in fail");
+            }
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
         }
         if(item != nullptr) {
             slot.absorbResultsFrom(*item);
@@ -718,6 +725,9 @@ TEST_CASE(
     "courtier(websocket): a result that cannot be applied ends its item as failed",
     "[courtier][websocket][liveness][net]"
 ) {
+    const bool standard = GENERATE(true, false);
+    INFO((standard ? "the seam throws a std::exception" : "the seam throws an int"));
+    checkInsThrowStandard.store(standard);
     auto consumer = startedServer<GSimpleContainer>(/*n_threads=*/2);
     // No giving up on a slot that makes no progress: a slot left in flight would otherwise be
     // declared missing after a while and filled like a failed one, and the test could not tell.

@@ -389,20 +389,43 @@ private:
                         }
                         return result;
                     },
+                // A hook that has taken an item out of the lease gives it back (requeue) if the
+                // consumer's call that follows throws anything: the item would otherwise stay in
+                // flight with nobody to give it back. The exception goes on to the session, which
+                // refuses the request. (The consumer fails a slot whose result or clone throws
+                // itself; what is left is a failure of the consumer's own work. No test: only a
+                // failing allocation gets there.)
                 .putPayloadItem =
                     [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                         // Only a result of this server's item ends the lease's hold: a foreign
                         // one whose id happens to match an item held here is dropped by
                         // checkin() and must not free that item from the lease.
+                        const Gem::Courtier::CORRELATION_ID_TYPE id =
+                            frame.outcome().correlation_id;
+                        std::optional<std::uint64_t> checkout;
                         if(GNetworkedConsumerT<processable_type>::handedOutHere(frame)) {
-                            lease->remove(frame.outcome().correlation_id);
+                            checkout = lease->remove(id);
                         }
-                        this->checkin(std::move(frame));
+                        try {
+                            this->checkin(std::move(frame));
+                        }
+                        catch(...) {
+                            if(checkout) {
+                                this->requeue(id, checkout);
+                            }
+                            throw;
+                        }
                     },
                 .failPayloadItem =
                     [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
                         if(auto checkout = lease->remove(id)) {
-                            this->failInFlight(id, *checkout, what);
+                            try {
+                                this->failInFlight(id, *checkout, what);
+                            }
+                            catch(...) {
+                                this->requeue(id, checkout);
+                                throw;
+                            }
                         }
                     },
                 .abandonItems = [lease] { lease->abandonAll(); },

@@ -38,6 +38,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -832,6 +833,8 @@ TEST_CASE(
 ) {
     constexpr std::size_t N = 4;
     constexpr std::size_t BAD = 1; // the item whose clone throws
+    const bool standard = GENERATE(true, false); // a std::exception, or an int
+    INFO((standard ? "the clone throws a std::exception" : "the clone throws an int"));
     auto batch = make_batch(N);
     for(auto &p : batch) {
         p->set_processing_status(c2::processingStatus::DO_PROCESS);
@@ -841,9 +844,12 @@ TEST_CASE(
     c2::GNetworkedTimeoutConfig cfg;
     cfg.treatment = "wait_indefinitely"; // a stuck slot cannot be hidden by the give-up window
     consumer.applyTimeoutConfig(cfg);
-    consumer.setCloneFunction([](const item_ptr &src) -> item_ptr {
+    consumer.setCloneFunction([standard](const item_ptr &src) -> item_ptr {
         if(src->get_stored_number() == BAD) {
-            throw std::runtime_error("clone refused by the test");
+            if(standard) {
+                throw std::runtime_error("clone refused by the test");
+            }
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
         }
         return std::make_unique<GFaultyContainer>(*src);
     });
@@ -861,7 +867,7 @@ TEST_CASE(
         try {
             p = consumer.checkout();
         }
-        catch(const std::exception &) {
+        catch(...) {
             ++n_thrown;
         }
         if(not p) {
@@ -881,8 +887,9 @@ TEST_CASE(
     CHECK(n_thrown == 0);
     CHECK(batch[BAD]->getProcessingStatus() == c2::processingStatus::ERROR_FLAGGED);
     CHECK(
-        batch[BAD]->getStoredErrorDescriptions().find("clone refused by the test") !=
-        std::string::npos
+        batch[BAD]->getStoredErrorDescriptions().find(
+            standard ? "clone refused by the test" : "not a std::exception"
+        ) != std::string::npos
     );
     CHECK(batch[BAD]->getDispatchState() == c2::dispatchState::DONE);
     for(std::size_t k = 0; k < N; ++k) {

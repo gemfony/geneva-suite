@@ -52,7 +52,7 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // fkToStr
+#include "courtier/GCourtierHelperFunctions.hpp" // fkToStr, describeException()
 #include "courtier/GServerSessionLogic.hpp" // the shared server decisions (absorb, serve, refuse)
 #include "courtier/GWireCodec.hpp"          // scope-wrapped (de)serialization
 #include "courtier/GWireSerializationContext.hpp"
@@ -463,22 +463,9 @@ private:
     //-------------------------------------------------------------------------
     /** @brief Logs why a request was refused @param failure The exception that refused it */
     static void logRefusal_(const std::exception_ptr &failure) {
-        glogger << "GPeerSessionT<processable_type>: a request was refused: " << describe_(failure)
-                << '\n'
+        glogger << "GPeerSessionT<processable_type>: a request was refused: "
+                << Gem::Courtier::describeException(failure) << '\n'
                 << GLOGGING;
-    }
-
-    /** @brief @param failure An exception @return What it says, for the log and the item */
-    static std::string describe_(const std::exception_ptr &failure) {
-        try {
-            std::rethrow_exception(failure);
-        }
-        catch(const std::exception &e) {
-            return e.what();
-        }
-        catch(...) {
-            return "an exception that is not a std::exception";
-        }
     }
 
     //-------------------------------------------------------------------------
@@ -531,7 +518,8 @@ private:
      */
     void itemFailed_(Gem::Courtier::CORRELATION_ID_TYPE id, const std::exception_ptr &failure) {
         const std::string what = "The work item could not be encoded for client " +
-                                 std::to_string(peer_id_) + ": " + describe_(failure);
+                                 std::to_string(peer_id_) + ": " +
+                                 Gem::Courtier::describeException(failure);
         command_container_.reset();
         if(wire_registry_ != nullptr) {
             wire_registry_->forgetPeer(peer_id_);

@@ -38,6 +38,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <map>
 #include <memory>
@@ -57,6 +58,7 @@
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
 #include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
 #include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
 #include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
@@ -488,12 +490,13 @@ protected:
                 returned.get()
             );
         }
-        catch(const std::exception &e) {
+        catch(...) {
             failSlot_locked(
                 b,
                 slot,
                 frame.outcome(),
-                std::string("The returned result could not be applied to its slot: ") + e.what(),
+                "The returned result could not be applied to its slot: " +
+                    Gem::Courtier::describeException(std::current_exception()),
                 "checkin()"
             );
             return;
@@ -920,14 +923,15 @@ private:
                 try {
                     clone = this->clone_item_(b.items[k]);
                 }
-                catch(const std::exception &e) {
+                catch(...) {
                     --b.pending;
                     --total_pending_;
                     failSlot_locked(
                         b,
                         k,
                         b.items[k]->processingOutcome(),
-                        std::string("The work item could not be cloned for dispatch: ") + e.what(),
+                        "The work item could not be cloned for dispatch: " +
+                            Gem::Courtier::describeException(std::current_exception()),
                         "checkout()"
                     );
                     continue; // on to the next PENDING slot of this batch
