@@ -31,6 +31,7 @@
 // process, under ThreadSanitizer, without mpirun.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -39,6 +40,7 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -76,7 +78,15 @@ public:
     /** @brief @param n_threads How many threads run the context */
     explicit Threads(std::size_t n_threads) {
         for(std::size_t i = 0; i < n_threads; ++i) {
-            threads_.create_thread([this] { ctx_.run(); });
+            threads_.create_thread([this] {
+                // An exception that leaves run() is counted, not let end the process
+                try {
+                    ctx_.run();
+                }
+                catch(...) {
+                    escaped_.fetch_add(1);
+                }
+            });
         }
     }
     /** @brief Stops and joins, if that has not been done */
@@ -105,7 +115,13 @@ public:
         ctx_.shutdown();
     }
 
+    /** @brief @return How many exceptions have left run() */
+    int escaped() const {
+        return escaped_.load();
+    }
+
 private:
+    std::atomic<int> escaped_{0}; ///< Exceptions that have left run()
     GIoContext ctx_; ///< The context
     boost::asio::executor_work_guard<GIoContext::executor_type> guard_ =
         boost::asio::make_work_guard(ctx_);
@@ -157,6 +173,24 @@ public:
         discards_.fetch_add(1);
     }
 
+    void pollFailed(const std::string &reason) override {
+        const std::scoped_lock lock(mutex_);
+        failures_.push_back(reason);
+        messages_at_failure_ = messages_.size();
+    }
+
+    /** @brief @return The reasons pollFailed() was called with */
+    std::vector<std::string> failures() const {
+        const std::scoped_lock lock(mutex_);
+        return failures_;
+    }
+
+    /** @brief @return How many messages had arrived when pollFailed() was called */
+    std::size_t messagesAtFailure() const {
+        const std::scoped_lock lock(mutex_);
+        return messages_at_failure_;
+    }
+
     /** @brief @return What arrived so far, in order */
     std::vector<std::pair<int, std::string>> messages() const {
         const std::scoped_lock lock(mutex_);
@@ -179,6 +213,8 @@ private:
     on_message_type on_message_;
     mutable std::mutex mutex_;
     std::vector<std::pair<int, std::string>> messages_;
+    std::vector<std::string> failures_;
+    std::size_t messages_at_failure_ = 0;
     std::atomic<int> discards_{0};
 };
 
@@ -594,4 +630,55 @@ TEST_CASE("A message from a rank without a receiver is received and dropped") {
     std::ignore = finish(core, {&threads});
     CHECK(world->counts(0).receives == 3);
     CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE("A call of the poll that throws ends the chain and tells every receiver once") {
+    using GFault = GMPIFakeWorld::GFault;
+    const auto fault = GENERATE(GFault::PROBE, GFault::RECEIVE, GFault::TEST_SOME);
+    const bool standard = GENERATE(true, false);
+    INFO("fault " << static_cast<int>(fault) << (standard ? ", a std::exception" : ", an int"));
+
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    world->swallow(2);
+    Threads poll_threads(1);
+    Threads receiver_threads(2);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(0), poll_threads.executor());
+    auto one = std::make_shared<Receiver>(receiver_threads.executor());
+    auto two = std::make_shared<Receiver>(receiver_threads.executor());
+    core->addReceiver(1, one);
+    core->addReceiver(2, two);
+    core->start();
+
+    world->inject(1, 0, 50, "before");
+    REQUIRE(eventually([&] { return one->count() == 1; }, 5s));
+    core->startSend(2, 50, "swallowed"); // never completes: shutdown() gives it up
+    REQUIRE(eventually([&] { return world->counts(0).probes >= 3; }, 5s));
+    CHECK(core->failure() == std::nullopt);
+
+    world->throwOnce(0, fault, standard);
+    world->inject(1, 0, 51, "the message the fault strikes");
+
+    CHECK(eventually([&] { return core->chainEnded(); }, 5s));
+    CHECK(
+        eventually([&] { return one->failures().size() == 1 && two->failures().size() == 1; }, 5s)
+    );
+    CHECK(poll_threads.escaped() == 0);
+    CHECK(core->failure().has_value());
+
+    // Nothing is delivered afterwards, and nothing more is looked for
+    const auto probes = world->counts(0).probes;
+    world->inject(2, 0, 52, "after");
+    std::this_thread::sleep_for(100ms);
+    CHECK(world->counts(0).probes == probes);
+    CHECK(one->count() == one->messagesAtFailure());
+    CHECK(two->count() == 0);
+    CHECK(one->failures().size() == 1);
+    CHECK(two->failures().size() == 1);
+
+    CHECK(finish(core, {&poll_threads, &receiver_threads}) == 1);
+    CHECK(world->sendsUnderWay() == 0);
+    CHECK(one->discards() == 1);
+    CHECK(two->discards() == 1);
 }

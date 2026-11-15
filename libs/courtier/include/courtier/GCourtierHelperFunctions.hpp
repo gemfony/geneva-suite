@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <exception>
 #include <string>
 
 // Boost headers go here
@@ -56,6 +57,14 @@ std::string psToStr(const processingStatus &ps);
  * @return A string representing the frame kind (empty for an unrecognized value)
  */
 std::string fkToStr(const GFrameKind &fk);
+
+/**
+ * @brief Says what an exception says, for the log and for an item's error descriptions: the
+ * what() of a std::exception, or that it is not one.
+ * @param failure The exception; may be null
+ * @return Its description
+ */
+std::string describeException(const std::exception_ptr &failure);
 
 /******************************************************************************/
 

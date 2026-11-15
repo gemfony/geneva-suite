@@ -37,7 +37,9 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -109,6 +111,11 @@ public:
     /** @brief The poll lets go of the receiver: the transport's work has ended (rule 7 of
      *  GPeerI.hpp). Called by GMPIPollCore::shutdown(), when no handler runs any more. */
     virtual void discard() = 0;
+
+    /** @brief The poll has failed and receives nothing more (GMPIPollCore::failure()): no
+     *  received() follows. Once, on executor(), after every message received before the failure.
+     *  The connection to the rank is lost; its peer reports GPeerEnd::FAILED. */
+    virtual void pollFailed(const std::string &) = 0;
 };
 
 /******************************************************************************/
@@ -132,6 +139,14 @@ public:
  * follows it always mean the same message, and because the messages of one rank are received in
  * the order they were sent (MPI does not let them overtake each other, whatever their tags) and
  * posted in that order to one serialized executor, they reach the receiver in that order.
+ *
+ * A call that throws inside a link -- a probe, a receive, the hand-over of a message to its
+ * receiver, the take-over or the test of the sends -- is fatal for the transport in this process:
+ * the message it concerns cannot be skipped (it stays in MPI's queue and a new look would meet it
+ * again). The poll logs it, ends its chain, keeps the reason (failure()) and tells every receiver
+ * once (GMPIPollReceiverI::pollFailed()), so that its peer ends as failed; nothing is received any
+ * more. shutdown() still gives up the sends that are under way. No exception leaves a link, and
+ * so none leaves the run() of the executor.
  *
  * Membership is static: the receivers are added before start() and the table is not changed
  * afterwards. The chain ends by itself when every receiver has ended (receiverEnded()) and every
@@ -183,8 +198,12 @@ public:
      *  of the executors runs any more; idempotent. */
     std::size_t shutdown();
 
-    /** @brief Whether the chain has ended (by itself, or through shutdown()). From any thread. */
+    /** @brief Whether the chain has ended (by itself, through a failure, or through shutdown()).
+     *  From any thread. */
     [[nodiscard]] bool chainEnded() const noexcept;
+
+    /** @brief Why the chain has failed, if it has. From any thread. */
+    [[nodiscard]] std::optional<std::string> failure() const;
 
     /** @brief How much the poll has done. From any thread. */
     [[nodiscard]] GMPIPollCounts counts() const noexcept;
@@ -201,8 +220,12 @@ private:
     };
 
     /***************************************************************************/
-    /** @brief One link of the chain */
+    /** @brief One link of the chain; no exception leaves it */
     void poll_();
+    /** @brief The work of one link */
+    void link_();
+    /** @brief The chain fails: it ends, and every receiver is told once; never throws */
+    void fail_(const std::exception_ptr &) noexcept;
     /** @brief Receives and posts one message, if one is there */
     bool receiveOne_();
     /** @brief Takes over the sends started since the last look */
@@ -251,6 +274,9 @@ private:
     std::size_t live_receivers_ = 0;                    ///< Receivers that have not ended
     /// Set when the last receiver has ended
     std::optional<std::chrono::steady_clock::time_point> drain_deadline_;
+
+    mutable std::mutex failure_mutex_;   ///< Guards failure_
+    std::optional<std::string> failure_; ///< Why the chain failed, if it did
 };
 
 /******************************************************************************/

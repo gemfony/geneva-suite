@@ -31,6 +31,8 @@
 
 // Standard headers go here
 #include <algorithm>
+#include <exception>
+#include <mutex>
 #include <tuple>
 #include <utility>
 
@@ -42,6 +44,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -197,7 +200,7 @@ void GMPIPollCore::receiverEnded(int rank) {
 /******************************************************************************/
 /**
  * Ends the poll's work: no further link runs, the sends that have not completed by now are given
- * up, and every receiver is let go of (GMPIPollReceiverI::discard(), then dropped). A send that has
+ * up (also after a failure of the chain), and every receiver is let go of (GMPIPollReceiverI::discard(), then dropped). A send that has
  * not completed goes to a rank that does not receive (it hangs, or it left without reading) and
  * would never complete; the calls take its bytes, because MPI may still read them.
  *
@@ -214,12 +217,28 @@ std::size_t GMPIPollCore::shutdown() {
     chain_ended_.store(true);
     timer_.cancel();
 
-    // One more look at the sends.
-    this->takeStarted_();
-    this->reap_();
+    // One more look at the sends. A look that fails leaves the sends under way, to be given up.
+    try {
+        this->takeStarted_();
+        this->reap_();
+    }
+    catch(...) {
+        glogger << "GMPIPollCore (rank " << calls_->rank()
+                << "): the last look at the sends failed: "
+                << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                << GWARNING;
+    }
     const std::size_t n_given_up = requests_.size();
     for(std::size_t i = 0; i < requests_.size(); ++i) {
-        calls_->giveUp(requests_[i], std::move(buffers_[i]));
+        try {
+            calls_->giveUp(requests_[i], std::move(buffers_[i]));
+        }
+        catch(...) {
+            glogger << "GMPIPollCore (rank " << calls_->rank()
+                    << "): a send could not be given up: "
+                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                    << GWARNING;
+        }
     }
     requests_.clear();
     buffers_.clear();
@@ -250,6 +269,13 @@ bool GMPIPollCore::chainEnded() const noexcept {
 }
 
 /******************************************************************************/
+/** @return Why the chain has failed; nothing if it has not */
+std::optional<std::string> GMPIPollCore::failure() const {
+    const std::scoped_lock lock(failure_mutex_);
+    return failure_;
+}
+
+/******************************************************************************/
 /** @return How much the poll has done; each count a snapshot */
 GMPIPollCounts GMPIPollCore::counts() const noexcept {
     return GMPIPollCounts{
@@ -268,14 +294,28 @@ const GMPIPollTiming &GMPIPollCore::timing() const noexcept {
 
 /******************************************************************************/
 /**
- * One link of the chain, on its strand: receives while there is something (at most
- * GMPIPollTiming::rounds messages), takes over and frees sends, decides whether the chain has
- * ended, and arranges the next link -- at once if the bound was reached, otherwise after the pause.
+ * One link of the chain, on its strand. A call that throws inside it ends the chain as failed
+ * (fail_()); no exception leaves it, and so none leaves the executor's run().
  */
 void GMPIPollCore::poll_() {
     if(chain_ended_.load()) {
         return;
     }
+    try {
+        this->link_();
+    }
+    catch(...) {
+        this->fail_(std::current_exception());
+    }
+}
+
+/******************************************************************************/
+/**
+ * The work of one link: receives while there is something (at most GMPIPollTiming::rounds
+ * messages), takes over and frees sends, decides whether the chain has ended, and arranges the
+ * next link -- at once if the bound was reached, otherwise after the pause.
+ */
+void GMPIPollCore::link_() {
     n_polls_.fetch_add(1, std::memory_order_relaxed);
 
     bool traffic = false;
@@ -358,9 +398,59 @@ bool GMPIPollCore::receiveOne_() {
 }
 
 /******************************************************************************/
-/** Takes over the sends that have been started since the last look. On the strand. */
+/**
+ * The chain fails: a call inside a link has thrown. The chain ends, the reason is kept and logged,
+ * and every receiver is told once, on its executor, after the messages posted to it before. The
+ * message the call concerned cannot be skipped -- it stays in MPI's queue -- so nothing more is
+ * received. On the strand; never throws.
+ *
+ * @param cause What was thrown
+ */
+void GMPIPollCore::fail_(const std::exception_ptr &cause) noexcept {
+    chain_ended_.store(true);
+    try {
+        const std::string reason = Gem::Courtier::describeException(cause);
+        {
+            const std::scoped_lock lock(failure_mutex_);
+            failure_ = reason;
+        }
+        timer_.cancel();
+        glogger << "GMPIPollCore (rank " << calls_->rank()
+                << "): the poll has failed and receives nothing more: " << reason << '\n'
+                << GWARNING;
+        for(std::size_t index = 0; index < receivers_.size(); ++index) {
+            if(receivers_[index]) {
+                boost::asio::post(
+                    receiver_executors_[index],
+                    [receiver = receivers_[index], reason] { receiver->pollFailed(reason); }
+                );
+            }
+        }
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch) -- nothing is left to tell (out of memory, say)
+        // The chain has ended; a receiver that could not be told learns of it at shutdown().
+    }
+}
+
+/******************************************************************************/
+/**
+ * Takes over the sends that have been started since the last look. On the strand. Room is made
+ * before a send is taken from the queue: once taken, nothing may throw before it is held here,
+ * or its bytes would go while MPI may still read them.
+ */
 void GMPIPollCore::takeStarted_() {
-    while(auto started = started_.try_pop()) {
+    const auto make_room = [](auto &held) {
+        if(held.size() == held.capacity()) {
+            held.reserve(std::max<std::size_t>(16, 2 * held.capacity()));
+        }
+    };
+    while(true) {
+        make_room(requests_);
+        make_room(buffers_);
+        auto started = started_.try_pop();
+        if(not started) {
+            return;
+        }
         requests_.push_back(started->request);
         buffers_.push_back(std::move(started->bytes));
     }
@@ -397,7 +487,12 @@ void GMPIPollCore::reap_() {
 void GMPIPollCore::kick_() {
     kick_pending_.store(false);
     pause_ = timing_.pauseMin;
-    timer_.cancel();
+    try {
+        timer_.cancel();
+    }
+    catch(...) {
+        this->fail_(std::current_exception());
+    }
 }
 
 /******************************************************************************/

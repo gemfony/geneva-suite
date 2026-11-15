@@ -30,6 +30,7 @@
 #pragma once
 
 // Standard headers go here
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -68,8 +69,9 @@
  * overlap; a receive that is not of the message the last probe reported; a request that is not this
  * rank's or not under way.
  *
- * What a test can arrange: a rank that never receives (swallow(): sends to it never complete), and
- * messages from a rank that has no calls of its own (inject()).
+ * What a test can arrange: a rank that never receives (swallow(): sends to it never complete),
+ * messages from a rank that has no calls of its own (inject()), and a call that throws once
+ * (throwOnce()).
  */
 
 namespace Gem::Courtier::Tests {
@@ -146,6 +148,20 @@ public:
             .push_back(GMessage{.tag = tag, .view = view, .owned = std::move(owned), .request = 0});
     }
 
+    /** @brief Where an armed fault strikes */
+    enum class GFault {
+        PROBE,    ///< The next probe() throws (before it looks)
+        RECEIVE,  ///< The next receive() throws; the message stays in the mailbox
+        TEST_SOME ///< The next testSome() throws (before it looks)
+    };
+
+    /** @brief The next call of the kind @p fault on @p rank throws once: a std::runtime_error, or
+     *  -- with @p standard false -- an int, which is not a std::exception */
+    void throwOnce(int rank, GFault fault, bool standard = true) {
+        const std::scoped_lock lock(mutex_);
+        ranks_.at(static_cast<std::size_t>(rank)).faults.push_back(GArmedFault{fault, standard});
+    }
+
     /** @brief @param rank A rank @return What happened on it so far */
     GCounts counts(int rank) const {
         const std::scoped_lock lock(mutex_);
@@ -190,8 +206,15 @@ private:
         bool done = false;    ///< Received at the other end
     };
 
+    /** @brief A fault that has been armed and has not struck yet */
+    struct GArmedFault {
+        GFault where;
+        bool standard;
+    };
+
     /** @brief One rank */
     struct GRank {
+        std::vector<GArmedFault> faults;             ///< Armed by throwOnce()
         std::map<int, std::deque<GMessage>> mailbox; ///< By source, in the order they were sent
         int next_source = 0;                         ///< Where the next probe starts to look
         bool swallowing = false;                     ///< Sends to this rank never complete
@@ -200,6 +223,20 @@ private:
         std::atomic<int> in_call{0}; ///< Calls of the receiving kind in progress
         GCounts counts;
     };
+
+    /** @brief Throws, if a fault of the kind @p where is armed on @p me; the mutex is held */
+    static void strike_(GRank &me, GFault where) {
+        const auto armed = std::ranges::find(me.faults, where, &GArmedFault::where);
+        if(armed == me.faults.end()) {
+            return;
+        }
+        const bool standard = armed->standard;
+        me.faults.erase(armed);
+        if(standard) {
+            throw std::runtime_error("GMPIFakeCalls: a fault armed by the test");
+        }
+        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+    }
 
     /** @brief Records a violation; the mutex is held */
     void violation_(std::string what) {
@@ -251,6 +288,7 @@ inline std::optional<Gem::Courtier::Consumers::GMPIProbed> GMPIFakeCalls::probe(
     const std::scoped_lock lock(world_->mutex_);
     auto &me = world_->ranks_.at(static_cast<std::size_t>(rank_));
     ++me.counts.probes;
+    GMPIFakeWorld::strike_(me, GMPIFakeWorld::GFault::PROBE);
     if(me.probed && me.prober != std::this_thread::get_id()) {
         world_->violation_("a second receiver probed on rank " + std::to_string(rank_));
     }
@@ -288,6 +326,7 @@ inline std::string GMPIFakeCalls::receive(const Gem::Courtier::Consumers::GMPIPr
         throw std::logic_error("GMPIFakeCalls::receive(): no matching probe");
     }
     me.probed.reset();
+    GMPIFakeWorld::strike_(me, GMPIFakeWorld::GFault::RECEIVE);
     auto queue = me.mailbox.find(probed.source);
     if(queue == me.mailbox.end()) { // the sender gave the message up between the probe and now
         world_->violation_(
@@ -330,6 +369,10 @@ inline std::size_t
 GMPIFakeCalls::testSome(std::span<Gem::Courtier::Consumers::GMPIRequest> requests) {
     const GMPIFakeWorld::GCallGuard guard(*world_, rank_);
     const std::scoped_lock lock(world_->mutex_);
+    GMPIFakeWorld::strike_(
+        world_->ranks_.at(static_cast<std::size_t>(rank_)),
+        GMPIFakeWorld::GFault::TEST_SOME
+    );
     std::size_t n_completed = 0;
     for(auto &handle : requests) {
         if(handle == Gem::Courtier::Consumers::GMPIRequest::NONE) {
