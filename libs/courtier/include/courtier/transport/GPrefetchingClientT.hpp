@@ -217,8 +217,10 @@ protected:
         if(container.kind() == GFrameKind::WORK) {
             // One pull became one item: the in-flight total is unchanged. It is evaluated at once
             // if the compute width allows, held otherwise -- or dropped, if its result could not
-            // be delivered any more (see drop_held_()).
-            if(work_unwanted_) {
+            // be delivered any more (see drop_held_()), or if a halt condition holds: a client
+            // that halts starts no evaluation (the server puts the item back when the connection
+            // ends).
+            if(work_unwanted_ || this->halt()) {
                 return;
             }
             if(computing_ < compute_width_) {
@@ -354,7 +356,8 @@ protected:
 
     //-------------------------------------------------------------------------
     /** @brief Runs on the io thread once an evaluation has completed and its result is encoded:
-     *  accounts for the finished item, hands a held item to the pool, and passes the result on.
+     *  accounts for the finished item, hands a held item to the pool (unless a halt condition
+     *  holds: then the held items are dropped), and passes the result on.
      *  A client that decides the kind of its results gets it through sendResult_() and does the
      *  books of the request itself; otherwise the result is a RETURN, which doubles as a pull (the
      *  server answers it with the next item), and goes to sendEncodedAndRefill_(). The work guard
@@ -371,6 +374,10 @@ protected:
         this->incrementProcessingCounter();
         if(computing_ > 0) {
             --computing_;
+        }
+        // A client that halts starts no evaluation: what it holds is dropped instead.
+        if(this->halt()) {
+            this->drop_held_();
         }
         if(not held_.empty() && computing_ < compute_width_) {
             ++computing_;

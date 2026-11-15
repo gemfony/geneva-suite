@@ -106,12 +106,13 @@ struct GPeerClientOptions {
  * encoded once more, as a RESULT, on the compute pool, and sent after that. A result encoded as a
  * RESULT where a RETURN would have been allowed is sent as it is; a PULL follows it.
  *
- * Halting. A halt condition (a time or an item limit, a close request) is honoured: the client
- * sends what it has finished as RESULT, asks for nothing more, and closes. Once the connection is
- * over for good (the server announced the end of the run, or the connector cannot connect again),
- * the items it holds or still decodes, and has not begun to evaluate, are dropped; one that is
- * being evaluated runs to its end, and the client ends after it. While its compute pool evaluates
- * an item the client tells its peer that it is busy (GPeerI::setOwnerBusy()).
+ * Halting. Once a halt condition holds (a time or an item limit, a close request), the client
+ * asks for nothing more and starts no evaluation: the items it holds, and those that are still
+ * being decoded or arrive, are dropped (the server puts them back when the connection ends). The
+ * results of the evaluations that run are sent as RESULT as they finish, and the client closes when
+ * none runs any more. So the number of items processed may pass an item limit by the evaluations
+ * that were running when it was reached. While its compute pool evaluates an item the client tells
+ * its peer that it is busy (GPeerI::setOwnerBusy()).
  *
  * A message it cannot decode is reported to the server with UNREADABLE (after the pause that follows
  * a NO_WORK), which asks for the next
@@ -133,6 +134,7 @@ class GPeerClientT
 
     // Members and helpers of the dependent pipeline base, pulled into scope
     using pipeline_base::compute_pool_;
+    using pipeline_base::computing_;
     using pipeline_base::dispatch_message_;
     using pipeline_base::drop_held_;
     using pipeline_base::in_flight_;
@@ -541,13 +543,23 @@ private:
         this->afterResult_();
     }
 
-    /** @brief After a result has been sent: a client that halts closes, any other asks for more. */
+    /** @brief After a result has been sent: a client that halts closes once no evaluation runs
+     *  any more (see the class comment), any other asks for more. */
     void afterResult_() {
         if(this->halt()) {
-            do_close_(GPeerClose::NORMAL);
+            this->closeWhenIdle_();
             return;
         }
         request_more_();
+    }
+
+    /** @brief A halt condition holds: what is held is dropped, and the connection is closed if
+     *  no evaluation runs; otherwise the last result to arrive closes it (afterResult_()). */
+    void closeWhenIdle_() {
+        drop_held_();
+        if(computing_ == 0) {
+            do_close_(GPeerClose::NORMAL);
+        }
     }
 
     /** @brief Hands a message to the peer, if there is one (io thread). @param bytes The message */
@@ -557,9 +569,10 @@ private:
         }
     }
 
-    /** @brief Halt hook: closes the connection in the regular way when a halt condition is reached. */
+    /** @brief Halt hook (the halt timer): closes the connection in the regular way when a halt
+     *  condition is reached, after the evaluations that run (see the class comment). */
     void haltShutdown_() {
-        do_close_(GPeerClose::NORMAL);
+        this->closeWhenIdle_();
     }
 
     /** @brief Busy hook: tells the peer whether the compute pool evaluates an item.

@@ -1204,3 +1204,45 @@ TEST_CASE(
     REQUIRE(items[0] != nullptr);
     CHECK(items[0]->get_stored_number() == 1);
 }
+
+/******************************************************************************/
+/**
+ * A client that reaches its item limit starts no evaluation after it, sends the results of those
+ * that run as they finish, and closes when none runs: nothing it evaluated is put back. Depth 4,
+ * width 2, limit 2: two items are evaluated and two held; the first result lets a held item start,
+ * the second reaches the limit and the other held item is dropped; the third result is sent before
+ * the close. A second client then evaluates the rest; no item is evaluated twice.
+ */
+TEST_CASE(
+    "GPeerClientT: at its item limit a client starts nothing new and sends what it evaluates",
+    "[courtier][peer][client]"
+) {
+    auto limited = std::make_shared<Evaluations>();
+    auto other = std::make_shared<Evaluations>();
+    World world;
+    world.client(
+        GPeerClientOptions{
+            .name = "limited client",
+            .mode = BIN,
+            .prefetchDepth = 4,
+            .computeWidth = 2
+        },
+        limited,
+        300ms,
+        nullptr,
+        [](client_type &c) { c.setProcessMax(2); }
+    );
+    auto items = makeBatch(8);
+    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+    const bool limited_done = eventually([&] { return world.clientsDone(); });
+    const std::size_t n_results = world.counts().nResults.load() + world.counts().nReturns.load();
+    world.client(GPeerClientOptions{.name = "other client", .mode = BIN}, other, 5ms, nullptr, AS_IS);
+    REQUIRE(batch.get());
+    REQUIRE(limited_done);
+    CHECK(limited->total.load() == 3);
+    CHECK(n_results == 3);
+    for(std::size_t i = 0; i < items.size(); ++i) {
+        INFO("item " << i);
+        CHECK(limited->of(i) + other->of(i) == 1);
+    }
+}
