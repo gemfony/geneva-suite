@@ -35,6 +35,7 @@
 // Standard headers go here
 #include <atomic>
 #include <cstddef>
+#include <exception>
 #include <memory>
 #include <optional>
 #include <string>
@@ -232,6 +233,14 @@ public:
      * stopGrace()), joins the session threads and ends the transport's own work (see the class
      * comment). Idempotent. Not on a session thread. A server that was never started has nothing
      * to stop.
+     *
+     * The session threads are joined and the listener's work is ended also when an earlier step
+     * throws (the listener's stop(), a close); the first exception then reaches the caller. Were
+     * they not, the threads would stay in run() for good, and the destructor of the thread group,
+     * whose std::jthreads join, would wait for them for ever.
+     *
+     * @throws whatever the listener's stop() or endWork(), or a close, throws -- after the threads
+     *         have been joined
      */
     void stopServer() {
         if(stopped_already_.exchange(true)) {
@@ -243,6 +252,50 @@ public:
             return;
         }
 
+        std::exception_ptr failure;
+        try {
+            this->tellClients_();
+        }
+        catch(...) {
+            failure = std::current_exception();
+        }
+
+        work_guard_.reset();
+        io_context_.stop();
+        threads_.join_all();
+
+        // No session runs any more: the transport's own work can end.
+        try {
+            listener_->endWork();
+        }
+        catch(...) {
+            if(not failure) {
+                failure = std::current_exception();
+            }
+        }
+        budget_.release();
+        if(failure) {
+            std::rethrow_exception(failure);
+        }
+    }
+
+protected:
+    /***************************************************************************/
+    /** @brief Stops the server without letting an exception escape -- for destructors. */
+    void stopServerNoThrow_() noexcept {
+        try {
+            this->stopServer();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
+            // never let an exception escape a destructor
+        }
+    }
+
+private:
+    /***************************************************************************/
+    /** @brief The part of stopServer() that may wait: no new peers, every peer is told that the
+     *  run has ended, and the shell waits for them, at most the listener's stopGrace(). */
+    void tellClients_() {
         listener_->stop();
 
         // Every peer that has not ended hears that the run is over. A session made after this
@@ -258,27 +311,9 @@ public:
                     << listener_->stopGrace().count() << " ms" << '\n'
                     << GLOGGING;
         }
-
-        work_guard_.reset();
-        io_context_.stop();
-        threads_.join_all();
-
-        // No session runs any more: the transport's own work can end.
-        listener_->endWork();
-        budget_.release();
     }
 
 protected:
-    /***************************************************************************/
-    /** @brief Stops the server without letting an exception escape -- for destructors. */
-    void stopServerNoThrow_() noexcept {
-        try {
-            this->stopServer();
-        }
-        catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
-            // never let an exception escape a destructor
-        }
-    }
 
     /***************************************************************************/
     /** @brief A transport that notices the loss of a client by itself needs no time lease; one

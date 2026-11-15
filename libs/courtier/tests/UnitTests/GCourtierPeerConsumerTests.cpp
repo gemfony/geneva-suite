@@ -811,3 +811,27 @@ TEST_CASE(
     CHECK(done);
     CHECK(worker->nWork() == 1);
 }
+
+/******************************************************************************/
+/**
+ * A step of stopServer() that throws (here the listener's stop()) does not leave the session
+ * threads running: they are joined and the listener's work is ended before the exception reaches
+ * the caller, and the shell can be destroyed.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a stop whose listener throws still joins the session threads",
+    "[courtier][peer][shell]"
+) {
+    auto listener =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.stopThrows = true});
+    auto &budget = Gem::Common::Concurrency::threadBudget();
+    const unsigned int reserved_before = budget.reserved();
+    {
+        Shell shell{listener, 3};
+        shell.startServer();
+        CHECK_THROWS(shell.stopServer());
+        CHECK(listener->workEnded());
+        CHECK(budget.reserved() == reserved_before);
+    } // the destructor returns: no session thread is left in run()
+    CHECK(listener->nStops() == 1);
+}

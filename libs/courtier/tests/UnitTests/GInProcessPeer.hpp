@@ -497,6 +497,7 @@ public:
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
         /// How long stop() waits for the calls of on_peer under way
         std::chrono::milliseconds stopBound{1000};
+        bool stopThrows = false; ///< stop() throws (after it has stopped accepting)
     };
 
     /** @brief @param options What the pairs are made with */
@@ -529,6 +530,9 @@ public:
         }
         if(not on_peer_calls_.waitUntilEmpty(options_.stopBound)) {
             n_stop_bounds_hit_.fetch_add(1);
+        }
+        if(options_.stopThrows) {
+            throw std::runtime_error("the test made the listener's stop() fail");
         }
     }
 
