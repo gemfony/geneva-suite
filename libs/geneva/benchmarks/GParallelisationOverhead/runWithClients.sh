@@ -37,7 +37,9 @@
 #
 #     binary       the GParallelisationOverhead executable of a build tree
 #     workdir      a directory OUTSIDE the source tree
-#     consumer     the networked consumer to measure, e.g. beast
+#     consumer     the consumer to measure: a networked one such as beast (a
+#                  server process and N client processes), or mpi (one mpirun
+#                  with N + 1 ranks: rank 0 is the server, the others its clients)
 #     delays       the evaluation times, as "(seconds,milliseconds), ..."
 #     reference delays   the (short) evaluation times of the serial reference
 #     measurements how often each evaluation time is measured
@@ -45,9 +47,16 @@
 # The serial reference is a run of its own on one local worker. It is kept if
 # the work directory already holds a referenceLine.txt, so that several runs can
 # share one reference (copy the file in, or set REFRESH_REFERENCE=1 to measure
-# it again). The results are shortDelayResults.txt (the table) and the plot
-# script the configuration names. compareSpeedups.py compares the tables of
-# several runs.
+# it again). Copy the same reference into the work directories of both
+# consumers, and their speed-ups are measured against the same serial time. The
+# results are shortDelayResults.txt (the table) and the plot script the
+# configuration names; server.log holds the output of the server (for mpi: of
+# all ranks). compareSpeedups.py compares the tables of several runs.
+#
+# Environment:
+#   MPIRUN   how mpi is started, followed by the rank count (default
+#            "mpirun --oversubscribe -np": Open MPI needs the flag when there are
+#            more ranks than cores; MPICH's mpiexec knows no such flag)
 ####################################################################
 
 set -u
@@ -82,13 +91,22 @@ if [ ! -s referenceLine.txt ] || [ "${REFRESH_REFERENCE:-0}" = 1 ]; then
     "$X" --reference > reference.log 2>&1; echo "reference exit: $?"
 fi
 
-PORT=$((15000 + RANDOM % 2000))
-"$X" -c "$C" "--${C}_port" $PORT "$@" > server.log 2>&1 &
-SRV=$!
-sleep 2
-PIDS=()
-for _ in $(seq 1 "$N"); do
-    "$X" -c "$C" --client "--${C}_port" $PORT > /dev/null 2>&1 & PIDS+=($!)
-done
-wait $SRV; echo "server exit: $?"
-kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+if [ "$C" = mpi ]; then
+    # The ranks take their roles from MPI; the server options reach every rank.
+    # shellcheck disable=SC2086
+    ${MPIRUN:-mpirun --oversubscribe -np} $((N + 1)) "$X" -c mpi "$@" > server.log 2>&1
+    STATUS=$?
+else
+    PORT=$((15000 + RANDOM % 2000))
+    "$X" -c "$C" "--${C}_port" $PORT "$@" > server.log 2>&1 &
+    SRV=$!
+    sleep 2
+    PIDS=()
+    for _ in $(seq 1 "$N"); do
+        "$X" -c "$C" --client "--${C}_port" $PORT > /dev/null 2>&1 & PIDS+=($!)
+    done
+    wait $SRV; STATUS=$?
+    kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+fi
+echo "server exit: $STATUS"
+exit $STATUS

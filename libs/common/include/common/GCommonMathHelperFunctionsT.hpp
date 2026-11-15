@@ -721,7 +721,9 @@ fp_type squareDeviation(
 /**
  * @brief Calculates the parameters a and b of a regression line, plus their errors.
  *
- * The line is defined by L(x) = a + b*x. An empty input yields an all-zero result tuple.
+ * The line is defined by L(x) = a + b*x. An empty input yields an all-zero result tuple. The errors
+ * need at least three points: for two they are not finite (a line through two points has no
+ * deviation to estimate them from).
  *
  * @tparam fp_type The floating point type of the data and the computed parameters
  * @param data_points A vector of (x, y) data points to which the line's parameters should fit

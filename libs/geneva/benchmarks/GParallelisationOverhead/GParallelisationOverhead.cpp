@@ -66,6 +66,10 @@ using namespace Gem::Dietrich; // plotting types live here now
 /// run; below it the reference is rejected as not serial.
 constexpr double MINSERIALSLOPEFRACTION = 0.8;
 
+/// The serial reference fits a line with errors through its measurements; that takes at least
+/// three of them.
+constexpr std::size_t MINREFERENCEPOINTS = 3;
+
 /******************************************************************************/
 /**
  * Stores the line of the serial reference, f(x) = a + b*x with the errors of a and b, in a file
@@ -190,7 +194,18 @@ void startReferenceMeasurement(
         iter++;
     }
 
-    // Calculate the regression parameters a and b, including errors
+    // Calculate the regression parameters a and b, including errors. A line through two points
+    // has no error estimate (the errors come out infinite or undefined), and a reference without
+    // errors would make every speed-up error meaningless, so fewer points are refused.
+    if(referenceExecutionTimes.size() < MINREFERENCEPOINTS) {
+        throw std::runtime_error(
+            "GParallelisationOverhead: the serial reference has " +
+            std::to_string(referenceExecutionTimes.size()) + " measurements; it needs at least " +
+            std::to_string(MINREFERENCEPOINTS) +
+            " (delays times n_measurements in the reference configuration) to give its line an "
+            "error."
+        );
+    }
     ab = getRegressionParameters(referenceExecutionTimes);
 
     // A run that evaluates n individuals one after another takes n times the delay (plus a
