@@ -53,18 +53,17 @@
 #include "courtier/GCourtierEnums.hpp"            // GCONSUMERACCEPTRETRYPAUSE
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: shared registry
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
-#include "courtier/transport/GIoContext.hpp"
 
 namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * The shared TCP-accepting server shell of the socket consumers (ASIO and websocket). Both are TCP
- * servers that hand out work items from the current batch to connected clients and collect the
- * processed results; the ~90%-identical server lifecycle -- acceptor open/bind/listen, the
- * strand-serialized accept loop with EMFILE backoff, the io-thread group, idempotent shutdown, the
- * session counter and the blob send-once registry -- lives here ONCE. A concrete consumer
- * contributes only its session construction via the start_session_() hook (plus any
+ * The TCP-accepting server shell of the asio consumer (GAsioConsumerT), and of nothing else: the
+ * websocket consumer is a GPeerConsumerT over a GWebsocketListener. It is a TCP server that hands
+ * out work items from the current batch to connected clients and collects the processed results:
+ * acceptor open/bind/listen, the strand-serialized accept loop with EMFILE backoff, the io-thread
+ * group, idempotent shutdown, the session counter and the blob send-once registry. The concrete
+ * consumer contributes its session construction via the start_session_() hook (plus any
  * transport-specific configuration and knobs).
  *
  * Lifetime. The accept loop and the sessions refer to this object through a plain `this`, never
@@ -154,7 +153,6 @@ public:
             );
         }
 
-        this->startTransport_();
         this->async_start_accept();
 
         // Account the io threads in the process-wide thread budget (io threads mostly block, but
@@ -180,9 +178,6 @@ public:
             return;
         }
         this->requestStop();
-
-        // The transport's own threads (if any) first, so that no session runs any more.
-        this->stopTransport_();
 
         // Drop the work guard and stop the context so run() returns on every io thread.
         work_guard_.reset();
@@ -234,17 +229,6 @@ protected:
     virtual void start_session_(boost::asio::ip::tcp::socket socket) = 0;
 
     /***************************************************************************/
-    /** @brief Starts what the concrete consumer runs besides the io threads (called by
-     *  startServer() before the first accept). Default: nothing. */
-    virtual void startTransport_() { /* nothing */
-    }
-
-    /** @brief Stops and joins what startTransport_() started (called by stopServer() before the
-     *  io threads are stopped). Default: nothing. */
-    virtual void stopTransport_() { /* nothing */
-    }
-
-    /***************************************************************************/
     /** @brief Adjusts the live-session counter from a session's sign-on/sign-off callback.
      *  @param sign_on True when a session starts, false when it ends */
     void adjustSessionCount(bool sign_on) noexcept {
@@ -276,7 +260,7 @@ private:
 
 protected:
     /// The io context all sessions run on; accessible to the concrete session factory.
-    Gem::Courtier::Consumers::GIoContext io_context_;
+    boost::asio::io_context io_context_;
 
 private:
     /***************************************************************************/
@@ -293,8 +277,8 @@ private:
     void async_start_accept() {
         // Use the connectionless async_accept overload: each accept yields its own fresh socket, so
         // there is no shared socket_ member to race on. The socket is created on a strand of its
-        // own, so that everything a session does on it is serialized without further arrangement (a
-        // GWebsocketPeer relies on that). The handler is bound to accept_strand_, which serializes
+        // own, so that everything a session does on it is serialized without further arrangement.
+        // The handler is bound to accept_strand_, which serializes
         // all acceptor access across the io threads (acceptor is not thread-safe).
         acceptor_.async_accept(
             boost::asio::make_strand(io_context_),

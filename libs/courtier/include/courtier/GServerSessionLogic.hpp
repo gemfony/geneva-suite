@@ -71,8 +71,8 @@ namespace Gem::Courtier {
  *  - absorbServerRequest(): everything a request asks for except the work item: a returned result
  *    is checked in, a blob request or an unknown frame is answered. It tells the caller what it
  *    owes now: that answer, a work item, or nothing (GAbsorbResult). Used directly by a transport
- *    that may let the pull wait (the websocket session, which parks instead of answering
- *    NO_WORK).
+ *    that may let the pull wait (GPeerSessionT, the session of the websocket consumer, which
+ *    parks instead of answering NO_WORK).
  *
  *  - handleServerRequest(): the full synchronous request -> response-bytes dispatch used by the
  *    request/response transport (Asio): absorbServerRequest(), then serveWorkItem(). It takes an

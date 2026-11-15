@@ -63,8 +63,9 @@ SET ( CONSUMER_INCLUDES
     consumers/GWebsocketConsumerT.hpp
 )
 
-# Transport classes (namespace Gem::Courtier::Consumers): the asio/websocket sessions + clients and
-# the MPI master/worker nodes that the networked consumers reuse. Named under transport/ so they no
+# Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
+# interface, the websocket and asio transports and the MPI master/worker nodes that the networked
+# consumers reuse. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
     transport/GAsioTransportT.hpp

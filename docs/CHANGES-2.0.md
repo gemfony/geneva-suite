@@ -203,7 +203,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a connection or a thread. A client answers pings while it evaluates, and both ends answer them
   while they encode or decode a message (neither does that on the thread that moves the
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
-  time. There is no limit on the size of a message.
+  time. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
+  lost client is not noticed by the transport, and the server reclaims its items by the time lease.
 - **The number of threads of a socket server** is set with `--asio_nProcessingThreads` and
   `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11; the
   websocket server runs its sessions on as many threads again.
@@ -212,9 +213,18 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   four threads used the least server CPU.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
+- **A websocket server tells its clients that the run has ended.** `stopServer()` closes every
+  connection with the close code 4000 (`GCONSUMERCLOSECODERUNENDED`), also those of clients that
+  evaluate or wait for work, and waits for the clients to confirm, at most a grace
+  (`GWEBSOCKETCONSUMERSTOPGRACE`, 10 s; the second argument of the consumer's constructor). A
+  client that is told so ends. A client that has a time or an item limit sends what it has finished
+  and closes; the server keeps that last result.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
-  handle is answered with NO_WORK, so the client asks again instead of ending. A result that
+  handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
+  does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
+  A websocket client that cannot read an item tells the server (`unreadable`), which puts back what
+  the client held and sends it its blobs anew; the client stays. A result that
   cannot be applied to its item marks the item as failed. In each case the submission policy
   decides what happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
@@ -424,11 +434,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC`. The other pauses, time limits
   and defaults of the networked consumers are named constants in `courtier/GCourtierEnums.hpp`
   as well.
-- **courtier: the socket consumers/clients gained shared bases** — `GAsioConsumerT` /
-  `GWebsocketConsumerT` now derive from `GTcpAcceptingConsumerT` (the common TCP server
-  shell) and `GAsioConsumerClientT` / `GWebsocketClientT` from `GPrefetchingClientT`
-  (the common prefetch/compute pipeline). Public construction, options and the wire
-  protocol are unchanged; only code naming the old direct base classes is affected.
+- **courtier: the socket consumers/clients gained shared bases** — `GAsioConsumerT` derives
+  from `GTcpAcceptingConsumerT` and `GWebsocketConsumerT` from `GPeerConsumerT` (the server's
+  shell over any transport); `GAsioConsumerClientT` derives from `GPrefetchingClientT` (the
+  common prefetch/compute pipeline) and `GWebsocketClientT` from `GPeerClientT`, which derives
+  from it. Public construction and options are unchanged; only code naming the old direct base
+  classes is affected.
 - **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
   taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
   `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.

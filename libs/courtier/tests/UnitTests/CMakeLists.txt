@@ -89,6 +89,8 @@ geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
 geneva_courtier_test(GCourtierWebsocketPeerTests M  GCourtierWebsocketPeerTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTransportTests.cpp)
+# The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound
+geneva_courtier_test(GCourtierWebsocketStopTests M  GCourtierWebsocketStopTests.cpp)
 # The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
 # directory, used by later tests of the roles as their transport)
 geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
