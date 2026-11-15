@@ -683,6 +683,12 @@ private:
 /**
  * The client side of the in-process transport: asks a GInProcessListener for a connection. The
  * listener must outlive every attempt (it is held weakly; a listener that is gone refuses).
+ *
+ * The order a test keeps (rule 7): a connector is destroyed when no handler of its executor runs
+ * any more, so it is declared before the IoThreads (or io context) its client ends run on and goes
+ * after them. Likewise a test that holds an end (or a role that holds one) lets go of it before
+ * that end's context goes: declare it after the context. The flag an attempt shares with the
+ * connector is atomic all the same, so a connector destroyed early does not race with an attempt.
  */
 class GInProcessConnector final : public Gem::Courtier::Consumers::GConnectorI {
 public:
@@ -712,7 +718,7 @@ public:
      *  @param executor Where the client end and done run
      *  @param done What is told the outcome */
     void connect(boost::asio::any_io_executor executor, done_type done) override {
-        auto cancelled = std::make_shared<bool>(false);
+        auto cancelled = std::make_shared<std::atomic<bool>>(false);
         cancelled_ = cancelled;
         boost::asio::post(
             executor,
@@ -721,7 +727,7 @@ public:
              executor,
              cancelled,
              done = std::move(done)]() mutable {
-                if(*cancelled) {
+                if(cancelled->load()) {
                     return;
                 }
                 auto server = listener.lock();
@@ -737,7 +743,7 @@ public:
     /** @brief The attempt in progress does not call done */
     void cancel() override {
         if(cancelled_) {
-            *cancelled_ = true;
+            cancelled_->store(true);
         }
     }
 
@@ -750,7 +756,7 @@ private:
     std::weak_ptr<GInProcessListener> listener_; ///< The server
     bool reconnectable_;                         ///< What reconnectable() answers
     std::shared_ptr<GInProcessPeerWatch> watch_; ///< Where the client ends are recorded, or empty
-    std::shared_ptr<bool> cancelled_;            ///< The flag of the last attempt (on the executor)
+    std::shared_ptr<std::atomic<bool>> cancelled_; ///< The flag of the last attempt
 };
 
 /******************************************************************************/

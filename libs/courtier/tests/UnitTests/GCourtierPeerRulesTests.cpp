@@ -571,13 +571,15 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]") {
-    IoThreads io;
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
         .stopGrace = 1500ms,
         .detectsLoss = false,
     });
     CHECK(listener->stopGrace() == 1500ms);
     CHECK_FALSE(listener->detectsLoss());
+    // The connector goes after the threads its ends run on, the ends kept here before them
+    GInProcessConnector connector(listener);
+    IoThreads io;
 
     std::mutex mutex;
     std::vector<std::pair<std::shared_ptr<GPeerI>, GWirePeerId>> server_ends;
@@ -587,7 +589,6 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
     });
 
     auto strand = boost::asio::make_strand(io.executor());
-    GInProcessConnector connector(listener);
     CHECK(connector.reconnectable());
 
     // done runs on the strand; the futures carry its result to this thread.

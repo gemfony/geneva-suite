@@ -267,8 +267,9 @@ TEST_CASE(
     auto listener = std::make_shared<GInProcessListener>(
         GInProcessListener::Options{.closeGrace = 2s, .stopGrace = 3s}
     );
-    IoThreads clients;
+    // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{listener};
+    IoThreads clients;
     std::vector<std::shared_ptr<ScriptedClient>> roles;
     roles.reserve(N_PARKED + N_IDLE);
     {
@@ -291,7 +292,8 @@ TEST_CASE(
         CHECK(listener->workEnded());
     }
     for(const auto &role : roles) {
-        CHECK(role->closed() == "CLOSED_THERE:RUN_ENDED");
+        // The server's end has seen the acknowledgement; the client's onClosed may still be due.
+        CHECK(eventually([&] { return role->closed() == "CLOSED_THERE:RUN_ENDED"; }));
         CHECK(role->nFrames() == 0);
     }
 }
@@ -308,8 +310,9 @@ TEST_CASE(
         .closeGrace = 10s, // the peer itself would wait this long
         .stopGrace = STOP_GRACE
     });
-    IoThreads clients;
+    // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{listener};
+    IoThreads clients;
     auto role = std::make_shared<ScriptedClient>(0, true);
     {
         Shell shell{listener, 2};
@@ -339,8 +342,9 @@ TEST_CASE(
     "[courtier][peer][shell]"
 ) {
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
-    IoThreads clients;
+    // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{listener};
+    IoThreads clients;
     Shell shell{listener, 2};
     shell.startServer();
 
@@ -609,8 +613,9 @@ TEST_CASE(
         .stopBound = 100ms
     });
     auto hold = std::make_shared<StartHold>();
-    IoThreads clients;
+    // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{listener};
+    IoThreads clients;
     auto role = std::make_shared<ScriptedClient>(0, true);
     {
         Gem::Courtier::GPeerConsumerT<GFaultyContainer> shell{
@@ -647,8 +652,9 @@ TEST_CASE(
     auto listener = std::make_shared<GInProcessListener>(
         GInProcessListener::Options{.closeGrace = 2s, .stopGrace = STOP_GRACE}
     );
-    IoThreads clients;
+    // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{listener};
+    IoThreads clients;
     auto role = std::make_shared<ScriptedClient>(0, true);
     long long stop_ms = 0;
     {
