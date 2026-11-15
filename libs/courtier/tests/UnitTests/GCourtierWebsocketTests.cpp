@@ -328,7 +328,7 @@ TEST_CASE(
         // now. One item means one wake-up, and it must not be spent on a session that has ended.
         CHECK(consumer->parkedCount() == CLIENTS);
         auto late_client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
-        const std::jthread late_thread([late_client] { late_client->run(); });
+        std::jthread late_thread([late_client] { late_client->run(); });
         const auto late_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
         while(consumer->parkedCount() != CLIENTS + 1 &&
               std::chrono::steady_clock::now() < late_deadline) {
@@ -353,8 +353,11 @@ TEST_CASE(
             FAIL("the wake-up for the item did not reach the client that is there");
         }
         CHECK(count_processed(one_item) == 1);
-        late_client->flagCloseRequested();
 
+        // The late client ends before the server stops: a server that stops first leaves the
+        // client's close unanswered, and the client waits for its idle limit (30 s by default).
+        late_client->flagCloseRequested();
+        late_thread.join();
         consumer->stopServer();
     }
 }
