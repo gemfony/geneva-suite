@@ -309,14 +309,14 @@ void GWebsocketPeer::resumeReading_() {
  *
  * @param message The complete message to send
  */
-void GWebsocketPeer::send(std::string message) {
+void GWebsocketPeer::send(GMessage message) {
     if(close_requested_.load()) {
         return;
     }
     boost::asio::post(
         io_executor_,
         [self = this->shared_from_this(), message = std::move(message)]() mutable {
-            if(self->closing_ || not self->open_) {
+            if(self->closing_ || not self->open_ || not message) {
                 return;
             }
             self->write_queue_.push_back(std::move(message));
@@ -344,7 +344,7 @@ void GWebsocketPeer::pump_() {
 
     auto self = this->shared_from_this();
     ws_.async_write(
-        boost::asio::buffer(outgoing_),
+        boost::asio::buffer(*outgoing_),
         [self](const error_code &ec, [[maybe_unused]] std::size_t n_bytes) { self->writeDone_(ec); }
     );
 }
@@ -358,7 +358,7 @@ void GWebsocketPeer::pump_() {
  */
 void GWebsocketPeer::writeDone_(const error_code &ec) {
     writing_ = false;
-    outgoing_.clear();
+    outgoing_.reset();
     if(ec) {
         this->finish_(ec);
         return;

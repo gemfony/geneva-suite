@@ -227,7 +227,11 @@ private:
     /** @brief Encodes and sends a frame, on the peer's executor @param frame The frame */
     void send_(const GCommandContainerT<GFaultyContainer> &frame) {
         if(auto peer = this->peer_()) {
-            peer->send(Gem::Courtier::wireEncode(frame, nullptr, BIN));
+            peer->send(
+                Gem::Courtier::Consumers::makeMessage(
+                    Gem::Courtier::wireEncode(frame, nullptr, BIN)
+                )
+            );
         }
     }
 
@@ -530,7 +534,7 @@ public:
         started_.store(true);
     }
     /** @brief Forwards @param message See GPeerI */
-    void send(std::string message) override {
+    void send(Gem::Courtier::Consumers::GMessage message) override {
         if(auto inner = inner_.lock()) {
             inner->send(std::move(message));
         }

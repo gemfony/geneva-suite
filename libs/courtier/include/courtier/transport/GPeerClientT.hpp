@@ -391,7 +391,9 @@ private:
             return;
         }
         try {
-            peer->send(Gem::Courtier::wireEncode(container, &wire_ctx_, options_.mode));
+            peer->send(
+                makeMessage(Gem::Courtier::wireEncode(container, &wire_ctx_, options_.mode))
+            );
         }
         catch(const std::exception &e) {
             glogger << "In " << options_.name << "::send_command_():" << '\n'
@@ -568,7 +570,7 @@ private:
     /** @brief Hands a message to the peer, if there is one (io thread). @param bytes The message */
     void transmit_(std::string bytes) {
         if(auto peer = peer_.lock()) {
-            peer->send(std::move(bytes));
+            peer->send(makeMessage(std::move(bytes)));
         }
     }
 

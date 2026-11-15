@@ -139,7 +139,7 @@ public:
     /** @brief Installs the handlers and begins the handshake (on the socket's executor). */
     void start(GPeerHandlers) override;
     /** @brief Queues a message; written after those handed over before. */
-    void send(std::string) override;
+    void send(GMessage) override;
     /** @brief Closes in the regular way after what was handed to send() before. Any thread. */
     void close(GPeerClose) override;
     /** @brief Ends the connection at once, without a close handshake. For teardown (GPeerI::abort()):
@@ -177,8 +177,8 @@ private:
     bool read_paused_ = false; ///< Reading waits for the role to catch up (socket's executor)
 
     boost::beast::multi_buffer incoming_; ///< Receives the message being read
-    std::deque<std::string> write_queue_; ///< Messages waiting to be written
-    std::string outgoing_;                ///< The message being written
+    std::deque<GMessage> write_queue_;    ///< Messages waiting to be written
+    GMessage outgoing_;                   ///< The message being written (held until it is)
     bool writing_ = false;                ///< Whether a write is outstanding
 
     /// Bounds the wait for the write queue before a close, and nothing else (socket's executor)

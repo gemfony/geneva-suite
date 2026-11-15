@@ -318,7 +318,7 @@ public:
     void sendBytes(std::string bytes) {
         if(auto peer = peer_.lock()) {
             boost::asio::post(peer->executor(), [peer, bytes = std::move(bytes)]() mutable {
-                peer->send(std::move(bytes));
+                peer->send(Gem::Courtier::Consumers::makeMessage(std::move(bytes)));
             });
         }
     }

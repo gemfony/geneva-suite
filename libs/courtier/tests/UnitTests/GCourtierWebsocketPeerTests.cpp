@@ -62,6 +62,7 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GWebsocketPeer;
+using Gem::Courtier::Consumers::makeMessage;
 using namespace std::chrono_literals;
 
 namespace {
@@ -172,9 +173,9 @@ TEST_CASE("GWebsocketPeer delivers a burst of messages in order", "[courtier][we
         auto peer = client_weak.lock();
         REQUIRE(peer);
         for(std::size_t i = 0; i < N_BURST; ++i) {
-            peer->send(
+            peer->send(makeMessage(
                 i == N_BURST / 2 ? std::string(LARGE_MESSAGE_BYTES, 'x') : std::to_string(i)
-            );
+            ));
         }
     });
     server.reset(); // from here on the pending operations own the peers
@@ -215,12 +216,14 @@ TEST_CASE(
     startRecording(client, client_seen, [&] {
         auto peer = client_weak.lock();
         REQUIRE(peer);
-        peer->send("last words");
+        peer->send(makeMessage("last words"));
         peer->close(GPeerClose::RUN_ENDED);
         peer->close(GPeerClose::NORMAL); // a second close changes nothing
-        peer->send("too late");          // after close(): dropped
+        peer->send(makeMessage("too late")); // after close(): dropped
     });
-    client->send("too early"); // not open yet: dropped, not written into a stream that is not ready
+    client->send(
+        makeMessage("too early")
+    ); // not open yet: dropped, not written into a stream that is not ready
     server.reset();
     client.reset();
 
@@ -299,8 +302,8 @@ TEST_CASE(
     startRecording(client, client_seen, [&] {
         auto peer = client_weak.lock();
         REQUIRE(peer);
-        peer->send(std::string(LARGE_MESSAGE_BYTES, 'x')); // many frames
-        peer->send("waits behind the large one");
+        peer->send(makeMessage(std::string(LARGE_MESSAGE_BYTES, 'x'))); // many frames
+        peer->send(makeMessage("waits behind the large one"));
         peer->close(GPeerClose::NORMAL);
     });
     server.reset();
@@ -337,7 +340,7 @@ TEST_CASE(
     client_weak = client;
     startRecording(server, server_seen, [&] {
         if(auto peer = server_weak.lock()) {
-            peer->send("crosses the close");
+            peer->send(makeMessage("crosses the close"));
         }
     });
     startRecording(client, client_seen, [&] {
@@ -514,7 +517,7 @@ TEST_CASE(
                     server_seen.messages.push_back(std::move(message));
                     std::this_thread::sleep_for(3s); // longer than the idle limit of 2 s
                     if(auto peer = server_weak.lock()) {
-                        peer->send("answer");
+                        peer->send(makeMessage("answer"));
                     }
                 },
             .onClosed =
@@ -531,7 +534,7 @@ TEST_CASE(
                 [&client_seen, &client_weak] {
                     ++client_seen.nOpen;
                     if(auto peer = client_weak.lock()) {
-                        peer->send("question");
+                        peer->send(makeMessage("question"));
                     }
                 },
             .onMessage =

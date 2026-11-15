@@ -172,8 +172,8 @@ public:
         );
     }
     /** @brief Counts an answer and forwards @param message The message */
-    void send(std::string message) override {
-        const GFrameKind kind = kindOf(message);
+    void send(Gem::Courtier::Consumers::GMessage message) override {
+        const GFrameKind kind = kindOf(*message);
         if(kind == GFrameKind::WORK || kind == GFrameKind::NO_WORK) {
             ++answers_;
         }
@@ -757,11 +757,15 @@ private:
             auto item = std::make_unique<GSlowReturnItem>();
             item->mark_as_due_for_processing();
             const GCommandContainerT<GSlowReturnItem> work{GFrameKind::WORK, std::move(item)};
-            peer->send(Gem::Courtier::wireEncode(work, nullptr, BIN));
+            peer->send(
+                Gem::Courtier::Consumers::makeMessage(Gem::Courtier::wireEncode(work, nullptr, BIN))
+            );
             return;
         }
         const GCommandContainerT<GSlowReturnItem> no_work{GFrameKind::NO_WORK};
-        peer->send(Gem::Courtier::wireEncode(no_work, nullptr, BIN));
+        peer->send(
+            Gem::Courtier::Consumers::makeMessage(Gem::Courtier::wireEncode(no_work, nullptr, BIN))
+        );
         noWorkSent.store(true);
     }
 

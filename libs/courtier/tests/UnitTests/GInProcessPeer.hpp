@@ -228,13 +228,14 @@ public:
         );
     }
 
-    /** @brief Hands a message to the other end; dropped before onOpen and after close().
+    /** @brief Hands a message to the other end; dropped before onOpen and after close(). The
+     *  other end gets a copy of its own, as from a wire.
      *  @param message The complete message */
-    void send(std::string message) override {
-        if(state_ != state::OPEN || close_requested_.load()) {
+    void send(Gem::Courtier::Consumers::GMessage message) override {
+        if(state_ != state::OPEN || close_requested_.load() || not message) {
             return;
         }
-        this->transmit_(wire::MESSAGE, std::move(message));
+        this->transmit_(wire::MESSAGE, std::string(*message));
     }
 
     /** @brief Closes after what was handed to send() before. Any thread; idempotent.

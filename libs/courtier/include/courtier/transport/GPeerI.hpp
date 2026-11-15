@@ -38,6 +38,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 // Boost headers go here
 #include <boost/asio/any_io_executor.hpp>
@@ -112,6 +113,19 @@
 namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
+/**
+ * A message as GPeerI::send() takes it: shared and immutable, so that whoever sends it may keep it
+ * (to send it once more on another connection, say) while the transport writes it, without a copy.
+ */
+using GMessage = std::shared_ptr<const std::string>;
+
+/** @brief Makes a message for GPeerI::send() @param bytes The complete message
+ *  @return It, shared and immutable */
+inline GMessage makeMessage(std::string bytes) {
+    return std::make_shared<const std::string>(std::move(bytes));
+}
+
+/******************************************************************************/
 /** @brief Why a connection ended. */
 enum class GPeerEnd : Gem::Common::ENUMBASETYPE {
     CLOSED_HERE = 0,  ///< This end closed it (and the other end confirmed, or the grace passed)
@@ -166,8 +180,9 @@ public:
     virtual void start(GPeerHandlers) = 0;
 
     /** @brief Sends one complete message. On the executor. Messages arrive in the order they were
-     *  sent; one handed over before onOpen or after close() is dropped. */
-    virtual void send(std::string) = 0;
+     *  sent; one handed over before onOpen or after close() is dropped. The transport shares the
+     *  message with the caller and never changes it; it may hold it until it has been written. */
+    virtual void send(GMessage) = 0;
 
     /** @brief Closes the connection in the regular way, after what was handed to send() before
      *  (rule 6). From any thread; idempotent. */

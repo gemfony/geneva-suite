@@ -151,7 +151,7 @@ public:
     void send(std::string message) {
         if(auto peer = peer_.lock()) {
             const InPeerCall call;
-            peer->send(std::move(message));
+            peer->send(Gem::Courtier::Consumers::makeMessage(std::move(message)));
         }
     }
 
@@ -550,7 +550,7 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         struct Minimal final : GPeerI {
             void start(GPeerHandlers) override {
             }
-            void send(std::string) override {
+            void send(Gem::Courtier::Consumers::GMessage) override {
             }
             void close(GPeerClose) override {
             }

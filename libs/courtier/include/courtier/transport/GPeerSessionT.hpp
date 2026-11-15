@@ -237,7 +237,7 @@ private:
         }
         auto absorbed = this->absorb_(message);
         if(auto *answer = std::get_if<std::string>(&absorbed)) {
-            peer->send(std::move(*answer));
+            peer->send(makeMessage(std::move(*answer)));
         }
         else if(std::holds_alternative<Gem::Courtier::GPullDue>(absorbed)) {
             ++owed_replies_;
@@ -264,7 +264,7 @@ private:
         while(owed_replies_ > 0 && not parked_ && not stopping_) {
             if(auto answer = this->answer_pull_()) {
                 --owed_replies_;
-                peer.send(std::move(*answer));
+                peer.send(makeMessage(std::move(*answer)));
             }
         }
 
