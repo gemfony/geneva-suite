@@ -52,6 +52,7 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GCourtierHelperFunctions.hpp" // fkToStr
 #include "courtier/GServerSessionLogic.hpp" // the shared server decisions (absorb, serve, refuse)
 #include "courtier/GWireCodec.hpp"          // scope-wrapped (de)serialization
 #include "courtier/GWireSerializationContext.hpp"
@@ -83,7 +84,8 @@ namespace Gem::Courtier::Consumers {
  * Messages that cannot be read. A message from the client that cannot be decoded is attributed by
  * its kind, which is read first (the frame is reset to NONE before each decode). A RESULT is not
  * answered (it asked for nothing); a request (PULL, RETURN, UNREADABLE) is answered with NO_WORK,
- * and so is a message whose kind could not be read either. In every case the session gives back
+ * and so is a message whose kind could not be read either, or a frame of a kind a client does not
+ * send (WORK, say). In every case the session gives back
  * what it holds: it can no longer tell which items the client still works on. An UNREADABLE from
  * the client says that it could not read the session's last answer: the session forgets which
  * blobs the client holds (they are sent in full again), gives back what it holds, and owes the
@@ -365,6 +367,15 @@ private:
 
             if(kind == GFrameKind::UNREADABLE) {
                 return this->unreadableAnswer_();
+            }
+            if(kind != GFrameKind::PULL && kind != GFrameKind::RETURN &&
+               kind != GFrameKind::RESULT && kind != GFrameKind::BLOB_REQUEST) {
+                // A frame a client does not send: it cannot be handled, whatever it was meant to be
+                glogger << "GPeerSessionT<processable_type>: client " << peer_id_
+                        << " sent a frame of a kind a client does not send: "
+                        << Gem::Courtier::fkToStr(kind) << '\n'
+                        << GLOGGING;
+                return this->refused_(kind);
             }
             return Gem::Courtier::absorbServerRequest(
                 command_container_,

@@ -465,26 +465,60 @@ TEST_CASE(
     "[courtier][websocket][liveness][net]"
 ) {
     auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
-    HandDrivenPeer peer(consumer->getPort());
 
-    // WORK travels from the server to the client only; the server's session does not act on it.
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    HandDrivenPeer peer(consumer->getPort());
+    const auto answer_to = [&peer](const std::string &request) {
+        peer.ws.write(boost::asio::buffer(request));
+        boost::beast::flat_buffer buffer;
+        boost::system::error_code ec;
+        peer.ws.read(buffer, ec);
+        REQUIRE_FALSE(ec); // the connection must stay open: closing it would end a real client
+        GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
+        Gem::Courtier::container_from_string(
+            boost::beast::buffers_to_string(buffer.data()),
+            reply,
+            BIN
+        );
+        return reply.kind();
+    };
+    const std::string pull = Gem::Courtier::container_to_string(
+        GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+        BIN
+    );
+
+    // The hand-driven client takes the only item (the batch may need a moment to be registered).
+    REQUIRE(eventually([&] { return answer_to(pull) == GFrameKind::WORK; }));
+    CHECK(consumer->requeuedCount() == 0);
+
+    // WORK travels from the server to the client only: the session does not act on it, refuses it
+    // and, as for any message it cannot handle, gives back what the client held.
     const GCommandContainerT<GFaultyContainer> wrong_way{
         GFrameKind::WORK,
         std::make_unique<GFaultyContainer>(0, fault_mode::NONE)
     };
-    peer.ws.write(boost::asio::buffer(Gem::Courtier::container_to_string(wrong_way, BIN)));
-    boost::beast::flat_buffer buffer;
-    boost::system::error_code ec;
-    peer.ws.read(buffer, ec);
-    REQUIRE_FALSE(ec); // the connection must stay open: closing it would end a real client
+    CHECK(answer_to(Gem::Courtier::container_to_string(wrong_way, BIN)) == GFrameKind::NO_WORK);
+    CHECK(consumer->requeuedCount() == 1);
+    CHECK(consumer->getNActiveSessions() == 1);
 
-    GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
-    Gem::Courtier::container_from_string(
-        boost::beast::buffers_to_string(buffer.data()),
-        reply,
-        BIN
-    );
-    CHECK(reply.kind() == GFrameKind::NO_WORK);
+    // Another client can now evaluate the item.
+    auto client = matchingClient<GFaultyContainer>(consumer->getPort());
+    const std::jthread client_thread([client] { client->run(); });
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+        batch.wait();
+    }
+    client->flagCloseRequested();
 }
 
 /******************************************************************************/
