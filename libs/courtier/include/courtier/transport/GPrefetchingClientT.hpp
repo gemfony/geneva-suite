@@ -52,6 +52,7 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GWireCodec.hpp"
 #include "courtier/GWireSerializationContext.hpp"
 
@@ -166,11 +167,8 @@ protected:
                         self->wire_ctx_.mode
                     );
                 }
-                catch(const std::exception &e) {
-                    error = e.what();
-                }
                 catch(...) {
-                    error = "an exception that is not a std::exception";
+                    error = Gem::Courtier::describeException(std::current_exception());
                 }
                 // The pool's handler gives up its hold on the client here: if it kept it until it is
                 // destroyed, after the io thread may have finished with the client, the client could be
@@ -326,15 +324,7 @@ protected:
         const Gem::Courtier::SUBMISSION_UUID_TYPE &uuid,
         const std::exception_ptr &failure
     ) {
-        std::string reason = "an exception that is not a std::exception";
-        try {
-            std::rethrow_exception(failure);
-        }
-        catch(const std::exception &e) {
-            reason = e.what();
-        }
-        catch(...) { // NOLINT(bugprone-empty-catch) -- the reason above says it
-        }
+        const std::string reason = Gem::Courtier::describeException(failure);
         Gem::Courtier::GProcessingOutcome outcome;
         outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
         outcome.error_descriptions = "The work item could not be processed or returned: " + reason;
@@ -367,11 +357,8 @@ protected:
         try {
             return Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
         }
-        catch(const std::exception &e) {
-            reason = e.what();
-        }
         catch(...) {
-            reason = "an exception that is not a std::exception";
+            reason = Gem::Courtier::describeException(std::current_exception());
         }
         auto outcome = frame.outcome();
         outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
@@ -388,11 +375,8 @@ protected:
         try {
             return Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
         }
-        catch(const std::exception &e) {
-            error = e.what();
-        }
         catch(...) {
-            error = "an exception that is not a std::exception";
+            error = Gem::Courtier::describeException(std::current_exception());
         }
         return {};
     }
