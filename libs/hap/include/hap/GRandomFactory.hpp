@@ -592,6 +592,19 @@ void holdGpuRandomSourceStartsForTests(
 );
 
 /**
+ * @brief Makes every bulk source that starts on the GPU throw when it reaches the given stage, as a
+ * failing call there would, or stops doing so (test hook).
+ *
+ * The exception is a std::runtime_error; the producer whose source throws ends, as on any other
+ * exception. START_FINISHED cannot be made to throw. Only available in builds with GEM_TESTING;
+ * otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage at which starting sources throw
+ * @param fail Whether they throw there
+ */
+void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
+
+/**
  * @brief Reports how many bulk sources have reached the given stage of a GPU start since the process
  * began, including those held there (test hook).
  *

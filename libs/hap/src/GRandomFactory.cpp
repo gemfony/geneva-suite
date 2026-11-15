@@ -525,6 +525,7 @@ struct GGpuSourceStartHold {
     std::atomic<bool> held{false};         ///< Whether starting sources wait at this stage
     std::atomic<std::size_t> n_reached{0}; ///< How many sources have reached this stage
     std::atomic<std::size_t> n_free{0};    ///< n_reached below which sources pass a held stage
+    std::atomic<bool> fail{false};         ///< Whether starting sources throw at this stage
     Gem::Common::Concurrency::GCompletionLatchT gate; ///< Opened on release
 };
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -650,6 +651,9 @@ void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
         // Bounded, so that a test that forgets to release the stage cannot hang the process forever
         std::ignore = h.gate.wait_for(std::chrono::seconds(60));
     }
+    if(h.fail.load() && stage != GpuSourceStartStage::START_FINISHED) {
+        throw std::runtime_error("A start of a GPU random-number source failed (test hook)");
+    }
 #endif /* GEM_TESTING */
 }
 } /* namespace detail */
@@ -679,6 +683,22 @@ void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold, std
     std::ignore = hold;
     std::ignore = n_pass;
     Gem::Common::condnotset("Gem::Hap::holdGpuRandomSourceStartsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+/**
+ * Makes bulk sources that start on the GPU throw at the given stage, or stops doing so.
+ *
+ * @param stage The stage at which starting sources throw
+ * @param fail Whether they throw there
+ */
+void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail) {
+#ifdef GEM_TESTING
+    gpuSourceStartHold(stage).fail.store(fail);
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    std::ignore = fail;
+    Gem::Common::condnotset("Gem::Hap::failGpuRandomSourceStartsForTests", "GEM_TESTING");
 #endif /* GEM_TESTING */
 }
 

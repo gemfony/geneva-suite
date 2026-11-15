@@ -147,8 +147,17 @@ public:
                 countGpuRandomSource(false);
             }
             else {
-                gpuRandomSourceStartStage(GpuSourceStartStage::CONTEXT_CREATION);
-                cuda_.emplace(static_cast<std::uint64_t>(seed));
+                // Counted, the source must take the count back on every way out: the destructor of
+                // a backend whose constructor leaves by an exception does not run.
+                try {
+                    gpuRandomSourceStartStage(GpuSourceStartStage::CONTEXT_CREATION);
+                    cuda_.emplace(static_cast<std::uint64_t>(seed));
+                }
+                catch(...) {
+                    cuda_.reset();
+                    countGpuRandomSource(false);
+                    throw;
+                }
                 if(cuda_->failed()) { // e.g. no memory left on the device for another context
                     releaseGpu_();
                     logGpuFailure_();

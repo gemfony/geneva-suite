@@ -534,3 +534,17 @@ TEST_CASE(
     CHECK(second_got_container.load());
     CHECK(first_waited);
 }
+
+TEST_CASE(
+    "A source whose start throws after it has counted itself takes the count back",
+    "[gpu-start-throws]"
+) {
+    randomFactory()->setNProducerThreads(1);
+    failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, true);
+    // The only producer ends while it starts; the first draw returns when it has, with nothing
+    std::ignore = randomFactory()->getNewRandomContainer();
+    failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, false);
+    requireGpuChoice();
+    REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) == 1);
+    CHECK(nGpuRandomSources() == 0);
+}
