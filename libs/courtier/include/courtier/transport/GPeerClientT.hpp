@@ -177,8 +177,10 @@ struct GPeerClientOptions {
  * without a server, a lost connection of a connector that cannot connect again -- tries no more:
  * it lets its evaluations end (LinkState::FINISHING), then makes one last attempt (bounded by the
  * transport's own limits) to deliver what it has finished. Whatever it still cannot deliver --
- * also a result given up at the resend limit, a result left when a close of its own was not
- * acknowledged, and a result that finishes after the client has ended -- is saved: the evaluated
+ * also a result given up at the resend limit, a result sent before a close of its own that the
+ * server did not confirm (GPeerEnd::CLOSED_HERE_UNCONFIRMED: only a confirmed close, CLOSED_HERE,
+ * proves that the server has read what was sent before it; GPeerI.hpp rule 6), and a result that
+ * finishes after the client has ended -- is saved: the evaluated
  * work item, one file per item, in GPeerClientOptions::undeliveredDir, written with the item's
  * toFile() where its type has one and with sharedPtrToString() otherwise (it loads back with
  * fromFile() or sharedPtrFromString()). The file name (process id, correlation id, a count) is
@@ -467,7 +469,7 @@ private:
             this->transmitEntry_(message);
         }
         if(last_attempt_) {
-            do_close_(GPeerClose::NORMAL); // after what it sent; an acknowledged close proves it
+            do_close_(GPeerClose::NORMAL); // after what it sent; a confirmed close proves it
             return;
         }
         if(busy_) {
@@ -609,6 +611,8 @@ private:
                 // The server confirmed the close: it has read everything sent before it
                 std::erase_if(unanswered_, [](const Entry &message) { return message.sentOn > 0; });
             }
+            // Any other end -- a close the server did not confirm (CLOSED_HERE_UNCONFIRMED), a
+            // loss -- proves nothing: what was sent is saved with what was never sent.
             this->saveUndelivered_();
             this->endClient_();
             return;

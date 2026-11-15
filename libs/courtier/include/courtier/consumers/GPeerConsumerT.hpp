@@ -90,7 +90,9 @@ namespace Gem::Courtier {
  * session on its way has been made and has entered the registry; every peer in the registry is
  * closed with RUN_ENDED (also a session that waits for nothing, e.g. one whose client
  * is evaluating); the shell waits until the registry is empty, but not longer than the listener's
- * stopGrace(), and logs how many peers did not confirm; the session threads are joined; the
+ * stopGrace(), and logs how many peers did not confirm -- those that had not ended by then and
+ * those whose close ended without the client's confirmation (GPeerEnd::CLOSED_HERE_UNCONFIRMED,
+ * GPeerI.hpp rule 6), clientsUnconfirmedAtStop(); the session threads are joined; the
  * listener ends its own work (endWork(): its threads joined, its I/O context shut down). The
  * listener lives on until the shell is destroyed, so that questions about the transport (its port,
  * say) can still be asked of it. A session cut off by the grace lives until the shell is destroyed;
@@ -165,6 +167,14 @@ public:
      *  @return The current count of sessions. */
     [[nodiscard]] std::size_t getNActiveSessions() const {
         return peers_.size();
+    }
+
+    /** @brief How many clients did not confirm the end of the run at the last stopServer(): those
+     *  whose peers had not ended within the listener's stopGrace(), and those whose close ended
+     *  without the client's confirmation. From any thread; 0 before a stop.
+     *  @return The count */
+    [[nodiscard]] std::size_t clientsUnconfirmedAtStop() const {
+        return n_unconfirmed_at_stop_.load();
     }
 
     /** @brief The number of distinct blobs the server has interned for transport (blob
@@ -321,10 +331,15 @@ private:
                 peer->close(Consumers::GPeerClose::RUN_ENDED);
             }
         }
-        if(not peers_.waitUntilEmpty(listener_->stopGrace())) {
-            glogger << "In " << consumer_name_ << "::stopServer(): " << peers_.size()
-                    << " client(s) did not confirm the end of the run within "
-                    << listener_->stopGrace().count() << " ms" << '\n'
+        const std::size_t n_left =
+            peers_.waitUntilEmpty(listener_->stopGrace()) ? 0 : peers_.size();
+        const std::size_t n_unconfirmed = n_closed_unconfirmed_.load();
+        n_unconfirmed_at_stop_.store(n_left + n_unconfirmed);
+        if(n_left + n_unconfirmed > 0) {
+            glogger << "In " << consumer_name_ << "::stopServer(): " << (n_left + n_unconfirmed)
+                    << " client(s) did not confirm the end of the run: " << n_left
+                    << " had not ended within " << listener_->stopGrace().count() << " ms, "
+                    << n_unconfirmed << " ended without confirming the close" << '\n'
                     << GLOGGING;
         }
     }
@@ -442,6 +457,15 @@ private:
                             peers_.remove(peer_id);
                         }
                     },
+                // A close of the end of the run that the client did not confirm counts with
+                // those that had not ended within the grace (tellClients_()).
+                .connectionEnded =
+                    [this](Consumers::GPeerEnd end) {
+                        if(end == Consumers::GPeerEnd::CLOSED_HERE_UNCONFIRMED &&
+                           this->stopped()) {
+                            n_closed_unconfirmed_.fetch_add(1);
+                        }
+                    },
             },
             serialization_mode_,
             &wire_registry_,
@@ -485,6 +509,10 @@ private:
     std::atomic<bool> start_called_{false};    ///< startServer() has been called
     std::atomic<bool> started_{false};         ///< The listener has been started
     std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
+    /// Sessions whose close ended without the client's confirmation after the stop began
+    std::atomic<std::size_t> n_closed_unconfirmed_{0};
+    /// What clientsUnconfirmedAtStop() answers
+    std::atomic<std::size_t> n_unconfirmed_at_stop_{0};
     /// startServer() and stopServer() take turns under it
     std::mutex lifecycle_mutex_;
 };

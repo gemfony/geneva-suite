@@ -160,6 +160,7 @@ void GWebsocketPeer::configure_() {
         last_inbound_ = std::chrono::steady_clock::now();
         if(kind == boost::beast::websocket::frame_type::close) {
             close_received_ = true;
+            close_confirmed_ = close_sent_; // after ours: it confirms it (GPeerI.hpp, rule 6)
         }
         if(options_.verboseControlFrames) {
             glogger << options_.name << " has received a " << frameName(kind) << " frame" << '\n'
@@ -429,7 +430,10 @@ void GWebsocketPeer::beginClose_(GPeerClose how) {
 
 /******************************************************************************/
 /** Sends the close frame: the write queue is empty and no write is outstanding. Beast bounds the
- *  close handshake by the handshake limit. */
+ *  close handshake by the handshake limit. A close handshake that completes without an error has
+ *  read the other end's close frame after ours (Beast reads until it arrives): the close is
+ *  confirmed. One that ends with an error (the time limit, a connection that broke) is not,
+ *  unless the peer's own read saw the other end's close frame after ours. */
 void GWebsocketPeer::closeWhenSent_() {
     if(close_sent_ || finished_ || writing_ || not write_queue_.empty()) {
         return;
@@ -437,7 +441,11 @@ void GWebsocketPeer::closeWhenSent_() {
     close_sent_ = true;
     close_timer_.cancel();
     auto self = this->shared_from_this();
-    ws_.async_close(codeFor(close_how_), [self]([[maybe_unused]] const error_code &ec) {
+    ws_.async_close(codeFor(close_how_), [self](const error_code &ec) {
+        if(not ec) {
+            self->close_confirmed_ = true;
+        }
+        self->close_error_ = ec;
         self->finish_({});
     });
 }
@@ -450,7 +458,7 @@ void GWebsocketPeer::closeWhenSent_() {
  * A handler that wants the connection gone calls close().
  */
 void GWebsocketPeer::abort() {
-    close_requested_.store(true);
+    abort_unclosed_ = not close_requested_.exchange(true);
     closing_ = true;
     local_close_ = true;
     this->finish_({}, /*report_inline=*/true);
@@ -469,9 +477,13 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
  * closes the socket, and tells the role on its strand -- after the messages handed to it before,
  * which it may still handle. abort() has the role told at once instead: no handler runs then.
  *
- * Why it ended: CLOSED_HERE if this end began the close (and the connection had opened, or nothing
- * failed); CLOSED_THERE if the other end's close frame arrived, whatever became of the TCP
- * connection after it; SILENT if a time limit expired on a connection that was open; FAILED for any
+ * Why it ended: if this end began the close (and the connection had opened, or nothing failed),
+ * CLOSED_HERE when the other end confirmed it -- its close frame arrived after ours (GPeerI.hpp,
+ * rule 6) -- and CLOSED_HERE_UNCONFIRMED when it did not: what was queued could not be written
+ * within the handshake limit, the close handshake ended with an error or ran out of time, or the
+ * other end's close came before ours had gone out (abort() of a peer that had not been closed
+ * reports CLOSED_HERE, see GPeerI::abort()); CLOSED_THERE if the other end's close frame
+ * arrived, whatever became of the TCP connection after it; SILENT if a time limit expired on a connection that was open; FAILED for any
  * other error -- a handshake that failed or ran out of time among them, also when a close had been
  * asked for while it was under way (rule 1: a peer that cannot be opened reports FAILED).
  *
@@ -481,8 +493,9 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
 void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     if(finished_) {
         if(report_inline) {
-            // a report posted before may never run: its context has stopped
-            this->report_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
+            // a report posted before may never run: its context has stopped. It says what was
+            // found then (report_() tells the role once).
+            this->report_(end_, end_how_, end_detail_);
         }
         return;
     }
@@ -522,7 +535,8 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     // timed out: it did say that it closes.
     GPeerEnd end = GPeerEnd::FAILED;
     if(local_close_ && (open_ || not cause)) {
-        end = GPeerEnd::CLOSED_HERE;
+        end = (close_confirmed_ || abort_unclosed_) ? GPeerEnd::CLOSED_HERE
+                                                    : GPeerEnd::CLOSED_HERE_UNCONFIRMED;
     }
     else if(close_received_) {
         end = GPeerEnd::CLOSED_THERE;
@@ -535,9 +549,25 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     if(end == GPeerEnd::CLOSED_HERE) {
         detail = "closed by this end";
     }
+    else if(end == GPeerEnd::CLOSED_HERE_UNCONFIRMED) {
+        detail = "closed by this end; the other end did not confirm the close";
+        if(report_inline) {
+            detail += " (aborted)";
+        }
+        else if(close_error_) {
+            detail += " (" + close_error_.message() + ")";
+        }
+        else if(not close_sent_ && open_) {
+            detail += close_received_ ? " (its own close came first)"
+                                      : " (what was queued could not be written in time)";
+        }
+    }
     else if(end == GPeerEnd::CLOSED_THERE) {
         detail = "closed by the other end";
     }
+    end_ = end;
+    end_how_ = how;
+    end_detail_ = detail;
     if(report_inline) {
         this->report_(end, how, detail);
     }

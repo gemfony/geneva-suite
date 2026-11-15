@@ -342,7 +342,39 @@ TEST_CASE(
         CHECK(stop_ms < STOP_GRACE.count() + 1000);
         // The session that did not confirm lives until the shell goes.
         CHECK(shell.getNActiveSessions() == 1);
+        CHECK(shell.clientsUnconfirmedAtStop() == 1);
         CHECK(listener->workEnded());
+    }
+}
+
+/******************************************************************************/
+/** A client that does not confirm the end, whose peer gives up on it before the shell's grace has
+ *  passed: it ended, but without confirming, and the stop counts it (GPeerI.hpp, rule 6). */
+TEST_CASE(
+    "GPeerConsumerT: a close the client does not confirm within the grace is counted",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
+        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
+        .closeGrace = 200ms, // the server's end gives up long before the shell's grace
+        .stopGrace = 5s
+    });
+    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
+    IoThreads clients;
+    auto deaf = std::make_shared<ScriptedClient>(0, true);
+    {
+        Shell shell{listener, 2};
+        shell.startServer();
+        deaf->connect(connector, clients.executor());
+        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
+
+        const auto stop_began = std::chrono::steady_clock::now();
+        shell.stopServer();
+        const auto stop_ms = msSince(stop_began);
+        INFO("stopServer() took " << stop_ms << " ms");
+        CHECK(stop_ms < 2000); // the registry ran empty when the peer gave up
+        CHECK(shell.getNActiveSessions() == 0);
+        CHECK(shell.clientsUnconfirmedAtStop() == 1);
     }
 }
 

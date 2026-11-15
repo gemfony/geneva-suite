@@ -141,6 +141,9 @@ public:
         /// Called with true by start(), after the peer has been started, and with false by the
         /// destructor of a session that signed on
         std::move_only_function<void(bool)> serverSignOn;
+        /// Called once, in onClosed, with how the connection ended (may be empty): the shell
+        /// counts the clients that did not confirm the end of the run
+        std::move_only_function<void(GPeerEnd)> connectionEnded;
     };
 
     //-------------------------------------------------------------------------
@@ -164,6 +167,7 @@ public:
       , abandon_items_(std::move(hooks.abandonItems))
       , check_server_stopped_(std::move(hooks.checkServerStopped))
       , server_sign_on_(std::move(hooks.serverSignOn))
+      , connection_ended_(std::move(hooks.connectionEnded))
       , serialization_mode_(serialization_mode)
       , wire_registry_(wire_registry)
       , peer_id_(peer_id) {
@@ -325,14 +329,18 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Called once when the connection is over. A regular close by either end and the end of
-     * the server are no news; anything else is logged.
+     * @brief Called once when the connection is over. A confirmed close of either end and the end
+     * of the server are no news; anything else is logged, a close of this end that the client did
+     * not confirm among it. The shell hears how it ended (connectionEnded).
      *
      * @param end Why the connection ended
      * @param how What the other end said, if it closed in the regular way
      * @param detail The transport's own words about it
      */
     void when_closed_(GPeerEnd end, [[maybe_unused]] GPeerClose how, std::string_view detail) {
+        if(connection_ended_) {
+            connection_ended_(end);
+        }
         if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
            not this->check_server_stopped_()) {
             glogger << "GPeerSessionT<processable_type>: the connection to client " << peer_id_
@@ -573,6 +581,7 @@ private:
     std::move_only_function<void()> abandon_items_;
     std::move_only_function<bool()> check_server_stopped_;
     std::move_only_function<void(bool)> server_sign_on_;
+    std::move_only_function<void(GPeerEnd)> connection_ended_;
 
     Gem::Common::serializationMode serialization_mode_ = Gem::Common::serializationMode::GEM_BINARY;
 

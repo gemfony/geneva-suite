@@ -116,6 +116,8 @@ inline std::string endName(Gem::Courtier::Consumers::GPeerEnd end) {
         return "SILENT";
     case GPeerEnd::FAILED:
         return "FAILED";
+    case GPeerEnd::CLOSED_HERE_UNCONFIRMED:
+        return "CLOSED_HERE_UNCONFIRMED";
     }
     return "?";
 }

@@ -91,8 +91,9 @@ struct GInProcessFaults {
  * One end of an in-process connection. Everything but start(), close() and executor() happens on
  * the end's strand. The close protocol is the one a real transport has: a close is a message to
  * the other end, which reports CLOSED_THERE and acknowledges; the closing end reports CLOSED_HERE
- * on the acknowledgement, or after its grace if none comes. Two ends that close at once take each
- * other's close as the acknowledgement. Messages that arrive before start() has opened the end
+ * on the acknowledgement (the close is confirmed, GPeerI.hpp rule 6), or CLOSED_HERE_UNCONFIRMED
+ * after its grace if none comes. Two ends that close at once take each other's close as the
+ * acknowledgement. Messages that arrive before start() has opened the end
  * are kept and delivered after onOpen.
  *
  * While it is open, an end has a wait pending on its strand (a timer that never expires on its
@@ -233,7 +234,7 @@ public:
                     auto ended = std::move(self->handlers_);
                     self->handlers_ = Gem::Courtier::Consumers::GPeerHandlers{};
                     if(ended.onClosed) {
-                        ended.onClosed(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
+                        ended.onClosed(self->aborted_end_, GPeerClose::NORMAL, "aborted");
                     }
                     return;
                 }
@@ -273,17 +274,20 @@ public:
         });
     }
 
-    /** @brief Tells the other end and ends at once, reporting onClosed inline. Beyond GPeerI's
+    /** @brief Tells the other end and ends at once, reporting onClosed inline: CLOSED_HERE, or
+     *  CLOSED_HERE_UNCONFIRMED if close() had been called before (GPeerI::abort()). Beyond GPeerI's
      *  teardown, this test pair also allows it on its strand: the tests lose a connection so. */
     void abort() override {
         if(state_ == state::ENDED) {
             return;
         }
-        close_requested_.store(true);
+        if(close_requested_.exchange(true)) {
+            aborted_end_ = GPeerEnd::CLOSED_HERE_UNCONFIRMED; // a close that had not been confirmed
+        }
         if(state_ == state::OPEN) {
             this->transmit_(wire::CLOSE, encode_(GPeerClose::NORMAL));
         }
-        this->finish_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
+        this->finish_(aborted_end_, GPeerClose::NORMAL, "aborted");
     }
 
     /** @brief @return The strand of this end */
@@ -451,7 +455,7 @@ private:
             [self = this->shared_from_this()](const boost::system::error_code &ec) {
                 if(not ec && self->state_ == state::CLOSING) {
                     self->finish_(
-                        GPeerEnd::CLOSED_HERE,
+                        GPeerEnd::CLOSED_HERE_UNCONFIRMED,
                         GPeerClose::NORMAL,
                         "the other end did not confirm the close in time"
                     );
@@ -504,6 +508,9 @@ private:
     std::deque<Arrival> early_;                        ///< On the strand: what came before onOpen
 
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
+    /// What abort() reports, also to a start() whose work runs after it; where abort() runs (the
+    /// strand, or a teardown when nothing runs)
+    GPeerEnd aborted_end_ = GPeerEnd::CLOSED_HERE;
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
     std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
     std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role

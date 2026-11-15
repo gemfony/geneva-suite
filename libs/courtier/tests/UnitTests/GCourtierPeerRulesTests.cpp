@@ -368,7 +368,8 @@ TEST_CASE(
         }
         expected.emplace_back("closed:CLOSED_THERE:RUN_ENDED");
         CHECK(role_b->events() == expected);
-        CHECK(role_a->events().back().starts_with("closed:CLOSED_HERE:"));
+        // The other end acknowledged the close: confirmed (rule 6)
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE:RUN_ENDED");
     }
 
     SECTION("after close() nothing is delivered, although the other end goes on sending") {
@@ -478,9 +479,10 @@ TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
 
 /******************************************************************************/
 /**
- * The close protocol of the pair: a close that is never acknowledged ends CLOSED_HERE at the
- * grace; abort() ends at once and the other end hears a close; an end that loses messages after
- * a number of them still hears the close.
+ * The close protocol of the pair: a close that is never acknowledged ends at the grace, and is
+ * not confirmed (rule 6); abort() ends at once and the other end hears a close -- CLOSED_HERE for
+ * an end that had not been closed, CLOSED_HERE_UNCONFIRMED for one whose close was under way; an
+ * end that loses messages after a number of them still hears the close.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[courtier][peer]") {
@@ -500,7 +502,7 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         const auto took = std::chrono::steady_clock::now() - begin;
         CHECK(took >= CLOSE_GRACE);
         CHECK(took < CLOSE_GRACE + 2s);
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE:NORMAL");
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
         CHECK_FALSE(b->ended()); // it is let go with the context, without onClosed (rule 5)
     }
 
@@ -518,8 +520,29 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
             closed_in_abort.set_value(role_a->nClosed());
         });
         CHECK(closed_in_abort.get_future().get() == 1);
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE:NORMAL");
         REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
         CHECK(role_b->events().back() == "closed:CLOSED_THERE:NORMAL");
+    }
+
+    SECTION("abort() of an end whose close is not confirmed reports it so") {
+        auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.acknowledgeClose = false});
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
+
+        std::promise<int> closed_in_abort;
+        boost::asio::post(a->executor(), [&, peer = a] {
+            peer->close(GPeerClose::NORMAL);
+            boost::asio::post(peer->executor(), [&, peer] { // after the close has gone out
+                peer->abort();
+                closed_in_abort.set_value(role_a->nClosed());
+            });
+        });
+        CHECK(closed_in_abort.get_future().get() == 1);
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
 
     SECTION("an end that loses what comes after three messages") {

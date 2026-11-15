@@ -241,10 +241,12 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A close that the other end never answers is still this end's close: the connection breaks while
-// the close handshake is under way, and the break is not reported as an error.
+// A close that the other end never answers is still this end's close, but not a confirmed one
+// (GPeerI.hpp, rule 6): the connection breaks while the close handshake is under way. The break is
+// not reported as an error, and not as CLOSED_HERE either, which would claim that the other end has
+// read what was sent before the close.
 TEST_CASE(
-    "GWebsocketPeer reports its own close as such when the other end vanishes",
+    "GWebsocketPeer reports its own close as unconfirmed when the other end vanishes",
     "[courtier][websocket][peer]"
 ) {
     boost::asio::io_context ctx;
@@ -276,7 +278,47 @@ TEST_CASE(
     REQUIRE(runsDry(ctx));
 
     CHECK(client_seen.nClosed == 1);
-    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    CHECK(client_weak.expired());
+}
+
+/******************************************************************************/
+// A close whose queued messages cannot be written: the other end shakes hands and then reads
+// nothing, so the messages handed over before the close fill the socket's buffers and the close
+// frame never goes out. The end comes at the handshake limit (or the idle limit, both 200 ms here)
+// and is this end's close, not confirmed.
+TEST_CASE(
+    "GWebsocketPeer reports a close whose queued messages cannot be written as unconfirmed",
+    "[courtier][websocket][peer]"
+) {
+    constexpr std::size_t N_LARGE = 8; // 24 MiB: far more than the buffers of a loopback socket
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen client_seen;
+
+    boost::beast::websocket::stream<tcp::socket> deaf(std::move(accepted));
+    deaf.async_accept([](const boost::system::error_code &ec) { REQUIRE_FALSE(ec); });
+
+    std::weak_ptr<GWebsocketPeer> client_weak;
+    auto client = clientEnd(
+        std::move(connecting),
+        GWebsocketPeer::GOptions{.name = "client end", .pingInterval = 100ms}
+    );
+    client_weak = client;
+    startRecording(client, client_seen, [&] {
+        if(auto peer = client_weak.lock()) {
+            for(std::size_t i = 0; i < N_LARGE; ++i) {
+                peer->send(makeMessage(std::string(LARGE_MESSAGE_BYTES, 'x')));
+            }
+            peer->close(GPeerClose::NORMAL);
+        }
+    });
+    client.reset();
+
+    REQUIRE(runsDry(ctx));
+
+    CHECK(client_seen.nClosed == 1);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
     CHECK(client_weak.expired());
 }
 
@@ -469,6 +511,26 @@ TEST_CASE(
         peer->abort(); // idempotent
     }
     CHECK(n_closed_calls == 1);
+}
+
+/******************************************************************************/
+// abort() of a peer whose close() had been called, and whose close had not been confirmed: the
+// teardown does not turn that close into a confirmed one (GPeerI::abort()).
+TEST_CASE(
+    "GWebsocketPeer::abort() after an unconfirmed close reports it as unconfirmed",
+    "[courtier][websocket][peer]"
+) {
+    GSeen seen;
+    {
+        boost::asio::io_context ctx;
+        auto [accepted, connecting] = connectedPair(ctx);
+        auto peer = serverEnd(std::move(accepted));
+        startRecording(peer, seen); // the handshake is posted, and never run
+        peer->close(GPeerClose::RUN_ENDED);
+        peer->abort();
+    }
+    CHECK(seen.nClosed == 1);
+    CHECK(seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
 }
 
 /******************************************************************************/

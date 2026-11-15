@@ -84,11 +84,23 @@
  *     context, as GWebsocketPeer does).
  *  5. **onClosed at most once**, and exactly once while the executor runs. A peer whose pending
  *     work is discarded with its context ends without it. A role therefore releases what it holds
- *     in its destructor, never in onClosed.
+ *     in its destructor, never in onClosed. A peer that this end closed reports
+ *     GPeerEnd::CLOSED_HERE only if the other end confirmed the close (rule 6), and
+ *     GPeerEnd::CLOSED_HERE_UNCONFIRMED otherwise -- when its grace or time limit passed, when what
+ *     was queued could not be written, when the close ended with an error, or when the other end's
+ *     close came before this end's had gone out.
  *  6. **A close sends what was handed over before it.** Messages handed to send() before close()
  *     reach the other end, in order, before the close does; what the close says (GPeerClose)
  *     reaches the other end too. After close() a send() is dropped and nothing more is delivered
  *     to the role. abort() is the exception: it ends at once and may cut what has not been sent.
+ *     **Confirmed** means: the other end's close arrived at this end after this end's close had
+ *     been sent -- for the websocket transport a close frame read after ours was written, for the
+ *     in-process pair of the tests its acknowledgement (or its own close, crossing ours). Only a
+ *     confirmed close (CLOSED_HERE) proves that everything handed to send() before close() has
+ *     reached the other end; an unconfirmed one (CLOSED_HERE_UNCONFIRMED) proves nothing about it.
+ *     A close that crosses the other end's own close counts as confirmed: a transport cannot tell
+ *     it from an answer. A transport whose close carries no answer of the other end (a message
+ *     passing library, say) confirms a close only by an answer it sends for that purpose.
  *     "Before" is the order of the calls: a send() that has returned before close() is called
  *     (on the same thread, or ordered by the role). A send() on the executor and a close() from
  *     another thread at the same moment are not ordered; the message may be dropped. Nothing is
@@ -128,10 +140,11 @@ inline GMessage makeMessage(std::string bytes) {
 /******************************************************************************/
 /** @brief Why a connection ended. */
 enum class GPeerEnd : Gem::Common::ENUMBASETYPE {
-    CLOSED_HERE = 0,  ///< This end closed it (and the other end confirmed, or the grace passed)
+    CLOSED_HERE = 0,  ///< This end closed it, and the other end confirmed the close (rule 6)
     CLOSED_THERE = 1, ///< The other end closed it in the regular way
     SILENT = 2,       ///< The other end was not heard from within the transport's limit
-    FAILED = 3        ///< The transport failed, or a message could not be sent
+    FAILED = 3,       ///< The transport failed, or a message could not be sent
+    CLOSED_HERE_UNCONFIRMED = 4 ///< This end closed it, and the other end did not confirm (rule 6)
 };
 
 /** @brief What a regular close says; each transport maps it to what it can carry. */
@@ -193,7 +206,11 @@ public:
      *  I/O any more -- on a client after its executor's context has stopped running (rule 7: the
      *  connector's peers do their I/O there). A listener's peers are not aborted: endWork() lets
      *  them go. Calls onClosed itself (if the peer has not ended) and drops the handlers. A peer
-     *  aborted before the work of its start() has run does not open afterwards. */
+     *  aborted before the work of its start() has run does not open afterwards. What onClosed
+     *  then says: CLOSED_HERE for a peer that had not been closed before (the teardown is this
+     *  end's own end, and nothing was sent that a role waits to see proven); for a peer whose
+     *  close() had been called and not confirmed, CLOSED_HERE_UNCONFIRMED; for a peer that had
+     *  ended and whose report had not run, the end it had found. */
     virtual void abort() = 0;
 
     /** @brief The executor all handlers of this peer run on. From any thread. */

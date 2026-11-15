@@ -2124,6 +2124,53 @@ TEST_CASE(
     CHECK(saved->is_processed());
 }
 
+/** A client halts while connected and sends its last result before its close; the server reads
+ *  neither and does not confirm the close. Only a confirmed close proves the result (GPeerI.hpp,
+ *  rule 6): it is saved, and it loads back. */
+TEST_CASE(
+    "GPeerClientT: a result sent before a close the server does not confirm is saved",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(23));
+    {
+        // The server's end reads the client's first message (its request) and nothing after it,
+        // and ignores the client's close.
+        World world(GInProcessListener::Options{
+            .serverFaults =
+                Gem::Courtier::Tests::GInProcessFaults{.deliverAtMost = 1, .acknowledgeClose = false},
+            .closeGrace = 300ms
+        });
+        auto client = world.client(
+            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+            evaluations,
+            0ms,
+            nullptr,
+            withGate(evaluations, gate)
+        );
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+        client->flagCloseRequested(); // a halt while connected: the result goes out, then the close
+        gate->open();
+        REQUIRE(eventually([&] { return world.clientsDone(); }));
+        CHECK(client->connectionEnd() == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+        CHECK(client->connections() == 1);
+        CHECK(client->resultsSaved() == 1);
+        world.shell().stopServer();
+        batch.get();
+    }
+    const auto files = dir.files();
+    REQUIRE(files.size() == 1);
+    INFO("saved as " << files.front().string());
+    const auto saved = loadSaved(files.front());
+    REQUIRE(saved);
+    CHECK(saved->get_stored_number() == 23);
+    CHECK(saved->is_processed());
+}
+
 /** The reconnect limit runs out while the client holds a finished result: it is saved. */
 TEST_CASE(
     "GPeerClientT: a result held when the reconnect limit runs out is saved",
