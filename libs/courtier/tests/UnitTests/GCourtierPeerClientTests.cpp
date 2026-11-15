@@ -1940,10 +1940,16 @@ std::atomic<std::size_t> gatedDecodes{0}; ///< Work items whose decoding on a cl
 std::atomic<std::size_t> heldDecode{1};   ///< Which decode waits (0: the first)
 std::atomic<bool> decodeHeld{false};      ///< That decode waits while this is set
 std::atomic<bool> decodeWaits{false};     ///< That decode has begun to wait
+std::atomic<std::size_t> processedSaves{0}; ///< Encodings of an evaluated item so far
+/// Which encoding of an evaluated item waits (0: the first); none by default
+std::atomic<std::size_t> heldSave{std::numeric_limits<std::size_t>::max()};
+std::atomic<bool> saveHeld{false};  ///< That encoding waits while this is set
+std::atomic<bool> saveWaits{false}; ///< That encoding has begun to wait
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /** @brief A work item whose decode on a client waits as long as the test holds it: the
- *  heldDecode-th one (0: the first) of the process */
+ *  heldDecode-th one (0: the first) of the process; and whose heldSave-th encoding as an evaluated
+ *  item (a result) waits likewise */
 class GHeldDecodeItem final : public Gem::Courtier::GProcessingContainerT<GHeldDecodeItem, bool> {
     friend struct Gem::Weft::access;
 
@@ -1955,7 +1961,16 @@ class GHeldDecodeItem final : public Gem::Courtier::GProcessingContainerT<GHeldD
             "GProcessingContainerT_GHeldDecodeItem",
             *this
         );
-        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
+        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
+            if(this->is_processed() && processedSaves.fetch_add(1) == heldSave.load()) {
+                saveWaits.store(true);
+                Gem::Courtier::Tests::eventually(
+                    [] { return not saveHeld.load(); },
+                    std::chrono::milliseconds(10'000)
+                );
+            }
+        }
+        else {
             if(this->is_due_for_processing() && gatedDecodes.fetch_add(1) == heldDecode.load()) {
                 decodeWaits.store(true);
                 Gem::Courtier::Tests::eventually(
@@ -2206,6 +2221,132 @@ private:
     std::shared_ptr<State> state_ = std::make_shared<State>();
 };
 
+/** @brief A server's end that replaces one message it sends -- the n-th of all ends of its
+ *  listener, counted from 0 -- by a frame a client cannot accept (a RESULT, which only clients
+ *  send) */
+class CorruptingPeer final
+  : public GPeerI
+  , public std::enable_shared_from_this<CorruptingPeer> {
+public:
+    /** @brief @param inner The end it wraps @param sent The count shared by the listener's ends
+     *  @param at Which message @param corrupted Set once it has been replaced */
+    CorruptingPeer(
+        const std::shared_ptr<GPeerI> &inner,
+        std::shared_ptr<std::atomic<std::size_t>> sent,
+        std::size_t at,
+        std::shared_ptr<std::atomic<bool>> corrupted
+    )
+      : inner_(inner)
+      , executor_(inner->executor())
+      , sent_(std::move(sent))
+      , at_(at)
+      , corrupted_(std::move(corrupted)) { /* nothing */
+    }
+    /** @brief Forwards; the handlers it installs on the wrapped end own this end (as a role is
+     *  owned, GPeerI.hpp rule 4) @param handlers See GPeerI */
+    void start(GPeerHandlers handlers) override {
+        auto inner = inner_.lock();
+        if(not inner) {
+            return;
+        }
+        inner->start(
+            GPeerHandlers{
+                .onOpen = std::move(handlers.onOpen),
+                .onMessage =
+                    [self = this->shared_from_this(),
+                     on_message = std::move(handlers.onMessage)](std::string &&message) mutable {
+                        on_message(std::move(message));
+                    },
+                .onClosed = std::move(handlers.onClosed),
+            }
+        );
+    }
+    /** @brief Forwards, or sends the bad frame @param message See GPeerI */
+    void send(Gem::Courtier::Consumers::GMessage message) override {
+        if(sent_->fetch_add(1) == at_) {
+            const GCommandContainerT<GHeldDecodeItem> bad{GFrameKind::RESULT};
+            message = Gem::Courtier::Consumers::makeMessage(
+                Gem::Courtier::wireEncode(bad, nullptr, BIN)
+            );
+            corrupted_->store(true);
+        }
+        if(auto inner = inner_.lock()) {
+            inner->send(std::move(message));
+        }
+    }
+    /** @brief Forwards @param how See GPeerI */
+    void close(GPeerClose how) override {
+        if(auto inner = inner_.lock()) {
+            inner->close(how);
+        }
+    }
+    /** @brief Forwards */
+    void abort() override {
+        if(auto inner = inner_.lock()) {
+            inner->abort();
+        }
+    }
+    /** @brief @return The wrapped end's executor, kept */
+    [[nodiscard]] boost::asio::any_io_executor executor() override {
+        return executor_;
+    }
+
+private:
+    std::weak_ptr<GPeerI> inner_;
+    boost::asio::any_io_executor executor_;
+    std::shared_ptr<std::atomic<std::size_t>> sent_;
+    std::size_t at_;
+    std::shared_ptr<std::atomic<bool>> corrupted_;
+};
+
+/** @brief A listener whose ends are CorruptingPeers; otherwise the in-process one */
+class CorruptingListener final : public GListenerI {
+public:
+    /** @brief @param listener The in-process listener @param at Which message is replaced
+     *  @param corrupted Set once it has been */
+    CorruptingListener(
+        std::shared_ptr<GInProcessListener> listener,
+        std::size_t at,
+        std::shared_ptr<std::atomic<bool>> corrupted
+    )
+      : listener_(std::move(listener))
+      , at_(at)
+      , corrupted_(std::move(corrupted)) { /* nothing */
+    }
+    /** @brief Wraps the ends @param executor See GListenerI @param on_peer See GListenerI */
+    void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        listener_->start(
+            std::move(executor),
+            [sent = sent_, at = at_, corrupted = corrupted_, on_peer = std::move(on_peer)](
+                const std::shared_ptr<GPeerI> &peer,
+                GWirePeerId id
+            ) mutable { on_peer(std::make_shared<CorruptingPeer>(peer, sent, at, corrupted), id); }
+        );
+    }
+    /** @brief Forwards */
+    void stop() override {
+        listener_->stop();
+    }
+    /** @brief Forwards */
+    void endWork() override {
+        listener_->endWork();
+    }
+    /** @brief Forwards @return The in-process listener's grace */
+    [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
+        return listener_->stopGrace();
+    }
+    /** @brief Forwards @return The in-process listener's answer */
+    [[nodiscard]] bool detectsLoss() const override {
+        return listener_->detectsLoss();
+    }
+
+private:
+    std::shared_ptr<GInProcessListener> listener_;
+    std::size_t at_;
+    std::shared_ptr<std::atomic<bool>> corrupted_;
+    std::shared_ptr<std::atomic<std::size_t>> sent_ = std::make_shared<std::atomic<std::size_t>>(0);
+};
+
 /** @brief A shell for GHeldDecodeItem and one client of it, in-process; the batches end with the
  *  run if they cannot be completed (their slots are filled with clones) */
 class HeldWorld {
@@ -2213,11 +2354,19 @@ public:
     using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
 
     /** @brief @param options The client's settings @param processor How it evaluates (empty: at
-     *  once) */
+     *  once) @param corrupt_at Which message of the server is replaced by a frame a client cannot
+     *  accept (CorruptingPeer); none by default */
     explicit HeldWorld(
         GPeerClientOptions options,
-        Gem::Courtier::GItemProcessorT<GHeldDecodeItem> processor = {}
-    ) {
+        Gem::Courtier::GItemProcessorT<GHeldDecodeItem> processor = {},
+        std::size_t corrupt_at = std::numeric_limits<std::size_t>::max()
+    )
+      : shell_(
+            "Shell",
+            std::make_unique<CorruptingListener>(listener_, corrupt_at, corrupted_),
+            2,
+            BIN
+        ) {
         Gem::Courtier::GNetworkedTimeoutConfig config;
         config.treatment = "wait_indefinitely";
         shell_.applyTimeoutConfig(config);
@@ -2284,18 +2433,18 @@ public:
     [[nodiscard]] bool clientDone() const {
         return done_->load();
     }
+    /** @brief @return Whether the server has sent the bad frame */
+    [[nodiscard]] bool corrupted() const {
+        return corrupted_->load();
+    }
 
 private:
     std::shared_ptr<GInProcessListener> listener_ =
         std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     std::shared_ptr<GInProcessRoute> route_ = std::make_shared<GInProcessRoute>(listener_);
     std::shared_ptr<GInProcessPeerWatch> watch_ = std::make_shared<GInProcessPeerWatch>();
-    Gem::Courtier::GPeerConsumerT<GHeldDecodeItem> shell_{
-        "Shell",
-        std::make_unique<GInProcessListenerRef>(listener_),
-        2,
-        BIN
-    };
+    std::shared_ptr<std::atomic<bool>> corrupted_ = std::make_shared<std::atomic<bool>>(false);
+    Gem::Courtier::GPeerConsumerT<GHeldDecodeItem> shell_;
     std::shared_ptr<GatedConnector::State> gate_;
     std::shared_ptr<held_client_type> client_;
     std::shared_ptr<std::atomic<bool>> done_ = std::make_shared<std::atomic<bool>>(false);
@@ -2576,6 +2725,109 @@ TEST_CASE(
     }
     CHECK(client->connectionEnd() == GPeerEnd::CLOSED_HERE);
     CHECK(dir.files().size() == 1);
+}
+
+/******************************************************************************/
+// One way to end without a connection: a close that waited for a result to be encoded once more,
+// and a protocol error found while the lost connection's messages are decoded, end the client by
+// the same rule as a halt without a connection (a last attempt, then the results are saved).
+
+/**
+ * A halt while a result is evaluated: the result was encoded as a RETURN and is encoded once more
+ * as a RESULT (held here), and the close waits for it. The connection is lost meanwhile. When the
+ * result is ready, the client has no connection: it makes its last attempt (refused here) and
+ * saves the result. (The close used to survive the loss; the client then ended without saving.)
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: a close that waits for a result does not survive the loss of its connection",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    gatedDecodes.store(0);
+    heldDecode.store(std::numeric_limits<std::size_t>::max());
+    processedSaves.store(0);
+    heldSave.store(1); // the second encoding of the processed item: the RESULT
+    saveHeld.store(true);
+    saveWaits.store(false);
+    auto permits = std::make_shared<std::counting_semaphore<4>>(0);
+    auto started = std::make_shared<std::atomic<int>>(0);
+    {
+        HeldWorld world(
+            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+            [permits, started](GHeldDecodeItem &item) {
+                started->fetch_add(1);
+                permits->acquire();
+                item.markAsProcessedWith({true});
+            }
+        );
+        auto items = heldItems(1);
+        auto batch = world.batch(items);
+        REQUIRE(eventually([&] { return started->load() == 1; }));
+        world.client().flagCloseRequested(); // the compute thread still encodes a RETURN
+        permits->release();
+        REQUIRE(eventually([] { return saveWaits.load(); }));
+        std::this_thread::sleep_for(1500ms); // the halt poll: the close waits for the result
+        GatedConnector::hold(world.gate());
+        world.watch().last()->sever();
+        std::this_thread::sleep_for(300ms);
+        saveHeld.store(false);
+        std::this_thread::sleep_for(300ms);
+        GatedConnector::release(world.gate());
+        REQUIRE(eventually([&] { return world.clientDone(); }));
+        world.shell().stopServer();
+        batch.get();
+    }
+    saveHeld.store(false);
+    heldSave.store(std::numeric_limits<std::size_t>::max());
+    CHECK(dir.files().size() == 1);
+}
+
+/**
+ * Depth 2: A is evaluated and returned, B's decode is held, and the server's answer to A's RETURN
+ * is a frame a client cannot accept (a protocol error), which is decoded after B. The connection
+ * is lost while B is held. The protocol error is found while the lost connection's messages are
+ * decoded: the client ends without a connection by the same rule -- A's result (unproven: the
+ * answer to its request was the bad frame) and B's are saved when the last attempt is refused.
+ * (The client used to end at once and drop A.)
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: a protocol error found in the drain ends the client by the rule of a halt",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    gatedDecodes.store(0);
+    heldDecode.store(1); // B
+    decodeHeld.store(true);
+    decodeWaits.store(false);
+    {
+        HeldWorld world(
+            GPeerClientOptions{
+                .name = "client",
+                .mode = BIN,
+                .prefetchDepth = 2,
+                .undeliveredDir = dir.path()
+            },
+            {},
+            2 // the server's third message (the answer to A's RETURN) is a bad frame
+        );
+        auto items = heldItems(3);
+        auto batch = world.batch(items);
+        REQUIRE(eventually([] { return decodeWaits.load(); }));
+        REQUIRE(eventually([&] { return world.corrupted(); }));
+        std::this_thread::sleep_for(200ms); // the bad frame waits behind B
+        GatedConnector::hold(world.gate());
+        world.watch().last()->sever();
+        REQUIRE(eventually([&] { return world.client().losses() == 1; }));
+        decodeHeld.store(false);
+        std::this_thread::sleep_for(500ms);
+        GatedConnector::release(world.gate());
+        REQUIRE(eventually([&] { return world.clientDone(); }));
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(dir.files().size() == 2);
 }
 
 /******************************************************************************/

@@ -604,6 +604,9 @@ private:
     void when_closed_(GPeerEnd end, GPeerClose how, std::string_view detail) {
         end_ = end;
         const LinkState was = state_;
+        // A close that waited for a result to be encoded once more ends with its connection: the
+        // result, when it comes, goes the way of a client without a connection (windUp_()).
+        close_pending_ = false;
         if(how == GPeerClose::RUN_ENDED) {
             // The server has announced the end of the run: this client is done, whatever else is
             // set on it. No result is needed any more: items that wait for the compute pool, or
@@ -653,12 +656,19 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief The client halts while it has no connection (see the class comment): it tries no
-     * more, starts nothing new and lets its evaluations end; then it makes one last attempt to
-     * deliver what it has finished, or saves it. Called again by the last result to come back.
-     * On the io thread.
+     * @brief The client ends without a connection (see the class comment) -- the one way to do so,
+     * whatever led to it (a halt, a limit, a connector that cannot connect again, an error found
+     * while there is no connection): it tries no more, starts nothing new and lets its evaluations
+     * end; then it makes one last attempt to deliver what it has finished, or saves it. Called
+     * again by the last result to come back. On the io thread.
      */
     void windUp_() {
+        if(state_ == LinkState::ENDED) {
+            return; // ended already: what finishes now is saved by post_()
+        }
+        if(state_ == LinkState::ATTEMPT) {
+            connector_->cancel(); // one attempt at a time: the last one replaces it
+        }
         state_ = LinkState::FINISHING;
         this->stopPipelineTimers_();
         retry_timer_.cancel();
@@ -840,6 +850,9 @@ private:
     /** @brief The client ends: nothing is attempted any more, and no timer is armed, so that
      *  io_context::run() returns once the evaluations that run have finished. On the io thread. */
     void endClient_() {
+        if(state_ == LinkState::ATTEMPT) {
+            connector_->cancel(); // so that run() does not wait for the attempt to end
+        }
         state_ = LinkState::ENDED;
         this->stopPipelineTimers_();
         retry_timer_.cancel();
@@ -982,8 +995,10 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief Closes the connection to the server and stops the pipeline's timers. A result that
-     * is still being encoded once more is sent first: the close waits for it. The peer closes
-     * asynchronously and within its time limit; when_closed_() follows. Idempotent.
+     * is still being encoded once more is sent first: the close waits for it (until the connection
+     * ends, see when_closed_()). The peer closes asynchronously and within its time limit;
+     * when_closed_() follows. Without a connection the client ends by the rule of a client
+     * without one (windUp_()). Idempotent.
      *
      * @param how What the server is told
      */
@@ -995,12 +1010,16 @@ private:
             close_pending_ = true;
             return;
         }
-        if(auto peer = peer_.lock()) {
+        // A connection exists while it is open or being opened; a peer that has ended (a loss)
+        // may still exist, but closing it would wait for an end that has come already.
+        auto peer = peer_.lock();
+        if(peer && (state_ == LinkState::OPEN || state_ == LinkState::OPENING)) {
             state_ = LinkState::CLOSING;
             peer->close(how);
+            return;
         }
-        else {
-            this->endClient_();
+        if(state_ != LinkState::CLOSING) {
+            this->windUp_();
         }
     }
 
@@ -1060,6 +1079,9 @@ private:
         std::unique_ptr<processable_type> kept
     ) {
         if(not error.empty()) {
+            // Not even the frame without its item could be encoded (only a failing allocation
+            // gets here, so no test reaches it): the client ends, with or without a connection,
+            // by do_close_()'s rule.
             this->saveResult_(kept ? std::move(kept) : frame.releaseItem());
             glogger << "In " << options_.name << ": could not serialize a result:" << '\n'
                     << error << '\n'
@@ -1195,10 +1217,7 @@ private:
         case LinkState::OPENING:
             this->do_close_(GPeerClose::NORMAL); // a close during a handshake reports FAILED
             break;
-        case LinkState::ATTEMPT:
-            connector_->cancel();
-            this->windUp_();
-            break;
+        case LinkState::ATTEMPT: // windUp_() gives the connector's attempt up
         case LinkState::PAUSE:
         case LinkState::DRAINING:
             this->windUp_();
