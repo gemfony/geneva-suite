@@ -657,3 +657,50 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
     listener->endWork();
     CHECK(listener->workEnded());
 }
+
+/******************************************************************************/
+/**
+ * An end of the pair never outlives the io context its strand lives on: while the server's end hands
+ * its close to the client's end (held there, on a server thread), the client's context is
+ * destroyed. The client's end goes with it, not later on the server's thread, and the server's end
+ * does not post into the context that has gone.
+ */
+TEST_CASE(
+    "Peer rules (in-process): an end does not outlive its io context",
+    "[courtier][peer]"
+) {
+    IoThreads server;
+    auto client_ctx = std::make_unique<boost::asio::io_context>();
+    auto [server_end, client_end] =
+        GInProcessPeer::makePair(server.executor(), {}, client_ctx->get_executor(), {}, CLOSE_GRACE);
+
+    std::promise<void> in_hook;
+    std::promise<void> release;
+    auto released = release.get_future().share();
+    bool hooked = false; // on the server end's strand only
+    server_end->setTransmitHook([&in_hook, released, &hooked] {
+        if(hooked) {
+            return;
+        }
+        hooked = true;
+        in_hook.set_value();
+        released.wait_for(PATIENCE);
+    });
+    server_end->start(GPeerHandlers{});
+    client_end->start(GPeerHandlers{});
+    client_ctx->poll(); // the client's end opens: it is owned by the wait pending on its strand
+    const std::weak_ptr<GInProcessPeer> client_weak = client_end;
+    client_end.reset();
+    REQUIRE_FALSE(client_weak.expired());
+
+    // The server's end hands its CLOSE over, and is held there.
+    server_end->close(GPeerClose::NORMAL);
+    REQUIRE(in_hook.get_future().wait_for(PATIENCE) == std::future_status::ready);
+
+    // The client's context goes, and with it everything that owns the client's end.
+    client_ctx.reset();
+    CHECK(client_weak.expired());
+
+    release.set_value();
+    REQUIRE(eventually([&] { return server_end->ended(); }));
+}

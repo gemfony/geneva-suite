@@ -30,11 +30,13 @@
 #pragma once
 
 // Standard headers go here
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -93,6 +95,14 @@ struct GInProcessFaults {
  * While it is open, an end has a wait pending on its strand (a timer that never expires on its
  * own); that pending work owns the end and keeps the executor's context running (rule 4). It is
  * cancelled when the end has ended.
+ *
+ * The two ends never own each other. An end's strand and timers live on its executor's context, so
+ * the end must be gone before that context is: only work pending on its own strand (and a role,
+ * briefly, on that context's threads) may own it. The ends reach each other through a link they
+ * share: an end posts to the other end's strand under the link's mutex, only while the other end
+ * exists (its destructor takes it off the link under the same mutex), and the posted handler holds
+ * the other end weakly. So no thread of one end's context keeps the other end alive, destroys it,
+ * or posts into its context after that context may have gone.
  */
 class GInProcessPeer final
   : public Gem::Courtier::Consumers::GPeerI
@@ -134,9 +144,33 @@ public:
             second_faults,
             close_grace
         );
-        first->other_ = second;
-        second->other_ = first;
+        auto link = std::make_shared<Link>();
+        link->ends = {first.get(), second.get()};
+        first->link_ = link;
+        first->side_ = 0;
+        second->link_ = link;
+        second->side_ = 1;
         return {std::move(first), std::move(second)};
+    }
+
+    /***************************************************************************/
+    /** @brief Takes this end off the link: the other end no longer posts to it */
+    ~GInProcessPeer() override {
+        if(link_) {
+            const std::scoped_lock lock(link_->mutex);
+            link_->ends.at(side_) = nullptr;
+        }
+    }
+
+    GInProcessPeer(const GInProcessPeer &) = delete;
+    GInProcessPeer(GInProcessPeer &&) = delete;
+    GInProcessPeer &operator=(const GInProcessPeer &) = delete;
+    GInProcessPeer &operator=(GInProcessPeer &&) = delete;
+
+    /** @brief For a test: @p hook runs on this end's strand each time it hands something to the
+     *  other end, before it reaches for it. Before start(). @param hook What runs */
+    void setTransmitHook(std::move_only_function<void()> hook) {
+        transmit_hook_ = std::move(hook);
     }
 
     /***************************************************************************/
@@ -274,17 +308,27 @@ private:
     }
 
     /** @brief Posts one thing to the other end's strand. On this end's strand, so that what one
-     *  end hands over arrives in order. Lost if the other end is gone.
+     *  end hands over arrives in order. Lost if the other end is gone. The post is made under the
+     *  link's mutex while the other end exists, and the handler holds it weakly (see the class
+     *  comment): this end never owns the other one.
      *  @param kind What it is @param payload Its bytes */
     void transmit_(wire kind, std::string payload) {
-        if(auto other = other_.lock()) {
-            boost::asio::post(
-                other->strand_,
-                [other, kind, payload = std::move(payload)]() mutable {
-                    other->received_(kind, std::move(payload));
-                }
-            );
+        if(transmit_hook_) {
+            transmit_hook_();
         }
+        const std::scoped_lock lock(link_->mutex);
+        GInProcessPeer *other = link_->ends.at(1 - side_);
+        if(other == nullptr) {
+            return;
+        }
+        boost::asio::post(
+            other->strand_,
+            [weak = other->weak_from_this(), kind, payload = std::move(payload)]() mutable {
+                if(auto end = weak.lock()) {
+                    end->received_(kind, std::move(payload));
+                }
+            }
+        );
     }
 
     /** @brief Runs on the strand after start(): the end is open. The pending wait that owns it
@@ -403,7 +447,14 @@ private:
     boost::asio::steady_timer close_timer_; ///< Bounds the wait for an acknowledgement
     GInProcessFaults faults_;               ///< How this end misbehaves
     std::chrono::milliseconds close_grace_; ///< How long a close waits for its acknowledgement
-    std::weak_ptr<GInProcessPeer> other_;   ///< The other end (set once, before any start())
+    /** @brief What the two ends of a pair share: where each one is, while it exists */
+    struct Link {
+        std::mutex mutex;                        ///< Guards ends, and every post to an end
+        std::array<GInProcessPeer *, 2> ends{}; ///< Non-owning; null once that end is destroyed
+    };
+    std::shared_ptr<Link> link_; ///< Shared with the other end (set once, before any start())
+    std::size_t side_ = 0;       ///< This end's place in the link
+    std::move_only_function<void()> transmit_hook_; ///< For a test; see setTransmitHook()
 
     Gem::Courtier::Consumers::GPeerHandlers handlers_; ///< On the strand; dropped at the end
     state state_ = state::NEW;                         ///< On the strand
