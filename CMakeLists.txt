@@ -745,9 +745,11 @@ IF (GENEVA_BUILD_TESTS)
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)
-		# About 10 s on an idle host (gcc Release and clang Debug alike), up to 25 s under the load
-		# of a full "ctest -j16"; the timeout is twice that.
-		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install" TIMEOUT 50)
+		# The timeout guards against a hang only; how long the test may take is said by its size
+		# label. The test takes about 10 s on an idle host (gcc Release and clang Debug alike), up
+		# to 25 s under the load of a full "ctest -j16", and once reached 52 s on a host loaded by
+		# other compilations; 180 s leave room for such load without letting a hang wait long.
+		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install" TIMEOUT 180)
 		GENEVA_TEST_SIZE(GenevaInstalledPackageProbes L)
 	ELSE ()
 		MESSAGE(STATUS "GenevaInstalledPackageProbes not registered: a sanitizer build "
