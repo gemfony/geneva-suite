@@ -400,7 +400,7 @@ public:
 	  * @return A 1-d histogram of the data projected onto axis I
 	  */
     template <std::size_t I, typename hist_type = GHistogram1D>
-    [[nodiscard]] [[nodiscard]] [[nodiscard]] [[nodiscard]] std::shared_ptr<GDataCollectorT<axis_t<I>>>
+    [[nodiscard]] std::shared_ptr<GDataCollectorT<axis_t<I>>>
     project(std::size_t nBins, std::tuple<axis_t<I>, axis_t<I>> range) const {
         static_assert(
             I < n_axes,
@@ -537,7 +537,7 @@ public:
 	  * @return A const reference to the std::vector holding axis I's values
 	  */
     template <std::size_t I>
-    [[nodiscard]] [[nodiscard]] [[nodiscard]] [[nodiscard]] const std::vector<axis_t<I>> &column() const {
+    [[nodiscard]] const std::vector<axis_t<I>> &column() const {
         return std::get<I>(columns_);
     }
 
@@ -772,14 +772,14 @@ private:
 	  * Computes the per-axis (min, max) of a single axis I across the data vector.
 	  */
     template <std::size_t I>
-    [[nodiscard]] [[nodiscard]] std::pair<axis_t<I>, axis_t<I>> minMaxAxis() const {
+    [[nodiscard]] std::pair<axis_t<I>, axis_t<I>> minMaxAxis() const {
         const auto &col = std::get<I>(columns_);
         auto [min_it, max_it] = std::ranges::minmax_element(col);
         return {*min_it, *max_it};
     }
 
     template <std::size_t... Is>
-    [[nodiscard]] [[nodiscard]] auto minMaxImpl(std::index_sequence<Is...>) const {
+    [[nodiscard]] auto minMaxImpl(std::index_sequence<Is...>) const {
         // Interleave the per-axis (min, max) pairs into a single flat tuple
         return std::tuple_cat(
             std::make_tuple(minMaxAxis<Is>().first, minMaxAxis<Is>().second)...

@@ -1186,7 +1186,8 @@ public:
      * @return The number of parameters of the requested type
      */
     template <typename par_type>
-    [[nodiscard]] [[nodiscard]] [[nodiscard]] std::size_t countParameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+    [[nodiscard]] std::size_t
+    countParameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
         if constexpr(std::is_same_v<par_type, double>) {
             return countParametersDouble_(am);
         }

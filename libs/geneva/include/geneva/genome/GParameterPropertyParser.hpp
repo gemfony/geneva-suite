@@ -371,7 +371,7 @@ public:
 	  * @return A tuple holding the begin and end const_iterators of the matching spec vector
 	  */
     template <typename par_type>
-    [[nodiscard]] [[nodiscard]] [[nodiscard]] [[nodiscard]] std::tuple<
+    [[nodiscard]] std::tuple<
         typename std::vector<parPropSpec<par_type>>::const_iterator,
         typename std::vector<parPropSpec<par_type>>::const_iterator>
     getIterators() const {
