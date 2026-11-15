@@ -1,0 +1,258 @@
+/********************************************************************************
+ *
+ * This file is part of the Geneva library collection. The following license
+ * applies to this file:
+ *
+ * ------------------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ------------------------------------------------------------------------------
+ *
+ * Note that other files in the Geneva library collection may use a different
+ * license. Please see the licensing information in each file.
+ *
+ ********************************************************************************
+ *
+ * See the NOTICE file in the top-level directory of the Geneva library
+ * collection for a list of contributors and copyright information.
+ *
+ ********************************************************************************/
+
+#pragma once
+
+// Global checks, defines and includes needed for all of Geneva
+#include "common/GGlobalDefines.hpp"
+
+// Standard headers go here
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
+
+// Boost headers go here
+#include <boost/asio/any_io_executor.hpp>
+
+// Geneva headers go here
+#include "common/GCommonEnums.hpp"                // Gem::Common::ENUMBASETYPE
+#include "courtier/GWireSerializationContext.hpp" // GWirePeerId
+
+/******************************************************************************/
+/**
+ * @file
+ * The connection between a server and one of its clients, independent of the transport that
+ * carries it: a peer (GPeerI) is one end of one connection; a listener (GListenerI) makes the
+ * peers on the server side, a connector (GConnectorI) the peer on the client side. The server's
+ * session, the client and the server's shell are written against these three and know nothing of
+ * the transport; a transport implements them and knows nothing of frames, items or roles.
+ *
+ * Boost.Asio is part of the interface: every transport works on an executor that its user hands
+ * it, and a transport loaded from a module must be built against the same Boost.
+ *
+ * **The rules every transport keeps.** They are the contract between the roles and the
+ * transports; each implementation (and the in-process pair of the tests) is checked against them.
+ * "The role" is whoever installed the handlers: the server's session or the client.
+ *
+ *  1. **Two phases.** Nothing is reported before GPeerI::start(); onOpen precedes any onMessage.
+ *     A peer that cannot be opened reports onClosed (GPeerEnd::FAILED) without onOpen.
+ *  2. **One executor, serialized.** send(), abort() and setOwnerBusy() are called on the peer's
+ *     executor; close() and executor() from any thread; start() from any thread, once, before
+ *     anything else. start() puts its work on the executor, and a close() made from any thread
+ *     after start() has returned is ordered after that work.
+ *  3. **No handler runs inside a call** of GPeerI, abort() excepted (see there). A failure found in
+ *     send() is posted to the executor, not reported inline: the role's member function that
+ *     called send() is still on the stack.
+ *  4. **Ownership.** Pending work on the executor owns the peer; the peer owns the role through
+ *     its handlers and drops them after onClosed; the role refers to the peer weakly. A peer keeps
+ *     its executor's context busy (it has work pending there) from start() until it has ended.
+ *  5. **onClosed at most once**, and exactly once while the executor runs. A peer whose pending
+ *     work is discarded with its context ends without it. A role therefore releases what it holds
+ *     in its destructor, never in onClosed.
+ *  6. **A close sends what was handed over before it.** Messages handed to send() before close()
+ *     reach the other end, in order, before the close does; what the close says (GPeerClose)
+ *     reaches the other end too. After close() a send() is dropped and nothing more is delivered
+ *     to the role. abort() is the exception: it ends at once and may cut what has not been sent.
+ *  7. **The transport's own work** (an accept loop, a poll: whatever it runs besides its peers)
+ *     ends with GListenerI::endWork() on the server and with the destruction of the GConnectorI on
+ *     the client; both happen when no handler runs any more, and before the executor's context is
+ *     destroyed.
+ *  8. **The end of a run belongs to the process, not to a session.** The server's shell tells
+ *     every peer that has not ended that the run is over (close(GPeerClose::RUN_ENDED)) and waits,
+ *     at most GListenerI::stopGrace(), until they have ended. GListenerI::stop() only means "no new
+ *     peers". A client that is told RUN_ENDED does not come back.
+ */
+
+namespace Gem::Courtier::Consumers {
+
+/******************************************************************************/
+/** @brief Why a connection ended. */
+enum class GPeerEnd : Gem::Common::ENUMBASETYPE {
+    CLOSED_HERE = 0,  ///< This end closed it (and the other end confirmed, or the grace passed)
+    CLOSED_THERE = 1, ///< The other end closed it in the regular way
+    SILENT = 2,       ///< The other end was not heard from within the transport's limit
+    FAILED = 3        ///< The transport failed, or a message could not be sent
+};
+
+/** @brief What a regular close says; each transport maps it to what it can carry. */
+enum class GPeerClose : Gem::Common::ENUMBASETYPE {
+    NORMAL = 0,   ///< This end has nothing more to say
+    ERROR = 1,    ///< This end gives up after a failure
+    RUN_ENDED = 2 ///< The run has ended; the other end need not come back
+};
+
+/******************************************************************************/
+/**
+ * What a role (the server's session, or the client) wants to be told by its peer. All three are
+ * called on the peer's executor, one at a time, and never from inside a call of GPeerI (rule 3).
+ */
+struct GPeerHandlers {
+    /// The connection is usable: messages may be sent.
+    std::move_only_function<void()> onOpen;
+    /// One complete message has arrived. The role may take the string.
+    std::move_only_function<void(std::string &&)> onMessage;
+    /// The connection is over. Called at most once, and exactly once while the executor runs
+    /// (rule 5). The second argument is what the other end's close said, if one arrived (an
+    /// acknowledgement may echo this end's own close); NORMAL if none arrived. The third is a
+    /// description for the log.
+    std::move_only_function<void(GPeerEnd, GPeerClose, std::string_view)> onClosed;
+};
+
+/******************************************************************************/
+/**
+ * One end of one connection to one other process. It moves whole messages and reports three
+ * events; it knows nothing about frames, items or roles. It keeps rules 1 to 6 of this file.
+ */
+class GPeerI {
+public:
+    /** @brief The default constructor */
+    GPeerI() = default;
+    /** @brief The destructor */
+    virtual ~GPeerI() = default;
+
+    GPeerI(const GPeerI &) = delete;
+    GPeerI(GPeerI &&) = delete;
+    GPeerI &operator=(const GPeerI &) = delete;
+    GPeerI &operator=(GPeerI &&) = delete;
+
+    /** @brief Installs the handlers and opens the connection. From any thread; once, and before
+     *  anything else is done with the peer. Its work is put on the executor (rule 2). */
+    virtual void start(GPeerHandlers) = 0;
+
+    /** @brief Sends one complete message. On the executor. Messages arrive in the order they were
+     *  sent; one handed over before onOpen or after close() is dropped. */
+    virtual void send(std::string) = 0;
+
+    /** @brief Closes the connection in the regular way, after what was handed to send() before
+     *  (rule 6). From any thread; idempotent. */
+    virtual void close(GPeerClose) = 0;
+
+    /** @brief Ends the connection at once, without waiting for the other end; may cut what has not
+     *  been sent. On the executor, or after its context has stopped running. Calls onClosed itself
+     *  (if the peer has not ended) and drops the handlers, so not from inside one of them. */
+    virtual void abort() = 0;
+
+    /** @brief The executor all handlers of this peer run on. From any thread. */
+    [[nodiscard]] virtual boost::asio::any_io_executor executor() = 0;
+
+    /** @brief Tells the transport whether the owner of this peer (a client) is busy evaluating. On
+     *  the executor. A polling transport may look less often while its owner is busy; the
+     *  default ignores it. */
+    virtual void setOwnerBusy(bool) { /* nothing */
+    }
+};
+
+/******************************************************************************/
+/**
+ * The server side of a transport: makes a peer for every client. It lives as long as the server's
+ * shell that owns it (questions about the transport, such as its port, go to it at any time),
+ * and its own work ends with endWork() (rule 7).
+ */
+class GListenerI {
+public:
+    /** @brief What is called for every client: a peer that has not been started, and the
+     *  client's id in the blob registry */
+    using on_peer_type = std::move_only_function<void(std::shared_ptr<GPeerI>, GWirePeerId)>;
+
+    /** @brief The default constructor */
+    GListenerI() = default;
+    /** @brief The destructor. A listener that was started is destroyed only after endWork(). */
+    virtual ~GListenerI() = default;
+
+    GListenerI(const GListenerI &) = delete;
+    GListenerI(GListenerI &&) = delete;
+    GListenerI &operator=(const GListenerI &) = delete;
+    GListenerI &operator=(GListenerI &&) = delete;
+
+    /** @brief Starts making peers. Once. May throw (a port that cannot be bound). The peers'
+     *  handlers run on strands of the executor; on_peer is called on one of its threads. */
+    virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
+
+    /** @brief No new peers from here on. It does not wait for clients (the shell does, rule 8)
+     *  and returns within a short bound of its own, so that a stop takes one grace, not two. Not
+     *  on a thread of the executor; the executor still runs. Idempotent. */
+    virtual void stop() = 0;
+
+    /** @brief Ends the transport's own work (rule 7). Called once, by the shell, when no handler
+     *  runs any more (after the executor's threads have been joined) and before the executor's
+     *  context is destroyed. Peers that have not ended are let go without onClosed (rule 5). */
+    virtual void endWork() = 0;
+
+    /** @brief How long the shell waits, after it has told every client that the run has ended,
+     *  for the peers to end (rule 8). */
+    [[nodiscard]] virtual std::chrono::milliseconds stopGrace() const = 0;
+
+    /** @brief Whether the loss of a client ends its peer by itself, within a bounded time (a
+     *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
+     *  time lease. */
+    [[nodiscard]] virtual bool detectsLoss() const = 0;
+};
+
+/******************************************************************************/
+/**
+ * The client side of a transport: makes a peer to the server, as often as asked. Destroying it
+ * cancels an attempt in progress and ends the transport's own work (rule 7); it is destroyed
+ * after the executor's context has stopped running and before that context is destroyed.
+ *
+ * The executor handed to connect() must run its handlers one at a time (a single-threaded
+ * context or a strand): neither the attempt nor the peer it makes serializes itself further.
+ */
+class GConnectorI {
+public:
+    /** @brief What is called when an attempt is over: a peer that has not been started and an
+     *  empty text, or no peer and the reason */
+    using done_type = std::move_only_function<void(std::shared_ptr<GPeerI>, std::string_view)>;
+
+    /** @brief The default constructor */
+    GConnectorI() = default;
+    /** @brief The destructor. Cancels an attempt in progress; done is then not called. */
+    virtual ~GConnectorI() = default;
+
+    GConnectorI(const GConnectorI &) = delete;
+    GConnectorI(GConnectorI &&) = delete;
+    GConnectorI &operator=(const GConnectorI &) = delete;
+    GConnectorI &operator=(GConnectorI &&) = delete;
+
+    /** @brief Makes a connection to the server; one attempt at a time. From any thread, also
+     *  before the executor runs, but not at the same time as cancel(). done is called on the
+     *  executor, never inside this call, and not after cancel(). */
+    virtual void connect(boost::asio::any_io_executor, done_type) = 0;
+
+    /** @brief Gives up an attempt in progress; done is then not called. On the executor. */
+    virtual void cancel() = 0;
+
+    /** @brief Whether a new peer can be made after a loss (connect() may be called again). */
+    [[nodiscard]] virtual bool reconnectable() const = 0;
+};
+
+/******************************************************************************/
+
+} /* namespace Gem::Courtier::Consumers */

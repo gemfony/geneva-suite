@@ -74,6 +74,9 @@ geneva_courtier_test(GCourtierClientTests      M  GCourtierClientTests.cpp)
 geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
 geneva_courtier_test(GCourtierWebsocketPeerTests S  GCourtierWebsocketPeerTests.cpp)
+# The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
+# directory, used by later tests of the roles as their transport)
+geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  GCourtierWebsocketLivenessTests.cpp)
 
