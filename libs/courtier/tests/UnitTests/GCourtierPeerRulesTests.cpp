@@ -253,6 +253,21 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
         CHECK(role_b->nNested() == 0);
     }
 
+    SECTION("after close() onOpen is not delivered (rule 6), also when close() precedes the open") {
+        auto [a, b] = pairOn(io.executor());
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_b->start(b);
+        // The strand of a is held, so that start()'s work runs only after close() was called.
+        std::promise<void> release;
+        boost::asio::post(a->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        role_a->start(a);
+        a->close(GPeerClose::NORMAL);
+        release.set_value();
+        REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
+        CHECK(role_a->events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
+    }
+
     SECTION("a peer that cannot be opened reports FAILED without onOpen") {
         auto [a, b] = pairOn(io.executor(), GInProcessFaults{.failStart = true});
         auto role_a = makeRole();
@@ -265,8 +280,9 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
 /******************************************************************************/
 /**
  * Rules 2 and 3: a close() from another thread right after start() is ordered after start()'s
- * work (the end is opened, then closed), and no handler runs inside a call of GPeerI -- also not
- * when a role sends and closes from inside its handlers.
+ * work (the end is opened, then closed; the role is told of the open only if its close() came
+ * after it, rule 6), and no handler runs inside a call of GPeerI -- also not when a role sends and
+ * closes from inside its handlers.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE(
@@ -293,7 +309,8 @@ TEST_CASE(
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         const auto events_a = role_a->events();
         REQUIRE_FALSE(events_a.empty());
-        CHECK(events_a.front() == "open");
+        // Closed right after start(): onOpen only if the open came before the close (rule 6)
+        CHECK((events_a.front() == "open" || round % 2 == 0));
         CHECK(events_a.back().starts_with("closed:"));
         CHECK(role_a->nNested() == 0);
         CHECK(role_b->nNested() == 0);

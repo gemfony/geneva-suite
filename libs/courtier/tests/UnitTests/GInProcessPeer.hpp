@@ -375,14 +375,16 @@ private:
     }
 
     /** @brief Runs on the strand after start(): the end is open. The pending wait that owns it
-     *  is armed, the role is told, and what arrived before is delivered. */
+     *  is armed, the role is told (unless it has closed meanwhile: after close() nothing is
+     *  delivered, onOpen included -- GPeerI.hpp rule 6, as the websocket peer), and what arrived
+     *  before is delivered (or, after close(), dropped). */
     void opened_() {
         state_ = state::OPEN;
         pending_.expires_at(boost::asio::steady_timer::time_point::max());
         pending_.async_wait([self = this->shared_from_this()](const boost::system::error_code &) {
             // Only holds the end; it is cancelled when the end has ended.
         });
-        if(handlers_.onOpen) {
+        if(handlers_.onOpen && not close_requested_.load()) {
             handlers_.onOpen();
         }
         while(not early_.empty() && state_ != state::ENDED) {
