@@ -607,7 +607,10 @@ TEST_CASE(
     auto items = makeBatch(1);
     auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
     REQUIRE(eventually([&] { return evaluations->total.load() == 1; }));
-    CHECK(told(true));
+    // The flag is set on the io thread after the evaluation has been handed to the pool, so it may
+    // come a little after the evaluation has begun; the evaluation lasts 400 ms, and the flag is
+    // cleared only after it.
+    CHECK(eventually([&] { return told(true); }));
     REQUIRE(batch.get());
     REQUIRE(eventually([&] { return told(false); }));
 }
