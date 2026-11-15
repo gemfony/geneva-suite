@@ -30,6 +30,9 @@
 // The binding of the MPI transport's calls to MPI (GMPICalls), on two ranks under mpirun: rank 1
 // sends three messages of different tags and lengths, rank 0 probes and receives them, and each
 // send is seen to complete; then rank 0 gives up a large send that rank 1 has not received yet.
+// With the argument --never-received, rank 1 receives nothing at all: rank 0 gives up a large and a
+// small send that never complete, and both ranks must still finalize MPI and end (the test that runs
+// this has a time limit).
 // Exit status 0 on success; the first failure is printed and ends the program with 1.
 
 // Standard headers go here
@@ -117,11 +120,41 @@ void receiver(GMPICalls &calls) {
 
 } /* anonymous namespace */
 
+/** @brief Rank 0 gives up sends that rank 1 never receives; rank 1 receives nothing */
+void neverReceived(GMPICalls &calls, MPI_Comm communicator) {
+    const int rank = calls.rank();
+    if(rank == 0) {
+        // A large message, which MPI holds back until the other rank receives it, and a small one
+        auto large = std::make_unique<std::string>(std::size_t{16} << 20U, 'z');
+        auto small = std::make_unique<std::string>("small");
+        const GMPIRequest large_request = calls.startSend(1, 54, *large);
+        const GMPIRequest small_request = calls.startSend(1, 55, *small);
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::vector<GMPIRequest> requests{large_request};
+        require(
+            calls.testSome(requests) == 0,
+            "a send to a rank that receives nothing completed",
+            0
+        );
+        calls.giveUp(large_request, std::move(large));
+        calls.giveUp(small_request, std::move(small));
+    }
+    MPI_Barrier(communicator);
+}
+
 int main(int argc, char **argv) {
-    static_cast<void>(argc);
-    static_cast<void>(argv);
+    const bool never_received = argc > 1 && std::string(argv[1]) == "--never-received";
     // The environment initializes MPI; it is let go of before main returns.
     auto environment = Gem::Courtier::mpiEnvironment();
+    if(never_received) {
+        {
+            GMPICalls calls(environment);
+            require(calls.size() == 2, "this program runs on two ranks", calls.rank());
+            neverReceived(calls, environment->communicator());
+        }
+        environment.reset(); // MPI_Finalize, with the given-up sends
+        return EXIT_SUCCESS;
+    }
     {
         GMPICalls calls(environment);
         const int rank = calls.rank();

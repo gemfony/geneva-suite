@@ -241,6 +241,13 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS})
 	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
 	GENEVA_TEST_SIZE(GCourtierMpiCallsTest M)
+	# Sends that are given up and never received do not keep MPI from finalizing: both ranks end.
+	ADD_TEST(NAME GCourtierMpiGivenUpSendsTest
+			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
+					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS}
+					--never-received)
+	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 20)
+	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
 
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.
