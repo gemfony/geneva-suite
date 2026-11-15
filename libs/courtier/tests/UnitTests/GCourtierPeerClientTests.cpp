@@ -594,10 +594,14 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** Scarce work: two items, four look-ahead clients, each waiting with one request. The items go
- *  to two different clients. */
+/** Scarce work: two items, four look-ahead clients, each waiting with one request. Each client has
+ *  at most one request unanswered, so a woken session hands its client one item, and each item is
+ *  evaluated once. Which clients get the items is not fixed: a wake-up does not hand an item over,
+ *  it makes a parked session ask again, and a client that got the first item asks at once (its
+ *  look-ahead PULL); its session may take the second item before the other woken session has
+ *  asked. */
 TEST_CASE(
-    "GPeerClientT: with look-ahead scarce work goes to different clients",
+    "GPeerClientT: with look-ahead scarce work is evaluated once and one request at a time",
     "[courtier][peer][client]"
 ) {
     World world;
@@ -610,12 +614,15 @@ TEST_CASE(
     std::this_thread::sleep_for(100ms); // every client has asked
     auto items = makeBatch(2);
     REQUIRE(world.runBatch(items));
-    std::size_t n_clients_with_work = 0;
-    for(const auto &e : evaluations) {
-        CHECK(e->total.load() <= 1);
-        n_clients_with_work += e->total.load();
+    std::size_t n_evaluated = 0;
+    for(std::size_t i = 0; i < items.size(); ++i) {
+        for(const auto &e : evaluations) {
+            n_evaluated += e->of(i);
+        }
     }
-    CHECK(n_clients_with_work == 2);
+    CHECK(n_evaluated == 2);
+    CHECK(world.counts().nWork.load() == 2);
+    CHECK(world.counts().maxUnanswered.load() == 1);
 }
 
 /******************************************************************************/
