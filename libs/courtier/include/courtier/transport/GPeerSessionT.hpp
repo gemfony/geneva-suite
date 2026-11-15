@@ -74,6 +74,15 @@ namespace Gem::Courtier::Consumers {
  * nothing: it is checked in and no answer is owed. The client sees NO_WORK only when a request had
  * to be refused.
  *
+ * Messages that cannot be read. A message from the client that cannot be decoded is attributed by
+ * its kind, which is read first (the frame is reset to NONE before each decode). A RESULT is not
+ * answered (it asked for nothing); a request (PULL, RETURN, UNREADABLE) is answered with NO_WORK,
+ * and so is a message whose kind could not be read either. In every case the session gives back
+ * what it holds: it can no longer tell which items the client still works on. An UNREADABLE from
+ * the client says that it could not read the session's last answer: the session forgets which
+ * blobs the client holds (they are sent in full again), gives back what it holds, and owes the
+ * client the next item.
+ *
  * The end of the run. Once the server has been stopped, the session no longer answers: it closes
  * the connection with GPeerClose::RUN_ENDED, also when it still owes answers (the client need not
  * ask again), and sends no NO_WORK. It looks at the stop before it answers owed requests.
@@ -308,14 +317,20 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief Reads an incoming message and acts on all of it but the request for an item: a RETURN
-     * or a RESULT is checked in, and a RETURN, like a PULL, leaves the client owed a work item.
+     * or a RESULT is checked in, and a RETURN, like a PULL, leaves the client owed a work item; an
+     * UNREADABLE does too, after the session has forgotten the client's blobs and given back what
+     * it holds. A message that cannot be read or handled is refused by its kind (see the class
+     * comment).
      *
      * @param message One complete message from the client
      * @return The answer if the message is answered by it (NO_WORK if it had to be refused);
      * GPullDue if the client is now owed a work item; GNothingDue if it is owed nothing
      */
     Gem::Courtier::GAbsorbResult absorb_(const std::string &message) {
-        return this->refusing_([&]() -> Gem::Courtier::GAbsorbResult {
+        // A decode that fails leaves the kind it has read (the kind is archived first), or NONE.
+        command_container_.reset();
+        GFrameKind kind = GFrameKind::NONE;
+        try {
             // De-serialize the object (under the wire scope, so an id-referenced blob in a returned
             // result resolves against this server's registry).
             Gem::Courtier::wireDecode(
@@ -324,14 +339,91 @@ private:
                 wire_ctx_.enabled ? &wire_ctx_ : nullptr,
                 serialization_mode_
             ); // may throw
+            kind = command_container_.kind();
 
+            if(kind == GFrameKind::UNREADABLE) {
+                return this->unreadableAnswer_();
+            }
             return Gem::Courtier::absorbServerRequest(
                 command_container_,
                 put_payload_item_,
                 wire_registry_,
                 serialization_mode_
             );
-        });
+        }
+        catch(...) {
+            if(kind == GFrameKind::NONE) {
+                kind = command_container_.kind(); // what the failed decode had read
+            }
+            logRefusal_(std::current_exception());
+            return this->refused_(kind);
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief The client could not read the last answer of this session: it is sent its blobs in
+     * full again, what it held is given back, and it is owed the next item.
+     *
+     * @return GPullDue
+     */
+    Gem::Courtier::GAbsorbResult unreadableAnswer_() {
+        glogger << "GPeerSessionT<processable_type>: client " << peer_id_
+                << " could not read an answer; it gets its blobs in full again and what it held "
+                   "is put back"
+                << '\n'
+                << GLOGGING;
+        if(wire_registry_ != nullptr) {
+            wire_registry_->forgetPeer(peer_id_);
+        }
+        abandon_items_();
+        return Gem::Courtier::GPullDue{};
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief What a message gets that could not be read or handled, by its kind: a RESULT asked
+     * for nothing and is not answered; anything else is answered with NO_WORK. The session gives
+     * back what it holds in either case.
+     *
+     * @param kind The kind the message was read as; NONE if not even that could be read
+     * @return GNothingDue for a RESULT, the NO_WORK answer otherwise
+     */
+    Gem::Courtier::GAbsorbResult refused_(GFrameKind kind) {
+        // Messages keep their boundaries, so the connection is still usable: closing it instead
+        // would end the client. The session cannot tell any more which of its items are still
+        // being worked on, so it gives back all it holds; a result that arrives for one of them
+        // later is still accepted.
+        abandon_items_();
+        if(kind == GFrameKind::RESULT) {
+            return Gem::Courtier::GNothingDue{};
+        }
+        if(kind == GFrameKind::NONE) {
+            glogger
+                << "GPeerSessionT<processable_type>: not even the kind of the message of client "
+                << peer_id_ << " could be read; it is answered as a request" << '\n'
+                << GLOGGING;
+        }
+        return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Logs why a request was refused @param failure The exception that refused it */
+    static void logRefusal_(const std::exception_ptr &failure) {
+        try {
+            std::rethrow_exception(failure);
+        }
+        catch(const std::exception &e) {
+            glogger << "GPeerSessionT<processable_type>: a request was refused: " << e.what()
+                    << '\n'
+                    << GLOGGING;
+        }
+        catch(...) {
+            glogger << "GPeerSessionT<processable_type>: a request was refused "
+                       "(an exception that is not a std::exception)"
+                    << '\n'
+                    << GLOGGING;
+        }
     }
 
     //-------------------------------------------------------------------------
@@ -368,43 +460,23 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Runs one step of the request handling and turns a failure into a refusal, so that
-     * no exception reaches the executor's thread.
+     * @brief Runs the answer to a request and turns a failure into a refusal (NO_WORK), so that
+     * no exception reaches the executor's thread. The item of the answer may have been checked
+     * out before the failure, so the session gives back all it holds (refused_()).
      *
-     * @tparam StepF A callable () -> R, where R is std::optional<std::string> or GAbsorbResult
+     * @tparam StepF A callable () -> std::optional<std::string>
      * @param step The step to run
      * @return What @p step returns, or the NO_WORK answer if it threw
      */
     template <typename StepF>
-    std::invoke_result_t<StepF> refusing_(StepF &&step) {
+    std::optional<std::string> refusing_(StepF &&step) {
         try {
             return std::forward<StepF>(step)();
         }
-        catch(const std::exception &e) {
-            glogger << "GPeerSessionT<processable_type>: a request was refused: " << e.what()
-                    << '\n'
-                    << GLOGGING;
-        }
         catch(...) {
-            glogger << "GPeerSessionT<processable_type>: a request was refused "
-                       "(an exception that is not a std::exception)"
-                    << '\n'
-                    << GLOGGING;
+            logRefusal_(std::current_exception());
         }
-
-        // The request was refused. Messages keep their boundaries, so the connection is still
-        // usable: answer NO_WORK. Closing the connection instead would end the client.
-        //
-        // The refused message may have been a result that could not be read, or the item of the
-        // answer may have been checked out before the failure. Either way the session cannot tell
-        // any more which of its items are still being worked on. So it gives back all it holds; a
-        // result that arrives for one of them later is still accepted.
-        //
-        // A message that could not be read cannot be told from a RESULT, which asks for nothing:
-        // a refused RESULT is answered with NO_WORK too, and its client then counts one
-        // unanswered request too few.
-        abandon_items_();
-        return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
+        return std::get<std::string>(this->refused_(GFrameKind::PULL));
     }
 
     //-------------------------------------------------------------------------

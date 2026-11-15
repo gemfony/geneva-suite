@@ -113,9 +113,11 @@ struct GPeerClientOptions {
  * being evaluated runs to its end, and the client ends after it. While its compute pool evaluates
  * an item the client tells its peer that it is busy (GPeerI::setOwnerBusy()).
  *
- * A message it cannot decode ends a client whose connector can connect again (the server then puts
- * back what the client held); a client that cannot connect again treats it as NO_WORK and stays,
- * and the server gets the item back by its time lease.
+ * A message it cannot decode is reported to the server with UNREADABLE (after the pause that follows
+ * a NO_WORK), which asks for the next
+ * item in place of the request whose answer was lost: the server puts back what the client held and
+ * sends it its blobs in full again (the item that could not be read may have carried one). The
+ * client stays, whatever its connector.
  *
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
@@ -328,35 +330,30 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Called on the io thread for a message that could not be decoded. A client that can
-     * connect again closes (the server puts back what it held). One that cannot stays: what
-     * identifies the item travels inside the item that failed to load, so it cannot be reported
-     * back; the message is treated like NO_WORK, and the server puts the item back when its lease
-     * expires.
+     * @brief Called on the io thread for a message that could not be decoded: it answered a request,
+     * and the client says so with UNREADABLE, which is a request again (the number of unanswered
+     * requests stays as it is). What identifies the item travels inside the item that failed to
+     * load, so the server puts back everything the client held. The UNREADABLE is sent after the
+     * pause that follows a NO_WORK: an item that no load can read must not make the client and the
+     * server pass it back and forth as fast as they can. A client that halts asks for nothing
+     * more: for it the request is answered.
      *
      * @param error Why the message could not be decoded
      */
     void when_unreadable_(const std::string &error) {
-        if(connector_->reconnectable()) {
-            glogger << "In " << options_.name << ":" << '\n'
-                    << "Could not de-serialize an incoming message:" << '\n'
-                    << error << '\n'
-                    << "The client will shut down." << '\n'
-                    << GWARNING;
-            do_close_(GPeerClose::ERROR);
-            return;
-        }
         glogger << "In " << options_.name << ":" << '\n'
                 << "A message from the server could not be decoded:" << '\n'
                 << error << '\n'
-                << "The client asks again; the server puts the item back when its lease expires."
-                << '\n'
+                << "The client tells the server after a pause and asks again." << '\n'
                 << GWARNING;
-        if(pending_pulls_ > 0) {
-            --pending_pulls_;
+        if(this->halt()) {
+            if(pending_pulls_ > 0) {
+                --pending_pulls_;
+            }
+            this->refreshResultKindHint_();
+            return;
         }
-        n_nodata_++;
-        this->refreshResultKindHint_();
+        ++n_unreadable_owed_;
         schedule_refill_();
     }
 
@@ -377,7 +374,8 @@ private:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Serializes @p container (a PULL: nothing to speak of) and hands it to the peer,
+    /** @brief Serializes @p container (a PULL or an UNREADABLE: nothing to speak of) and hands it
+     *  to the peer,
      *  guarding against serialization failures (which must not unwind the io thread). Nothing is
      *  sent once the connection is gone.
      *
@@ -437,8 +435,13 @@ private:
     //-------------------------------------------------------------------------
     // The transport hooks the pipeline base drives (see GPrefetchingClientT)
 
-    /** @brief Pipeline-refill hook: issues PULL frames (see request_more_()). */
+    /** @brief Pipeline-refill hook: sends the UNREADABLE frames that are due (see
+     *  when_unreadable_()), then issues PULL frames (see request_more_()). */
     void refill_() {
+        for(; n_unreadable_owed_ > 0; --n_unreadable_owed_) {
+            const GCommandContainerT<processable_type> unreadable{GFrameKind::UNREADABLE};
+            send_command_(unreadable);
+        }
         request_more_();
     }
 
@@ -585,6 +588,8 @@ private:
     /// What mayAsk_() said last on the io thread; read by the compute threads
     std::atomic<bool> may_ask_hint_{true};
     std::size_t n_reencoding_ = 0; ///< Results being encoded once more (io thread)
+    /// Messages that could not be read and are still to be reported with UNREADABLE (io thread)
+    std::size_t n_unreadable_owed_ = 0;
     bool close_pending_ = false;   ///< A close waits for them (io thread)
     GPeerClose close_after_reencoding_ = GPeerClose::NORMAL; ///< What that close says
 

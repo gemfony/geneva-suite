@@ -869,22 +869,30 @@ private:
     }
 };
 
-/** @brief A server's shell for watched items, and one look-ahead client (depth 2, width 1) */
+/** @brief @return The options of the look-ahead client of a WatchWorld */
+GPeerClientOptions watchedClient() {
+    return GPeerClientOptions{
+        .name = "watched client",
+        .mode = BIN,
+        .prefetchDepth = 2,
+        .computeWidth = 1,
+        .lookAhead = true
+    };
+}
+
+/** @brief A server's shell for items of the given type, and one client
+ *  @tparam item_type The work item */
+template <typename item_type>
 class WatchWorld {
 public:
-    WatchWorld()
+    /** @brief @param options The settings of the client */
+    explicit WatchWorld(GPeerClientOptions options = watchedClient())
       : listener_(std::make_shared<GInProcessListener>(GInProcessListener::Options{}))
       , shell_("Shell", std::make_unique<GInProcessListenerRef>(listener_), 2, BIN)
       , client_(
-            std::make_shared<Gem::Courtier::Consumers::GPeerClientT<GWatchedItem>>(
+            std::make_shared<Gem::Courtier::Consumers::GPeerClientT<item_type>>(
                 std::make_unique<GInProcessConnector>(listener_),
-                GPeerClientOptions{
-                    .name = "watched client",
-                    .mode = BIN,
-                    .prefetchDepth = 2,
-                    .computeWidth = 1,
-                    .lookAhead = true
-                }
+                std::move(options)
             )
         ) {
         Gem::Courtier::GNetworkedTimeoutConfig config;
@@ -904,7 +912,7 @@ public:
     WatchWorld &operator=(WatchWorld &&) = delete;
 
     /** @brief @return The shell */
-    Gem::Courtier::GPeerConsumerT<GWatchedItem> &shell() {
+    Gem::Courtier::GPeerConsumerT<item_type> &shell() {
         return shell_;
     }
 
@@ -913,12 +921,12 @@ public:
     std::future<void> submit(std::size_t n) {
         items_.clear();
         for(std::size_t i = 0; i < n; ++i) {
-            items_.push_back(std::make_unique<GWatchedItem>());
+            items_.push_back(std::make_unique<item_type>());
         }
         return std::async(std::launch::async, [this] {
             auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
             policy.fatal_on_none_returned = false;
-            auto clone_template = std::make_unique<GWatchedItem>();
+            auto clone_template = std::make_unique<item_type>();
             clone_template->markAsProcessedWith({true});
             shell_.processBatch(
                 std::span(items_.data(), items_.size()),
@@ -930,9 +938,9 @@ public:
 
 private:
     std::shared_ptr<GInProcessListener> listener_;
-    Gem::Courtier::GPeerConsumerT<GWatchedItem> shell_;
-    std::shared_ptr<Gem::Courtier::Consumers::GPeerClientT<GWatchedItem>> client_;
-    std::vector<std::unique_ptr<GWatchedItem>> items_;
+    Gem::Courtier::GPeerConsumerT<item_type> shell_;
+    std::shared_ptr<Gem::Courtier::Consumers::GPeerClientT<item_type>> client_;
+    std::vector<std::unique_ptr<item_type>> items_;
     std::jthread runner_;
 };
 
@@ -950,7 +958,7 @@ TEST_CASE(
 ) {
     resetWatch(0, true);
     {
-        WatchWorld world;
+        WatchWorld<GWatchedItem> world;
         auto batch = world.submit(2);
         REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
         batch.get();
@@ -971,7 +979,7 @@ TEST_CASE(
 ) {
     resetWatch(500, false);
     {
-        WatchWorld world;
+        WatchWorld<GWatchedItem> world;
         auto batch = world.submit(2);
         // The first item is decoded and evaluated; the second is being decoded: the run ends now.
         REQUIRE(eventually([] { return decodesStarted.load() == 2; }));
@@ -981,4 +989,124 @@ TEST_CASE(
     }
     CHECK(decodesDone.load() == 2);
     CHECK(nEvaluated.load() == 1);
+}
+
+/******************************************************************************/
+// A work item that carries a blob (a layout, as a genome does) and can be made to fail its first
+// load on the client before the blob is read.
+
+namespace {
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<int> poisonedLoadsLeft{0}; ///< How many loads of a poisoned item still fail
+std::atomic<int> failedLoads{0};       ///< Loads of a work item that failed, for whatever reason
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+/**
+ * A work item with a blob that travels send-once (by value the first time a client gets it, by id
+ * afterwards), as GGenome's layout does. A poisoned item fails to load, before its blob is read,
+ * as long as poisonedLoadsLeft says so.
+ */
+class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        using Gem::Common::archive_named;
+        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GLayoutItem, bool>>(
+            ar,
+            "GProcessingContainerT_GLayoutItem",
+            *this
+        );
+        archive_named(ar, "poisoned_", poisoned_);
+        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+            if(poisoned_ && poisonedLoadsLeft.fetch_sub(1) > 0) {
+                failedLoads.fetch_add(1);
+                throw std::runtime_error("this test makes the first load of the item fail");
+            }
+        }
+
+        const auto *ctx = Gem::Courtier::GWireSerializationScope::current();
+        const Gem::Courtier::GWireBlobId id{7, 7};
+        bool interned = false;
+        bool present = true;
+        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+            interned =
+                ctx != nullptr && ctx->enabled && ctx->may_intern_blobs && ctx->registry != nullptr;
+            if(interned) {
+                if(not ctx->registry->has(id)) {
+                    ctx->registry->put(id, layout_);
+                }
+                present = not ctx->registry->peerHasBlob(ctx->peer, id);
+                if(present) {
+                    ctx->registry->markPeerHasBlob(ctx->peer, id);
+                }
+            }
+        }
+        archive_named(ar, "interned", interned);
+        archive_named(ar, "present", present);
+        if(present) {
+            archive_named(ar, "layout_", layout_);
+            if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+                if(interned && ctx != nullptr && ctx->registry != nullptr) {
+                    ctx->registry->put(id, layout_);
+                }
+            }
+            return;
+        }
+        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+            if(ctx == nullptr || ctx->registry == nullptr ||
+               not ctx->registry->tryGet(id, layout_)) {
+                failedLoads.fetch_add(1);
+                throw std::runtime_error(
+                    "the layout is referenced by an id the client does not know"
+                );
+            }
+        }
+    }
+
+public:
+    /** @brief The default constructor (also for loading) */
+    GLayoutItem()
+      : Gem::Courtier::GProcessingContainerT<GLayoutItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Nothing to compute */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
+
+    bool poisoned_ = true; ///< Whether a load of this item may fail (see poisonedLoadsLeft)
+    std::string layout_ = "layout"; ///< The blob
+};
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+/**
+ * A client that cannot load an item tells the server (UNREADABLE) and stays. The server puts the
+ * item back at once and sends the blob in full again: the item's blob never reached the client, and
+ * an item that referred to it by id could not be loaded either. Every item is processed; exactly one
+ * load failed.
+ */
+TEST_CASE(
+    "GPeerClientT: an item the client cannot load comes back and the next brings its blob",
+    "[courtier][peer][client]"
+) {
+    poisonedLoadsLeft.store(1);
+    failedLoads.store(0);
+    bool done = false;
+    {
+        WatchWorld<GLayoutItem> world(
+            GPeerClientOptions{.name = "layout client", .mode = BIN, .prefetchDepth = 1}
+        );
+        auto batch = world.submit(3);
+        done = batch.wait_for(PATIENCE) == std::future_status::ready;
+        if(not done) {
+            world.shell().stopServer();
+        }
+        batch.get();
+    }
+    CHECK(done);
+    CHECK(failedLoads.load() == 1);
 }

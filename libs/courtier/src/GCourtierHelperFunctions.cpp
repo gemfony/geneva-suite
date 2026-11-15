@@ -103,6 +103,9 @@ std::string fkToStr(const GFrameKind &fk) {
 
     case RESULT:
         return "RESULT";
+
+    case UNREADABLE:
+        return "UNREADABLE";
     }
 
     // Make the compiler happy

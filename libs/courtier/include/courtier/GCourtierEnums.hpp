@@ -74,6 +74,11 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * finished result as RESULT, so that it never has more than one request with the server. The server
  * checks it in and owes no answer.
  *
+ * UNREADABLE says that the last answer the server sent could not be read. It replaces the request
+ * whose answer was lost: the server owes the next item. As the item that could not be read may have
+ * carried a blob the client now lacks, the server sends the client its blobs afresh, and it puts
+ * back what the client held (what identifies the item travels inside the item).
+ *
  * NONE is the cleared/default state of a frame container, never a transmitted frame.
  */
 //! [courtier-frame-kind]
@@ -86,7 +91,8 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     SHUTDOWN = 5,     ///< server -> worker: stop working and terminate
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob (empty on a registry miss)
-    RESULT = 8        ///< worker -> server: an outcome, like RETURN, that asks for nothing
+    RESULT = 8,       ///< worker -> server: an outcome, like RETURN, that asks for nothing
+    UNREADABLE = 9    ///< worker -> server: "your last answer could not be read; send another"
 };
 //! [courtier-frame-kind]
 

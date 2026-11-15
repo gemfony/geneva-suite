@@ -268,7 +268,7 @@ public:
                     [self](std::string &&message) {
                         const std::string bytes{std::move(message)};
                         GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
-                        Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+                        Gem::Courtier::wireDecode(bytes, frame, nullptr, self->mode_);
                         const std::scoped_lock lock(self->mutex_);
                         self->kinds_.push_back(frame.kind());
                     },
@@ -281,13 +281,29 @@ public:
         );
     }
 
-    /** @brief Sends a frame of the given kind (on the peer's executor) @param kind Its kind */
-    void send(GFrameKind kind) {
+    /** @brief The wire format of what this end sends and reads; before start()
+     *  @param mode The format */
+    void setMode(Gem::Common::serializationMode mode) {
+        mode_ = mode;
+    }
+
+    /** @brief @param kind A frame kind @return A frame of it, encoded (a RETURN or a RESULT
+     *  carries item 0) */
+    [[nodiscard]] std::string encode(GFrameKind kind) const {
         GCommandContainerT<GFaultyContainer> frame{kind};
         if(kind == GFrameKind::RETURN || kind == GFrameKind::RESULT) {
             frame.reset(kind, std::make_unique<GFaultyContainer>(0));
         }
-        std::string bytes = Gem::Courtier::wireEncode(frame, nullptr, BIN);
+        return Gem::Courtier::wireEncode(frame, nullptr, mode_);
+    }
+
+    /** @brief Sends a frame of the given kind (on the peer's executor) @param kind Its kind */
+    void send(GFrameKind kind) {
+        this->sendBytes(this->encode(kind));
+    }
+
+    /** @brief Sends a message as it is (on the peer's executor) @param bytes The message */
+    void sendBytes(std::string bytes) {
         if(auto peer = peer_.lock()) {
             boost::asio::post(peer->executor(), [peer, bytes = std::move(bytes)]() mutable {
                 peer->send(std::move(bytes));
@@ -327,6 +343,7 @@ private:
     std::vector<GFrameKind> kinds_; ///< The kinds of the frames that arrived, in order
     std::string closed_;            ///< How the connection ended
     std::weak_ptr<GPeerI> peer_;    ///< The client's end, weakly (rule 4)
+    Gem::Common::serializationMode mode_ = BIN; ///< The wire format
 };
 
 /******************************************************************************/
@@ -344,6 +361,7 @@ struct Connection {
  * @param client_executor Where the client's end runs
  * @param registry The blob registry, or nullptr
  * @param peer_id The connection's id in the registry
+ * @param mode The wire format of both ends
  * @return The connection
  */
 Connection connect(
@@ -351,14 +369,16 @@ Connection connect(
     const boost::asio::any_io_executor &server_executor,
     const boost::asio::any_io_executor &client_executor,
     GWireBlobRegistry *registry = nullptr,
-    GWirePeerId peer_id = 1
+    GWirePeerId peer_id = 1,
+    Gem::Common::serializationMode mode = BIN
 ) {
     auto [server_end, client_end] =
         GInProcessPeer::makePair(server_executor, {}, client_executor, {}, CLOSE_GRACE);
     Connection connection;
     connection.clientPeer = client_end;
     connection.serverPeer = server_end;
-    std::make_shared<session_type>(consumer.hooks(), BIN, registry, peer_id)->start(server_end);
+    std::make_shared<session_type>(consumer.hooks(), mode, registry, peer_id)->start(server_end);
+    connection.client->setMode(mode);
     connection.client->start(client_end);
     return connection;
 }
@@ -548,5 +568,110 @@ TEST_CASE(
         connection.client->close(GPeerClose::NORMAL);
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
         CHECK_FALSE(registry.peerHasBlob(PEER, blob));
+    }
+}
+
+/******************************************************************************/
+/**
+ * A client that could not read an answer says so with UNREADABLE: the session forgets which blobs
+ * the client holds, gives back what it holds, and serves the next item.
+ */
+TEST_CASE(
+    "GPeerSessionT: UNREADABLE resets the client's blobs and items and asks again",
+    "[courtier][peer][session]"
+) {
+    constexpr GWirePeerId PEER = 1;
+    FakeConsumer consumer;
+    GWireBlobRegistry registry;
+    const GWireBlobId blob{17, 4};
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor(), &registry, PEER);
+        consumer.offer({1, 2});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        registry.markPeerHasBlob(PEER, blob);
+
+        connection.client->send(GFrameKind::UNREADABLE);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
+        CHECK(connection.client->nFrames() == 2);
+        CHECK_FALSE(registry.peerHasBlob(PEER, blob));
+        CHECK(consumer.nPending() == 1); // the item it held is back; one of the two is served
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * A RESULT that cannot be read past its kind asked for nothing: it is not answered (the client
+ * would count one request too few), and what the client held is put back at once.
+ */
+TEST_CASE(
+    "GPeerSessionT: a RESULT that cannot be read is not answered and its items come back",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        consumer.offer({1});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        REQUIRE(consumer.nPending() == 0);
+
+        const std::string result = connection.client->encode(GFrameKind::RESULT);
+        connection.client->sendBytes(result.substr(0, result.size() / 2));
+        REQUIRE(eventually([&] { return consumer.nPending() == 1; }));
+        std::this_thread::sleep_for(QUIET);
+        CHECK(connection.client->nFrames() == 1);
+        CHECK(consumer.nCheckedIn() == 0);
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * The same under the JSON codec, where the whole document is parsed before anything is read: a
+ * RESULT that is a JSON document but cannot be loaded has its kind read and is not answered; a
+ * message that is not JSON at all has no kind and is answered with NO_WORK. Either way what the
+ * client held comes back.
+ */
+TEST_CASE(
+    "GPeerSessionT: under JSON a RESULT whose payload cannot be loaded is not answered",
+    "[courtier][peer][session]"
+) {
+    constexpr auto JSON = Gem::Common::serializationMode::GEM_JSON;
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor(), nullptr, 1, JSON);
+        consumer.offer({1});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+
+        std::string result = connection.client->encode(GFrameKind::RESULT);
+        const auto at = result.find("\"outcome_\"");
+        REQUIRE(at != std::string::npos);
+        result.replace(at, 10, "\"unknown_\"");
+        connection.client->sendBytes(result);
+        REQUIRE(eventually([&] { return consumer.nPending() == 1; }));
+        std::this_thread::sleep_for(QUIET);
+        CHECK(connection.client->nFrames() == 1);
+
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
+        connection.client->sendBytes("this is not JSON");
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::NO_WORK) == 1; }));
+        CHECK(consumer.nPending() == 1);
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
     }
 }
