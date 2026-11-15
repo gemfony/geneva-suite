@@ -30,6 +30,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <chrono>
+#include <memory>
 #include <string>
 #include <thread>
 #include <type_traits>
@@ -138,6 +140,75 @@ TEST_CASE("GThreadSafeKeyedStoreT: clear empties the store", "[common][keyed-sto
     CHECK(s.size() == 0);
     CHECK(s.keys().empty());
     CHECK(s.values().empty());
+}
+
+// ---------------------------------------------------------------------------
+// waitUntilEmpty: at once when empty, on the last remove() (not on an earlier one), on clear(), and
+// false at its limit. The waits that must end early have a long limit and a much shorter bound on
+// the time they took, so a remove() or clear() that does not notify is seen as a bound exceeded.
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty returns at once when the store is empty",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    Store const s;
+    const auto begin = std::chrono::steady_clock::now();
+    CHECK(s.waitUntilEmpty(0ms));
+    CHECK(s.waitUntilEmpty(10s));
+    CHECK(std::chrono::steady_clock::now() - begin < 1s);
+}
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty is false at its limit while an entry stays",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    Store s;
+    s.set("a", 1);
+    const auto begin = std::chrono::steady_clock::now();
+    CHECK_FALSE(s.waitUntilEmpty(50ms));
+    CHECK(std::chrono::steady_clock::now() - begin >= 50ms);
+    CHECK(s.size() == 1);
+}
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty returns on the last remove, and on clear",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    constexpr auto LIMIT = 10s; // what the waits may take at most
+    constexpr auto BOUND = 3s;  // what they take with a notification: about 40 ms
+
+    // Shared with the removing threads, which may still hold the store's mutex when the waiter
+    // returns (the lifetime rule of waitUntilEmpty()).
+    auto s = std::make_shared<Store>();
+
+    SECTION("the last of two removals ends the wait; the first does not") {
+        s->set("a", 1);
+        s->set("b", 2);
+        std::jthread const remover([s] {
+            std::this_thread::sleep_for(20ms);
+            s->remove("a");
+            std::this_thread::sleep_for(20ms);
+            s->remove("b");
+        });
+        const auto begin = std::chrono::steady_clock::now();
+        CHECK(s->waitUntilEmpty(LIMIT));
+        CHECK(std::chrono::steady_clock::now() - begin < BOUND);
+        CHECK(s->empty()); // not woken (or not returning) after the first removal
+    }
+
+    SECTION("clear() ends the wait") {
+        s->set("c", 3);
+        std::jthread const clearer([s] {
+            std::this_thread::sleep_for(20ms);
+            s->clear();
+        });
+        const auto begin = std::chrono::steady_clock::now();
+        CHECK(s->waitUntilEmpty(LIMIT));
+        CHECK(std::chrono::steady_clock::now() - begin < BOUND);
+    }
 }
 
 // ---------------------------------------------------------------------------
