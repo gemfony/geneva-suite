@@ -163,6 +163,12 @@ public:
                     lease->held.erase(frame.outcome().correlation_id);
                     ++n_checked_in_;
                 },
+            .failPayloadItem =
+                [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &) {
+                    const std::scoped_lock lock(mutex_);
+                    lease->held.erase(id);
+                    ++n_failed_;
+                },
             .abandonItems = [lease] { lease->giveBack(); },
             .checkServerStopped =
                 [this] {
@@ -186,6 +192,11 @@ public:
     [[nodiscard]] std::size_t nCheckedIn() const {
         const std::scoped_lock lock(mutex_);
         return n_checked_in_;
+    }
+    /** @brief @return How many items have ended as failed */
+    [[nodiscard]] std::size_t nFailed() const {
+        const std::scoped_lock lock(mutex_);
+        return n_failed_;
     }
     /** @brief @return How many items are pending */
     [[nodiscard]] std::size_t nPending() const {
@@ -250,6 +261,7 @@ private:
     bool stopped_ = false;
     bool stop_at_checkout_ = false;
     std::size_t n_checked_in_ = 0;
+    std::size_t n_failed_ = 0;
     std::atomic<int> n_sessions_{0};
 };
 

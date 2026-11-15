@@ -158,7 +158,9 @@ enum class fault_mode : std::uint8_t {
     FLAG_ERROR = 2,       ///< Call force_set_error() (clean error flag, no throw)
     THROW_PROCESSING = 3, ///< Throw g_processing_exception (a std::exception → process()'s catch(std::exception&); item flagged)
     THROW_FATAL = 4,      ///< Throw a non-std::exception: process()'s catch(...) path; item flagged
-    THROW_LOADING = 5     ///< Throw while loading while load faults are armed (armLoadFaults())
+    THROW_LOADING = 5,    ///< Throw while loading while load faults are armed (armLoadFaults())
+    THROW_SAVING = 6,     ///< Throw while saving while save faults are armed (armSaveFaults())
+    THROW_SAVING_RESULT = 7 ///< Like THROW_SAVING, but only an item that has been processed
 };
 
 /**********************************************************************************************/
@@ -184,6 +186,13 @@ class GFaultyContainer
         if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
             if(fault_mode_ == fault_mode::THROW_LOADING && consumeLoadFault()) {
                 throw std::runtime_error("GFaultyContainer: injected failure while loading");
+            }
+        }
+        else {
+            if((fault_mode_ == fault_mode::THROW_SAVING ||
+                (fault_mode_ == fault_mode::THROW_SAVING_RESULT && this->is_processed())) &&
+               consumeSaveFault()) {
+                throw std::runtime_error("GFaultyContainer: injected failure while saving");
             }
         }
     }
@@ -217,12 +226,18 @@ public:
      *  process that submits the items and takes their results back is not affected.
      *  @param n How many loads are to fail */
     static void armLoadFaults(std::size_t n) noexcept;
+    /** @brief Arms save faults in this process: the next @p n saves of an item with
+     *  fault_mode::THROW_SAVING (or of a processed item with THROW_SAVING_RESULT) throw.
+     *  @param n How many saves are to fail */
+    static void armSaveFaults(std::size_t n) noexcept;
 
 private:
     /** @brief The default constructor -- only needed for de-serialization purposes */
     GFaultyContainer() = default;
     /** @brief Uses up one armed load fault. @return Whether one was left */
     [[nodiscard]] static bool consumeLoadFault() noexcept;
+    /** @brief Uses up one armed save fault. @return Whether one was left */
+    [[nodiscard]] static bool consumeSaveFault() noexcept;
     /** @brief Performs the configured (mis-)behaviour
      *  @param res_vec An optional externally injected evaluation result vector (unused here) */
     void process_(const std::vector<bool> &res_vec = std::vector<bool>()) final;

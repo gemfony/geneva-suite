@@ -140,6 +140,8 @@ void GFaultyContainer::process_([[maybe_unused]] const std::vector<bool> &res_ve
     switch(fault_mode_) {
     case fault_mode::NONE:
     case fault_mode::THROW_LOADING: // the fault is in the loading; an item that got through is fine
+    case fault_mode::THROW_SAVING:  // likewise for the saving
+    case fault_mode::THROW_SAVING_RESULT:
         registerResult(0, true);
         break;
 
@@ -170,6 +172,20 @@ namespace {
 /// The load faults still armed in this process (see GFaultyContainer::armLoadFaults()).
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<std::size_t> g_load_faults_left{0};
+/// The save faults still armed in this process (see GFaultyContainer::armSaveFaults()).
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<std::size_t> g_save_faults_left{0};
+
+/** @brief Uses up one fault of @p left @param left The armed faults @return Whether one was left */
+bool consumeFault(std::atomic<std::size_t> &left) noexcept {
+    std::size_t n = left.load();
+    while(n > 0) {
+        if(left.compare_exchange_weak(n, n - 1)) {
+            return true;
+        }
+    }
+    return false;
+}
 } // namespace
 
 /**
@@ -187,13 +203,26 @@ void GFaultyContainer::armLoadFaults(std::size_t n) noexcept {
  * @return Whether one was left
  */
 bool GFaultyContainer::consumeLoadFault() noexcept {
-    std::size_t left = g_load_faults_left.load();
-    while(left > 0) {
-        if(g_load_faults_left.compare_exchange_weak(left, left - 1)) {
-            return true;
-        }
-    }
-    return false;
+    return consumeFault(g_load_faults_left);
+}
+
+/**
+ * @brief Arms save faults in this process.
+ *
+ * @param n How many saves of an item with fault_mode::THROW_SAVING (or of a processed item with
+ *        THROW_SAVING_RESULT) are to fail from now on
+ */
+void GFaultyContainer::armSaveFaults(std::size_t n) noexcept {
+    g_save_faults_left.store(n);
+}
+
+/**
+ * @brief Uses up one armed save fault.
+ *
+ * @return Whether one was left
+ */
+bool GFaultyContainer::consumeSaveFault() noexcept {
+    return consumeFault(g_save_faults_left);
 }
 
 /********************************************************************************************/

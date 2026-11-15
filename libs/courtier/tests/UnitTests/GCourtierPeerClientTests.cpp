@@ -38,6 +38,7 @@
 #include <chrono>
 #include <cstddef>
 #include <future>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -1109,4 +1110,90 @@ TEST_CASE(
     }
     CHECK(done);
     CHECK(failedLoads.load() == 1);
+}
+
+/******************************************************************************/
+// Items that cannot be encoded: by the server on their way out, or by the client on their way back.
+
+namespace {
+
+/** @brief Arms save faults for the length of a test, and disarms them at its end */
+struct ArmedSaveFaults {
+    ArmedSaveFaults() {
+        GFaultyContainer::armSaveFaults(std::numeric_limits<std::size_t>::max());
+    }
+    ~ArmedSaveFaults() {
+        GFaultyContainer::armSaveFaults(0);
+    }
+    ArmedSaveFaults(const ArmedSaveFaults &) = delete;
+    ArmedSaveFaults(ArmedSaveFaults &&) = delete;
+    ArmedSaveFaults &operator=(const ArmedSaveFaults &) = delete;
+    ArmedSaveFaults &operator=(ArmedSaveFaults &&) = delete;
+};
+
+/** @brief @param mode How item 0 fails @return Item 0, which fails so, and item 1, which does not */
+std::vector<std::unique_ptr<GFaultyContainer>> oneBadOneGood(Gem::Courtier::fault_mode mode) {
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, mode));
+    items.push_back(std::make_unique<GFaultyContainer>(1));
+    return items;
+}
+
+} /* anonymous namespace */
+
+/**
+ * An item the server cannot encode ends as failed (the policy then fills its slot with a clone of
+ * the good one); it is not put back and served again. The client's other item is evaluated once.
+ */
+TEST_CASE(
+    "GPeerClientT: an item the server cannot encode ends as failed",
+    "[courtier][peer][client]"
+) {
+    const ArmedSaveFaults armed;
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN, .prefetchDepth = 2},
+        evaluations,
+        5ms,
+        nullptr,
+        AS_IS
+    );
+    auto items = oneBadOneGood(Gem::Courtier::fault_mode::THROW_SAVING);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->of(0) == 0);
+    CHECK(evaluations->of(1) == 1);
+    CHECK(world.counts().nWork.load() == 1);
+    CHECK(world.shell().requeuedCount() == 0);
+    REQUIRE(items[0] != nullptr);
+    CHECK(items[0]->get_stored_number() == 1); // the failed slot holds a clone of the good item
+}
+
+/**
+ * A result the client cannot encode is returned as failed, as an evaluation that threw is: the
+ * client stays, the item is not served again, and the slot ends as failed.
+ */
+TEST_CASE(
+    "GPeerClientT: a result the client cannot encode is returned as failed",
+    "[courtier][peer][client]"
+) {
+    const ArmedSaveFaults armed;
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN, .prefetchDepth = 1},
+        evaluations,
+        5ms,
+        nullptr,
+        AS_IS
+    );
+    auto items = oneBadOneGood(Gem::Courtier::fault_mode::THROW_SAVING_RESULT);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->of(0) == 1);
+    CHECK(evaluations->of(1) == 1);
+    CHECK(world.counts().nWork.load() == 2);
+    CHECK(world.shell().requeuedCount() == 0);
+    CHECK_FALSE(world.clientsDone());
+    REQUIRE(items[0] != nullptr);
+    CHECK(items[0]->get_stored_number() == 1);
 }

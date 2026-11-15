@@ -274,20 +274,10 @@ protected:
                 if constexpr(decidesResultKind()) {
                     container.setKind(self->resultKindHint_());
                 }
-                std::string bytes;
+                // The wire context is only read here: a client never interns a blob
+                // (may_intern_blobs is false), so its RETURN carries every blob inline.
                 std::string error;
-                try {
-                    // The wire context is only read here: a client never interns a blob
-                    // (may_intern_blobs is false), so its RETURN carries every blob inline.
-                    bytes = Gem::Courtier::wireEncode(
-                        container,
-                        &self->wire_ctx_,
-                        self->wire_ctx_.mode
-                    );
-                }
-                catch(const std::exception &e) {
-                    error = e.what();
-                }
+                std::string bytes = self->encodeResult_(container, error);
                 // A client that decides the kind of a result on the io thread gets the frame too,
                 // in case it has to be encoded once more (see sendResult_()).
                 std::optional<GCommandContainerT<processable_type>> frame;
@@ -312,6 +302,54 @@ protected:
                 );
             }
         );
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Encodes a finished result (a RETURN or a RESULT frame). A result whose item cannot be
+     * encoded (its serialization throws, whatever it throws) is returned as failed, the way an
+     * evaluation that threw is: the frame keeps its kind, its tag and its outcome, which is marked
+     * ERROR_FLAGGED with the reason, and loses the item (or library payload); the server ends that
+     * slot as failed when it applies the outcome. So an item that cannot be sent back neither ends
+     * the client nor travels from client to client. On a compute thread.
+     *
+     * @param frame The result's frame; stripped of its item if that cannot be encoded
+     * @param error Set if not even the stripped frame can be encoded (then nothing is returned)
+     * @return The encoded frame
+     */
+    std::string encodeResult_(GCommandContainerT<processable_type> &frame, std::string &error) {
+        std::string reason;
+        try {
+            return Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
+        }
+        catch(const std::exception &e) {
+            reason = e.what();
+        }
+        catch(...) {
+            reason = "an exception that is not a std::exception";
+        }
+        auto outcome = frame.outcome();
+        outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
+        outcome.error_descriptions += "The result could not be encoded: " + reason;
+        const GFrameKind kind = frame.kind();
+        const std::uint32_t tag = frame.tag();
+        frame.reset(kind);
+        frame.setTag(tag);
+        frame.setOutcome(std::move(outcome));
+        glogger << "In " << client_name_ << ": a result could not be encoded:" << '\n'
+                << reason << '\n'
+                << "It is returned to the server as failed; the client keeps running." << '\n'
+                << GWARNING;
+        try {
+            return Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
+        }
+        catch(const std::exception &e) {
+            error = e.what();
+        }
+        catch(...) {
+            error = "an exception that is not a std::exception";
+        }
+        return {};
     }
 
     //-------------------------------------------------------------------------

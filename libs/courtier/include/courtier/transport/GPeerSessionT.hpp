@@ -74,6 +74,12 @@ namespace Gem::Courtier::Consumers {
  * nothing: it is checked in and no answer is owed. The client sees NO_WORK only when a request had
  * to be refused.
  *
+ * An item whose answer cannot be encoded (its serialization throws) ends as failed through the
+ * consumer (failPayloadItem): it is that item's failure, and the session knows which item it is. The
+ * client's other items stay with it, the request is still owed, and the session goes on with the
+ * next item. The client's blob state is forgotten (the failed encoding may have counted a blob as
+ * sent). A failure that is not the item's -- the checkout itself throws -- is a refusal (below).
+ *
  * Messages that cannot be read. A message from the client that cannot be decoded is attributed by
  * its kind, which is read first (the frame is reset to NONE before each decode). A RESULT is not
  * answered (it asked for nothing); a request (PULL, RETURN, UNREADABLE) is answered with NO_WORK,
@@ -119,6 +125,10 @@ public:
         std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> getPayloadItem;
         /// Checks a returned frame in
         std::move_only_function<void(GCommandContainerT<processable_type> &&)> putPayloadItem;
+        /// Ends an item that getPayloadItem handed out as failed (its answer could not be
+        /// encoded): its correlation id, and why
+        std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, const std::string &)>
+            failPayloadItem;
         /// Puts every item back that this session has handed out and not seen return
         std::move_only_function<void()> abandonItems;
         /// Whether the server has been stopped
@@ -145,6 +155,7 @@ public:
     )
       : get_payload_item_(std::move(hooks.getPayloadItem))
       , put_payload_item_(std::move(hooks.putPayloadItem))
+      , fail_payload_item_(std::move(hooks.failPayloadItem))
       , abandon_items_(std::move(hooks.abandonItems))
       , check_server_stopped_(std::move(hooks.checkServerStopped))
       , server_sign_on_(std::move(hooks.serverSignOn))
@@ -421,19 +432,21 @@ private:
     //-------------------------------------------------------------------------
     /** @brief Logs why a request was refused @param failure The exception that refused it */
     static void logRefusal_(const std::exception_ptr &failure) {
+        glogger << "GPeerSessionT<processable_type>: a request was refused: " << describe_(failure)
+                << '\n'
+                << GLOGGING;
+    }
+
+    /** @brief @param failure An exception @return What it says, for the log and the item */
+    static std::string describe_(const std::exception_ptr &failure) {
         try {
             std::rethrow_exception(failure);
         }
         catch(const std::exception &e) {
-            glogger << "GPeerSessionT<processable_type>: a request was refused: " << e.what()
-                    << '\n'
-                    << GLOGGING;
+            return e.what();
         }
         catch(...) {
-            glogger << "GPeerSessionT<processable_type>: a request was refused "
-                       "(an exception that is not a std::exception)"
-                    << '\n'
-                    << GLOGGING;
+            return "an exception that is not a std::exception";
         }
     }
 
@@ -442,8 +455,9 @@ private:
      * @brief Answers one request: checks an item out and encodes it under this session's wire
      * scope (blob send-once), or parks the session if nothing is pending.
      *
-     * @return The answer (WORK; NO_WORK only if the item had to be refused); nothing if the
-     * session is parked instead, or if the server is stopping
+     * @return The answer (WORK; NO_WORK only if the request had to be refused); nothing if the
+     * session is parked instead, if the server is stopping, or if the item could not be encoded
+     * (it has then ended as failed, and the request is still owed)
      */
     std::optional<std::string> answer_pull_() {
         return this->refusing_([&]() -> std::optional<std::string> {
@@ -458,15 +472,40 @@ private:
                 stopping_ = true;
                 return std::nullopt;
             }
+            const Gem::Courtier::CORRELATION_ID_TYPE id = result.item->getCorrelationId();
             Gem::Courtier::serveWorkItem(command_container_, [&result] {
                 return std::move(result.item);
             });
-            return Gem::Courtier::wireEncode(
-                command_container_,
-                wire_ctx_.enabled ? &wire_ctx_ : nullptr,
-                serialization_mode_
-            );
+            try {
+                return Gem::Courtier::wireEncode(
+                    command_container_,
+                    wire_ctx_.enabled ? &wire_ctx_ : nullptr,
+                    serialization_mode_
+                );
+            }
+            catch(...) {
+                this->itemFailed_(id, std::current_exception());
+            }
+            return std::nullopt;
         });
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief An item could not be encoded: it ends as failed through the consumer, and the
+     * client's blob state is forgotten (see the class comment).
+     *
+     * @param id The item's correlation id
+     * @param failure Why it could not be encoded
+     */
+    void itemFailed_(Gem::Courtier::CORRELATION_ID_TYPE id, const std::exception_ptr &failure) {
+        const std::string what = "The work item could not be encoded for client " +
+                                 std::to_string(peer_id_) + ": " + describe_(failure);
+        command_container_.reset();
+        if(wire_registry_ != nullptr) {
+            wire_registry_->forgetPeer(peer_id_);
+        }
+        fail_payload_item_(id, what);
     }
 
     //-------------------------------------------------------------------------
@@ -497,6 +536,8 @@ private:
 
     std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> get_payload_item_;
     std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;
+    std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, const std::string &)>
+        fail_payload_item_;
     std::move_only_function<void()> abandon_items_;
     std::move_only_function<bool()> check_server_stopped_;
     std::move_only_function<void(bool)> server_sign_on_;

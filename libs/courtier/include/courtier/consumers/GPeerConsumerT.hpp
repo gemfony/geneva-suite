@@ -329,6 +329,11 @@ private:
                         lease->remove(frame.outcome().correlation_id);
                         this->checkin(std::move(frame));
                     },
+                .failPayloadItem =
+                    [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
+                        lease->remove(id);
+                        this->failInFlight(id, what);
+                    },
                 .abandonItems = [lease] { lease->abandonAll(); },
                 .checkServerStopped = [this]() -> bool { return this->stopped(); },
                 .serverSignOn =

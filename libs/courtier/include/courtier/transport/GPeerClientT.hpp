@@ -500,15 +500,8 @@ private:
             compute_pool_,
             [self, frame = std::move(frame), guard = std::move(guard)]() mutable {
                 frame.setKind(GFrameKind::RESULT);
-                std::string bytes;
                 std::string error;
-                try {
-                    bytes =
-                        Gem::Courtier::wireEncode(frame, &self->wire_ctx_, self->wire_ctx_.mode);
-                }
-                catch(const std::exception &e) {
-                    error = e.what();
-                }
+                std::string bytes = self->encodeResult_(frame, error);
                 // The pool's handler gives up its hold on the client here: if it kept it until it is
                 // destroyed, after the io thread may have finished with the client, the client could be
                 // destroyed on a thread of its own pool, which cannot join itself.

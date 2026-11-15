@@ -528,6 +528,28 @@ protected:
     }
 
     /***************************************************************************/
+    /** @brief Ends a slot that is in flight as failed (ERROR_FLAGGED, @p what added to its error
+     *  descriptions; see failSlot_locked()), for an item that a session checked out and could not
+     *  send: its encoding threw. The submission policy then treats it as any failed evaluation. A
+     *  no-op if the batch has moved on or the slot is no longer in flight.
+     *  @param id The (batch_id, slot) correlation id of the item
+     *  @param what Why it failed */
+    void failInFlight(Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
+        std::scoped_lock const lk(mtx_);
+        auto it = batches_.find(decodeBatch(id));
+        if(it == batches_.end()) {
+            return;
+        }
+        BatchState &b = it->second;
+        const std::size_t slot = decodeSlot(id);
+        if(slot >= b.items.size() || not b.items[slot] ||
+           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
+            return;
+        }
+        failSlot_locked(b, slot, b.items[slot]->processingOutcome(), what, "failInFlight()");
+    }
+
+    /***************************************************************************/
     /** @brief Whether the server is being torn down (sessions use this to stop accepting work).
      *  @return true once teardown has been requested */
     [[nodiscard]] bool stopped() const noexcept { return stop_.load(); }
@@ -907,7 +929,8 @@ private:
      *  ERROR_FLAGGED and @p what appended to its error descriptions, a warning is logged, and the
      *  slot is completed (completeSlot_locked()). The submission policy then treats the item like
      *  any evaluation that failed. Used where the item cannot go on: a return that cannot be
-     *  applied (checkin()) and an item that cannot be cloned for dispatch (checkout). The caller
+     *  applied (checkin()), an item that cannot be cloned for dispatch (checkout) and one that a
+     *  session cannot encode (failInFlight()). The caller
      *  holds mtx_ and has already taken the slot out of the pending counts if it was PENDING.
      *  @param b The batch owning the slot
      *  @param slot The slot index to fail
