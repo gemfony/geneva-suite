@@ -74,6 +74,7 @@ SET ( TRANSPORT_INCLUDES
     transport/GPeerSessionT.hpp
     transport/GPrefetchingClientT.hpp
     transport/GWebsocketPeer.hpp
+    transport/GWebsocketPeerTransport.hpp
     transport/GWebsocketTransportT.hpp
 )
 

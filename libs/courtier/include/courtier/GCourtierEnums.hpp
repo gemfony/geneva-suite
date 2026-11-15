@@ -152,6 +152,10 @@ constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 /// reads nothing, so it answers no ping either: the other end, the one that floods, sees no pong
 /// and is closed by its own idle limit if the pause lasts two ping intervals.
 constexpr std::size_t GWEBSOCKETMAXUNHANDLEDMESSAGES = 1024;
+/// How long a stopping websocket server waits, after it has told every client that the run has
+/// ended, for the clients to confirm (GListenerI::stopGrace()). A client that has not confirmed by
+/// then is cut off and sees a loss.
+constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
 
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:

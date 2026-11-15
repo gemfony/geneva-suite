@@ -32,6 +32,7 @@ SET(COMMUNICATIONSOURCES
         GCourtierEnums.cpp
         GDemoProcessingContainers.cpp
         GWebsocketPeer.cpp
+        GWebsocketPeerTransport.cpp
         )
 
 # The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp,
