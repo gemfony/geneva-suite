@@ -64,8 +64,8 @@
  *
  *  1. **Two phases.** Nothing is reported before GPeerI::start(); onOpen precedes any onMessage.
  *     A peer that cannot be opened reports onClosed (GPeerEnd::FAILED) without onOpen.
- *  2. **One executor, serialized.** send(), abort() and setOwnerBusy() are called on the peer's
- *     executor; close() and executor() from any thread; start() from any thread, once, before
+ *  2. **One executor, serialized.** send() and setOwnerBusy() are called on the peer's
+ *     executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
  *     after start() has returned is ordered after that work. On a server the handlers run on the
  *     executor the shell hands to the listener, and the transport moves the bytes on threads of
@@ -94,7 +94,9 @@
  *     before the executor's context is destroyed. endWork() stops and joins the transport's
  *     threads and shuts its I/O context down (GIoContext::shutdown(): the pending handlers go,
  *     the context stays); the listener, and its context with it, is destroyed after the shell's
- *     context.
+ *     context. A connector's peers do their I/O on the executor given to connect() (a transport
+ *     whose client end needs I/O of its own keeps it on that executor's thread, too), so that
+ *     nothing of a client's peer runs once that executor's context has stopped.
  *  8. **The end of a run belongs to the process, not to a session.** The server's shell tells
  *     every peer that has not ended that the run is over (close(GPeerClose::RUN_ENDED)) and waits,
  *     at most GListenerI::stopGrace(), until they have ended. GListenerI::stop() means "no new
@@ -168,8 +170,11 @@ public:
     virtual void close(GPeerClose) = 0;
 
     /** @brief Ends the connection at once, without waiting for the other end; may cut what has not
-     *  been sent. On the executor, or after its context has stopped running. Calls onClosed itself
-     *  (if the peer has not ended) and drops the handlers, so not from inside one of them. */
+     *  been sent. For teardown only: called when no thread runs a handler of the peer or does its
+     *  I/O any more -- on a client after its executor's context has stopped running (rule 7: the
+     *  connector's peers do their I/O there). A listener's peers are not aborted: endWork() lets
+     *  them go. Calls onClosed itself (if the peer has not ended) and drops the handlers. A peer
+     *  aborted before the work of its start() has run does not open afterwards. */
     virtual void abort() = 0;
 
     /** @brief The executor all handlers of this peer run on. From any thread. */

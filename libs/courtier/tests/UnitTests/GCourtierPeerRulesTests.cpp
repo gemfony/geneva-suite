@@ -705,3 +705,37 @@ TEST_CASE(
     release.set_value();
     REQUIRE(eventually([&] { return server_end->ended(); }));
 }
+
+/******************************************************************************/
+/**
+ * abort() at teardown, before the work of start() has run (its context never ran): the end does not
+ * open afterwards, and the role hears the end once, when that work runs.
+ */
+TEST_CASE(
+    "Peer rules (in-process): an end aborted before its start has run does not open",
+    "[courtier][peer]"
+) {
+    boost::asio::io_context ctx; // no thread runs it yet
+    auto [end, other] = GInProcessPeer::makePair(
+        ctx.get_executor(),
+        {},
+        ctx.get_executor(),
+        {},
+        CLOSE_GRACE
+    );
+    std::size_t n_opened = 0; // on ctx's thread, which is this one
+    std::size_t n_closed = 0;
+    end->start(
+        GPeerHandlers{
+            .onOpen = [&n_opened] { ++n_opened; },
+            .onMessage = {},
+            .onClosed = [&n_closed](GPeerEnd, GPeerClose, std::string_view) { ++n_closed; },
+        }
+    );
+    other->start(GPeerHandlers{});
+    end->abort();
+    ctx.run_for(300ms);
+    CHECK(n_opened == 0);
+    CHECK(n_closed == 1);
+    CHECK(end->ended());
+}

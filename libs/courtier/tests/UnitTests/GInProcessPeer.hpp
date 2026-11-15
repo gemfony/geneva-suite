@@ -205,6 +205,15 @@ public:
             strand_,
             [self = this->shared_from_this(), handlers = std::move(handlers)]() mutable {
                 self->handlers_ = std::move(handlers);
+                if(self->state_ == state::ENDED) {
+                    // Aborted before this ran: it does not open; the role hears the end now.
+                    auto ended = std::move(self->handlers_);
+                    self->handlers_ = Gem::Courtier::Consumers::GPeerHandlers{};
+                    if(ended.onClosed) {
+                        ended.onClosed(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
+                    }
+                    return;
+                }
                 if(self->faults_.failStart) {
                     self->finish_(
                         GPeerEnd::FAILED,
@@ -239,7 +248,8 @@ public:
         });
     }
 
-    /** @brief Tells the other end and ends at once, reporting onClosed inline. */
+    /** @brief Tells the other end and ends at once, reporting onClosed inline. Beyond GPeerI's
+     *  teardown, this test pair also allows it on its strand: the tests lose a connection so. */
     void abort() override {
         if(state_ == state::ENDED) {
             return;

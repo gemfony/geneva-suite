@@ -142,9 +142,9 @@ public:
     void send(std::string) override;
     /** @brief Closes in the regular way after what was handed to send() before. Any thread. */
     void close(GPeerClose) override;
-    /** @brief Ends the connection at once, without a close handshake. Not inside a handler, and
-     *  only when the socket's executor runs no handler of this peer (on it, or after its context
-     *  has stopped). */
+    /** @brief Ends the connection at once, without a close handshake. For teardown (GPeerI::abort()):
+     *  when neither the socket's executor nor the handler strand runs anything of this peer, e.g. on
+     *  a client after its io context has stopped. */
     void abort() override;
     /** @brief The strand all handlers of this peer run on. Any thread. */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
