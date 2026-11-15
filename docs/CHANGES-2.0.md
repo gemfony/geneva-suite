@@ -217,14 +217,27 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   names: `--beast_ip`, `--beast_port`, `--beast_serializationMode`, `--beast_nListenerThreads`
   and `--beast_prefetchDepth`. Code that built the consumer from `GAsioConsumerConfig` uses
   `GWebsocketConsumerConfig`, whose members are the same but for `maxReconnects`.
-  `--asio_maxReconnects` has no counterpart: a websocket client does not reconnect after it has
-  lost its connection, or when its first connection attempt fails; it ends. Reconnection comes
-  with a later change. The key
+  `--asio_maxReconnects` (attempts of one exchange, about 7 s by default) has no counterpart; see
+  the next item. The key
   `session_timeout_ms` of the networked timeout configuration (the asio server's limit on one
   exchange) is gone; the websocket keep-alive covers a client that falls silent, and
   `--update-configs` drops the key from an existing file. The classes `GAsioConsumerT`,
   `GAsioConsumerClientT` and `GTcpAcceptingConsumerT`, the constants `GASIO*` and the frame's
   announced peer id (`GCommandContainerT::setPeerId()` / `peerId()`) are gone with it.
+- **A websocket client connects again.** It may be started before its server: a failed attempt
+  is followed by another after a pause that grows from 0.25 to 30 s, until
+  `--beast_firstContactLimit` seconds (default 0: no limit) pass without contact (an answer, or a
+  connection open for 60 s). A client whose connection is lost (reset, closed by the server, or cut
+  by the keep-alive) connects again until `--beast_reconnectLimit` seconds (default 600; 0: no
+  limit) pass since the end of the last connection that had contact; a limit that runs out ends it
+  with an error. It sends again what the server may not have read, evaluates what it holds, and
+  delivers the results on the next connection; the server drops a result it already has, or one
+  of another server process. An evaluation is never cut short: a client that has to end without
+  a connection makes one last attempt and saves each finished result it still cannot deliver --
+  the evaluated item, one file each, in `--beast_undeliveredDir` (default: the working
+  directory); the log names the file. Nothing is saved after the server has announced the end of
+  the run. A message whose kind a server cannot read now ends the connection (the client connects
+  again) instead of being answered with NO_WORK.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
 - **A websocket server tells its clients that the run has ended.** `stopServer()` closes every

@@ -576,6 +576,8 @@ TEST_CASE(
     CHECK(beast.pingInterval == beast_defaults.pingInterval);
     CHECK(beast.verboseControlFrames == beast_defaults.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == beast_defaults.clientPrefetchDepth);
+    CHECK(beast.clientFirstContactLimit == beast_defaults.clientFirstContactLimit);
+    CHECK(beast.clientReconnectLimit == beast_defaults.clientReconnectLimit);
     CHECK(beast.clientUndeliveredDir == beast_defaults.clientUndeliveredDir);
 }
 
