@@ -178,24 +178,27 @@ public:
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
+        // The defaults are the configuration's (one place for them), the port excepted: on the
+        // command line server and client are two processes, which meet on GCONSUMERDEFAULTPORT.
+        const c2::GAsioConsumerConfig defaults;
         visible.add_options()(
-            "asio_ip", po::value<std::string>()->default_value(c2::GCONSUMERDEFAULTSERVER),
+            "asio_ip", po::value<std::string>()->default_value(defaults.ip),
             "\t[asio] The name or ip of the server")(
             "asio_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
             "\t[asio] The port of the server");
         hidden.add_options()(
             "asio_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
             "\t[asio] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
             "asio_nProcessingThreads",
-            po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
+            po::value<std::size_t>()->default_value(defaults.nThreads),
             "\t[asio] The number of io threads of the server (0 == as many as the machine has "
             "hardware threads)")(
             "asio_maxReconnects",
-            po::value<std::size_t>()->default_value(c2::GASIOCONSUMERMAXCONNECTIONATTEMPTS),
+            po::value<std::size_t>()->default_value(defaults.maxReconnects),
             "\t[asio] The maximum number of client reconnection attempts")(
             "asio_prefetchDepth",
-            po::value<std::size_t>()->default_value(1),
+            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
             "\t[asio] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
     }
 };
@@ -252,29 +255,32 @@ public:
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
+        // The defaults are the configuration's (one place for them), the port excepted: on the
+        // command line server and client are two processes, which meet on GCONSUMERDEFAULTPORT.
+        const c2::GWebsocketConsumerConfig defaults;
         visible.add_options()(
-            "beast_ip", po::value<std::string>()->default_value(c2::GCONSUMERDEFAULTSERVER),
+            "beast_ip", po::value<std::string>()->default_value(defaults.ip),
             "\t[beast] The name or ip of the server")(
             "beast_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
             "\t[beast] The port of the server");
         hidden.add_options()(
             "beast_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
             "\t[beast] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
             "beast_nListenerThreads",
-            po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
+            po::value<std::size_t>()->default_value(defaults.nThreads),
             "\t[beast] The number of io threads of the server, and of the threads its sessions run "
             "on (0 == as many as the machine has hardware threads)")(
             "beast_pingInterval",
-            po::value<std::size_t>()->default_value(c2::GBEASTCONSUMERPINGINTERVAL),
+            po::value<std::size_t>()->default_value(defaults.pingInterval),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "
             "sent; the connection is closed after twice that time without any inbound data "
             "(0 == off)")(
             "beast_verboseControlFrames",
-            po::value<bool>()->default_value(false)->implicit_value(true),
+            po::value<bool>()->default_value(defaults.verboseControlFrames)->implicit_value(true),
             "\t[beast] Announce ping/pong/close frames")(
             "beast_prefetchDepth",
-            po::value<std::size_t>()->default_value(1),
+            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
             "\t[beast] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
     }
 };

@@ -552,6 +552,51 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// The defaults of the socket consumers' options are those of their configuration structs: an option
+// left unset leaves the consumer as a default-constructed configuration describes it, and a default
+// changed in the struct changes what the command line gives, without a second place to edit. The
+// port is the one exception: on the command line server and client are two processes and meet on
+// GCONSUMERDEFAULTPORT, while a configuration built in a program lets the server pick a free port.
+TEST_CASE(
+    "the socket consumers' options default to their configuration structs",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+    po::options_description all;
+    all.add(visible).add(hidden);
+    po::variables_map vm;
+    po::store(po::command_line_parser(std::vector<std::string>{}).options(all).run(), vm);
+    po::notify(vm);
+
+    const auto beast = Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+        Gem::Geneva::specFromCommandLine("beast", vm)
+    );
+    const Gem::Courtier::GWebsocketConsumerConfig beast_defaults;
+    CHECK(beast.ip == beast_defaults.ip);
+    CHECK(beast.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
+    CHECK(beast.serializationMode == beast_defaults.serializationMode);
+    CHECK(beast.nThreads == beast_defaults.nThreads);
+    CHECK(beast.pingInterval == beast_defaults.pingInterval);
+    CHECK(beast.verboseControlFrames == beast_defaults.verboseControlFrames);
+    CHECK(beast.clientPrefetchDepth == beast_defaults.clientPrefetchDepth);
+
+    const auto asio = Gem::Courtier::configOf<Gem::Courtier::GAsioConsumerConfig>(
+        Gem::Geneva::specFromCommandLine("asio", vm)
+    );
+    const Gem::Courtier::GAsioConsumerConfig asio_defaults;
+    CHECK(asio.ip == asio_defaults.ip);
+    CHECK(asio.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
+    CHECK(asio.serializationMode == asio_defaults.serializationMode);
+    CHECK(asio.nThreads == asio_defaults.nThreads);
+    CHECK(asio.maxReconnects == asio_defaults.maxReconnects);
+    CHECK(asio.clientPrefetchDepth == asio_defaults.clientPrefetchDepth);
+}
+
+// ---------------------------------------------------------------------------
 // The thread consumer registered an option "stcCapableOfFullReturn" that nothing ever read. An
 // option that is offered must have an effect, so it is gone; the consumers' option set must not
 // offer it (the neighbouring stc option is there, so the lookup itself works).

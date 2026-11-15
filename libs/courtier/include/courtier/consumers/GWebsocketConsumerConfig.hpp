@@ -57,14 +57,16 @@ struct GWebsocketConsumerConfig {
     static constexpr std::string_view MNEMONIC = "beast";
 
     /// Client: the name or address of the server
-    std::string ip = "localhost";
-    /// Server: the port to listen on (0: a free port, see getPort()). Client: the server's port
+    std::string ip = GCONSUMERDEFAULTSERVER;
+    /// Server: the port to listen on (0: a free port, see getPort()). Client: the server's port.
+    /// The command line's default is GCONSUMERDEFAULTPORT instead: there server and client are
+    /// two processes and have to agree on a port without being told
     unsigned short port = 0;
     /// Both: the serialization of work items on the wire
-    Gem::Common::serializationMode serializationMode = Gem::Common::serializationMode::GEM_BINARY;
+    Gem::Common::serializationMode serializationMode = GCONSUMERSERIALIZATIONMODE;
     /// Server: the number of io threads, and of the threads the sessions run on (they encode and
     /// decode the messages); 0: as many as the machine has hardware threads
-    std::size_t nThreads = 0;
+    std::size_t nThreads = GCONSUMERLISTENERTHREADS;
     /// Both: seconds of silence after which a ping is sent; the connection is closed after
     /// twice that time without inbound data (0: off)
     std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;

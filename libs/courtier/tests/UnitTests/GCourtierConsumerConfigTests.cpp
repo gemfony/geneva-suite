@@ -183,7 +183,7 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK(beast.ip == "localhost");
     CHECK(beast.port == 0);
     CHECK(beast.serializationMode == Gem::Common::serializationMode::GEM_BINARY);
-    CHECK(beast.nThreads == 0);
+    CHECK(beast.nThreads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
     CHECK(beast.pingInterval == Gem::Courtier::GBEASTCONSUMERPINGINTERVAL);
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
@@ -193,8 +193,8 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK(asio.ip == "localhost");
     CHECK(asio.port == 0);
     CHECK(asio.serializationMode == Gem::Common::serializationMode::GEM_BINARY);
-    CHECK(asio.nThreads == 0);
-    CHECK(asio.maxReconnects == 0);
+    CHECK(asio.nThreads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
+    CHECK(asio.maxReconnects == Gem::Courtier::GASIOCONSUMERMAXCONNECTIONATTEMPTS);
     CHECK(asio.clientPrefetchDepth == 1);
     CHECK(asio.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
 }
