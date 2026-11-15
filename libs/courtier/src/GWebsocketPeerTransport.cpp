@@ -46,6 +46,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
+#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -150,19 +151,23 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
     on_peer_ = std::move(on_peer);
 
     work_guard_.emplace(io_context_.get_executor());
-    budget_ = Gem::Common::Concurrency::threadBudget().reserve(
-        name_ + ":io",
-        static_cast<unsigned int>(n_threads_),
-        Gem::Common::Concurrency::ThreadElasticity::Elastic
-    );
     try {
+        // The reservation is undone with the rest. (No test for a reservation that throws: the
+        // budget never refuses, so only a failing allocation gets there.)
+        budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+            name_ + ":io",
+            static_cast<unsigned int>(n_threads_),
+            Gem::Common::Concurrency::ThreadElasticity::Elastic
+        );
         for(std::size_t t = 0; t < n_threads_; ++t) {
             threads_.create_thread([this] { io_context_.run(); });
         }
     }
-    catch(const std::exception &e) {
-        // Not all threads could be made: those that run are stopped and joined, and the listener
-        // is as if it had not been started (GListenerI::start()).
+    catch(...) {
+        // The reservation, or one of the threads, could not be made: the threads that run are
+        // stopped and joined, and the listener is as if it had not been started
+        // (GListenerI::start()).
+        const std::string why = Gem::Courtier::describeException(std::current_exception());
         work_guard_.reset();
         io_context_.stop();
         threads_.join_all();
@@ -175,7 +180,7 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         handler_executor_ = boost::asio::any_io_executor{};
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << name_ << ": could not start the I/O threads: " << e.what() << '\n'
+            << "In " << name_ << ": could not start the I/O threads: " << why << '\n'
         );
     }
     running_.store(true);
