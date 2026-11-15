@@ -68,6 +68,7 @@ using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessPeer;
+using Gem::Courtier::Tests::GInProcessRoute;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
 
@@ -579,7 +580,7 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
     CHECK(listener->stopGrace() == 1500ms);
     CHECK_FALSE(listener->detectsLoss());
     // The connector goes after the threads its ends run on, the ends kept here before them
-    GInProcessConnector connector(listener);
+    GInProcessConnector connector(std::make_shared<GInProcessRoute>(listener));
     IoThreads io;
 
     std::mutex mutex;
@@ -680,7 +681,7 @@ TEST_CASE(
     std::promise<void> release;
     auto released = release.get_future().share();
     bool hooked = false; // on the server end's strand only
-    server_end->setTransmitHook([&in_hook, released, &hooked] {
+    server_end->setTransmitHook([&in_hook, released, &hooked](std::string_view) {
         if(hooked) {
             return;
         }
@@ -794,4 +795,94 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
     ctx.stop();
     runner.join();
     listener->endWork();
+}
+
+/******************************************************************************/
+/**
+ * A cut connection ends as a reset: both ends report FAILED, no close travels, and what was handed
+ * over just before the cut is not delivered.
+ */
+TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[courtier][peer]") {
+    IoThreads io;
+    auto [a, b] = pairOn(io.executor());
+    auto role_a = makeRole();
+    auto role_b = makeRole();
+    role_a->start(a);
+    role_b->start(b);
+    REQUIRE(eventually([&] {
+        return not role_a->events().empty() && not role_b->events().empty();
+    }));
+    boost::asio::post(a->executor(), [role_a] { role_a->send("delivered"); });
+    REQUIRE(eventually([&] { return role_b->nMessages() == 1; }));
+
+    boost::asio::post(a->executor(), [role_a, a] {
+        role_a->send("lost");
+        a->sever();
+    });
+    REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
+    std::this_thread::sleep_for(50ms);
+    CHECK(role_a->events().back() == "closed:FAILED:NORMAL");
+    CHECK(role_b->events().back() == "closed:FAILED:NORMAL");
+    CHECK(role_b->nMessages() == 1);
+    CHECK(role_a->nClosed() == 1);
+    CHECK(role_b->nClosed() == 1);
+}
+
+/******************************************************************************/
+/** A connector connects to the listener its route points at when it connects, and a route without
+ *  one refuses. */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
+TEST_CASE("Peer rules (in-process): a route can be switched and cleared", "[courtier][peer]") {
+    auto first = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto second = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto route = std::make_shared<GInProcessRoute>(first);
+    // The connector goes after the threads its ends run on, the ends kept here before them
+    GInProcessConnector connector(route);
+    IoThreads io;
+    std::mutex mutex;
+    std::vector<std::shared_ptr<GPeerI>> server_ends;
+    auto keep = [&](std::shared_ptr<GPeerI> peer, GWirePeerId) {
+        const std::scoped_lock lock(mutex);
+        server_ends.push_back(std::move(peer));
+    };
+    first->start(io.executor(), keep);
+    second->start(io.executor(), keep);
+
+    auto strand = boost::asio::make_strand(io.executor());
+    auto connect = [&] {
+        auto outcome = std::make_shared<std::promise<std::shared_ptr<GPeerI>>>();
+        auto future = outcome->get_future();
+        boost::asio::post(strand, [&, outcome] {
+            connector.connect(strand, [outcome](std::shared_ptr<GPeerI> peer, std::string_view) {
+                outcome->set_value(std::move(peer));
+            });
+        });
+        return future.get();
+    };
+
+    std::vector<std::shared_ptr<GPeerI>> client_ends;
+    client_ends.push_back(connect());
+    CHECK(client_ends.back() != nullptr);
+    CHECK(first->nConnections() == 1);
+
+    route->set(second);
+    client_ends.push_back(connect());
+    CHECK(client_ends.back() != nullptr);
+    CHECK(first->nConnections() == 1);
+    CHECK(second->nConnections() == 1);
+
+    route->clear();
+    CHECK(connect() == nullptr);
+    CHECK(first->nConnections() == 1);
+    CHECK(second->nConnections() == 1);
+
+    first->stop();
+    second->stop();
+    client_ends.clear();
+    {
+        const std::scoped_lock lock(mutex);
+        server_ends.clear();
+    }
+    first->endWork();
+    second->endWork();
 }

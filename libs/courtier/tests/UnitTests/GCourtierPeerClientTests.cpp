@@ -79,6 +79,7 @@ using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessListenerRef;
 using Gem::Courtier::Tests::GInProcessPeerWatch;
+using Gem::Courtier::Tests::GInProcessRoute;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
 
@@ -344,7 +345,7 @@ public:
         setup_type setup
     ) {
         auto client = std::make_shared<client_type>(
-            std::make_unique<GInProcessConnector>(listener_, true, watch),
+            std::make_unique<GInProcessConnector>(route_, true, watch),
             std::move(options)
         );
         client->setItemProcessor(countingProcessor(evaluations, duration));
@@ -357,6 +358,14 @@ public:
         return client;
     }
 
+    /** @brief @return The listener of the shell */
+    [[nodiscard]] const std::shared_ptr<GInProcessListener> &listener() const {
+        return listener_;
+    }
+    /** @brief @return Where the clients connect to */
+    [[nodiscard]] GInProcessRoute &route() {
+        return *route_;
+    }
     /** @brief @return The shell */
     Gem::Courtier::GPeerConsumerT<GFaultyContainer> &shell() {
         return shell_;
@@ -392,6 +401,8 @@ public:
 
 private:
     std::shared_ptr<GInProcessListener> listener_;
+    /// Where the clients' connectors connect to (the listener, until a test changes it)
+    std::shared_ptr<GInProcessRoute> route_ = std::make_shared<GInProcessRoute>(listener_);
     std::shared_ptr<ServerCounts> counts_;
     Gem::Courtier::GPeerConsumerT<GFaultyContainer> shell_;
     std::vector<std::shared_ptr<std::atomic<bool>>> done_;
@@ -795,7 +806,7 @@ TEST_CASE(
             server->start(peer);
         });
         auto client = std::make_shared<slow_client_type>(
-            std::make_unique<GInProcessConnector>(listener),
+            std::make_unique<GInProcessConnector>(std::make_shared<GInProcessRoute>(listener)),
             GPeerClientOptions{
                 .name = "slowly returning client",
                 .mode = BIN,
@@ -923,7 +934,7 @@ public:
       , shell_("Shell", std::make_unique<GInProcessListenerRef>(listener_), 2, BIN)
       , client_(
             std::make_shared<Gem::Courtier::Consumers::GPeerClientT<item_type>>(
-                std::make_unique<GInProcessConnector>(listener_),
+                std::make_unique<GInProcessConnector>(std::make_shared<GInProcessRoute>(listener_)),
                 std::move(options)
             )
         ) {

@@ -68,7 +68,9 @@
  * server and its clients can run in one process without a socket or MPI.
  *
  * A test can make an end misbehave (GInProcessFaults): lose what arrives after a number of
- * messages, never acknowledge a close, or fail to start.
+ * messages, never acknowledge a close, or fail to start. It can cut a connection as a reset would
+ * (GInProcessPeer::sever()), and point the connectors of a client at another listener, or at none
+ * (GInProcessRoute).
  */
 
 namespace Gem::Courtier::Tests {
@@ -169,9 +171,29 @@ public:
     GInProcessPeer &operator=(GInProcessPeer &&) = delete;
 
     /** @brief For a test: @p hook runs on this end's strand each time it hands something to the
-     *  other end, before it reaches for it. Before start(). @param hook What runs */
-    void setTransmitHook(std::move_only_function<void()> hook) {
+     *  other end, before it reaches for it, and is shown what is handed over (a message's bytes; a
+     *  close's word as one byte). A hook may sever() the connection: what it was shown is then not
+     *  delivered. Before start(). @param hook What runs */
+    void setTransmitHook(std::move_only_function<void(std::string_view)> hook) {
         transmit_hook_ = std::move(hook);
+    }
+
+    /** @brief Cuts the connection as a reset would. From any thread. Both ends end with
+     *  onClosed (GPeerEnd::FAILED), each on its strand; from now on nothing is delivered to either
+     *  end, also what was handed over before, and no close travels. */
+    void sever() {
+        link_->severed.store(true);
+        const std::scoped_lock lock(link_->mutex);
+        for(GInProcessPeer *end : link_->ends) {
+            if(end == nullptr) {
+                continue;
+            }
+            boost::asio::post(end->strand_, [weak = end->weak_from_this()] {
+                if(auto alive = weak.lock()) {
+                    alive->finish_(GPeerEnd::FAILED, GPeerClose::NORMAL, "the connection was cut");
+                }
+            });
+        }
     }
 
     /***************************************************************************/
@@ -232,7 +254,8 @@ public:
      *  other end gets a copy of its own, as from a wire.
      *  @param message The complete message */
     void send(Gem::Courtier::Consumers::GMessage message) override {
-        if(state_ != state::OPEN || close_requested_.load() || not message) {
+        if(state_ != state::OPEN || close_requested_.load() || not message ||
+           link_->severed.load()) {
             return;
         }
         this->transmit_(wire::MESSAGE, std::string(*message));
@@ -326,7 +349,10 @@ private:
      *  @param kind What it is @param payload Its bytes */
     void transmit_(wire kind, std::string payload) {
         if(transmit_hook_) {
-            transmit_hook_();
+            transmit_hook_(payload);
+        }
+        if(link_->severed.load()) {
+            return;
         }
         const std::scoped_lock lock(link_->mutex);
         GInProcessPeer *other = link_->ends.at(1 - side_);
@@ -364,6 +390,9 @@ private:
     /** @brief Something from the other end, on this end's strand.
      *  @param kind What it is @param payload Its bytes */
     void received_(wire kind, std::string &&payload) {
+        if(link_->severed.load()) {
+            return; // cut: what was on its way is lost (sever() ends this end)
+        }
         switch(state_) {
         case state::NEW:
             early_.push_back(Arrival{.kind = kind, .payload = std::move(payload)});
@@ -463,10 +492,11 @@ private:
     struct Link {
         std::mutex mutex;                        ///< Guards ends, and every post to an end
         std::array<GInProcessPeer *, 2> ends{}; ///< Non-owning; null once that end is destroyed
+        std::atomic<bool> severed{false};       ///< sever() was called: nothing is delivered
     };
     std::shared_ptr<Link> link_; ///< Shared with the other end (set once, before any start())
     std::size_t side_ = 0;       ///< This end's place in the link
-    std::move_only_function<void()> transmit_hook_; ///< For a test; see setTransmitHook()
+    std::move_only_function<void(std::string_view)> transmit_hook_; ///< See setTransmitHook()
 
     Gem::Courtier::Consumers::GPeerHandlers handlers_; ///< On the strand; dropped at the end
     state state_ = state::NEW;                         ///< On the strand
@@ -684,10 +714,20 @@ private:
  *  is owned by the client under test). */
 class GInProcessPeerWatch {
 public:
-    /** @brief Records a client end @param peer The end the connector has made */
+    /** @brief Records a client end, and shows it to what setOnMade() installed (before the end
+     *  is started) @param peer The end the connector has made */
     void made(const std::shared_ptr<GInProcessPeer> &peer) {
         const std::scoped_lock lock(mutex_);
         last_ = peer;
+        if(on_made_) {
+            on_made_(*peer);
+        }
+    }
+    /** @brief @p on_made is shown every client end made from now on, before it is started (on
+     *  the connector's executor) @param on_made What is called */
+    void setOnMade(std::function<void(GInProcessPeer &)> on_made) {
+        const std::scoped_lock lock(mutex_);
+        on_made_ = std::move(on_made);
     }
     /** @brief @return The last client end made, if it still exists */
     [[nodiscard]] std::shared_ptr<GInProcessPeer> last() const {
@@ -698,12 +738,45 @@ public:
 private:
     mutable std::mutex mutex_;           ///< Guards last_ (the connector's executor writes it)
     std::weak_ptr<GInProcessPeer> last_; ///< The last client end made
+    std::function<void(GInProcessPeer &)> on_made_; ///< Shown every end made (may be empty)
 };
 
 /******************************************************************************/
 /**
- * The client side of the in-process transport: asks a GInProcessListener for a connection. The
- * listener must outlive every attempt (it is held weakly; a listener that is gone refuses).
+ * What a GInProcessConnector connects to: a listener, which a test may set, clear (connects are
+ * then refused) or switch at any time, from any thread. The listener is held weakly.
+ */
+class GInProcessRoute {
+public:
+    /** @brief @param listener The listener connects go to; empty: they are refused */
+    explicit GInProcessRoute(std::weak_ptr<GInProcessListener> listener = {})
+      : listener_(std::move(listener)) { /* nothing */
+    }
+
+    /** @brief Connects from now on go to @p listener @param listener The listener */
+    void set(std::weak_ptr<GInProcessListener> listener) {
+        const std::scoped_lock lock(mutex_);
+        listener_ = std::move(listener);
+    }
+    /** @brief Connects from now on are refused */
+    void clear() {
+        this->set({});
+    }
+    /** @brief @return The listener connects go to now, if there is one */
+    [[nodiscard]] std::shared_ptr<GInProcessListener> listener() const {
+        const std::scoped_lock lock(mutex_);
+        return listener_.lock();
+    }
+
+private:
+    mutable std::mutex mutex_;                   ///< Guards listener_
+    std::weak_ptr<GInProcessListener> listener_; ///< Where connects go
+};
+
+/******************************************************************************/
+/**
+ * The client side of the in-process transport: asks the listener its route points at for a
+ * connection (a route without one refuses).
  *
  * The order a test keeps (rule 7): a connector is destroyed when no handler of its executor runs
  * any more, so it is declared before the IoThreads (or io context) its client ends run on and goes
@@ -713,14 +786,14 @@ private:
  */
 class GInProcessConnector final : public Gem::Courtier::Consumers::GConnectorI {
 public:
-    /** @brief @param listener The server @param reconnectable What reconnectable() answers
+    /** @brief @param route Where the server is @param reconnectable What reconnectable() answers
      *  @param watch Where the client ends made are recorded (may be empty) */
     explicit GInProcessConnector(
-        std::weak_ptr<GInProcessListener> listener,
+        std::shared_ptr<GInProcessRoute> route,
         bool reconnectable = true,
         std::shared_ptr<GInProcessPeerWatch> watch = nullptr
     )
-      : listener_(std::move(listener))
+      : route_(std::move(route))
       , reconnectable_(reconnectable)
       , watch_(std::move(watch)) { /* nothing */
     }
@@ -743,7 +816,7 @@ public:
         cancelled_ = cancelled;
         boost::asio::post(
             executor,
-            [listener = listener_,
+            [route = route_,
              watch = watch_,
              executor,
              cancelled,
@@ -751,7 +824,7 @@ public:
                 if(cancelled->load()) {
                     return;
                 }
-                auto server = listener.lock();
+                auto server = route->listener();
                 auto peer = server ? server->connect_(executor) : nullptr;
                 if(peer && watch) {
                     watch->made(std::static_pointer_cast<GInProcessPeer>(peer));
@@ -774,7 +847,7 @@ public:
     }
 
 private:
-    std::weak_ptr<GInProcessListener> listener_; ///< The server
+    std::shared_ptr<GInProcessRoute> route_;     ///< Where the server is
     bool reconnectable_;                         ///< What reconnectable() answers
     std::shared_ptr<GInProcessPeerWatch> watch_; ///< Where the client ends are recorded, or empty
     std::shared_ptr<std::atomic<bool>> cancelled_; ///< The flag of the last attempt
