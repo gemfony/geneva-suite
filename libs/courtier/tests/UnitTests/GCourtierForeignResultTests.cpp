@@ -196,7 +196,10 @@ TEST_CASE(
         Gem::Courtier::GWebsocketConsumerConfig{
             .ip = "127.0.0.1",
             .port = relay.port(),
-            .serializationMode = BIN
+            .serializationMode = BIN,
+            // No keep-alive on either side (GCourtierHelperServer neither): the next byte towards
+            // the server after cutAfter() is the result's, never a ping or a pong
+            .pingInterval = 0
         }
     );
     client->setItemProcessor([&mutex, &evaluated, released](GFaultyContainer &item) {

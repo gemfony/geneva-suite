@@ -59,7 +59,10 @@ int main(int argc, char **argv) {
             Gem::Courtier::GWebsocketConsumerConfig{
                 .ip = "127.0.0.1",
                 .serializationMode = Gem::Common::serializationMode::GEM_BINARY,
-                .nThreads = 2
+                .nThreads = 2,
+                // No keep-alive: the test cuts at the next byte its client sends, which must be
+                // the result, not a pong
+                .pingInterval = 0
             }
         );
     consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
