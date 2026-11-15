@@ -2436,6 +2436,16 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, GENEVA_TEST_MODULE_STALE_ABI));
     }
 
+    SECTION("a module whose manifest has another size than this program's") {
+        // Gate 2 as well: ABI version and contribution size are this build's, the stamped size of
+        // the manifest is not. The module's factory ends the process, so passing the gate would
+        // fail loudly.
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MANIFEST_SIZE);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "carries a manifest of"));
+        CHECK(mentions(msg, GENEVA_TEST_MODULE_MANIFEST_SIZE));
+    }
+
     SECTION("a module whose contributions have another size than this program's") {
         // Gate 2 as well: the ABI version is this build's, the stamped size of a contribution is
         // not. The module's factory ends the process, so passing the gate would fail loudly.
