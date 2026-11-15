@@ -28,20 +28,22 @@
  ********************************************************************************/
 
 /**
- * Tests of GWebsocketPeer, the part of a courtier websocket connection that the client and the
- * server's session share: two peers are connected over the loopback interface and run on one io
- * context, so every step is deterministic.
+ * Tests of GWebsocketPeer, one end of a courtier websocket connection, against the rules of
+ * GPeerI.hpp: two peers are connected over the loopback interface and, unless a test says
+ * otherwise, run on one io context, so every step is deterministic.
  */
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <functional>
 #include <future>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -51,10 +53,15 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeer.hpp"
 
 using boost::asio::ip::tcp;
+using Gem::Courtier::Consumers::GPeerClose;
+using Gem::Courtier::Consumers::GPeerEnd;
+using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GWebsocketPeer;
+using namespace std::chrono_literals;
 
 namespace {
 
@@ -63,7 +70,8 @@ struct GSeen {
     std::vector<std::string> messages;
     int nOpen = 0;
     int nClosed = 0;
-    boost::system::error_code cause;
+    GPeerEnd end = GPeerEnd::FAILED;
+    GPeerClose how = GPeerClose::NORMAL;
 };
 
 /** @brief Two connected sockets on @p ctx: first the accepting end, second the connecting end. */
@@ -74,18 +82,35 @@ std::pair<tcp::socket, tcp::socket> connectedPair(boost::asio::io_context &ctx) 
     return {acceptor.accept(), std::move(connecting)};
 }
 
-/** @brief A peer on @p socket that records what it is told in @p seen. @p on_open and @p on_message
- *  let a test act from inside the handlers. */
-std::shared_ptr<GWebsocketPeer> recordingPeer(
-    tcp::socket socket,
+/** @brief The server's end (waits for the handshake) on @p socket @param socket The socket
+ *  @param options How it is set up @return The peer, not started */
+std::shared_ptr<GWebsocketPeer>
+serverEnd(tcp::socket socket, GWebsocketPeer::GOptions options = {.name = "server end"}) {
+    return std::make_shared<GWebsocketPeer>(std::move(socket), std::move(options));
+}
+
+/** @brief The client's end (performs the handshake) on @p socket @param socket The socket
+ *  @param options How it is set up @return The peer, not started */
+std::shared_ptr<GWebsocketPeer>
+clientEnd(tcp::socket socket, GWebsocketPeer::GOptions options = {.name = "client end"}) {
+    return std::make_shared<GWebsocketPeer>(
+        std::move(socket),
+        std::move(options),
+        boost::asio::any_io_executor{},
+        "localhost"
+    );
+}
+
+/** @brief Starts @p peer with handlers that record what it is told in @p seen. @p on_open and
+ *  @p on_message let a test act from inside the handlers. */
+void startRecording(
+    const std::shared_ptr<GWebsocketPeer> &peer,
     GSeen &seen,
     std::move_only_function<void()> on_open = {},
     std::move_only_function<void(const std::string &)> on_message = {}
 ) {
-    return std::make_shared<GWebsocketPeer>(
-        std::move(socket),
-        GWebsocketPeer::GOptions{.name = "test peer"},
-        GWebsocketPeer::GHandlers{
+    peer->start(
+        GPeerHandlers{
             .onOpen =
                 [&seen, on_open = std::move(on_open)]() mutable {
                     ++seen.nOpen;
@@ -94,16 +119,17 @@ std::shared_ptr<GWebsocketPeer> recordingPeer(
                     }
                 },
             .onMessage =
-                [&seen, on_message = std::move(on_message)](const std::string &message) mutable {
-                    seen.messages.push_back(message);
+                [&seen, on_message = std::move(on_message)](std::string &&message) mutable {
+                    seen.messages.push_back(std::move(message));
                     if(on_message) {
                         on_message(seen.messages.back());
                     }
                 },
             .onClosed =
-                [&seen](const boost::system::error_code &cause) {
+                [&seen](GPeerEnd end, GPeerClose how, std::string_view) {
                     ++seen.nClosed;
-                    seen.cause = cause;
+                    seen.end = end;
+                    seen.how = how;
                 }
         }
     );
@@ -131,14 +157,17 @@ TEST_CASE("GWebsocketPeer delivers a burst of messages in order", "[courtier][we
     GSeen client_seen;
 
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = recordingPeer(std::move(accepted), server_seen, {}, [&](const std::string &) {
+    auto server = serverEnd(std::move(accepted));
+    auto client = clientEnd(std::move(connecting));
+    client_weak = client;
+    startRecording(server, server_seen, {}, [&](const std::string &) {
         if(server_seen.messages.size() == N_BURST) {
             if(auto peer = client_weak.lock()) {
-                peer->close(GWebsocketPeer::close_code::normal);
+                peer->close(GPeerClose::NORMAL);
             }
         }
     });
-    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+    startRecording(client, client_seen, [&] {
         auto peer = client_weak.lock();
         REQUIRE(peer);
         for(std::size_t i = 0; i < N_BURST; ++i) {
@@ -147,10 +176,6 @@ TEST_CASE("GWebsocketPeer delivers a burst of messages in order", "[courtier][we
             );
         }
     });
-    client_weak = client;
-
-    server->acceptHandshake();
-    client->connectHandshake("localhost");
     server.reset(); // from here on the pending operations own the peers
     client.reset();
 
@@ -169,8 +194,8 @@ TEST_CASE("GWebsocketPeer delivers a burst of messages in order", "[courtier][we
 }
 
 /******************************************************************************/
-// Each end is told exactly once that the connection is over, and why: the end that closed sees no
-// error, the other one a regular close.
+// Each end is told exactly once that the connection is over, and why: the end that closed sees its
+// own close, the other one a regular close by the other end, with what the close said.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
     "GWebsocketPeer reports the end of a connection once to each end",
@@ -182,18 +207,18 @@ TEST_CASE(
     GSeen client_seen;
 
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = recordingPeer(std::move(accepted), server_seen);
-    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+    auto server = serverEnd(std::move(accepted));
+    auto client = clientEnd(std::move(connecting));
+    client_weak = client;
+    startRecording(server, server_seen);
+    startRecording(client, client_seen, [&] {
         auto peer = client_weak.lock();
         REQUIRE(peer);
         peer->send("last words");
-        peer->close(GWebsocketPeer::close_code::normal); // a message of one frame is not cut
-        peer->close(GWebsocketPeer::close_code::normal); // a second close changes nothing
+        peer->close(GPeerClose::RUN_ENDED);
+        peer->close(GPeerClose::NORMAL); // a second close changes nothing
+        peer->send("too late");          // after close(): dropped
     });
-    client_weak = client;
-
-    server->acceptHandshake();
-    client->connectHandshake("localhost");
     client->send("too early"); // not open yet: dropped, not written into a stream that is not ready
     server.reset();
     client.reset();
@@ -205,9 +230,10 @@ TEST_CASE(
     REQUIRE(server_seen.messages.size() == 1);
     CHECK(server_seen.messages.front() == "last words");
     CHECK(client_seen.nClosed == 1);
-    CHECK_FALSE(client_seen.cause);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
     CHECK(server_seen.nClosed == 1);
-    CHECK(server_seen.cause == boost::beast::websocket::error::closed);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
+    CHECK(server_seen.how == GPeerClose::RUN_ENDED);
 }
 
 /******************************************************************************/
@@ -234,28 +260,29 @@ TEST_CASE(
     });
 
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+    auto client = clientEnd(std::move(connecting));
+    client_weak = client;
+    startRecording(client, client_seen, [&] {
         if(auto peer = client_weak.lock()) {
-            peer->close(GWebsocketPeer::close_code::normal);
+            peer->close(GPeerClose::NORMAL);
         }
     });
-    client_weak = client;
-    client->connectHandshake("localhost");
     client.reset();
 
     REQUIRE(runsDry(ctx));
 
     CHECK(client_seen.nClosed == 1);
-    CHECK_FALSE(client_seen.cause);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
     CHECK(client_weak.expired());
 }
 
 /******************************************************************************/
-// A close ends the exchange of messages at once: it does not wait for the write queue. What waits
-// behind the message being written is never sent, and that message itself arrives whole or not at
-// all (Beast puts the close frame between two of its frames).
+// A close sends what was handed over before it (rule 6): a message of many frames that is being
+// written when close() is called arrives whole, and so does the one queued behind it; the close
+// frame follows them.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "GWebsocketPeer does not wait for its write queue at a close",
+    "GWebsocketPeer sends what was handed over before a close",
     "[courtier][websocket][peer]"
 ) {
     boost::asio::io_context ctx;
@@ -264,30 +291,29 @@ TEST_CASE(
     GSeen client_seen;
 
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = recordingPeer(std::move(accepted), server_seen);
-    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+    auto server = serverEnd(std::move(accepted));
+    auto client = clientEnd(std::move(connecting));
+    client_weak = client;
+    startRecording(server, server_seen);
+    startRecording(client, client_seen, [&] {
         auto peer = client_weak.lock();
         REQUIRE(peer);
         peer->send(std::string(LARGE_MESSAGE_BYTES, 'x')); // many frames
         peer->send("waits behind the large one");
-        peer->close(GWebsocketPeer::close_code::normal);
+        peer->close(GPeerClose::NORMAL);
     });
-    client_weak = client;
-
-    server->acceptHandshake();
-    client->connectHandshake("localhost");
     server.reset();
     client.reset();
 
     REQUIRE(runsDry(ctx));
 
-    for(const auto &message : server_seen.messages) {
-        CHECK(message.size() == LARGE_MESSAGE_BYTES); // never a part, never the queued one
-    }
-    CHECK(server_seen.messages.size() <= 1);
+    REQUIRE(server_seen.messages.size() == 2);
+    CHECK(server_seen.messages[0].size() == LARGE_MESSAGE_BYTES);
+    CHECK(server_seen.messages[1] == "waits behind the large one");
     CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
     CHECK(client_seen.nClosed == 1);
-    CHECK_FALSE(client_seen.cause);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
 }
 
 /******************************************************************************/
@@ -304,21 +330,20 @@ TEST_CASE(
 
     std::weak_ptr<GWebsocketPeer> server_weak;
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = recordingPeer(std::move(accepted), server_seen, [&] {
+    auto server = serverEnd(std::move(accepted));
+    auto client = clientEnd(std::move(connecting));
+    server_weak = server;
+    client_weak = client;
+    startRecording(server, server_seen, [&] {
         if(auto peer = server_weak.lock()) {
             peer->send("crosses the close");
         }
     });
-    auto client = recordingPeer(std::move(connecting), client_seen, [&] {
+    startRecording(client, client_seen, [&] {
         if(auto peer = client_weak.lock()) {
-            peer->close(GWebsocketPeer::close_code::normal);
+            peer->close(GPeerClose::NORMAL);
         }
     });
-    server_weak = server;
-    client_weak = client;
-
-    server->acceptHandshake();
-    client->connectHandshake("localhost");
     server.reset();
     client.reset();
 
@@ -330,14 +355,14 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// An end that never gets its handshake is told so.
+// An end that never gets its handshake is told so, without being told that it was open (rule 1).
 TEST_CASE("GWebsocketPeer reports a handshake that fails", "[courtier][websocket][peer]") {
     boost::asio::io_context ctx;
     auto [accepted, connecting] = connectedPair(ctx);
     GSeen server_seen;
 
-    auto server = recordingPeer(std::move(accepted), server_seen);
-    server->acceptHandshake();
+    auto server = serverEnd(std::move(accepted));
+    startRecording(server, server_seen);
     server.reset();
 
     connecting.close(); // the other end goes away without a handshake
@@ -346,7 +371,66 @@ TEST_CASE("GWebsocketPeer reports a handshake that fails", "[courtier][websocket
 
     CHECK(server_seen.nOpen == 0);
     CHECK(server_seen.nClosed == 1);
-    CHECK(server_seen.cause);
+    CHECK(server_seen.end == GPeerEnd::FAILED);
+}
+
+/******************************************************************************/
+// A close requested while the handshake is still under way, from a thread that is not the peer's,
+// ends each end exactly once and without a crash, however the two race. Each end does its I/O on
+// a strand of a context with two threads.
+TEST_CASE(
+    "GWebsocketPeer ends once when it is closed before its handshake has completed",
+    "[courtier][websocket][peer]"
+) {
+    constexpr int N_ROUNDS = 200;
+    boost::asio::io_context ctx;
+    auto guard = boost::asio::make_work_guard(ctx);
+    std::vector<std::jthread> threads;
+    threads.reserve(2);
+    for(int t = 0; t < 2; ++t) {
+        threads.emplace_back([&ctx] { ctx.run(); });
+    }
+    tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+
+    int n_wrong = 0;
+    for(int round = 0; round < N_ROUNDS; ++round) {
+        tcp::socket connecting(boost::asio::make_strand(ctx));
+        connecting.connect(acceptor.local_endpoint());
+        tcp::socket accepted = acceptor.accept(boost::asio::make_strand(ctx));
+
+        auto server_closed = std::make_shared<std::atomic<int>>(0);
+        auto client_closed = std::make_shared<std::atomic<int>>(0);
+        const auto counting = [](const std::shared_ptr<std::atomic<int>> &n) {
+            return GPeerHandlers{
+                .onOpen = {},
+                .onMessage = {},
+                .onClosed = [n](GPeerEnd, GPeerClose, std::string_view) { n->fetch_add(1); }
+            };
+        };
+        auto server = serverEnd(std::move(accepted));
+        auto client = clientEnd(std::move(connecting));
+        server->start(counting(server_closed));
+        client->start(counting(client_closed));
+        client->close(GPeerClose::NORMAL);
+        if(round % 2 == 0) {
+            server->close(GPeerClose::RUN_ENDED);
+        }
+        server.reset();
+        client.reset();
+
+        const auto give_up_at = std::chrono::steady_clock::now() + 10s;
+        while((server_closed->load() == 0 || client_closed->load() == 0) &&
+              std::chrono::steady_clock::now() < give_up_at) {
+            std::this_thread::sleep_for(1ms);
+        }
+        std::this_thread::sleep_for(1ms); // a second report would come now
+        if(server_closed->load() != 1 || client_closed->load() != 1) {
+            ++n_wrong;
+        }
+    }
+    guard.reset();
+    threads.clear();
+    CHECK(n_wrong == 0);
 }
 
 /******************************************************************************/
@@ -362,20 +446,18 @@ TEST_CASE(
     {
         boost::asio::io_context ctx;
         auto [accepted, connecting] = connectedPair(ctx);
-        auto peer = std::make_shared<GWebsocketPeer>(
-            std::move(accepted),
-            GWebsocketPeer::GOptions{.name = "test peer"},
-            GWebsocketPeer::GHandlers{
+        auto peer = serverEnd(std::move(accepted));
+        peer->start(
+            GPeerHandlers{
                 .onOpen = [held = std::move(token)] {},
                 .onMessage = {},
                 .onClosed =
-                    [&n_closed_calls](const boost::system::error_code &cause) {
-                        CHECK_FALSE(cause);
+                    [&n_closed_calls](GPeerEnd end, GPeerClose, std::string_view) {
+                        CHECK(end == GPeerEnd::CLOSED_HERE);
                         ++n_closed_calls;
                     }
             }
-        );
-        peer->acceptHandshake(); // pending, and never run
+        ); // the handshake is posted, and never run
 
         REQUIRE_FALSE(token_weak.expired());
         peer->abort();
@@ -411,31 +493,37 @@ TEST_CASE(
 
     std::weak_ptr<GWebsocketPeer> server_weak;
     std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = std::make_shared<GWebsocketPeer>(
-        std::move(accepted),
+    auto server =
+        std::make_shared<GWebsocketPeer>(std::move(accepted), options, role_ctx.get_executor());
+    auto client = std::make_shared<GWebsocketPeer>(
+        std::move(connecting),
         options,
-        GWebsocketPeer::GHandlers{
+        role_ctx.get_executor(),
+        "localhost"
+    );
+    server_weak = server;
+    client_weak = client;
+    server->start(
+        GPeerHandlers{
             .onOpen = [&server_seen] { ++server_seen.nOpen; },
             .onMessage =
-                [&server_seen, &server_weak](const std::string &message) {
-                    server_seen.messages.push_back(message);
+                [&server_seen, &server_weak](std::string &&message) {
+                    server_seen.messages.push_back(std::move(message));
                     std::this_thread::sleep_for(3s); // longer than the idle limit of 2 s
                     if(auto peer = server_weak.lock()) {
                         peer->send("answer");
                     }
                 },
             .onClosed =
-                [&server_seen](const boost::system::error_code &cause) {
+                [&server_seen](GPeerEnd end, GPeerClose how, std::string_view) {
                     ++server_seen.nClosed;
-                    server_seen.cause = cause;
+                    server_seen.end = end;
+                    server_seen.how = how;
                 }
-        },
-        role_ctx.get_executor()
+        }
     );
-    auto client = std::make_shared<GWebsocketPeer>(
-        std::move(connecting),
-        options,
-        GWebsocketPeer::GHandlers{
+    client->start(
+        GPeerHandlers{
             .onOpen =
                 [&client_seen, &client_weak] {
                     ++client_seen.nOpen;
@@ -444,25 +532,20 @@ TEST_CASE(
                     }
                 },
             .onMessage =
-                [&client_seen, &client_weak](const std::string &message) {
-                    client_seen.messages.push_back(message);
+                [&client_seen, &client_weak](std::string &&message) {
+                    client_seen.messages.push_back(std::move(message));
                     if(auto peer = client_weak.lock()) {
-                        peer->close(GWebsocketPeer::close_code::normal);
+                        peer->close(GPeerClose::NORMAL);
                     }
                 },
             .onClosed =
-                [&client_seen](const boost::system::error_code &cause) {
+                [&client_seen](GPeerEnd end, GPeerClose how, std::string_view) {
                     ++client_seen.nClosed;
-                    client_seen.cause = cause;
+                    client_seen.end = end;
+                    client_seen.how = how;
                 }
-        },
-        role_ctx.get_executor()
+        }
     );
-    server_weak = server;
-    client_weak = client;
-
-    server->acceptHandshake();
-    client->connectHandshake("localhost");
     server.reset();
     client.reset();
 
@@ -477,9 +560,9 @@ TEST_CASE(
     REQUIRE(client_seen.messages.size() == 1);
     CHECK(client_seen.messages.front() == "answer");
     CHECK(client_seen.nClosed == 1);
-    CHECK_FALSE(client_seen.cause); // the client closed; it did not give up on a silent server
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE); // it did not give up on a silent server
     CHECK(server_seen.nClosed == 1);
-    CHECK(server_seen.cause == boost::beast::websocket::error::closed);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
 }
 
 /******************************************************************************/
@@ -511,25 +594,16 @@ TEST_CASE(
     });
 
     GSeen server_seen;
-    auto server = std::make_shared<GWebsocketPeer>(
+    auto server = serverEnd(
         acceptor.accept(),
-        GWebsocketPeer::GOptions{.name = "test peer", .pingInterval = 1s},
-        GWebsocketPeer::GHandlers{
-            .onOpen = [&server_seen] { ++server_seen.nOpen; },
-            .onMessage = [&server_seen](const std::string &m) { server_seen.messages.push_back(m); },
-            .onClosed =
-                [&server_seen](const boost::system::error_code &cause) {
-                    ++server_seen.nClosed;
-                    server_seen.cause = cause;
-                }
-        }
+        GWebsocketPeer::GOptions{.name = "test peer", .pingInterval = 1s}
     );
-    server->acceptHandshake();
+    startRecording(server, server_seen);
     server.reset();
 
     const bool dry = runsDry(ctx);
     release.set_value();
     REQUIRE(dry);
     CHECK(server_seen.nClosed == 1);
-    CHECK(server_seen.cause == boost::beast::websocket::error::closed);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
 }

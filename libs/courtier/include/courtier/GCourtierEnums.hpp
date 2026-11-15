@@ -135,6 +135,9 @@ constexpr std::size_t GBEASTCONSUMERPINGINTERVAL = 15;
 /// The limit on the websocket handshake and the close handshake when the keep-alive is switched off
 /// (a ping interval of 0), so that neither can wait forever.
 constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
+/// The websocket close code that tells a client that the run has ended and it need not come back
+/// (GPeerClose::RUN_ENDED): the first code free for applications.
+constexpr std::uint16_t GCONSUMERCLOSECODERUNENDED = 4000;
 /// The largest websocket message accepted, in bytes; 0 means no limit. A work item or a result
 /// travels as one message, and its size is the user's business (the MPI transport has no cap
 /// either).

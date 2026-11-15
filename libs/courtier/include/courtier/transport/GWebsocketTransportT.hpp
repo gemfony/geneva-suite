@@ -111,7 +111,6 @@ class GWebsocketClientT final
     // Make the code easier to read
 
     using resolver = boost::asio::ip::tcp::resolver;
-    using close_code = GWebsocketPeer::close_code;
 
     // Members and helpers of the dependent pipeline base, pulled into scope
     using pipeline_base::computing_;
@@ -264,16 +263,21 @@ private:
                 .verboseControlFrames = verbose_control_frames_,
                 .pingInterval = std::chrono::seconds(ping_interval_)
             },
-            GWebsocketPeer::GHandlers{
+            boost::asio::any_io_executor{},
+            address_
+        );
+        peer_ = peer;
+        peer->start(
+            GPeerHandlers{
                 .onOpen = [self] { self->when_open_(); },
                 .onMessage =
                     [self](std::string &&message) { self->dispatch_message_(std::move(message)); },
                 .onClosed =
-                    [self](const boost::system::error_code &cause) { self->when_closed_(cause); }
+                    [self](GPeerEnd end, GPeerClose, std::string_view detail) {
+                        self->when_closed_(end, detail);
+                    }
             }
         );
-        peer_ = peer;
-        peer->connectHandshake(address_);
     }
 
     //-------------------------------------------------------------------------
@@ -292,16 +296,17 @@ private:
 	  * @brief Called once when the connection is over, for whatever reason. Stops the pipeline's
 	  * timers, so that io_context::run() -- and with it the client -- can return.
 	  *
-	  * @param cause Why the connection ended; no error if this client closed it
+	  * @param end Why the connection ended
+	  * @param detail The transport's words about it
 	  */
-    void when_closed_(const boost::system::error_code &cause) {
-        if(cause) {
+    void when_closed_(GPeerEnd end, std::string_view detail) {
+        if(end != GPeerEnd::CLOSED_HERE) {
             // The handshake failed, the server closed the connection or vanished, or it has been
             // silent for longer than the idle limit allows.
             glogger
                 << "In GWebsocketClientT<processable_type>: the connection to the server has ended:"
                 << '\n'
-                << cause.message() << '\n'
+                << detail << '\n'
                 << "This will terminate the client." << '\n'
                 << GLOGGING;
         }
@@ -330,7 +335,7 @@ private:
                 << "Received invalid frame " << fkToStr(kind) << '\n'
                 << "The client will shut down." << '\n'
                 << GWARNING;
-        do_close(close_code::internal_error);
+        do_close(GPeerClose::ERROR);
     }
 
     //-------------------------------------------------------------------------
@@ -346,7 +351,7 @@ private:
                 << error << '\n'
                 << "The client will shut down." << '\n'
                 << GWARNING;
-        do_close(close_code::internal_error);
+        do_close(GPeerClose::ERROR);
     }
 
     //-------------------------------------------------------------------------
@@ -383,7 +388,7 @@ private:
                     << e.what() << '\n'
                     << "The client will shut down." << '\n'
                     << GWARNING;
-            do_close(close_code::internal_error);
+            do_close(GPeerClose::ERROR);
         }
     }
 
@@ -392,13 +397,13 @@ private:
 	  * @brief Closes the connection to the server and stops the pipeline's timers. The peer performs
 	  * the close handshake asynchronously and within its time limit. Idempotent.
 	  *
-	  * @param cc The close code to be sent to the server
+	  * @param how What the server is told
 	  */
-    void do_close(close_code cc) {
+    void do_close(GPeerClose how) {
         // Stop the halt-poll and NO_WORK-backoff timers for good, so io_context::run() can return.
         this->stopPipelineTimers_();
         if(auto peer = peer_.lock()) {
-            peer->close(cc);
+            peer->close(how);
         }
     }
 
@@ -421,7 +426,7 @@ private:
                     << error << '\n'
                     << "The client will shut down." << '\n'
                     << GWARNING;
-            do_close(close_code::internal_error);
+            do_close(GPeerClose::ERROR);
             return;
         }
         auto peer = peer_.lock();
@@ -433,7 +438,7 @@ private:
 
     /** @brief Halt hook: closes the websocket cleanly when a halt condition is reached. */
     void haltShutdown_() {
-        do_close(close_code::normal);
+        do_close(GPeerClose::NORMAL);
     }
 
     //-------------------------------------------------------------------------
@@ -479,8 +484,6 @@ private:
 template <typename processable_type>
 class GWebsocketConsumerSessionT final
   : public std::enable_shared_from_this<GWebsocketConsumerSessionT<processable_type>> {
-    using close_code = GWebsocketPeer::close_code;
-
 public:
     //-------------------------------------------------------------------------
     /** @brief The session's server-side hooks: how it pulls work, returns results, gives back what
@@ -575,16 +578,23 @@ public:
                 .verboseControlFrames = verbose_control_frames_,
                 .pingInterval = std::chrono::seconds(ping_interval_)
             },
-            GWebsocketPeer::GHandlers{
-                .onOpen = {},
-                .onMessage = [self](const std::string &message) { self->when_message_(message); },
-                .onClosed =
-                    [self](const boost::system::error_code &cause) { self->when_closed_(cause); }
-            },
             handler_executor
         );
         peer_ = peer;
-        peer->acceptHandshake();
+        peer->start(
+            GPeerHandlers{
+                .onOpen = {},
+                .onMessage =
+                    [self](std::string &&message) {
+                        const std::string bytes{std::move(message)};
+                        self->when_message_(bytes);
+                    },
+                .onClosed =
+                    [self](GPeerEnd end, GPeerClose, std::string_view detail) {
+                        self->when_closed_(end, detail);
+                    }
+            }
+        );
     }
 
     //-------------------------------------------------------------------------
@@ -638,10 +648,8 @@ private:
         }
 
         if(this->check_server_stopped_()) {
-            // The close does not wait for answers: one that is being written is cut short if it
-            // has more than one frame, and those behind it are dropped. The items they carry are
-            // put back when the session ends.
-            peer.close(close_code::normal);
+            // The close is sent after the answers handed over before it.
+            peer.close(GPeerClose::NORMAL);
         }
     }
 
@@ -694,13 +702,14 @@ private:
 	  * the server are no news; anything else is logged, the expiry of the idle limit among it (the
 	  * client has been silent for too long and is presumed gone).
 	  *
-	  * @param cause Why the connection ended; no error if this session closed it
+	  * @param end Why the connection ended
+	  * @param detail The transport's words about it
 	  */
-    void when_closed_(const boost::system::error_code &cause) {
-        if(cause && cause != boost::beast::websocket::error::closed &&
+    void when_closed_(GPeerEnd end, std::string_view detail) {
+        if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
            not this->check_server_stopped_()) {
             glogger << "GWebsocketConsumerSessionT<processable_type>: the connection has ended: "
-                    << cause.message() << '\n'
+                    << detail << '\n'
                     << GLOGGING;
         }
     }
@@ -835,7 +844,6 @@ private:
 
     //-------------------------------------------------------------------------
 };
-
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

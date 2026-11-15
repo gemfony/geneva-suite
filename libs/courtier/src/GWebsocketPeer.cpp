@@ -30,6 +30,7 @@
 #include "courtier/transport/GWebsocketPeer.hpp"
 
 // Standard headers go here
+#include <cstdint>
 #include <tuple>
 #include <utility>
 
@@ -48,6 +49,7 @@ namespace Gem::Courtier::Consumers {
 namespace {
 
 using error_code = boost::system::error_code;
+using boost::beast::websocket::close_code;
 using boost::beast::websocket::stream_base;
 
 /** @brief Beast's time limits for a ping interval: the idle limit and the limit on both handshakes
@@ -78,6 +80,31 @@ const char *frameName(boost::beast::websocket::frame_type kind) {
     return "control";
 }
 
+/** @brief @param how What a close says @return The websocket close code that says it */
+close_code codeFor(GPeerClose how) {
+    switch(how) {
+    case GPeerClose::NORMAL:
+        return close_code::normal;
+    case GPeerClose::ERROR:
+        return close_code::internal_error;
+    case GPeerClose::RUN_ENDED:
+        return static_cast<close_code>(GCONSUMERCLOSECODERUNENDED);
+    }
+    return close_code::normal;
+}
+
+/** @brief @param code A received websocket close code @return What it says; no code at all, or
+ *  a regular one, says NORMAL */
+GPeerClose closeFor(std::uint16_t code) {
+    if(code == GCONSUMERCLOSECODERUNENDED) {
+        return GPeerClose::RUN_ENDED;
+    }
+    if(code == close_code::normal || code == close_code::none) {
+        return GPeerClose::NORMAL;
+    }
+    return GPeerClose::ERROR;
+}
+
 } /* anonymous namespace */
 
 /******************************************************************************/
@@ -86,19 +113,20 @@ const char *frameName(boost::beast::websocket::frame_type kind) {
  *
  * @param socket The connected socket; its executor must serialize the handlers it runs
  * @param options How this end is set up
- * @param handlers What the role wants to be told
  * @param handler_executor Where the role's handlers run (on a strand of it); empty: on the socket's
  *        executor
+ * @param host The server's name for the websocket handshake on the client's end; empty on the
+ *        server's end
  */
 GWebsocketPeer::GWebsocketPeer(
     boost::asio::ip::tcp::socket socket,
     GOptions options,
-    GHandlers handlers,
-    const boost::asio::any_io_executor &handler_executor
+    const boost::asio::any_io_executor &handler_executor,
+    std::string host
 )
   : ws_(std::move(socket))
   , options_(std::move(options))
-  , handlers_(std::move(handlers))
+  , host_(std::move(host))
   , io_executor_(ws_.get_executor())
   , handler_strand_(
         handler_executor ? boost::asio::any_io_executor(boost::asio::make_strand(handler_executor))
@@ -106,7 +134,8 @@ GWebsocketPeer::GWebsocketPeer(
     )
   , owner_work_(
         boost::asio::prefer(handler_strand_, boost::asio::execution::outstanding_work_t::tracked)
-    ) {
+    )
+  , close_timer_(io_executor_) {
     this->configure_();
 }
 
@@ -115,7 +144,7 @@ GWebsocketPeer::GWebsocketPeer(
  * Sets the stream options: fragmenting (so control frames are delivered in time), the write buffer,
  * Beast's time limits, no limit on the size of a message, the frame type, and what happens on a
  * control frame: its arrival is noted (for the log when the idle limit expires), and it is logged
- * if that was asked for. The callback runs inside the peer's read, on the peer's executor.
+ * if that was asked for. The callback runs inside the peer's read, on the socket's executor.
  */
 void GWebsocketPeer::configure_() {
     ws_.auto_fragment(true);
@@ -141,39 +170,45 @@ void GWebsocketPeer::configure_() {
 
 /******************************************************************************/
 /**
- * Server side: waits for the client's websocket handshake. Nagle's algorithm is switched off first;
- * the messages are small and wait for one another.
- */
-void GWebsocketPeer::acceptHandshake() {
-    error_code ignored;
-    std::ignore = ws_.next_layer().set_option(boost::asio::ip::tcp::no_delay(true), ignored);
-
-    auto self = this->shared_from_this();
-    ws_.async_accept([self](const error_code &ec) { self->handshakeDone_(ec); });
-}
-
-/******************************************************************************/
-/**
- * Client side: performs the websocket handshake with the server.
+ * Installs the handlers and begins this end's websocket handshake on the socket's executor (the
+ * server's end waits for the client's, the client's end performs it). Nagle's algorithm is
+ * switched off first; the messages are small and wait for one another. A close() after this call
+ * is ordered after the handshake's beginning (both are posted to the socket's executor).
  *
- * @param host The server's name, as sent in the handshake
+ * @param handlers What the role wants to be told
  */
-void GWebsocketPeer::connectHandshake(const std::string &host) {
-    error_code ignored;
-    std::ignore = ws_.next_layer().set_option(boost::asio::ip::tcp::no_delay(true), ignored);
-
-    auto self = this->shared_from_this();
-    ws_.async_handshake(host, "/", [self](const error_code &ec) { self->handshakeDone_(ec); });
+void GWebsocketPeer::start(GPeerHandlers handlers) {
+    handlers_ = std::move(handlers);
+    boost::asio::post(io_executor_, [self = this->shared_from_this()] {
+        if(self->finished_) {
+            return;
+        }
+        error_code ignored;
+        std::ignore =
+            self->ws_.next_layer().set_option(boost::asio::ip::tcp::no_delay(true), ignored);
+        if(self->host_.empty()) {
+            self->ws_.async_accept([self](const error_code &ec) { self->handshakeDone_(ec); });
+        }
+        else {
+            self->ws_.async_handshake(self->host_, "/", [self](const error_code &ec) {
+                self->handshakeDone_(ec);
+            });
+        }
+    });
 }
 
 /******************************************************************************/
 /**
  * Called when either handshake has completed. On success the read that stays outstanding for the
- * rest of the connection is started, and the role is told that it may send.
+ * rest of the connection is started, and the role is told that it may send. A close requested in
+ * the meantime has ended the connection already.
  *
  * @param ec The outcome of the handshake
  */
 void GWebsocketPeer::handshakeDone_(const error_code &ec) {
+    if(finished_) {
+        return;
+    }
     if(ec) {
         this->finish_(ec);
         return;
@@ -186,6 +221,9 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
             self->handlers_.onOpen();
         }
     });
+    if(closing_) {
+        this->closeWhenSent_(); // a close requested while the handshake was under way
+    }
 }
 
 /******************************************************************************/
@@ -201,9 +239,10 @@ void GWebsocketPeer::read_() {
 /**
  * Called when a read has completed: hands the message to the role's strand and reads on at once, so
  * that the keep-alive goes on while the role works on the message. Reading pauses only while the
- * role has GWEBSOCKETMAXUNHANDLEDMESSAGES messages still to handle. An error ends the connection;
- * this is also where an expired idle limit and the other end's close arrive. A message that arrives
- * after close() was called is not handed on: the role has said that it is done, and a client would
+ * role has GWEBSOCKETMAXUNHANDLEDMESSAGES messages still to handle, and ends once the close frame
+ * has been sent (Beast reads the answer to it itself). An error ends the connection; this is also
+ * where an expired idle limit and the other end's close arrive. A message that arrives after
+ * close() was called is not handed on: the role has said that it is done, and a client would
  * otherwise start an evaluation it can no longer return.
  *
  * @param ec The outcome of the read
@@ -229,7 +268,7 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
         );
     }
 
-    if(not closing_ && not read_paused_) {
+    if(not finished_ && not close_sent_ && not read_paused_) {
         this->read_();
     }
 }
@@ -255,7 +294,7 @@ void GWebsocketPeer::deliver_(std::string &message) {
 /******************************************************************************/
 /** On the socket's executor: reads on after a pause, if the connection is still open. */
 void GWebsocketPeer::resumeReading_() {
-    if(read_paused_ && not closing_) {
+    if(read_paused_ && not finished_ && not close_sent_) {
         read_paused_ = false;
         this->read_();
     }
@@ -264,11 +303,15 @@ void GWebsocketPeer::resumeReading_() {
 /******************************************************************************/
 /**
  * Queues a message on the socket's executor and starts writing if no write is outstanding. A message
- * handed over before the handshake has completed, or after a close has begun, is dropped.
+ * handed over after close() is dropped; one handed over before the handshake has completed is
+ * dropped too.
  *
  * @param message The complete message to send
  */
 void GWebsocketPeer::send(std::string message) {
+    if(close_requested_.load()) {
+        return;
+    }
     boost::asio::post(
         io_executor_,
         [self = this->shared_from_this(), message = std::move(message)]() mutable {
@@ -282,9 +325,16 @@ void GWebsocketPeer::send(std::string message) {
 }
 
 /******************************************************************************/
-/** Writes the next queued message, unless a write is outstanding or the connection is closing. */
+/** Writes the next queued message, unless a write is outstanding or the connection is over. When
+ *  the queue has run empty during a close, the close frame goes out. */
 void GWebsocketPeer::pump_() {
-    if(writing_ || closing_ || write_queue_.empty()) {
+    if(writing_ || finished_ || close_sent_) {
+        return;
+    }
+    if(write_queue_.empty()) {
+        if(closing_) {
+            this->closeWhenSent_();
+        }
         return;
     }
     writing_ = true;
@@ -300,8 +350,8 @@ void GWebsocketPeer::pump_() {
 
 /******************************************************************************/
 /**
- * Called when a write has completed: continues with the next queued message. An error ends the
- * connection.
+ * Called when a write has completed: continues with the next queued message (or the close frame).
+ * An error ends the connection.
  *
  * @param ec The outcome of the write
  */
@@ -317,52 +367,80 @@ void GWebsocketPeer::writeDone_(const error_code &ec) {
 
 /******************************************************************************/
 /**
- * Closes the connection in the regular way. The work is posted to the peer's executor, so this may
- * be called from any thread, and from inside one of the peer's handlers. From this call on no
- * message is delivered any more, also not one whose read has completed already.
+ * Closes the connection in the regular way. The work is posted to the socket's executor after the
+ * messages handed to send() before, so this may be called from any thread, and from inside one of
+ * the peer's handlers. From this call on no message is delivered or accepted any more.
  *
- * @param code The close code sent to the other end
+ * @param how What the other end is told
  */
-void GWebsocketPeer::close(close_code code) {
-    close_requested_.store(true);
-    auto self = this->shared_from_this();
-    boost::asio::post(io_executor_, [self, code] { self->beginClose_(code); });
+void GWebsocketPeer::close(GPeerClose how) {
+    if(close_requested_.exchange(true)) {
+        return;
+    }
+    boost::asio::post(io_executor_, [self = this->shared_from_this(), how] {
+        self->beginClose_(how);
+    });
 }
 
 /******************************************************************************/
 /**
- * Begins the close handshake. Beast sends the close frame as soon as the frame being written is
- * out -- a message of several frames ends there, incomplete -- and bounds the handshake by the
- * handshake limit; messages that still wait in the write queue are not sent. Without an open
- * websocket (the handshake never completed, or the connection has failed or timed out) there is
- * nothing to shake hands about, and the connection is ended at once.
+ * Begins the close: nothing is queued any more, and the close frame goes out once what was queued
+ * before has been written (closeWhenSent_()). The wait is bounded by the handshake limit: a peer
+ * whose other end no longer reads is ended then. Without a connection to close (the handshake
+ * failed, or the connection is over) the peer is ended at once; during the handshake the close
+ * waits for it.
  *
- * @param code The close code sent to the other end
+ * @param how What the other end is told
  */
-void GWebsocketPeer::beginClose_(close_code code) {
-    if(closing_) {
+void GWebsocketPeer::beginClose_(GPeerClose how) {
+    if(closing_ || finished_) {
         return;
     }
     closing_ = true;
     local_close_ = true;
+    close_how_ = how;
 
-    if(not ws_.is_open()) {
+    if(not open_ && not ws_.next_layer().is_open()) {
         this->finish_({});
         return;
     }
 
+    close_timer_.expires_after(limitsFor(options_.pingInterval).handshake_timeout);
+    close_timer_.async_wait([self = this->shared_from_this()](const error_code &ec) {
+        if(not ec && not self->close_sent_) {
+            self->finish_({}); // what was queued could not be written in time
+        }
+    });
+
+    if(open_) {
+        this->pump_();
+    }
+}
+
+/******************************************************************************/
+/** Sends the close frame: the write queue is empty and no write is outstanding. Beast bounds the
+ *  close handshake by the handshake limit. */
+void GWebsocketPeer::closeWhenSent_() {
+    if(close_sent_ || finished_ || writing_ || not write_queue_.empty()) {
+        return;
+    }
+    close_sent_ = true;
+    close_timer_.cancel();
     auto self = this->shared_from_this();
-    ws_.async_close(code, [self]([[maybe_unused]] const error_code &ec) { self->finish_({}); });
+    ws_.async_close(codeFor(close_how_), [self]([[maybe_unused]] const error_code &ec) {
+        self->finish_({});
+    });
 }
 
 /******************************************************************************/
 /**
- * Ends the connection at once, without a close handshake. For a caller on the peer's executor, or
+ * Ends the connection at once, without a close handshake. For a caller on the socket's executor, or
  * one whose io context no longer runs -- but not from inside one of the peer's handlers: the
  * handlers are dropped here, and with them possibly the object the calling handler belongs to.
  * A handler that wants the connection gone calls close().
  */
 void GWebsocketPeer::abort() {
+    close_requested_.store(true);
     closing_ = true;
     local_close_ = true;
     this->finish_({}, /*report_inline=*/true);
@@ -381,18 +459,25 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
  * closes the socket, and tells the role on its strand -- after the messages handed to it before,
  * which it may still handle. abort() has the role told at once instead: no handler runs then.
  *
- * @param cause Why the connection ended; reported as "no error" if this end began the close
+ * Why it ended: CLOSED_HERE if this end began the close; CLOSED_THERE if the other end's close
+ * frame arrived, whatever became of the TCP connection after it; SILENT if a time limit expired;
+ * FAILED for any other error (a handshake that failed among them).
+ *
+ * @param cause The error that ended it; none if this end began the close
  * @param report_inline Whether the role is told here and now (abort()) instead of on its strand
  */
 void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     if(finished_) {
         if(report_inline) {
-            this->report_({}); // a report posted before may never run: its context has stopped
+            // a report posted before may never run: its context has stopped
+            this->report_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
         }
         return;
     }
     finished_ = true;
     closing_ = true;
+    close_timer_.cancel();
+    write_queue_.clear();
 
     if(cause == boost::beast::error::timeout && open_ && not close_received_) {
         // Which end gave up, and after how much silence: the other end is either gone, or it could
@@ -423,17 +508,34 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
 
     // The other end's close is its close, also if the end of the TCP connection then failed or
     // timed out: it did say that it closes.
-    const error_code reported = local_close_ ? error_code{}
-                                : close_received_
-                                    ? error_code{boost::beast::websocket::error::closed}
-                                    : cause;
+    GPeerEnd end = GPeerEnd::FAILED;
+    if(local_close_) {
+        end = GPeerEnd::CLOSED_HERE;
+    }
+    else if(close_received_) {
+        end = GPeerEnd::CLOSED_THERE;
+    }
+    else if(cause == boost::beast::error::timeout) {
+        end = GPeerEnd::SILENT;
+    }
+    const GPeerClose how = close_received_ ? closeFor(ws_.reason().code) : GPeerClose::NORMAL;
+    std::string detail = cause.message();
+    if(end == GPeerEnd::CLOSED_HERE) {
+        detail = "closed by this end";
+    }
+    else if(end == GPeerEnd::CLOSED_THERE) {
+        detail = "closed by the other end";
+    }
     if(report_inline) {
-        this->report_(reported);
+        this->report_(end, how, detail);
     }
     else {
-        boost::asio::post(handler_strand_, [self = this->shared_from_this(), reported] {
-            self->report_(reported);
-        });
+        boost::asio::post(
+            handler_strand_,
+            [self = this->shared_from_this(), end, how, detail = std::move(detail)] {
+                self->report_(end, how, detail);
+            }
+        );
     }
 }
 
@@ -443,13 +545,15 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
  * connection is over, once, drops the handlers and with them this peer's hold on the role, and
  * lets go of the handler context.
  *
- * @param cause What onClosed is told
+ * @param end Why the connection ended
+ * @param how What the other end's close said
+ * @param detail Words about it, for the log
  */
-void GWebsocketPeer::report_(const error_code &cause) {
-    GHandlers handlers = std::move(handlers_);
-    handlers_ = GHandlers{};
+void GWebsocketPeer::report_(GPeerEnd end, GPeerClose how, const std::string &detail) {
+    GPeerHandlers handlers = std::move(handlers_);
+    handlers_ = GPeerHandlers{};
     if(handlers.onClosed) {
-        handlers.onClosed(cause);
+        handlers.onClosed(end, how, detail);
     }
     owner_work_ = {};
 }
