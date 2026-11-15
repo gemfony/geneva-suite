@@ -34,6 +34,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <array>
 #include <atomic>
@@ -662,4 +663,35 @@ TEST_CASE(
     CHECK(server_seen.nClosed == 1);
     CHECK(client_seen.nClosed == 1);
     CHECK(client_seen.how == GPeerClose::RUN_ENDED);
+}
+
+/******************************************************************************/
+// A handshake that runs out of time: the other end keeps its TCP connection open and never sends its
+// upgrade request. The end was never opened, so it reports FAILED (rule 1), not SILENT, which is for a
+// connection that was open -- with or without a close asked for while the handshake was under way.
+// A ping interval of 100 ms makes the handshake limit 200 ms.
+TEST_CASE(
+    "GWebsocketPeer reports a handshake that runs out of time as FAILED",
+    "[courtier][websocket][peer]"
+) {
+    const bool close_first = GENERATE(false, true);
+    INFO((close_first ? "with a close during the handshake" : "without a close"));
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+
+    auto server = serverEnd(
+        std::move(accepted),
+        GWebsocketPeer::GOptions{.name = "server end", .pingInterval = 100ms}
+    );
+    startRecording(server, server_seen);
+    if(close_first) {
+        server->close(GPeerClose::RUN_ENDED);
+    }
+    server.reset();
+
+    REQUIRE(runsDry(ctx)); // the other end is open all the while, and says nothing
+    CHECK(server_seen.nOpen == 0);
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.end == GPeerEnd::FAILED);
 }

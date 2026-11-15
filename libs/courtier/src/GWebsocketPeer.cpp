@@ -409,7 +409,9 @@ void GWebsocketPeer::beginClose_(GPeerClose how) {
     close_timer_.expires_after(limitsFor(options_.pingInterval).handshake_timeout);
     close_timer_.async_wait([self = this->shared_from_this()](const error_code &ec) {
         if(not ec && not self->close_sent_) {
-            self->finish_({}); // what was queued could not be written in time
+            // Open: what was queued could not be written in time. Not open: the handshake has not
+            // completed within its limit -- a handshake that ran out of time, as Beast reports it.
+            self->finish_(self->open_ ? error_code{} : error_code{boost::beast::error::timeout});
         }
     });
 
@@ -462,9 +464,9 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
  *
  * Why it ended: CLOSED_HERE if this end began the close (and the connection had opened, or nothing
  * failed); CLOSED_THERE if the other end's close frame arrived, whatever became of the TCP
- * connection after it; SILENT if a time limit expired; FAILED for any other error -- a handshake
- * that failed among them, also when a close had been asked for while it was under way (rule 1: a
- * peer that cannot be opened reports FAILED).
+ * connection after it; SILENT if a time limit expired on a connection that was open; FAILED for any
+ * other error -- a handshake that failed or ran out of time among them, also when a close had been
+ * asked for while it was under way (rule 1: a peer that cannot be opened reports FAILED).
  *
  * @param cause The error that ended it; none if this end began the close
  * @param report_inline Whether the role is told here and now (abort()) instead of on its strand
@@ -518,8 +520,8 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
     else if(close_received_) {
         end = GPeerEnd::CLOSED_THERE;
     }
-    else if(cause == boost::beast::error::timeout) {
-        end = GPeerEnd::SILENT;
+    else if(cause == boost::beast::error::timeout && open_) {
+        end = GPeerEnd::SILENT; // a handshake that ran out of time stays FAILED
     }
     const GPeerClose how = close_received_ ? closeFor(ws_.reason().code) : GPeerClose::NORMAL;
     std::string detail = cause.message();
