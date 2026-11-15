@@ -78,6 +78,11 @@ class GThreadPool;
  * any join blocks. An additional behavioural difference from std::thread is
  * that a jthread auto-joins on destruction, so a group destroyed without an
  * explicit join_all() will not std::terminate.
+ *
+ * create_thread() does not hold the group's lock while it starts a thread: starting one is a
+ * system call, and a new thread that calls into the group at once (size(), add_thread()) would
+ * wait for it. Room for the thread in the group is reserved under the lock before the thread is
+ * started, so that adding it afterwards cannot fail (see create_thread()).
  */
 class GThreadGroup {
     friend class GThreadPool;
@@ -127,13 +132,28 @@ public:
 	  */
     template <typename F, typename... args_type>
     std::shared_ptr<std::jthread> create_thread(F &&f, args_type &&...args) {
-        // Build the thread before taking the lock so the only critical
-        // section is the vector push. Use make_shared instead of a bare
-        // `new std::jthread(...)` for exception-safe single-allocation.
-        auto new_thread =
-            std::make_shared<std::jthread>(std::forward<F>(f), std::forward<args_type>(args)...);
-        std::scoped_lock const guard(mutex_);
-        threads_.push_back(new_thread);
+        // Room for the thread is made before it is started: once it runs, adding it to the group
+        // must not fail, or the jthread's destructor would join a thread that may not watch its
+        // stop token, and this call would hang. The room is reserved under the lock for every
+        // creation under way, so that two concurrent calls cannot use up each other's room. The
+        // thread itself is started outside the lock (see the class comment).
+        this->reserveForCreation_();
+        std::shared_ptr<std::jthread> new_thread;
+        try {
+            // make_shared instead of a bare `new std::jthread(...)`: one allocation, and no leak
+            new_thread = std::make_shared<std::jthread>(
+                std::forward<F>(f),
+                std::forward<args_type>(args)...
+            );
+        }
+        catch(...) {
+            const std::scoped_lock guard(mutex_);
+            --n_creating_;
+            throw;
+        }
+        const std::scoped_lock guard(mutex_);
+        --n_creating_;
+        threads_.push_back(new_thread); // cannot throw: the room was reserved
         return new_thread;
     }
 
@@ -159,8 +179,18 @@ private:
     /** @brief Clears the thread vector */
     void clearThreads();
 
+    /** @brief Makes room in threads_ for one more thread than is held and being created, and
+     *  counts a creation under way. May throw (then nothing is counted). */
+    void reserveForCreation_();
+
+    /** @brief Makes room in threads_ for @p n_more threads beyond those held and those being
+     *  created. With the lock held; may throw. */
+    void reserveLocked_(std::size_t n_more);
+
     thread_vector threads_;    ///< Holds the actual threads
     mutable std::mutex mutex_; ///< Needed to synchronize access to the vector
+    /// Threads being created by create_thread() whose room in threads_ is reserved (under mutex_)
+    std::size_t n_creating_ = 0;
 };
 
 /******************************************************************************/

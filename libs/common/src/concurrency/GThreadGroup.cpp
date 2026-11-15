@@ -48,6 +48,7 @@
  */
 
 #include "common/concurrency/GThreadGroup.hpp"
+#include <algorithm>
 #include <cstddef>
 #include <mutex>
 
@@ -64,6 +65,8 @@ namespace Gem::Common::Concurrency {
 void GThreadGroup::add_thread(const thread_ptr& thrd) {
     if(thrd) {
         std::scoped_lock const guard(mutex_);
+        // Not out of the room reserved for the creations under way (create_thread())
+        this->reserveLocked_(1);
         threads_.push_back(thrd);
     }
 }
@@ -107,6 +110,33 @@ void GThreadGroup::join_all() {
 std::size_t GThreadGroup::size() const {
     std::scoped_lock const guard(mutex_);
     return threads_.size();
+}
+
+/******************************************************************************/
+/**
+ * @brief Makes room for one more thread than the group holds and is creating, and counts a
+ * creation under way (see create_thread()). If the room cannot be made, the exception leaves
+ * this call and nothing is counted: no thread has been started yet.
+ */
+void GThreadGroup::reserveForCreation_() {
+    std::scoped_lock const guard(mutex_);
+    this->reserveLocked_(1);
+    ++n_creating_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Makes room in the thread vector for @p n_more threads beyond those it holds and those
+ * whose creation is under way. The capacity grows geometrically, as push_back would grow it, so
+ * that creating threads one at a time does not reallocate every time. Called with the mutex held.
+ *
+ * @param n_more How many threads beyond those held and being created need room
+ */
+void GThreadGroup::reserveLocked_(std::size_t n_more) {
+    const std::size_t needed = threads_.size() + n_creating_ + n_more;
+    if(needed > threads_.capacity()) {
+        threads_.reserve(std::max(needed, 2 * threads_.capacity()));
+    }
 }
 
 /******************************************************************************/
