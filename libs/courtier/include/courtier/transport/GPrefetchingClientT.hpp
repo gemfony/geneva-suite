@@ -144,7 +144,7 @@ protected:
         glogger << '\n'
                 << client_name_ << " is shutting down. Processed " << this->getNProcessed()
                 << " items in total" << '\n'
-                << "\"no data\" was received " << n_nodata_ << " times" << '\n'
+                << "\"no data\" was received " << n_nodata_.load() << " times" << '\n'
                 << "prefetch depth was " << prefetch_depth_ << '\n'
                 << '\n'
                 << GLOGGING;
@@ -578,7 +578,9 @@ protected:
     /// Set by drop_held_(): a WORK item decoded from now on is dropped (io thread)
     bool work_unwanted_ = false;
 
-    std::uint64_t n_nodata_ = 0; ///< How often a NO_WORK reply was received (reported at shutdown)
+    /// How often a NO_WORK reply was received (reported at shutdown). Written on the io thread; an
+    /// atomic, so that it may be read from any thread (noWorkCount()).
+    std::atomic<std::uint64_t> n_nodata_{0};
 
     bool pipeline_stopped_ = false; ///< Set by stopPipelineTimers_(): no timer is armed any more
 

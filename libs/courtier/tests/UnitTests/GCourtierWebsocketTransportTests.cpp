@@ -36,9 +36,12 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
+#include <vector>
 
 #include <boost/asio.hpp>
 
@@ -96,12 +99,24 @@ bool eventually(Condition condition) {
     return condition();
 }
 
-/** @brief @return A port that nothing listens on (bound once, then let go) */
-unsigned short freePort() {
-    boost::asio::io_context ctx;
-    const tcp::acceptor probe(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
-    return probe.local_endpoint().port();
-}
+/** @brief A port that refuses connections for as long as this object lives: it is bound and does
+ *  not listen, so no other process can take it meanwhile */
+class ClosedPort {
+public:
+    ClosedPort()
+      : socket_(ctx_) {
+        socket_.open(tcp::v4());
+        socket_.bind(tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    }
+    /** @brief @return The port */
+    [[nodiscard]] unsigned short port() const {
+        return socket_.local_endpoint().port();
+    }
+
+private:
+    boost::asio::io_context ctx_;
+    tcp::socket socket_;
+};
 
 /** @brief @param ping The ping interval @return The options of a peer with it */
 GWebsocketPeer::GOptions withPing(std::chrono::milliseconds ping) {
@@ -192,8 +207,9 @@ TEST_CASE(
     "GWebsocketConnector: a closed port reports an error and no peer",
     "[courtier][websocket][transport]"
 ) {
+    const ClosedPort closed;
     OneThread client;
-    GWebsocketConnector connector("localhost", freePort(), withPing(1s));
+    GWebsocketConnector connector("localhost", closed.port(), withPing(1s));
     std::atomic<bool> done{false};
     std::atomic<bool> got_peer{true};
     std::string error;
@@ -218,8 +234,9 @@ TEST_CASE(
     "GWebsocketConnector: an attempt given up with cancel does not report",
     "[courtier][websocket][transport]"
 ) {
+    const ClosedPort closed;
     OneThread client;
-    GWebsocketConnector connector("localhost", freePort(), withPing(1s));
+    GWebsocketConnector connector("localhost", closed.port(), withPing(1s));
     std::atomic<bool> called{false};
     std::atomic<bool> posted{false};
     boost::asio::post(client.executor(), [&] {
@@ -246,4 +263,109 @@ TEST_CASE(
     const GWebsocketListener without_ping("listener test", 0, withPing(0ms), 1);
     CHECK(with_ping.detectsLoss());
     CHECK_FALSE(without_ping.detectsLoss());
+}
+
+/******************************************************************************/
+/** After stop() the listener makes no peer: a client that connects is refused, and on_peer is not
+ *  called. Three connections before it get the ids 1, 2 and 3. */
+TEST_CASE(
+    "GWebsocketListener: the ids count from 1 and no peer comes after stop",
+    "[courtier][websocket][transport]"
+) {
+    OneThread sessions;
+    GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+    std::mutex mutex;
+    std::vector<GWirePeerId> ids;
+    std::vector<std::shared_ptr<GPeerI>> ends; // never started: the client sockets just connect
+    listener.start(sessions.executor(), [&](std::shared_ptr<GPeerI> peer, GWirePeerId id) {
+        const std::scoped_lock lock(mutex);
+        ids.push_back(id);
+        ends.push_back(std::move(peer));
+    });
+
+    boost::asio::io_context ctx;
+    const tcp::endpoint server{boost::asio::ip::address_v4::loopback(), listener.getPort()};
+    std::vector<tcp::socket> sockets;
+    for(int c = 0; c < 3; ++c) {
+        sockets.emplace_back(ctx).connect(server);
+    }
+    REQUIRE(eventually([&] {
+        const std::scoped_lock lock(mutex);
+        return ids.size() == 3;
+    }));
+    {
+        const std::scoped_lock lock(mutex);
+        CHECK(ids == std::vector<GWirePeerId>{1, 2, 3});
+    }
+
+    listener.stop();
+    tcp::socket late(ctx);
+    boost::system::error_code ec;
+    std::ignore = late.connect(server, ec);
+    CHECK(ec); // refused: the acceptor is closed
+    std::this_thread::sleep_for(200ms);
+    {
+        const std::scoped_lock lock(mutex);
+        CHECK(ids.size() == 3);
+        ends.clear(); // before the I/O context goes (endWork())
+    }
+    listener.endWork();
+}
+
+/******************************************************************************/
+/** endWork() lets the open connections go without onClosed (GListenerI::endWork(), rule 5): the
+ *  handlers are dropped, and with them what they hold. */
+TEST_CASE(
+    "GWebsocketListener: endWork lets open connections go without onClosed",
+    "[courtier][websocket][transport]"
+) {
+    // The shell's context, as GPeerConsumerT keeps it: its thread is joined before endWork(), the
+    // context itself goes after it (the peers' handler strands are on it)
+    boost::asio::io_context sessions_ctx;
+    auto sessions_work = std::make_optional(boost::asio::make_work_guard(sessions_ctx));
+    std::thread sessions_thread([&sessions_ctx] { sessions_ctx.run(); });
+    OneThread client;
+    GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+    std::atomic<int> n_open{0};
+    std::atomic<int> n_closed_server{0};
+    auto token = std::make_shared<int>(0); // held by the server end's handlers
+    const std::weak_ptr<int> token_seen = token;
+    listener.start(
+        sessions_ctx.get_executor(),
+        [&n_open, &n_closed_server, token](std::shared_ptr<GPeerI> peer, GWirePeerId) {
+            peer->start(GPeerHandlers{
+                .onOpen = [&n_open] { n_open.fetch_add(1); },
+                .onMessage = {},
+                .onClosed = [&n_closed_server, token](GPeerEnd, GPeerClose, std::string_view) {
+                    n_closed_server.fetch_add(1);
+                }
+            });
+        }
+    );
+    token.reset();
+
+    GWebsocketConnector connector("localhost", listener.getPort(), withPing(1s));
+    boost::asio::post(client.executor(), [&] {
+        connector.connect(
+            client.executor(),
+            [&n_open](const std::shared_ptr<GPeerI> &peer, std::string_view) {
+                if(peer) {
+                    peer->start(GPeerHandlers{
+                        .onOpen = [&n_open] { n_open.fetch_add(1); },
+                        .onMessage = {},
+                        .onClosed = {}
+                    });
+                }
+            }
+        );
+    });
+    REQUIRE(eventually([&] { return n_open.load() == 2; }));
+
+    listener.stop();
+    sessions_work.reset();
+    sessions_ctx.stop();
+    sessions_thread.join(); // no handler runs any more
+    listener.endWork();
+    CHECK(n_closed_server.load() == 0);
+    CHECK(token_seen.expired());
 }

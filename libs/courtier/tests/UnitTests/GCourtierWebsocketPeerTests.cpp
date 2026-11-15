@@ -480,9 +480,11 @@ TEST_CASE(
     "[courtier][websocket][peer]"
 ) {
     using namespace std::chrono_literals;
+    // The handlers' context goes last: the peers that the I/O contexts' handlers still hold (on a
+    // run that fails) are destroyed with those, and their strands are on this one.
+    boost::asio::io_context role_ctx;  // the handlers of both ends
     boost::asio::io_context server_io; // the I/O of the server's end
     boost::asio::io_context client_io; // the I/O of the client's end
-    boost::asio::io_context role_ctx;  // the handlers of both ends
     tcp::acceptor acceptor(server_io, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     tcp::socket connecting(client_io);
     connecting.connect(acceptor.local_endpoint());

@@ -191,10 +191,10 @@ public:
     [[nodiscard]] GPeerEnd connectionEnd() const noexcept {
         return end_;
     }
-    /** @brief How often a NO_WORK answer was received. To be read after run() has returned.
+    /** @brief How often a NO_WORK answer was received. From any thread.
      *  @return The count */
     [[nodiscard]] std::uint64_t noWorkCount() const noexcept {
-        return n_nodata_;
+        return n_nodata_.load();
     }
 
 private:

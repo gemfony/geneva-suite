@@ -37,6 +37,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <functional>
 #include <future>
 #include <limits>
 #include <map>
@@ -134,6 +135,7 @@ public:
     /** @brief @param inner The end it wraps @param counts Where it reports */
     CountingPeer(const std::shared_ptr<GPeerI> &inner, std::shared_ptr<ServerCounts> counts)
       : inner_(inner)
+      , executor_(inner->executor())
       , counts_(std::move(counts)) { /* nothing */
     }
 
@@ -194,14 +196,15 @@ public:
             inner->abort();
         }
     }
-    /** @brief Forwards @return The wrapped end's executor */
+    /** @brief @return The wrapped end's executor, kept from start() on: GPeerI::executor() always
+     *  answers, also once the wrapped end has gone (a wake-up may post to it then) */
     [[nodiscard]] boost::asio::any_io_executor executor() override {
-        auto inner = inner_.lock();
-        return inner ? inner->executor() : boost::asio::any_io_executor{};
+        return executor_;
     }
 
 private:
     std::weak_ptr<GPeerI> inner_;          ///< The wrapped end
+    boost::asio::any_io_executor executor_; ///< The wrapped end's executor, kept
     std::shared_ptr<ServerCounts> counts_; ///< Where it reports
     std::size_t requests_ = 0;             ///< Requests received (on the strand)
     std::size_t answers_ = 0;              ///< Answers sent (on the strand)
@@ -644,9 +647,17 @@ std::atomic<bool> noWorkSent{false}; ///< The scripted server has answered with 
 /// How long the client takes to encode its evaluated item: longer than the longest back-off after
 /// a NO_WORK (GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC)
 constexpr auto SLOW_ENCODE = 800ms;
-/// How long an evaluation waits after the NO_WORK has been sent before it ends: the client has
-/// decoded the NO_WORK by then
-constexpr auto AFTER_NO_WORK = 100ms;
+/// How long an evaluation waits, once the client has counted the NO_WORK, before it ends: the
+/// client has published that it may ask again by then, and its refill PULL comes after the
+/// shortest back-off (GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC, 50 ms) at the earliest
+constexpr auto AFTER_NO_WORK = 5ms;
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+/// How often an evaluated GSlowReturnItem was encoded (the second encoding is the point of the case)
+std::atomic<std::size_t> slowEncodes{0};
+/// The NO_WORK count of the client under test; set before it runs
+std::function<std::uint64_t()> noWorkSeenByClient;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
  * A work item that is encoded slowly once it has been evaluated (on its way back), and whose
@@ -665,6 +676,7 @@ class GSlowReturnItem final : public Gem::Courtier::GProcessingContainerT<GSlowR
         );
         if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
             if(this->is_processed()) {
+                slowEncodes.fetch_add(1);
                 std::this_thread::sleep_for(SLOW_ENCODE);
             }
         }
@@ -677,9 +689,9 @@ public:
     }
 
 private:
-    /** @brief Ends after the NO_WORK has reached the client */
+    /** @brief Ends after the client has counted the NO_WORK */
     void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
-        while(not noWorkSent.load()) {
+        while(not noWorkSent.load() || noWorkSeenByClient() == 0) {
             std::this_thread::sleep_for(1ms);
         }
         std::this_thread::sleep_for(AFTER_NO_WORK);
@@ -788,12 +800,16 @@ TEST_CASE(
                 .lookAhead = true
             }
         );
+        slowEncodes.store(0);
+        // a plain pointer: the evaluation ends before the client does (run() returns after it)
+        noWorkSeenByClient = [c = client.get()] { return c->noWorkCount(); };
         std::jthread runner([client] { client->run(); });
         REQUIRE(eventually([&] { return server->nResults.load() + server->nReturns.load() > 0; }));
         std::this_thread::sleep_for(100ms); // anything that would follow the result
         CHECK(server->nResults.load() == 1);
         CHECK(server->nReturns.load() == 0);
         CHECK(server->maxUnanswered.load() == 1);
+        CHECK(slowEncodes.load() == 2); // encoded as a RETURN first, then once more as a RESULT
         server->endRun();
         runner.join();
         listener->stop();
@@ -1318,4 +1334,23 @@ TEST_CASE(
     REQUIRE(returned);
     CHECK(took < 2500ms);
     CHECK(cancels->load() >= 1);
+}
+
+/******************************************************************************/
+/** The test double that counts on the server's side answers executor() also once the end it wraps
+ *  has gone (GPeerI: from any thread; a wake-up may post to it then). */
+TEST_CASE(
+    "GPeerClientT tests: the counting server end keeps its executor",
+    "[courtier][peer][client]"
+) {
+    IoThreads io{1};
+    auto ends = Gem::Courtier::Tests::GInProcessPeer::makePair(io.executor(), {}, io.executor(), {}, 1s);
+    auto counting = std::make_shared<CountingPeer>(ends.first, std::make_shared<ServerCounts>());
+    ends.first.reset();
+    ends.second.reset(); // neither end was started: they are gone
+    const auto executor = counting->executor();
+    REQUIRE(static_cast<bool>(executor));
+    std::promise<void> ran;
+    boost::asio::post(executor, [&ran] { ran.set_value(); });
+    CHECK(ran.get_future().wait_for(PATIENCE) == std::future_status::ready);
 }
