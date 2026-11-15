@@ -85,8 +85,8 @@ class GStandardMonitor // NOLINT(cppcoreguidelines-special-member-functions)
      * time by GReflectiveInterfaceT).
      * @return An empty member tuple
      */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -149,8 +149,8 @@ class GFitnessMonitor // NOLINT(cppcoreguidelines-special-member-functions)
      * call and NOT serialized -- so the monitor no longer carries plotter
      * objects in its state. No manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("x_dim_", self.x_dim_),
             Gem::Common::make_member("y_dim_", self.y_dim_),
@@ -285,8 +285,8 @@ class GCollectiveMonitor // NOLINT(cppcoreguidelines-special-member-functions)
      * shared_ptr load resizes the target correctly, so no pre-clear is needed and
      * the member folds like any other.)
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("pluggable_monitors_", self.pluggable_monitors_)
         );
@@ -371,8 +371,8 @@ class GProgressPlotterT // NOLINT(cppcoreguidelines-special-member-functions)
      * through make_member); the accumulated plot data lives in a transient GDataLog
      * (data_log_), built per run and NOT serialized.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("fp_prof_var_vec_", self.fp_prof_var_vec_),
             Gem::Common::make_member("canvas_label_", self.canvas_label_),
@@ -1049,8 +1049,8 @@ class GAllSolutionFileLogger // NOLINT(cppcoreguidelines-special-member-function
      * GReflectiveInterfaceT-generated serialize(), load_() and compare_() from one place. All members are plain
      * config values (make_member); no manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_", self.file_name_),
             Gem::Common::make_member("boundaries_", self.boundaries_),
@@ -1249,8 +1249,8 @@ class GIterationResultsFileLogger // NOLINT(cppcoreguidelines-special-member-fun
      * serialize(), load_() and compare_() from one place. All members are plain
      * config values (make_member); no manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_", self.file_name_),
             Gem::Common::make_member("with_commas_", self.with_commas_),
@@ -1362,8 +1362,8 @@ class GNAdpationsLogger // NOLINT(cppcoreguidelines-special-member-functions)
      * are materialized into a local GDataLog at INFOEND from the accumulated
      * n_adaptions_store_ / fitness_store_ vectors. No manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_", self.file_name_),
             Gem::Common::make_member("canvas_dimensions_", self.canvas_dimensions_),
@@ -1517,8 +1517,8 @@ class GAdaptorPropertyLoggerT // NOLINT(cppcoreguidelines-special-member-functio
      * are materialized into a local GDataLog at INFOEND from the accumulated
      * adaptor_property_store_ / fitness_store_ vectors. No manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_", self.file_name_),
             Gem::Common::make_member("adaptor_name_", self.adaptor_name_),
@@ -1934,8 +1934,8 @@ class GProcessingTimesLogger // NOLINT(cppcoreguidelines-special-member-function
      * declared into two transient GDataLogs at INFOINIT, filled during
      * INFOPROCESSING and written at INFOEND. No manual tail is needed.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_pth_", self.file_name_pth_),
             Gem::Common::make_member("canvas_dimensions_pth_", self.canvas_dimensions_pth_),

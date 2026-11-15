@@ -190,8 +190,8 @@ class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-funct
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::archive_named_base<gen::GGenome>(ar, "gen::GGenome", *this);
         archive_named(ar, "n_runs_per_optimization_", n_runs_per_optimization_);
@@ -652,8 +652,8 @@ protected:
      * it is not part of the copy/compare semantics. serialize() handles it
      * separately; do not derive serialize() from localMembers() for this class.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("n_runs_per_optimization_", self.n_runs_per_optimization_),
             Gem::Common::make_member("fitness_target_", self.fitness_target_),
@@ -1587,8 +1587,8 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
     // GReflectiveInterfaceAccess construct shim, so it needs reach to the private constructor.
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
         // All local members, derived from the single localMembers() declaration (same NVP tags as before).
         Gem::Common::serialize_members(ar, this->localMembers_());
@@ -1598,8 +1598,8 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
     /** @brief Single declaration of this monitor's local data members, feeding serialize() / load_() /
      *  compare_() from one source. Only file_name_ is state; the eight progress curves are declared into
      *  a transient GDataLog at INFOINIT, filled in INFOPROCESSING and written at INFOEND. */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("file_name_", self.file_name_)
         );

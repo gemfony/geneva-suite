@@ -99,8 +99,8 @@ constexpr auto SLOW_CODEC = std::chrono::seconds(3);
 class GSlowCodecItem final : public Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowCodecItem, bool>>(
             ar,
             "GProcessingContainerT_GSlowCodecItem",
@@ -109,7 +109,7 @@ class GSlowCodecItem final : public Gem::Courtier::GProcessingContainerT<GSlowCo
         Gem::Common::archive_named(ar, "id_", id_);
         const bool back = this->is_processed();
         CodecRun run = CodecRun::NONE;
-        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
             run = back ? CodecRun::CLIENT_ENCODES : CodecRun::SERVER_ENCODES;
         }
         else {
@@ -204,11 +204,11 @@ constexpr std::size_t PING_INTERVAL_S =
     1;                        // a ping after 1 s of silence, the connection closed after 2 s
 constexpr auto PATIENCE = 8s; // how long a test waits for something due after about 2 s
 
-/** @brief A started websocket server for work items of type @p Item. */
-template <typename Item>
-std::shared_ptr<GWebsocketConsumerT<Item>> startedServer(std::size_t n_threads) {
+/** @brief A started websocket server for work items of type @p item_type. */
+template <typename item_type>
+std::shared_ptr<GWebsocketConsumerT<item_type>> startedServer(std::size_t n_threads) {
     auto consumer =
-        std::make_shared<GWebsocketConsumerT<Item>>(Gem::Courtier::GWebsocketConsumerConfig{
+        std::make_shared<GWebsocketConsumerT<item_type>>(Gem::Courtier::GWebsocketConsumerConfig{
             .serializationMode = BIN,
             .nThreads = n_threads,
             .pingInterval = PING_INTERVAL_S,
@@ -218,9 +218,9 @@ std::shared_ptr<GWebsocketConsumerT<Item>> startedServer(std::size_t n_threads) 
 }
 
 /** @brief A client for @p port with the same keep-alive as the servers of these tests. */
-template <typename Item>
-std::shared_ptr<GWebsocketClientT<Item>> matchingClient(unsigned short port) {
-    return std::make_shared<GWebsocketClientT<Item>>(Gem::Courtier::GWebsocketConsumerConfig{
+template <typename item_type>
+std::shared_ptr<GWebsocketClientT<item_type>> matchingClient(unsigned short port) {
+    return std::make_shared<GWebsocketClientT<item_type>>(Gem::Courtier::GWebsocketConsumerConfig{
         .ip = "127.0.0.1",
         .port = port,
         .serializationMode = BIN,
@@ -230,8 +230,8 @@ std::shared_ptr<GWebsocketClientT<Item>> matchingClient(unsigned short port) {
 
 /** @brief Polls @p condition until it holds or @p patience has passed.
  *  @return Whether the condition held in time */
-template <typename Condition>
-bool eventually(Condition condition, std::chrono::milliseconds patience = PATIENCE) {
+template <typename condition_type>
+bool eventually(condition_type condition, std::chrono::milliseconds patience = PATIENCE) {
     const auto give_up_at = std::chrono::steady_clock::now() + patience;
     while(std::chrono::steady_clock::now() < give_up_at) {
         if(condition()) {

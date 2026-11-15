@@ -83,11 +83,11 @@ struct GEvaluationResults {
     friend struct Gem::Weft::access;
 
     /** @brief (De)serialises the results and the validity level.
-     *  @tparam Archive The GArchive codec type
+     *  @tparam archive_type The GArchive codec type
      *  @param ar The archive to read from / write to
      *  @param version The (unused) serialization version number */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "results", results);
         Gem::Common::archive_named(ar, "validity_level", validity_level);
     }

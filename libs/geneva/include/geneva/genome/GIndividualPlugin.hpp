@@ -79,22 +79,26 @@ using Gem::Common::GFixedString;
  * unit carries it (the same registration a compiled-in individual needs), so there is no double
  * registration.
  *
- * @tparam FactoryType The content-creator factory (a GFactoryT<GGenome>, e.g.
+ * @tparam factory_type The content-creator factory (a GFactoryT<GGenome>, e.g.
  *         GIndividualFactory<MyProblem>)
- * @tparam Config The factory's configuration-file path (a string literal), passed to its constructor
- * @tparam Name   The module/contribution name, for diagnostics (a string literal)
+ * @tparam CONFIG The factory's configuration-file path (a string literal), passed to its constructor
+ * @tparam NAME   The module/contribution name, for diagnostics (a string literal)
  * @return A pointer to this module's process-lifetime manifest
  */
-template <typename FactoryType, GFixedString Config, GFixedString Name>
+template <typename factory_type, GFixedString CONFIG, GFixedString NAME>
 const GenevaModuleManifest *individualManifest() {
     // Captureless thunk -> void*(*)(void): construct the factory (with its config path) on the heap; the
-    // loader moves-from and deletes it. Config is a template-parameter object, usable without capture.
+    // loader moves-from and deletes it. CONFIG is a template-parameter object, usable without capture.
     static constexpr auto factory_thunk = +[]() -> void * {
-        return new GIndividualFactoryPtr(std::make_shared<FactoryType>(Config.c_str()));
+        return new GIndividualFactoryPtr(std::make_shared<factory_type>(CONFIG.c_str()));
     };
-    static const GenevaContribution contribution{GENEVA_CONTRIBUTION_INDIVIDUAL, Name.c_str(), factory_thunk};
-    static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP, Name.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+    static const GenevaContribution contribution{
+        GENEVA_CONTRIBUTION_INDIVIDUAL,
+        NAME.c_str(),
+        factory_thunk
+    };
+    static const GenevaModuleManifest
+        manifest{GENEVA_MODULE_ABI_STAMP, NAME.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
     return &manifest;
 }
 

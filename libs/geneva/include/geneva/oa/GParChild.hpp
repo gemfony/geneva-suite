@@ -90,8 +90,8 @@ class GParChild // NOLINT(cppcoreguidelines-special-member-functions)
 
     /** @brief Single declaration of this class'es local data members. Drives the
      *  GReflectiveInterfaceBaseT-generated serialize()/load_()/compare_() from one place. */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("n_parents_", self.n_parents_),
             Gem::Common::make_member("recombination_method_", self.recombination_method_),

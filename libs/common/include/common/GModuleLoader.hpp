@@ -141,18 +141,18 @@ void loadModule(
  * @brief For a handler's take(): calls the factory of @p contribution and moves the result out
  * of the holder the module allocated.
  *
- * The cast from the factory's void * is unchecked: @p Ptr must be exactly the type the module's
+ * The cast from the factory's void * is unchecked: @p ptr_type must be exactly the type the module's
  * author helper allocates for the kind. The module ABI version is what guards that.
  *
- * @tparam Ptr The smart-pointer type the factory allocates (e.g. a shared pointer to a provider)
+ * @tparam ptr_type The smart-pointer type the factory allocates (e.g. a shared pointer to a provider)
  * @param contribution The contribution whose factory is called
  * @param context The module, for the messages
  * @param noun What the contribution is, for the messages
  * @return The pointer the module handed over; never empty
  * @throws geneva_exception if the factory returns null or an empty pointer
  */
-template <typename Ptr>
-[[nodiscard]] Ptr takeContribution(
+template <typename ptr_type>
+[[nodiscard]] ptr_type takeContribution(
     const GenevaContribution &contribution,
     const GContributionContext &context,
     std::string_view noun
@@ -168,8 +168,8 @@ template <typename Ptr>
     }
     // Adopt the heap-allocated holder into RAII immediately (Invariant 21), then move its payload
     // out
-    const std::unique_ptr<Ptr> holder(static_cast<Ptr *>(raw));
-    Ptr result = std::move(*holder);
+    const std::unique_ptr<ptr_type> holder(static_cast<ptr_type *>(raw));
+    ptr_type result = std::move(*holder);
     if(not result) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())

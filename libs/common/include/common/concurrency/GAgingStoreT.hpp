@@ -69,11 +69,11 @@ namespace Gem::Common::Concurrency {
  * simply invoke these methods while holding that outer lock -- the consistent lock order (outer then this
  * store's lock, never the reverse) keeps that safe.
  *
- * @tparam Key   The key type of the keyed face
- * @tparam Value The stored value type (may be move-only, e.g. a unique_ptr)
- * @tparam Hash  Hash for the keyed face (defaults to std::hash<Key>)
+ * @tparam key_type   The key type of the keyed face
+ * @tparam value_type The stored value type (may be move-only, e.g. a unique_ptr)
+ * @tparam hash_type  hash_type for the keyed face (defaults to std::hash<key_type>)
  */
-template <typename Key, typename Value, typename Hash = std::hash<Key>>
+template <typename key_type, typename value_type, typename hash_type = std::hash<key_type>>
 class GAgingStoreT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     GAgingStoreT() = default;
@@ -99,27 +99,27 @@ public:
 
     /** @brief Retains @p v under @p k, stamped with the current epoch (overwrites any existing entry).
      *  @param k The key. @param v The value to retain (moved in). */
-    void retain(const Key &k, Value v) {
+    void retain(const key_type &k, value_type v) {
         std::scoped_lock const lk(mtx_);
         retained_.insert_or_assign(k, std::make_pair(epoch_, std::move(v)));
     }
 
     /** @brief Atomically removes and returns the value retained under @p k, if any.
      *  @param k The key. @return The value (moved out) if present, else std::nullopt. */
-    std::optional<Value> takeRetained(const Key &k) {
+    std::optional<value_type> takeRetained(const key_type &k) {
         std::scoped_lock const lk(mtx_);
         auto it = retained_.find(k);
         if(it == retained_.end()) {
             return std::nullopt;
         }
-        std::optional<Value> out(std::move(it->second.second));
+        std::optional<value_type> out(std::move(it->second.second));
         retained_.erase(it);
         return out;
     }
 
     /** @brief Drops the entry retained under @p k, if present.
      *  @param k The key. */
-    void dropRetained(const Key &k) {
+    void dropRetained(const key_type &k) {
         std::scoped_lock const lk(mtx_);
         retained_.erase(k);
     }
@@ -136,7 +136,7 @@ public:
      *  and capacity bounds (oldest-first).
      *  @param v The value to park (moved in).
      *  @return The number of parked entries evicted by this call's bound enforcement. */
-    std::uint64_t park(Value v) {
+    std::uint64_t park(value_type v) {
         std::scoped_lock const lk(mtx_);
         parked_.emplace_back(epoch_, std::move(v));
         return evictParked_locked();
@@ -145,9 +145,9 @@ public:
     /** @brief Drains the entire FIFO, transferring ownership of every parked value to the caller in
      *  arrival (FIFO) order; the face is left empty.
      *  @return The parked values in arrival order. */
-    std::vector<Value> drainParked() {
+    std::vector<value_type> drainParked() {
         std::scoped_lock const lk(mtx_);
-        std::vector<Value> out;
+        std::vector<value_type> out;
         out.reserve(parked_.size());
         for(auto &entry : parked_) {
             out.push_back(std::move(entry.second));
@@ -228,8 +228,10 @@ private:
     std::size_t cap_ = 0;           ///< Per-face capacity bound (0 disables the parked face)
     std::uint64_t ttl_rounds_ = 8;  ///< An entry is evicted this many epochs after it was stored
 
-    std::deque<std::pair<std::uint64_t, Value>>        parked_;   ///< (epoch, value) FIFO of parked values
-    std::unordered_map<Key, std::pair<std::uint64_t, Value>, Hash> retained_; ///< key -> (epoch, value)
+    std::deque<std::pair<std::uint64_t, value_type>>
+        parked_; ///< (epoch, value) FIFO of parked values
+    std::unordered_map<key_type, std::pair<std::uint64_t, value_type>, hash_type>
+        retained_; ///< key -> (epoch, value)
 };
 
 /******************************************************************************/

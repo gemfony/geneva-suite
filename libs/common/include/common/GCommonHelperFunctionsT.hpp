@@ -114,24 +114,26 @@ using enum_or_self_t = typename enum_or_self<T>::type;
  *   - floating target from an integer/enum or a not-wider floating type:
  *     always in range, hence unchecked (may lose precision).
  *
- * @tparam To The target arithmetic or enum type the value is converted to
- * @tparam From The source arithmetic or enum type of the value (deduced)
+ * @tparam to_type The target arithmetic or enum type the value is converted to
+ * @tparam from_type The source arithmetic or enum type of the value (deduced)
  * @param value The value to be converted
- * @return The value converted to To
+ * @return The value converted to to_type
  * @throws std::overflow_error if the narrowing conversion would change the value
  */
-template <typename To, typename From>
-To narrow(From value) {
-    static_assert((std::is_arithmetic_v<To> || std::is_enum_v<To>) &&
-                  (std::is_arithmetic_v<From> || std::is_enum_v<From>),
-                  "narrow requires arithmetic or enum types");
+template <typename to_type, typename from_type>
+to_type narrow(from_type value) {
+    static_assert(
+        (std::is_arithmetic_v<to_type> || std::is_enum_v<to_type>) &&
+            (std::is_arithmetic_v<from_type> || std::is_enum_v<from_type>),
+        "narrow requires arithmetic or enum types"
+    );
 
     // For enum source/target types fall back to their underlying integer
     // representation so the same range checks apply. Without this, casts
     // like `narrow<gColor>(some_int)` silently degenerated to plain
     // static_cast<gColor>(...) and dropped all bounds checking.
-    using ToCheck   = detail::enum_or_self_t<To>;
-    using FromCheck = detail::enum_or_self_t<From>;
+    using ToCheck = detail::enum_or_self_t<to_type>;
+    using FromCheck = detail::enum_or_self_t<from_type>;
 
     const auto check_value = static_cast<FromCheck>(value);
 
@@ -144,7 +146,7 @@ To narrow(From value) {
         if(static_cast<FromCheck>(static_cast<ToCheck>(check_value)) != check_value) {
             throw std::overflow_error("narrow: integer overflow or underflow");
         }
-        return static_cast<To>(value);
+        return static_cast<to_type>(value);
     } else if constexpr (std::is_integral_v<ToCheck> &&
                          std::is_floating_point_v<FromCheck>) {
         // Float-to-integer: validate the source range BEFORE the float->int
@@ -182,7 +184,7 @@ To narrow(From value) {
                 throw std::overflow_error("narrow: float-to-integer overflow");
             }
         }
-        return static_cast<To>(value); // provably in range now
+        return static_cast<to_type>(value); // provably in range now
     } else if constexpr (std::is_floating_point_v<ToCheck> &&
                          std::is_floating_point_v<FromCheck>) {
         // Floating-to-floating. Only a *narrowing* conversion (destination
@@ -203,11 +205,11 @@ To narrow(From value) {
                 }
             }
         }
-        return static_cast<To>(value);
+        return static_cast<to_type>(value);
     } else {
         // Integer/enum -> floating: always in range (may lose precision, which
         // is inherent and not treated as an error).
-        return static_cast<To>(value);
+        return static_cast<to_type>(value);
     }
 }
 
@@ -776,21 +778,21 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
 
 /******************************************************************************/
 /**
- * @brief Splits a string into a vector of (split_type1, split_type2) tuples using
+ * @brief Splits a string into a vector of (split1_type, split2_type) tuples using
  * two different separators.
  *
  * A possible usage: "0/0 0/1 1/0" → tuples of ints (sep1 = " ", sep2 = "/").
  *
- * @tparam split_type1 The type of the first tuple element
- * @tparam split_type2 The type of the second tuple element
+ * @tparam split1_type The type of the first tuple element
+ * @tparam split2_type The type of the second tuple element
  * @param raw The input string to split
  * @param sep1 The outer separator splitting raw into fragments (must differ from sep2)
  * @param sep2 The inner separator splitting each fragment into its two sub-fields
- * @return A vector of (split_type1, split_type2) tuples
+ * @return A vector of (split1_type, split2_type) tuples
  * @throws geneva_exception if sep1 and sep2 are identical, or (DEBUG) if a fragment lacks exactly two sub-fields
  */
-template <typename split_type1, typename split_type2>
-std::vector<std::tuple<split_type1, split_type2>>
+template <typename split1_type, typename split2_type>
+std::vector<std::tuple<split1_type, split2_type>>
 splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
     if(std::string(sep1) == std::string(sep2)) {
         throw geneva_exception(
@@ -800,7 +802,7 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
         );
     }
 
-    std::vector<std::tuple<split_type1, split_type2>> result;
+    std::vector<std::tuple<split1_type, split2_type>> result;
     for(const auto &fragment : Gem::Common::splitString(raw, sep1)) {
         const auto sub = Gem::Common::splitString(fragment, sep2);
 #ifdef DEBUG
@@ -812,8 +814,8 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
         }
 #endif
         result.emplace_back(
-            Gem::Common::from_string<split_type1>(sub[0]),
-            Gem::Common::from_string<split_type2>(sub[1])
+            Gem::Common::from_string<split1_type>(sub[0]),
+            Gem::Common::from_string<split2_type>(sub[1])
         );
     }
     return result;
@@ -827,14 +829,14 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
  * transfers the value category and constness of @p m onto the returned reference, so a mutable map
  * yields a mutable reference and a const map a const reference.
  *
- * @tparam Map The map type (deduced; a const or non-const std::map<std::string, item_type>)
+ * @tparam map_type The map type (deduced; a const or non-const std::map<std::string, item_type>)
  * @param m The map to look up in
  * @param key The key whose mapped value is returned
  * @return A reference to the mapped value associated with key, const-qualified to match @p m
  * @throws geneva_exception if the map is empty or the key is absent
  */
-template <typename Map>
-decltype(auto) getMapItem(Map &&m, const std::string &key) {
+template <typename map_type>
+decltype(auto) getMapItem(map_type &&m, const std::string &key) {
     if(m.empty()) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << "In getMapItem(): map is empty" << '\n'
@@ -842,7 +844,7 @@ decltype(auto) getMapItem(Map &&m, const std::string &key) {
     }
     auto it = m.find(key);
     if(it != m.end()) {
-        return std::forward_like<Map>(it->second);
+        return std::forward_like<map_type>(it->second);
     }
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())

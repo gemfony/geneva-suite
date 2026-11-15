@@ -44,31 +44,31 @@
 
 namespace {
 
-template <class Tuple>
-Tuple round_trip_text(Tuple const &in) {
+template <class tuple_type>
+tuple_type round_trip_text(tuple_type const &in) {
     Gem::Weft::GBinaryOArchive oa;
-    oa &Gem::Weft::make_nvp("t", const_cast<Tuple &>(in));
-    Tuple out{};
+    oa &Gem::Weft::make_nvp("t", const_cast<tuple_type &>(in));
+    tuple_type out{};
     Gem::Weft::GBinaryIArchive ia(oa.str());
     ia &Gem::Weft::make_nvp("t", out);
     return out;
 }
 
-template <class Tuple>
-Tuple round_trip_xml(Tuple const &in) {
+template <class tuple_type>
+tuple_type round_trip_xml(tuple_type const &in) {
     Gem::Weft::GJsonOArchive oa;
-    oa &Gem::Weft::make_nvp("t", const_cast<Tuple &>(in));
-    Tuple out{};
+    oa &Gem::Weft::make_nvp("t", const_cast<tuple_type &>(in));
+    tuple_type out{};
     Gem::Weft::GJsonIArchive ia(oa.str());
     ia &Gem::Weft::make_nvp("t", out);
     return out;
 }
 
-template <class Tuple>
-Tuple round_trip_binary(Tuple const &in) {
+template <class tuple_type>
+tuple_type round_trip_binary(tuple_type const &in) {
     Gem::Weft::GBinaryOArchive oa;
-    oa &Gem::Weft::make_nvp("t", const_cast<Tuple &>(in));
-    Tuple out{};
+    oa &Gem::Weft::make_nvp("t", const_cast<tuple_type &>(in));
+    tuple_type out{};
     Gem::Weft::GBinaryIArchive ia(oa.str());
     ia &Gem::Weft::make_nvp("t", out);
     return out;

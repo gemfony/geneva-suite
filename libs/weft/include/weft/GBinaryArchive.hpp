@@ -79,9 +79,9 @@ namespace Gem::Weft {
 namespace detail {
 
 /** @brief Byte-swaps @p u to little-endian storage order on a big-endian host; identity on little-endian. */
-template <typename UInt>
-constexpr UInt to_le(UInt u) noexcept {
-    static_assert(std::is_unsigned_v<UInt>);
+template <typename uint_type>
+constexpr uint_type to_le(uint_type u) noexcept {
+    static_assert(std::is_unsigned_v<uint_type>);
     if constexpr (std::endian::native == std::endian::big) {
         return std::byteswap(u);
     } else {
@@ -150,26 +150,28 @@ public:
     void put_bool(bool b) { buffer_.push_back(b ? char{1} : char{0}); }
 
     /** @brief Writes an integer at its natural width, little-endian. @param v The value. */
-    template <typename Int>
-    void put_scalar(Int v) {
-        static_assert(std::is_integral_v<Int>);
-        using UInt = std::make_unsigned_t<Int>;
+    template <typename int_type>
+    void put_scalar(int_type v) {
+        static_assert(std::is_integral_v<int_type>);
+        using UInt = std::make_unsigned_t<int_type>;
         UInt le = detail::to_le(static_cast<UInt>(v));
         append_raw(&le, sizeof(le));
     }
 
     /** @brief Writes a floating-point value as a canonical LE IEEE-754 bit pattern (binary32/64, or
      *  binary128 for long double). @param v The value. */
-    template <typename Float>
-    void put_fp(Float v) {
-        static_assert(std::is_floating_point_v<Float>);
-        if constexpr (std::is_same_v<Float, float>) {
+    template <typename float_type>
+    void put_fp(float_type v) {
+        static_assert(std::is_floating_point_v<float_type>);
+        if constexpr(std::is_same_v<float_type, float>) {
             std::uint32_t le = detail::to_le(std::bit_cast<std::uint32_t>(v));
             append_raw(&le, sizeof(le));
-        } else if constexpr (std::is_same_v<Float, double>) {
+        }
+        else if constexpr(std::is_same_v<float_type, double>) {
             std::uint64_t le = detail::to_le(std::bit_cast<std::uint64_t>(v));
             append_raw(&le, sizeof(le));
-        } else {
+        }
+        else {
 #if defined(__SIZEOF_FLOAT128__)
             // long double: canonicalised to a little-endian IEEE-754 binary128 (16 bytes), so it is
             // portable across architectures (x86-64's 80-bit extended and AArch64's native binary128
@@ -241,28 +243,32 @@ public:
     }
 
     /** @brief Reads a natural-width little-endian integer into @p v. @param v The value to fill. */
-    template <typename Int>
-    void get_scalar(Int &v) {
-        static_assert(std::is_integral_v<Int>);
-        using UInt = std::make_unsigned_t<Int>;
+    template <typename int_type>
+    void get_scalar(int_type &v) {
+        static_assert(std::is_integral_v<int_type>);
+        using UInt = std::make_unsigned_t<int_type>;
         UInt le{};
         read_raw(&le, sizeof(le));
-        v = static_cast<Int>(detail::to_le(le)); // to_le is its own inverse (identity or byteswap)
+        v = static_cast<int_type>(
+            detail::to_le(le)
+        ); // to_le is its own inverse (identity or byteswap)
     }
 
     /** @brief Reads a floating-point value into @p v (LE IEEE bits for float/double; raw bytes for long double). */
-    template <typename Float>
-    void get_fp(Float &v) {
-        static_assert(std::is_floating_point_v<Float>);
-        if constexpr (std::is_same_v<Float, float>) {
+    template <typename float_type>
+    void get_fp(float_type &v) {
+        static_assert(std::is_floating_point_v<float_type>);
+        if constexpr(std::is_same_v<float_type, float>) {
             std::uint32_t le{};
             read_raw(&le, sizeof(le));
             v = std::bit_cast<float>(detail::to_le(le));
-        } else if constexpr (std::is_same_v<Float, double>) {
+        }
+        else if constexpr(std::is_same_v<float_type, double>) {
             std::uint64_t le{};
             read_raw(&le, sizeof(le));
             v = std::bit_cast<double>(detail::to_le(le));
-        } else {
+        }
+        else {
 #if defined(__SIZEOF_FLOAT128__)
             // long double: decode the little-endian binary128 written by put_fp (see
             // detail::le128_to_long_double). The 128->native narrowing is exact for the value ranges an

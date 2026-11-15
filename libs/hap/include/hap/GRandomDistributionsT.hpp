@@ -58,12 +58,12 @@ namespace Gem::Hap {
  * float. Assumes a 64-bit generator (Hap's G_CPU_BASE_GENERATOR).
  *
  * @tparam fp_type The floating point type to produce (float or double)
- * @tparam URBG The uniform-random-bit-generator type (must yield 64-bit values via operator())
+ * @tparam urbg_type The uniform-random-bit-generator type (must yield 64-bit values via operator())
  * @param g The generator to draw a 64-bit value from
  * @return A uniformly distributed value in the half-open interval [0,1)
  */
-template <std::floating_point fp_type, class URBG>
-inline fp_type fast_uniform_01(URBG &g) {
+template <std::floating_point fp_type, class urbg_type>
+inline fp_type fast_uniform_01(urbg_type &g) {
     const auto x = static_cast<std::uint64_t>(g());
     if constexpr(std::is_same_v<fp_type, double>) {
         return static_cast<double>(x >> 11) * 0x1.0p-53; // 53-bit mantissa
@@ -129,14 +129,16 @@ public:
     /** @return The configured standard deviation. */
     [[nodiscard]] fp_type stddev() const { return params_.stddev(); }
 
-    /** @tparam URBG The generator type. @param g The generator. @return A normal deviate using the stored parameters. */
-    template <class URBG>
-    result_type operator()(URBG &g) { return (*this)(g, params_); }
+    /** @tparam urbg_type The generator type. @param g The generator. @return A normal deviate using the stored parameters. */
+    template <class urbg_type>
+    result_type operator()(urbg_type &g) {
+        return (*this)(g, params_);
+    }
 
-    /** @tparam URBG The generator type. @param g The generator. @param p The distribution parameters to use.
+    /** @tparam urbg_type The generator type. @param g The generator. @param p The distribution parameters to use.
      *  @return A normally distributed deviate with the given mean and standard deviation. */
-    template <class URBG>
-    result_type operator()(URBG &g, const param_type &p) {
+    template <class urbg_type>
+    result_type operator()(urbg_type &g, const param_type &p) {
         if(have_spare_) {
             have_spare_ = false;
             return p.mean() + (p.stddev() * spare_);
@@ -209,14 +211,16 @@ public:
     /** @return The configured probability of drawing true. */
     [[nodiscard]] double p() const { return params_.p(); }
 
-    /** @tparam URBG The generator type. @param g The generator. @return true with the stored probability. */
-    template <class URBG>
-    result_type operator()(URBG &g) { return (*this)(g, params_); }
+    /** @tparam urbg_type The generator type. @param g The generator. @return true with the stored probability. */
+    template <class urbg_type>
+    result_type operator()(urbg_type &g) {
+        return (*this)(g, params_);
+    }
 
-    /** @tparam URBG The generator type. @param g The generator. @param p The distribution parameters to use.
+    /** @tparam urbg_type The generator type. @param g The generator. @param p The distribution parameters to use.
      *  @return true with probability p.p(), false otherwise. */
-    template <class URBG>
-    result_type operator()(URBG &g, const param_type &p) {
+    template <class urbg_type>
+    result_type operator()(urbg_type &g, const param_type &p) {
         return fast_uniform_01<double>(g) < p.p();
     }
 
@@ -452,13 +456,13 @@ public:
       * Returns a the next random number with a bi_normal distribution
       * according to the data contained in the param_type object
       *
-      * @tparam T_Generator The uniform-random-bit-generator type
+      * @tparam generator_type The uniform-random-bit-generator type
       * @param g The generator to draw from
       * @param params The distribution parameters to use
       * @return A bi-normally distributed deviate
       */
-    template <class T_Generator>
-    result_type operator()(T_Generator &g, const param_type &params) {
+    template <class generator_type>
+    result_type operator()(generator_type &g, const param_type &params) {
         if(uniform_bool_(g)) {
             fp_type mean_left = params.mean() - std::abs(params.distance() / 2.);
             fp_type sigma_left = params.sigma1();
@@ -467,7 +471,6 @@ public:
                     fp_type mean_right = params.mean() + std::abs(params.distance() / 2.);
             fp_type sigma_right = params.sigma2();
             return (sigma_right * normal_distribution_(g)) + mean_right;
-       
     }
 
     /**
@@ -476,12 +479,12 @@ public:
       * Returns a the next random number with a bi_normal distribution,
       * using the distribution parameters stored internally.
       *
-      * @tparam T_Generator The uniform-random-bit-generator type
+      * @tparam generator_type The uniform-random-bit-generator type
       * @param g The generator to draw from
       * @return A bi-normally distributed deviate using the stored parameters
       */
-    template <class T_Generator>
-    result_type operator()(T_Generator &g) {
+    template <class generator_type>
+    result_type operator()(generator_type &g) {
         return (*this)(g, params_);
     }
 

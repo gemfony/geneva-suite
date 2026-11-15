@@ -679,8 +679,8 @@ class GPolicyProbe : public Gem::Common::GReflectiveInterfaceT<GPolicyProbe, Gem
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("plain_", self.plain_),
             Gem::Common::make_load_only_member("loadonly_", self.loadonly_),
@@ -759,8 +759,8 @@ namespace {
 struct GProbeBase {
     int base_val_ = 0;
     /** @brief Serialization of the base slice (public so base_object can reach it). */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "base_val_", base_val_);
     }
 };
@@ -771,8 +771,8 @@ class GBaseObjectProbe
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_base_object_member<GProbeBase>("GProbeBase", self),
             Gem::Common::make_member("d_", self.d_)
@@ -780,8 +780,8 @@ class GBaseObjectProbe
     }
 
     // Disambiguating serialize(): both GProbeBase and the mixin declare serialize().
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
 

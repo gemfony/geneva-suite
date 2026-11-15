@@ -74,8 +74,8 @@ class GPostProcessorBaseT // NOLINT(cppcoreguidelines-special-member-functions)
 
     /** @brief Single declaration of this class's local data (just allowed_mnemonics_), feeding
      *  the generated serialize()/load_()/compare_() from one source. */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("allowed_mnemonics_", self.allowed_mnemonics_));
     }
 
@@ -231,8 +231,8 @@ protected:
      *
      * @return A tuple of named, comparable/serializable references to this object's local data members
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("oa_config_file_", self.oa_config_file_)
         );

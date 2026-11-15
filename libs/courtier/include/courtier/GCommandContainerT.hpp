@@ -99,15 +99,15 @@ class GCommandContainerT {
      * any version field. A loaded kind that is not a GFrameKind is refused: the message is not a
      * frame.
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The class version (unused)
      */
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "kind_", kind_);
-        if constexpr(std::remove_cvref_t<Archive>::is_loading) {
+        if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
             // A message from the network may be anything: a kind that GFrameKind does not have
             // means that it is not a frame, however the rest of it would decode.
             if(std::to_underlying(kind_) > std::to_underlying(GFrameKind::UNREADABLE)) {

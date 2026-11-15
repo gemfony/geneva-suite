@@ -58,8 +58,8 @@ namespace {
 class PolyBase : public GReflectiveInterfaceT<PolyBase, GCommonInterfaceT<PolyBase>> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("base_id_", self.base_id_));
     }
 
@@ -76,8 +76,8 @@ protected:
 class PolyA : public GReflectiveInterfaceT<PolyA, PolyBase> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("a_val_", self.a_val_));
     }
 
@@ -94,8 +94,8 @@ protected:
 class PolyB : public GReflectiveInterfaceT<PolyB, PolyBase> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("b_str_", self.b_str_));
     }
 
@@ -116,8 +116,8 @@ protected:
 class PolyC : public GReflectiveInterfaceT<PolyC, PolyBase> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("c_val_", self.c_val_));
     }
 
@@ -141,8 +141,8 @@ private:
 class PolyIdentityOnly : public GReflectiveInterfaceT<PolyIdentityOnly, PolyBase> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("io_val_", self.io_val_));
     }
 
@@ -166,14 +166,14 @@ GEM_REGISTER_TYPE(PolyIdentityOnly) // identity only -- deliberately NOT archive
 
 namespace {
 
-template <typename OArchive, typename IArchive, typename SmartPtr>
-SmartPtr ptr_roundtrip(const SmartPtr &in) {
-    OArchive oa;
+template <typename oarchive_type, typename iarchive_type, typename smart_ptr_type>
+smart_ptr_type ptr_roundtrip(const smart_ptr_type &in) {
+    oarchive_type oa;
     oa &in;
     std::string encoded = oa.str();
 
-    IArchive ia(encoded);
-    SmartPtr out;
+    iarchive_type ia(encoded);
+    smart_ptr_type out;
     ia &out;
     return out;
 }

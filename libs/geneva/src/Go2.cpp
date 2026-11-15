@@ -1211,12 +1211,12 @@ namespace {
 /**
  * @brief Builds a "mnemonic:  human-readable-name" listing of all entries in a store.
  *
- * @tparam StorePtr The (pointer-like) type of the store being iterated
+ * @tparam store_ptr_type The (pointer-like) type of the store being iterated
  * @param store The store whose registered keys and human-readable names should be listed
  * @return A newline-separated listing of "mnemonic:  name" for every entry in the store
  */
-template <typename StorePtr>
-std::string listMnemonics(const StorePtr& store) {
+template <typename store_ptr_type>
+std::string listMnemonics(const store_ptr_type &store) {
     std::vector<std::string> keys;
     store->getKeyVector(keys);
     std::string result;

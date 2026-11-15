@@ -59,12 +59,12 @@ class individual_processing_result {
 
     /**
      * @brief Serializes this object to/from a GArchive codec
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from or write to
      * @param version The serialization version (unused)
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "raw_fitness_", raw_fitness_);
         Gem::Common::archive_named(ar, "transformed_fitness_", transformed_fitness_);
         Gem::Common::archive_named(ar, "transformed_fitness_set_", transformed_fitness_set_);

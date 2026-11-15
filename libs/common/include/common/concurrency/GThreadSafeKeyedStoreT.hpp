@@ -67,14 +67,14 @@ namespace Gem::Common::Concurrency {
  * a member of the object whose threads remove from it, and that is destroyed after those threads
  * are joined, meets this; otherwise hold it by a shared pointer.
  *
- * @tparam Key   The key type (must be ordered -- usable as a @c std::map key).
- * @tparam Value The mapped value type.
+ * @tparam ordered_key_type   The key type (must be ordered -- usable as a @c std::map key).
+ * @tparam mapped_value_type The mapped value type.
  */
-template <typename Key, typename Value>
+template <typename ordered_key_type, typename mapped_value_type>
 class GThreadSafeKeyedStoreT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
-    using key_type = Key;
-    using mapped_type = Value;
+    using key_type = ordered_key_type;
+    using mapped_type = mapped_value_type;
 
     GThreadSafeKeyedStoreT() = default;
 
@@ -86,7 +86,7 @@ public:
     /** @brief Retrieves a value into an out-parameter.
      *  @param key The key to look up. @param out Receives the value on a hit (untouched on a miss).
      *  @return true on a hit (out written), false on a miss. */
-    bool get(const Key &key, Value &out) const {
+    bool get(const ordered_key_type &key, mapped_value_type &out) const {
         std::scoped_lock const guard(mutex_);
         if(auto it = kvp_.find(key); it != kvp_.end()) {
             out = it->second;
@@ -97,7 +97,7 @@ public:
 
     /** @brief Retrieves a value as an optional.
      *  @param key The key to look up. @return The value, or std::nullopt on a miss. */
-    std::optional<Value> get(const Key &key) const {
+    std::optional<mapped_value_type> get(const ordered_key_type &key) const {
         std::scoped_lock const guard(mutex_);
         if(auto it = kvp_.find(key); it != kvp_.end()) {
             return it->second;
@@ -107,7 +107,7 @@ public:
 
     /** @brief Inserts a new entry or overwrites an existing one.
      *  @param key The key. @param value The value to store. */
-    void set(const Key &key, Value value) {
+    void set(const ordered_key_type &key, mapped_value_type value) {
         std::scoped_lock const guard(mutex_);
         kvp_[key] = std::move(value);
     }
@@ -115,7 +115,7 @@ public:
     /** @brief Inserts an entry only if the key is not already present.
      *  @param key The key. @param value The value to store.
      *  @return true if inserted, false if the key already existed (left unchanged). */
-    bool setOnce(const Key &key, Value value) {
+    bool setOnce(const ordered_key_type &key, mapped_value_type value) {
         std::scoped_lock const guard(mutex_);
         if(kvp_.contains(key)) {
             return false;
@@ -126,7 +126,7 @@ public:
 
     /** @brief Removes an entry if present.
      *  @param key The key to remove. @return true if an entry was removed, false if it was absent. */
-    bool remove(const Key &key) {
+    bool remove(const ordered_key_type &key) {
         std::scoped_lock const guard(mutex_);
         const bool removed = kvp_.erase(key) != 0;
         if(removed && kvp_.empty()) {
@@ -137,13 +137,13 @@ public:
 
     /** @brief Removes an entry if present and hands its value over.
      *  @param key The key to remove. @return The value, or nothing if the key was absent. */
-    std::optional<Value> take(const Key &key) {
+    std::optional<mapped_value_type> take(const ordered_key_type &key) {
         std::scoped_lock const guard(mutex_);
         auto it = kvp_.find(key);
         if(it == kvp_.end()) {
             return std::nullopt;
         }
-        std::optional<Value> value{std::move(it->second)};
+        std::optional<mapped_value_type> value{std::move(it->second)};
         kvp_.erase(it);
         if(kvp_.empty()) {
             emptied_.notify_all();
@@ -152,7 +152,7 @@ public:
     }
 
     /** @brief @param key The key to check. @return true iff an entry for the key is present. */
-    bool contains(const Key &key) const {
+    bool contains(const ordered_key_type &key) const {
         std::scoped_lock const guard(mutex_);
         return kvp_.contains(key);
     }
@@ -170,9 +170,9 @@ public:
     }
 
     /** @brief @return A snapshot of all keys, in key order. */
-    std::vector<Key> keys() const {
+    std::vector<ordered_key_type> keys() const {
         std::scoped_lock const guard(mutex_);
-        std::vector<Key> result;
+        std::vector<ordered_key_type> result;
         result.reserve(kvp_.size());
         for(auto const &[k, _] : kvp_) {
             result.push_back(k);
@@ -181,9 +181,9 @@ public:
     }
 
     /** @brief @return A snapshot of all values, in key order (atomic w.r.t. concurrent mutation). */
-    std::vector<Value> values() const {
+    std::vector<mapped_value_type> values() const {
         std::scoped_lock const guard(mutex_);
-        std::vector<Value> result;
+        std::vector<mapped_value_type> result;
         result.reserve(kvp_.size());
         for(auto const &[_, v] : kvp_) {
             result.push_back(v);
@@ -194,9 +194,9 @@ public:
     /** @brief Removes all entries and hands them over, in key order, in one step (an entry added
      *  meanwhile is either among them or stays).
      *  @return The entries that were in the store */
-    std::vector<std::pair<Key, Value>> drain() {
+    std::vector<std::pair<ordered_key_type, mapped_value_type>> drain() {
         std::scoped_lock const guard(mutex_);
-        std::vector<std::pair<Key, Value>> result;
+        std::vector<std::pair<ordered_key_type, mapped_value_type>> result;
         result.reserve(kvp_.size());
         for(auto &[k, v] : kvp_) {
             result.emplace_back(k, std::move(v));
@@ -218,14 +218,14 @@ public:
      *  remove() or clear() when this returns (see the class description).
      *  @param limit The longest time to wait.
      *  @return true if the store is empty, false if the limit passed first. */
-    template <typename Rep, typename Period>
-    bool waitUntilEmpty(const std::chrono::duration<Rep, Period> &limit) const {
+    template <typename rep_type, typename period_type>
+    bool waitUntilEmpty(const std::chrono::duration<rep_type, period_type> &limit) const {
         std::unique_lock guard(mutex_);
         return emptied_.wait_for(guard, limit, [this] { return kvp_.empty(); });
     }
 
 private:
-    std::map<Key, Value> kvp_{};
+    std::map<ordered_key_type, mapped_value_type> kvp_{};
     mutable std::mutex mutex_; ///< guards every operation
     /// Notified under mutex_ when the last entry goes (remove(), clear())
     mutable std::condition_variable emptied_;

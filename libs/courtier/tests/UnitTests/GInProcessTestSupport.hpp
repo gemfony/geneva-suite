@@ -91,8 +91,8 @@ private:
 /** @brief Polls @p condition until it holds or @p patience has passed
  *  @param condition What is waited for @param patience How long at most
  *  @return Whether the condition held in time */
-template <typename Condition>
-bool eventually(Condition condition, std::chrono::milliseconds patience) {
+template <typename condition_type>
+bool eventually(condition_type condition, std::chrono::milliseconds patience) {
     const auto give_up_at = std::chrono::steady_clock::now() + patience;
     while(std::chrono::steady_clock::now() < give_up_at) {
         if(condition()) {

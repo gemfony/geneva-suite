@@ -94,8 +94,8 @@ class GProcessingContainerT : public GProcessable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         // The non-generic lifecycle state (status, errors, routing ids, timing) is serialised by
         // the GProcessable base; this class adds only the result store and the (typed) pre-/post-

@@ -413,15 +413,15 @@ inline std::vector<double> readAdaptionSigmas(
 /******************************************************************************/
 /**
  * @brief The convenience factory for an OA-owned adaption config, built from a representative genome so it
- * describes exactly the groups that exist. ConfigT selects the per-OA type (GEAAdaptionConfig or
+ * describes exactly the groups that exist. config_type selects the per-OA type (GEAAdaptionConfig or
  * the plain base). The genome (structure-only) supplies the group SKELETON, and the
  * caller authors the adaptors onto the returned config via its fluent API (cfg->groupDouble(i).gauss(...) /
  * cfg->forLabel(...).gauss(...)). It is an oa-side factory because GAdaptionConfig lives in geneva/oa/ while
  * GGenomeBuilder lives in geneva/genome/ (oa depends on ind, not the reverse).
  */
-template <typename ConfigT = GAdaptionConfigBase>
-std::shared_ptr<ConfigT> makeAdaptionConfig(const detail::GGenome &genome) {
-    return std::make_shared<ConfigT>(genome);
+template <typename config_type = GAdaptionConfigBase>
+std::shared_ptr<config_type> makeAdaptionConfig(const detail::GGenome &genome) {
+    return std::make_shared<config_type>(genome);
 }
 
 /******************************************************************************/

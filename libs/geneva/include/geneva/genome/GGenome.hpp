@@ -130,11 +130,11 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      *    load (it is SHARED, not value-copied) and excluded from compare_() (it is problem metadata, not
      *    per-individual identity) and from the folded serialize() -- save()/load() below emit it through
      *    the bespoke send-once wire protocol.
-     *  @tparam Self The (const or non-const) deduced type of *this
+     *  @tparam self_type The (const or non-const) deduced type of *this
      *  @param self A reference to *this whose members are tied into the tuple
      *  @return A tuple of named member references */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_base_object_member<Gem::Courtier::GProcessable>("GProcessable", self),
             Gem::Common::make_member("pre_processing_disabled_", self.pre_processing_disabled_),
@@ -165,12 +165,12 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      * @brief Serialises the genome: every member plus the shared structural layout, the latter either by
      * value (self-contained form) or by content id (transport send-once form), as selected by the active
      * wire-serialisation scope. See the body for the two forms.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to write the genome into
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void save(Archive &ar, [[maybe_unused]] const unsigned int version) const {
+    template <typename archive_type>
+    void save(archive_type &ar, [[maybe_unused]] const unsigned int version) const {
         using Gem::Common::archive_named;
         Gem::Common::serialize_members(ar, localMembers_());
 
@@ -209,13 +209,13 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      * @brief Restores the genome from an archive: the value channels plus a freshly-owned layout, read
      * either by value or resolved from a content id against the wire registry (with a cache-miss fetch),
      * following the self-describing tag written by save().
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read the genome from
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
+    template <typename archive_type>
     // NOLINTNEXTLINE(readability-function-size) -- one coherent serialization sweep: the self-describing wire-format tag dispatch (by-value / interned-by-id, with cache-miss fetch) must stay in lockstep with save()'s tag order; splitting would scatter tightly coupled archive-decode branches
-    void load(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    void load(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::serialize_members(ar, localMembers_());
 
@@ -277,15 +277,16 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
     /**
      * @brief The single (de)serialization entry point, split by direction on the GArchive codec's
      * compile-time direction, routing to save()/load().
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The serialization format version, forwarded to the split
      */
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        if constexpr (Archive::is_saving) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, const unsigned int version) {
+        if constexpr(archive_type::is_saving) {
             save(ar, version);
-        } else {
+        }
+        else {
             load(ar, version);
         }
     }
@@ -307,7 +308,7 @@ public:
     ~GGenome() override = default;
 
     /** @brief Un-hide the inherited public load(shared_ptr/unique_ptr/ref) overloads, which the boost
-     *  split-member load(Archive&, unsigned) below would otherwise hide by name. */
+     *  split-member load(archive_type&, unsigned) below would otherwise hide by name. */
     using Gem::Common::GCommonInterfaceT<GGenome>::load;
 
     /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder.
@@ -324,17 +325,25 @@ public:
     // a mutable genome yields std::span<T>, a const genome std::span<const T> (span CTAD over the vector).
 
     /** @brief @return A span over the raw internal double channel (const iff *this is const) */
-    template <typename Self>
-    auto internalDoubleValues(this Self &&self) noexcept { return std::span{self.dv_}; }
+    template <typename self_type>
+    auto internalDoubleValues(this self_type &&self) noexcept {
+        return std::span{self.dv_};
+    }
     /** @brief @return A span over the raw internal float channel (const iff *this is const) */
-    template <typename Self>
-    auto internalFloatValues(this Self &&self) noexcept { return std::span{self.fv_}; }
+    template <typename self_type>
+    auto internalFloatValues(this self_type &&self) noexcept {
+        return std::span{self.fv_};
+    }
     /** @brief @return A span over the raw internal int32 channel (const iff *this is const) */
-    template <typename Self>
-    auto internalInt32Values(this Self &&self) noexcept { return std::span{self.iv_}; }
+    template <typename self_type>
+    auto internalInt32Values(this self_type &&self) noexcept {
+        return std::span{self.iv_};
+    }
     /** @brief @return A span over the raw internal bool channel, bytes 1/0 (const iff *this is const) */
-    template <typename Self>
-    auto internalBoolValues(this Self &&self) noexcept { return std::span{self.bv_}; }
+    template <typename self_type>
+    auto internalBoolValues(this self_type &&self) noexcept {
+        return std::span{self.bv_};
+    }
 
     /***************************************************************************/
     // Bulk-flatten fast path (the GPU marshallers) -- see GGenome's historical notes.

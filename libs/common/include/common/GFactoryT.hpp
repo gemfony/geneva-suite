@@ -69,12 +69,12 @@ class GFactoryT {
 
     /**
      * @brief Loads the factory's persistent state from a GArchive codec
-     * @tparam Archive The input archive type being read from
+     * @tparam archive_type The input archive type being read from
      * @param ar The input archive supplying the serialized data
      * @param version The (unused) class version
      */
-    template <typename Archive>
-    void load(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void load(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         std::string configFile{};
         Gem::Common::archive_named(ar, "configFile", configFile);
         Gem::Common::archive_named(ar, "initialized_", initialized_);
@@ -87,12 +87,12 @@ class GFactoryT {
 
     /**
      * @brief Saves the factory's persistent state to a GArchive codec
-     * @tparam Archive The output archive type being written to
+     * @tparam archive_type The output archive type being written to
      * @param ar The output archive receiving the serialized data
      * @param version The (unused) class version
      */
-    template <typename Archive>
-    void save(Archive &ar, [[maybe_unused]] const unsigned int version) const {
+    template <typename archive_type>
+    void save(archive_type &ar, [[maybe_unused]] const unsigned int version) const {
         // Transfer the path to the string
         std::string configFile = config_path_.string(); // NOLINT(cppcoreguidelines-init-variables)
         Gem::Common::archive_named(ar, "configFile", configFile);
@@ -102,15 +102,16 @@ class GFactoryT {
     /**
      * @brief The single (de)serialization entry point, split by direction on the GArchive codec's
      * compile-time direction, routing to save()/load().
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The serialization format version, forwarded to the split
      */
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        if constexpr (Archive::is_saving) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, const unsigned int version) {
+        if constexpr(archive_type::is_saving) {
             save(ar, version);
-        } else {
+        }
+        else {
             load(ar, version);
         }
     }

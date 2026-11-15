@@ -71,7 +71,7 @@ constexpr auto GFSPQ_DEF_SORT_ORDER = Gem::Common::sortOrder::LOWERISBETTER;
  * it is one such span, and no per-operation lock could make it atomic).
  *
  * @par Storage policies
- * What the queue physically stores is chosen by the @p StoragePolicy template
+ * What the queue physically stores is chosen by the @p storage_policy_type template
  * argument, reusing the very policies GContainerT is built on, so container and
  * archive can never drift apart in their notion of "deep copy":
  *
@@ -109,13 +109,15 @@ constexpr auto GFSPQ_DEF_SORT_ORDER = Gem::Common::sortOrder::LOWERISBETTER;
  * are two legitimate entries there.
  *
  * @tparam T The logical type of the work items stored in the queue
- * @tparam StoragePolicy How an item is physically held (see above)
+ * @tparam storage_policy_type How an item is physically held (see above)
  */
-template <typename T, typename StoragePolicy = SharedPtrStorage<T, std::vector<std::shared_ptr<T>>>>
+template <
+    typename T,
+    typename storage_policy_type = SharedPtrStorage<T, std::vector<std::shared_ptr<T>>>>
 class GFixedSizePriorityQueueT
   : public GReflectiveInterfaceBaseT<
-        GFixedSizePriorityQueueT<T, StoragePolicy>,
-        GCommonInterfaceT<GFixedSizePriorityQueueT<T, StoragePolicy>>> {
+        GFixedSizePriorityQueueT<T, storage_policy_type>,
+        GCommonInterfaceT<GFixedSizePriorityQueueT<T, storage_policy_type>>> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the mixin reach localMembers_(); this abstract root is
     // never reconstructed on load.
@@ -123,11 +125,11 @@ class GFixedSizePriorityQueueT
 
 public:
     /** @brief The logical element type. */
-    using ValueType = typename StoragePolicy::ValueType;
+    using ValueType = typename storage_policy_type::ValueType;
     /** @brief The type physically stored (a value, a shared_ptr or a unique_ptr). */
-    using StoredType = typename StoragePolicy::StoredType;
+    using StoredType = typename storage_policy_type::StoredType;
     /** @brief The underlying sequence container. */
-    using ContainerType = typename StoragePolicy::ContainerType;
+    using ContainerType = typename storage_policy_type::ContainerType;
     /** @brief Read-only traversal of the stored handles, best first. */
     using const_iterator = typename ContainerType::const_iterator;
 
@@ -146,8 +148,8 @@ private:
      * @return A tuple of named member references driving the GReflectiveInterfaceBaseT-generated
      *         serialize(), load_() and compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         if constexpr(holds_values) {
             return std::make_tuple(
                 Gem::Common::make_member("max_size_", self.max_size_),
@@ -207,7 +209,7 @@ public:
     GFixedSizePriorityQueueT(GFixedSizePriorityQueueT const &cp)
       : max_size_(cp.max_size_)
       , sort_order_(cp.sort_order_) {
-        StoragePolicy::deepCopy(cp.data_cnt_, data_cnt_);
+        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
     }
 
     /***************************************************************************/
@@ -247,7 +249,7 @@ public:
         max_size_ = cp.max_size_;
         sort_order_ = cp.sort_order_;
 
-        StoragePolicy::deepCopy(cp.data_cnt_, data_cnt_);
+        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
 
         return *this;
     }
@@ -318,9 +320,9 @@ public:
      * @param end An iterator one past the last item of the range to be moved in
      * @param replace If true, the queue is emptied before the new items are added
      */
-    template <std::input_iterator It>
-        requires std::same_as<std::iter_value_t<It>, StoredType>
-    void add(It begin, It end, bool replace) {
+    template <std::input_iterator it_type>
+        requires std::same_as<std::iter_value_t<it_type>, StoredType>
+    void add(it_type begin, it_type end, bool replace) {
         prepareBulk_(replace);
         std::size_t accepted = 0;
         std::size_t offered = 0;
@@ -352,9 +354,9 @@ public:
      * @param end An iterator one past the last item of the range to be copied in
      * @param replace If true, the queue is emptied before the new items are added
      */
-    template <std::input_iterator It>
-        requires std::same_as<std::iter_value_t<It>, StoredType>
-    void addClone(It begin, It end, bool replace) {
+    template <std::input_iterator it_type>
+        requires std::same_as<std::iter_value_t<it_type>, StoredType>
+    void addClone(it_type begin, it_type end, bool replace) {
         prepareBulk_(replace);
         std::size_t accepted = 0;
         std::size_t offered = 0;
@@ -857,29 +859,30 @@ private:
  * @brief Convenience alias: a fixed-size priority queue holding items by value.
  *
  * @tparam T The (POD) item type
- * @tparam Container The underlying sequence container
+ * @tparam container_type The underlying sequence container
  */
-template <typename T, typename Container = std::vector<T>>
-using GPodFixedSizePriorityQueueT = GFixedSizePriorityQueueT<T, PodStorage<T, Container>>;
+template <typename T, typename container_type = std::vector<T>>
+using GPodFixedSizePriorityQueueT = GFixedSizePriorityQueueT<T, PodStorage<T, container_type>>;
 
 /**
  * @brief Convenience alias: a fixed-size priority queue holding items by shared handle.
  *
  * @tparam T The item type (must expose the Gemfony common interface)
- * @tparam Container The underlying sequence container
+ * @tparam container_type The underlying sequence container
  */
-template <typename T, typename Container = std::vector<std::shared_ptr<T>>>
-using GPtrFixedSizePriorityQueueT = GFixedSizePriorityQueueT<T, SharedPtrStorage<T, Container>>;
+template <typename T, typename container_type = std::vector<std::shared_ptr<T>>>
+using GPtrFixedSizePriorityQueueT =
+    GFixedSizePriorityQueueT<T, SharedPtrStorage<T, container_type>>;
 
 /**
  * @brief Convenience alias: a fixed-size priority queue that solely owns its items.
  *
  * @tparam T The item type (must expose the Gemfony common interface)
- * @tparam Container The underlying sequence container
+ * @tparam container_type The underlying sequence container
  */
-template <typename T, typename Container = std::vector<std::unique_ptr<T>>>
+template <typename T, typename container_type = std::vector<std::unique_ptr<T>>>
 using GUniquePtrFixedSizePriorityQueueT =
-    GFixedSizePriorityQueueT<T, UniquePtrStorage<T, Container>>;
+    GFixedSizePriorityQueueT<T, UniquePtrStorage<T, container_type>>;
 
 /******************************************************************************/
 } /* namespace Gem::Common */

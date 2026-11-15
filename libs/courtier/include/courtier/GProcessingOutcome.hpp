@@ -63,12 +63,12 @@ struct GProcessingOutcome {
     /**
      * @brief (De)serialises the outcome. Written only for RETURN and RESULT frames (see
      * GCommandContainerT).
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "status", status);
         archive_named(ar, "error_descriptions", error_descriptions);

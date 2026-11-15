@@ -73,28 +73,31 @@ namespace Gem::Geneva {
  * the @c GEM_REGISTER_ARCHIVABLE for the algorithm and its personality traits (the same registrations a
  * compiled-in OA needs), so a checkpoint written with the module loaded resumes with it loaded.
  *
- * @tparam FactoryType The concrete OA factory (a @c GOAFactoryT<GOptimizationAlgorithmBase> subclass, e.g.
+ * @tparam factory_type The concrete OA factory (a @c GOAFactoryT<GOptimizationAlgorithmBase> subclass, e.g.
  *         @c GOptimizationAlgorithmFactoryT<MyOA>); default-constructed here
- * @tparam Name The module/contribution name, for diagnostics (a string literal); the store key is the
+ * @tparam NAME The module/contribution name, for diagnostics (a string literal); the store key is the
  *         factory's mnemonic, not this
  * @return A pointer to this module's process-lifetime manifest
  */
-template <typename FactoryType, Gem::Common::GFixedString Name>
+template <typename factory_type, Gem::Common::GFixedString NAME>
 const GenevaModuleManifest *oaManifest() {
     static_assert(
         std::is_base_of_v<
             OptimizationAlgorithms::GOAFactoryT<OptimizationAlgorithms::GOptimizationAlgorithmBase>,
-            FactoryType>,
-        "oaManifest(): FactoryType must derive from GOAFactoryT<GOptimizationAlgorithmBase>"
+            factory_type>,
+        "oaManifest(): factory_type must derive from GOAFactoryT<GOptimizationAlgorithmBase>"
     );
     // Captureless thunk -> void*(*)(void): default-construct the OA factory (which is the store's provider)
     // on the heap; the loader moves-from and deletes the holder, then registers the factory.
-    static constexpr auto factory_thunk = +[]() -> void * {
-        return new GOAProviderPtr(std::make_shared<FactoryType>());
+    static constexpr auto factory_thunk =
+        +[]() -> void * { return new GOAProviderPtr(std::make_shared<factory_type>()); };
+    static const GenevaContribution contribution{
+        GENEVA_CONTRIBUTION_OA,
+        NAME.c_str(),
+        factory_thunk
     };
-    static const GenevaContribution contribution{GENEVA_CONTRIBUTION_OA, Name.c_str(), factory_thunk};
-    static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP, Name.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+    static const GenevaModuleManifest
+        manifest{GENEVA_MODULE_ABI_STAMP, NAME.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
     return &manifest;
 }
 

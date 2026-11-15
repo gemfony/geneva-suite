@@ -117,8 +117,8 @@ class GSearchTraceMonitor final
 
     /** @brief The monitor's state is run state wired to a plot, not configuration; hence the
      *  explicit empty member list the CRTP base requires. */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

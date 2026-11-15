@@ -158,8 +158,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<Sphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -195,8 +195,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<GemSphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -266,8 +266,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<FactorySphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -1099,8 +1099,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<Mixed>>(ar, "GGenomeT", *this);
     }
 };
@@ -1140,8 +1140,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<IntGauss>>(ar, "GGenomeT", *this);
     }
 };
@@ -1175,8 +1175,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<ManyGroups>>(ar, "GGenomeT", *this);
     }
 };
@@ -1210,8 +1210,8 @@ private:
     std::vector<double> data_points_; ///< the leaf's own problem data
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<BulkyLeaf>>(ar, "GGenomeT", *this);
         Gem::Common::archive_named(ar, "data_points_", data_points_);
     }

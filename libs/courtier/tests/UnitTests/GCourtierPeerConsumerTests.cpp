@@ -85,8 +85,8 @@ constexpr auto PATIENCE = 5s; // how long a test waits for something that is due
 constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
-template <typename Condition>
-bool eventually(Condition condition) {
+template <typename condition_type>
+bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 

@@ -96,8 +96,8 @@ class GDelayIndividual
      * @brief Single declaration of this class'es local data members
      * @return A tuple of named member references driving the generated serialize()/load_()/compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("fixed_sleep_time_", self.fixed_sleep_time_),
             Gem::Common::make_member("may_crash_", self.may_crash_),

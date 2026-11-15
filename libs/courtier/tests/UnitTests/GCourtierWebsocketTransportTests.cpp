@@ -99,8 +99,8 @@ private:
 };
 
 /** @brief Polls @p condition for at most five seconds @return Whether it held */
-template <typename Condition>
-bool eventually(Condition condition) {
+template <typename condition_type>
+bool eventually(condition_type condition) {
     const auto give_up_at = std::chrono::steady_clock::now() + 5s;
     while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
         std::this_thread::sleep_for(1ms);

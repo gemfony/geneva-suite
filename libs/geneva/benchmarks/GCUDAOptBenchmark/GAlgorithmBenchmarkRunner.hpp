@@ -98,8 +98,8 @@ class GBenchmarkTerminationMonitor final : public oa::GBasePluggableOM {
     ///////////////////////////////////////////////////////////////////////
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
     }
     ///////////////////////////////////////////////////////////////////////

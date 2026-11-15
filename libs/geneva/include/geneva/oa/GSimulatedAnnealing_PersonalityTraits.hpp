@@ -60,8 +60,8 @@ class GSimulatedAnnealing_PersonalityTraits // NOLINT(cppcoreguidelines-special-
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief This traits class adds no own state (only its identity). @return An empty member tuple */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

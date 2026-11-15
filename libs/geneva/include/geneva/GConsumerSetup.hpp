@@ -168,14 +168,18 @@ buildConsumer(const Gem::Courtier::ConsumerSpec &spec);
  * @brief Builds the consumer of the current process, a submitter, from the configuration struct of
  * its family: buildConsumer(GStdThreadConsumerConfig{.nThreads = 1}).
  *
- * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
+ * @tparam config_type The configuration struct; its MNEMONIC names the consumer
  * @param config The configuration of the consumer
  * @return As buildConsumer(const Gem::Courtier::ConsumerSpec &)
  */
-template <Gem::Courtier::ConsumerConfig ConfigT>
-std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> buildConsumer(const ConfigT &config) {
+template <Gem::Courtier::ConsumerConfig config_type>
+std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
+buildConsumer(const config_type &config) {
     return buildConsumer(
-        Gem::Courtier::ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+        Gem::Courtier::ConsumerSpec{
+            .mnemonic = std::string(config_type::MNEMONIC),
+            .config = config
+        }
     );
 }
 
@@ -234,15 +238,18 @@ buildConsumerClient(const Gem::Courtier::ConsumerSpec &spec);
  * @brief Builds the networked client from the configuration struct of its family:
  * buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000}).
  *
- * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
+ * @tparam config_type The configuration struct; its MNEMONIC names the consumer
  * @param config The configuration of the consumer
  * @return As buildConsumerClient(const Gem::Courtier::ConsumerSpec &)
  */
-template <Gem::Courtier::ConsumerConfig ConfigT>
+template <Gem::Courtier::ConsumerConfig config_type>
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-buildConsumerClient(const ConfigT &config) {
+buildConsumerClient(const config_type &config) {
     return buildConsumerClient(
-        Gem::Courtier::ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+        Gem::Courtier::ConsumerSpec{
+            .mnemonic = std::string(config_type::MNEMONIC),
+            .config = config
+        }
     );
 }
 

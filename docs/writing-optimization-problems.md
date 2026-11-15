@@ -39,7 +39,7 @@ private:
 };
 ```
 
-`GGenomeT<Derived>` supplies the clone/load/compare/serialize machinery. Your genome is a
+`GGenomeT<derived_type>` supplies the clone/load/compare/serialize machinery. Your genome is a
 flat set of value channels (double / float / int32 / bool); read it with `streamline<T>()`,
 `streamlineFP()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
 
@@ -100,7 +100,7 @@ cfg->groupBool(0).flip(1.);                                        // bit-flip
 cfg->forLabel("position").gauss(0.3, 0.8, 1e-3, 1., 1.);          // configure by structural label
 ```
 
-`makeAdaptionConfig<ConfigT>(genome)` returns a `shared_ptr<ConfigT>` sized to the genome's groups.
+`makeAdaptionConfig<config_type>(genome)` returns a `shared_ptr<config_type>` sized to the genome's groups.
 The config is validated against the genome (`checkConsistency`) when it is adopted.
 
 ## 4. Distribute the config to the optimization algorithm
@@ -148,14 +148,14 @@ from a single source:
 ### What a loadable individual needs
 
 To be built by the generic factory (and thus loadable), the individual is a **Tier-2, config-driven**
-flat individual — it supplies the static hooks `GIndividualFactory<Derived>` calls (see section 3
+flat individual — it supplies the static hooks `GIndividualFactory<derived_type>` calls (see section 3
 of `GIndividualFactory.hpp` and the `GFunctionIndividual` / `GLineFitIndividual` examples):
 
 - a public default constructor,
 - a nested `struct Config` holding the configurable values,
 - `static void describeConfig(GParserBuilder&, Config&)` — registers the config-file options,
 - `static GenomeData buildGenome(const Config&)` — builds the structure-only genome,
-- optionally `static void applyConfig(Derived&, const Config&)` and
+- optionally `static void applyConfig(derived_type&, const Config&)` and
   `static std::shared_ptr<...GAdaptionConfigBase> buildAdaptionConfig(const GGenome&, const Config&)`.
 
 **External data is no obstacle.** A loaded `.so` runs in the host process with full, unsandboxed

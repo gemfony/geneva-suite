@@ -63,8 +63,8 @@ class GGenomeFactory // NOLINT(cppcoreguidelines-special-member-functions)
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::archive_named_base<Gem::Common::GFactoryT<GGenome>>(
             ar, "GFactoryT_GGenome", *this);

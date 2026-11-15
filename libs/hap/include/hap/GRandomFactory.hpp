@@ -215,12 +215,12 @@ private:
 	  * std::mt19937_64) values are drawn one at a time. Selected at compile
 	  * time via a requires-expression; no virtual dispatch.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
 	  * @param rng The random number generator used to fill the buffer
 	  * @param n The number of entries (from the front of the buffer) to fill
 	  */
-    template <typename RNG>
-    void fill_from(RNG &rng, std::size_t n) {
+    template <typename rng_type>
+    void fill_from(rng_type &rng, std::size_t n) {
         if constexpr (requires { rng.generate(r_.data(), n); }) {
             rng.generate(r_.data(), n);
         }
@@ -237,11 +237,11 @@ private:
 	  * the fill in try/catch and rethrows allocation or unknown failures as a
 	  * geneva_exception.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
 	  * @param rng A reference to an external random number generator used to fill the whole buffer
 	  */
-    template <typename RNG>
-    explicit random_container(RNG &rng) {
+    template <typename rng_type>
+    explicit random_container(rng_type &rng) {
         // fill_from writes into the in-object std::array -- it allocates nothing, so there is
         // no bad_alloc to guard against here (the producer's `new` has its own catch-all).
         fill_from(rng, r_.size());
@@ -255,11 +255,11 @@ private:
 	  * regenerated, then the read position is reset to zero so the container can
 	  * be recycled.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk refill engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk refill engine exposing generate(dst, n)
 	  * @param rng A reference to the random number generator used to refill the consumed entries
 	  */
-    template <typename RNG>
-    void refresh(RNG &rng) {
+    template <typename rng_type>
+    void refresh(rng_type &rng) {
         fill_from(rng, current_pos_);
         current_pos_ = 0;
     }

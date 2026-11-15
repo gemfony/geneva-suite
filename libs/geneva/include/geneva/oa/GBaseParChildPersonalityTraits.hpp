@@ -66,8 +66,8 @@ class GBaseParChildPersonalityTraits // NOLINT(cppcoreguidelines-special-member-
      * @return A tuple of named member bindings for parent_counter_ and parent_id_ (the population
      * position lives on the GPositionPersonalityTraits base)
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("parent_counter_", self.parent_counter_),
             Gem::Common::make_member("parent_id_", self.parent_id_)

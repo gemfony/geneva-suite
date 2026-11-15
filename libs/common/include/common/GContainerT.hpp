@@ -134,11 +134,11 @@ concept HasFrontInsertion = requires(C c, typename C::value_type v) {
  * type is a separate, deliberate decision -- read it as "held by value".
  *
  * @tparam T         The element type. Must be @c std::copyable.
- * @tparam Container The underlying sequence container. Defaults to
+ * @tparam container_type The underlying sequence container. Defaults to
  *                   std::vector<T>. Any container with a compatible STL
  *                   sequence interface may be used (e.g., std::deque<T>).
  */
-template <typename T, typename Container = std::vector<T>>
+template <typename T, typename container_type = std::vector<T>>
     requires std::copyable<T>
 struct PodStorage {
     /** @brief The logical element type exposed by the container interface. */
@@ -146,7 +146,7 @@ struct PodStorage {
     /** @brief The type actually stored in the container (identical to T for POD). */
     using StoredType = T;
     /** @brief The underlying sequence container type. */
-    using ContainerType = Container;
+    using ContainerType = container_type;
 
     /**
      * @brief Performs a deep copy of the container.
@@ -170,10 +170,10 @@ struct PodStorage {
  *
  * @tparam T         The element type. Must expose the Gemfony common interface
  *                   (detected via has_gemfony_common_interface<T>::value).
- * @tparam Container The underlying sequence container. Defaults to
+ * @tparam container_type The underlying sequence container. Defaults to
  *                   std::vector<std::shared_ptr<T>>.
  */
-template <typename T, typename Container = std::vector<std::shared_ptr<T>>>
+template <typename T, typename container_type = std::vector<std::shared_ptr<T>>>
     requires Gem::Common::gemfony_common_interface<T>
 struct SharedPtrStorage {
     /** @brief The logical element type exposed by the container interface. */
@@ -181,7 +181,7 @@ struct SharedPtrStorage {
     /** @brief The type actually stored in the container (a shared_ptr to T). */
     using StoredType = std::shared_ptr<T>;
     /** @brief The underlying sequence container type. */
-    using ContainerType = Container;
+    using ContainerType = container_type;
 
     /**
      * @brief Performs a deep copy of the container using the clone()/load() protocol.
@@ -207,9 +207,9 @@ struct SharedPtrStorage {
  * copyCloneableSmartPointerContainer() (which uses clone()/load()).
  *
  * @tparam T         The element type (must expose the Gemfony common interface).
- * @tparam Container The underlying sequence container; defaults to std::vector<std::unique_ptr<T>>.
+ * @tparam container_type The underlying sequence container; defaults to std::vector<std::unique_ptr<T>>.
  */
-template <typename T, typename Container = std::vector<std::unique_ptr<T>>>
+template <typename T, typename container_type = std::vector<std::unique_ptr<T>>>
     requires Gem::Common::gemfony_common_interface<T>
 struct UniquePtrStorage {
     /** @brief The logical element type exposed by the container interface. */
@@ -217,7 +217,7 @@ struct UniquePtrStorage {
     /** @brief The type actually stored in the container (a unique_ptr to T). */
     using StoredType = std::unique_ptr<T>;
     /** @brief The underlying sequence container type. */
-    using ContainerType = Container;
+    using ContainerType = container_type;
 
     /**
      * @brief Performs a deep copy of the container using the clone()/load() protocol.
@@ -245,7 +245,7 @@ struct UniquePtrStorage {
  * type-filtered range view.
  *
  * The underlying storage strategy is chosen at compile time via the
- * @p StoragePolicy parameter:
+ * @p storage_policy_type parameter:
  *  - PodStorage<T>         — for POD element types (equivalent to GPODVectorT)
  *  - SharedPtrStorage<T>   — for polymorphic Geneva objects (equivalent to
  *                             GPtrVectorT)
@@ -256,10 +256,10 @@ struct UniquePtrStorage {
  * operation is attempted.
  *
  * @tparam T             The logical element type.
- * @tparam StoragePolicy The storage policy. Must be either PodStorage<T,...>
+ * @tparam storage_policy_type The storage policy. Must be either PodStorage<T,...>
  *                       or SharedPtrStorage<T,...>.
  */
-template <typename T, typename StoragePolicy = PodStorage<T>>
+template <typename T, typename storage_policy_type = PodStorage<T>>
 class GContainerT {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
@@ -269,11 +269,11 @@ class GContainerT {
      *
      * The trailing unsigned int is the class version; it is intentionally unnamed and unused.
      *
-     * @tparam Archive The GArchive codec type.
+     * @tparam archive_type The GArchive codec type.
      * @param ar The archive to read from or write to.
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "data_cnt_", data_cnt_);
     }
     ///////////////////////////////////////////////////////////////////////
@@ -284,11 +284,11 @@ public:
     // ------------------------------------------------------------------
 
     /** @brief The logical element type. */
-    using ValueType = StoragePolicy::ValueType;
+    using ValueType = storage_policy_type::ValueType;
     /** @brief The type physically stored in the container. */
-    using StoredType = StoragePolicy::StoredType;
+    using StoredType = storage_policy_type::StoredType;
     /** @brief The underlying sequence container type. */
-    using ContainerType = StoragePolicy::ContainerType;
+    using ContainerType = storage_policy_type::ContainerType;
 
     /** @brief Standard STL alias: value_type */
     using value_type = ContainerType::value_type;
@@ -319,7 +319,7 @@ public:
     /**
      * @brief Constructs the container with @p n_val copies of @p val.
      *
-     * Only participates in overload resolution when StoragePolicy is
+     * Only participates in overload resolution when storage_policy_type is
      * PodStorage (i.e., StoredType == ValueType).
      *
      * @param n_val The number of elements to create.
@@ -339,7 +339,7 @@ public:
      * @param cp The source object.
      */
     GContainerT(const GContainerT &cp) {
-        StoragePolicy::deepCopy(cp.data_cnt_, data_cnt_);
+        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
     }
 
     /** @brief Move constructor. Leaves the source in a valid but unspecified state. */
@@ -365,7 +365,7 @@ public:
         if(this == &cp) {
             return *this;
         }
-        StoragePolicy::deepCopy(cp.data_cnt_, data_cnt_);
+        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
         return *this;
     }
 
@@ -761,12 +761,12 @@ public:
     /**
      * @brief Replaces the contents with elements from the range [@p first, @p last).
      *
-     * @tparam InputIt An input iterator type.
+     * @tparam input_it_type An input iterator type.
      * @param first The beginning of the source range.
      * @param last  The past-the-end of the source range.
      */
-    template <std::input_iterator InputIt>
-    void assign(const InputIt& first, const InputIt& last) {
+    template <std::input_iterator input_it_type>
+    void assign(const input_it_type &first, const input_it_type &last) {
         data_cnt_.assign(first, last);
     }
 
@@ -828,15 +828,15 @@ public:
      * passing constructor arguments for the pointee, which is not meaningful
      * in this context).
      *
-     * @tparam Args Argument types forwarded to the element constructor.
+     * @tparam args_type Argument types forwarded to the element constructor.
      * @param args Arguments forwarded to the element constructor.
      * @return A reference to the newly constructed element.
      */
-    template <typename... Args>
-    reference emplace_back(Args &&...args)
+    template <typename... args_type>
+    reference emplace_back(args_type &&...args)
         requires std::same_as<StoredType, ValueType>
     {
-        return data_cnt_.emplace_back(std::forward<Args>(args)...);
+        return data_cnt_.emplace_back(std::forward<args_type>(args)...);
     }
 
     /**
@@ -882,14 +882,14 @@ public:
      *
      * @note Only available when ContainerType satisfies HasFrontInsertion
      *       and StoredType == ValueType (PodStorage).
-     * @tparam Args Argument types forwarded to the element constructor.
+     * @tparam args_type Argument types forwarded to the element constructor.
      * @param args Arguments forwarded to the element constructor.
      */
-    template <typename... Args>
-    void emplace_front(Args &&...args)
+    template <typename... args_type>
+    void emplace_front(args_type &&...args)
         requires HasFrontInsertion<ContainerType> && std::same_as<StoredType, ValueType>
     {
-        data_cnt_.emplace_front(std::forward<Args>(args)...);
+        data_cnt_.emplace_front(std::forward<args_type>(args)...);
     }
 
     /**
@@ -945,14 +945,14 @@ public:
     /**
      * @brief Inserts elements from the range [@p first, @p last) before @p pos.
      *
-     * @tparam InputIt An input iterator type.
+     * @tparam input_it_type An input iterator type.
      * @param pos   An iterator pointing to the insertion position.
      * @param first The beginning of the source range.
      * @param last  The past-the-end of the source range.
      * @return An iterator to the first inserted element.
      */
-    template <std::input_iterator InputIt>
-    iterator insert(const_iterator pos, InputIt first, InputIt last) {
+    template <std::input_iterator input_it_type>
+    iterator insert(const_iterator pos, input_it_type first, input_it_type last) {
         return data_cnt_.insert(pos, first, last);
     }
 
@@ -972,16 +972,16 @@ public:
      *
      * Only available for PodStorage (same rationale as emplace_back()).
      *
-     * @tparam Args Argument types forwarded to the element constructor.
+     * @tparam args_type Argument types forwarded to the element constructor.
      * @param pos  An iterator pointing to the insertion position.
      * @param args Arguments forwarded to the element constructor.
      * @return An iterator to the newly constructed element.
      */
-    template <typename... Args>
-    iterator emplace(const_iterator pos, Args &&...args)
+    template <typename... args_type>
+    iterator emplace(const_iterator pos, args_type &&...args)
         requires std::same_as<StoredType, ValueType>
     {
-        return data_cnt_.emplace(pos, std::forward<Args>(args)...);
+        return data_cnt_.emplace(pos, std::forward<args_type>(args)...);
     }
 
     // ------------------------------------------------------------------
@@ -1054,15 +1054,15 @@ public:
      * Compares via operator== on the pointed-to objects, not on pointer identity.
      * A null pointer in @p item is not accepted.
      *
-     * @tparam ItemType A type derived from or equal to ValueType.
+     * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return The number of matching elements.
      * @throws geneva_exception when @p item is null.
      * @note Only available for SharedPtrStorage.
      */
-    template <typename ItemType>
-        requires(!std::same_as<StoredType, ValueType> && std::derived_from<ItemType, ValueType>)
-    [[nodiscard]] size_type count(const std::shared_ptr<ItemType> &item) const {
+    template <typename item_type>
+        requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
+    [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
         if(not item) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -1070,28 +1070,27 @@ public:
                 << "Tried to count with an empty smart pointer." << '\n'
             );
         }
-        return Gem::Common::narrow<size_type>(std::ranges::count_if(
-            data_cnt_,
-            [&item](const StoredType &cont_item) -> bool {
-                auto cast = std::dynamic_pointer_cast<ItemType>(cont_item);
+        return Gem::Common::narrow<size_type>(
+            std::ranges::count_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
+                auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
                 return cast && (*item == *cast);
-            }
-        ));
+            })
+        );
     }
 
     /**
      * @brief Returns an iterator to the first element whose dereferenced value
      *        equals @p item.
      *
-     * @tparam ItemType A type derived from or equal to ValueType.
+     * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return A const_iterator to the found element, or end() if not found.
      * @throws geneva_exception when @p item is null.
      * @note Only available for SharedPtrStorage.
      */
-    template <typename ItemType>
-        requires(!std::same_as<StoredType, ValueType> && std::derived_from<ItemType, ValueType>)
-    [[nodiscard]] const_iterator find(const std::shared_ptr<ItemType> &item) const {
+    template <typename item_type>
+        requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
+    [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
         if(not item) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -1099,13 +1098,10 @@ public:
                 << "Tried to find an empty smart pointer." << '\n'
             );
         }
-        return std::ranges::find_if(
-            data_cnt_,
-            [&item](const StoredType &cont_item) -> bool {
-                auto cast = std::dynamic_pointer_cast<ItemType>(cont_item);
-                return cast && (*item == *cast);
-            }
-        );
+        return std::ranges::find_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
+            auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
+            return cast && (*item == *cast);
+        });
     }
 
     // ------------------------------------------------------------------
@@ -1401,8 +1397,8 @@ public:
     // ------------------------------------------------------------------
 
     /**
-     * @brief Attempts a polymorphic down-cast of a stored pointer to @p DerivedType,
-     *        returning the result as a std::shared_ptr<DerivedType> (or null on mismatch).
+     * @brief Attempts a polymorphic down-cast of a stored pointer to @p derived_type,
+     *        returning the result as a std::shared_ptr<derived_type> (or null on mismatch).
      *
      * For SharedPtrStorage this is a co-owning std::dynamic_pointer_cast. For UniquePtrStorage
      * the element is owned uniquely by this container, so a NON-OWNING shared_ptr view (no-op
@@ -1410,56 +1406,56 @@ public:
      * shared_ptr-returning convenience views (attachViewTo / filteredView) usable on both storage
      * policies without transferring ownership out of a unique container.
      *
-     * @tparam DerivedType The target type of the polymorphic down-cast.
+     * @tparam derived_type The target type of the polymorphic down-cast.
      * @param ptr The stored handle whose pointee is to be cast.
-     * @return A std::shared_ptr<DerivedType> (co-owning for shared storage, non-owning for unique
+     * @return A std::shared_ptr<derived_type> (co-owning for shared storage, non-owning for unique
      *         storage), or a null shared_ptr when the dynamic cast fails.
      */
-    template <typename DerivedType>
-    [[nodiscard]] static std::shared_ptr<DerivedType> viewCast_(const StoredType &ptr) {
+    template <typename derived_type>
+    [[nodiscard]] static std::shared_ptr<derived_type> viewCast_(const StoredType &ptr) {
         if constexpr(std::same_as<StoredType, std::shared_ptr<ValueType>>) {
-            return std::dynamic_pointer_cast<DerivedType>(ptr);
+            return std::dynamic_pointer_cast<derived_type>(ptr);
         }
         else {
-            auto *raw = dynamic_cast<DerivedType *>(ptr.get());
-            return raw ? std::shared_ptr<DerivedType>(raw, [](DerivedType *) { /* non-owning */ })
-                       : std::shared_ptr<DerivedType>();
+            auto *raw = dynamic_cast<derived_type *>(ptr.get());
+            return raw ? std::shared_ptr<derived_type>(raw, [](derived_type *) { /* non-owning */ })
+                       : std::shared_ptr<derived_type>();
         }
     }
 
     /**
      * @brief Clones the element at index @p pos and returns it as a shared_ptr
-     *        to @p TargetType.
+     *        to @p target_type.
      *
-     * @tparam TargetType The desired result type (must be derived from ValueType).
+     * @tparam target_type The desired result type (must be derived from ValueType).
      * @param pos The zero-based index.
-     * @return A shared_ptr<TargetType> owning an independent clone.
+     * @return A shared_ptr<target_type> owning an independent clone.
      * @throws std::out_of_range when @p pos >= size().
      * @note Only available for SharedPtrStorage.
      */
-    template <typename TargetType = ValueType>
-    [[nodiscard]] std::shared_ptr<TargetType> clone_at(std::size_t pos) const
-        requires(!std::same_as<StoredType, ValueType>)
+    template <typename target_type = ValueType>
+    [[nodiscard]] std::shared_ptr<target_type> clone_at(std::size_t pos) const
+        requires (!std::same_as<StoredType, ValueType>)
     {
-        return data_cnt_.at(pos)->template clone<TargetType>();
+        return data_cnt_.at(pos)->template clone<target_type>();
     }
 
     /**
      * @brief Appends shared_ptrs to all elements that are dynamically castable
-     *        to @p DerivedType to the provided target vector.
+     *        to @p derived_type to the provided target vector.
      *
      * Elements that cannot be cast are silently skipped.
      *
-     * @tparam DerivedType The derived type to filter for.
+     * @tparam derived_type The derived type to filter for.
      * @param target A vector that receives the filtered pointers.
      * @note Only available for SharedPtrStorage.
      */
-    template <typename DerivedType>
-    void attachViewTo(std::vector<std::shared_ptr<DerivedType>> &target)
-        requires(!std::same_as<StoredType, ValueType>)
+    template <typename derived_type>
+    void attachViewTo(std::vector<std::shared_ptr<derived_type>> &target)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         for(auto &item_ptr : data_cnt_) {
-            if(std::shared_ptr<DerivedType> cast = viewCast_<DerivedType>(item_ptr)) {
+            if(std::shared_ptr<derived_type> cast = viewCast_<derived_type>(item_ptr)) {
                 target.push_back(std::move(cast));
             }
         }
@@ -1467,7 +1463,7 @@ public:
 
     /**
      * @brief Returns a lazy C++20 range view that yields only elements
-     *        dynamically castable to @p DerivedType.
+     *        dynamically castable to @p derived_type.
      *
      * The returned view is a composition of std::views::transform (attempting
      * the dynamic_cast) and std::views::filter (dropping null results).
@@ -1475,38 +1471,40 @@ public:
      * preferred here because it composes naturally with other std::views
      * adaptors and avoids manual iterator bookkeeping.
      *
-     * @tparam DerivedType The derived type to filter for.
-     * @return A range of std::shared_ptr<DerivedType> (nulls excluded).
+     * @tparam derived_type The derived type to filter for.
+     * @return A range of std::shared_ptr<derived_type> (nulls excluded).
      * @note Only available for SharedPtrStorage.
      */
-    template <typename DerivedType>
+    template <typename derived_type>
     [[nodiscard]] auto filteredView()
-        requires(!std::same_as<StoredType, ValueType>)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         return data_cnt_ | std::views::transform([](const StoredType &ptr) {
-            return viewCast_<DerivedType>(ptr);
-        }) | std::views::filter([](const std::shared_ptr<DerivedType> &ptr) {
-            return static_cast<bool>(ptr);
-        });
+                   return viewCast_<derived_type>(ptr);
+               }) |
+               std::views::filter([](const std::shared_ptr<derived_type> &ptr) {
+                   return static_cast<bool>(ptr);
+               });
     }
 
     /**
      * @brief Returns a lazy const C++20 range view that yields only elements
-     *        dynamically castable to @p DerivedType.
+     *        dynamically castable to @p derived_type.
      *
-     * @tparam DerivedType The derived type to filter for.
-     * @return A const range of std::shared_ptr<DerivedType> (nulls excluded).
+     * @tparam derived_type The derived type to filter for.
+     * @return A const range of std::shared_ptr<derived_type> (nulls excluded).
      * @note Only available for SharedPtrStorage.
      */
-    template <typename DerivedType>
+    template <typename derived_type>
     [[nodiscard]] auto filteredView() const
-        requires(!std::same_as<StoredType, ValueType>)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         return data_cnt_ | std::views::transform([](const StoredType &ptr) {
-            return viewCast_<DerivedType>(ptr);
-        }) | std::views::filter([](const std::shared_ptr<DerivedType> &ptr) {
-            return static_cast<bool>(ptr);
-        });
+                   return viewCast_<derived_type>(ptr);
+               }) |
+               std::views::filter([](const std::shared_ptr<derived_type> &ptr) {
+                   return static_cast<bool>(ptr);
+               });
     }
 
     // ------------------------------------------------------------------
@@ -1662,8 +1660,8 @@ protected:
  * Clears the data container so that derived-class destructors run cleanly
  * even if the base destructor is invoked directly.
  */
-template <typename T, typename StoragePolicy>
-inline GContainerT<T, StoragePolicy>::~GContainerT() {
+template <typename T, typename storage_policy_type>
+inline GContainerT<T, storage_policy_type>::~GContainerT() {
     data_cnt_.clear();
 }
 
@@ -1672,28 +1670,28 @@ inline GContainerT<T, StoragePolicy>::~GContainerT() {
 /******************************************************************************/
 
 /**
- * @brief Convenience alias: a GContainerT for POD types backed by @p Container.
+ * @brief Convenience alias: a GContainerT for POD types backed by @p container_type.
  *
  * Equivalent to the old GPODVectorT but with an exchangeable backend.
  *
  * @tparam T         The POD element type.
- * @tparam Container The underlying sequence container. Defaults to std::vector<T>.
+ * @tparam container_type The underlying sequence container. Defaults to std::vector<T>.
  */
-template <typename T, typename Container = std::vector<T>>
-using GPodContainerT = GContainerT<T, PodStorage<T, Container>>;
+template <typename T, typename container_type = std::vector<T>>
+using GPodContainerT = GContainerT<T, PodStorage<T, container_type>>;
 
 /**
  * @brief Convenience alias: a GContainerT for polymorphic Geneva objects
- *        held via shared_ptr, backed by @p Container.
+ *        held via shared_ptr, backed by @p container_type.
  *
  * Equivalent to the old GPtrVectorT but with an exchangeable backend.
  *
  * @tparam T         The base element type (must expose the Gemfony common interface).
- * @tparam Container The underlying sequence container.
+ * @tparam container_type The underlying sequence container.
  *                   Defaults to std::vector<std::shared_ptr<T>>.
  */
-template <typename T, typename Container = std::vector<std::shared_ptr<T>>>
-using GPtrContainerT = GContainerT<T, SharedPtrStorage<T, Container>>;
+template <typename T, typename container_type = std::vector<std::shared_ptr<T>>>
+using GPtrContainerT = GContainerT<T, SharedPtrStorage<T, container_type>>;
 
 /******************************************************************************/
 /**
@@ -1704,11 +1702,11 @@ using GPtrContainerT = GContainerT<T, SharedPtrStorage<T, Container>>;
  * clone()/load(). Boost serialises std::unique_ptr, so serialisation works unchanged.
  *
  * @tparam T         The base element type (must expose the Gemfony common interface).
- * @tparam Container The underlying sequence container.
+ * @tparam container_type The underlying sequence container.
  *                   Defaults to std::vector<std::unique_ptr<T>>.
  */
-template <typename T, typename Container = std::vector<std::unique_ptr<T>>>
-using GUniquePtrContainerT = GContainerT<T, UniquePtrStorage<T, Container>>;
+template <typename T, typename container_type = std::vector<std::unique_ptr<T>>>
+using GUniquePtrContainerT = GContainerT<T, UniquePtrStorage<T, container_type>>;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

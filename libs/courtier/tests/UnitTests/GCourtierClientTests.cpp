@@ -110,8 +110,8 @@ public:
     /** @brief Runs the io context on this thread until @p condition holds, at most for @p limit.
      *  The condition is evaluated between two handlers, i.e. as the io thread sees the books.
      *  @return Whether the condition held in time */
-    template <typename Condition>
-    [[nodiscard]] bool runUntil(Condition condition, std::chrono::milliseconds limit) {
+    template <typename condition_type>
+    [[nodiscard]] bool runUntil(condition_type condition, std::chrono::milliseconds limit) {
         const auto give_up_at = std::chrono::steady_clock::now() + limit;
         while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
             if(io_context_.stopped()) {
@@ -207,8 +207,8 @@ std::atomic<bool> slowDropArmed{false}; ///< The next GSlowDropItem destroyed ta
 class GSlowDropItem final : public Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>>(
             ar,
             "GProcessingContainerT_GSlowDropItem",
@@ -246,8 +246,8 @@ class GReturnThrowsItem final
   : public Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<
             Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>>(
             ar,

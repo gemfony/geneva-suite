@@ -65,13 +65,15 @@ namespace {
 
 using item_ptr = std::unique_ptr<GFaultyContainer>;
 
-/** @brief Wires a local consumer of type @p ConsumerT (built with @p n_threads worker threads,
+/** @brief Wires a local consumer of type @p consumer_type (built with @p n_threads worker threads,
  *  0 == hardware concurrency) for a test. */
-template <typename ConsumerT>
+template <typename consumer_type>
 struct LocalFixtureT {
     explicit LocalFixtureT(unsigned int n_threads = 0)
       : consumer(
-            std::make_shared<ConsumerT>(typename ConsumerT::config_type{.nThreads = n_threads})
+            std::make_shared<consumer_type>(
+                typename consumer_type::config_type{.nThreads = n_threads}
+            )
         ) {
     }
 
@@ -227,8 +229,8 @@ namespace {
 class ShapeItem : public GProcessingContainerT<ShapeItem, bool> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GProcessingContainerT<ShapeItem, bool>>(
             ar,
             "GProcessingContainerT_ShapeItem",

@@ -65,8 +65,8 @@ class GSwarmAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-special-memb
      * pointer with no post-load transform, so make_cloneable_member handles it
      * exactly as the former manual tail did (deep clone on load, deep compare).
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("neighborhood_", self.neighborhood_),
             Gem::Common::make_member("no_position_update_", self.no_position_update_),

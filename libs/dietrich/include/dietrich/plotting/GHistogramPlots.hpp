@@ -55,8 +55,8 @@ class GHistogram1D
 	 * the GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("n_bins_x_", self.n_bins_x_),
             make_member("min_x_", self.min_x_),
@@ -206,8 +206,8 @@ class GHistogram1I
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("n_bins_x_", self.n_bins_x_),
             make_member("min_x_", self.min_x_),
@@ -354,8 +354,8 @@ class GHistogram2D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("n_bins_x_", self.n_bins_x_),
             make_member("n_bins_y_", self.n_bins_y_),

@@ -77,8 +77,8 @@ constexpr auto PATIENCE = 5s;       // how long a test waits for something that 
 constexpr auto CLOSE_GRACE = 300ms; // the ends' wait for an acknowledgement, where it matters
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
-template <typename Condition>
-bool eventually(Condition condition) {
+template <typename condition_type>
+bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 

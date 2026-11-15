@@ -73,8 +73,8 @@ class parPropSpec // NOLINT(cppcoreguidelines-special-member-functions)
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "var", var);
         archive_named(ar, "lowerBoundary", lowerBoundary);
@@ -146,8 +146,8 @@ protected:
      *
      * @return A tuple of named members (mutable references) bundling var, lowerBoundary, upperBoundary and nSteps
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("var", self.var),
             Gem::Common::make_member("lowerBoundary", self.lowerBoundary),

@@ -60,9 +60,9 @@ struct SerBase : Gem::Common::gemfony_common_interface_indicator {
     explicit SerBase(int x) : v(x) {}
     ~SerBase() = default;
 
-    template <typename TargetType = SerBase>
-    std::shared_ptr<TargetType> clone() const {
-        return std::make_shared<TargetType>(*static_cast<const TargetType *>(this));
+    template <typename target_type = SerBase>
+    std::shared_ptr<target_type> clone() const {
+        return std::make_shared<target_type>(*static_cast<const target_type *>(this));
     }
 
     void load(const std::shared_ptr<SerBase>& cp) { v = cp->v; }
@@ -79,8 +79,8 @@ struct SerBase : Gem::Common::gemfony_common_interface_indicator {
         }
     }
 
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "v", v);
     }
 };
@@ -109,15 +109,15 @@ struct TestBase : Gem::Common::gemfony_common_interface_indicator {
 
     // Typed counterpart, mirroring GCommonInterfaceT::clone<clone_type>(): clones the dynamic
     // type (via the virtual overload above) and hands back a unique_ptr to the requested static type.
-    template <typename TargetType>
-    [[nodiscard]] std::unique_ptr<TargetType> clone() const {
+    template <typename target_type>
+    [[nodiscard]] std::unique_ptr<target_type> clone() const {
         std::unique_ptr<TestBase> base = this->clone();
-        auto *converted = dynamic_cast<TargetType *>(base.get());
+        auto *converted = dynamic_cast<target_type *>(base.get());
         if(converted == nullptr) {
-            throw std::runtime_error("TestBase::clone<TargetType>(): dynamic_cast failed");
+            throw std::runtime_error("TestBase::clone<target_type>(): dynamic_cast failed");
         }
         base.release();
-        return std::unique_ptr<TargetType>(converted);
+        return std::unique_ptr<target_type>(converted);
     }
 
     void load(const std::shared_ptr<TestBase>& cp) {

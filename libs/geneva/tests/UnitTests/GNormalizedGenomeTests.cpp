@@ -113,8 +113,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgBoxIndividual>>(ar, "GGenomeT", *this);
     }
 };
@@ -157,8 +157,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgMixedIndividual>>(ar, "GGenomeT", *this);
     }
 };
@@ -187,8 +187,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgErgoIndividual>>(ar, "GGenomeT", *this);
     }
 };

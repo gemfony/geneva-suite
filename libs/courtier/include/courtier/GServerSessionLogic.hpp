@@ -93,11 +93,11 @@ using GWakeFn = std::move_only_function<bool()>;
  * @brief The outcome of GNetworkedConsumerT::checkoutOrPark(): an item, or the promise of one
  * wake-up, or neither (the server is stopping).
  *
- * @tparam ProcessableT The work-item type
+ * @tparam processable_type The work-item type
  */
-template <typename ProcessableT>
+template <typename processable_type>
 struct GCheckoutResult {
-    std::unique_ptr<ProcessableT> item; ///< Set: an item was checked out
+    std::unique_ptr<processable_type> item; ///< Set: an item was checked out
     bool parked = false; ///< True: nothing was pending; the caller will be woken once
     /// With an item: which checkout of its slot this is. A put-back of the item names it, so that it
     /// acts only while this is still the slot's current checkout (GNetworkedConsumerT::requeue()).
@@ -124,15 +124,12 @@ using GAbsorbResult = std::variant<std::string, GPullDue, GNothingDue>;
  * queue is empty. Pure frame mutation -- no serialization, no I/O.
  *
  * @tparam processable_type The payload type of the command container
- * @tparam GetItemF A callable () -> std::unique_ptr<processable_type> (the checkout)
+ * @tparam get_item_fn_type A callable () -> std::unique_ptr<processable_type> (the checkout)
  * @param container The frame to fill (reset to WORK+item or NO_WORK)
  * @param getItem The checkout callable
  */
-template <typename processable_type, typename GetItemF>
-void serveWorkItem(
-    GCommandContainerT<processable_type> &container,
-    GetItemF &&getItem
-) {
+template <typename processable_type, typename get_item_fn_type>
+void serveWorkItem(GCommandContainerT<processable_type> &container, get_item_fn_type &&getItem) {
     auto payload_ptr = getItem();
     if(payload_ptr) {
         container.reset(GFrameKind::WORK, std::move(payload_ptr));
@@ -172,8 +169,8 @@ std::string refusalReply(Gem::Common::serializationMode ser_mode) {
  * BLOB_REQUEST is answered from the shared registry (under a null scope, via the codec). An unknown
  * frame logs a warning and is answered with NO_WORK (see refusalReply()).
  *
- * @tparam ProcessableT The payload type of the command container
- * @tparam PutItemF A callable (GCommandContainerT<ProcessableT>&&) -> void (the checkin)
+ * @tparam processable_type The payload type of the command container
+ * @tparam put_item_fn_type A callable (GCommandContainerT<processable_type>&&) -> void (the checkin)
  * @param container The already-deserialized inbound frame (cleared after a RETURN or a RESULT)
  * @param put_item The checkin callable
  * @param registry The shared blob registry (for BLOB_REQUEST; may be nullptr)
@@ -181,10 +178,10 @@ std::string refusalReply(Gem::Common::serializationMode ser_mode) {
  * @return The answer if the request is answered by it (a string); GPullDue if a work item is now
  *         owed; GNothingDue if nothing is
  */
-template <typename ProcessableT, typename PutItemF>
+template <typename processable_type, typename put_item_fn_type>
 GAbsorbResult absorbServerRequest(
-    GCommandContainerT<ProcessableT> &container,
-    PutItemF &&put_item,
+    GCommandContainerT<processable_type> &container,
+    put_item_fn_type &&put_item,
     GWireBlobRegistry *registry,
     Gem::Common::serializationMode ser_mode
 ) {
@@ -198,9 +195,9 @@ GAbsorbResult absorbServerRequest(
         // Hand the whole frame to the sink -- outcome, library tag and payload together. The (now
         // cleared) frame is free for the answer to the pull a RETURN carries.
         const bool pull_due = container.kind() == RETURN;
-        GCommandContainerT<ProcessableT> inbound{std::move(container)};
+        GCommandContainerT<processable_type> inbound{std::move(container)};
         container.reset();
-        std::forward<PutItemF>(put_item)(std::move(inbound));
+        std::forward<put_item_fn_type>(put_item)(std::move(inbound));
         if(pull_due) {
             return GPullDue{};
         }
@@ -210,7 +207,7 @@ GAbsorbResult absorbServerRequest(
         // Blob cache-miss fetch: answer with the serialized blob from the shared registry (empty
         // blob -> the worker treats the fetch as failed).
         const auto *request = container.blobRequest();
-        return buildBlobReply<ProcessableT>(
+        return buildBlobReply<processable_type>(
             request != nullptr ? request->id : GWireBlobId{0, 0},
             registry,
             ser_mode
@@ -221,7 +218,7 @@ GAbsorbResult absorbServerRequest(
                 << "Got unknown or invalid frame " << fkToStr(container.kind()) << '\n'
                 << "The request is refused and answered with NO_WORK." << '\n'
                 << GWARNING;
-        return refusalReply<ProcessableT>(ser_mode);
+        return refusalReply<processable_type>(ser_mode);
     }
     }
 }

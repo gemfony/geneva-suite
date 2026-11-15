@@ -104,12 +104,13 @@ public:
     void put_bool(bool b) { place(boost::json::value(b)); }
 
     /** @brief Stores an integer as a signed or unsigned JSON number by its signedness. @param v The value. */
-    template <typename Int>
-    void put_scalar(Int v) {
-        static_assert(std::is_integral_v<Int>);
-        if constexpr (std::is_signed_v<Int>) {
+    template <typename int_type>
+    void put_scalar(int_type v) {
+        static_assert(std::is_integral_v<int_type>);
+        if constexpr(std::is_signed_v<int_type>) {
             place(boost::json::value(static_cast<std::int64_t>(v)));
-        } else {
+        }
+        else {
             place(boost::json::value(static_cast<std::uint64_t>(v)));
         }
     }
@@ -125,9 +126,9 @@ public:
      * bit-exactly via @c strtof / @c strtod and stays human-readable; @c long @c double
      * uses an exact hexadecimal float (@c %La). @param v The value.
      */
-    template <typename Float>
-    void put_fp(Float v) {
-        static_assert(std::is_floating_point_v<Float>);
+    template <typename float_type>
+    void put_fp(float_type v) {
+        static_assert(std::is_floating_point_v<float_type>);
         place(boost::json::value(fp_to_string(v)));
     }
 
@@ -203,14 +204,16 @@ private:
     // Formats a floating-point value as an exact, re-parseable decimal (float/double)
     // or hex-float (long double) string. The precisions %.9g / %.17g are the
     // round-trip-minimal digit counts for IEEE single / double.
-    template <typename Float>
-    static std::string fp_to_string(Float v) {
+    template <typename float_type>
+    static std::string fp_to_string(float_type v) {
         char buf[64];
-        if constexpr (std::is_same_v<Float, long double>) {
+        if constexpr(std::is_same_v<float_type, long double>) {
             std::snprintf(buf, sizeof(buf), "%La", v); // hex float: exact and re-parseable
-        } else if constexpr (std::is_same_v<Float, float>) {
+        }
+        else if constexpr(std::is_same_v<float_type, float>) {
             std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v));
-        } else {
+        }
+        else {
             std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(v));
         }
         return std::string{buf};
@@ -239,10 +242,10 @@ public:
     void get_bool(bool &b) { b = slot().as_bool(); }
 
     /** @brief Reads an integer with a checked numeric conversion. @param v The value to fill. */
-    template <typename Int>
-    void get_scalar(Int &v) {
-        static_assert(std::is_integral_v<Int>);
-        v = slot().to_number<Int>();
+    template <typename int_type>
+    void get_scalar(int_type &v) {
+        static_assert(std::is_integral_v<int_type>);
+        v = slot().to_number<int_type>();
     }
 
     /**
@@ -250,15 +253,17 @@ public:
      * GJsonOArchive::put_fp): @c strtof / @c strtod / @c strtold reproduce the
      * written value bit-exactly. @param v The value to fill.
      */
-    template <typename Float>
-    void get_fp(Float &v) {
-        static_assert(std::is_floating_point_v<Float>);
+    template <typename float_type>
+    void get_fp(float_type &v) {
+        static_assert(std::is_floating_point_v<float_type>);
         const boost::json::string &s = slot().as_string();
-        if constexpr (std::is_same_v<Float, long double>) {
+        if constexpr(std::is_same_v<float_type, long double>) {
             v = std::strtold(s.c_str(), nullptr);
-        } else if constexpr (std::is_same_v<Float, float>) {
+        }
+        else if constexpr(std::is_same_v<float_type, float>) {
             v = std::strtof(s.c_str(), nullptr);
-        } else {
+        }
+        else {
             v = std::strtod(s.c_str(), nullptr);
         }
     }

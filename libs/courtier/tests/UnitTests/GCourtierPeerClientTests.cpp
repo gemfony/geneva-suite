@@ -90,8 +90,8 @@ constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 using client_type = Gem::Courtier::Consumers::GPeerClientT<GFaultyContainer>;
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
-template <typename Condition>
-bool eventually(Condition condition) {
+template <typename condition_type>
+bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 
@@ -335,13 +335,13 @@ public:
      * @param setup Done with the client before it runs
      * @return The client
      */
-    template <typename Setup>
+    template <typename setup_type>
     std::shared_ptr<client_type> client(
         GPeerClientOptions options,
         const std::shared_ptr<Evaluations> &evaluations,
         std::chrono::milliseconds duration,
         const std::shared_ptr<GInProcessPeerWatch> &watch,
-        Setup setup
+        setup_type setup
     ) {
         auto client = std::make_shared<client_type>(
             std::make_unique<GInProcessConnector>(listener_, true, watch),
@@ -666,15 +666,15 @@ std::function<std::uint64_t()> noWorkSeenByClient;
 class GSlowReturnItem final : public Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<
             Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool>>(
             ar,
             "GProcessingContainerT_GSlowReturnItem",
             *this
         );
-        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
             if(this->is_processed()) {
                 slowEncodes.fetch_add(1);
                 std::this_thread::sleep_for(SLOW_ENCODE);
@@ -853,14 +853,14 @@ void resetWatch(int decode_ms, bool first_waits) {
 class GWatchedItem final : public Gem::Courtier::GProcessingContainerT<GWatchedItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GWatchedItem, bool>>(
             ar,
             "GProcessingContainerT_GWatchedItem",
             *this
         );
-        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
             if(this->is_due_for_processing()) { // a work item, on the client
                 decodesStarted.fetch_add(1);
                 std::this_thread::sleep_for(std::chrono::milliseconds(decodeMs.load()));
@@ -1038,8 +1038,8 @@ std::atomic<int> failedLoads{0};       ///< Loads of a work item that failed, fo
 class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutItem, bool> {
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GLayoutItem, bool>>(
             ar,
@@ -1047,7 +1047,7 @@ class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutIte
             *this
         );
         archive_named(ar, "poisoned_", poisoned_);
-        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
             if(poisoned_ && poisonedLoadsLeft.fetch_sub(1) > 0) {
                 failedLoads.fetch_add(1);
                 throw std::runtime_error("this test makes the first load of the item fail");
@@ -1058,7 +1058,7 @@ class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutIte
         const Gem::Courtier::GWireBlobId id{7, 7};
         bool interned = false;
         bool present = true;
-        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
             interned =
                 ctx != nullptr && ctx->enabled && ctx->may_intern_blobs && ctx->registry != nullptr;
             if(interned) {
@@ -1075,14 +1075,14 @@ class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutIte
         archive_named(ar, "present", present);
         if(present) {
             archive_named(ar, "layout_", layout_);
-            if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+            if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
                 if(interned && ctx != nullptr && ctx->registry != nullptr) {
                     ctx->registry->put(id, layout_);
                 }
             }
             return;
         }
-        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
             if(ctx == nullptr || ctx->registry == nullptr ||
                not ctx->registry->tryGet(id, layout_)) {
                 failedLoads.fetch_add(1);

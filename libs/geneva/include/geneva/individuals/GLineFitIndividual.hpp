@@ -77,8 +77,8 @@ class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("data_points_", self.data_points_));
     }
     ///////////////////////////////////////////////////////////////////////

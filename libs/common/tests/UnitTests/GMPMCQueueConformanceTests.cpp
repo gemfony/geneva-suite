@@ -32,7 +32,7 @@
  * GBlockingMPMCQueueT and the preallocated-ring GPreallocatedMPMCQueueT). Every test below is a
  * TEMPLATE_TEST_CASE parametrised over a backend tag, so the identical behaviour is asserted for
  * each backend -- this is what guarantees the two are interchangeable. Only bounded scenarios are
- * exercised here because the preallocated backend is bounded by construction; the unbounded (Cap==0,
+ * exercised here because the preallocated backend is bounded by construction; the unbounded (CAP==0,
  * deque-only) behaviour is covered by GBlockingMPMCQueueTTests.
  */
 
@@ -129,12 +129,12 @@ std::atomic<int> Thrower::throw_on{-1};
 
 // Backend tags: each exposes an alias template selecting one concrete facade specialisation.
 struct DequeTag {
-    template <typename T, std::size_t Cap>
-    using queue = GMPMCQueueT<T, Cap, QueueBackend::Deque>;
+    template <typename T, std::size_t CAP>
+    using queue = GMPMCQueueT<T, CAP, QueueBackend::Deque>;
 };
 struct PreallocTag {
-    template <typename T, std::size_t Cap>
-    using queue = GMPMCQueueT<T, Cap, QueueBackend::Preallocated>;
+    template <typename T, std::size_t CAP>
+    using queue = GMPMCQueueT<T, CAP, QueueBackend::Preallocated>;
 };
 
 } // namespace
@@ -457,7 +457,7 @@ TEMPLATE_TEST_CASE("GMPMCQueueT a throwing element ctor preserves capacity", "[G
     REQUIRE(threw);
     REQUIRE(q.empty()); // nothing was stored
 
-    // The reserved slot must have been handed back: the queue must still accept a full Cap items.
+    // The reserved slot must have been handed back: the queue must still accept a full CAP items.
     Thrower::throw_on.store(-1); // no more throwing
     int accepted = 0;
     for(int i = 0; i < Cap; ++i) {

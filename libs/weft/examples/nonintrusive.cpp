@@ -32,7 +32,7 @@
  * @brief Serializing a type you cannot modify — the non-intrusive path.
  *
  * When a type is third-party (no access to add a member @c serialize), Weft finds
- * a free function @c gem_archive_serialize(Archive&, T&) by argument-dependent
+ * a free function @c gem_archive_serialize(archive_type&, T&) by argument-dependent
  * lookup in the type's own namespace — the analogue of a Boost.Serialization
  * non-intrusive free @c serialize. Nested members (here a std::vector of another
  * such type) compose naturally: each element is dispatched the same way.
@@ -62,15 +62,15 @@ struct Trajectory {
 
 // Non-intrusive hooks, found by ADL because they live in `vendor` alongside the
 // types. They never touch the class definitions.
-template <typename Archive>
-void gem_archive_serialize(Archive &ar, Vec3 &v) {
+template <typename archive_type>
+void gem_archive_serialize(archive_type &ar, Vec3 &v) {
     ar &Gem::Weft::make_nvp("x", v.x);
     ar &Gem::Weft::make_nvp("y", v.y);
     ar &Gem::Weft::make_nvp("z", v.z);
 }
 
-template <typename Archive>
-void gem_archive_serialize(Archive &ar, Trajectory &t) {
+template <typename archive_type>
+void gem_archive_serialize(archive_type &ar, Trajectory &t) {
     ar &Gem::Weft::make_nvp("name", t.name);
     ar &Gem::Weft::make_nvp("points", t.points); // std::vector<Vec3> composes automatically
 }

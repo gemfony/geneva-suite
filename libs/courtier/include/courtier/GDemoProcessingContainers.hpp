@@ -60,8 +60,8 @@ class GSimpleContainer
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSimpleContainer, bool>>(
             ar, "GProcessingContainerT_GSimpleContainer", *this);
         Gem::Common::archive_named(ar, "stored_number_", stored_number_);
@@ -105,8 +105,8 @@ class GRandomNumberContainer
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GRandomNumberContainer, bool>>(
             ar, "GProcessingContainerT_GRandomNumberContainer", *this);
         Gem::Common::archive_named(ar, "random_numbers_", random_numbers_);
@@ -175,15 +175,15 @@ class GFaultyContainer
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GFaultyContainer, bool>>(
             ar, "GProcessingContainerT_GFaultyContainer", *this);
         archive_named(ar, "stored_number_", stored_number_);
         archive_named(ar, "fault_mode_", fault_mode_);
         archive_named(ar, "sleep_ms_", sleep_ms_);
-        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+        if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
             if(fault_mode_ == fault_mode::THROW_LOADING && consumeLoadFault()) {
                 throw std::runtime_error("GFaultyContainer: injected failure while loading");
             }

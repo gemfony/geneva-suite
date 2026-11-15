@@ -60,11 +60,11 @@ class GRandomSearch_PersonalityTraits // NOLINT(cppcoreguidelines-special-member
 
     /** @brief Serializes this object (no local data beyond the base). Archive-generic: the same body
      *  serves a Boost archive or a GArchive codec (the backend branch lives inside archive_named_base).
-     *  @tparam Archive The archive type used for (de-)serialization
+     *  @tparam archive_type The archive type used for (de-)serialization
      *  @param ar The archive to serialize to / from
      *  @param version The (unused) serialization format version */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GPersonalityTraits>(ar, "GPersonalityTraits", *this);
     }
     ///////////////////////////////////////////////////////////////////////

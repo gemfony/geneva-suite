@@ -52,11 +52,15 @@ struct GNoLibraryPayload {
     friend struct Gem::Weft::access;
 
     /** @brief (De)serialises nothing -- the type carries no state.
-     *  @tparam Archive The GArchive codec type
+     *  @tparam archive_type The GArchive codec type
      *  @param ar The (unused) archive
      *  @param version The (unused) serialization version number */
-    template <typename Archive>
-    void serialize([[maybe_unused]] Archive &ar, [[maybe_unused]] const unsigned int version) { /* nothing */ }
+    template <typename archive_type>
+    void serialize(
+        [[maybe_unused]] archive_type &ar,
+        [[maybe_unused]] const unsigned int version
+    ) { /* nothing */
+    }
     ///////////////////////////////////////////////////////////////////////
 };
 

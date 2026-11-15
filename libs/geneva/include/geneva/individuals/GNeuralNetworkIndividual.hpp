@@ -89,8 +89,8 @@ struct trainingSet {
     // and archives may change under the clean-break policy, so the historical raw-
     // array layout no longer needs preserving.)
     //! [weft-archive-named]
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "nInputNodes", nInputNodes);
         Gem::Common::archive_named(ar, "nOutputNodes", nOutputNodes);
         Gem::Common::archive_named(ar, "Input", Input);
@@ -166,8 +166,8 @@ class networkData : public Gem::Common::GPodContainerT<std::size_t> {
     // count and each pointer is (de)serialized element-wise -- no make_array, no
     // separate array_size_ field, no manual overflow guard (this is a local, trusted
     // training-data file that never crosses the wire), and no split.
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Common::GPodContainerT<std::size_t>>(
             ar, "GStdSimpleVectorInterfaceT_size_t", *this);
         Gem::Common::archive_named(ar, "init_range_", init_range_);
@@ -570,8 +570,8 @@ class GNeuralNetworkIndividual // NOLINT(cppcoreguidelines-special-member-functi
      *  in the archive. (The former split save()/load() reassigned n_d_ in load() redundantly, which is why
      *  it needed to be asymmetric; a single generated serialize() suffices.) nn_arch_ is a transient cache
      *  rebuilt from n_d_ on demand. */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("t_f_", self.t_f_));
     }
 

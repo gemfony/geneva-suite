@@ -111,8 +111,8 @@ enum class misbehave { abandon, requeue_it };
  * a client death (reclaimed by the lease) or a session-death put-back. Returns once every slot is
  * resolved.
  */
-template <typename VictimPred>
-void run_with_misbehaviour(std::vector<item_ptr> &batch, misbehave mode, VictimPred victim) {
+template <typename victim_pred_type>
+void run_with_misbehaviour(std::vector<item_ptr> &batch, misbehave mode, victim_pred_type victim) {
     SimNetConsumer consumer;
     consumer.setLeaseBootstrap(30ms);  // reclaim an abandoned item quickly
     consumer.setLeaseBounds(10ms, 5s);
@@ -647,8 +647,8 @@ public:
 };
 
 /** @brief Blocks until @p consumer hands out an item (a batch must be, or become, active). */
-template <typename Consumer>
-item_ptr checkoutBlocking(Consumer &consumer) {
+template <typename consumer_type>
+item_ptr checkoutBlocking(consumer_type &consumer) {
     while(true) {
         if(auto p = consumer.checkout()) {
             return p;

@@ -132,35 +132,45 @@ inline void register_root_check(root_check_fn fn) {
 
 /**
  * @brief Per-hierarchy table of typed serialize thunks: for each registered
- * concrete type (keyed by its wire tag) it stores one @c void(*)(Root&, Archive&)
+ * concrete type (keyed by its wire tag) it stores one @c void(*)(root_type&, archive_type&)
  * per concrete archive type, each invoking that type's @c serialize.
- * @tparam Root The category root of the hierarchy.
+ * @tparam root_type The category root of the hierarchy.
  */
-template <typename Root>
+template <typename root_type>
 class GArchivePointerDispatch {
 public:
     struct entry_t {
-        void (*bin_o)(Root &, GBinaryOArchive &);
-        void (*bin_i)(Root &, GBinaryIArchive &);
-        void (*json_o)(Root &, GJsonOArchive &);
-        void (*json_i)(Root &, GJsonIArchive &);
+        void (*bin_o)(root_type &, GBinaryOArchive &);
+        void (*bin_i)(root_type &, GBinaryIArchive &);
+        void (*json_o)(root_type &, GJsonOArchive &);
+        void (*json_i)(root_type &, GJsonIArchive &);
     };
 
     /**
-     * @brief Installs the four serialize thunks for concrete type @p Derived
+     * @brief Installs the four serialize thunks for concrete type @p derived_type
      * under wire tag @p tag. Idempotent for a repeated identical registration.
-     * @tparam Derived The concrete type (must derive from @p Root and be reachable via @c Weft::access).
+     * @tparam derived_type The concrete type (must derive from @p root_type and be reachable via @c Weft::access).
      * @param tag The wire tag (the same one used for the identity registry).
      */
-    template <typename Derived>
+    template <typename derived_type>
     static void add(std::string_view tag) {
-        static_assert(std::is_base_of_v<Root, Derived>,
-                      "GArchivePointerDispatch::add<Derived>: Derived must derive from Root");
+        static_assert(
+            std::is_base_of_v<root_type, derived_type>,
+            "GArchivePointerDispatch::add<derived_type>: derived_type must derive from root_type"
+        );
         entry_t e{
-            +[](Root &r, GBinaryOArchive &ar) { access::serialize(ar, static_cast<Derived &>(r)); },
-            +[](Root &r, GBinaryIArchive &ar) { access::serialize(ar, static_cast<Derived &>(r)); },
-            +[](Root &r, GJsonOArchive &ar) { access::serialize(ar, static_cast<Derived &>(r)); },
-            +[](Root &r, GJsonIArchive &ar) { access::serialize(ar, static_cast<Derived &>(r)); },
+            +[](root_type &r, GBinaryOArchive &ar) {
+                access::serialize(ar, static_cast<derived_type &>(r));
+            },
+            +[](root_type &r, GBinaryIArchive &ar) {
+                access::serialize(ar, static_cast<derived_type &>(r));
+            },
+            +[](root_type &r, GJsonOArchive &ar) {
+                access::serialize(ar, static_cast<derived_type &>(r));
+            },
+            +[](root_type &r, GJsonIArchive &ar) {
+                access::serialize(ar, static_cast<derived_type &>(r));
+            },
         };
         const std::scoped_lock lock{instance().mutex_};
         instance().map_.insert_or_assign(std::string{tag}, e);
@@ -168,26 +178,33 @@ public:
 
     /**
      * @brief Invokes the thunk for @p tag matching the concrete archive type of
-     * @p ar, serializing the @p Root slice-and-below of @p r as its dynamic type.
-     * @tparam Archive The concrete archive type (selects the thunk field).
+     * @p ar, serializing the @p root_type slice-and-below of @p r as its dynamic type.
+     * @tparam archive_type The concrete archive type (selects the thunk field).
      * @param tag The wire tag identifying the dynamic type.
-     * @param r The object, upcast to @p Root.
+     * @param r The object, upcast to @p root_type.
      * @param ar The archive.
      * @throws weft_exception if @p tag has no dispatch entry.
      */
-    template <typename Archive>
-    static void invoke(std::string_view tag, Root &r, Archive &ar) {
+    template <typename archive_type>
+    static void invoke(std::string_view tag, root_type &r, archive_type &ar) {
         const entry_t &e = lookup(tag);
-        if constexpr (std::is_same_v<Archive, GBinaryOArchive>) {
+        if constexpr(std::is_same_v<archive_type, GBinaryOArchive>) {
             e.bin_o(r, ar);
-        } else if constexpr (std::is_same_v<Archive, GBinaryIArchive>) {
+        }
+        else if constexpr(std::is_same_v<archive_type, GBinaryIArchive>) {
             e.bin_i(r, ar);
-        } else if constexpr (std::is_same_v<Archive, GJsonOArchive>) {
+        }
+        else if constexpr(std::is_same_v<archive_type, GJsonOArchive>) {
             e.json_o(r, ar);
-        } else if constexpr (std::is_same_v<Archive, GJsonIArchive>) {
+        }
+        else if constexpr(std::is_same_v<archive_type, GJsonIArchive>) {
             e.json_i(r, ar);
-        } else {
-            static_assert(sizeof(Archive) == 0, "GArchivePointerDispatch::invoke: unknown archive type");
+        }
+        else {
+            static_assert(
+                sizeof(archive_type) == 0,
+                "GArchivePointerDispatch::invoke: unknown archive type"
+            );
         }
     }
 
@@ -199,14 +216,14 @@ public:
 
     /**
      * @brief The completeness checker for this hierarchy: appends to @p gaps every
-     * tag that the identity @c GPolymorphicRegistry<Root> holds but this dispatch
+     * tag that the identity @c GPolymorphicRegistry<root_type> holds but this dispatch
      * table lacks -- i.e. a type registered identity-only (@c GEM_REGISTER_TYPE)
-     * where @c GEM_REGISTER_ARCHIVABLE was needed. Registered once per Root (see
+     * where @c GEM_REGISTER_ARCHIVABLE was needed. Registered once per root_type (see
      * @ref instance) so @ref archiveRegistrationGaps can reach it.
      * @param gaps The accumulator to which this hierarchy's gaps are appended.
      */
     static void collectGaps(std::vector<std::string> &gaps) {
-        for (const auto &tag : GPolymorphicRegistry<Root>::tags()) {
+        for(const auto &tag : GPolymorphicRegistry<root_type>::tags()) {
             if (!contains(tag)) {
                 gaps.push_back(
                     "wire tag \"" + tag +
@@ -234,7 +251,7 @@ private:
     GArchivePointerDispatch() = default;
 
     static GArchivePointerDispatch &instance() {
-        // Leaked by design (see GPolymorphicRegistry). The first time this Root's table is
+        // Leaked by design (see GPolymorphicRegistry). The first time this root_type's table is
         // created, register its completeness checker so the boot-time self-check can reach it.
         static GArchivePointerDispatch *const inst = [] {
             auto *p = new GArchivePointerDispatch();
@@ -261,14 +278,14 @@ private:
  * registry, loads its members, and adopts it into @p p. A null pointer is a
  * single false flag. There is no object tracking -- Geneva serializes trees.
  *
- * @tparam Archive The concrete archive type (its @c is_saving fixes the direction).
- * @tparam SmartPtr A @c shared_ptr or @c unique_ptr whose element type exposes @c gemfony_common_root_t.
+ * @tparam archive_type The concrete archive type (its @c is_saving fixes the direction).
+ * @tparam smart_ptr_type A @c shared_ptr or @c unique_ptr whose element type exposes @c gemfony_common_root_t.
  * @param ar The archive.
  * @param p The pointer to serialize or fill.
  */
-template <typename Archive, typename SmartPtr>
-void gem_serialize_pointer(Archive &ar, SmartPtr &p) {
-    using T = typename SmartPtr::element_type;
+template <typename archive_type, typename smart_ptr_type>
+void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
+    using T = typename smart_ptr_type::element_type;
     static_assert(requires { typename T::gemfony_common_root_t; },
                   "gem_serialize_pointer: the pointer's element type must be a GCommonInterfaceT hierarchy type "
                   "(exposing gemfony_common_root_t) to be dispatched polymorphically");
@@ -278,7 +295,7 @@ void gem_serialize_pointer(Archive &ar, SmartPtr &p) {
     // in a self-describing codec, the several fields occupy a single member slot
     // rather than overwriting each other. In the binary codec the object/member
     // framing is free (no-ops) and this is just: flag [tag data].
-    if constexpr (Archive::is_saving) {
+    if constexpr(archive_type::is_saving) {
         ar.begin_object();
         bool present = static_cast<bool>(p);
         ar.member("present");
@@ -293,7 +310,8 @@ void gem_serialize_pointer(Archive &ar, SmartPtr &p) {
             ar.end_object();
         }
         ar.end_object();
-    } else {
+    }
+    else {
         ar.enter_object();
         bool present = false;
         ar.member("present");
@@ -315,7 +333,7 @@ void gem_serialize_pointer(Archive &ar, SmartPtr &p) {
         // The constructed object is dynamically a T-or-derived; downcast Root* -> T*
         // and adopt it into the requested smart-pointer flavour.
         T *raw = static_cast<T *>(obj.release());
-        p = SmartPtr(raw);
+        p = smart_ptr_type(raw);
     }
 }
 

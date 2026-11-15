@@ -70,14 +70,15 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * whose load_() is more than a member-wise copy (e.g. GSwarmAlgorithm's iteration-dependent
  * neighbourhood-best handling) overrides the generated load_() in the usual way.
  *
- * @tparam Derived The concrete algorithm (CRTP).
- * @tparam Parent  The class to derive from -- GOptimizationAlgorithmBase by default, or an
+ * @tparam derived_type The concrete algorithm (CRTP).
+ * @tparam parent_type  The class to derive from -- GOptimizationAlgorithmBase by default, or an
  *                 intermediate such as GParChild for the mu/lambda algorithms.
  */
-template <typename Derived, typename Parent = GOptimizationAlgorithmBase>
-class GOptimizationAlgorithmT : public Gem::Common::GReflectiveInterfaceT<Derived, Parent> {
+template <typename derived_type, typename parent_type = GOptimizationAlgorithmBase>
+class GOptimizationAlgorithmT
+  : public Gem::Common::GReflectiveInterfaceT<derived_type, parent_type> {
     /** @brief The mixin base that generates clone_()/name_()/load_()/compare_()/serialize(). */
-    using reflective_interface_t = Gem::Common::GReflectiveInterfaceT<Derived, Parent>;
+    using reflective_interface_t = Gem::Common::GReflectiveInterfaceT<derived_type, parent_type>;
 
 public:
     /** @brief Inherit the mixin's (and thereby the parent's) constructors. */
@@ -98,17 +99,19 @@ private:
     /**
      * @brief Returns the human-readable name of this optimization algorithm
      *
-     * @return The algorithm's human-readable name, taken from Derived::oa_algorithm_name.
+     * @return The algorithm's human-readable name, taken from derived_type::oa_algorithm_name.
      */
-    [[nodiscard]] std::string getAlgorithmName_() const override { return std::string(Derived::oa_algorithm_name); }
+    [[nodiscard]] std::string getAlgorithmName_() const override {
+        return std::string(derived_type::oa_algorithm_name);
+    }
 
     /**
      * @brief Returns the personality-type tag of this optimization algorithm
      *
-     * @return The algorithm's personality-type tag, taken from Derived::oa_personality_type.
+     * @return The algorithm's personality-type tag, taken from derived_type::oa_personality_type.
      */
     [[nodiscard]] std::string getAlgorithmPersonalityType_() const override {
-        return std::string(Derived::oa_personality_type);
+        return std::string(derived_type::oa_personality_type);
     }
 };
 

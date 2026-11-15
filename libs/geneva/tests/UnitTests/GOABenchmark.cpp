@@ -172,8 +172,8 @@ bool want(const char *tag) {
 }
 
 /** @brief Sets the timed halt + disables the iteration/stall caps, times optimize(), returns wall-seconds. */
-template <typename OA>
-double timedRun(std::shared_ptr<OA> &pop, double budget_s, std::size_t &iterations_out) {
+template <typename oa_type>
+double timedRun(std::shared_ptr<oa_type> &pop, double budget_s, std::size_t &iterations_out) {
     pop->setMaxIteration(1000000000); // effectively unlimited; the timed halt governs
     pop->setMaxStallIteration(0);     // disabled
     pop->setReportIteration(1000000000);

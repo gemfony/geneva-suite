@@ -76,8 +76,8 @@ class GPlotDesigner
      * list) is included so a checkpointed monitor's accumulated plots survive a resume.
      * @return A tuple of named member references
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("plotters_cnt_", self.plotters_cnt_),
             Gem::Common::make_member("c_x_div_", self.c_x_div_),

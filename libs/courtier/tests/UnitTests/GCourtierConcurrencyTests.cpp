@@ -117,8 +117,8 @@ public:
 
 /** @brief Waits until @p condition holds, for at most five seconds.
  *  @return Whether the condition held in the end */
-template <typename ConditionF>
-bool eventually(ConditionF condition) {
+template <typename condition_fn_type>
+bool eventually(condition_fn_type condition) {
     const auto deadline = std::chrono::steady_clock::now() + 5s;
     while(not condition()) {
         if(std::chrono::steady_clock::now() > deadline) {

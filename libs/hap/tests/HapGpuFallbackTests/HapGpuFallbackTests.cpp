@@ -65,8 +65,8 @@ namespace {
  * @param done The condition to wait for
  * @return Whether the condition held before the time limit
  */
-template <typename Pred>
-bool drawUntil(Pred done, std::chrono::seconds limit = std::chrono::seconds(30)) {
+template <typename pred_type>
+bool drawUntil(pred_type done, std::chrono::seconds limit = std::chrono::seconds(30)) {
     auto const deadline = std::chrono::steady_clock::now() + limit;
     while(not done()) {
         if(std::chrono::steady_clock::now() > deadline) {
@@ -289,8 +289,8 @@ private:
  * @param limit The time limit
  * @return Whether the condition held before the time limit
  */
-template <typename Pred>
-bool waitUntil(Pred done, std::chrono::milliseconds limit) {
+template <typename pred_type>
+bool waitUntil(pred_type done, std::chrono::milliseconds limit) {
     auto const deadline = std::chrono::steady_clock::now() + limit;
     while(not done()) {
         if(std::chrono::steady_clock::now() > deadline) {

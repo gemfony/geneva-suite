@@ -68,8 +68,8 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
      * @brief Single declaration of this class'es local data members
      * @return A tuple of named member references driving the GReflectiveInterfaceBaseT-generated serialize()/load_()/compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("drawing_arguments_", self.drawing_arguments_),
             Gem::Common::make_member("x_axis_label_", self.x_axis_label_),

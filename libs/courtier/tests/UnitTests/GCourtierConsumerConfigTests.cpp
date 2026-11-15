@@ -96,8 +96,8 @@ class ThreadProbe : public Gem::Courtier::GProcessingContainerT<ThreadProbe, dou
     ///////////////////////////////////////////////////////////////////////
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<ThreadProbe, double>>(
             ar,
             "GProcessingContainerT_ThreadProbe",

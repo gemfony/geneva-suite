@@ -140,12 +140,12 @@ class GProcessable {
      * @brief Serialises the non-generic lifecycle state (status, errors, routing ids, timing).
      * The transient dispatch-scheduling state (dispatch_state_) is deliberately NOT serialised.
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise the lifecycle state with
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         // The stable lineage id travels by value (its two 64-bit halves) so a wire / checkpoint round-trip
         // PRESERVES it -- see detail::LineageId for why this preserves while clone() mints fresh.
@@ -452,12 +452,12 @@ protected:
      * @param core A callable running the class-specific evaluation/processing
      * @param post A callable running the class-specific post-processing step
      */
-    template <typename PreFn, typename CoreFn, typename PostFn>
+    template <typename pre_fn_type, typename core_fn_type, typename post_fn_type>
     void runProcessingLifecycle_(
         std::string_view context,
-        PreFn &&pre,
-        CoreFn &&core,
-        PostFn &&post
+        pre_fn_type &&pre,
+        core_fn_type &&core,
+        post_fn_type &&post
     ) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {

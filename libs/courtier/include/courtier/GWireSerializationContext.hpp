@@ -95,11 +95,11 @@ struct GBlobRequest {
     friend struct Gem::Weft::access;
 
     /** @brief (De)serialises the requested blob id.
-     *  @tparam Archive The GArchive codec type
+     *  @tparam archive_type The GArchive codec type
      *  @param ar The archive to read from / write to
      *  @param version The (unused) serialization version number */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "blob_id_hi", id[0]);
         Gem::Common::archive_named(ar, "blob_id_lo", id[1]);
     }
@@ -119,11 +119,11 @@ struct GBlobReply {
     friend struct Gem::Weft::access;
 
     /** @brief (De)serialises the blob id and the blob itself.
-     *  @tparam Archive The GArchive codec type
+     *  @tparam archive_type The GArchive codec type
      *  @param ar The archive to read from / write to
      *  @param version The (unused) serialization version number */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "blob_id_hi", id[0]);
         Gem::Common::archive_named(ar, "blob_id_lo", id[1]);
         Gem::Common::archive_named(ar, "blob", blob);
@@ -268,19 +268,20 @@ struct ser_wire_omitted_ptr {
     /**
      * @brief (De)serialises the pointer, omitting it (saving null) under an active, enabled wire scope; on
      * load an omitted (null) member leaves the target pointer untouched.
-     * @tparam Archive The GArchive codec type
-     * @tparam PtrT The smart-pointer member type (e.g. std::unique_ptr<T>)
+     * @tparam archive_type The GArchive codec type
+     * @tparam ptr_type The smart-pointer member type (e.g. std::unique_ptr<T>)
      * @param ar The archive to (de)serialize through
      * @param name The NVP tag
      * @param ref The pointer member
      */
-    template <typename Archive, typename PtrT>
-    static void serialize(Archive &ar, const char *name, PtrT &ref) {
-        if constexpr(Gem::Common::archive_is_saving_v<Archive>) {
+    template <typename archive_type, typename ptr_type>
+    static void serialize(archive_type &ar, const char *name, ptr_type &ref) {
+        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
             const auto *ctx = GWireSerializationScope::current();
             const bool on_wire = (ctx != nullptr) && ctx->enabled;
             if(on_wire) {
-                PtrT empty; // a null pointer: on the wire the member is omitted (only its null marker travels)
+                ptr_type
+                    empty; // a null pointer: on the wire the member is omitted (only its null marker travels)
                 Gem::Common::archive_named(ar, name, empty);
             }
             else {
@@ -288,7 +289,7 @@ struct ser_wire_omitted_ptr {
             }
         }
         else {
-            PtrT loaded;
+            ptr_type loaded;
             Gem::Common::archive_named(ar, name, loaded);
             if(loaded) { ref = std::move(loaded); } // omitted -> null -> leave ref (the default) untouched
         }

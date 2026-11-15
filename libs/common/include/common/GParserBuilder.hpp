@@ -726,10 +726,10 @@ private:
  * reset the default values in a central location rather than having to
  * convert to different target class. This makes user-code easier.
  *
- * @tparam par_type0 The type of the first combined parameter
- * @tparam par_type1 The type of the second combined parameter
+ * @tparam par0_type The type of the first combined parameter
+ * @tparam par1_type The type of the second combined parameter
  */
-template <typename par_type0, typename par_type1>
+template <typename par0_type, typename par1_type>
 class GCombinedParT : public GFileParsableI {
     // We want GParserBuilder to be able to call the reset function
     friend class GParserBuilder;
@@ -751,10 +751,10 @@ public:
     GCombinedParT(
         std::string const &option_name_var0,
         std::string const &comment_var0,
-        par_type0 const &def_val0,
+        par0_type const &def_val0,
         std::string const &option_name_var1,
         std::string const &comment_var1,
-        par_type1 const &def_val1,
+        par1_type const &def_val1,
         bool const &is_essential_var,
         std::string combined_label
     )
@@ -779,11 +779,11 @@ public:
     /***************************************************************************/
     // Prevent copying, moving and default construction
     GCombinedParT() = delete;
-    GCombinedParT(GCombinedParT<par_type0, par_type1> const &) = delete;
-    GCombinedParT(GCombinedParT<par_type0, par_type1> &&) = delete;
-    GCombinedParT<par_type0, par_type1> &
-    operator=(GCombinedParT<par_type0, par_type1> const &) = delete;
-    GCombinedParT<par_type0, par_type1> &operator=(GCombinedParT<par_type0, par_type1> &&) = delete;
+    GCombinedParT(GCombinedParT<par0_type, par1_type> const &) = delete;
+    GCombinedParT(GCombinedParT<par0_type, par1_type> &&) = delete;
+    GCombinedParT<par0_type, par1_type> &
+    operator=(GCombinedParT<par0_type, par1_type> const &) = delete;
+    GCombinedParT<par0_type, par1_type> &operator=(GCombinedParT<par0_type, par1_type> &&) = delete;
 
     /***************************************************************************/
     /** @brief The combined parameter nests its sub-options under a single JSON
@@ -805,7 +805,7 @@ protected:
 	  * @param def_val0 The new default value for the first parameter
 	  * @param def_val1 The new default value for the second parameter
 	  */
-    void resetDefault(par_type0 const &def_val0, par_type1 const &def_val1) {
+    void resetDefault(par0_type const &def_val0, par1_type const &def_val1) {
         def_val0_ = def_val0;
         def_val1_ = def_val1;
         par0_ = def_val0;
@@ -813,8 +813,8 @@ protected:
     }
 
     /***************************************************************************/
-    par_type0 par0_, def_val0_; ///< Holds the individual parameters and default values 0
-    par_type1 par1_, def_val1_; ///< Holds the individual parameters and default values 1
+    par0_type par0_, def_val0_; ///< Holds the individual parameters and default values 0
+    par1_type par1_, def_val1_; ///< Holds the individual parameters and default values 1
 
     std::string combined_label_; ///< Holds a path label for the combined JSON path
 
@@ -836,11 +836,11 @@ private:
  * This class wraps combined parsable file parameters, to which a callback
  * function has been assigned.
  *
- * @tparam par_type0 The type of the first combined parameter
- * @tparam par_type1 The type of the second combined parameter
+ * @tparam par0_type The type of the first combined parameter
+ * @tparam par1_type The type of the second combined parameter
  */
-template <typename par_type0, typename par_type1>
-class GFileCombinedParsableParameterT : public GCombinedParT<par_type0, par_type1> {
+template <typename par0_type, typename par1_type>
+class GFileCombinedParsableParameterT : public GCombinedParT<par0_type, par1_type> {
     // We want GParserBuilder to be able to call our load- and save functions
     friend class GParserBuilder;
 
@@ -861,14 +861,14 @@ public:
     GFileCombinedParsableParameterT(
         std::string const &option_name_var0,
         std::string const &comment_var0,
-        par_type0 const &def_val0,
+        par0_type const &def_val0,
         std::string const &option_name_var1,
         std::string const &comment_var1,
-        par_type1 const &def_val1,
+        par1_type const &def_val1,
         bool is_essential_var,
         std::string const &combined_label
     )
-      : GCombinedParT<par_type0, par_type1>(
+      : GCombinedParT<par0_type, par1_type>(
             option_name_var0,
             comment_var0,
             def_val0,
@@ -892,12 +892,12 @@ public:
 	  */
     GFileCombinedParsableParameterT(
         std::string const &option_name_var0,
-        par_type0 const &def_val0,
+        par0_type const &def_val0,
         std::string const &option_name_var1,
-        par_type1 const &def_val1,
+        par1_type const &def_val1,
         std::string const &combined_label
     )
-      : GCombinedParT<par_type0, par_type1>(
+      : GCombinedParT<par0_type, par1_type>(
             option_name_var0,
             std::string(),
             def_val0,
@@ -918,14 +918,14 @@ public:
     /***************************************************************************/
     // Prevent copying, moving and default construction
     GFileCombinedParsableParameterT() = delete;
-    GFileCombinedParsableParameterT(GFileCombinedParsableParameterT<par_type0, par_type1> const &) =
+    GFileCombinedParsableParameterT(GFileCombinedParsableParameterT<par0_type, par1_type> const &) =
         delete;
-    GFileCombinedParsableParameterT(GFileCombinedParsableParameterT<par_type0, par_type1> &&) =
+    GFileCombinedParsableParameterT(GFileCombinedParsableParameterT<par0_type, par1_type> &&) =
         delete;
-    GFileCombinedParsableParameterT<par_type0, par_type1> &
-    operator=(GFileCombinedParsableParameterT<par_type0, par_type1> const &) = delete;
-    GFileCombinedParsableParameterT<par_type0, par_type1> &
-    operator=(GFileCombinedParsableParameterT<par_type0, par_type1> &&) = delete;
+    GFileCombinedParsableParameterT<par0_type, par1_type> &
+    operator=(GFileCombinedParsableParameterT<par0_type, par1_type> const &) = delete;
+    GFileCombinedParsableParameterT<par0_type, par1_type> &
+    operator=(GFileCombinedParsableParameterT<par0_type, par1_type> &&) = delete;
 
     /***************************************************************************/
     /**
@@ -933,7 +933,7 @@ public:
 	  *
 	  * @param call_back The function to be executed
 	  */
-    void registerCallBackFunction(std::move_only_function<void(par_type0, par_type1)> call_back) {
+    void registerCallBackFunction(std::move_only_function<void(par0_type, par1_type)> call_back) {
         if(not call_back) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -954,22 +954,21 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *group = detail::cfgChildObject(
-            root, GCombinedParT<par_type0, par_type1>::combined_label_
-        );
+        auto const *group =
+            detail::cfgChildObject(root, GCombinedParT<par0_type, par1_type>::combined_label_);
         if(group == nullptr) {
             return; // absent group keeps both defaults seeded in the constructor
         }
         if(auto const *e0 = detail::cfgChildObject(*group, GParsableI::optionName(0))) {
             if(auto const *v = e0->if_contains("value")) {
-                GCombinedParT<par_type0, par_type1>::par0_ =
-                    detail::cfgScalarFromString<par_type0>(detail::cfgValueToString(*v));
+                GCombinedParT<par0_type, par1_type>::par0_ =
+                    detail::cfgScalarFromString<par0_type>(detail::cfgValueToString(*v));
             }
         }
         if(auto const *e1 = detail::cfgChildObject(*group, GParsableI::optionName(1))) {
             if(auto const *v = e1->if_contains("value")) {
-                GCombinedParT<par_type0, par_type1>::par1_ =
-                    detail::cfgScalarFromString<par_type1>(detail::cfgValueToString(*v));
+                GCombinedParT<par0_type, par1_type>::par1_ =
+                    detail::cfgScalarFromString<par1_type>(detail::cfgValueToString(*v));
             }
         }
     }
@@ -995,22 +994,20 @@ private:
         if(this->hasComments()) {
             detail::cfgWriteComments(entry0, GParsableI::splitComment(this->comment(0)));
         }
-        entry0["default"] =
-            detail::cfgScalarToJson(GCombinedParT<par_type0, par_type1>::def_val0_);
-        entry0["value"] = detail::cfgScalarToJson(GCombinedParT<par_type0, par_type1>::par0_);
+        entry0["default"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::def_val0_);
+        entry0["value"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::par0_);
 
         boost::json::object entry1;
         if(this->hasComments()) {
             detail::cfgWriteComments(entry1, GParsableI::splitComment(this->comment(1)));
         }
-        entry1["default"] =
-            detail::cfgScalarToJson(GCombinedParT<par_type0, par_type1>::def_val1_);
-        entry1["value"] = detail::cfgScalarToJson(GCombinedParT<par_type0, par_type1>::par1_);
+        entry1["default"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::def_val1_);
+        entry1["value"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::par1_);
 
         boost::json::object group;
         group[GParsableI::optionName(0)] = std::move(entry0);
         group[GParsableI::optionName(1)] = std::move(entry1);
-        root[GCombinedParT<par_type0, par_type1>::combined_label_] = std::move(group);
+        root[GCombinedParT<par0_type, par1_type>::combined_label_] = std::move(group);
     }
 
     /***************************************************************************/
@@ -1029,14 +1026,15 @@ private:
 
         // Execute the function
         call_back_func_(
-            GCombinedParT<par_type0, par_type1>::par0_,
-            GCombinedParT<par_type0, par_type1>::par1_
+            GCombinedParT<par0_type, par1_type>::par0_,
+            GCombinedParT<par0_type, par1_type>::par1_
         );
     }
 
     /***************************************************************************/
 
-    std::move_only_function<void(par_type0, par_type1)> call_back_func_; ///< Holds the call-back function
+    std::move_only_function<void(par0_type, par1_type)>
+        call_back_func_; ///< Holds the call-back function
 };
 
 /******************************************************************************/
@@ -1865,16 +1863,16 @@ public:
 	  * the derived type. This allows us to selectively change properties of these
 	  * objects.
 	  *
-	  * @tparam fileParsableDerivative The concrete GFileParsableI-derived type to cast to
+	  * @tparam file_parsable_derivative_type The concrete GFileParsableI-derived type to cast to
 	  * @param option_name The first option name identifying the desired file parameter
 	  * @return A shared pointer to the matching parameter cast to the requested type, or an empty pointer if none matches
 	  */
-    template <typename fileParsableDerivative>
-    std::shared_ptr<fileParsableDerivative>
+    template <typename file_parsable_derivative_type>
+    std::shared_ptr<file_parsable_derivative_type>
     file_at(std::string const &option_name) { // NOLINT(misc-unused-parameters)
         auto it = findProxyByName_(file_parameter_proxies_, option_name);
         if(it != file_parameter_proxies_.end()) {
-            return std::dynamic_pointer_cast<fileParsableDerivative>(*it);
+            return std::dynamic_pointer_cast<file_parsable_derivative_type>(*it);
         }
 
         return {};
@@ -1994,8 +1992,8 @@ public:
 	  * these parameters have been read using parseConfigFile, a call-back
 	  * function will be executed.
 	  *
-	  * @tparam par_type1 The type of the first parameter
-	  * @tparam par_type2 The type of the second parameter
+	  * @tparam par1_type The type of the first parameter
+	  * @tparam par2_type The type of the second parameter
 	  * @param option_name1 The name of the first option
 	  * @param option_name2 The name of the second option
 	  * @param def_val1 The default value of the first parameter
@@ -2007,14 +2005,14 @@ public:
 	  * @param comment2 A comment to be associated with the second parameter
 	  * @return A reference to the registered parameter proxy, to allow further configuration
 	  */
-    template <typename par_type1, typename par_type2>
+    template <typename par1_type, typename par2_type>
     // NOLINTNEXTLINE(readability-function-size) -- combined two-parameter file registration needs both parameters' name/default/comment plus the shared call-back and label; the parameter count is the API, not splittable
     GParsableI &registerFileParameter(
         std::string const &option_name1,
         std::string const &option_name2,
-        const par_type1& def_val1,
-        const par_type2& def_val2,
-        std::move_only_function<void(par_type1, par_type2)> call_back,
+        const par1_type &def_val1,
+        const par2_type &def_val2,
+        std::move_only_function<void(par1_type, par2_type)> call_back,
         std::string const &combined_label,
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment1 = std::string(),
@@ -2026,16 +2024,17 @@ public:
 
         // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
         // empty comments must not drop the caller's is_essential choice.
-        auto comb_parm_ptr = std::make_shared<GFileCombinedParsableParameterT<par_type1, par_type2>>(
-            option_name1,
-            comment1,
-            def_val1,
-            option_name2,
-            comment2,
-            def_val2,
-            is_essential,
-            combined_label
-        );
+        auto comb_parm_ptr =
+            std::make_shared<GFileCombinedParsableParameterT<par1_type, par2_type>>(
+                option_name1,
+                comment1,
+                def_val1,
+                option_name2,
+                comment2,
+                def_val2,
+                is_essential,
+                combined_label
+            );
 
         comb_parm_ptr->registerCallBackFunction(std::move(call_back));
 
@@ -2052,21 +2051,21 @@ public:
 	  * to be called before any parsing takes place, as the par_-value will be
 	  * overwritten as well.
 	  *
-	  * @tparam par_type1 The type of the first parameter
-	  * @tparam par_type2 The type of the second parameter
+	  * @tparam par1_type The type of the first parameter
+	  * @tparam par2_type The type of the second parameter
 	  * @param option_name1 The name of the first option, which identifies the combined parameter
 	  * @param def_val1 The new default value for the first parameter
 	  * @param def_val2 The new default value for the second parameter
 	  */
-    template <typename par_type1, typename par_type2>
+    template <typename par1_type, typename par2_type>
     void resetFileParameterDefaults(
         std::string const &option_name1,
-        par_type1 def_val1,
-        par_type2 def_val2
+        par1_type def_val1,
+        par2_type def_val2
     ) {
         // Retrieve the parameter object with this name
-        std::shared_ptr<GCombinedParT<par_type1, par_type2>> const parm_object =
-            file_at<GCombinedParT<par_type1, par_type2>>(option_name1);
+        std::shared_ptr<GCombinedParT<par1_type, par2_type>> const parm_object =
+            file_at<GCombinedParT<par1_type, par2_type>>(option_name1);
 
         // Check that we have indeed received an item
         if(not parm_object) {

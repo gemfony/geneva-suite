@@ -101,10 +101,10 @@ namespace Gem::Courtier::Consumers {
  * while compute_width_ items are evaluated is decoded at once and is ready when an evaluation ends;
  * the books on the io thread still let no more than compute_width_ items be evaluated at a time.
  *
- * @tparam Derived The concrete client type (CRTP; must also inherit enable_shared_from_this)
+ * @tparam derived_type The concrete client type (CRTP; must also inherit enable_shared_from_this)
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
-template <typename Derived, typename processable_type>
+template <typename derived_type, typename processable_type>
 class GPrefetchingClientT : public Gem::Courtier::GBaseClientT<processable_type> {
 protected:
     //-------------------------------------------------------------------------
@@ -232,7 +232,7 @@ protected:
             else {
                 held_.push_back(std::move(container));
             }
-            if constexpr(requires(Derived &d) { d.when_work_(); }) {
+            if constexpr(requires(derived_type &d) { d.when_work_(); }) {
                 derived().when_work_();
             }
             return;
@@ -610,7 +610,7 @@ private:
             return;
         }
         busy_told_ = busy;
-        if constexpr(requires(Derived &d) { d.when_busy_(true); }) {
+        if constexpr(requires(derived_type &d) { d.when_busy_(true); }) {
             derived().when_busy_(busy);
         }
     }
@@ -620,7 +620,9 @@ private:
     //-------------------------------------------------------------------------
     /** @brief The CRTP downcast to the concrete client.
      *  @return A reference to *this as the concrete client type */
-    Derived &derived() { return static_cast<Derived &>(*this); }
+    derived_type &derived() {
+        return static_cast<derived_type &>(*this);
+    }
 };
 
 /******************************************************************************/

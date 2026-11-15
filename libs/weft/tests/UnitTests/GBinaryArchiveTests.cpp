@@ -73,8 +73,8 @@ struct Point {
     double y = 0.0;
     std::string name;
 
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("x", x);
         ar &Gem::Weft::make_nvp("y", y);
         ar &Gem::Weft::make_nvp("name", name);
@@ -92,8 +92,8 @@ public:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("a", a_);
         ar &Gem::Weft::make_nvp("b", b_);
     }
@@ -104,8 +104,8 @@ private:
 // Inheritance, to exercise base_object.
 struct Base {
     int b = 0;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("b", b);
     }
     bool operator==(const Base &) const = default;
@@ -113,8 +113,8 @@ struct Base {
 
 struct Derived : Base {
     int d = 0;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &base_object<Base>(*this);
         ar &Gem::Weft::make_nvp("d", d);
     }

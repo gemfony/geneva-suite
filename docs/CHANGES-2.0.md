@@ -66,7 +66,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GOptimizableEntityConstraint`, …). Checkpoints written before this change do not load:
   the entity slice no longer travels under its own archive tag.
 - **Author a problem by subclassing `GGenome`** (typically via the CRTP helper
-  `GGenomeT<Derived>`). Build a flat, fixed-structure array of double / float / int32 /
+  `GGenomeT<derived_type>`). Build a flat, fixed-structure array of double / float / int32 /
   bool values once in the constructor with `GGenomeBuilder` (`addDoubleGroup`,
   `addDouble`, `addInt32Group`, `addBoolArray`, …) and install it with `setGenome()`.
   Read values by position via `streamline<T>()` / `streamlineFP()`.
@@ -161,7 +161,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `ConsumerSetup`; `Gem::Courtier::ConsumerSpec` (`courtier/GConsumerSpec.hpp`) is now a mnemonic
   plus a `std::any config` (empty: the family's defaults), for a mnemonic known only at run time,
   `buildConsumer()` returns the consumer, and a provider reads the struct with
-  `Gem::Courtier::configOf<ConfigT>(spec)`, which names both types when they differ.
+  `Gem::Courtier::configOf<config_type>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer

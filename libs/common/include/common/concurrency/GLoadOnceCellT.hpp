@@ -111,12 +111,12 @@ public:
      * not consume the cycle -- the cell stays unloaded and the next call retries, which is what a caller
      * filling from a failure-prone source (a file, a parse) relies on.
      *
-     * @tparam ComputeFn A callable returning a @c T (the derived payload)
+     * @tparam compute_fn_type A callable returning a @c T (the derived payload)
      * @param compute The producer invoked (once) to compute the payload
      * @return A const reference to the cached payload
      */
-    template <typename ComputeFn>
-    const T &getOrCompute(ComputeFn &&compute) {
+    template <typename compute_fn_type>
+    const T &getOrCompute(compute_fn_type &&compute) {
         // Fast path: an acquire-load that sees the ready flag also sees the fully-written payload,
         // so a loaded cell is read without touching the mutex at all.
         if(this->loaded()) {
@@ -124,7 +124,7 @@ public:
         }
         std::scoped_lock const fill_lock(fill_mutex_);
         if(not loaded_.load(std::memory_order_relaxed)) { // re-check under the lock
-            data_ = std::forward<ComputeFn>(compute)();
+            data_ = std::forward<compute_fn_type>(compute)();
             loaded_.store(true, std::memory_order_release);
         }
         return data_;
@@ -150,12 +150,12 @@ public:
      * @brief Fills the cell exactly once, on the first call, by invoking @p fill; later calls are no-ops
      * (the externally-filled flavour, read afterwards via @c get()).
      *
-     * @tparam FillFn A callable returning a @c T (the constructed payload)
+     * @tparam fill_fn_type A callable returning a @c T (the constructed payload)
      * @param fill The producer invoked (once) to build the payload, e.g. a lambda that reads a data file
      */
-    template <typename FillFn>
-    void ensureLoaded(FillFn &&fill) {
-        (void)this->getOrCompute(std::forward<FillFn>(fill));
+    template <typename fill_fn_type>
+    void ensureLoaded(fill_fn_type &&fill) {
+        (void)this->getOrCompute(std::forward<fill_fn_type>(fill));
     }
 
     /***************************************************************************/

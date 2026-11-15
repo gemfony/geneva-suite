@@ -175,13 +175,14 @@ private:
     static constexpr result_type default_seed = 0x9e3779b97f4a7c15ULL;
 
     /**
-     * @brief Rotate each 64-bit SIMD lane left by k bits.
-     * @tparam k The compile-time number of bit positions to rotate left by
+     * @brief Rotate each 64-bit SIMD lane left by K bits.
+     * @tparam K The compile-time number of bit positions to rotate left by
      * @param x The SIMD vector whose lanes are rotated
-     * @return The vector with each lane left-rotated by k
+     * @return The vector with each lane left-rotated by K
      */
-    template <int k> static __m256i rotl(__m256i x) noexcept {
-        return _mm256_or_si256(_mm256_slli_epi64(x, k), _mm256_srli_epi64(x, 64 - k));
+    template <int K>
+    static __m256i rotl(__m256i x) noexcept {
+        return _mm256_or_si256(_mm256_slli_epi64(x, K), _mm256_srli_epi64(x, 64 - K));
     }
 
     /**
@@ -296,13 +297,14 @@ private:
     static constexpr result_type default_seed = 0x9e3779b97f4a7c15ULL;
 
     /**
-     * @brief Rotate each 64-bit NEON lane left by k bits.
-     * @tparam k The compile-time number of bit positions to rotate left by
+     * @brief Rotate each 64-bit NEON lane left by K bits.
+     * @tparam K The compile-time number of bit positions to rotate left by
      * @param x The NEON vector whose lanes are rotated
-     * @return The vector with each lane left-rotated by k
+     * @return The vector with each lane left-rotated by K
      */
-    template <int k> static uint64x2_t rotl(uint64x2_t x) noexcept {
-        return vorrq_u64(vshlq_n_u64(x, k), vshrq_n_u64(x, 64 - k));
+    template <int K>
+    static uint64x2_t rotl(uint64x2_t x) noexcept {
+        return vorrq_u64(vshlq_n_u64(x, K), vshrq_n_u64(x, 64 - K));
     }
 
     /**

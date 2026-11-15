@@ -46,7 +46,7 @@ namespace Gem::Geneva::Genome {
  * The sole CRTP base a concrete flat individual derives. It is a thin adaptor over the GReflectiveInterfaceT
  * mixin (with GGenome as the parent, so the generated clone_ returns the hierarchy root): clone_, name_,
  * load_, compare_ and serialize are all GENERATED, so a minimal flat individual is just a constructor that
- * builds its genome, an evaluate(), the opt-in flat tag, and one GEM_REGISTER_ARCHIVABLE(Derived).
+ * builds its genome, an evaluate(), the opt-in flat tag, and one GEM_REGISTER_ARCHIVABLE(derived_type).
  *
  * Because GGenome holds all genome state generically, a genome-only individual adds no members of its own.
  * It opts into GGenomeT's generated empty member list by declaring the marker
@@ -79,15 +79,15 @@ namespace Gem::Geneva::Genome {
  * e.g.
  * @code
  *   friend struct Gem::Common::GReflectiveInterfaceAccess;
- *   template <typename Self> auto localMembers_(this Self &self) {
+ *   template <typename self_type> auto localMembers_(this self_type &self) {
  *       return std::make_tuple(Gem::Common::make_member("my_extra_", self.my_extra_));
  *   }
  * @endcode
  *
- * @tparam Derived The concrete flat individual type (CRTP), supplying its constructor and evaluate()
+ * @tparam derived_type The concrete flat individual type (CRTP), supplying its constructor and evaluate()
  */
-template <class Derived>
-class GGenomeT : public Gem::Common::GReflectiveInterfaceT<Derived, GGenome> {
+template <class derived_type>
+class GGenomeT : public Gem::Common::GReflectiveInterfaceT<derived_type, GGenome> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -104,14 +104,16 @@ class GGenomeT : public Gem::Common::GReflectiveInterfaceT<Derived, GGenome> {
      *  class fails to compile, rather than silently dropping that state from serialize/compare/load. The
      *  marker must be public: this base cannot see a derived-private nested type. Until C++26 member
      *  reflection can enumerate members automatically, this opt-in marker is the only compile-time guard. */
-    template <typename Self>
-        requires requires { typename Self::genome_only; }
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+        requires requires { typename self_type::genome_only; }
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
     ///////////////////////////////////////////////////////////////////////
 
 public:
     /** @brief Inherit the GGenome constructors (default + n-fitness-criteria). */
-    using Gem::Common::GReflectiveInterfaceT<Derived, GGenome>::GReflectiveInterfaceT;
+    using Gem::Common::GReflectiveInterfaceT<derived_type, GGenome>::GReflectiveInterfaceT;
 };
 
 /******************************************************************************/

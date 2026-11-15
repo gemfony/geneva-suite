@@ -87,8 +87,8 @@ constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 using session_type = Gem::Courtier::Consumers::GPeerSessionT<GFaultyContainer>;
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
-template <typename Condition>
-bool eventually(Condition condition) {
+template <typename condition_type>
+bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 

@@ -76,29 +76,44 @@ using GMarshallerProviderPtr = std::shared_ptr<GGPUMarshallerProviderBase>;
  * target a compiled-in marshaller (or another module) already holds is a hard error -- one problem per
  * process means at most one marshaller per target.
  *
- * The @c DeviceTarget doubles as the store key / mnemonic; the @c ConfigPath is the GPU-consumer config file
+ * The @c DEVICE_TARGET doubles as the store key / mnemonic; the @c CONFIG_PATH is the GPU-consumer config file
  * (backend + kernel selection) the marshaller's kernel needs -- both baked in at authoring time, so the whole
  * marshaller contribution (target, config path, and -- via the produced handle -- the device scalar kind)
  * travels inside the provider with no change to the manifest ABI.
  *
- * @tparam Marshaller The concrete marshaller (a @c GBaseGPUMarshallerT<scalar_type> subclass); default-constructed by the provider
- * @tparam DeviceTarget The device target / store key (a string literal, e.g. "cuda")
- * @tparam ConfigPath The GPU-consumer config file (a string literal) the marshaller's kernel needs
+ * @tparam marshaller_type The concrete marshaller (a @c GBaseGPUMarshallerT<scalar_type> subclass); default-constructed by the provider
+ * @tparam DEVICE_TARGET The device target / store key (a string literal, e.g. "cuda")
+ * @tparam CONFIG_PATH The GPU-consumer config file (a string literal) the marshaller's kernel needs
  * @return A pointer to this module's process-lifetime manifest
  */
-template <typename Marshaller, Gem::Common::GFixedString DeviceTarget, Gem::Common::GFixedString ConfigPath>
+template <
+    typename marshaller_type,
+    Gem::Common::GFixedString DEVICE_TARGET,
+    Gem::Common::GFixedString CONFIG_PATH>
 const GenevaModuleManifest *marshallerManifest() {
     // Captureless thunk -> void*(*)(void): build the marshaller provider (device target + config path baked in
     // from the compile-time NTTPs) on the heap; the loader moves-from and deletes it, then registers the
     // provider in marshallerProviderStore().
     static constexpr auto factory_thunk = +[]() -> void * {
-        return new GMarshallerProviderPtr(std::make_shared<GGPUMarshallerProviderT<Marshaller>>(
-            DeviceTarget.c_str(), ConfigPath.c_str()));
+        return new GMarshallerProviderPtr(
+            std::make_shared<GGPUMarshallerProviderT<marshaller_type>>(
+                DEVICE_TARGET.c_str(),
+                CONFIG_PATH.c_str()
+            )
+        );
     };
     static const GenevaContribution contribution{
-        GENEVA_CONTRIBUTION_MARSHALLER, DeviceTarget.c_str(), factory_thunk};
+        GENEVA_CONTRIBUTION_MARSHALLER,
+        DEVICE_TARGET.c_str(),
+        factory_thunk
+    };
     static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP, DeviceTarget.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+        GENEVA_MODULE_ABI_STAMP,
+        DEVICE_TARGET.c_str(),
+        GENEVA_VERSION_STRING,
+        &contribution,
+        1u
+    };
     return &manifest;
 }
 

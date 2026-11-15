@@ -65,7 +65,7 @@ namespace Gem::Hap {
  * produced in different ways. We only define the interface here. The actual
  * implementation can be found in the (partial) specializations of this class.
  */
-template <Gem::Hap::randomSource s = Gem::Hap::randomSource::QUEUE>
+template <Gem::Hap::randomSource S = Gem::Hap::randomSource::QUEUE>
 class GRandomT : public Gem::Hap::GRandomBase {
 public:
     /***************************************************************************/

@@ -533,14 +533,14 @@ private:
      * no exception reaches the executor's thread. The item of the answer may have been checked
      * out before the failure, so the session gives back all it holds (refused_()).
      *
-     * @tparam StepF A callable () -> std::optional<std::string>
+     * @tparam step_fn_type A callable () -> std::optional<std::string>
      * @param step The step to run
      * @return What @p step returns, or the NO_WORK answer if it threw
      */
-    template <typename StepF>
-    std::optional<std::string> refusing_(StepF &&step) {
+    template <typename step_fn_type>
+    std::optional<std::string> refusing_(step_fn_type &&step) {
         try {
-            return std::forward<StepF>(step)();
+            return std::forward<step_fn_type>(step)();
         }
         catch(...) {
             logRefusal_(std::current_exception());

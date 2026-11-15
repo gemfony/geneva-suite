@@ -68,7 +68,7 @@ using GConsumerProviderPtr = std::shared_ptr<GConsumerProviderT>;
  * @endcode
  * The loader registers the provider into @c consumerProviderStore() under its mnemonic; a mnemonic already
  * held (a built-in consumer or another module) is a hard error, and so is a provider whose
- * getMnemonic() is not @p Mnemonic.
+ * getMnemonic() is not @p MNEMONIC.
  *
  * The contribution names the item type the provider's consumers distribute (its @c subject,
  * @c typeid(GGenome).name()): the loader casts the factory's result without a check, so a program
@@ -76,26 +76,30 @@ using GConsumerProviderPtr = std::shared_ptr<GConsumerProviderT>;
  * does not prove an equal layout: a module built against another version of the item's header is
  * not caught by it (individuals have the same limit).
  *
- * @tparam Provider The concrete consumer provider (a @c GConsumerProviderT subclass), default-constructed
- * @tparam Mnemonic The consumer mnemonic (a string literal, e.g. "mpi"), as chosen with --consumer
+ * @tparam provider_type The concrete consumer provider (a @c GConsumerProviderT subclass), default-constructed
+ * @tparam MNEMONIC The consumer mnemonic (a string literal, e.g. "mpi"), as chosen with --consumer
  * @return A pointer to this module's process-lifetime manifest
  */
-template <typename Provider, Gem::Common::GFixedString Mnemonic>
+template <typename provider_type, Gem::Common::GFixedString MNEMONIC>
 const GenevaModuleManifest *consumerManifest() {
     // Captureless thunk -> void*(*)(void): build the provider on the heap; the loader moves-from and deletes
     // it, then registers the provider in consumerProviderStore().
-    static constexpr auto factory_thunk = +[]() -> void * {
-        return new GConsumerProviderPtr(std::make_shared<Provider>());
-    };
+    static constexpr auto factory_thunk =
+        +[]() -> void * { return new GConsumerProviderPtr(std::make_shared<provider_type>()); };
     // NOLINTNEXTLINE(readability-identifier-naming) -- named as in the other manifest helpers
     static const GenevaContribution contribution{
         GENEVA_CONTRIBUTION_CONSUMER,
-        Mnemonic.c_str(),
+        MNEMONIC.c_str(),
         factory_thunk,
         typeid(gen::GGenome).name()
     };
     static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP, Mnemonic.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+        GENEVA_MODULE_ABI_STAMP,
+        MNEMONIC.c_str(),
+        GENEVA_VERSION_STRING,
+        &contribution,
+        1u
+    };
     return &manifest;
 }
 

@@ -64,8 +64,8 @@ class GSepCmaEvolutionStrategy_PersonalityTraits // NOLINT(cppcoreguidelines-spe
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("rank_", self.rank_),
             Gem::Common::make_member("is_on_pareto_front_", self.is_on_pareto_front_)

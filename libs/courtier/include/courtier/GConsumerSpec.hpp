@@ -87,25 +87,25 @@ concept ConsumerConfig = std::copy_constructible<T> && requires {
 /**
  * @brief The configuration a spec carries, as the struct of the family that reads it.
  *
- * @tparam ConfigT The configuration struct the caller's family reads
+ * @tparam config_type The configuration struct the caller's family reads
  * @param spec The consumer specification
- * @return A copy of @c spec.config, or a default-constructed @p ConfigT if the spec carries none
+ * @return A copy of @c spec.config, or a default-constructed @p config_type if the spec carries none
  * @throws geneva_exception if @c spec.config holds another type; the message names the mnemonic,
  *         the expected and the found type
  */
-template <typename ConfigT>
-[[nodiscard]] ConfigT configOf(const ConsumerSpec &spec) {
+template <typename config_type>
+[[nodiscard]] config_type configOf(const ConsumerSpec &spec) {
     if(not spec.config.has_value()) {
-        return ConfigT{};
+        return config_type{};
     }
-    if(const auto *config = std::any_cast<ConfigT>(&spec.config)) {
+    if(const auto *config = std::any_cast<config_type>(&spec.config)) {
         return *config;
     }
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In configOf(): Error!" << '\n'
         << "The consumer \"" << spec.mnemonic << "\" is configured with a "
-        << boost::core::demangle(typeid(ConfigT).name()) << "," << '\n'
+        << boost::core::demangle(typeid(config_type).name()) << "," << '\n'
         << "but its specification carries a " << boost::core::demangle(spec.config.type().name())
         << "." << '\n'
     );

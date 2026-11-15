@@ -230,8 +230,8 @@ protected:
      */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
     // overloads are trivial forwarders.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("allow_negative_", self.allow_negative_)
         );
@@ -290,8 +290,8 @@ class GValidityCheckContainerT
     /** @brief Single declaration of this class's local data (the validity checks), feeding the
      *  GReflectiveInterfaceBaseT-generated serialize()/load_()/compare_() from one source. The checks are
      *  std::shared_ptr<...> that must be deep-cloned on load (make_cloneable_container_member). */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("validity_checks_", self.validity_checks_)
         );
@@ -562,8 +562,8 @@ protected:
      *
      * @return A tuple of named, mutable references to the local data members
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("combiner_policy_", self.combiner_policy_)
         );

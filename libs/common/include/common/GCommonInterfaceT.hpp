@@ -89,13 +89,17 @@ public:
      * Converts the class(-hierarchy) to a serial representation that is
      * then written to a stream.
      *
-     * @tparam Self The deduced most-derived type of *this (an accessible g_class_type derivative)
+     * @tparam self_type The deduced most-derived type of *this (an accessible g_class_type derivative)
      * @param self The (deduced) object being serialized
      * @param oarchive_stream The output stream the object should be written to
      * @param ser_mod The desired serialization mode
      */
-    template <typename Self>
-    void toStream(this const Self &self, std::ostream &oarchive_stream, Gem::Common::serializationMode ser_mod) {
+    template <typename self_type>
+    void toStream(
+        this const self_type &self,
+        std::ostream &oarchive_stream,
+        Gem::Common::serializationMode ser_mod
+    ) {
         // With deducing this, `self` already IS the most-derived caller object, so taking its address
         // yields a g_class_type pointer by an implicit, compile-time-checked upcast -- no runtime
         // dynamic_cast (DEBUG) / unchecked static_cast (release) fork is needed. (De-)serialization
@@ -179,13 +183,13 @@ public:
      * class. Note that you will have to take care yourself that serialization and de-serialization
      * happens in the same mode.
      *
-     * @tparam Self The deduced most-derived type of *this (forwarded to toStream)
+     * @tparam self_type The deduced most-derived type of *this (forwarded to toStream)
      * @param self The (deduced) object being serialized
      * @param ser_mod The desired serialization mode
      * @return A text-representation of this class (or its derivative)
      */
-    template <typename Self>
-    std::string toString(this const Self &self, Gem::Common::serializationMode ser_mod) {
+    template <typename self_type>
+    std::string toString(this const self_type &self, Gem::Common::serializationMode ser_mod) {
         std::ostringstream oarchive_stream; // NOLINT(cppcoreguidelines-init-variables)
         self.toStream(oarchive_stream, ser_mod);
         return oarchive_stream.str();
@@ -210,13 +214,17 @@ public:
     /**
      * Writes a serial representation of this object to a file. Can be used for check-pointing.
      *
-     * @tparam Self The deduced most-derived type of *this (forwarded to toStream)
+     * @tparam self_type The deduced most-derived type of *this (forwarded to toStream)
      * @param self The (deduced) object being serialized
      * @param p The name of the file the object should be saved to.
      * @param ser_mod The desired serialization mode
      */
-    template <typename Self>
-    void toFile(this const Self &self, const std::filesystem::path &p, Gem::Common::serializationMode ser_mod) {
+    template <typename self_type>
+    void toFile(
+        this const self_type &self,
+        const std::filesystem::path &p,
+        Gem::Common::serializationMode ser_mod
+    ) {
         std::ofstream ofstr( // NOLINT(cppcoreguidelines-init-variables)
             p
             , std::ofstream::trunc
@@ -278,12 +286,12 @@ public:
     /**
      * Returns an XML description of the derivative it is called for
      *
-     * @tparam Self The deduced most-derived type of *this (forwarded to toString)
+     * @tparam self_type The deduced most-derived type of *this (forwarded to toString)
      * @param self The (deduced) object being described
      * @return A JSON description of the GCommonInterfaceT-derivative the function is called for
      */
-    template <typename Self>
-    std::string report(this const Self &self) {
+    template <typename self_type>
+    std::string report(this const self_type &self) {
         return self.toString(Gem::Common::serializationMode::GEM_JSON);
     }
 

@@ -77,8 +77,8 @@ private:
     [[nodiscard]] TestObj *clone_() const override { return new TestObj(*this); }
 
     friend struct Gem::Weft::access;
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
         Gem::Common::archive_named(ar, "v_", v_);
     }
 

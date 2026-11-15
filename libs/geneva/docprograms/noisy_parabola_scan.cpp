@@ -129,8 +129,8 @@ class GSearchPathMonitor final
 
     /** @brief The monitor's own state is the (non-owning) plot wiring below, which is run state and
      *  not configuration; the *explicit* empty member list is what the CRTP base requires. */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

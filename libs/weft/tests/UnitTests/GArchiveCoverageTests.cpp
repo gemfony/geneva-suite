@@ -58,11 +58,11 @@ using namespace Gem::Weft;
 
 namespace {
 
-template <typename OArchive, typename IArchive, typename T>
+template <typename oarchive_type, typename iarchive_type, typename T>
 T rt(const T &in) {
-    OArchive oa;
+    oarchive_type oa;
     oa &in;
-    IArchive ia(oa.str());
+    iarchive_type ia(oa.str());
     T out{};
     ia &out;
     return out;
@@ -140,26 +140,26 @@ TEST_CASE("GArchive coverage: multi-key associative containers (duplicates survi
 
 namespace {
 
-template <typename OArchive, typename IArchive>
+template <typename oarchive_type, typename iarchive_type>
 void check_make_array() {
     std::vector<double> src{1.5, -2.5, 3.75, 4.0};
-    OArchive oa;
+    oarchive_type oa;
     oa &make_array(src.data(), src.size());
 
     std::vector<double> dst(src.size(), 0.0); // pre-sized by the caller
-    IArchive ia(oa.str());
+    iarchive_type ia(oa.str());
     ia &make_array(dst.data(), dst.size());
     CHECK(dst == src);
 }
 
-template <typename OArchive, typename IArchive>
+template <typename oarchive_type, typename iarchive_type>
 void check_make_binary() {
     std::array<unsigned char, 5> src{0xDE, 0xAD, 0xBE, 0xEF, 0x01};
-    OArchive oa;
+    oarchive_type oa;
     oa &make_binary(src.data(), src.size());
 
     std::array<unsigned char, 5> dst{};
-    IArchive ia(oa.str());
+    iarchive_type ia(oa.str());
     ia &make_binary(dst.data(), dst.size());
     CHECK(dst == src);
 }
@@ -201,8 +201,8 @@ struct PodPoint {
 };
 
 // The free serializer, in the SAME namespace as PodPoint so ADL finds it.
-template <typename Archive>
-void gem_archive_serialize(Archive &ar, PodPoint &p) {
+template <typename archive_type>
+void gem_archive_serialize(archive_type &ar, PodPoint &p) {
     ar &make_nvp("x", p.x);
     ar &make_nvp("y", p.y);
     ar &make_nvp("tag", p.tag);
@@ -234,8 +234,8 @@ namespace {
 // load path must reconstruct it through access::construct_raw, not a public new.
 class PrivateCtorPod {
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
         ar &make_nvp("v", v_);
     }
 
@@ -248,12 +248,12 @@ private:
     PrivateCtorPod() = default; ///< Reachable only through the befriended access shim.
 };
 
-template <typename OArchive, typename IArchive, typename Ptr>
-void check_concrete_ptr(const Ptr &in) {
-    OArchive oa;
-    oa &make_nvp("p", const_cast<Ptr &>(in));
-    Ptr out;
-    IArchive ia(oa.str());
+template <typename oarchive_type, typename iarchive_type, typename ptr_type>
+void check_concrete_ptr(const ptr_type &in) {
+    oarchive_type oa;
+    oa &make_nvp("p", const_cast<ptr_type &>(in));
+    ptr_type out;
+    iarchive_type ia(oa.str());
     ia &make_nvp("p", out);
     if (in) {
         REQUIRE(static_cast<bool>(out));
