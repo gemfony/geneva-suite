@@ -725,8 +725,8 @@ INSTALL(
 ################################################################################
 # The installation serves programs outside the tree: the build is installed into a fresh
 # directory, the installation is moved, and the quickstart, the MPI module probe and a project
-# that uses FindGeneva.cmake are built against the moved installation and run, without
-# LD_LIBRARY_PATH (CMakeModules/CheckInstalledPackage.cmake says how). Not registered in a
+# that uses FindGeneva.cmake are built against the moved installation, at the same time, and
+# run, without LD_LIBRARY_PATH (CMakeModules/CheckInstalledPackage.cmake says how). Not registered in a
 # sanitizer build: a program built without -fsanitize cannot run against instrumented libraries.
 IF (GENEVA_BUILD_TESTS)
 	IF (GENEVA_SANITIZER STREQUAL "none")
@@ -736,6 +736,7 @@ IF (GENEVA_BUILD_TESTS)
 				-DBUILD_DIR=${CMAKE_BINARY_DIR}
 				-DSOURCE_DIR=${PROJECT_SOURCE_DIR}
 				-DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+				-DCXX_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
 				-DBUILD_TYPE=${CMAKE_BUILD_TYPE}
 				-DBOOST_DIR=${Boost_DIR}
 				-DCATCH2_DIR=${Catch2_DIR}
@@ -744,7 +745,9 @@ IF (GENEVA_BUILD_TESTS)
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)
-		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install")
+		# About 10 s on an idle host (gcc Release and clang Debug alike), up to 25 s under the load
+		# of a full "ctest -j16"; the timeout is twice that.
+		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install" TIMEOUT 50)
 		GENEVA_TEST_SIZE(GenevaInstalledPackageProbes L)
 	ELSE ()
 		MESSAGE(STATUS "GenevaInstalledPackageProbes not registered: a sanitizer build "
