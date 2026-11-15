@@ -96,6 +96,8 @@ geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp 
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
+geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GInProcessPeer.hpp
+	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six

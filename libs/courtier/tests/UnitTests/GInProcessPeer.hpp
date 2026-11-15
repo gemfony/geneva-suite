@@ -567,19 +567,43 @@ private:
 };
 
 /******************************************************************************/
+/** @brief Where a test sees the client ends a GInProcessConnector has made (the connector itself
+ *  is owned by the client under test). */
+class GInProcessPeerWatch {
+public:
+    /** @brief Records a client end @param peer The end the connector has made */
+    void made(const std::shared_ptr<GInProcessPeer> &peer) {
+        const std::scoped_lock lock(mutex_);
+        last_ = peer;
+    }
+    /** @brief @return The last client end made, if it still exists */
+    [[nodiscard]] std::shared_ptr<GInProcessPeer> last() const {
+        const std::scoped_lock lock(mutex_);
+        return last_.lock();
+    }
+
+private:
+    mutable std::mutex mutex_;           ///< Guards last_ (the connector's executor writes it)
+    std::weak_ptr<GInProcessPeer> last_; ///< The last client end made
+};
+
+/******************************************************************************/
 /**
  * The client side of the in-process transport: asks a GInProcessListener for a connection. The
  * listener must outlive every attempt (it is held weakly; a listener that is gone refuses).
  */
 class GInProcessConnector final : public Gem::Courtier::Consumers::GConnectorI {
 public:
-    /** @brief @param listener The server @param reconnectable What reconnectable() answers */
+    /** @brief @param listener The server @param reconnectable What reconnectable() answers
+     *  @param watch Where the client ends made are recorded (may be empty) */
     explicit GInProcessConnector(
         std::weak_ptr<GInProcessListener> listener,
-        bool reconnectable = true
+        bool reconnectable = true,
+        std::shared_ptr<GInProcessPeerWatch> watch = nullptr
     )
       : listener_(std::move(listener))
-      , reconnectable_(reconnectable) { /* nothing */
+      , reconnectable_(reconnectable)
+      , watch_(std::move(watch)) { /* nothing */
     }
 
     /** @brief Cancels an attempt in progress */
@@ -600,12 +624,19 @@ public:
         cancelled_ = cancelled;
         boost::asio::post(
             executor,
-            [listener = listener_, executor, cancelled, done = std::move(done)]() mutable {
+            [listener = listener_,
+             watch = watch_,
+             executor,
+             cancelled,
+             done = std::move(done)]() mutable {
                 if(*cancelled) {
                     return;
                 }
                 auto server = listener.lock();
                 auto peer = server ? server->connect_(executor) : nullptr;
+                if(peer && watch) {
+                    watch->made(std::static_pointer_cast<GInProcessPeer>(peer));
+                }
                 done(peer, peer ? std::string_view{} : std::string_view{"the server refuses"});
             }
         );
@@ -626,6 +657,7 @@ public:
 private:
     std::weak_ptr<GInProcessListener> listener_; ///< The server
     bool reconnectable_;                         ///< What reconnectable() answers
+    std::shared_ptr<GInProcessPeerWatch> watch_; ///< Where the client ends are recorded, or empty
     std::shared_ptr<bool> cancelled_;            ///< The flag of the last attempt (on the executor)
 };
 

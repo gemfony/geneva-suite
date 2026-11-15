@@ -32,9 +32,13 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
+#include <algorithm>
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
+#include <optional>
 #include <random>
 #include <string>
 #include <string_view>
@@ -82,6 +86,27 @@ namespace Gem::Courtier::Consumers {
  *  - when_unreadable_(error)                -- a message could not be decoded (likewise)
  *  - prepareReturn_(container)              -- optional: adjusts a RETURN before it is encoded, on
  *                                              the compute thread
+ *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
+ *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
+ *                                              0 (io thread)
+ *  - resultKindHint_() and sendResult_(bytes, error, frame)
+ *                                           -- optional, together: the concrete client decides
+ *                                              whether a finished result is a RETURN (it asks for
+ *                                              the next item) or a RESULT (it asks for nothing).
+ *                                              The compute thread encodes it as the hint says (any
+ *                                              thread); sendResult_() gets the bytes and the frame
+ *                                              on the io thread, decides with the books and does
+ *                                              them. Without them every result is a RETURN that
+ *                                              the base counts as a pull before
+ *                                              sendEncodedAndRefill_().
+ *
+ * Compute width. The pool evaluates at most compute_width_ items at a time (by default as many as
+ * the prefetch depth). A WORK item that arrives while that many are evaluated is held on the io
+ * thread (held_) and handed to the pool when an evaluation ends. Held items count towards the
+ * prefetch depth; a concrete client may drop them (drop_held_()) when their results can no longer
+ * be delivered, and with them every item still being decoded. With a width equal to the depth no
+ * item is ever held. The messages are decoded on a strand of the same pool, so with a width below
+ * the depth an item that arrives while all threads evaluate is decoded when one of them is free.
  *
  * @tparam Derived The concrete client type (CRTP; must also inherit enable_shared_from_this)
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
@@ -93,11 +118,22 @@ protected:
     /** @brief Initializes the pipeline state.
      *
      *  @param client_name The concrete client's name, used in diagnostics
-     *  @param prefetch_depth Maximum number of work items kept in flight at once (0 is treated as 1) */
-    GPrefetchingClientT(std::string_view client_name, std::size_t prefetch_depth)
+     *  @param prefetch_depth Maximum number of work items kept in flight at once (0 is treated as 1)
+     *  @param compute_width How many items are evaluated at the same time; 0 (the default) means
+     *         as many as the prefetch depth, more than the depth is the depth. A width below the
+     *         depth lets the client hold items ahead of those it evaluates. */
+    GPrefetchingClientT(
+        std::string_view client_name,
+        std::size_t prefetch_depth,
+        std::size_t compute_width = 0
+    )
       : client_name_(client_name)
       , prefetch_depth_(prefetch_depth == 0 ? 1 : prefetch_depth)
-      , compute_pool_(prefetch_depth_) { /* nothing */ }
+      , compute_width_(
+            compute_width == 0 ? prefetch_depth_ : std::min(compute_width, prefetch_depth_)
+        )
+      , compute_pool_(compute_width_) { /* nothing */
+    }
 
     //-------------------------------------------------------------------------
     /** @brief The destructor. Logs a shutdown summary (items processed, NO_WORK count, prefetch depth). */
@@ -157,8 +193,9 @@ protected:
     /**
      * @brief Runs on the io thread for every decoded message. WORK and NO_WORK both answer a pull
      * sent earlier, so one pull is resolved; a WORK item is then counted as computing and handed
-     * to the compute pool, anything else goes to the concrete client (when_decoded_()). A message
-     * that could not be decoded goes to when_unreadable_().
+     * to the compute pool (or held, see "Compute width"), and the concrete client is told
+     * (when_work_(), if it has one); anything else goes to the concrete client (when_decoded_()).
+     * A message that could not be decoded goes to when_unreadable_().
      *
      * @param container The decoded frame
      * @param error Why the message could not be decoded; empty if it could
@@ -172,9 +209,23 @@ protected:
             --pending_pulls_;
         }
         if(container.kind() == GFrameKind::WORK) {
-            // One pull became one computation: the in-flight total is unchanged.
-            ++computing_;
-            this->dispatch_compute_(std::move(container));
+            // One pull became one item: the in-flight total is unchanged. It is evaluated at once
+            // if the compute width allows, held otherwise -- or dropped, if its result could not
+            // be delivered any more (see drop_held_()).
+            if(work_unwanted_) {
+                return;
+            }
+            if(computing_ < compute_width_) {
+                ++computing_;
+                this->dispatch_compute_(std::move(container));
+                this->busy_changed_();
+            }
+            else {
+                held_.push_back(std::move(container));
+            }
+            if constexpr(requires(Derived &d) { d.when_work_(); }) {
+                derived().when_work_();
+            }
             return;
         }
         derived().when_decoded_(container.kind());
@@ -214,6 +265,9 @@ protected:
                              }) {
                     self->prepareReturn_(container);
                 }
+                if constexpr(decidesResultKind()) {
+                    container.setKind(self->resultKindHint_());
+                }
                 std::string bytes;
                 std::string error;
                 try {
@@ -228,6 +282,12 @@ protected:
                 catch(const std::exception &e) {
                     error = e.what();
                 }
+                // A client that decides the kind of a result on the io thread gets the frame too,
+                // in case it has to be encoded once more (see sendResult_()).
+                std::optional<GCommandContainerT<processable_type>> frame;
+                if constexpr(decidesResultKind()) {
+                    frame.emplace(std::move(container));
+                }
                 // Hop back onto the io thread for the books and the transmission -- connection
                 // state must only be touched there.
                 boost::asio::post(
@@ -235,8 +295,9 @@ protected:
                     [self,
                      bytes = std::move(bytes),
                      error = std::move(error),
+                     frame = std::move(frame),
                      guard = std::move(guard)]() mutable {
-                        self->finish_compute_(std::move(bytes), error);
+                        self->finish_compute_(std::move(bytes), error, std::move(frame));
                     }
                 );
             }
@@ -244,20 +305,59 @@ protected:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Runs on the io thread once an evaluation has completed and its RETURN is encoded:
-     *  accounts for the finished item and hands the bytes to the transport-specific
-     *  sendEncodedAndRefill_() hook. A RETURN doubles as a pull: the server answers it with the
-     *  next item. The work guard captured by the posting lambda is released when this returns.
+    /** @brief Runs on the io thread once an evaluation has completed and its result is encoded:
+     *  accounts for the finished item, hands a held item to the pool, and passes the result on.
+     *  A client that decides the kind of its results gets it through sendResult_() and does the
+     *  books of the request itself; otherwise the result is a RETURN, which doubles as a pull (the
+     *  server answers it with the next item), and goes to sendEncodedAndRefill_(). The work guard
+     *  captured by the posting lambda is released when this returns.
      *
-     *  @param bytes The encoded RETURN
-     *  @param error Why the RETURN could not be encoded; empty if it could */
-    void finish_compute_(std::string bytes, const std::string &error) {
+     *  @param bytes The encoded result
+     *  @param error Why the result could not be encoded; empty if it could
+     *  @param frame The result's frame, for a client that decides its kind; empty otherwise */
+    void finish_compute_(
+        std::string bytes,
+        const std::string &error,
+        std::optional<GCommandContainerT<processable_type>> frame
+    ) {
         this->incrementProcessingCounter();
         if(computing_ > 0) {
             --computing_;
         }
-        ++pending_pulls_; // the RETURN we are about to send is a pull (the server replies with an item)
-        derived().sendEncodedAndRefill_(std::move(bytes), error);
+        if(not held_.empty() && computing_ < compute_width_) {
+            ++computing_;
+            auto next = std::move(held_.front());
+            held_.pop_front();
+            this->dispatch_compute_(std::move(next));
+        }
+        this->busy_changed_();
+        if constexpr(decidesResultKind()) {
+            derived().sendResult_(std::move(bytes), error, std::move(*frame));
+        }
+        else {
+            ++pending_pulls_; // the RETURN about to be sent is a pull (the server replies with an item)
+            derived().sendEncodedAndRefill_(std::move(bytes), error);
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Drops the items that are held and not evaluated yet, and every WORK item decoded
+     *  from now on (their results could not be delivered any more): also one that arrived before
+     *  and is still being decoded. On the io thread.
+     *  @return How many held items were dropped */
+    std::size_t drop_held_() {
+        work_unwanted_ = true;
+        const std::size_t n = held_.size();
+        held_.clear();
+        return n;
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief The work items in flight, as the io thread counts them: requests without an answer,
+     *  items held and items being evaluated.
+     *  @return Their number */
+    [[nodiscard]] std::size_t in_flight_() const {
+        return pending_pulls_ + held_.size() + computing_;
     }
 
     //-------------------------------------------------------------------------
@@ -349,6 +449,14 @@ protected:
     std::size_t pending_pulls_ = 0;
     std::size_t computing_ = 0;
 
+    /// How many items are evaluated at the same time (the width of the compute pool); at most the
+    /// prefetch depth
+    std::size_t compute_width_ = 1;
+    /// WORK items that arrived while compute_width_ items were evaluated, oldest first (io thread)
+    std::deque<GCommandContainerT<processable_type>> held_;
+    /// Set by drop_held_(): a WORK item decoded from now on is dropped (io thread)
+    bool work_unwanted_ = false;
+
     std::uint64_t n_nodata_ = 0; ///< How often a NO_WORK reply was received (reported at shutdown)
 
     bool pipeline_stopped_ = false; ///< Set by stopPipelineTimers_(): no timer is armed any more
@@ -371,20 +479,20 @@ protected:
     }; ///< Backoff timer that retries a PULL top-up after a NO_WORK reply (async, never blocks)
 
     /// The compute pool's reservation in the process-wide thread budget: Fixed, because the pool
-    /// must hold exactly prefetch_depth_ workers to keep prefetch_depth_ items computing. Declared
+    /// must hold exactly compute_width_ workers to keep compute_width_ items computing. Declared
     /// before the pool so it is released only after the pool's threads are joined.
     Gem::Common::Concurrency::GThreadBudget::Reservation compute_budget_{
         Gem::Common::Concurrency::threadBudget().reserve(
             "client:compute",
-            static_cast<unsigned int>(prefetch_depth_),
+            static_cast<unsigned int>(compute_width_),
             Gem::Common::Concurrency::ThreadElasticity::Fixed
         )
     };
 
     /// A thread pool that runs the (possibly long, unbounded) work-item evaluations OFF the io thread,
-    /// so the io thread stays free for transport work while items are computed. Sized to the prefetch
-    /// depth so all in-flight items can compute concurrently. Declared last so it is destroyed (and its
-    /// threads joined) before io_context_ and the other pipeline state.
+    /// so the io thread stays free for transport work while items are computed. Sized to the compute
+    /// width. Declared last so it is destroyed (and its threads joined) before io_context_ and the
+    /// other pipeline state.
     boost::asio::thread_pool compute_pool_;
 
     /// Decodes the messages of the server one at a time, in arrival order, on the compute pool
@@ -393,6 +501,38 @@ protected:
     };
 
 private:
+    //-------------------------------------------------------------------------
+    /** @brief Whether the concrete client decides the kind of its results (see the class comment).
+     *  A function, so that it is asked only inside member functions, where Derived is complete.
+     *  @return true if it has resultKindHint_() and sendResult_() */
+    static consteval bool decidesResultKind() {
+        return requires(
+            Derived &d,
+            std::string bytes,
+            const std::string &error,
+            GCommandContainerT<processable_type> frame
+        ) {
+            { std::as_const(d).resultKindHint_() } -> std::same_as<GFrameKind>;
+            d.sendResult_(std::move(bytes), error, std::move(frame));
+        };
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Tells the concrete client (when_busy_(), if it has one) when computing_ has become,
+     *  or stopped being, 0. On the io thread. */
+    void busy_changed_() {
+        const bool busy = computing_ > 0;
+        if(busy == busy_told_) {
+            return;
+        }
+        busy_told_ = busy;
+        if constexpr(requires(Derived &d) { d.when_busy_(true); }) {
+            derived().when_busy_(busy);
+        }
+    }
+
+    bool busy_told_ = false; ///< What busy_changed_() told the concrete client last (io thread)
+
     //-------------------------------------------------------------------------
     /** @brief The CRTP downcast to the concrete client.
      *  @return A reference to *this as the concrete client type */
