@@ -70,6 +70,10 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * from its own registry (BLOB_REPLY). Both are served entirely inside courtier, hence frames rather than
  * library tags.
  *
+ * PULL asks for work; RETURN carries a processed slot's outcome (with the item, or the library's
+ * payload) and asks for the next item, as a PULL would. BLOB_REPLY is empty if the server's
+ * registry misses the blob.
+ *
  * RESULT is a RETURN that asks for nothing: a client that has a request unanswered already sends a
  * finished result as RESULT, so that it never has more than one request with the server. The server
  * checks it in and owes no answer.
@@ -84,15 +88,15 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
 //! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     NONE = 0,         ///< Cleared / not yet filled in -- never sent
-    PULL = 1,         ///< worker -> server: "give me work" (may carry a result, see RETURN)
+    PULL = 1,         ///< worker -> server: "give me work"
     NO_WORK = 2,      ///< server -> worker: "nothing available right now"
     WORK = 3,         ///< server -> worker: a work item to process
-    RETURN = 4,       ///< worker -> server: a processed slot's outcome (+ item or library payload)
+    RETURN = 4,       ///< worker -> server: an outcome that asks for more
     SHUTDOWN = 5,     ///< server -> worker: stop working and terminate
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
-    BLOB_REPLY = 7,   ///< server -> worker: the requested blob (empty on a registry miss)
-    RESULT = 8,       ///< worker -> server: an outcome, like RETURN, that asks for nothing
-    UNREADABLE = 9    ///< worker -> server: "your last answer could not be read; send another"
+    BLOB_REPLY = 7,   ///< server -> worker: the requested blob
+    RESULT = 8,       ///< worker -> server: an outcome asking for nothing
+    UNREADABLE = 9    ///< worker -> server: "I could not read your answer"
 };
 //! [courtier-frame-kind]
 

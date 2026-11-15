@@ -432,7 +432,9 @@ public:
      * @return The lifetime count of packages delivered to the fresh buffer
      */
     //! [hap-factory-tuning#3]
-    [[nodiscard]] std::uint64_t getNPackagesProduced() const noexcept { return n_packages_produced_.load(std::memory_order_relaxed); }
+    [[nodiscard]] std::uint64_t getNPackagesProduced() const noexcept {
+        return n_packages_produced_.load(std::memory_order_relaxed);
+    }
     //! [hap-factory-tuning#3]
 
     /**
@@ -446,7 +448,9 @@ public:
      * @return The lifetime count of empty (timed-out) getNewRandomContainer() results
      */
     //! [hap-factory-tuning#4]
-    [[nodiscard]] std::uint64_t getNGetTimeouts() const noexcept { return n_get_timeouts_.load(std::memory_order_relaxed); }
+    [[nodiscard]] std::uint64_t getNGetTimeouts() const noexcept {
+        return n_get_timeouts_.load(std::memory_order_relaxed);
+    }
     //! [hap-factory-tuning#4]
 
 private:
