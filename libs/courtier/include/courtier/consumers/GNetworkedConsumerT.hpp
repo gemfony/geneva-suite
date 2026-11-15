@@ -53,7 +53,7 @@
 #include "common/GLogger.hpp" // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
 #include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
-#include "common/concurrency/GThreadSafeSetT.hpp" // the per-session in-flight borrow set (CheckoutLease)
+#include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the per-session in-flight store (CheckoutLease)
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
 #include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
@@ -303,7 +303,10 @@ protected:
      * lease instead -- see usesTimeLease().
      *
      * Items are keyed by their (batch_id, slot) correlation id, so add()/remove() pair up regardless of
-     * the order results come back in. The in-flight set is a thread-safe GThreadSafeSetT: although a
+     * the order results come back in, and each remembers which checkout of its slot the session got
+     * (GCheckoutResult::checkout). A put-back names that checkout: if the slot has been checked out
+     * again since (the time lease put it back and another session took it), the put-back does nothing,
+     * so a lease gives back only its own checkout. The in-flight store is thread-safe: although a
      * single session drives its add()/remove() on one strand, the destructor may run on whichever io
      * thread releases the last reference, so the two must not race.
      */
@@ -311,33 +314,37 @@ protected:
         // Items travel by unique_ptr, so the lease cannot co-own them: it tracks only the in-flight
         // correlation ids (a borrow). The owning copy stays in the consumer's batch; on abandon the
         // lease asks the consumer to requeue those ids.
-        Gem::Common::Concurrency::GThreadSafeSetT<Gem::Courtier::CORRELATION_ID_TYPE> in_flight;
-        std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE)> on_abandon;
+        Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::CORRELATION_ID_TYPE, std::uint64_t>
+            in_flight;
+        /// Puts back one item: its correlation id and the checkout the session got
+        std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, std::uint64_t)> on_abandon;
 
         CheckoutLease() = default;
         CheckoutLease(const CheckoutLease &) = delete;
         CheckoutLease &operator=(const CheckoutLease &) = delete;
 
-        /** @brief Records the id of an item just handed to the session.
-         *  @param p The item handed to the session (its correlation id is tracked as in-flight; null is ignored) */
-        void add(const item_ptr &p) {
+        /** @brief Records the item just handed to the session, and its checkout.
+         *  @param p The item handed to the session (null is ignored)
+         *  @param checkout Which checkout of its slot it is (GCheckoutResult::checkout) */
+        void add(const item_ptr &p, std::uint64_t checkout) {
             if(not p) {
                 return;
             }
-            in_flight.insert(p->getCorrelationId());
+            in_flight.set(p->getCorrelationId(), checkout);
         }
-        /** @brief Drops an id the session returned normally (nothing left for the lease to reclaim).
-         *  @param id The correlation id of the returned slot, dropped from the in-flight set */
-        void remove(Gem::Courtier::CORRELATION_ID_TYPE id) {
-            in_flight.erase(id);
+        /** @brief Drops an id the session is done with (nothing left for the lease to reclaim).
+         *  @param id The correlation id of the slot
+         *  @return The checkout the session got, if the id was held */
+        std::optional<std::uint64_t> remove(Gem::Courtier::CORRELATION_ID_TYPE id) {
+            return in_flight.take(id);
         }
         /** @brief Puts back everything the session still holds: at its end, or when it can no
          *  longer tell which of its items are being worked on (a request it had to refuse). */
         void abandonAll() {
             // Atomically take everything still in flight; requeue outside the set's lock.
             if(on_abandon) {
-                for(auto id : in_flight.drain()) {
-                    on_abandon(id);
+                for(auto [id, checkout] : in_flight.drain()) {
+                    on_abandon(id, checkout);
                 }
             }
             else {
@@ -380,8 +387,9 @@ protected:
             return {};
         }
         if(total_pending_ > 0) {
-            if(auto item = checkout_locked()) {
-                return {.item = std::move(item)};
+            std::uint64_t checkout = 0;
+            if(auto item = checkout_locked(&checkout)) {
+                return {.item = std::move(item), .checkout = checkout};
             }
             // Every pending slot failed to clone and was completed as failed: nothing to hand
             // out after all, so the caller is parked like one that found nothing pending.
@@ -513,14 +521,22 @@ protected:
     /***************************************************************************/
     /** @brief Returns a slot's still-in-flight item to PENDING so another client picks it up
      *  immediately (the RAII put-back on a client disconnect). The batch+slot are located via the
-     *  passed correlation id. A no-op if the batch moved on or the slot is no longer in flight.
-     *  @param id The (batch_id, slot) correlation id of the item to put back */
-    void requeue(Gem::Courtier::CORRELATION_ID_TYPE id) {
+     *  passed correlation id. A no-op if the batch moved on, the slot is no longer in flight, or --
+     *  with @p checkout -- the slot has been checked out again since that checkout (another holder
+     *  has it now; see CheckoutLease).
+     *  @param id The (batch_id, slot) correlation id of the item to put back
+     *  @param checkout The checkout that is given back (GCheckoutResult::checkout); none: whichever
+     *         holds the slot */
+    void requeue(
+        Gem::Courtier::CORRELATION_ID_TYPE id,
+        std::optional<std::uint64_t> checkout = std::nullopt
+    ) {
         bool requeued = false;
         {
             std::scoped_lock const lk(mtx_);
             auto it = batches_.find(decodeBatch(id));
-            requeued = it != batches_.end() && requeueSlot_locked(it->second, decodeSlot(id));
+            requeued = it != batches_.end() &&
+                       requeueSlot_locked(it->second, decodeSlot(id), checkout);
         }
         if(requeued) {
             announceWork_(1);
@@ -531,10 +547,16 @@ protected:
     /** @brief Ends a slot that is in flight as failed (ERROR_FLAGGED, @p what added to its error
      *  descriptions; see failSlot_locked()), for an item that a session checked out and could not
      *  send: its encoding threw. The submission policy then treats it as any failed evaluation. A
-     *  no-op if the batch has moved on or the slot is no longer in flight.
+     *  no-op if the batch has moved on, the slot is no longer in flight, or it has been checked out
+     *  again since @p checkout.
      *  @param id The (batch_id, slot) correlation id of the item
+     *  @param checkout The checkout that failed (GCheckoutResult::checkout)
      *  @param what Why it failed */
-    void failInFlight(Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
+    void failInFlight(
+        Gem::Courtier::CORRELATION_ID_TYPE id,
+        std::uint64_t checkout,
+        const std::string &what
+    ) {
         std::scoped_lock const lk(mtx_);
         auto it = batches_.find(decodeBatch(id));
         if(it == batches_.end()) {
@@ -543,7 +565,8 @@ protected:
         BatchState &b = it->second;
         const std::size_t slot = decodeSlot(id);
         if(slot >= b.items.size() || not b.items[slot] ||
-           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
+           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT ||
+           b.checkouts[slot] != checkout) {
             return;
         }
         failSlot_locked(b, slot, b.items[slot]->processingOutcome(), what, "failInFlight()");
@@ -613,6 +636,7 @@ protected:
             b.cursor = 0;
             b.checked_out_at.assign(n, start); // indexed by slot (the span index)
             b.reclaimed.assign(n, false);
+            b.checkouts.assign(n, 0);
             b.last_progress = start;
             // Select exactly the DO_PROCESS slots of the span for this batch: tag each with its
             // (batch_id, slot) correlation token (slot == span index) and mark it PENDING. Slots in any
@@ -840,6 +864,7 @@ private:
         std::size_t cursor = 0;                 ///< Next slot index to consider in checkout
         std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (lease + stats)
         std::vector<bool> reclaimed;          ///< Per-slot: put back to PENDING at least once
+        std::vector<std::uint64_t> checkouts; ///< Per-slot: the number of its current checkout
         clock::time_point last_progress;      ///< Time of the most recent checkin (stall basis)
     };
 
@@ -851,8 +876,9 @@ private:
      *  cannot be shipped; it is completed as failed (see failSlot_locked()) and the scan goes on
      *  with the next slot, so the exception neither leaves the slot in flight with nobody holding
      *  it nor reaches the session that asked for work.
+     *  @param checkout Receives which checkout of its slot this is, if not null
      *  @return A clone of the next pending item to ship, or nullptr if no slot is pending */
-    item_ptr checkout_locked() {
+    item_ptr checkout_locked(std::uint64_t *checkout = nullptr) {
         if(total_pending_ == 0 || batches_.empty()) {
             ++n_empty_checkouts_;
             return nullptr;
@@ -900,6 +926,10 @@ private:
                 }
                 b.items[k]->setDispatchState(Gem::Courtier::dispatchState::IN_FLIGHT);
                 b.checked_out_at[k] = clock::now();
+                ++b.checkouts[k];
+                if(checkout != nullptr) {
+                    *checkout = b.checkouts[k];
+                }
                 --b.pending;
                 --total_pending_;
                 last_served_batch_ = it->first;
@@ -958,10 +988,17 @@ private:
      *  so checkout re-finds it. Caller holds mtx_.
      *  @param b The batch owning the slot
      *  @param slot The slot index to flip back to PENDING
-     *  @return true if the slot was flipped; false if it was out of range or not currently IN_FLIGHT */
-    bool requeueSlot_locked(BatchState &b, std::size_t slot) {
+     *  @param checkout If set, the slot is flipped only while this is its current checkout
+     *  @return true if the slot was flipped; false if it was out of range, not currently IN_FLIGHT,
+     *          or checked out again since @p checkout */
+    bool requeueSlot_locked(
+        BatchState &b,
+        std::size_t slot,
+        std::optional<std::uint64_t> checkout = std::nullopt
+    ) {
         if(slot >= b.items.size() || not b.items[slot] ||
-           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
+           b.items[slot]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT ||
+           (checkout && *checkout != b.checkouts[slot])) {
             return false;
         }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::PENDING);

@@ -37,6 +37,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -687,4 +688,72 @@ TEST_CASE(
     INFO("stopServer() took " << stop_ms << " ms");
     CHECK(eventually([&] { return role->closed() == "CLOSED_THERE:RUN_ENDED"; }));
     CHECK(stop_ms < STOP_GRACE.count());
+}
+
+/******************************************************************************/
+/**
+ * With the time lease (a listener that does not notice lost clients), a session's lease gives back
+ * only its own checkout: client A holds item X until the lease puts it back, client B takes it, then
+ * A is lost. A's lease must not take X from B: a third client C gets nothing, and X has been handed
+ * out twice, not three times.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a lost client's lease gives back only its own checkout",
+    "[courtier][peer][shell]"
+) {
+    constexpr std::int64_t LEASE_MS = 2000;
+    auto listener =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
+    GInProcessConnector connector{listener};
+    IoThreads clients;
+    Shell shell{listener, 2};
+    Gem::Courtier::GNetworkedTimeoutConfig config;
+    config.treatment = "fixed";
+    config.fixed_lease_ms = LEASE_MS;
+    config.fixed_stall_window_ms = 600000;
+    config.sweep_tick_ms = 20;
+    shell.applyTimeoutConfig(config);
+    shell.startServer();
+
+    auto items = makeBatch(1);
+    auto batch = std::async(std::launch::async, [&] {
+        auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+        policy.fatal_on_none_returned = false;
+        auto clone_template = std::make_unique<GFaultyContainer>(99);
+        clone_template->markAsProcessedWith({true});
+        shell.processBatch(
+            std::span(items.data(), items.size()),
+            policy,
+            std::move(clone_template)
+        );
+    });
+
+    auto a = std::make_shared<ScriptedClient>(1, false);
+    a->connect(connector, clients.executor());
+    const bool a_has_it = eventually([&] { return a->nWork() == 1; });
+    const bool put_back = Gem::Courtier::Tests::eventually(
+        [&] { return shell.requeuedCount() == 1; },
+        std::chrono::milliseconds(3 * LEASE_MS)
+    );
+    auto b = std::make_shared<ScriptedClient>(1, false);
+    b->connect(connector, clients.executor());
+    const bool b_has_it = eventually([&] { return b->nWork() == 1; });
+    a->abort();
+    const bool a_gone = eventually([&] { return shell.getNActiveSessions() == 1; });
+    auto c = std::make_shared<ScriptedClient>(1, false);
+    c->connect(connector, clients.executor());
+    const bool c_there = eventually([&] { return shell.getNActiveSessions() == 2; });
+    std::this_thread::sleep_for(200ms); // C would have its item by now
+    const std::size_t c_work = c->nWork();
+    const std::uint64_t n_requeued = shell.requeuedCount();
+
+    shell.stopServer();
+    batch.get();
+    REQUIRE(a_has_it);
+    REQUIRE(put_back);
+    REQUIRE(b_has_it);
+    REQUIRE(a_gone);
+    REQUIRE(c_there);
+    CHECK(c_work == 0);
+    CHECK(n_requeued == 1);
 }

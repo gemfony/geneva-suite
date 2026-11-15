@@ -97,9 +97,10 @@ namespace Gem::Courtier {
  * Lost clients. Whether items of a lost client come back by the time lease is the listener's
  * answer (detectsLoss()): a transport that notices the loss of a client by itself needs no time
  * lease. A session's CheckoutLease is used in either case: when a connection ends, by a close or by
- * a loss, what its client held is put back at once. If a client hangs, the time lease may put an
- * item back that the client later still returns when it ends; the item is then evaluated twice and
- * the late duplicate is dropped and counted (GNetworkedConsumerT).
+ * a loss, what its client held is put back at once -- only what it holds still: an item that the
+ * time lease has put back and another session has taken stays with that session. If a client hangs,
+ * the time lease may put an item back that the client later still returns when it ends; the item is
+ * then evaluated twice and the late duplicate is dropped and counted (GNetworkedConsumerT).
  *
  * Lifetime. The sessions refer to this object through a plain `this`. That is safe because their
  * handlers run on the session threads only, which are joined in stopServer(), and the destructor
@@ -313,7 +314,9 @@ private:
         using lease_type = GNetworkedConsumerT<processable_type>::CheckoutLease;
         auto lease = std::make_shared<lease_type>();
         // The lease and the hooks refer to this consumer through `this` (see the class comment).
-        lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id) { this->requeue(id); };
+        lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id, std::uint64_t checkout) {
+            this->requeue(id, checkout);
+        };
 
         const std::weak_ptr<Consumers::GPeerI> weak_peer = peer;
         auto session = std::make_shared<session_type>(
@@ -321,7 +324,7 @@ private:
                 .getPayloadItem =
                     [this, lease](Gem::Courtier::GWakeFn wake) {
                         auto result = this->checkoutOrPark(std::move(wake));
-                        lease->add(result.item); // no-op without an item
+                        lease->add(result.item, result.checkout); // no-op without an item
                         return result;
                     },
                 .putPayloadItem =
@@ -331,8 +334,9 @@ private:
                     },
                 .failPayloadItem =
                     [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
-                        lease->remove(id);
-                        this->failInFlight(id, what);
+                        if(auto checkout = lease->remove(id)) {
+                            this->failInFlight(id, *checkout, what);
+                        }
                     },
                 .abandonItems = [lease] { lease->abandonAll(); },
                 .checkServerStopped = [this]() -> bool { return this->stopped(); },

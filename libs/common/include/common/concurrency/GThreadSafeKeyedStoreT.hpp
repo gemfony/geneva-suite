@@ -135,6 +135,22 @@ public:
         return removed;
     }
 
+    /** @brief Removes an entry if present and hands its value over.
+     *  @param key The key to remove. @return The value, or nothing if the key was absent. */
+    std::optional<Value> take(const Key &key) {
+        std::scoped_lock const guard(mutex_);
+        auto it = kvp_.find(key);
+        if(it == kvp_.end()) {
+            return std::nullopt;
+        }
+        std::optional<Value> value{std::move(it->second)};
+        kvp_.erase(it);
+        if(kvp_.empty()) {
+            emptied_.notify_all();
+        }
+        return value;
+    }
+
     /** @brief @param key The key to check. @return true iff an entry for the key is present. */
     bool contains(const Key &key) const {
         std::scoped_lock const guard(mutex_);
@@ -172,6 +188,21 @@ public:
         for(auto const &[_, v] : kvp_) {
             result.push_back(v);
         }
+        return result;
+    }
+
+    /** @brief Removes all entries and hands them over, in key order, in one step (an entry added
+     *  meanwhile is either among them or stays).
+     *  @return The entries that were in the store */
+    std::vector<std::pair<Key, Value>> drain() {
+        std::scoped_lock const guard(mutex_);
+        std::vector<std::pair<Key, Value>> result;
+        result.reserve(kvp_.size());
+        for(auto &[k, v] : kvp_) {
+            result.emplace_back(k, std::move(v));
+        }
+        kvp_.clear();
+        emptied_.notify_all();
         return result;
     }
 

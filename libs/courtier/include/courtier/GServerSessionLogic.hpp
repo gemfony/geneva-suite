@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -109,6 +110,9 @@ template <typename ProcessableT>
 struct GCheckoutResult {
     std::unique_ptr<ProcessableT> item; ///< Set: an item was checked out
     bool parked = false; ///< True: nothing was pending; the caller will be woken once
+    /// With an item: which checkout of its slot this is. A put-back of the item names it, so that it
+    /// acts only while this is still the slot's current checkout (GNetworkedConsumerT::requeue()).
+    std::uint64_t checkout = 0;
 };
 
 /******************************************************************************/

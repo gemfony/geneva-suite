@@ -32,9 +32,11 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
@@ -263,4 +265,35 @@ TEST_CASE("GThreadSafeKeyedStoreT: concurrent set/get/snapshot remains consisten
 
     CHECK(out_of_range.load() == 0);
     CHECK(s.size() == static_cast<std::size_t>(kWriters * kPerWriter));
+}
+
+/******************************************************************************/
+TEST_CASE("GThreadSafeKeyedStoreT: take hands one value over and wakes a waiter on the last",
+          "[common][keyed-store]") {
+    Store s;
+    s.set("a", 1);
+    s.set("b", 2);
+    CHECK(s.take("a") == std::optional<int>{1});
+    CHECK_FALSE(s.take("a").has_value());
+    CHECK(s.size() == 1);
+    std::jthread taker([&s] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        static_cast<void>(s.take("b"));
+    });
+    CHECK(s.waitUntilEmpty(std::chrono::seconds(5)));
+}
+
+/******************************************************************************/
+TEST_CASE("GThreadSafeKeyedStoreT: drain hands every entry over in key order and empties the store",
+          "[common][keyed-store]") {
+    Store s;
+    s.set("b", 2);
+    s.set("a", 1);
+    const auto drained = s.drain();
+    REQUIRE(drained.size() == 2);
+    CHECK(drained[0] == std::pair<std::string, int>{"a", 1});
+    CHECK(drained[1] == std::pair<std::string, int>{"b", 2});
+    CHECK(s.empty());
+    CHECK(s.waitUntilEmpty(std::chrono::milliseconds(0)));
+    CHECK(s.drain().empty());
 }
