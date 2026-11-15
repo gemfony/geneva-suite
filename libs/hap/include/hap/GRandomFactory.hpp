@@ -59,6 +59,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "hap/GRandomDefines.hpp"
@@ -343,6 +344,9 @@ public:
     /**
      * @brief Sets the number of producer threads for this factory.
      *
+     * Threads added while the producers run are started at once, and the call returns when they have
+     * finished their start.
+     *
      * @param n_producer_threads The desired number of threads producing random number packages
      */
     //! [hap-factory-tuning#1]
@@ -377,6 +381,9 @@ public:
 
     /**
      * @brief Delivers a new random number container with the current standard size to clients.
+     *
+     * The first call starts the producer threads and returns only when each of them has finished its
+     * start, so that no producer is still creating GPU resources when the program can end.
      *
      * @return A unique_ptr to a filled container, or a null pointer if none became
      *         available within the internal timeout
@@ -430,14 +437,25 @@ public:
 
 private:
     /**
+     * @brief Starts producer threads and returns when each of them has finished its start.
+     *
+     * @param n_new The number of producer threads to start
+     */
+    void startProducers(std::uint16_t n_new);
+
+    /**
      * @brief The production of random number packages takes place here.
      *
      * Runs in a dedicated producer thread, continuously filling fresh containers
      * (and refilling recycled ones) until a stop is requested.
      *
      * @param seed The seed used to initialize this producer thread's engine
+     * @param started Counted down once, when this producer has finished its start
      */
-    void producer(std::uint32_t seed);
+    void producer(
+        std::uint32_t seed,
+        std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT> started
+    );
 
     std::atomic<std::uint64_t> n_packages_produced_{0}; ///< Lifetime count of packages delivered to the fresh buffer (supply-throughput signal)
     std::atomic<std::uint64_t> n_get_timeouts_{0}; ///< Lifetime count of empty getNewRandomContainer() results (aggregate starvation signal)
@@ -525,25 +543,35 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
 void simulateGpuRandomFailureForTests(bool fail);
 
 /**
- * @brief The two stages a bulk random-number source passes when it starts on the GPU (test hook).
+ * @brief The stages a bulk random-number source passes when it starts on the GPU (test hook).
+ *
+ * START_FINISHED is reached by every producer thread of the factory, on the GPU or the CPU, once its
+ * source has filled its first container (or the producer has ended before).
  */
 enum class GpuSourceStartStage {
-    GPU_CHOSEN = 0,      ///< The source has found GPU use allowed and a device present
-    CONTEXT_CREATION = 1 ///< The source is about to create its CUDA resources (the slow step)
+    GPU_CHOSEN = 0,       ///< The source has found GPU use allowed and a device present
+    CONTEXT_CREATION = 1, ///< The source is about to create its CUDA resources (the slow step)
+    START_FINISHED = 2    ///< A producer has finished its start
 };
 
 /**
  * @brief Holds every bulk source that starts on the GPU at the given stage, or lets the held ones go
  * (test hook).
  *
- * Starting sources wait at a held stage until it is released, or for at most 60 seconds. Call it from
- * one thread only, and release every stage it held before the process ends. Only available in builds
- * with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ * Starting sources wait at a held stage until it is released, or for at most 60 seconds; the first
+ * @p n_pass sources that reach the stage after it was held pass without waiting. Call it from one
+ * thread only, and release every stage it held before the process ends. Only available in builds with
+ * GEM_TESTING; otherwise it reports that the hook is unavailable.
  *
  * @param stage The stage to hold or to release
  * @param hold Whether starting sources should wait at that stage
+ * @param n_pass How many sources may pass the held stage before the others wait
  */
-void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold);
+void holdGpuRandomSourceStartsForTests(
+    GpuSourceStartStage stage,
+    bool hold,
+    std::size_t n_pass = 0
+);
 
 /**
  * @brief Reports how many bulk sources have reached the given stage of a GPU start since the process

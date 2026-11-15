@@ -45,6 +45,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "hap/GRandomFactory.hpp"
 
 using namespace Gem::Hap;
@@ -100,10 +101,11 @@ void requireGpuSource() {
  */
 class GStartHold {
 public:
-    /** @brief Holds starting GPU sources at the given stage. @param stage The stage */
-    explicit GStartHold(GpuSourceStartStage stage)
+    /** @brief Holds starting GPU sources at the given stage, after the first n_pass.
+     *  @param stage The stage @param n_pass How many sources pass before the others wait */
+    explicit GStartHold(GpuSourceStartStage stage, std::size_t n_pass = 0)
       : stage_(stage) {
-        holdGpuRandomSourceStartsForTests(stage_, true);
+        holdGpuRandomSourceStartsForTests(stage_, true, n_pass);
     }
 
     /** @brief Lets the held sources go on. */
@@ -125,19 +127,108 @@ private:
 
 /**
  * Starts a single producer thread and waits until its source reaches the given stage of a GPU start;
- * skips the test case if it does not (no CUDA backend in this build, or no device).
- *
- * @param stage The stage to wait for
+ * skips the test case if it does not (no CUDA backend in this build, or no device). The first draw,
+ * which starts the producer and returns only when its start has finished, runs on a thread of its
+ * own, so that the test case can act while the source is held.
  */
-void startOneSourceAndWaitFor(GpuSourceStartStage stage) {
-    randomFactory()->setNProducerThreads(1);
-    std::ignore = randomFactory()->getNewRandomContainer(); // starts the producer; it may time out
-    auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    while(nGpuRandomSourceStartsForTests(stage) == 0) {
-        if(std::chrono::steady_clock::now() > deadline) {
-            SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
+class GHeldStart {
+public:
+    /**
+     * @brief Starts the producer and waits for its source at the held stage.
+     *
+     * @param hold The hold the source will wait at
+     * @param stage The stage to wait for
+     */
+    GHeldStart(GStartHold &hold, GpuSourceStartStage stage)
+      : hold_(hold) {
+        randomFactory()->setNProducerThreads(1);
+        first_draw_ = std::thread([]() { std::ignore = randomFactory()->getNewRandomContainer(); });
+        auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while(nGpuRandomSourceStartsForTests(stage) == 0) {
+            if(std::chrono::steady_clock::now() > deadline) {
+                first_draw_.join(); // the destructor does not run when the constructor skips
+                SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    /** @brief Lets the held source go and waits for the first draw. */
+    ~GHeldStart() {
+        hold_.release();
+        first_draw_.join();
+    }
+
+    GHeldStart(GHeldStart const &) = delete;
+    GHeldStart &operator=(GHeldStart const &) = delete;
+
+private:
+    GStartHold &hold_;
+    std::thread first_draw_;
+};
+
+/**
+ * Lets the sources held at a stage go once the test case has made its check -- or, when the call under
+ * test waits for the held sources, once that has become plain: the sources that were not held have
+ * finished their start and the check has not come within 200 ms.
+ */
+class GReleaseAfterCheck {
+public:
+    /**
+     * @brief Starts the helper thread.
+     *
+     * @param hold The hold to release
+     * @param n_free How many producers finish their start without being held
+     */
+    GReleaseAfterCheck(GStartHold &hold, std::size_t n_free)
+      : thread_([this, &hold, n_free]() {
+          while(not checked_.wait_for(std::chrono::milliseconds(200))) {
+              if(nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED) >= n_free) {
+                  if(not checked_.wait_for(std::chrono::milliseconds(200))) {
+                      break;
+                  }
+              }
+          }
+          hold.release();
+      }) { /* nothing */
+    }
+
+    /** @brief Tells the helper thread that the check has been made. */
+    void checked() {
+        if(checked_.remaining() > 0) {
+            std::ignore = checked_.count_down();
+        }
+    }
+
+    /** @brief Releases the hold at once and joins the helper thread. */
+    ~GReleaseAfterCheck() {
+        checked();
+        thread_.join();
+    }
+
+    GReleaseAfterCheck(GReleaseAfterCheck const &) = delete;
+    GReleaseAfterCheck &operator=(GReleaseAfterCheck const &) = delete;
+
+private:
+    Gem::Common::Concurrency::GCompletionLatchT checked_{1};
+    std::thread thread_; ///< declared last: it uses checked_
+};
+
+/**
+ * Takes one container from the factory, trying until one arrives.
+ */
+void takeOneContainer() {
+    REQUIRE(drawUntil([]() {
+        return static_cast<bool>(randomFactory()->getNewRandomContainer());
+    }));
+}
+
+/**
+ * Skips the test case if no source has chosen the GPU (no CUDA backend in this build, or no device).
+ */
+void requireGpuChoice() {
+    if(nGpuRandomSourceStartsForTests(GpuSourceStartStage::GPU_CHOSEN) == 0) {
+        SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
     }
 }
 
@@ -185,7 +276,7 @@ TEST_CASE(
     "[gpu-off-while-creating]"
 ) {
     GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
-    startOneSourceAndWaitFor(GpuSourceStartStage::CONTEXT_CREATION);
+    GHeldStart start(hold, GpuSourceStartStage::CONTEXT_CREATION);
 
     setGpuRandomNumbersAllowed(false);
     // The source is about to use the GPU, so a caller waiting for the count to reach 0 must wait for it
@@ -201,7 +292,7 @@ TEST_CASE(
     "[gpu-failure-while-creating]"
 ) {
     GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
-    startOneSourceAndWaitFor(GpuSourceStartStage::CONTEXT_CREATION);
+    GHeldStart start(hold, GpuSourceStartStage::CONTEXT_CREATION);
 
     simulateGpuRandomFailureForTests(true);
     REQUIRE(nGpuRandomSources() == 1);
@@ -218,7 +309,7 @@ TEST_CASE(
     "[gpu-off-after-choice]"
 ) {
     GStartHold hold(GpuSourceStartStage::GPU_CHOSEN);
-    startOneSourceAndWaitFor(GpuSourceStartStage::GPU_CHOSEN);
+    GHeldStart start(hold, GpuSourceStartStage::GPU_CHOSEN);
 
     setGpuRandomNumbersAllowed(false);
     REQUIRE(nGpuRandomSources() == 0);
@@ -228,4 +319,49 @@ TEST_CASE(
     // Switched off before it counted itself, the source never began to use the GPU
     REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) == 0);
     REQUIRE(nGpuRandomSources() == 0);
+}
+
+TEST_CASE(
+    "The first draw returns when every producer has finished its start",
+    "[start-awaited-first-draw]"
+) {
+    randomFactory()->setNProducerThreads(2);
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION, 1); // the second source waits
+    GReleaseAfterCheck release(hold, 1);
+
+    takeOneContainer();
+    const std::size_t n_finished =
+        nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED);
+    release.checked();
+    requireGpuChoice();
+    REQUIRE(n_finished == 2);
+}
+
+TEST_CASE(
+    "Adding producers returns when they have finished their start",
+    "[start-awaited-more-producers]"
+) {
+    randomFactory()->setNProducerThreads(1);
+    takeOneContainer();
+    requireGpuChoice();
+    REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED) == 1);
+
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    GReleaseAfterCheck release(hold, 1);
+    randomFactory()->setNProducerThreads(2);
+    const std::size_t n_finished =
+        nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED);
+    release.checked();
+    REQUIRE(n_finished == 2);
+}
+
+TEST_CASE("The program ends cleanly right after its first draw", "[exit-after-first-draw]") {
+    // ctest gives this case 10 seconds. A producer still inside the creation of the process's first
+    // CUDA resources when the program ends makes the exit hang or abort. The single source is held just
+    // before that creation and let go once the first draw has returned -- with or without a number.
+    randomFactory()->setNProducerThreads(1);
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    GReleaseAfterCheck release(hold, 0);
+    std::ignore = randomFactory()->getNewRandomContainer();
+    // Leaving the case lets the source go; the process ends right after
 }

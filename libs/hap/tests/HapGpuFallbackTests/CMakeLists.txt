@@ -44,11 +44,13 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		Catch2::Catch2WithMain)
 
 FOREACH(_case gpu-off-at-start gpu-off-later gpu-failure gpu-off-while-creating gpu-failure-while-creating
-		gpu-off-after-choice)
+		gpu-off-after-choice start-awaited-first-draw start-awaited-more-producers exit-after-first-draw)
 	ADD_TEST(NAME ${EXECUTABLENAME}_${_case} COMMAND ${EXECUTABLENAME} "[${_case}]")
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}_${_case} PROPERTIES LABELS "hap" SKIP_RETURN_CODE 4)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}_${_case} S)
 ENDFOREACH()
+# A program that ends right after its first draw must end at once
+SET_TESTS_PROPERTIES(${EXECUTABLENAME}_exit-after-first-draw PROPERTIES TIMEOUT 10)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/hap/HapGpuFallbackTests )
 
