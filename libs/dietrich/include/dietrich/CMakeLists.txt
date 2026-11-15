@@ -35,17 +35,17 @@ SET ( GENEVADIETRICHINCLUDES
 # The plotting subsystem lives in focused headers under dietrich/plotting/;
 # dietrich/GPlotDesigner.hpp remains as an umbrella that includes them.
 SET ( GENEVADIETRICHPLOTTINGINCLUDES
-	plotting/GPlotEnums.hpp
-	plotting/GDecorators.hpp
-	plotting/GPlotSpec.hpp
 	plotting/GBasePlotter.hpp
 	plotting/GDataCollectors.hpp
-	plotting/GHistogramPlots.hpp
-	plotting/GGraphPlots.hpp
-	plotting/GPlots.hpp
-	plotting/GPlotEmitter.hpp
 	plotting/GDataLog.hpp
+	plotting/GDecorators.hpp
+	plotting/GGraphPlots.hpp
+	plotting/GHistogramPlots.hpp
 	plotting/GPlotDesigner.hpp
+	plotting/GPlotEmitter.hpp
+	plotting/GPlotEnums.hpp
+	plotting/GPlotSpec.hpp
+	plotting/GPlots.hpp
 )
 
 # Library-private plotting headers: shared across the dietrich implementation TUs but NOT part of the

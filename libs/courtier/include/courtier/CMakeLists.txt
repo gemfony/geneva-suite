@@ -31,16 +31,17 @@ SET ( COMMUNICATIONINCLUDES
     GBaseClientT.hpp
     GBaseConsumerT.hpp
     GCommandContainerT.hpp
+    GConsumerRegistry.hpp
     GConsumerSpec.hpp
     GCourtierEnums.hpp
     GCourtierHelperFunctions.hpp
     GDemoProcessingContainers.hpp
-    GSubmissionStatusT.hpp
     GProcessable.hpp
     GProcessingContainerT.hpp
     GProcessingOutcome.hpp
     GServerSessionLogic.hpp
     GSubmissionPolicy.hpp
+    GSubmissionStatusT.hpp
     GWireCodec.hpp
     GWireProtocolT.hpp
     GWireSerializationContext.hpp
@@ -53,9 +54,10 @@ SET ( CONSUMER_INCLUDES
     consumers/GAsioConsumerT.hpp
     consumers/GMPIConsumerConfig.hpp
     consumers/GNetworkedConsumerT.hpp
-    consumers/GTcpAcceptingConsumerT.hpp
+    consumers/GNetworkedTimeoutConfig.hpp
     consumers/GStdThreadConsumerConfig.hpp
     consumers/GStdThreadConsumerT.hpp
+    consumers/GTcpAcceptingConsumerT.hpp
     consumers/GWebsocketConsumerConfig.hpp
     consumers/GWebsocketConsumerT.hpp
 )
@@ -67,6 +69,7 @@ SET ( TRANSPORT_INCLUDES
     transport/GAsioTransportT.hpp
     transport/GPeerI.hpp
     transport/GPrefetchingClientT.hpp
+    transport/GWebsocketPeer.hpp
     transport/GWebsocketTransportT.hpp
 )
 

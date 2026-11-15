@@ -742,6 +742,19 @@ IF (GENEVA_BUILD_TESTS)
 	ENDIF ()
 ENDIF ()
 
+################################################################################
+# Conventions of the tree that a test can check, without building anything.
+IF (GENEVA_BUILD_TESTS)
+	# The header lists of the libraries' IDE targets are sorted and name every header.
+	ADD_TEST(
+		NAME HeaderListsSortedAndComplete
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckHeaderLists.cmake
+	)
+	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
+ENDIF ()
+
 # Tests / examples / benchmarks are gated and dispatched inside each library's
 # own CMakeLists.txt (common/, hap/, courtier/, geneva/) now that the legacy
 # top-level tests/ examples/ benchmarks/ trees have been removed. CTest was
