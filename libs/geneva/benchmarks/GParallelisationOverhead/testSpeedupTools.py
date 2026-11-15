@@ -203,7 +203,10 @@ def check_subclients(program, workdir, consumer, reference_dir):
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
     run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
                           consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1'],
-                         env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0'),
+                         # Every evaluation exactly once: no item may be given to a second client
+                         # because its first one was slow under load (an adaptive lease).
+                         env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
+                                  TIMEOUT_TREATMENT='wait_indefinitely'),
                          capture_output=True, text=True, check=False, timeout=240)
     if run.returncode != 0:
         fail(f'runWithClients.sh exited with {run.returncode}: {run.stdout}')

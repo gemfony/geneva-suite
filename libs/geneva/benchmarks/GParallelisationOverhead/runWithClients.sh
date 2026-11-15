@@ -77,6 +77,11 @@
 #            default 600); with fewer clients by then the server ends with an error
 #   LAST_CLIENT_DELAY  seconds the last networked client is started after the
 #            others (default 0)
+#   TIMEOUT_TREATMENT  the networked consumer's timeout treatment (the key
+#            "treatment" of config/GNetworkedConsumer.json: adaptive, fixed or
+#            wait_indefinitely; unset: the configuration's). A check that every
+#            evaluation is done exactly once sets wait_indefinitely: under load an
+#            adaptive lease may give an item to a second client.
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients goes
@@ -117,6 +122,11 @@ for f, dl in [(f, delays) for f in glob.glob('config/*Individual.json')] + \
     if os.environ.get('POLL_PAUSES') and 'poll_pause_min' in d:
         low, high = os.environ['POLL_PAUSES'].split(':')
         d['poll_pause_min']['value'] = int(low); d['poll_pause_max']['value'] = int(high)
+    json.dump(d, open(f, 'w'), indent=1)
+# The timeout treatment of the networked consumer
+f = 'config/GNetworkedConsumer.json'
+if os.environ.get('TIMEOUT_TREATMENT'):
+    d = json.load(open(f)); d['treatment']['value'] = os.environ['TIMEOUT_TREATMENT']
     json.dump(d, open(f, 'w'), indent=1)
 # The group size of an MPI job with sub-clients
 f = 'config/GMPISubClientOptimizer.json'
