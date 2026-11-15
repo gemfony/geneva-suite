@@ -53,17 +53,16 @@ project.
    to the bundled FindGeneva.cmake module. If Boost is in a
    non-standard location, also pass -DBOOST_ROOT=<boost-prefix>.
 
-3. Running the GStarter binary requires the Geneva shared libraries to
-   be visible to the dynamic linker. Either register the install lib
-   directory once,
+3. GStarter runs from the build directory as it is: CMake gives it a run
+   path to the libraries of the Geneva installation (and of Boost) it was
+   built against.
 
-       echo "<geneva-install-prefix>/lib" | sudo tee /etc/ld.so.conf.d/geneva.conf
-       sudo ldconfig
-
-   or set LD_LIBRARY_PATH at runtime:
-
-       export LD_LIBRARY_PATH="<geneva-install-prefix>/lib:$LD_LIBRARY_PATH"
        ./GStarter --help
+
+   "make install" of this project removes that run path; to keep it,
+   configure with -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON (the INSTALL file
+   of Geneva, "Finding the libraries at run time on Linux", has the
+   alternatives).
 
    The quickstart expects its configuration files under ./config; they are
    materialized into the build tree from the code's registered defaults

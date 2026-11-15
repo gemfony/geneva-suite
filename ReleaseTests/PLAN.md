@@ -146,7 +146,7 @@ are structured stubs with explicit TODOs:
 
 * `checks/install.py` — `make install` into a prefix in the work area; verify
   headers/libs/cmake config land under the prefix; `ldd` the main executables
-  for unresolved symbols; `ldconfig`/`LD_LIBRARY_PATH` resolution.
+  for unresolved symbols; resolution through the run paths alone (`LD_LIBRARY_PATH` unset).
 * `checks/outoftree.py` — build a tiny app against the installed tree via
   `FindGeneva`; verify the `GENEVA_BUILD_TESTS` mismatch produces a useful
   error.

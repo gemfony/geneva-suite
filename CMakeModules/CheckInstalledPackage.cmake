@@ -39,8 +39,12 @@
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
 #  3. the quickstart (libs/geneva/quickstart) is configured standalone with
 #     find_package(Geneva CONFIG) against the moved installation and GStarter is
-#     built, which also runs it once (its configuration files are written by the
-#     program itself at build time);
+#     built, which also runs it once in the build tree (its configuration files are
+#     written by the program itself at build time); the quickstart is then
+#     installed, configured with CMAKE_INSTALL_RPATH_USE_LINK_PATH, and the
+#     installed GStarter is run. A program linked by hand with -L, -l and
+#     -Wl,-rpath is run as well. INSTALL ("Finding the libraries at run time on
+#     Linux") states what these runs show; all of them run without LD_LIBRARY_PATH;
 #  4. with the MPI consumer: the MPI module probe
 #     (libs/geneva/tests/OutOfTree/MpiModuleProbe) is configured, built and run,
 #     without LD_LIBRARY_PATH, so the run paths of the installed libraries and of
@@ -175,15 +179,38 @@ FUNCTION(gip_lane_quickstart)
 	gip_common_args(_args)
 	gip_run("configure the quickstart" "${ROOT}/quickstart-cmake.log"
 		"${CMAKE_COMMAND}" -S "${SOURCE_DIR}/libs/geneva/quickstart" -B "${ROOT}/quickstart"
-		${_args})
+		${_args} "-DCMAKE_INSTALL_PREFIX=${ROOT}/quickstart-installed"
+		-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON)
 	FILE(STRINGS "${ROOT}/quickstart/CMakeCache.txt" _geneva_dir REGEX "^Geneva_DIR:")
 	IF(NOT _geneva_dir STREQUAL "Geneva_DIR:PATH=${ROOT}/moved/lib/cmake/Geneva")
 		MESSAGE(FATAL_ERROR
 			"The quickstart did not find the moved installation's config package (${_geneva_dir})")
 	ENDIF()
-	gip_run("build and run the quickstart (GStarter)" "${ROOT}/quickstart-build.log"
+	# What "make install" installs is built; running GStarter in the build tree is part of it.
+	gip_run("build the quickstart and run GStarter in its build tree" "${ROOT}/quickstart-build.log"
 		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH
-		"${CMAKE_COMMAND}" --build "${ROOT}/quickstart" --target GStarter -j ${JOBS})
+		"${CMAKE_COMMAND}" --build "${ROOT}/quickstart" -j ${JOBS}
+		--target GStarter GStarterGenericOptimizer GStarterIndividual)
+	# The user's own install keeps the run path with CMAKE_INSTALL_RPATH_USE_LINK_PATH (INSTALL).
+	gip_run("install the quickstart" "${ROOT}/quickstart-install.log"
+		"${CMAKE_COMMAND}" --install "${ROOT}/quickstart")
+	gip_run("run the installed GStarter without LD_LIBRARY_PATH" "${ROOT}/quickstart-run.log"
+		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH
+		"${ROOT}/quickstart-installed/bin/GStarter" --help)
+ENDFUNCTION()
+
+# 3b. A program linked by hand with -L and -l finds Geneva's libraries through the run path it is
+#     given, and they find what they need themselves (INSTALL).
+FUNCTION(gip_lane_handlinked)
+	FILE(MAKE_DIRECTORY "${ROOT}/handlinked")
+	FILE(WRITE "${ROOT}/handlinked/main.cpp"
+		"namespace Gem::Common { unsigned int getNHardwareThreads(); }\n"
+		"int main() { return Gem::Common::getNHardwareThreads() > 0 ? 0 : 1; }\n")
+	gip_run("link a program by hand with a run path" "${ROOT}/handlinked-build.log"
+		"${CXX_COMPILER}" "${ROOT}/handlinked/main.cpp" -o "${ROOT}/handlinked/main"
+		"-L${ROOT}/moved/lib" -lgemfony-common "-Wl,-rpath,${ROOT}/moved/lib")
+	gip_run("run it without LD_LIBRARY_PATH" "${ROOT}/handlinked-run.log"
+		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${ROOT}/handlinked/main")
 ENDFUNCTION()
 
 # 4. The MPI module probe.
@@ -286,6 +313,8 @@ IF(DEFINED LANE)
 		gip_lane_ldd()
 	ELSEIF(LANE STREQUAL "quickstart")
 		gip_lane_quickstart()
+	ELSEIF(LANE STREQUAL "handlinked")
+		gip_lane_handlinked()
 	ELSEIF(LANE STREQUAL "mpi-probe")
 		gip_lane_mpi_probe()
 	ELSEIF(LANE STREQUAL "findgeneva")
@@ -332,7 +361,7 @@ ENDIF()
 FILE(RENAME "${ROOT}/installed" "${ROOT}/moved")
 
 # The ldd check of step 2 and steps 3 to 6: the lanes, all at the same time.
-SET(_lanes ldd quickstart findgeneva flags-CONFIG flags-MODULE)
+SET(_lanes ldd quickstart handlinked findgeneva flags-CONFIG flags-MODULE)
 IF(WITH_MPI)
 	LIST(APPEND _lanes mpi-probe)
 ENDIF()
