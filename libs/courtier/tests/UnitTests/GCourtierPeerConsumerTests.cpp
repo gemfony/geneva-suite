@@ -835,3 +835,26 @@ TEST_CASE(
     } // the destructor returns: no session thread is left in run()
     CHECK(listener->nStops() == 1);
 }
+
+/******************************************************************************/
+/**
+ * A shell that has been stopped cannot be started: startServer() throws and starts nothing, so no
+ * session thread is left that nothing would stop (the destructor's stop has nothing more to do).
+ * The two calls take turns when they come from different threads.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a shell that has been stopped cannot be started",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto &budget = Gem::Common::Concurrency::threadBudget();
+    const unsigned int reserved_before = budget.reserved();
+    {
+        Shell shell{listener, 3};
+        shell.stopServer();
+        CHECK_THROWS(shell.startServer());
+        CHECK(budget.reserved() == reserved_before);
+    } // the destructor returns
+    CHECK(listener->nStops() == 0);
+    CHECK_FALSE(listener->workEnded());
+}

@@ -37,6 +37,7 @@
 #include <cstddef>
 #include <exception>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -191,9 +192,21 @@ public:
      * destructor have nothing to stop, and the listener is not asked to stop or to end its work
      * (GListenerI::start()). Such a consumer cannot be started any more; a further call throws.
      *
-     * @throws whatever the listener's start() throws; geneva_exception if an earlier call failed
+     * startServer() and stopServer() may be called from different threads at the same time: they
+     * take turns. A consumer that has been stopped cannot be started; startServer() then throws.
+     *
+     * @throws whatever the listener's start() throws; geneva_exception if an earlier call failed or
+     *         the consumer has been stopped
      */
     void startServer() {
+        const std::scoped_lock lifecycle(lifecycle_mutex_);
+        if(stopped_already_.load()) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                << "The consumer has been stopped; it cannot be started any more" << '\n'
+            );
+        }
         if(start_called_.exchange(true)) {
             if(not started_.load()) {
                 throw geneva_exception(
@@ -239,10 +252,13 @@ public:
      * they not, the threads would stay in run() for good, and the destructor of the thread group,
      * whose std::jthreads join, would wait for them for ever.
      *
+     * Not at the same time as startServer() from another thread: the two take turns.
+     *
      * @throws whatever the listener's stop() or endWork(), or a close, throws -- after the threads
      *         have been joined
      */
     void stopServer() {
+        const std::scoped_lock lifecycle(lifecycle_mutex_);
         if(stopped_already_.exchange(true)) {
             return;
         }
@@ -432,6 +448,8 @@ private:
     std::atomic<bool> start_called_{false};    ///< startServer() has been called
     std::atomic<bool> started_{false};         ///< The listener has been started
     std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
+    /// startServer() and stopServer() take turns under it
+    std::mutex lifecycle_mutex_;
 };
 
 /******************************************************************************/
