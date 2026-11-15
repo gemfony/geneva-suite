@@ -50,6 +50,8 @@
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 
+#include "GTcpRelay.hpp"
+
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
 namespace c2 = Gem::Courtier;
@@ -360,4 +362,82 @@ TEST_CASE(
         late_thread.join();
         consumer->stopServer();
     }
+}
+
+/******************************************************************************/
+// Connecting over sockets: a halt during a handshake the server never answers ends the client at
+// once; a client started while nothing accepts connects once something does.
+
+TEST_CASE(
+    "courtier(websocket): a halt during an unanswered handshake ends the client at once",
+    "[courtier][websocket][net]"
+) {
+    using boost::asio::ip::tcp;
+    // The kernel completes the TCP connect (the backlog); nobody ever answers the handshake.
+    boost::asio::io_context server_ioc;
+    const tcp::acceptor acceptor(
+        server_ioc,
+        tcp::endpoint(boost::asio::ip::address_v4::loopback(), /*port=*/0)
+    );
+    auto client =
+        std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(c2::GWebsocketConsumerConfig{
+            .ip = "127.0.0.1",
+            .port = acceptor.local_endpoint().port(),
+            .serializationMode = BIN
+        });
+    std::atomic<bool> returned{false};
+    std::jthread const client_thread([client, &returned] {
+        client->run();
+        returned.store(true);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    const auto asked = std::chrono::steady_clock::now();
+    client->flagCloseRequested();
+    const auto deadline = asked + std::chrono::seconds(40); // beyond the handshake limit (30 s)
+    while(not returned.load() && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    const auto took = std::chrono::steady_clock::now() - asked;
+    REQUIRE(returned.load());
+    CHECK(took < std::chrono::seconds(3));
+}
+
+TEST_CASE(
+    "courtier(websocket): a client started while nothing accepts connects later",
+    "[courtier][websocket][net]"
+) {
+    c2::GWebsocketConsumerConfig config{.ip = "127.0.0.1", .serializationMode = BIN, .nThreads = 2};
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(config);
+    consumer->startServer();
+    Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
+    relay.setAccepting(false);
+    config.port = relay.port();
+
+    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
+    std::atomic<bool> returned{false};
+    std::jthread client_thread([client, &returned] {
+        client->run();
+        returned.store(true);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(1500)); // refused meanwhile
+    CHECK_FALSE(returned.load());
+    CHECK(relay.nConnections() == 0);
+
+    relay.setAccepting(true);
+    auto items = make_batch(5);
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<item_ptr>(items.data(), items.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+    const bool done = batch.wait_for(std::chrono::seconds(20)) == std::future_status::ready;
+    if(not done) {
+        consumer->stopServer();
+    }
+    batch.get();
+    CHECK(done);
+    CHECK(count_processed(items) == 5);
+    client->flagCloseRequested();
+    client_thread.join();
 }

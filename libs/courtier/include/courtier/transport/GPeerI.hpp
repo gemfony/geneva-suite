@@ -294,7 +294,8 @@ public:
     /** @brief Gives up an attempt in progress; done is then not called. On the executor. */
     virtual void cancel() = 0;
 
-    /** @brief Whether a new peer can be made after a loss (connect() may be called again). */
+    /** @brief Whether connect() may be called again after an attempt that failed or a peer that
+     *  ended. A client whose connector answers false makes one attempt and ends with its peer. */
     [[nodiscard]] virtual bool reconnectable() const = 0;
 };
 

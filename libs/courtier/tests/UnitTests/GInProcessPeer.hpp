@@ -180,7 +180,8 @@ public:
 
     /** @brief Cuts the connection as a reset would. From any thread. Both ends end with
      *  onClosed (GPeerEnd::FAILED), each on its strand; from now on nothing is delivered to either
-     *  end, also what was handed over before, and no close travels. */
+     *  end, also what was handed over before and has not been delivered yet, and no close
+     *  travels. */
     void sever() {
         link_->severed.store(true);
         const std::scoped_lock lock(link_->mutex);

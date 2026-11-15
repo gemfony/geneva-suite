@@ -74,7 +74,9 @@ namespace Gem::Courtier::Consumers {
  *  - closes in the regular way after what was handed to send() before (rule 6): the close frame
  *    goes out when the write queue is empty, so a message of several frames is never cut. The
  *    wait for the queue and the close handshake are bounded by the handshake limit, so a peer that
- *    no longer reads cannot hold the connection. Nothing that arrives after close() is delivered.
+ *    no longer reads cannot hold the connection. A close during the handshake waits for it on
+ *    the server's end (the client still hears what it says) and ends the client's end at once,
+ *    as FAILED. Nothing that arrives after close() is delivered.
  *    Once the connection is over Beast's limits are switched off (Beast leaves its timer armed
  *    after a failed read, which would keep an io context busy). abort() ends at once and may cut.
  *

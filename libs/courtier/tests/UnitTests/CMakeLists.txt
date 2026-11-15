@@ -85,7 +85,7 @@ geneva_courtier_test(GCourtierConsumerConfigTests S  GCourtierConsumerConfigTest
 geneva_courtier_test(GCourtierTimeoutTests     M  GCourtierTimeoutTests.cpp)
 geneva_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
 geneva_courtier_test(GCourtierClientTests      M  GCourtierClientTests.cpp)
-geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
+geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp GTcpRelay.hpp)
 geneva_courtier_test(GCourtierWebsocketPeerTests M  GCourtierWebsocketPeerTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTransportTests.cpp)
 # The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound

@@ -388,8 +388,11 @@ void GWebsocketPeer::close(GPeerClose how) {
  * Begins the close: nothing is queued any more, and the close frame goes out once what was queued
  * before has been written (closeWhenSent_()). The wait is bounded by the handshake limit: a peer
  * whose other end no longer reads is ended then. Without a connection to close (the handshake
- * failed, or the connection is over) the peer is ended at once; during the handshake the close
- * waits for it.
+ * failed, or the connection is over) the peer is ended at once. During the handshake the server's
+ * end waits for it, so that the client still hears what the close says (the end of the run); the
+ * client's end ends at once and reports FAILED (it never opened): nothing has been said on the
+ * connection yet, and a client that halts while its server does not answer does not wait for the
+ * handshake limit.
  *
  * @param how What the other end is told
  */
@@ -403,6 +406,10 @@ void GWebsocketPeer::beginClose_(GPeerClose how) {
 
     if(not open_ && not ws_.next_layer().is_open()) {
         this->finish_({});
+        return;
+    }
+    if(not open_ && not host_.empty()) {
+        this->finish_(boost::asio::error::operation_aborted); // the client's end, see above
         return;
     }
 

@@ -162,8 +162,21 @@ constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
 /// at the server instead.)
 constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
 constexpr std::uint32_t GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC = 200;
-/// How often a socket client looks at its halt conditions (maximum run time, a close request).
+/// How often a socket client looks at its halt conditions (maximum run time, a close request), at
+/// its limits without a server and at the contact time of its connection.
 constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
+/// How long a networked client tries to reach a server before its first contact with one; 0: for
+/// as long as it runs (the batch system bounds it).
+constexpr std::chrono::seconds GCLIENTFIRSTCONTACTLIMIT{0};
+/// A connection on which no answer has arrived counts as contact with a server once it has been
+/// open this long: a session that has no work for the client answers nothing, and a connection
+/// that is not alive is cut by the keep-alive (twice the ping interval) before this.
+constexpr std::chrono::seconds GCLIENTCONTACTTIME{60};
+/// The pause of a networked client before it tries to connect again starts at the first value
+/// and doubles with every failed attempt up to the second; the wait is drawn at random from its
+/// second half. Contact with a server sets it back to the first value.
+constexpr std::chrono::milliseconds GCLIENTRECONNECTPAUSEMIN{250};
+constexpr std::chrono::milliseconds GCLIENTRECONNECTPAUSEMAX{30'000};
 /// How long a socket server waits after a failed accept before it accepts again.
 constexpr std::chrono::milliseconds GCONSUMERACCEPTRETRYPAUSE{100};
 

@@ -800,7 +800,7 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
 /******************************************************************************/
 /**
  * A cut connection ends as a reset: both ends report FAILED, no close travels, and what was handed
- * over just before the cut is not delivered.
+ * over just before the cut and has not been delivered yet is not delivered.
  */
 TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[courtier][peer]") {
     IoThreads io;
@@ -815,9 +815,15 @@ TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[
     boost::asio::post(a->executor(), [role_a] { role_a->send("delivered"); });
     REQUIRE(eventually([&] { return role_b->nMessages() == 1; }));
 
-    boost::asio::post(a->executor(), [role_a, a] {
+    // The message is on its way when the connection is cut: the other end's strand is held until
+    // the cut has been made, so that it cannot have been delivered before.
+    std::promise<void> cut;
+    auto cut_made = cut.get_future().share();
+    boost::asio::post(b->executor(), [cut_made] { cut_made.wait(); });
+    boost::asio::post(a->executor(), [role_a, a, &cut] {
         role_a->send("lost");
         a->sever();
+        cut.set_value();
     });
     REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
     std::this_thread::sleep_for(50ms);

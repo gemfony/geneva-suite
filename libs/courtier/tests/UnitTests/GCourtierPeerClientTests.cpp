@@ -1369,3 +1369,95 @@ TEST_CASE(
     boost::asio::post(executor, [&ran] { ran.set_value(); });
     CHECK(ran.get_future().wait_for(PATIENCE) == std::future_status::ready);
 }
+
+/******************************************************************************/
+// Connecting: a client may start before its server; it gives up at its first-contact limit, also
+// inside an attempt that never completes; an open connection is not held against the limit.
+
+TEST_CASE(
+    "GPeerClientT: a client whose attempt never completes ends at its first-contact limit",
+    "[courtier][peer][client]"
+) {
+    auto connector = std::make_unique<NeverConnector>();
+    auto cancels = connector->cancels();
+    auto client = std::make_shared<client_type>(
+        std::move(connector),
+        GPeerClientOptions{.name = "limited client", .mode = BIN, .firstContactLimit = 1s}
+    );
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    const std::jthread runner([client, done] {
+        client->run();
+        done->store(true);
+    });
+    const bool returned =
+        Gem::Courtier::Tests::eventually([&done] { return done->load(); }, 5000ms);
+    if(not returned) {
+        client->flagCloseRequested(); // so that the runner can be joined
+    }
+    REQUIRE(returned);
+    CHECK(client->terminalErrorFlagged());
+    CHECK(cancels->load() >= 1);
+}
+
+TEST_CASE(
+    "GPeerClientT: a client started before its server connects once the server is there",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    world.route().clear(); // connects are refused
+    world.client(
+        GPeerClientOptions{.name = "early client", .mode = BIN},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    std::this_thread::sleep_for(1500ms); // several attempts are refused meanwhile
+    CHECK_FALSE(world.clientsDone());
+
+    world.route().set(world.listener());
+    auto items = makeBatch(5);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->total.load() == 5);
+}
+
+TEST_CASE(
+    "GPeerClientT: a client that reaches no server ends at its first-contact limit",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    world.route().clear();
+    auto client = world.client(
+        GPeerClientOptions{.name = "limited client", .mode = BIN, .firstContactLimit = 1s},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    REQUIRE(eventually([&] { return world.clientsDone(); }));
+    CHECK(client->terminalErrorFlagged());
+}
+
+TEST_CASE(
+    "GPeerClientT: an open connection without work is not held against the first-contact limit",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    auto client = world.client(
+        GPeerClientOptions{.name = "parked client", .mode = BIN, .firstContactLimit = 1s},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    std::this_thread::sleep_for(2500ms); // parked: no answer, and less than the contact time
+    CHECK_FALSE(world.clientsDone());
+
+    auto items = makeBatch(3);
+    REQUIRE(world.runBatch(items));
+    CHECK(evaluations->total.load() == 3);
+    CHECK_FALSE(client->terminalErrorFlagged());
+}

@@ -91,6 +91,9 @@ namespace Gem::Courtier::Consumers {
  *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
  *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
  *                                              0 (io thread)
+ *  - when_answered_(kind)                   -- optional: a message has been decoded (io thread),
+ *                                              before the books are done; NONE if it could not be
+ *  - when_polled_()                         -- optional: the halt poll found no halt condition
  *
  * Compute width. The pool evaluates at most compute_width_ items at a time (by default as many as
  * the prefetch depth). A WORK item that arrives while that many are evaluated is held on the io
@@ -200,6 +203,9 @@ protected:
      * @param error Why the message could not be decoded; empty if it could
      */
     void decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+        if constexpr(requires(derived_type &d) { d.when_answered_(GFrameKind::NONE); }) {
+            derived().when_answered_(error.empty() ? container.kind() : GFrameKind::NONE);
+        }
         if(not error.empty()) {
             derived().when_unreadable_(error);
             return;
@@ -485,7 +491,10 @@ protected:
             derived().haltShutdown_();
             return;
         }
-        start_halt_timer(); // keep polling
+        if constexpr(requires(derived_type &d) { d.when_polled_(); }) {
+            derived().when_polled_();
+        }
+        start_halt_timer(); // keep polling (unless when_polled_() has ended the client)
     }
 
     //-------------------------------------------------------------------------

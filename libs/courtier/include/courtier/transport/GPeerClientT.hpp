@@ -34,16 +34,19 @@
 
 // Standard headers go here
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
+#include <random>
 #include <string>
 #include <string_view>
 #include <utility>
 
 // Boost headers go here
 #include <boost/asio/post.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
@@ -72,6 +75,11 @@ struct GPeerClientOptions {
     /// unanswered travels as a RESULT (see the class comment). Meant for a depth of 2 with a
     /// compute width of 1: one item is evaluated and at most one more is held or asked for.
     bool lookAhead = false;
+    /// How long the client tries to reach a server before its first contact with one; 0: for as
+    /// long as it runs (see the class comment)
+    std::chrono::milliseconds firstContactLimit = GCLIENTFIRSTCONTACTLIMIT;
+    /// How long a connection without an answer must have been open to count as contact
+    std::chrono::milliseconds contactTime = GCLIENTCONTACTTIME;
 };
 
 /******************************************************************************/
@@ -120,6 +128,16 @@ struct GPeerClientOptions {
  * sends it its blobs in full again (the item that could not be read may have carried one). The
  * client stays, whatever its connector.
  *
+ * Connecting. The client asks its connector for a connection when it runs; an attempt that fails
+ * is followed by another after a pause (GCLIENTRECONNECTPAUSEMIN, doubling up to
+ * GCLIENTRECONNECTPAUSEMAX), for as long as no halt condition holds. A client may therefore be
+ * started before its server. Contact with a server is an answer from it, or a connection that has
+ * been open for GPeerClientOptions::contactTime (a server that has no work answers nothing). A
+ * client that has had no contact within GPeerClientOptions::firstContactLimit (0: no limit) gives
+ * up: it flags a terminal error and ends. The limit is looked at while the client has no
+ * connection; a connection that is open is not held against it. A connector that cannot connect
+ * again (GConnectorI::reconnectable()) gets one attempt. A connection that is lost ends the client.
+ *
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
  */
 template <typename processable_type>
@@ -146,6 +164,8 @@ class GPeerClientT
     using pipeline_base::start_halt_timer;
     using pipeline_base::wire_ctx_;
     using pipeline_base::wire_registry_;
+
+    using clock = std::chrono::steady_clock;
 
 public:
     //-------------------------------------------------------------------------
@@ -186,8 +206,8 @@ public:
     GPeerClientT<processable_type> &operator=(GPeerClientT<processable_type> &&) = delete;
 
     //-------------------------------------------------------------------------
-    /** @brief How the connection ended, once it has. To be read after run() has returned.
-     *  @return The reason given by the peer; FAILED while there was no connection */
+    /** @brief How the last connection ended, once it has. To be read after run() has returned.
+     *  @return The reason given by the peer; FAILED if there was no connection */
     [[nodiscard]] GPeerEnd connectionEnd() const noexcept {
         return end_;
     }
@@ -199,20 +219,26 @@ public:
 
 private:
     //-------------------------------------------------------------------------
+    /** @brief Where the client is with its connection (io thread) */
+    enum class LinkState : std::uint8_t {
+        ATTEMPT, ///< The connector is making a connection
+        OPENING, ///< A peer was made and started; it has not opened yet
+        OPEN,    ///< The connection is usable
+        CLOSING, ///< This client closes the connection (a halt, an error)
+        PAUSE,   ///< Waits before the next attempt
+        ENDED    ///< Nothing is attempted any more
+    };
+
+    //-------------------------------------------------------------------------
     /**
-     * @brief The main run-loop: asks the connector for a connection, runs the io_context until no
+     * @brief The main run-loop: makes the first attempt to connect, runs the io_context until no
      * work remains, then makes sure the connection is over. The halt timer runs from here on, so
-     * that a client that is still connecting notices a halt (haltShutdown_() gives the attempt up).
+     * that a client that has no connection notices a halt and its limits (see when_polled_()).
      */
     void run_() override {
-        auto self = this->shared_from_this();
+        run_started_at_ = clock::now();
         start_halt_timer();
-        connector_->connect(
-            io_context_.get_executor(),
-            [self](const std::shared_ptr<GPeerI> &peer, std::string_view error) {
-                self->when_connected_(peer, error);
-            }
-        );
+        this->attempt_();
 
         // This call will block until no more work remains in the io context
         io_context_.run();
@@ -228,6 +254,20 @@ private:
     }
 
     //-------------------------------------------------------------------------
+    /** @brief Asks the connector for a connection (io thread, or run_() before the io context
+     *  runs). */
+    void attempt_() {
+        state_ = LinkState::ATTEMPT;
+        auto self = this->shared_from_this();
+        connector_->connect(
+            io_context_.get_executor(),
+            [self](const std::shared_ptr<GPeerI> &peer, std::string_view error) {
+                self->when_connected_(peer, error);
+            }
+        );
+    }
+
+    //-------------------------------------------------------------------------
     /**
      * @brief Called when the connector is done: starts the peer, which owns this client through
      * its handlers for as long as the connection lasts; the client refers to the peer weakly.
@@ -236,15 +276,15 @@ private:
      * @param error Why there is no connection
      */
     void when_connected_(const std::shared_ptr<GPeerI> &peer, std::string_view error) {
+        if(state_ != LinkState::ATTEMPT) {
+            return; // the attempt was given up (a halt); the connector does not call then
+        }
         if(not peer) {
-            glogger << "In " << options_.name << "::when_connected_():" << '\n'
-                    << "No connection to the server: " << error << '\n'
-                    << "This will terminate the client." << '\n'
-                    << GLOGGING;
-            this->stopPipelineTimers_();
+            this->attemptFailed_(error);
             return;
         }
 
+        state_ = LinkState::OPENING;
         auto self = this->shared_from_this();
         peer_ = peer;
         peer->start(
@@ -261,16 +301,122 @@ private:
     }
 
     //-------------------------------------------------------------------------
+    /**
+     * @brief An attempt has failed: there was no connection, or the peer ended before it opened.
+     * The client tries again after a pause; a connector that cannot connect again ends it.
+     *
+     * @param reason Why
+     */
+    void attemptFailed_(std::string_view reason) {
+        if(not connector_->reconnectable()) {
+            glogger << "In " << options_.name << ":" << '\n'
+                    << "No connection to the server: " << reason << '\n'
+                    << "This will terminate the client." << '\n'
+                    << GLOGGING;
+            this->flagTerminalError();
+            this->endClient_();
+            return;
+        }
+        glogger << "In " << options_.name << ":" << '\n'
+                << "No connection to the server: " << reason << '\n'
+                << "The client tries again after a pause." << '\n'
+                << GLOGGING;
+        this->pause_();
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Waits before the next attempt (see the class comment); the pause doubles for the
+     *  attempt after it. On the io thread. */
+    void pause_() {
+        state_ = LinkState::PAUSE;
+        const auto longest = pause_length_.count();
+        std::uniform_int_distribution<std::int64_t> wait(longest / 2, longest);
+        pause_length_ = std::min(2 * pause_length_, GCLIENTRECONNECTPAUSEMAX);
+        retry_timer_.expires_after(std::chrono::milliseconds(wait(this->rng_engine_)));
+        auto self = this->shared_from_this();
+        retry_timer_.async_wait([self](boost::system::error_code ec) {
+            if(ec || self->state_ != LinkState::PAUSE) {
+                return;
+            }
+            if(self->halt()) {
+                self->haltShutdown_();
+                return;
+            }
+            self->attempt_();
+        });
+    }
+
+    //-------------------------------------------------------------------------
     /** @brief Called when the connection is usable: asks for work (the halt timer runs since
      *  run_()). */
     void when_open_() {
+        state_ = LinkState::OPEN;
+        opened_at_ = clock::now();
+        contact_on_connection_ = false;
         request_more_();
     }
 
     //-------------------------------------------------------------------------
+    /** @brief The client has had contact with a server (see the class comment). On the io thread. */
+    void noteContact_() {
+        if(contact_on_connection_) {
+            return;
+        }
+        contact_on_connection_ = true;
+        contact_ever_ = true;
+        pause_length_ = GCLIENTRECONNECTPAUSEMIN;
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Called by the pipeline for every decoded message: an answer of the server (one that
+     *  could not be decoded included) is contact with it. @param kind What was decoded */
+    void when_answered_([[maybe_unused]] GFrameKind kind) {
+        this->noteContact_();
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Called by the halt poll when no halt condition holds: a connection that has been
+     *  open for the contact time is contact; without a connection, the limit is looked at. */
+    void when_polled_() {
+        const auto now = clock::now();
+        if(state_ == LinkState::OPEN) {
+            if(now - opened_at_ >= options_.contactTime) {
+                this->noteContact_();
+            }
+            return;
+        }
+        if(state_ != LinkState::ATTEMPT && state_ != LinkState::OPENING &&
+           state_ != LinkState::PAUSE) {
+            return;
+        }
+        if(not contact_ever_ && options_.firstContactLimit.count() > 0 &&
+           now - run_started_at_ >= options_.firstContactLimit) {
+            this->limitReached_(options_.firstContactLimit, "first contact");
+        }
+    }
+
+    //-------------------------------------------------------------------------
     /**
-     * @brief Called once when the connection is over, for whatever reason. Stops the pipeline's
-     * timers, so that io_context::run() -- and with it the client -- can return.
+     * @brief A limit without a server has run out: the client gives up.
+     *
+     * @param limit The limit
+     * @param which Which one, for the log
+     */
+    void limitReached_(std::chrono::milliseconds limit, std::string_view which) {
+        glogger << "In " << options_.name << ":" << '\n'
+                << "No server within the limit ("
+                << std::chrono::duration_cast<std::chrono::duration<double>>(limit).count()
+                << " s, " << which << "). This will terminate the client." << '\n'
+                << GLOGGING;
+        this->flagTerminalError();
+        this->haltShutdown_();
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Called once when a connection is over, for whatever reason: the client ends (the end
+     * of the run, a close of its own, a lost connection), or tries again (a peer that ended before
+     * it opened).
      *
      * @param end Why the connection ended
      * @param how What the server said, if it closed in the regular way
@@ -278,12 +424,17 @@ private:
      */
     void when_closed_(GPeerEnd end, GPeerClose how, std::string_view detail) {
         end_ = end;
+        const LinkState was = state_;
         if(how == GPeerClose::RUN_ENDED) {
             // The server has announced the end of the run: this client is done, whatever else is
             // set on it.
             this->flagCloseRequested();
             glogger << options_.name << ": the server announced the end of the run" << '\n'
                     << GLOGGING;
+        }
+        else if(was == LinkState::OPENING && not this->halt()) {
+            this->attemptFailed_(detail); // the connection never opened (a failed handshake)
+            return;
         }
         else if(end != GPeerEnd::CLOSED_HERE) {
             glogger << "In " << options_.name << ": the connection to the server has ended:" << '\n'
@@ -296,7 +447,16 @@ private:
             // still being decoded, are not evaluated (one that is being evaluated runs to its end).
             drop_held_();
         }
+        this->endClient_();
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief The client ends: nothing is attempted any more, and no timer is armed, so that
+     *  io_context::run() returns once the evaluations that run have finished. On the io thread. */
+    void endClient_() {
+        state_ = LinkState::ENDED;
         this->stopPipelineTimers_();
+        retry_timer_.cancel();
     }
 
     //-------------------------------------------------------------------------
@@ -422,7 +582,11 @@ private:
             return;
         }
         if(auto peer = peer_.lock()) {
+            state_ = LinkState::CLOSING;
             peer->close(how);
+        }
+        else {
+            this->endClient_();
         }
     }
 
@@ -574,16 +738,29 @@ private:
         }
     }
 
-    /** @brief Halt hook (the halt timer): closes the connection in the regular way when a halt
-     *  condition is reached, after the evaluations that run (see the class comment). A client
-     *  that has no connection yet gives up the connector's attempt instead, so that run() returns. */
+    /** @brief Halt hook (the halt timer, a limit, the retry timer): closes the connection in the
+     *  regular way when a halt condition is reached, after the evaluations that run (see the class
+     *  comment). A client that is still connecting gives up the connector's attempt, or closes the
+     *  peer that has not opened yet; one that pauses ends. So run() returns. */
     void haltShutdown_() {
-        if(not peer_.lock()) {
+        switch(state_) {
+        case LinkState::OPEN:
+            this->closeWhenIdle_();
+            break;
+        case LinkState::OPENING:
+            this->do_close_(GPeerClose::NORMAL); // a close during a handshake reports FAILED
+            break;
+        case LinkState::ATTEMPT:
             connector_->cancel();
-            this->stopPipelineTimers_();
-            return;
+            this->endClient_();
+            break;
+        case LinkState::PAUSE:
+            this->endClient_();
+            break;
+        case LinkState::CLOSING:
+        case LinkState::ENDED:
+            break;
         }
-        this->closeWhenIdle_();
     }
 
     /** @brief Busy hook: tells the peer whether the compute pool evaluates an item.
@@ -605,6 +782,16 @@ private:
     std::weak_ptr<GPeerI> peer_; ///< The connection, once there is one
 
     GPeerEnd end_ = GPeerEnd::FAILED; ///< How the connection ended (io thread; read after run())
+
+    LinkState state_ = LinkState::ATTEMPT; ///< Where the client is with its connection (io thread)
+    boost::asio::steady_timer retry_timer_{io_context_}; ///< Ends a pause between two attempts
+    /// The longest wait of the next pause (io thread)
+    std::chrono::milliseconds pause_length_ = GCLIENTRECONNECTPAUSEMIN;
+    clock::time_point run_started_at_; ///< When run_() began (io thread)
+    clock::time_point opened_at_;      ///< When the current connection opened (io thread)
+    bool contact_ever_ = false;        ///< There was contact with a server (io thread)
+    bool contact_on_connection_ =
+        false; ///< There was contact on the current connection (io thread)
 
     /// What mayAsk_() said last on the io thread; read by the compute threads
     std::atomic<bool> may_ask_hint_{true};

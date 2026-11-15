@@ -69,9 +69,10 @@ public:
      * @param config Reads ip (the name or address of the server), port (the server's port),
      *        serializationMode (the wire format), verboseControlFrames (log every control frame
      *        received), clientPrefetchDepth (the largest number of work items in flight at once; 0
-     *        is treated as 1) and pingInterval (seconds of silence after which a ping is sent;
-     *        after twice that time without any inbound data the server is presumed gone and the
-     *        client terminates; 0 switches this off). nThreads is ignored.
+     *        is treated as 1), pingInterval (seconds of silence after which a ping is sent;
+     *        after twice that time without any inbound data the connection ends; 0 switches this
+     *        off) and clientFirstContactLimit (seconds the client tries to reach the server before
+     *        it gives up; 0: no limit). nThreads is ignored.
      */
     explicit GWebsocketClientT(const config_type &config)
       : GPeerClientT<processable_type>(
@@ -88,7 +89,8 @@ public:
             GPeerClientOptions{
                 .name = "GWebsocketClientT<processable_type>",
                 .mode = config.serializationMode,
-                .prefetchDepth = config.clientPrefetchDepth
+                .prefetchDepth = config.clientPrefetchDepth,
+                .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit)
             }
         ) { /* nothing */
     }

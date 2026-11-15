@@ -74,6 +74,10 @@ struct GWebsocketConsumerConfig {
     bool verboseControlFrames = false;
     /// Client: the largest number of work items it holds at once (1: one after the other)
     std::size_t clientPrefetchDepth = 1;
+    /// Client: seconds it tries to reach the server before its first contact with it (0: for as
+    /// long as it runs)
+    std::size_t clientFirstContactLimit =
+        static_cast<std::size_t>(GCLIENTFIRSTCONTACTLIMIT.count());
 };
 
 /******************************************************************************/
