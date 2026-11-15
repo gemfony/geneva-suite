@@ -105,8 +105,10 @@ namespace Gem::Courtier::Consumers {
  * thread (held_) and handed to the pool when an evaluation ends. Held items count towards the
  * prefetch depth; a concrete client may drop them (drop_held_()) when their results can no longer
  * be delivered, and with them every item still being decoded. With a width equal to the depth no
- * item is ever held. The messages are decoded on a strand of the same pool, so with a width below
- * the depth an item that arrives while all threads evaluate is decoded when one of them is free.
+ * item is ever held. The messages are decoded on a strand of the same pool. With a width below the
+ * depth the pool has one thread more than the width (poolThreads_()), so that an item that arrives
+ * while compute_width_ items are evaluated is decoded at once and is ready when an evaluation ends;
+ * the books on the io thread still let no more than compute_width_ items be evaluated at a time.
  *
  * @tparam Derived The concrete client type (CRTP; must also inherit enable_shared_from_this)
  * @tparam processable_type The work-item type exchanged with the server (must be processable)
@@ -132,7 +134,7 @@ protected:
       , compute_width_(
             compute_width == 0 ? prefetch_depth_ : std::min(compute_width, prefetch_depth_)
         )
-      , compute_pool_(compute_width_) { /* nothing */
+      , compute_pool_(this->poolThreads_()) { /* nothing */
     }
 
     //-------------------------------------------------------------------------
@@ -479,19 +481,19 @@ protected:
     }; ///< Backoff timer that retries a PULL top-up after a NO_WORK reply (async, never blocks)
 
     /// The compute pool's reservation in the process-wide thread budget: Fixed, because the pool
-    /// must hold exactly compute_width_ workers to keep compute_width_ items computing. Declared
+    /// must hold its poolThreads_() workers to keep compute_width_ items computing. Declared
     /// before the pool so it is released only after the pool's threads are joined.
     Gem::Common::Concurrency::GThreadBudget::Reservation compute_budget_{
         Gem::Common::Concurrency::threadBudget().reserve(
             "client:compute",
-            static_cast<unsigned int>(compute_width_),
+            static_cast<unsigned int>(this->poolThreads_()),
             Gem::Common::Concurrency::ThreadElasticity::Fixed
         )
     };
 
     /// A thread pool that runs the (possibly long, unbounded) work-item evaluations OFF the io thread,
-    /// so the io thread stays free for transport work while items are computed. Sized to the compute
-    /// width. Declared last so it is destroyed (and its threads joined) before io_context_ and the
+    /// so the io thread stays free for transport work while items are computed, and that decodes the
+    /// messages (decode_strand_). poolThreads_() threads. Declared last so it is destroyed (and its threads joined) before io_context_ and the
     /// other pipeline state.
     boost::asio::thread_pool compute_pool_;
 
@@ -501,6 +503,16 @@ protected:
     };
 
 private:
+    //-------------------------------------------------------------------------
+    /** @brief How many threads the compute pool has: the compute width, and one more if the width
+     *  is below the prefetch depth -- the thread that decodes an item held ahead while compute_width_
+     *  items are evaluated. With a width equal to the depth nothing is held ahead, and an item is
+     *  decoded only when a thread is free anyway.
+     *  @return The number of threads */
+    [[nodiscard]] std::size_t poolThreads_() const noexcept {
+        return compute_width_ < prefetch_depth_ ? compute_width_ + 1 : compute_width_;
+    }
+
     //-------------------------------------------------------------------------
     /** @brief Whether the concrete client decides the kind of its results (see the class comment).
      *  A function, so that it is asked only inside member functions, where Derived is complete.

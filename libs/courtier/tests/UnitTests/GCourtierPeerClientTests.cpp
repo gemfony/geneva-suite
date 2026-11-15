@@ -74,6 +74,7 @@ using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessListener;
+using Gem::Courtier::Tests::GInProcessListenerRef;
 using Gem::Courtier::Tests::GInProcessPeerWatch;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
@@ -521,8 +522,7 @@ TEST_CASE(
                 std::move(clone_template)
             );
         });
-        // One item is evaluated, the other held (or, if the evaluation took the pool's only
-        // thread first, still waiting to be decoded): the run ends now.
+        // One item is evaluated, the other held (or still being decoded): the run ends now.
         REQUIRE(eventually([&] { return evaluations->total.load() == 1; }));
         REQUIRE(eventually([&] { return world.counts().nWork.load() == 2; }));
         std::this_thread::sleep_for(50ms);
@@ -532,56 +532,6 @@ TEST_CASE(
     }
     CHECK(evaluations->total.load() == 1);
     CHECK(evaluations->of(0) + evaluations->of(1) == 1);
-}
-
-/******************************************************************************/
-/**
- * With a compute width below the depth, an item that arrives while the pool's only thread evaluates
- * is decoded only when that evaluation ends. If the run has ended by then, it is not evaluated.
- */
-TEST_CASE(
-    "GPeerClientT: after RUN_ENDED an item still waiting to be decoded is not evaluated",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto first = makeBatch(1, 0);
-    auto second = makeBatch(1, 1);
-    {
-        World world;
-        world.client(
-            GPeerClientOptions{
-                .name = "decoding client",
-                .mode = BIN,
-                .prefetchDepth = 2,
-                .computeWidth = 1
-            },
-            evaluations,
-            500ms,
-            nullptr,
-            AS_IS
-        );
-        auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
-        policy.fatal_on_none_returned = false;
-        const auto submit = [&](std::vector<std::unique_ptr<GFaultyContainer>> &items) {
-            auto clone_template = std::make_unique<GFaultyContainer>(99);
-            clone_template->markAsProcessedWith({true});
-            return std::async(std::launch::async, [&, t = std::move(clone_template)]() mutable {
-                world.shell()
-                    .processBatch(std::span(items.data(), items.size()), policy, std::move(t));
-            });
-        };
-        // The first item is being evaluated when the second is sent: its decoding waits.
-        auto first_batch = submit(first);
-        REQUIRE(eventually([&] { return evaluations->total.load() == 1; }));
-        auto second_batch = submit(second);
-        REQUIRE(eventually([&] { return world.counts().nWork.load() == 2; }));
-        world.shell().stopServer();
-        first_batch.get();
-        second_batch.get();
-        REQUIRE(eventually([&] { return world.clientsDone(); }));
-    }
-    CHECK(evaluations->total.load() == 1);
-    CHECK(evaluations->of(1) == 0);
 }
 
 /******************************************************************************/
@@ -837,4 +787,198 @@ TEST_CASE(
         listener->stop();
         listener->endWork();
     }
+}
+
+/******************************************************************************/
+// The decoding of the item a look-ahead client holds ahead. A watched item says when it is decoded
+// and can be made slow to decode; its evaluation can wait for the second item to be decoded.
+
+namespace {
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<std::size_t> decodesStarted{0};   ///< Work items whose decoding has begun
+std::atomic<std::size_t> decodesDone{0};      ///< Work items decoded
+std::atomic<int> decodeMs{0};                 ///< How long decoding a work item takes
+std::atomic<bool> firstWaitsForSecond{false}; ///< The first evaluation waits for the second decode
+std::atomic<bool> decodedMeanwhile{
+    false
+}; ///< The second item was decoded during the first evaluation
+std::atomic<std::size_t> evaluatingNow{0};  ///< Evaluations in progress
+std::atomic<std::size_t> evaluatingMost{0}; ///< The most evaluations at the same time
+std::atomic<std::size_t> nEvaluated{0};     ///< Evaluations begun
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+/** @brief Resets what the watched items record @param decode_ms How long a decode takes
+ *  @param first_waits Whether the first evaluation waits for the second decode */
+void resetWatch(int decode_ms, bool first_waits) {
+    decodesStarted.store(0);
+    decodesDone.store(0);
+    decodeMs.store(decode_ms);
+    firstWaitsForSecond.store(first_waits);
+    decodedMeanwhile.store(false);
+    evaluatingNow.store(0);
+    evaluatingMost.store(0);
+    nEvaluated.store(0);
+}
+
+/** @brief A work item that records its decoding on the client and its evaluations */
+class GWatchedItem final : public Gem::Courtier::GProcessingContainerT<GWatchedItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GWatchedItem, bool>>(
+            ar,
+            "GProcessingContainerT_GWatchedItem",
+            *this
+        );
+        if constexpr(not Gem::Common::archive_is_saving_v<Archive>) {
+            if(this->is_due_for_processing()) { // a work item, on the client
+                decodesStarted.fetch_add(1);
+                std::this_thread::sleep_for(std::chrono::milliseconds(decodeMs.load()));
+                decodesDone.fetch_add(1);
+            }
+        }
+    }
+
+public:
+    /** @brief The default constructor (also for loading) */
+    GWatchedItem()
+      : Gem::Courtier::GProcessingContainerT<GWatchedItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Counts; the first evaluation may wait for the second item to be decoded */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
+        const std::size_t now = evaluatingNow.fetch_add(1) + 1;
+        std::size_t most = evaluatingMost.load();
+        while(now > most && not evaluatingMost.compare_exchange_weak(most, now)) {
+        }
+        if(nEvaluated.fetch_add(1) == 0 && firstWaitsForSecond.load()) {
+            decodedMeanwhile.store(
+                Gem::Courtier::Tests::eventually(
+                    [] { return decodesDone.load() >= 2; },
+                    std::chrono::milliseconds(1000)
+                )
+            );
+        }
+        else {
+            std::this_thread::sleep_for(50ms);
+        }
+        evaluatingNow.fetch_sub(1);
+    }
+};
+
+/** @brief A server's shell for watched items, and one look-ahead client (depth 2, width 1) */
+class WatchWorld {
+public:
+    WatchWorld()
+      : listener_(std::make_shared<GInProcessListener>(GInProcessListener::Options{}))
+      , shell_("Shell", std::make_unique<GInProcessListenerRef>(listener_), 2, BIN)
+      , client_(
+            std::make_shared<Gem::Courtier::Consumers::GPeerClientT<GWatchedItem>>(
+                std::make_unique<GInProcessConnector>(listener_),
+                GPeerClientOptions{
+                    .name = "watched client",
+                    .mode = BIN,
+                    .prefetchDepth = 2,
+                    .computeWidth = 1,
+                    .lookAhead = true
+                }
+            )
+        ) {
+        Gem::Courtier::GNetworkedTimeoutConfig config;
+        config.treatment = "wait_indefinitely";
+        shell_.applyTimeoutConfig(config);
+        shell_.startServer();
+        runner_ = std::jthread([client = client_] { client->run(); });
+    }
+    /** @brief Stops the server and joins the client */
+    ~WatchWorld() {
+        shell_.stopServer();
+        runner_ = std::jthread{};
+    }
+    WatchWorld(const WatchWorld &) = delete;
+    WatchWorld(WatchWorld &&) = delete;
+    WatchWorld &operator=(const WatchWorld &) = delete;
+    WatchWorld &operator=(WatchWorld &&) = delete;
+
+    /** @brief @return The shell */
+    Gem::Courtier::GPeerConsumerT<GWatchedItem> &shell() {
+        return shell_;
+    }
+
+    /** @brief Submits @p n items; the batch may end with the run (its slots are then filled with
+     *  clones of a template) @param n How many @return The batch, running */
+    std::future<void> submit(std::size_t n) {
+        items_.clear();
+        for(std::size_t i = 0; i < n; ++i) {
+            items_.push_back(std::make_unique<GWatchedItem>());
+        }
+        return std::async(std::launch::async, [this] {
+            auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+            policy.fatal_on_none_returned = false;
+            auto clone_template = std::make_unique<GWatchedItem>();
+            clone_template->markAsProcessedWith({true});
+            shell_.processBatch(
+                std::span(items_.data(), items_.size()),
+                policy,
+                std::move(clone_template)
+            );
+        });
+    }
+
+private:
+    std::shared_ptr<GInProcessListener> listener_;
+    Gem::Courtier::GPeerConsumerT<GWatchedItem> shell_;
+    std::shared_ptr<Gem::Courtier::Consumers::GPeerClientT<GWatchedItem>> client_;
+    std::vector<std::unique_ptr<GWatchedItem>> items_;
+    std::jthread runner_;
+};
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+/**
+ * A look-ahead client (compute width 1, depth 2) decodes the item it holds ahead while it
+ * evaluates the other one, so that the item is ready when the evaluation ends; it still evaluates
+ * one item at a time.
+ */
+TEST_CASE(
+    "GPeerClientT: with look-ahead the next item is decoded while one is evaluated",
+    "[courtier][peer][client]"
+) {
+    resetWatch(0, true);
+    {
+        WatchWorld world;
+        auto batch = world.submit(2);
+        REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
+        batch.get();
+    }
+    CHECK(decodedMeanwhile.load());
+    CHECK(nEvaluated.load() == 2);
+    CHECK(evaluatingMost.load() == 1);
+}
+
+/******************************************************************************/
+/**
+ * When the server announces the end of the run while an item is still being decoded, that item is
+ * not evaluated once it is decoded.
+ */
+TEST_CASE(
+    "GPeerClientT: after RUN_ENDED an item still being decoded is not evaluated",
+    "[courtier][peer][client]"
+) {
+    resetWatch(500, false);
+    {
+        WatchWorld world;
+        auto batch = world.submit(2);
+        // The first item is decoded and evaluated; the second is being decoded: the run ends now.
+        REQUIRE(eventually([] { return decodesStarted.load() == 2; }));
+        REQUIRE(decodesDone.load() == 1);
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(decodesDone.load() == 2);
+    CHECK(nEvaluated.load() == 1);
 }
