@@ -38,6 +38,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <exception>
 #include <optional>
 #include <random>
 #include <string>
@@ -178,6 +179,9 @@ protected:
                 catch(const std::exception &e) {
                     error = e.what();
                 }
+                catch(...) {
+                    error = "an exception that is not a std::exception";
+                }
                 // The pool's handler gives up its hold on the client here: if it kept it until it is
                 // destroyed, after the io thread may have finished with the client, the client could be
                 // destroyed on a thread of its own pool, which cannot join itself.
@@ -259,19 +263,33 @@ protected:
         boost::asio::post(
             compute_pool_,
             [self, container = std::move(container), guard = std::move(guard)]() mutable {
-                // A failing evaluation leaves the item flagged; it is returned like any result.
-                // The processor is read on the compute-pool threads and never written while the
-                // client runs.
-                Gem::Courtier::processWorkFrame(
-                    container,
-                    self->client_name_,
-                    self->itemProcessor()
-                );
-                Gem::Courtier::makeReturnFrame(container);
-                if constexpr(requires(Derived &d, GCommandContainerT<processable_type> &c) {
-                                 d.prepareReturn_(c);
-                             }) {
-                    self->prepareReturn_(container);
+                // No exception of any type leaves this thread (a thread_pool would end the
+                // process): what identifies the item is kept, so that whatever throws below the
+                // item can still be returned as failed (returnFailed_()).
+                const auto *work = container.item();
+                const Gem::Courtier::CORRELATION_ID_TYPE id =
+                    work != nullptr ? work->getCorrelationId() : 0;
+                const Gem::Courtier::SUBMISSION_UUID_TYPE uuid =
+                    work != nullptr ? work->getSubmissionUuid()
+                                    : Gem::Courtier::SUBMISSION_UUID_TYPE{};
+                try {
+                    // A failing evaluation leaves the item flagged; it is returned like any result.
+                    // The processor is read on the compute-pool threads and never written while the
+                    // client runs.
+                    Gem::Courtier::processWorkFrame(
+                        container,
+                        self->client_name_,
+                        self->itemProcessor()
+                    );
+                    Gem::Courtier::makeReturnFrame(container);
+                    if constexpr(requires(Derived &d, GCommandContainerT<processable_type> &c) {
+                                     d.prepareReturn_(c);
+                                 }) {
+                        self->prepareReturn_(container);
+                    }
+                }
+                catch(...) {
+                    self->returnFailed_(container, id, uuid, std::current_exception());
                 }
                 if constexpr(decidesResultKind()) {
                     container.setKind(self->resultKindHint_());
@@ -304,6 +322,47 @@ protected:
                 );
             }
         );
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Turns @p frame into the RETURN of an item that failed on this client in a way that
+     * left no result to return (the processing, the library's return seam or prepareReturn_()
+     * threw): the outcome alone, ERROR_FLAGGED with the reason, as encodeResult_() returns an item
+     * that cannot be encoded. On a compute thread.
+     *
+     * @param frame The frame, in whatever state the failure left it; becomes the RETURN
+     * @param id The item's correlation id, taken before the evaluation
+     * @param uuid The item's lineage id, taken before the evaluation
+     * @param failure What was thrown
+     */
+    void returnFailed_(
+        GCommandContainerT<processable_type> &frame,
+        Gem::Courtier::CORRELATION_ID_TYPE id,
+        const Gem::Courtier::SUBMISSION_UUID_TYPE &uuid,
+        const std::exception_ptr &failure
+    ) {
+        std::string reason = "an exception that is not a std::exception";
+        try {
+            std::rethrow_exception(failure);
+        }
+        catch(const std::exception &e) {
+            reason = e.what();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- the reason above says it
+        }
+        Gem::Courtier::GProcessingOutcome outcome;
+        outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
+        outcome.error_descriptions = "The work item could not be processed or returned: " + reason;
+        outcome.correlation_id = id;
+        outcome.submission_uuid = uuid;
+        frame.reset(GFrameKind::RETURN);
+        frame.setOutcome(std::move(outcome));
+        glogger << "In " << client_name_ << ": a work item could not be processed or returned:"
+                << '\n'
+                << reason << '\n'
+                << "It is returned to the server as failed; the client keeps running." << '\n'
+                << GWARNING;
     }
 
     //-------------------------------------------------------------------------

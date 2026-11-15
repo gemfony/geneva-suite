@@ -412,6 +412,26 @@ private:
      * @return GNothingDue for a RESULT, the NO_WORK answer otherwise
      */
     Gem::Courtier::GAbsorbResult refused_(GFrameKind kind) {
+        try {
+            return this->refusal_(kind);
+        }
+        catch(...) {
+            // Not even the refusal could be made (out of memory, say): no exception may leave a
+            // session thread, and the client cannot be answered, so the connection ends. The
+            // session's lease gives back what it holds when the session goes. (No test: only a
+            // failing allocation gets here; the harness has no allocator to make one fail.)
+            logRefusal_(std::current_exception());
+            if(auto peer = peer_.lock()) {
+                peer->close(GPeerClose::ERROR);
+            }
+            stopping_ = true; // nothing more is served on this connection
+            return Gem::Courtier::GNothingDue{};
+        }
+    }
+
+    /** @brief The body of refused_(), which may throw @param kind See refused_()
+     *  @return See refused_() */
+    Gem::Courtier::GAbsorbResult refusal_(GFrameKind kind) {
         // Messages keep their boundaries, so the connection is still usable: closing it instead
         // would end the client. The session cannot tell any more which of its items are still
         // being worked on, so it gives back all it holds; a result that arrives for one of them
@@ -526,7 +546,11 @@ private:
         catch(...) {
             logRefusal_(std::current_exception());
         }
-        return std::get<std::string>(this->refused_(GFrameKind::PULL));
+        auto refusal = this->refused_(GFrameKind::PULL);
+        if(auto *answer = std::get_if<std::string>(&refusal)) {
+            return std::move(*answer);
+        }
+        return std::nullopt; // not even the refusal could be made; the connection ends
     }
 
     //-------------------------------------------------------------------------

@@ -128,6 +128,20 @@ public:
     [[nodiscard]] std::size_t pendingPulls() const {
         return pending_pulls_;
     }
+    /** @brief The next result's prepareReturn_() throws something that is not a std::exception */
+    void throwInPrepareReturn() {
+        throw_in_prepare_.store(true);
+    }
+
+    /** @brief Decodes the last result handed to the transport @param frame Receives it */
+    void lastResult(Gem::Courtier::GCommandContainerT<item_type> &frame) const {
+        Gem::Courtier::container_from_string(
+            last_result_,
+            frame,
+            Gem::Common::serializationMode::GEM_BINARY
+        );
+    }
+
     /** @return The encoded results handed to the transport so far */
     [[nodiscard]] std::size_t nResults() const {
         return n_results_;
@@ -148,6 +162,7 @@ private:
     void sendEncodedAndRefill_(std::string bytes, const std::string &error) {
         if(error.empty() && not bytes.empty()) {
             ++n_results_;
+            last_result_ = std::move(bytes);
         }
     }
     void when_decoded_(Gem::Courtier::GFrameKind /*kind*/) { /* nothing to act on */
@@ -156,9 +171,17 @@ private:
     }
     void haltShutdown_() { /* no transport to close */
     }
+    /** @brief Throws when asked to (throwInPrepareReturn()); on a compute thread */
+    void prepareReturn_(Gem::Courtier::GCommandContainerT<item_type> & /*frame*/) {
+        if(throw_in_prepare_.exchange(false)) {
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
+        }
+    }
 
     boost::asio::steady_timer stop_timer_{io_context_};
     std::size_t n_results_ = 0; ///< Encoded results handed to the transport
+    std::atomic<bool> throw_in_prepare_{false}; ///< See throwInPrepareReturn()
+    std::string last_result_;                     ///< The last result handed to the transport
 };
 
 using ProbeClient = ProbeClientT<GFaultyContainer>;
@@ -421,4 +444,39 @@ TEST_CASE(
     std::this_thread::sleep_for(100ms); // the pool's handler is still dropping the item
     CHECK(client.use_count() == 1);
     std::this_thread::sleep_for(600ms); // whatever the outcome, the pool is done with the client
+}
+
+/******************************************************************************/
+/**
+ * No exception of any type leaves a compute-pool thread: when what follows the evaluation throws
+ * something that is not a std::exception (here the client's prepareReturn_()), the item is returned
+ * to the server as failed -- its outcome alone, ERROR_FLAGGED, with its correlation id -- and the
+ * client goes on.
+ */
+TEST_CASE(
+    "courtier(client): a non-std exception after the evaluation returns the item as failed",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GFaultyContainer>(0);
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    item->setCorrelationId(4711);
+    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClient>();
+    client->throwInPrepareReturn();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    CHECK(client->computing() == 0);
+    GCommandContainerT<GFaultyContainer> returned{GFrameKind::NONE};
+    client->lastResult(returned);
+    CHECK(returned.kind() == GFrameKind::RETURN);
+    CHECK(returned.item() == nullptr);
+    CHECK(returned.outcome().status == processingStatus::ERROR_FLAGGED);
+    CHECK(returned.outcome().correlation_id == 4711);
 }
