@@ -121,10 +121,12 @@ public:
 class ScriptedClient : public std::enable_shared_from_this<ScriptedClient> {
 public:
     /** @brief @param n_pulls PULLs sent when the connection is open
-     *  @param returns Whether a WORK is evaluated and returned */
-    ScriptedClient(std::size_t n_pulls, bool returns)
+     *  @param returns Whether a WORK is evaluated and returned
+     *  @param foreign Whether a return claims that another server process handed its item out */
+    ScriptedClient(std::size_t n_pulls, bool returns, bool foreign = false)
       : n_pulls_(n_pulls)
-      , returns_(returns) { /* nothing */
+      , returns_(returns)
+      , foreign_(foreign) { /* nothing */
     }
 
     /** @brief Connects through @p connector on @p executor and starts the peer it gets
@@ -213,6 +215,11 @@ private:
         if(returns_) {
             Gem::Courtier::processWorkFrame(frame, "ScriptedClient");
             Gem::Courtier::makeReturnFrame(frame);
+            if(foreign_) {
+                auto outcome = frame.outcome();
+                outcome.submission_uuid[0] ^= 1U; // another process's lineage, the same id
+                frame.setOutcome(std::move(outcome));
+            }
             this->send_(frame);
         }
     }
@@ -226,6 +233,7 @@ private:
 
     const std::size_t n_pulls_;
     const bool returns_;
+    const bool foreign_;
     mutable std::mutex mutex_;
     std::weak_ptr<GPeerI> peer_weak_; ///< Under mutex_
     std::string closed_;              ///< Under mutex_
@@ -756,4 +764,50 @@ TEST_CASE(
     REQUIRE(c_there);
     CHECK(c_work == 0);
     CHECK(n_requeued == 1);
+}
+
+/******************************************************************************/
+/**
+ * A result whose item another server process handed out (a client that outlived its server) is
+ * dropped; when its id happens to match an item this session holds, that item stays in the lease:
+ * when the client is then lost, the item is put back and another client evaluates it.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a foreign result does not free the item it names from the lease",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    GInProcessConnector connector{listener};
+    IoThreads clients;
+    Shell shell{listener, 2};
+    shell.startServer();
+
+    auto items = makeBatch(1);
+    auto batch = std::async(std::launch::async, [&] {
+        // A batch that the stop ends is filled with clones of a template, so that this is not fatal
+        auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+        policy.fatal_on_none_returned = false;
+        auto clone_template = std::make_unique<GFaultyContainer>(99);
+        clone_template->markAsProcessedWith({true});
+        shell.processBatch(
+            std::span(items.data(), items.size()),
+            policy,
+            std::move(clone_template)
+        );
+    });
+    auto stranger = std::make_shared<ScriptedClient>(1, true, true);
+    stranger->connect(connector, clients.executor());
+    const bool dropped = eventually([&] { return shell.foreignReturnCount() == 1; });
+    stranger->abort();
+    const bool gone = eventually([&] { return shell.getNActiveSessions() == 0; });
+    auto worker = std::make_shared<ScriptedClient>(1, true);
+    worker->connect(connector, clients.executor());
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    shell.stopServer(); // ends the batch if it is not done
+    batch.get();
+    REQUIRE(dropped);
+    REQUIRE(gone);
+    CHECK(done);
+    CHECK(worker->nWork() == 1);
 }

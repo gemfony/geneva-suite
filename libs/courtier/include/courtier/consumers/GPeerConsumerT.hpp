@@ -329,7 +329,12 @@ private:
                     },
                 .putPayloadItem =
                     [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
-                        lease->remove(frame.outcome().correlation_id);
+                        // Only a result of this server's item ends the lease's hold: a foreign
+                        // one whose id happens to match an item held here is dropped by
+                        // checkin() and must not free that item from the lease.
+                        if(GNetworkedConsumerT<processable_type>::handedOutHere(frame)) {
+                            lease->remove(frame.outcome().correlation_id);
+                        }
                         this->checkin(std::move(frame));
                     },
                 .failPayloadItem =

@@ -432,8 +432,8 @@ protected:
         std::scoped_lock const lk(mtx_);
         // A result whose item was handed out by another server process (a client that outlived
         // its server and found this one) must not reach a slot: batch and slot numbers start
-        // again in every process. The lineage id of the checkout clone names the process.
-        if(frame.outcome().submission_uuid[0] != Gem::Courtier::detail::lineageSalt()) {
+        // again in every process.
+        if(not handedOutHere(frame)) {
             recordForeignReturn_locked();
             return;
         }
@@ -501,6 +501,16 @@ protected:
             return;
         }
         completeSlot_locked(b, slot);
+    }
+
+    /***************************************************************************/
+    /** @brief Whether the item of a returned frame was handed out by this server process. The
+     *  lineage id of the checkout clone names the process; a frame from another process (a client
+     *  that outlived its server) carries an id whose batch and slot mean nothing here.
+     *  @param frame A returned frame
+     *  @return true if this process handed its item out */
+    [[nodiscard]] static bool handedOutHere(const GCommandContainerT<processable_type> &frame) {
+        return frame.outcome().submission_uuid[0] == Gem::Courtier::detail::lineageSalt();
     }
 
     /***************************************************************************/
