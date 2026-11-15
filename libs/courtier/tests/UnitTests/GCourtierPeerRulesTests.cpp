@@ -589,7 +589,6 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
     });
 
     auto strand = boost::asio::make_strand(io.executor());
-    CHECK(connector.reconnectable());
 
     // done runs on the strand; the futures carry its result to this thread.
     auto connect = [&] {

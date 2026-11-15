@@ -33,6 +33,7 @@
 
 // Standard headers
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <concepts>
 #include <cstddef>
@@ -267,6 +268,14 @@ protected:
                     self->client_name_,
                     self->itemProcessor()
                 );
+                if(self->results_dropped_.load()) {
+                    // The result cannot be delivered any more: it is not encoded either.
+                    auto &io = self->io_context_;
+                    boost::asio::post(io, [self = std::move(self), guard = std::move(guard)] {
+                        self->finish_dropped_();
+                    });
+                    return;
+                }
                 Gem::Courtier::makeReturnFrame(container);
                 if constexpr(requires(Derived &d, GCommandContainerT<processable_type> &c) {
                                  d.prepareReturn_(c);
@@ -408,6 +417,23 @@ protected:
     }
 
     //-------------------------------------------------------------------------
+    /** @brief From now on the result of an evaluation is neither encoded nor passed on (it could
+     *  not be delivered any more); the evaluation itself runs to its end. On the io thread. */
+    void dropResults_() {
+        results_dropped_.store(true);
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief On the io thread, for an evaluation whose result was dropped: accounts for it. */
+    void finish_dropped_() {
+        this->incrementProcessingCounter();
+        if(computing_ > 0) {
+            --computing_;
+        }
+        this->busy_changed_();
+    }
+
+    //-------------------------------------------------------------------------
     /** @brief The work items in flight, as the io thread counts them: requests without an answer,
      *  items held and items being evaluated.
      *  @return Their number */
@@ -511,6 +537,8 @@ protected:
     std::deque<GCommandContainerT<processable_type>> held_;
     /// Set by drop_held_(): a WORK item decoded from now on is dropped (io thread)
     bool work_unwanted_ = false;
+    /// Set by dropResults_(): results are neither encoded nor passed on (read by the compute pool)
+    std::atomic<bool> results_dropped_{false};
 
     std::uint64_t n_nodata_ = 0; ///< How often a NO_WORK reply was received (reported at shutdown)
 

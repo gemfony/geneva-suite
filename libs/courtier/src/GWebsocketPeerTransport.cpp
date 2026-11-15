@@ -460,11 +460,5 @@ void GWebsocketConnector::cancel() {
 }
 
 /******************************************************************************/
-/** @return true: every connect() is an attempt of its own */
-bool GWebsocketConnector::reconnectable() const {
-    return true;
-}
-
-/******************************************************************************/
 
 } /* namespace Gem::Courtier::Consumers */

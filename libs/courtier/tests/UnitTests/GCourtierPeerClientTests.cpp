@@ -50,6 +50,7 @@
 #include <vector>
 
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/post.hpp>
 
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
@@ -104,6 +105,20 @@ struct ServerCounts {
     std::atomic<std::size_t> nReturns{0};      ///< RETURN frames received
     std::atomic<GFrameKind> lastResult{GFrameKind::NONE}; ///< The kind of the last result received
     std::atomic<std::size_t> nWork{0};                    ///< WORK frames sent
+    std::mutex endMutex;                  ///< Guards lastEnd
+    std::weak_ptr<GPeerI> lastEnd;        ///< The server's end of the last connection started
+
+    /** @brief Ends the last connection at once, as a lost connection ends (on its strand) */
+    void abortLast() {
+        std::shared_ptr<GPeerI> end;
+        {
+            const std::scoped_lock lock(endMutex);
+            end = lastEnd.lock();
+        }
+        if(end) {
+            boost::asio::post(end->executor(), [end] { end->abort(); });
+        }
+    }
 
     /** @brief Notes the unanswered requests of one connection @param n Their number */
     void unanswered(std::size_t n) {
@@ -141,6 +156,10 @@ public:
         auto inner = inner_.lock();
         if(not inner) {
             return;
+        }
+        {
+            const std::scoped_lock lock(counts_->endMutex);
+            counts_->lastEnd = inner;
         }
         auto self = this->shared_from_this();
         inner->start(
@@ -340,7 +359,7 @@ public:
         Setup setup
     ) {
         auto client = std::make_shared<client_type>(
-            std::make_unique<GInProcessConnector>(listener_, true, watch),
+            std::make_unique<GInProcessConnector>(listener_, watch),
             std::move(options)
         );
         client->setItemProcessor(countingProcessor(evaluations, duration));
@@ -1244,5 +1263,48 @@ TEST_CASE(
     for(std::size_t i = 0; i < items.size(); ++i) {
         INFO("item " << i);
         CHECK(limited->of(i) + other->of(i) == 1);
+    }
+}
+
+/******************************************************************************/
+/**
+ * The client does not connect again: after the loss of its connection it evaluates none of the
+ * items it holds, and the one it evaluates is not returned (the server put it back). Depth 3, width
+ * 1: the server's end is lost after three WORK, one is being evaluated, two are held.
+ */
+TEST_CASE(
+    "GPeerClientT: after the loss of its connection a client evaluates no held item",
+    "[courtier][peer][client]"
+) {
+    auto lost = std::make_shared<Evaluations>();
+    auto other = std::make_shared<Evaluations>();
+    World world;
+    world.client(
+        GPeerClientOptions{
+            .name = "losing client",
+            .mode = BIN,
+            .prefetchDepth = 3,
+            .computeWidth = 1
+        },
+        lost,
+        300ms,
+        nullptr,
+        AS_IS
+    );
+    auto items = makeBatch(3);
+    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+    const bool evaluating = eventually([&] {
+        return world.counts().nWork.load() == 3 && lost->total.load() == 1;
+    });
+    world.counts().abortLast();
+    const bool lost_done = eventually([&] { return world.clientsDone(); });
+    world.client(GPeerClientOptions{.name = "other client", .mode = BIN}, other, 5ms, nullptr, AS_IS);
+    REQUIRE(batch.get());
+    REQUIRE(evaluating);
+    REQUIRE(lost_done);
+    CHECK(lost->total.load() == 1);
+    for(std::size_t i = 0; i < items.size(); ++i) {
+        INFO("item " << i);
+        CHECK(other->of(i) == 1);
     }
 }
