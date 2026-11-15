@@ -19,16 +19,16 @@ Running networked jobs (server + clients)
 -----------------------------------------
 
 A networked Geneva program is started once as a server and any number of times
-as a client (--client). Both helper scripts take an optional consumer mnemonic:
-"asio" (default) or "beast" (websocket), and map it to the correct command-line
-options (--asio_ip/--asio_port resp. --beast_ip/--beast_port).
+as a client (--client). Both helper scripts take an optional consumer mnemonic,
+"beast" (websocket, the default), and map it to the command-line options
+--beast_ip/--beast_port; startLocalJobs.sh also takes "mpi".
 
 startLocalJobs.sh
    Starts a Geneva program on the LOCAL host (reliable, low-latency networking)
    -- for testing networked execution without a cluster. Cleans up all child
    processes on exit.
-   Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: asio|beast|mpi]
-   For asio/beast it runs the program once as a server plus n_clients times as
+   Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: beast|mpi]
+   For beast it runs the program once as a server plus n_clients times as
    clients over local TCP. For mpi it launches the program ONCE via mpirun with
    n_clients + 1 ranks (one rank-0 master plus n_clients workers); the port is
    ignored (MPI uses no listening socket -- pass any placeholder, e.g. 0) and the
@@ -42,7 +42,7 @@ startClients.sh
    Starts a Geneva program N times as clients only (no server) -- they connect
    to an already-running server (e.g. started by startLocalJobs.sh or on another
    host). Cleans up the started clients on interrupt.
-   Usage: ./startClients.sh <program> <n_clients> <ip/hostname> <port> [consumer: asio|beast]
+   Usage: ./startClients.sh <program> <n_clients> <ip/hostname> <port> [consumer: beast]
 
 Driving many hosts (cluster helpers)
 ------------------------------------

@@ -128,39 +128,3 @@ TEST_CASE(
         CHECK(checked_in.kinds.empty());
     }
 }
-
-/******************************************************************************/
-/**
- * The request/response exchange (asio) must answer every request. A RESULT is checked in and, as
- * it asks for nothing, answered with NO_WORK; no item is checked out for it.
- */
-TEST_CASE(
-    "handleServerRequest: a RESULT is checked in and answered without an item",
-    "[courtier][session-logic]"
-) {
-    CheckedIn checked_in;
-    int checkouts = 0;
-    auto checkout = [&checkouts] {
-        ++checkouts;
-        return std::make_unique<GSimpleContainer>(9);
-    };
-
-    auto frame = returnedFrame(GFrameKind::RESULT);
-    const auto answer =
-        handleServerRequest(frame, checkout, checked_in.sink(), nullptr, nullptr, BIN);
-
-    frame_type reply{GFrameKind::NONE};
-    wireDecode(answer, reply, nullptr, BIN);
-    CHECK(reply.kind() == GFrameKind::NO_WORK);
-    CHECK(checkouts == 0);
-    REQUIRE(checked_in.kinds.size() == 1);
-    CHECK(checked_in.kinds.front() == GFrameKind::RESULT);
-
-    // A RETURN, for comparison, is answered with the next item.
-    auto ret = returnedFrame(GFrameKind::RETURN);
-    const auto work = handleServerRequest(ret, checkout, checked_in.sink(), nullptr, nullptr, BIN);
-    frame_type work_reply{GFrameKind::NONE};
-    wireDecode(work, work_reply, nullptr, BIN);
-    CHECK(work_reply.kind() == GFrameKind::WORK);
-    CHECK(checkouts == 1);
-}

@@ -589,7 +589,7 @@ TEST_CASE("courtier(timeout): the treatment is config-file selectable", "[courti
         w.treatment = "fixed";
         w.fixed_lease_ms = 1234;
         w.stall_factor = 3.5;
-        w.session_timeout_ms = 0;
+        w.max_stall_ms = 54'321;
         w.load(path.string()); // absent -> writes THESE values, reads them back
 
         c2::GNetworkedTimeoutConfig r;
@@ -598,7 +598,7 @@ TEST_CASE("courtier(timeout): the treatment is config-file selectable", "[courti
         CHECK(r.treatmentEnum() == c2::timeoutTreatment::fixed);
         CHECK(r.fixed_lease_ms == 1234);
         CHECK(r.stall_factor == 3.5);
-        CHECK(r.session_timeout_ms == 0);
+        CHECK(r.max_stall_ms == 54'321);
         std::filesystem::remove(path);
     }
 

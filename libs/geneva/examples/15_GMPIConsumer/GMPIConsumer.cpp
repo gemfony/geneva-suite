@@ -51,7 +51,7 @@
  * This example's basic structure is
  * taken from the example `06_DirectEA`. The example `06_DirectEA` concerning
  * consumers only provides the options of local serial execution, local multicore
- * execution and networked execution using the GAsioConsumer. As the GMPIConsumerT
+ * execution and networked execution using the websocket consumer. As the GMPIConsumerT
  * was developed at a later point in time and has another dependency (MPI library),
  * we decided to create this example separate example of how to use the GMPIConsumerT.
  * 

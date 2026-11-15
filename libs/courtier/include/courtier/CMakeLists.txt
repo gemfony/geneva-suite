@@ -50,25 +50,21 @@ SET ( COMMUNICATIONINCLUDES
 # Consumer classes (namespace Gem::Courtier): the span+policy submission consumers (formerly the
 # courtier2 rework, merged in at Stage E).
 SET ( CONSUMER_INCLUDES
-    consumers/GAsioConsumerConfig.hpp
-    consumers/GAsioConsumerT.hpp
     consumers/GMPIConsumerConfig.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
     consumers/GPeerConsumerT.hpp
     consumers/GStdThreadConsumerConfig.hpp
     consumers/GStdThreadConsumerT.hpp
-    consumers/GTcpAcceptingConsumerT.hpp
     consumers/GWebsocketConsumerConfig.hpp
     consumers/GWebsocketConsumerT.hpp
 )
 
 # Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
-# interface, the websocket and asio transports and the MPI master/worker nodes that the networked
+# interface, the websocket transport and the MPI master/worker nodes that the networked
 # consumers reuse. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
-    transport/GAsioTransportT.hpp
     transport/GIoContext.hpp
     transport/GMPICallsI.hpp
     transport/GMPIPollCore.hpp

@@ -28,7 +28,7 @@
  ********************************************************************************/
 
 /**
- * Tests of the client pipeline shared by the socket clients (GPrefetchingClientT) that need no
+ * Tests of the client pipeline of the networked clients (GPrefetchingClientT) that need no
  * server: a probe client stands in for a transport and drives the pipeline's timers by hand.
  */
 
@@ -37,6 +37,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -48,6 +49,7 @@
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
+#include "courtier/GWireProtocolT.hpp"
 #include "courtier/transport/GPrefetchingClientT.hpp"
 
 using Gem::Courtier::GCommandContainerT;
@@ -128,11 +130,6 @@ public:
     [[nodiscard]] std::size_t pendingPulls() const {
         return pending_pulls_;
     }
-    /** @brief The next result's prepareReturn_() throws something that is not a std::exception */
-    void throwInPrepareReturn() {
-        throw_in_prepare_.store(true);
-    }
-
     /** @brief Decodes the last result handed to the transport @param frame Receives it */
     void lastResult(Gem::Courtier::GCommandContainerT<item_type> &frame) const {
         Gem::Courtier::container_from_string(
@@ -164,7 +161,22 @@ private:
     }
     void refill_() { /* no transport to pull from */
     }
-    void sendEncodedAndRefill_(std::string bytes, const std::string &error) {
+    /** @brief Every result asks for the next item, as a client without look-ahead does
+     *  @return RETURN */
+    [[nodiscard]] Gem::Courtier::GFrameKind resultKindHint_() const {
+        return Gem::Courtier::GFrameKind::RETURN;
+    }
+    /** @brief Keeps the result as the transport would send it; a RETURN is a request again
+     *  @param bytes The encoded result @param error Why it could not be encoded
+     *  @param frame The result's frame */
+    void sendResult_(
+        std::string bytes,
+        const std::string &error,
+        Gem::Courtier::GCommandContainerT<item_type> frame
+    ) {
+        if(frame.kind() == Gem::Courtier::GFrameKind::RETURN) {
+            ++pending_pulls_;
+        }
         if(error.empty() && not bytes.empty()) {
             ++n_results_;
             last_result_ = std::move(bytes);
@@ -177,16 +189,9 @@ private:
     }
     void haltShutdown_() { /* no transport to close */
     }
-    /** @brief Throws when asked to (throwInPrepareReturn()); on a compute thread */
-    void prepareReturn_(Gem::Courtier::GCommandContainerT<item_type> & /*frame*/) {
-        if(throw_in_prepare_.exchange(false)) {
-            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
-        }
-    }
 
     boost::asio::steady_timer stop_timer_{io_context_};
-    std::size_t n_results_ = 0; ///< Encoded results handed to the transport
-    std::atomic<bool> throw_in_prepare_{false}; ///< See throwInPrepareReturn()
+    std::size_t n_results_ = 0;                   ///< Encoded results handed to the transport
     std::string last_result_;                     ///< The last result handed to the transport
     std::size_t n_unreadable_ = 0;                ///< Messages that could not be read (io thread)
 };
@@ -235,7 +240,66 @@ private:
     bool slow_ = false; ///< Its destruction takes its time
 };
 
+/** @brief A work item whose return seam (GWireProtocolT::buildReturn(), below) throws something
+ *  that is not a std::exception: what follows its evaluation fails on the compute thread. */
+class GReturnThrowsItem final
+  : public Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename Archive>
+    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>>(
+            ar,
+            "GProcessingContainerT_GReturnThrowsItem",
+            *this
+        );
+    }
+
+public:
+    GReturnThrowsItem()
+      : Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Nothing to evaluate */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
+};
+
 } /* anonymous namespace */
+
+namespace Gem::Courtier {
+/** @brief The wire seam of GReturnThrowsItem: the default one, except that building the return
+ *  throws something that is not a std::exception. */
+template <>
+struct GWireProtocolT<GReturnThrowsItem> {
+    using payload_type = GNoLibraryPayload;
+    static std::uint32_t workTag() {
+        return 0;
+    }
+    static std::uint32_t shutdownTag() {
+        return 0;
+    }
+    static bool buildReturn(
+        [[maybe_unused]] const GReturnThrowsItem &item,
+        [[maybe_unused]] std::uint32_t &tag,
+        [[maybe_unused]] payload_type &payload
+    ) {
+        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
+    }
+    static void applyReturn(
+        GReturnThrowsItem &slot,
+        [[maybe_unused]] std::uint32_t tag,
+        [[maybe_unused]] const payload_type *payload,
+        const GReturnThrowsItem *item
+    ) {
+        if(item != nullptr) {
+            slot.absorbResultsFrom(*item);
+        }
+    }
+};
+} /* namespace Gem::Courtier */
 
 TEST_CASE(
     "courtier(client): a timer that had expired when the client stopped does not arm itself again",
@@ -456,9 +520,9 @@ TEST_CASE(
 /******************************************************************************/
 /**
  * No exception of any type leaves a compute-pool thread: when what follows the evaluation throws
- * something that is not a std::exception (here the client's prepareReturn_()), the item is returned
- * to the server as failed -- its outcome alone, ERROR_FLAGGED, with its correlation id -- and the
- * client goes on.
+ * something that is not a std::exception (here the library's return seam, GWireProtocolT::
+ * buildReturn()), the item is returned to the server as failed -- its outcome alone,
+ * ERROR_FLAGGED, with its correlation id -- and the client goes on.
  */
 TEST_CASE(
     "courtier(client): a non-std exception after the evaluation returns the item as failed",
@@ -467,20 +531,19 @@ TEST_CASE(
     using Gem::Courtier::GFrameKind;
     using Gem::Courtier::processingStatus;
 
-    auto item = std::make_unique<GFaultyContainer>(0);
+    auto item = std::make_unique<GReturnThrowsItem>();
     item->set_processing_status(processingStatus::DO_PROCESS);
     item->setCorrelationId(4711);
-    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK, std::move(item)};
+    const GCommandContainerT<GReturnThrowsItem> work{GFrameKind::WORK, std::move(item)};
 
-    auto client = std::make_shared<ProbeClient>();
-    client->throwInPrepareReturn();
+    auto client = std::make_shared<ProbeClientT<GReturnThrowsItem>>();
     client->expectAnswer();
     client->receive(
         Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
     );
     REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
     CHECK(client->computing() == 0);
-    GCommandContainerT<GFaultyContainer> returned{GFrameKind::NONE};
+    GCommandContainerT<GReturnThrowsItem> returned{GFrameKind::NONE};
     client->lastResult(returned);
     CHECK(returned.kind() == GFrameKind::RETURN);
     CHECK(returned.item() == nullptr);

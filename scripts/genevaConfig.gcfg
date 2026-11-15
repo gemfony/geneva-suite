@@ -158,7 +158,7 @@ FORCECUDA="0"
 #   CUDA_NVCC="/usr/local/cuda-13.3/bin/nvcc"
 #   CUDA_ROOT="/usr/local/cuda-13.3"   # optional; derived from CUDA_NVCC if omitted
 #
-# It configures and compiles the whole tree cleanly, including the Asio-using
+# It configures and compiles the whole tree cleanly, including the Boost.Asio-using
 # CUDA examples/benchmark (GCUDAWorker, GCUDAOptBenchmark).
 #
 # Historic note (Ubuntu 24.04 + glibc 2.39 only): an older 13.1's

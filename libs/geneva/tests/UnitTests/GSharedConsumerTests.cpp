@@ -56,7 +56,6 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/consumers/GAsioConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
@@ -508,12 +507,12 @@ TEST_CASE("a consumer given to Go2::registerConsumer() is used", "[consumer][sha
 }
 
 // ---------------------------------------------------------------------------
-// The options for the number of io threads of the socket servers were registered and shown in the
-// help text, but their values never reached the consumer: it always ran as many io threads as the
+// The option for the number of io threads of the socket server was registered and shown in the
+// help text, but its value never reached the consumer: it always ran as many io threads as the
 // machine has hardware threads. The value given on the command line -- or the default -- must be
 // in the spec the consumer is built from.
 TEST_CASE(
-    "the io thread options of the socket consumers take effect",
+    "the io thread option of the websocket consumer takes effect",
     "[consumer][setup][options]"
 ) {
     namespace po = boost::program_options;
@@ -537,28 +536,22 @@ TEST_CASE(
         )
             .nThreads;
     };
-    const auto asio_threads = [&spec_for](const std::vector<std::string> &args) {
-        return Gem::Courtier::configOf<Gem::Courtier::GAsioConsumerConfig>(spec_for("asio", args))
-            .nThreads;
-    };
 
     CHECK(beast_threads({"--beast_nListenerThreads", "7"}) == 7);
-    CHECK(asio_threads({"--asio_nProcessingThreads", "9"}) == 9);
     CHECK(beast_threads({"--beast_nListenerThreads", "0"}) == 0); // hardware threads
 
     // Without the option the documented default applies, not the number of hardware threads.
     CHECK(beast_threads({}) == Gem::Courtier::GCONSUMERLISTENERTHREADS);
-    CHECK(asio_threads({}) == Gem::Courtier::GCONSUMERLISTENERTHREADS);
 }
 
 // ---------------------------------------------------------------------------
-// The defaults of the socket consumers' options are those of their configuration structs: an option
+// The defaults of the websocket consumer's options are those of its configuration struct: an option
 // left unset leaves the consumer as a default-constructed configuration describes it, and a default
 // changed in the struct changes what the command line gives, without a second place to edit. The
 // port is the one exception: on the command line server and client are two processes and meet on
 // GCONSUMERDEFAULTPORT, while a configuration built in a program lets the server pick a free port.
 TEST_CASE(
-    "the socket consumers' options default to their configuration structs",
+    "the websocket consumer's options default to its configuration struct",
     "[consumer][setup][options]"
 ) {
     namespace po = boost::program_options;
@@ -583,17 +576,6 @@ TEST_CASE(
     CHECK(beast.pingInterval == beast_defaults.pingInterval);
     CHECK(beast.verboseControlFrames == beast_defaults.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == beast_defaults.clientPrefetchDepth);
-
-    const auto asio = Gem::Courtier::configOf<Gem::Courtier::GAsioConsumerConfig>(
-        Gem::Geneva::specFromCommandLine("asio", vm)
-    );
-    const Gem::Courtier::GAsioConsumerConfig asio_defaults;
-    CHECK(asio.ip == asio_defaults.ip);
-    CHECK(asio.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
-    CHECK(asio.serializationMode == asio_defaults.serializationMode);
-    CHECK(asio.nThreads == asio_defaults.nThreads);
-    CHECK(asio.maxReconnects == asio_defaults.maxReconnects);
-    CHECK(asio.clientPrefetchDepth == asio_defaults.clientPrefetchDepth);
 }
 
 // ---------------------------------------------------------------------------
@@ -622,30 +604,26 @@ TEST_CASE("Consumer provider store exposes the built-in consumer catalog", "[con
     // The built-in local + socket consumers are always registered; unknown mnemonics are not (the retired
     // "sc" serial consumer is now "stc" with one thread, so "sc" is no longer a known mnemonic).
     CHECK(Gem::Geneva::isKnownConsumer("stc"));
-    CHECK(Gem::Geneva::isKnownConsumer("asio"));
     CHECK(Gem::Geneva::isKnownConsumer("beast"));
     CHECK_FALSE(Gem::Geneva::isKnownConsumer("sc"));
     CHECK_FALSE(Gem::Geneva::isKnownConsumer("does_not_exist"));
 
     // The local consumer needs no networked client; the socket consumers do. An unknown mnemonic never does.
     CHECK_FALSE(Gem::Geneva::consumerNeedsClient("stc"));
-    CHECK(Gem::Geneva::consumerNeedsClient("asio"));
     CHECK(Gem::Geneva::consumerNeedsClient("beast"));
     CHECK_FALSE(Gem::Geneva::consumerNeedsClient("does_not_exist"));
 
-    // The listing names each registered consumer, and the count covers at least the three always-built ones.
+    // The listing names each registered consumer, and the count covers at least the two always-built ones.
     const std::string listing = Gem::Geneva::consumerListing();
     CHECK(listing.contains("stc:"));
-    CHECK(listing.contains("asio:"));
     CHECK(listing.contains("beast:"));
     CHECK_FALSE(listing.contains("sc:"));
-    CHECK(Gem::Geneva::consumerCount() >= 3);
+    CHECK(Gem::Geneva::consumerCount() >= 2);
 
     // The always-built consumers take their client/server role from --client (known before the consumer is
     // built), so they do NOT determine it at runtime. This is the generic capability generic drivers query
     // instead of naming a specific consumer. An unknown mnemonic is never role-at-runtime.
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("stc"));
-    CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("asio"));
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("beast"));
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("does_not_exist"));
     // The MPI consumer, when built into this binary, self-assigns the role from its process rank.

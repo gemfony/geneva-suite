@@ -214,7 +214,7 @@ private:
             }
         );
 
-        // This call will block until no more work remains in the ASIO work queue
+        // This call will block until no more work remains in the io context
         io_context_.run();
 
         // The io context has stopped, so nothing can be waited for any more. A peer that is still

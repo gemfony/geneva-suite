@@ -154,9 +154,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
   `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
   the mnemonic (`MNEMONIC`), so struct and consumer cannot be mismatched, and a misspelt member does
-  not compile. The structs are `GStdThreadConsumerConfig`, `GWebsocketConsumerConfig`,
-  `GAsioConsumerConfig` and `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none
-  includes a network or MPI header). Development snapshots of the redesign had a `ConsumerSpec`
+  not compile. The structs are `GStdThreadConsumerConfig`, `GWebsocketConsumerConfig` and
+  `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none includes a network or MPI
+  header). Development snapshots of the redesign had a `ConsumerSpec`
   with one field per option of every consumer and a function `buildConsumerSetup()` returning a
   `ConsumerSetup`; `Gem::Courtier::ConsumerSpec` (`courtier/GConsumerSpec.hpp`) is now a mnemonic
   plus a `std::any config` (empty: the family's defaults), for a mnemonic known only at run time,
@@ -191,8 +191,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   is woken per item, the one that has waited longest first. A client thus gets its next item as
   soon as there is one, and idle clients cause no traffic beyond the keep-alive. Measured with
   400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
-  fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `asio`
-  and `mpi` workers still ask again after a random pause of 50 to 200 ms
+  fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `mpi`
+  workers still ask again after a random pause of 50 to 200 ms
   (`GCLIENTNOWORKPAUSE{LOWER,UPPER}BOUNDARYMSEC`), which adds up to about that much to an
   iteration; for evaluations of less than a few seconds the websocket consumer is the better
   choice.
@@ -205,12 +205,26 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
   time. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
   lost client is not noticed by the transport, and the server reclaims its items by the time lease.
-- **The number of threads of a socket server** is set with `--asio_nProcessingThreads` and
-  `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11; the
-  websocket server runs its sessions on as many threads again.
+- **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
+  (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
+  many threads again.
   Development snapshots of the redesign ignored these options and ran one io thread per hardware
   thread. Measured with 400 websocket clients and evaluations of 10 ms, an iteration took 25.8 ms
   with 4 threads, 26.8 ms with 2 and 26.5 ms with 8; the server needed 1.4, 1.1 and 2.4 cores.
+- **The asio consumer is removed; the websocket consumer takes its place.** A program started
+  with `--consumer asio` or with an `asio_*` option is refused like one with any unknown consumer
+  or option. Use `--consumer beast` with the same host and port options under their websocket
+  names: `--beast_ip`, `--beast_port`, `--beast_serializationMode`, `--beast_nListenerThreads`
+  and `--beast_prefetchDepth`. Code that built the consumer from `GAsioConsumerConfig` uses
+  `GWebsocketConsumerConfig`, whose members are the same but for `maxReconnects`.
+  `--asio_maxReconnects` has no counterpart: a websocket client does not reconnect after it has
+  lost its connection, or when its first connection attempt fails; it ends. Reconnection comes
+  with a later change. The key
+  `session_timeout_ms` of the networked timeout configuration (the asio server's limit on one
+  exchange) is gone; the websocket keep-alive covers a client that falls silent, and
+  `--update-configs` drops the key from an existing file. The classes `GAsioConsumerT`,
+  `GAsioConsumerClientT` and `GTcpAcceptingConsumerT`, the constants `GASIO*` and the frame's
+  announced peer id (`GCommandContainerT::setPeerId()` / `peerId()`) are gone with it.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
 - **A websocket server tells its clients that the run has ended.** `stopServer()` closes every
@@ -438,12 +452,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC`. The other pauses, time limits
   and defaults of the networked consumers are named constants in `courtier/GCourtierEnums.hpp`
   as well.
-- **courtier: the socket consumers/clients gained shared bases** — `GAsioConsumerT` derives
-  from `GTcpAcceptingConsumerT` and `GWebsocketConsumerT` from `GPeerConsumerT` (the server's
-  shell over any transport); `GAsioConsumerClientT` derives from `GPrefetchingClientT` (the
-  common prefetch/compute pipeline) and `GWebsocketClientT` from `GPeerClientT`, which derives
-  from it. Public construction and options are unchanged; only code naming the old direct base
-  classes is affected.
+- **courtier: the websocket consumer and client gained shared bases** — `GWebsocketConsumerT`
+  derives from `GPeerConsumerT` (the server's shell over any transport) and `GWebsocketClientT`
+  from `GPeerClientT`, which derives from `GPrefetchingClientT` (the prefetch/compute pipeline).
+  Public construction and options are unchanged; only code naming the old direct base classes is
+  affected.
 - **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
   taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
   `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.

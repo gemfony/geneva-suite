@@ -35,9 +35,8 @@
 
 // The configuration structs must be usable without the consumers: a program names a consumer
 // by its struct. If one of the headers pulls in Boost.Asio, Beast or MPI, this file does not
-// compile. (Every Asio header defines BOOST_ASIO_VERSION, every Beast header
+// compile. (Every Boost.Asio header defines BOOST_ASIO_VERSION, every Beast header
 // BOOST_BEAST_VERSION, mpi.h MPI_VERSION.)
-#include "courtier/consumers/GAsioConsumerConfig.hpp"
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
@@ -70,7 +69,6 @@
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 
-using Gem::Courtier::GAsioConsumerConfig;
 using Gem::Courtier::GStdThreadConsumerConfig;
 using Gem::Courtier::GWebsocketConsumerConfig;
 using Gem::Courtier::Consumers::MPIConsumerConfig;
@@ -79,13 +77,10 @@ using Gem::Courtier::Consumers::MPIConsumerConfig;
 // The structs are plain, copyable aggregates and name the mnemonic of their family.
 static_assert(std::is_aggregate_v<GStdThreadConsumerConfig>);
 static_assert(std::is_aggregate_v<GWebsocketConsumerConfig>);
-static_assert(std::is_aggregate_v<GAsioConsumerConfig>);
 static_assert(std::copyable<GStdThreadConsumerConfig>);
 static_assert(std::copyable<GWebsocketConsumerConfig>);
-static_assert(std::copyable<GAsioConsumerConfig>);
 static_assert(GStdThreadConsumerConfig::MNEMONIC == "stc");
 static_assert(GWebsocketConsumerConfig::MNEMONIC == "beast");
-static_assert(GAsioConsumerConfig::MNEMONIC == "asio");
 static_assert(std::is_aggregate_v<MPIConsumerConfig>);
 static_assert(std::copyable<MPIConsumerConfig>);
 static_assert(MPIConsumerConfig::MNEMONIC == "mpi");
@@ -188,15 +183,6 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
     CHECK(beast.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
-
-    const GAsioConsumerConfig asio{};
-    CHECK(asio.ip == "localhost");
-    CHECK(asio.port == 0);
-    CHECK(asio.serializationMode == Gem::Common::serializationMode::GEM_BINARY);
-    CHECK(asio.nThreads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
-    CHECK(asio.maxReconnects == Gem::Courtier::GASIOCONSUMERMAXCONNECTIONATTEMPTS);
-    CHECK(asio.clientPrefetchDepth == 1);
-    CHECK(asio.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
 }
 
 /******************************************************************************/
@@ -271,6 +257,5 @@ TEST_CASE("configOf() refuses the configuration of another family", "[courtier][
 static_assert(Gem::Courtier::GDEFAULTCONSUMERMNEMONIC == GStdThreadConsumerConfig::MNEMONIC);
 static_assert(Gem::Courtier::ConsumerConfig<GStdThreadConsumerConfig>);
 static_assert(Gem::Courtier::ConsumerConfig<GWebsocketConsumerConfig>);
-static_assert(Gem::Courtier::ConsumerConfig<GAsioConsumerConfig>);
 static_assert(Gem::Courtier::ConsumerConfig<MPIConsumerConfig>);
 static_assert(not Gem::Courtier::ConsumerConfig<int>);

@@ -62,7 +62,7 @@ namespace Gem::Courtier {
  * payload once and reference it by a content id thereafter, with a mandatory cache-miss -> fetch fallback
  * for networked transports (reconnect / late-joining workers).
  *
- * It lives in the courtier (consumer/session) layer so all three transports -- Asio, websocket, MPI --
+ * It lives in the courtier (consumer/session) layer so all transports -- websocket, MPI --
  * inherit it once, and it knows NOTHING about what a blob contains: a blob is an OPAQUE serialized string
  * keyed by an opaque 128-bit content id. The USING LIBRARY computes the id, (de)serializes its own payload
  * to/from the blob, and consults the thread-local context set around a (de)serialization; courtier owns

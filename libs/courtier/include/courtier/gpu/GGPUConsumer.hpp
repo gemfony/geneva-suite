@@ -56,7 +56,7 @@ namespace Gem::Courtier::GPU {
  * A unified, device-model-agnostic GPU consumer (part of the Courtier consumer family).
  *
  * It is an ordinary courtier LOCAL consumer (it derives from the same Gem::Courtier::GBaseConsumerT
- * that every other consumer -- serial, multi-threaded, asio, beast, mpi -- derives from), so it plugs
+ * that every other consumer -- serial, multi-threaded, beast, mpi -- derives from), so it plugs
  * into the existing span+policy submission path unchanged. It is mnemonic-selectable like every other
  * consumer (`--consumer gpu`): a Go2 program contributes its device marshaller into the marshaller store
  * (Gem::Geneva::registerGPUMarshaller(...)) and Go2 builds + registers this consumer through the normal

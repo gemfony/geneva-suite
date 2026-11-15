@@ -70,8 +70,8 @@ ENDFUNCTION()
 # executable / file names still carry the "2" until the Stage-E identifier rename (E2); the CTest
 # labels and install paths are already "courtier".
 #
-# None of these needs a RESOURCE_LOCK under `ctest -j`, including the two that really put a server on
-# the loopback interface: GCourtierAsioTests and GCourtierWebsocketTests construct their consumer with
+# None of these needs a RESOURCE_LOCK under `ctest -j`, including those that really put a server on
+# the loopback interface: GCourtierWebsocketTests and its siblings construct their consumer with
 # port 0 and ask the bound socket for the port it actually got (getPort()), so the kernel hands every
 # concurrent instance a distinct ephemeral port. Keep it that way -- a test that hard-codes a port
 # number is the thing that would need serializing.
@@ -85,7 +85,6 @@ geneva_courtier_test(GCourtierConsumerConfigTests S  GCourtierConsumerConfigTest
 geneva_courtier_test(GCourtierTimeoutTests     M  GCourtierTimeoutTests.cpp)
 geneva_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
 geneva_courtier_test(GCourtierClientTests      M  GCourtierClientTests.cpp)
-geneva_courtier_test(GCourtierAsioTests        M  GCourtierAsioTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp)
 geneva_courtier_test(GCourtierWebsocketPeerTests M  GCourtierWebsocketPeerTests.cpp)
 geneva_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTransportTests.cpp)

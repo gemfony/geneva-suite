@@ -117,12 +117,8 @@ enum class processRole : Gem::Common::ENUMBASETYPE {
 
 /******************************************************************************/
 /**
- * Global variables for failed transfers and connection attempts.
+ * Defaults of the socket consumers and their clients.
  */
-constexpr std::uint32_t GASIOCONSUMERMAXCONNECTIONATTEMPTS = 10;
-/// How long an asio client waits for the server's reply to a request before it gives up. A server
-/// answers every request at once (with work or with NO_WORK), so a longer silence means it is gone.
-constexpr std::chrono::seconds GASIOCLIENTREPLYTIMEOUT{120};
 constexpr unsigned short GCONSUMERDEFAULTPORT = 10000;
 const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
@@ -168,14 +164,6 @@ constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
 constexpr std::uint32_t GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC = 200;
 /// How often a socket client looks at its halt conditions (maximum run time, a close request).
 constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
-/// An asio client whose connection attempt failed waits a random time between these two bounds,
-/// in milliseconds, before it tries again.
-constexpr std::uint32_t GASIOCLIENTRECONNECTPAUSELOWERBOUNDARYMSEC = 500;
-constexpr std::uint32_t GASIOCLIENTRECONNECTPAUSEUPPERBOUNDARYMSEC = 1000;
-/// The deadline of one exchange with an asio client: a client that connects but does not complete
-/// its request is dropped after this time. It is not a limit on the evaluation (the client does
-/// not hold the connection while it computes). Zero switches it off.
-constexpr std::chrono::milliseconds GASIOSESSIONTIMEOUT{300'000};
 /// How long a socket server waits after a failed accept before it accepts again.
 constexpr std::chrono::milliseconds GCONSUMERACCEPTRETRYPAUSE{100};
 

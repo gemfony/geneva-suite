@@ -40,6 +40,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <variant>
 
 // Boost headers go here
@@ -51,7 +52,7 @@
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
 #include "courtier/GWireProtocolT.hpp"            // the library seam (tag + payload type)
-#include "courtier/GWireSerializationContext.hpp" // GWireBlobId / GWirePeerId / the blob frame payloads
+#include "courtier/GWireSerializationContext.hpp" // GWireBlobId / the blob frame payloads
 #include "weft/GArchivePolymorphic.hpp" // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
 
 namespace Gem::Courtier {
@@ -65,7 +66,7 @@ namespace Gem::Courtier {
  *
  * The class is deliberately two-layered, and the layers belong to different owners:
  *
- *  - **Courtier's layer** is the frame kind (GFrameKind), the announcing peer id and -- on a RETURN --
+ *  - **Courtier's layer** is the frame kind (GFrameKind) and -- on a RETURN or a RESULT --
  *    the GProcessingOutcome. These are the things courtier itself acts on: dispatch, check-in, shutdown,
  *    blob fetch, reconciliation.
  *  - **The using library's layer** is an opaque numeric @c tag and, for frames that do not ship a work
@@ -95,7 +96,8 @@ class GCommandContainerT {
      * The payload rides Weft's native, index-tagged std::variant support, so the stream stays
      * self-describing and each frame writes only its own alternative. The outcome is written only where
      * it is meaningful; the frame kind is streamed first, so save and load agree on that branch without
-     * any version field.
+     * any version field. A loaded kind that is not a GFrameKind is refused: the message is not a
+     * frame.
      *
      * @tparam Archive The GArchive codec type
      * @param ar The archive to read from / write to
@@ -105,8 +107,19 @@ class GCommandContainerT {
     void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "kind_", kind_);
+        if constexpr(std::remove_cvref_t<Archive>::is_loading) {
+            // A message from the network may be anything: a kind that GFrameKind does not have
+            // means that it is not a frame, however the rest of it would decode.
+            if(std::to_underlying(kind_) > std::to_underlying(GFrameKind::UNREADABLE)) {
+                throw geneva_exception(
+                    g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+                    << "In GCommandContainerT<processable_type>::serialize():" << '\n'
+                    << "The message is not a frame: its kind " << std::to_underlying(kind_)
+                    << " is not a GFrameKind" << '\n'
+                );
+            }
+        }
         archive_named(ar, "tag_", tag_);
-        archive_named(ar, "peer_id_", peer_id_);
         archive_named(ar, "payload_", payload_);
         if(kind_ == GFrameKind::RETURN || kind_ == GFrameKind::RESULT) {
             archive_named(ar, "outcome_", outcome_);
@@ -171,7 +184,7 @@ public:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Resets the frame to a new kind, dropping every payload, tag, peer id and outcome, so a
+	  * @brief Resets the frame to a new kind, dropping every payload, tag and outcome, so a
 	  * reused container never carries stale data into the next message.
 	  *
 	  * @param kind The new frame kind (defaults to NONE, i.e. cleared)
@@ -180,7 +193,6 @@ public:
     const GCommandContainerT &reset(GFrameKind kind = GFrameKind::NONE) {
         kind_ = kind;
         tag_ = 0;
-        peer_id_ = 0;
         payload_ = payload_variant{};
         outcome_ = GProcessingOutcome{};
         return *this;
@@ -207,13 +219,6 @@ public:
     void setKind(GFrameKind kind) noexcept { kind_ = kind; }
     /** @brief @return The kind of this frame */
     [[nodiscard]] GFrameKind kind() const noexcept { return kind_; }
-
-    /** @brief Sets the announcing peer's stable id (used by ASIO, whose one-shot connections have no
-     *  persistent per-connection identity, to tell the server which peer a request belongs to).
-     *  @param peer The stable peer id of the announcing client. */
-    void setPeerId(GWirePeerId peer) noexcept { peer_id_ = peer; }
-    /** @brief @return The stable peer id announced on this frame (0 if none). */
-    [[nodiscard]] GWirePeerId peerId() const noexcept { return peer_id_; }
 
     /** @brief Sets the processing outcome reported by a RETURN frame.
      *  @param outcome The worker's lifecycle report for the returned slot */
@@ -331,8 +336,7 @@ private:
     // Data
 
     GFrameKind kind_{GFrameKind::NONE}; ///< What this frame does to the transport (courtier's own)
-    std::uint32_t tag_{0};              ///< What this frame means to the using library (relayed only)
-    GWirePeerId peer_id_{0};            ///< Stable announcing-peer id (ASIO); 0 == none
+    std::uint32_t tag_{0}; ///< What this frame means to the using library (relayed only)
     payload_variant payload_;           ///< What the frame carries (one alternative per purpose)
     GProcessingOutcome outcome_;        ///< The worker's lifecycle report (RETURN and RESULT)
 

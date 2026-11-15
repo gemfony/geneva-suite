@@ -566,12 +566,9 @@ private:
         // Build and serialise the BLOB_REQUEST frame (no work item, so no nested wire scope).
         std::string requestStr;
         // Build the BLOB_REQUEST frame (under a null scope; carries no work item). MPI identifies the
-        // worker by rank, so no peer id is needed (the default 0 is sent).
-        requestStr = Gem::Courtier::buildBlobRequest<processable_type>(
-            id,
-            /* peer = */ 0,
-            config_.serializationMode
-        );
+        // worker by rank.
+        requestStr =
+            Gem::Courtier::buildBlobRequest<processable_type>(id, config_.serializationMode);
 
         // MPI counts are int: a request above INT_MAX would wrap into a negative/truncated count
         // and silently send the wrong number of bytes. Report it like any other transport failure.

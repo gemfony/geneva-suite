@@ -477,7 +477,7 @@ std::string Go2::getConsumerName() {
  * @brief Selects the consumer by mnemonic (programmatic equivalent of --consumer). Takes effect when the
  * run is configured; a --consumer value on the command line overrides it.
  *
- * @param mnemonic The consumer mnemonic to use (e.g. "stc", "asio", "mpi", "gpu")
+ * @param mnemonic The consumer mnemonic to use (e.g. "stc", "beast", "mpi", "gpu")
  */
 void Go2::setConsumerName(std::string const &mnemonic) {
     consumer_name_ = mnemonic;
@@ -1137,11 +1137,11 @@ void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         [this](std::string const &c) { consumer_name_ = c; }
     ) << "The consumer (parallelization backend) used when none is given on the command line."
       << '\n'
-      << "One of: stc, asio, beast, mpi, gpu (availability depends on build options and the"
+      << "One of: stc, beast, mpi, gpu (availability depends on build options and the problem;"
       << '\n'
-      << "problem; e.g. gpu requires a registered GPU consumer builder). The --consumer command-line"
+      << "e.g. gpu requires a registered GPU consumer builder). The --consumer command-line option"
       << '\n'
-      << "option overrides this setting.";
+      << "overrides this setting.";
 }
 
 /******************************************************************************/
@@ -1499,7 +1499,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
         );
     }
 
-    // Client mode requires a consumer with a networked client form (asio/beast/mpi). A consumer that
+    // Client mode requires a consumer with a networked client form (beast/mpi). A consumer that
     // determines the role at runtime (e.g. mpi, from the rank) is exempt from this up-front check: its role
     // is not decided from --client.
     const bool role_at_runtime = Gem::Geneva::consumerDeterminesRoleAtRuntime(consumer_name_);

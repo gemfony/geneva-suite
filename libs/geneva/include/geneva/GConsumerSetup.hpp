@@ -100,10 +100,10 @@ public:
     [[nodiscard]] virtual std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
     buildClient(const Gem::Courtier::ConsumerSpec &spec) const = 0;
     /** @brief Whether a process selecting this consumer can run as a networked client.
-     *  @return true for networked consumers (asio/beast/mpi), false otherwise. */
+     *  @return true for networked consumers (beast/mpi), false otherwise. */
     [[nodiscard]] virtual bool needsClient() const = 0;
     /** @brief Whether this consumer binds a listening socket, so a second build reuses the existing one
-     *  rather than binding again. @return true for the socket-server consumers (asio/beast). */
+     *  rather than binding again. @return true for the socket-server consumers (beast). */
     [[nodiscard]] virtual bool bindsListeningPort() const { return false; }
     /** @brief Whether this consumer answers role() from its RUNTIME environment (e.g. the rank of
      *  the process in an MPI communicator) rather than from the --client switch. A caller must
@@ -205,7 +205,7 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
  * @p vm (GConsumerProviderT::configFromCommandLine()). Keeps callers (Go2, the standalone
  * examples) free of per-consumer option knowledge.
  *
- * @param mnemonic The consumer mnemonic to build a spec for ("stc"|"asio"|"beast"|"mpi").
+ * @param mnemonic The consumer mnemonic to build a spec for ("stc"|"beast"|"mpi").
  * @param vm The parsed program-options variables map to read consumer option values from.
  * @return The populated ConsumerSpec. An unknown mnemonic yields a spec carrying only the mnemonic.
  */
@@ -217,12 +217,12 @@ specFromCommandLine(const std::string &mnemonic, const boost::program_options::v
  * @brief Builds the networked client for a spec, for a process running in client mode.
  *
  * The servers built by buildConsumer() are wire-compatible with the existing client classes,
- * so this is the single place that maps a mnemonic onto the matching client (asio/beast/mpi). The
+ * so this is the single place that maps a mnemonic onto the matching client (beast/mpi). The
  * caller sets the maximum runtime and invokes run() on the returned client. Call it on a client
  * only (see consumerRole()); a provider may refuse to build on any other role.
  *
  * @param spec The consumer description; the client-side members of its configuration (ip, port,
- *   serialization, reconnects, prefetch depth) drive the client that is constructed.
+ *   serialization, prefetch depth) drive the client that is constructed.
  * @return The constructed client (for mpi, the MPI worker node), or null for a consumer that has no
  *   client (stc is local).
  */
@@ -259,7 +259,7 @@ void materializeConsumerConfigFiles();
 /**
  * @brief Registers the command-line options of every supported courtier consumer.
  *
- * Registers the options for asio/beast/stc (and mpi when built). This is the single place that owns
+ * Registers the options for beast/stc (and mpi when built). This is the single place that owns
  * the consumer option surface, so callers (Go2) register them without iterating a consumer store.
  * specFromCommandLine() reads the matching values back out of the parsed map.
  *
@@ -272,7 +272,7 @@ void addConsumerOptions(
 
 /******************************************************************************/
 /**
- * @brief Whether a mnemonic names a consumer this layer can build (stc/asio/beast/mpi).
+ * @brief Whether a mnemonic names a consumer this layer can build (stc/beast/mpi).
  * @param mnemonic The consumer mnemonic to test.
  * @return true if the mnemonic is a known/buildable consumer, false otherwise.
  */
@@ -282,7 +282,7 @@ bool isKnownConsumer(const std::string &mnemonic);
 /**
  * @brief Whether a process selecting the given mnemonic can run as a networked client.
  * @param mnemonic The consumer mnemonic to test.
- * @return true if the mnemonic denotes a consumer with a client role (asio/beast/mpi), false otherwise.
+ * @return true if the mnemonic denotes a consumer with a client role (beast/mpi), false otherwise.
  */
 bool consumerNeedsClient(const std::string &mnemonic);
 

@@ -19,11 +19,11 @@ o The option "-a <algorithm-mnemonic>". It lets you choose from the registered o
   By default, the executable uses an evolutionary algorithm.
 o The option "-c <consumer-mnemonic>" selects where the evaluations run. The default,
   "stc", uses all cores of the local machine ("--nWorkerThreads 1" makes it serial).
-  "asio" and "beast" distribute the work over the network, "mpi" over an MPI job, and
+  "beast" distributes the work over the network (websocket), "mpi" over an MPI job, and
   "gpu" (in a build with the GPU consumer) on a CUDA device.
 o In order to try out networked execution on the local host, start the server with
-  "-c asio" and the clients (try as many as you like) with "-c asio --client". Server
-  name and port are set with --asio_ip and --asio_port when running in a LAN- or
+  "-c beast" and the clients (try as many as you like) with "-c beast --client". Server
+  name and port are set with --beast_ip and --beast_port when running in a LAN- or
   WAN-context; the server listens on port 10000 by default.
 
 The executable will print the best parameters found when finished.

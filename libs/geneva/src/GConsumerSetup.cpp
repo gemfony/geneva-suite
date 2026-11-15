@@ -60,15 +60,12 @@
 #include "courtier/GConsumerRegistry.hpp"
 
 // The concrete courtier consumers -- known ONLY here.
-#include "courtier/consumers/GAsioConsumerT.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 
-// The networked clients are wire-compatible with the courtier socket servers and are reused as-is;
-// like the consumers, the concrete client types are known ONLY here.
-#include "courtier/transport/GAsioTransportT.hpp"     // GAsioConsumerClientT
+// Like the consumers, the concrete client types are known ONLY here.
 #include "courtier/transport/GWebsocketTransportT.hpp" // GWebsocketClientT
 
 // The GPU consumer + the marshaller store it is built from -- known ONLY here (folded into
@@ -126,80 +123,6 @@ public:
             po::value<std::size_t>()->default_value(0),
             "\t[stc] The number of worker threads (0 == hardware concurrency)"
         );
-    }
-};
-
-/** @brief Provider for the Asio (raw socket) networked consumer. */
-class GAsioConsumerProvider final : public GConsumerProviderT {
-public:
-    [[nodiscard]] std::string getMnemonic() const override { return "asio"; }
-    [[nodiscard]] std::string getName() const override { return "GAsioConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return true; }
-    [[nodiscard]] bool bindsListeningPort() const override { return true; }
-
-    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(
-            c2::configOf<c2::GAsioConsumerConfig>(spec)
-        );
-        consumer->startServer();
-        return consumer;
-    }
-
-    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
-        c2::GAsioConsumerConfig config;
-        if(vm.contains("asio_port")) {
-            config.port = vm["asio_port"].as<unsigned short>();
-        }
-        if(vm.contains("asio_serializationMode")) {
-            config.serializationMode =
-                vm["asio_serializationMode"].as<Gem::Common::serializationMode>();
-        }
-        if(vm.contains("asio_ip")) {
-            config.ip = vm["asio_ip"].as<std::string>();
-        }
-        if(vm.contains("asio_maxReconnects")) {
-            config.maxReconnects = vm["asio_maxReconnects"].as<std::size_t>();
-        }
-        if(vm.contains("asio_prefetchDepth")) {
-            config.clientPrefetchDepth = vm["asio_prefetchDepth"].as<std::size_t>();
-        }
-        if(vm.contains("asio_nProcessingThreads")) {
-            config.nThreads = vm["asio_nProcessingThreads"].as<std::size_t>();
-        }
-        return config;
-    }
-
-    [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const c2::ConsumerSpec &spec) const override {
-        return std::make_shared<c2::Consumers::GAsioConsumerClientT<gen::GGenome>>(
-            c2::configOf<c2::GAsioConsumerConfig>(spec)
-        );
-    }
-
-    void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
-        using Gem::Common::serializationMode;
-        // The defaults are the configuration's (one place for them), the port excepted: on the
-        // command line server and client are two processes, which meet on GCONSUMERDEFAULTPORT.
-        const c2::GAsioConsumerConfig defaults;
-        visible.add_options()(
-            "asio_ip", po::value<std::string>()->default_value(defaults.ip),
-            "\t[asio] The name or ip of the server")(
-            "asio_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
-            "\t[asio] The port of the server");
-        hidden.add_options()(
-            "asio_serializationMode",
-            po::value<serializationMode>()->default_value(defaults.serializationMode),
-            "\t[asio] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
-            "asio_nProcessingThreads",
-            po::value<std::size_t>()->default_value(defaults.nThreads),
-            "\t[asio] The number of io threads of the server (0 == as many as the machine has "
-            "hardware threads)")(
-            "asio_maxReconnects",
-            po::value<std::size_t>()->default_value(defaults.maxReconnects),
-            "\t[asio] The maximum number of client reconnection attempts")(
-            "asio_prefetchDepth",
-            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
-            "\t[asio] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
     }
 };
 
@@ -400,7 +323,6 @@ struct ConsumerProviderRegistrar {
             std::string(c2::GDEFAULTCONSUMERMNEMONIC),
             std::make_shared<GStdThreadConsumerProvider>()
         );
-        store->setOnce("asio", std::make_shared<GAsioConsumerProvider>());
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
@@ -529,7 +451,7 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::Consum
 
     auto consumer = provider->setup(spec);
 
-    // Networked consumers (ASIO / websocket / MPI, all GNetworkedConsumerT) read their SERVER-side timeout /
+    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read their SERVER-side timeout /
     // death-detection treatment from a config file (created with scale-free adaptive defaults if absent), so
     // a user can select "fixed" / "wait_indefinitely" or tune the adaptive lease purely via the config --
     // no command line. Applied once here for whichever networked consumer was built; local / GPU consumers
@@ -595,7 +517,7 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
  * Fills both fields: the mnemonic, and the configuration the matching provider reads from the
  * command line. An unknown mnemonic yields a spec carrying only the mnemonic.
  *
- * @param mnemonic The selected consumer mnemonic (e.g. "asio", "beast", "stc")
+ * @param mnemonic The selected consumer mnemonic (e.g. "beast", "stc")
  * @param vm The parsed program-options map produced during command-line parsing
  * @return A ConsumerSpec populated from vm for the given mnemonic
  */
@@ -615,7 +537,7 @@ specFromCommandLine(const std::string &mnemonic, const boost::program_options::v
  * Delegates to the matching provider's buildClient(); the local consumer (stc) returns nullptr.
  *
  * @param spec The consumer specification (mnemonic plus connection/serialization settings)
- * @return A client for asio/beast/mpi; nullptr for local-only or non-client consumers
+ * @return A client for beast/mpi; nullptr for local-only or non-client consumers
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const c2::ConsumerSpec &spec) {

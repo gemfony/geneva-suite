@@ -460,6 +460,33 @@ TEST_CASE(
     CHECK(reply.kind() == GFrameKind::NO_WORK);
 }
 
+TEST_CASE(
+    "courtier(websocket): a frame a client must not send is answered with NO_WORK",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+    HandDrivenPeer peer(consumer->getPort());
+
+    // WORK travels from the server to the client only; the server's session does not act on it.
+    const GCommandContainerT<GFaultyContainer> wrong_way{
+        GFrameKind::WORK,
+        std::make_unique<GFaultyContainer>(0, fault_mode::NONE)
+    };
+    peer.ws.write(boost::asio::buffer(Gem::Courtier::container_to_string(wrong_way, BIN)));
+    boost::beast::flat_buffer buffer;
+    boost::system::error_code ec;
+    peer.ws.read(buffer, ec);
+    REQUIRE_FALSE(ec); // the connection must stay open: closing it would end a real client
+
+    GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
+    Gem::Courtier::container_from_string(
+        boost::beast::buffers_to_string(buffer.data()),
+        reply,
+        BIN
+    );
+    CHECK(reply.kind() == GFrameKind::NO_WORK);
+}
+
 /******************************************************************************/
 // The connection stays open after a refused request, so the session's end no longer puts its
 // items back -- and a websocket session has no time lease that would. A session that had to refuse

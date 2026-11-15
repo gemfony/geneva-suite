@@ -34,12 +34,10 @@
 // Standard headers
 #include <algorithm>
 #include <chrono>
-#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <exception>
-#include <optional>
 #include <random>
 #include <string>
 #include <string_view>
@@ -61,7 +59,7 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /**
- * The shared prefetch/compute pipeline of the socket clients (websocket and ASIO). Both keep up to
+ * The prefetch/compute pipeline of the networked clients (GPeerClientT). A client keeps up to
  * prefetch_depth_ work items in flight (requested-but-unanswered pulls + items computing on the
  * compute pool), overlap network transfer with evaluation, back off on NO_WORK and poll halt() on a
  * timer. That whole pipeline -- the in-flight bookkeeping, the compute-pool dispatch with its
@@ -79,27 +77,19 @@ namespace Gem::Courtier::Consumers {
  * for:
  *
  *  - refill_()                              -- issue pulls until the pipeline is at depth
- *  - sendEncodedAndRefill_(bytes, error)    -- transmit an encoded RETURN (or give up if it could
- *                                              not be encoded) and top the pipeline back up
  *  - haltShutdown_()                        -- tear the transport down when halt() is reached
- *  - when_decoded_(kind)                    -- a message other than WORK has arrived (only for a
- *                                              client that uses dispatch_message_())
- *  - when_unreadable_(error)                -- a message could not be decoded (likewise)
- *  - prepareReturn_(container)              -- optional: adjusts a RETURN before it is encoded, on
- *                                              the compute thread
+ *  - when_decoded_(kind)                    -- a message other than WORK has arrived
+ *  - when_unreadable_(error)                -- a message could not be decoded
+ *  - resultKindHint_() and sendResult_(bytes, error, frame)
+ *                                           -- the concrete client decides whether a finished
+ *                                              result is a RETURN (it asks for the next item) or a
+ *                                              RESULT (it asks for nothing). The compute thread
+ *                                              encodes it as the hint says (any thread);
+ *                                              sendResult_() gets the bytes and the frame on the io
+ *                                              thread, decides with the books and does them
  *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
  *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
  *                                              0 (io thread)
- *  - resultKindHint_() and sendResult_(bytes, error, frame)
- *                                           -- optional, together: the concrete client decides
- *                                              whether a finished result is a RETURN (it asks for
- *                                              the next item) or a RESULT (it asks for nothing).
- *                                              The compute thread encodes it as the hint says (any
- *                                              thread); sendResult_() gets the bytes and the frame
- *                                              on the io thread, decides with the books and does
- *                                              them. Without them every result is a RETURN that
- *                                              the base counts as a pull before
- *                                              sendEncodedAndRefill_().
  *
  * Compute width. The pool evaluates at most compute_width_ items at a time (by default as many as
  * the prefetch depth). A WORK item that arrives while that many are evaluated is held on the io
@@ -289,28 +279,15 @@ protected:
                         self->itemProcessor()
                     );
                     Gem::Courtier::makeReturnFrame(container);
-                    if constexpr(requires(Derived &d, GCommandContainerT<processable_type> &c) {
-                                     d.prepareReturn_(c);
-                                 }) {
-                        self->prepareReturn_(container);
-                    }
                 }
                 catch(...) {
                     self->returnFailed_(container, id, uuid, std::current_exception());
                 }
-                if constexpr(decidesResultKind()) {
-                    container.setKind(self->resultKindHint_());
-                }
+                container.setKind(self->resultKindHint_());
                 // The wire context is only read here: a client never interns a blob
                 // (may_intern_blobs is false), so its RETURN carries every blob inline.
                 std::string error;
                 std::string bytes = self->encodeResult_(container, error);
-                // A client that decides the kind of a result on the io thread gets the frame too,
-                // in case it has to be encoded once more (see sendResult_()).
-                std::optional<GCommandContainerT<processable_type>> frame;
-                if constexpr(decidesResultKind()) {
-                    frame.emplace(std::move(container));
-                }
                 // Hop back onto the io thread for the books and the transmission -- connection
                 // state must only be touched there.
                 // The pool's handler gives up its hold on the client here: if it kept it until it is
@@ -322,7 +299,7 @@ protected:
                     [self = std::move(self),
                      bytes = std::move(bytes),
                      error = std::move(error),
-                     frame = std::move(frame),
+                     frame = std::move(container),
                      guard = std::move(guard)]() mutable {
                         self->finish_compute_(std::move(bytes), error, std::move(frame));
                     }
@@ -334,8 +311,8 @@ protected:
     //-------------------------------------------------------------------------
     /**
      * @brief Turns @p frame into the RETURN of an item that failed on this client in a way that
-     * left no result to return (the processing, the library's return seam or prepareReturn_()
-     * threw): the outcome alone, ERROR_FLAGGED with the reason, as encodeResult_() returns an item
+     * left no result to return (the processing or the library's return seam threw): the outcome
+     * alone, ERROR_FLAGGED with the reason, as encodeResult_() returns an item
      * that cannot be encoded. On a compute thread.
      *
      * @param frame The frame, in whatever state the failure left it; becomes the RETURN
@@ -423,19 +400,18 @@ protected:
     //-------------------------------------------------------------------------
     /** @brief Runs on the io thread once an evaluation has completed and its result is encoded:
      *  accounts for the finished item, hands a held item to the pool (unless a halt condition
-     *  holds: then the held items are dropped), and passes the result on.
-     *  A client that decides the kind of its results gets it through sendResult_() and does the
-     *  books of the request itself; otherwise the result is a RETURN, which doubles as a pull (the
-     *  server answers it with the next item), and goes to sendEncodedAndRefill_(). The work guard
+     *  holds: then the held items are dropped), and passes the result on to the concrete client
+     *  (sendResult_()), which decides its kind and does the books of the request. The work guard
      *  captured by the posting lambda is released when this returns.
      *
      *  @param bytes The encoded result
      *  @param error Why the result could not be encoded; empty if it could
-     *  @param frame The result's frame, for a client that decides its kind; empty otherwise */
+     *  @param frame The result's frame (its kind says how it was encoded), in case it has to be
+     *         encoded once more */
     void finish_compute_(
         std::string bytes,
         const std::string &error,
-        std::optional<GCommandContainerT<processable_type>> frame
+        GCommandContainerT<processable_type> frame
     ) {
         this->incrementProcessingCounter();
         if(computing_ > 0) {
@@ -452,13 +428,7 @@ protected:
             this->dispatch_compute_(std::move(next));
         }
         this->busy_changed_();
-        if constexpr(decidesResultKind()) {
-            derived().sendResult_(std::move(bytes), error, std::move(*frame));
-        }
-        else {
-            ++pending_pulls_; // the RETURN about to be sent is a pull (the server replies with an item)
-            derived().sendEncodedAndRefill_(std::move(bytes), error);
-        }
+        derived().sendResult_(std::move(bytes), error, std::move(frame));
     }
 
     //-------------------------------------------------------------------------
@@ -584,10 +554,6 @@ protected:
 
     bool pipeline_stopped_ = false; ///< Set by stopPipelineTimers_(): no timer is armed any more
 
-    GCommandContainerT<processable_type> command_container_{
-        GFrameKind::NONE
-    }; ///< The read/parse target; a WORK item is moved out of it onto the compute pool
-
     /// Per-client cache of received blobs (keyed by content id), and the wire scope installed around
     /// every (de)serialisation so an id-referenced blob resolves locally (blob send-once). The
     /// concrete client configures the scope (and any cache-miss fetch) in its constructor.
@@ -633,22 +599,6 @@ private:
      *  @return The number of threads */
     [[nodiscard]] std::size_t poolThreads_() const noexcept {
         return compute_width_ < prefetch_depth_ ? compute_width_ + 1 : compute_width_;
-    }
-
-    //-------------------------------------------------------------------------
-    /** @brief Whether the concrete client decides the kind of its results (see the class comment).
-     *  A function, so that it is asked only inside member functions, where Derived is complete.
-     *  @return true if it has resultKindHint_() and sendResult_() */
-    static consteval bool decidesResultKind() {
-        return requires(
-            Derived &d,
-            std::string bytes,
-            const std::string &error,
-            GCommandContainerT<processable_type> frame
-        ) {
-            { std::as_const(d).resultKindHint_() } -> std::same_as<GFrameKind>;
-            d.sendResult_(std::move(bytes), error, std::move(frame));
-        };
     }
 
     //-------------------------------------------------------------------------

@@ -66,7 +66,7 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * Base class for networked courtier consumers (ASIO, websocket, MPI). It owns the work machinery
+ * Base class for networked courtier consumers (websocket, MPI). It owns the work machinery
  * that turns the synchronous reconcile-the-span contract of GBaseConsumerT into the asynchronous,
  * checkout/return world of remote clients -- and it does so for MANY concurrent submitters at once
  * (the fan-in design), so a population of optimization algorithms can each submit to the SAME shared
@@ -105,7 +105,7 @@ namespace Gem::Courtier {
  * The give-up window only applies ONCE at least one result has ever been received: before that, dispatch_
  * waits INDEFINITELY, because under a batch-scheduling system the first worker may not enter the pool for
  * minutes or hours. While waiting, where the transport has no client-liveness signal (usesTimeLease(),
- * default true: ASIO/MPI), stuck in-flight items of that batch are reclaimed once they exceed the reclaim
+ * default true: MPI), stuck in-flight items of that batch are reclaimed once they exceed the reclaim
  * LEASE. A transport that detects client death directly (the websocket consumer, via its persistent session
  * + CheckoutLease) reclaims immediately on disconnect and disables the time lease, so it honours the
  * give-up treatment but is not bound by the time lease.
@@ -146,14 +146,13 @@ public:
     /**
      * @brief Applies a networked-consumer timeout configuration (typically read from a config file).
      *
-     * Sets the treatment and every adaptive/fixed knob from @p cfg. A derived consumer with an additional,
-     * transport-specific timeout (e.g. the ASIO per-exchange session deadline) overrides this to consume the
-     * relevant extra field and then calls the base. This is the SERVER-side "when is an item lost" transport
-     * concern; it is orthogonal to the algorithm's GSubmissionPolicy (what to do about a lost item).
+     * Sets the treatment and every adaptive/fixed knob from @p cfg. This is the SERVER-side "when is
+     * an item lost" transport concern; it is orthogonal to the algorithm's GSubmissionPolicy (what to
+     * do about a lost item).
      *
      * @param cfg The parsed timeout configuration to apply
      */
-    virtual void applyTimeoutConfig(const GNetworkedTimeoutConfig &cfg) {
+    void applyTimeoutConfig(const GNetworkedTimeoutConfig &cfg) {
         treatment_ = cfg.treatmentEnum();
         ema_alpha_ = cfg.ema_alpha;
         lease_factor_ = cfg.lease_factor;
@@ -298,9 +297,8 @@ protected:
      * and records EVERY item it currently has in flight (a prefetching client may hold several at once);
      * if the session is destroyed while still holding unreturned items -- the client disconnected
      * mid-evaluation -- the lease requeues all of them for other clients immediately, a liveness-driven
-     * put-back that does not wait out the time lease. Transports with one-shot, per-request connections
-     * (ASIO) must NOT use this (their sessions end normally after every exchange); they rely on the time
-     * lease instead -- see usesTimeLease().
+     * put-back that does not wait out the time lease. A transport without such sessions relies on the
+     * time lease instead -- see usesTimeLease().
      *
      * Items are keyed by their (batch_id, slot) correlation id, so add()/remove() pair up regardless of
      * the order results come back in, and each remembers which checkout of its slot the session got
@@ -601,7 +599,7 @@ protected:
 
     /***************************************************************************/
     /** @brief Whether this consumer reclaims stuck in-flight items via the TIME lease. True for
-     *  transports with no per-client liveness signal (ASIO, MPI): an item that has been IN_FLIGHT
+     *  transports with no per-client liveness signal (MPI): an item that has been IN_FLIGHT
      *  longer than the adaptive lease is presumed lost and requeued. A transport that detects client
      *  death directly (the websocket consumer, via CheckoutLease on its persistent session) overrides
      *  this to false, so a live-but-slow client is never wrongly reclaimed.

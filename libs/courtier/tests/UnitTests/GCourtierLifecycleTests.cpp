@@ -28,13 +28,12 @@
  ********************************************************************************/
 
 /**
- * Tests of the lifetime of the socket servers (asio and websocket): a consumer is destroyed when
+ * Tests of the lifetime of the websocket server: a consumer is destroyed when
  * its last reference is dropped, whether or not stopServer() was called first, and destroying it
  * frees the listening port and ends its clients. A client given an item processor processes every
  * item through it and keeps running when it throws.
  */
 
-#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -45,66 +44,47 @@
 #include <span>
 #include <stdexcept>
 #include <thread>
-#include <type_traits>
 #include <vector>
 
 #include <boost/asio.hpp>
 
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GAsioConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
-#include "courtier/transport/GAsioTransportT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GBaseClientT;
 using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::GSubmissionPolicy;
-using Gem::Courtier::Consumers::GAsioConsumerClientT;
 using Gem::Courtier::Consumers::GWebsocketClientT;
 using namespace std::chrono_literals;
 
 namespace {
 
-using AsioConsumer = Gem::Courtier::GAsioConsumerT<GFaultyContainer>;
 using WebsocketConsumer = Gem::Courtier::GWebsocketConsumerT<GFaultyContainer>;
 using item_ptr = std::unique_ptr<GFaultyContainer>;
 
 constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
-/** @brief Builds a started server of the given kind on a port the system chooses. */
-template <typename Consumer>
-std::shared_ptr<Consumer> startedServer() {
-    auto consumer = std::make_shared<Consumer>(
-        typename Consumer::config_type{.serializationMode = BIN, .nThreads = 2}
+/** @brief Builds a started server on a port the system chooses. */
+std::shared_ptr<WebsocketConsumer> startedServer() {
+    auto consumer = std::make_shared<WebsocketConsumer>(
+        Gem::Courtier::GWebsocketConsumerConfig{.serializationMode = BIN, .nThreads = 2}
     );
     consumer->startServer();
     return consumer;
 }
 
-/** @brief Builds the client that belongs to the given kind of server. */
-template <typename Consumer>
+/** @brief Builds a client of the server on @p port. */
 std::shared_ptr<GBaseClientT<GFaultyContainer>> matchingClient(unsigned short port) {
-    if constexpr(std::is_same_v<Consumer, AsioConsumer>) {
-        return std::make_shared<GAsioConsumerClientT<GFaultyContainer>>(
-            Gem::Courtier::GAsioConsumerConfig{
-                .ip = "127.0.0.1",
-                .port = port,
-                .serializationMode = BIN,
-                .maxReconnects = 1,
-            }
-        );
-    }
-    else {
-        return std::make_shared<GWebsocketClientT<GFaultyContainer>>(
-            Gem::Courtier::GWebsocketConsumerConfig{
-                .ip = "127.0.0.1",
-                .port = port,
-                .serializationMode = BIN,
-            }
-        );
-    }
+    return std::make_shared<GWebsocketClientT<GFaultyContainer>>(
+        Gem::Courtier::GWebsocketConsumerConfig{
+            .ip = "127.0.0.1",
+            .port = port,
+            .serializationMode = BIN,
+        }
+    );
 }
 
 /** @brief Whether a TCP connection to @p port on this host is refused. */
@@ -118,15 +98,13 @@ bool connectIsRefused(unsigned short port) {
 
 } /* anonymous namespace */
 
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "courtier(lifecycle): dropping the last reference destroys the server and frees its port",
-    "[courtier][lifecycle][net]",
-    AsioConsumer,
-    WebsocketConsumer
+    "[courtier][lifecycle][net]"
 ) {
-    auto consumer = startedServer<TestType>();
+    auto consumer = startedServer();
     const unsigned short port = consumer->getPort();
-    const std::weak_ptr<TestType> watch = consumer;
+    const std::weak_ptr<WebsocketConsumer> watch = consumer;
 
     // No stopServer(): the destructor has to do it. A pending accept that owned the consumer would
     // keep it alive here, with its io threads running and its port open.
@@ -136,16 +114,14 @@ TEMPLATE_TEST_CASE(
     CHECK(connectIsRefused(port));
 }
 
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "courtier(lifecycle): stopServer() may be called more than once and the server is still "
     "destroyed",
-    "[courtier][lifecycle][net]",
-    AsioConsumer,
-    WebsocketConsumer
+    "[courtier][lifecycle][net]"
 ) {
-    auto consumer = startedServer<TestType>();
+    auto consumer = startedServer();
     const unsigned short port = consumer->getPort();
-    const std::weak_ptr<TestType> watch = consumer;
+    const std::weak_ptr<WebsocketConsumer> watch = consumer;
 
     consumer->stopServer();
     CHECK(connectIsRefused(port)); // the port is free as soon as stopServer() has returned
@@ -155,24 +131,22 @@ TEMPLATE_TEST_CASE(
     CHECK(watch.expired());
 }
 
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "courtier(lifecycle): the clients of a destroyed server terminate on their own",
-    "[courtier][lifecycle][net]",
-    AsioConsumer,
-    WebsocketConsumer
+    "[courtier][lifecycle][net]"
 ) {
     constexpr std::size_t N_CLIENTS = 2;
     constexpr std::size_t N_ITEMS = 16;
 
-    auto consumer = startedServer<TestType>();
-    const std::weak_ptr<TestType> watch = consumer;
+    auto consumer = startedServer();
+    const std::weak_ptr<WebsocketConsumer> watch = consumer;
 
     std::vector<std::shared_ptr<GBaseClientT<GFaultyContainer>>> clients;
     std::atomic<std::size_t> returned{0};
     std::atomic<bool> any_threw{false};
     std::vector<std::jthread> client_threads;
     for(std::size_t c = 0; c < N_CLIENTS; ++c) {
-        clients.push_back(matchingClient<TestType>(consumer->getPort()));
+        clients.push_back(matchingClient(consumer->getPort()));
         client_threads.emplace_back([client = clients.back(), &returned, &any_threw] {
             try {
                 client->run();
@@ -213,17 +187,15 @@ TEMPLATE_TEST_CASE(
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- three batches, then the shutdown
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "courtier(lifecycle): a client processes its items through its item processor",
-    "[courtier][lifecycle][net]",
-    AsioConsumer,
-    WebsocketConsumer
+    "[courtier][lifecycle][net]"
 ) {
     constexpr std::size_t N_CLIENTS = 2;
     constexpr std::size_t N_ITEMS = 32;
     constexpr std::size_t FAILING_FROM = 1000; // the processor throws for items numbered from here
 
-    auto consumer = startedServer<TestType>();
+    auto consumer = startedServer();
     // Nothing may be resubmitted behind the test's back: the call count is exact, and a lost item
     // cannot hide behind a resubmission.
     consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
@@ -236,7 +208,7 @@ TEMPLATE_TEST_CASE(
     std::atomic<bool> any_threw{false};
     std::vector<std::jthread> client_threads;
     for(std::size_t c = 0; c < N_CLIENTS; ++c) {
-        clients.push_back(matchingClient<TestType>(consumer->getPort()));
+        clients.push_back(matchingClient(consumer->getPort()));
         clients.back()->setItemProcessor([&calls](GFaultyContainer &item) {
             calls.fetch_add(1);
             if(item.get_stored_number() >= FAILING_FROM) {

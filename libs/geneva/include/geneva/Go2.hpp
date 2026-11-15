@@ -182,7 +182,7 @@ public:
     void registerConsumer(
         std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
 
-    /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "asio", "beast",
+    /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "beast",
      *  "mpi", "gpu") -- the programmatic equivalent of the --consumer command-line option / the "consumer"
      *  config key. It takes effect when the run is configured (at the first of optimize() / clientRun() /
      *  clientMode()); a --consumer value on the command line overrides this. For a fully custom consumer

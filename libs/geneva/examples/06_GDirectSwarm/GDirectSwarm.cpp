@@ -56,8 +56,8 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/consumers/GAsioConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
@@ -91,7 +91,6 @@ const double DEFAULTCNEIGHBORHOODAP = 2.;
 const double DEFAULTCGLOBALAP = 1.;
 const double DEFAULTCVELOCITYAP = 0.4;
 const bool DEFAULTALLRANDOMINIT = true;
-const std::size_t DEFAULTMAXRECONNECTS = 10;
 
 /******************************************************************************/
 /**
@@ -118,8 +117,7 @@ bool parseCommandLine(
     std::uint16_t &nEvaluationThreads,
     std::uint32_t &maxIterations,
     long &maxMinutes,
-    std::uint32_t &reportIteration,
-    std::size_t &maxReconnects
+    std::uint32_t &reportIteration
 ) {
     // Create the parser builder
     Gem::Common::GParserBuilder gpb;
@@ -249,13 +247,6 @@ bool parseCommandLine(
         "The maximum number of minutes the optimization of the population should run"
     );
 
-    gpb.registerCLParameter<std::size_t>(
-        "maxReconnects",
-        maxReconnects,
-        DEFAULTMAXRECONNECTS,
-        "The number of times a client will try to reconnect when it couldn't reach the server"
-    );
-
     // Parse the command line and leave if the help flag was given. The parser
     // will emit an appropriate help message by itself
     if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {
@@ -289,7 +280,6 @@ int main(int argc, char **argv) {
     double cVelocity = NAN;
     updateRule ur;
     bool allRandomInit = false;
-    std::size_t maxReconnects = 0;
 
     /****************************************************************************/
     // Initialization of Geneva
@@ -329,8 +319,7 @@ int main(int argc, char **argv) {
            nEvaluationThreads,
            maxIterations,
            maxMinutes,
-           reportIteration,
-           maxReconnects
+           reportIteration
        )) {
         exit(1);
     }
@@ -344,14 +333,12 @@ int main(int argc, char **argv) {
     // return when it has finished
     if(clientMode && cType == consumerType::NETWORKED) {
         // Build the networked client through the courtier setup layer. The configuration struct
-        // names the consumer and drives both this client and the server below -- change it (e.g. to
-        // a GWebsocketConsumerConfig) in both places to switch transport, with no other change.
+        // names the consumer and drives both this client and the server below.
         auto client = buildConsumerClient(
-            GAsioConsumerConfig{
+            GWebsocketConsumerConfig{
                 .ip = ip,
                 .port = port,
                 .serializationMode = serMode,
-                .maxReconnects = maxReconnects,
             }
         );
 
@@ -388,8 +375,9 @@ int main(int argc, char **argv) {
 
         //---------------------------------------------------------------------------
     case consumerType::NETWORKED: // Networked execution (server-side)
-        // Build a courtier ASIO server via the shared factory; the clients started above connect.
-        buildConsumer(GAsioConsumerConfig{.port = port, .serializationMode = serMode});
+        // Build a courtier websocket server via the shared factory; the clients started above
+        // connect.
+        buildConsumer(GWebsocketConsumerConfig{.port = port, .serializationMode = serMode});
         break;
 
         //----------------------------------------------------------------------------

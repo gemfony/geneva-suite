@@ -58,7 +58,7 @@ using namespace std::chrono_literals;
 TEST_CASE("GThreadPool construction and getNThreads", "[common][thread-pool]") {
     GThreadPool const pool(4);
     // Workers start eagerly in the constructor, so getNThreads() reports the live
-    // count right away (this is the modernised behaviour: the old ASIO-based pool
+    // count right away (this is the modernised behaviour: the old Boost.Asio-based pool
     // created threads lazily on the first submission and reported 0 until then).
     REQUIRE(pool.getNThreads() == 4);
 

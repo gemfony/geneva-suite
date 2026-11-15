@@ -28,7 +28,7 @@
  ********************************************************************************/
 
 /**
- * Tier-2 loopback tests for the courtier websocket consumer, mirroring the ASIO tests: a real
+ * Tier-2 loopback tests for the courtier websocket consumer: a real
  * websocket server (the courtier GWebsocketConsumerT) driven by the span+policy executor and
  * served by one or more unmodified existing courtier websocket clients over loopback.
  */

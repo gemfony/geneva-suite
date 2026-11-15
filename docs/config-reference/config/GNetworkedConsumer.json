@@ -87,13 +87,5 @@
         ],
         "default": 300000,
         "value": 300000
-    },
-    "session_timeout_ms": {
-        "comment": [
-            "[asio] per-exchange connection deadline (ms)",
-            "0 disables it. NOT the evaluation timeout."
-        ],
-        "default": 300000,
-        "value": 300000
     }
 }

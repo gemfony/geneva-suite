@@ -219,7 +219,7 @@ violation:
    `emplace_back`, `shrink_to_fit`, `max_size`, `begin`/`end`, and so on. Forcing these to `camelBack` would
    break the drop-in-replacement contract.
 3. **`snake_case` internal helpers** — e.g. `compare_base`, and helpers in the newer
-   transport / concurrency layers that mirror an STL/Asio idiom (`async_start_run`).
+   transport / concurrency layers that mirror an STL/Boost.Asio idiom (`async_schedule`).
 
 New code that is **not** one of these cases uses `camelBack`. When a name could go either way, prefer
 `camelBack`.

@@ -2,8 +2,8 @@
 
 Per-library documentation directory for the **Courtier** library
 (consumer-based parallelisation framework: one consumer per process held
-in the `GConsumerRegistry` -- local thread-pool / Asio / Beast-websocket /
-MPI / optional GPU consumers -- command-container protocol,
+in the `GConsumerRegistry` -- local thread-pool / Beast-websocket / MPI /
+optional GPU consumers -- command-container protocol,
 processing-container CRTP).
 
 ## Building the docs

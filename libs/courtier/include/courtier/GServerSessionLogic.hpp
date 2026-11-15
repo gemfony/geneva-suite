@@ -58,29 +58,18 @@ namespace Gem::Courtier {
  * Transport-agnostic server-side session logic for the networked consumer protocol. A server session,
  * on receiving a request from a worker, decides what to do with it: serve a work item (PULL), sink a
  * returned result and serve the next (RETURN), sink one and owe nothing (RESULT), or answer a blob
- * cache-miss fetch (BLOB_REQUEST). The three transports all make the same decisions; only how
- * they pull/sink items (a callable wrapping the consumer's checkout/checkin) and how they drive
- * their I/O differs. The decision pieces live here once.
- *
- * Three helpers, matching the server styles:
+ * cache-miss fetch (BLOB_REQUEST). The transports all make the same decisions; only how they
+ * pull/sink items (a callable wrapping the consumer's checkout/checkin) and how they drive their I/O
+ * differs. The decision pieces live here once.
  *
  *  - serveWorkItem(): the pure frame decision -- check a work item out and set the frame to
- *    WORK (with the item) or NO_WORK (queue empty). No serialization, no I/O. Used by every transport
- *    (the synchronous ones via handleServerRequest() below; MPI directly, as its decide and send phases
- *    are split across its asynchronous receive/send).
+ *    WORK (with the item) or NO_WORK (queue empty). No serialization, no I/O. Used by every transport.
  *
  *  - absorbServerRequest(): everything a request asks for except the work item: a returned result
  *    is checked in, a blob request or an unknown frame is answered. It tells the caller what it
- *    owes now: that answer, a work item, or nothing (GAbsorbResult). Used directly by a transport
- *    that may let the pull wait (GPeerSessionT, the session of the websocket consumer, which
- *    parks instead of answering NO_WORK).
- *
- *  - handleServerRequest(): the full synchronous request -> response-bytes dispatch used by the
- *    request/response transport (Asio): absorbServerRequest(), then serveWorkItem(). It takes an
- *    already-deserialized inbound container (the transport owns the receive + its wire scope) and
- *    returns the serialized response. MPI does not use it (its server is structured as a split
- *    deserialize-phase + later send-phase, not a synchronous call) -- it composes serveWorkItem()
- *    + the GWireCodec helpers itself.
+ *    owes now: that answer, a work item, or nothing (GAbsorbResult). Used by a transport that may
+ *    let the pull wait (GPeerSessionT, the session of the websocket consumer, which parks instead
+ *    of answering NO_WORK).
  *
  * The item source / sink are passed as callables so this header stays free of any consumer type:
  *   getItem : () -> std::unique_ptr<processable_type>          (checkout; null when the queue is empty)
@@ -235,49 +224,6 @@ GAbsorbResult absorbServerRequest(
         return refusalReply<ProcessableT>(ser_mode);
     }
     }
-}
-
-/******************************************************************************/
-/**
- * @brief Synchronous server dispatch: acts on an already-deserialized inbound frame and returns the
- * serialized response. Used by the request/response transport (Asio).
- *
- * absorbServerRequest() deals with the frame; if a pull is due afterwards (a PULL or a RETURN), a
- * work item is served, serialized under @p respCtx so its blob is sent send-once. A RESULT asks for
- * nothing, but a request/response exchange must be answered: it is checked in and answered with
- * NO_WORK, as a refused request is (the asio client never sends one).
- *
- * @tparam processable_type The payload type of the command container
- * @tparam GetItemF A callable () -> std::unique_ptr<processable_type> (the checkout)
- * @tparam PutItemF A callable (GCommandContainerT<processable_type>&&) -> void (the checkin)
- * @param container The already-deserialized inbound frame (reused to build the response)
- * @param getItem The checkout callable
- * @param putItem The checkin callable
- * @param registry The shared blob registry (for BLOB_REQUEST; may be nullptr)
- * @param respCtx The wire context to serialize a WORK/NO_WORK response under (may be nullptr)
- * @param serMode The serialization format to use
- * @return The serialized response (a NO_WORK frame for an unknown/invalid frame)
- */
-template <typename processable_type, typename GetItemF, typename PutItemF>
-std::string handleServerRequest(
-    GCommandContainerT<processable_type> &container,
-    GetItemF &&getItem,
-    PutItemF &&putItem,
-    GWireBlobRegistry *registry,
-    const GWireSerializationContext *respCtx,
-    Gem::Common::serializationMode serMode
-) {
-    auto absorbed =
-        absorbServerRequest(container, std::forward<PutItemF>(putItem), registry, serMode);
-    if(auto *answer = std::get_if<std::string>(&absorbed)) {
-        return std::move(*answer);
-    }
-    if(std::holds_alternative<GNothingDue>(absorbed)) {
-        // Nothing is owed, but this exchange needs an answer: the one a refused request gets.
-        return refusalReply<processable_type>(serMode);
-    }
-    serveWorkItem(container, std::forward<GetItemF>(getItem));
-    return wireEncode(container, respCtx, serMode);
 }
 
 /******************************************************************************/
