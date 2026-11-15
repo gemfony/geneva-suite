@@ -45,6 +45,7 @@
 
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
@@ -136,9 +137,8 @@ void startReferenceMeasurement(
 
     // The algorithm submits through the process-wide consumer. Make that the serial one, whatever
     // was asked for on the command line: the reference is the time one worker needs.
-    const auto serial_consumer = Gem::Geneva::buildConsumerSetup(
-        Gem::Geneva::ConsumerSpec{.mnemonic = "stc", .n_threads = 1}
-    );
+    const auto serial_consumer =
+        Gem::Geneva::buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
 
     //---------------------------------------------------------------------
     // Cycle through the configured delays, building a fresh delay individual for each one.

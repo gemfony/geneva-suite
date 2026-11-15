@@ -32,19 +32,26 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
+#include <any>
+#include <concepts>
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <typeinfo>
 
 // Boost headers
+#include <boost/core/demangle.hpp>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 
 // Geneva headers
-#include "common/GCommonEnums.hpp" // serializationMode
+#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GProviderStoreT.hpp"
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCourtierEnums.hpp" // GBEASTCONSUMERPINGINTERVAL, processRole
+#include "courtier/GCourtierEnums.hpp" // processRole
 #include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Courtier {
@@ -63,52 +70,72 @@ const std::string GDEFAULTCONSUMERMNEMONIC{"stc"}; // NOLINT
 
 /******************************************************************************/
 /**
- * A transport-agnostic description of the courtier consumer to build, assembled from configuration
- * / command-line parameters by the caller (Go2 or a standalone example). Keeps the caller free of the
- * concrete courtier consumer types -- those are known only to buildConsumerSetup().
+ * @brief What a consumer is to be built from: its mnemonic and the configuration of its family.
+ *
+ * @c config holds the configuration struct of the family the mnemonic names (for example a
+ * @c Gem::Courtier::GWebsocketConsumerConfig for "beast"), or nothing, which stands for that
+ * family's defaults. A program that knows its consumer when it is compiled does not write a spec:
+ * it passes the struct to buildConsumer() or buildConsumerClient() (the overloads for a
+ * ConsumerConfig), which cannot pair a struct with the wrong mnemonic. The spec is what a caller
+ * keeps when the mnemonic is known only at run time (Go2, from --consumer). A provider reads
+ * @c config with configOf(), never with std::any_cast.
  */
 struct ConsumerSpec {
-    std::string mnemonic;            ///< "stc" | "asio" | "beast" | "mpi" (serial = "stc" with n_threads == 1)
-    unsigned int n_threads = 0;      ///< local thread-pool / networked IO-thread count (0 == hardware concurrency)
-    unsigned short port = 0;         ///< listening / target port (networked socket consumers)
-    Gem::Common::serializationMode serialization_mode =
-        Gem::Common::serializationMode::GEM_BINARY; ///< wire serialization (networked)
-    // --- client-side fields (networked socket consumers; ignored by the server build) ---
-    std::string ip = "localhost";        ///< server address the client connects to
-    std::size_t max_reconnects = 0;      ///< [asio] client reconnect attempts before giving up
-    bool verbose_control_frames = false; ///< [beast] log ping/pong/close frames
-    std::size_t ping_interval = Gem::Courtier::
-        GBEASTCONSUMERPINGINTERVAL;        ///< [beast] keep-alive: seconds of silence before a ping
-    std::size_t client_prefetch_depth = 1; ///< [asio/beast] client: max work items held concurrently
-                                           ///< (1 == serial; >1 overlaps fetch/compute/return)
-    // --- [mpi] config fields (ignored by the other consumers). Defaults mirror MPIConsumerConfig so the
-    //     default behaviour is unchanged; serialization_mode (above) carries mpi_serializationMode. ---
-    bool mpi_async_req = true;                    ///< [mpi] clients prefetch the next work item
-    unsigned int mpi_n_handler_threads = 0;       ///< [mpi] request-handler threads (0 == hardware concurrency)
-    unsigned int mpi_clean_sess_interval = 1000;  ///< [mpi] ms between master session-completion checks
+    std::string mnemonic; ///< The consumer, as chosen with --consumer ("stc", "beast", ...)
+    std::any config;      ///< The family's configuration struct; empty: the family's defaults
 };
 
 /******************************************************************************/
 /**
- * The result of building a courtier setup for the current process, a submitter.
+ * @brief A configuration struct of a consumer family: it names the mnemonic of its family and can
+ * be copied (std::any holds copies).
  */
-struct ConsumerSetup {
-    /** @brief The ready consumer (server started for networked consumers), also
-     *  registered as the process's single consumer in GConsumerRegistry. Null only for an unknown
-     *  mnemonic. */
-    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer;
+template <typename T>
+concept ConsumerConfig = std::copy_constructible<T> && requires {
+    { T::MNEMONIC } -> std::convertible_to<std::string_view>;
 };
+
+/******************************************************************************/
+/**
+ * @brief The configuration a spec carries, as the struct of the family that reads it.
+ *
+ * @tparam ConfigT The configuration struct the caller's family reads
+ * @param spec The consumer specification
+ * @return A copy of @c spec.config, or a default-constructed @p ConfigT if the spec carries none
+ * @throws geneva_exception if @c spec.config holds another type; the message names the mnemonic,
+ *         the expected and the found type
+ */
+template <typename ConfigT>
+[[nodiscard]] ConfigT configOf(const ConsumerSpec &spec) {
+    if(not spec.config.has_value()) {
+        return ConfigT{};
+    }
+    if(const auto *config = std::any_cast<ConfigT>(&spec.config)) {
+        return *config;
+    }
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "In configOf(): Error!" << '\n'
+        << "The consumer \"" << spec.mnemonic << "\" is configured with a "
+        << boost::core::demangle(typeid(ConfigT).name()) << "," << '\n'
+        << "but its specification carries a " << boost::core::demangle(spec.config.type().name())
+        << "." << '\n'
+    );
+}
 
 /******************************************************************************/
 /**
  * @brief A provider for one courtier consumer family, registered under its mnemonic.
  *
- * Extends the shared @c Gem::Common::GProviderT with the consumer-specific build surface (@c setup /
- * @c specFromCommandLine / @c buildClient / @c needsClient) so the whole consumer catalog lives as data
- * in a @c Gem::Common::GProviderStoreT rather than a hard-coded table + switch. Each consumer registers
- * one provider at static init (see GConsumerSetup.cpp); the free functions below resolve a mnemonic
- * against the store instead of dispatching on it. A runtime-loaded consumer module would register its
- * provider into the same store (deferred; the store makes it a drop-in later).
+ * Extends the shared @c Gem::Common::GProviderT with the consumer-specific build surface
+ * (@c setup / @c configFromCommandLine / @c buildClient / @c needsClient) so the whole consumer
+ * catalog lives as data in a @c Gem::Common::GProviderStoreT rather than a hard-coded table +
+ * switch. Each consumer registers one provider at static init (see GConsumerSetup.cpp); the free
+ * functions below resolve a mnemonic against the store instead of dispatching on it. A consumer
+ * module registers its provider into the same store (see consumerManifest()).
+ *
+ * A provider reads its family's configuration out of a spec with configOf() (an empty spec gives
+ * the family's defaults) and states it from the command line with configFromCommandLine().
  *
  * @c provide() (inherited) is unused for consumers: building a consumer has side effects (binding a port,
  * starting a server), so a consumer is built through @c setup(), never handed out prototype-style -- it
@@ -123,11 +150,18 @@ public:
     /** @brief Builds this consumer for the current process. Called on a submitter only (see
      *  role()).
      *  @param spec The consumer specification. @return The consumer for this process. */
-    virtual ConsumerSetup setup(const ConsumerSpec &spec) = 0;
-    /** @brief Reads this consumer's command-line options out of @p vm into a spec (mnemonic filled by the
-     *  caller). @param vm The parsed program-options map. @return The populated (partial) ConsumerSpec. */
-    [[nodiscard]] virtual ConsumerSpec specFromCommandLine(
-        const boost::program_options::variables_map &vm) const = 0;
+    virtual std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
+    setup(const ConsumerSpec &spec) = 0;
+    /** @brief Reads this consumer's command-line options out of @p vm into the configuration of its
+     *  family. @param vm The parsed program-options map. @return The configuration struct of the
+     *  family (in a std::any), or an empty std::any for a consumer that has no configuration. */
+    [[nodiscard]] virtual std::any
+    configFromCommandLine(const boost::program_options::variables_map &vm) const = 0;
+    /** @brief Writes the configuration files this provider owns alone, for --update-configs. The
+     *  default owns none. The timeout file of the networked consumers is not a provider's: it is
+     *  applied and written by buildConsumer(). */
+    virtual void materializeConfigFiles() const { /* owns no configuration file */
+    }
     /** @brief Builds the networked client matching @p spec, or nullptr for a local-only consumer.
      *  Called on a client only (see role()).
      *  @param spec The consumer specification. @return The client, or nullptr. */
@@ -180,21 +214,38 @@ public:
 
 /******************************************************************************/
 /**
- * @brief Builds a courtier setup (the consumer) for the current process, a submitter, from a spec.
+ * @brief Builds the consumer of the current process, a submitter, from a spec.
  *
  * Resolves @c spec.mnemonic against @c consumerProviderStore() and invokes the matching provider's
- * @c setup(): it constructs the consumer and -- for networked consumers -- starts the server. (A
- * consumer copies a GGenome through its virtual clone() by itself.) The freshly-built
- * consumer is registered in GConsumerRegistry as the process's single consumer. A socket consumer
- * whose process already holds a consumer reuses it rather than binding the port again. Call it on a
- * submitter only (see consumerRole()); a provider refuses to build on any other role.
+ * @c setup(): it constructs the consumer and -- for networked consumers -- starts the server. A
+ * networked consumer (a GNetworkedConsumerT, built in or from a module) is given the timeout
+ * configuration of ./config/GNetworkedConsumer.json. The freshly-built consumer is registered in
+ * GConsumerRegistry as the process's single consumer. A socket consumer whose process already holds
+ * a consumer reuses it rather than binding the port again. Call it on a submitter only (see
+ * consumerRole()); a provider refuses to build on any other role.
  *
- * @param spec The transport-agnostic description of the consumer to build (mnemonic, ports, threads,
- *   serialization, client-side fields).
- * @return A ConsumerSetup whose consumer is registered in GConsumerRegistry. An unknown mnemonic
- *   yields an empty setup (a null consumer).
+ * @param spec The consumer to build: its mnemonic and the configuration of its family
+ * @return The consumer, registered in GConsumerRegistry; null for an unknown mnemonic
+ * @throws geneva_exception if @c spec.config holds the configuration of another family
  */
-ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec);
+std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
+buildConsumer(const ConsumerSpec &spec);
+
+/******************************************************************************/
+/**
+ * @brief Builds the consumer of the current process, a submitter, from the configuration struct of
+ * its family: buildConsumer(GStdThreadConsumerConfig{.nThreads = 1}).
+ *
+ * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
+ * @param config The configuration of the consumer
+ * @return As buildConsumer(const ConsumerSpec &)
+ */
+template <ConsumerConfig ConfigT>
+std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> buildConsumer(const ConfigT &config) {
+    return buildConsumer(
+        ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+    );
+}
 
 /******************************************************************************/
 /**
@@ -204,7 +255,7 @@ ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec);
  * This is where the "what is the default consumer" decision lives -- with the layer that owns the
  * consumer catalog, not with the optimization algorithms (which are transport-agnostic and never build or
  * select a consumer) and not with courtier (whose registry knows only that there must be exactly one
- * consumer, never which). A process that went through Go2, through buildConsumerSetup(), or through
+ * consumer, never which). A process that went through Go2, through buildConsumer(), or through
  * GConsumerRegistry::setConsumer() already has its consumer and gets it back unchanged; a standalone
  * algorithm that was never given one gets @c GDEFAULTCONSUMERMNEMONIC built from the provider store,
  * so a bare alg->optimize() works out of the box. Idempotent and race-free: the registry runs the build
@@ -218,14 +269,13 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
 /**
  * @brief Builds a ConsumerSpec for a mnemonic from an already-parsed command line.
  *
- * This is the single place that maps the consumer command-line options (asio_port,
- * beast_serializationMode, nWorkerThreads, ...) onto the transport-agnostic spec, keeping callers
- * (Go2, the standalone examples) free of per-consumer option knowledge.
+ * Fills both fields: the mnemonic, and the configuration the mnemonic's provider reads out of
+ * @p vm (GConsumerProviderT::configFromCommandLine()). Keeps callers (Go2, the standalone
+ * examples) free of per-consumer option knowledge.
  *
  * @param mnemonic The consumer mnemonic to build a spec for ("stc"|"asio"|"beast"|"mpi").
  * @param vm The parsed program-options variables map to read consumer option values from.
- * @return The populated ConsumerSpec. Options absent from @p vm fall back to the spec's defaults; an
- *   unknown mnemonic yields a spec carrying only the mnemonic.
+ * @return The populated ConsumerSpec. An unknown mnemonic yields a spec carrying only the mnemonic.
  */
 ConsumerSpec specFromCommandLine(
     const std::string &mnemonic, const boost::program_options::variables_map &vm);
@@ -234,18 +284,44 @@ ConsumerSpec specFromCommandLine(
 /**
  * @brief Builds the networked client for a spec, for a process running in client mode.
  *
- * The servers built by buildConsumerSetup() are wire-compatible with the existing client classes,
+ * The servers built by buildConsumer() are wire-compatible with the existing client classes,
  * so this is the single place that maps a mnemonic onto the matching client (asio/beast/mpi). The
  * caller sets the maximum runtime and invokes run() on the returned client. Call it on a client
  * only (see consumerRole()); a provider may refuse to build on any other role.
  *
- * @param spec The consumer description; its client-side fields (ip, port, serialization, reconnects,
- *   prefetch depth) drive the client that is constructed.
+ * @param spec The consumer description; the client-side members of its configuration (ip, port,
+ *   serialization, reconnects, prefetch depth) drive the client that is constructed.
  * @return The constructed client (for mpi, the MPI worker node), or null for a consumer that has no
  *   client (stc is local).
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const ConsumerSpec &spec);
+
+/******************************************************************************/
+/**
+ * @brief Builds the networked client from the configuration struct of its family:
+ * buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000}).
+ *
+ * @tparam ConfigT The configuration struct; its MNEMONIC names the consumer
+ * @param config The configuration of the consumer
+ * @return As buildConsumerClient(const ConsumerSpec &)
+ */
+template <ConsumerConfig ConfigT>
+std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
+buildConsumerClient(const ConfigT &config) {
+    return buildConsumerClient(
+        ConsumerSpec{.mnemonic = std::string(ConfigT::MNEMONIC), .config = config}
+    );
+}
+
+/******************************************************************************/
+/**
+ * @brief Writes the configuration files that consumer providers own alone, for --update-configs.
+ *
+ * Calls GConsumerProviderT::materializeConfigFiles() on every registered provider, the providers of
+ * loaded modules included. A provider that fails is reported as a warning; the others still run.
+ */
+void materializeConsumerConfigFiles();
 
 /******************************************************************************/
 /**
@@ -296,7 +372,7 @@ bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic);
  * @brief The role of this process for the consumer of @p spec.
  *
  * Asks the provider of the mnemonic (GConsumerProviderT::role()): a submitter builds the consumer
- * (buildConsumerSetup()), a client builds and runs the client (buildConsumerClient()), a bystander
+ * (buildConsumer()), a client builds and runs the client (buildConsumerClient()), a bystander
  * takes no part in the consumer's protocol.
  *
  * @param spec The consumer specification

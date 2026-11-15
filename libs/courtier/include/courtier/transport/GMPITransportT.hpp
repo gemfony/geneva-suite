@@ -71,6 +71,7 @@
 #include "courtier/GServerSessionLogic.hpp"       // shared server-side work-item decision (serveWorkItem)
 #include "courtier/GWireCodec.hpp"                // shared scope-wrapped (de)serialization + blob fetch
 #include "courtier/GWireSerializationContext.hpp" // blob send-once: registry + wire scope
+#include "courtier/consumers/GMPIConsumerConfig.hpp" // MPIConsumerConfig
 #include "courtier/transport/GMPIEnvironment.hpp" // the communicator and the role of a process
 
 // TODO: extract double buffering to GBaseConsumerClientT
@@ -84,95 +85,6 @@ namespace Gem::Courtier::Consumers {
 // values of the MPI calls are therefore not checked. (MPI_Status::MPI_ERROR is no substitute: the
 // single-completion calls used here -- MPI_Test, MPI_Recv, MPI_Iprobe -- do not set it.) What the
 // code does guard against is a peer that falls SILENT: see the two time limits above.
-
-/**
- * The configuration of the MPI consumer GMPIConsumerT and of its client (mnemonic "mpi"), used by
- * the master node and the worker nodes alike. A plain aggregate, shared by the consumer and its
- * client and to be copied freely; it can be written with designated initializers.
- */
-struct MPIConsumerConfig {
-    /// The mnemonic of the consumer family this struct configures, as chosen with --consumer
-    static constexpr std::string_view MNEMONIC = "mpi";
-
-    /**
-         * Whether the clients should issue a request for the next work item while the current work item is still being processed
-         */
-    bool useAsyncReq{true};
-    /**
-         * Serialization mode to use when serializing messages before transmitting over network between master node and worker nodes
-         */
-    Gem::Common::serializationMode serializationMode{Gem::Common::serializationMode::GEM_BINARY};
-    /**
-         * The number of threads in a thread pool which is used to handle incoming requests.
-         * Starts as the recommendation for this machine (nHandlerThreadsRecommendation()).
-         */
-    std::uint32_t nHandlerThreads{nHandlerThreadsRecommendation()};
-    /**
-         * The time in ms between each check of completion of the send operation of a new work item to a worker node.
-         */
-    std::uint32_t masterCleanSessIntervalMSec{GMPICONSUMERMASTERCLEANSESSINTERVALMSEC};
-
-    /**
-     * @brief Registers this config's command-line options into the given option descriptions.
-     *
-     * The current member values are used as the option defaults (a default-constructed instance
-     * already holds the intended defaults), avoiding duplicating the default values here.
-     *
-     * @param visible The options_description receiving user-facing options
-     * @param hidden The options_description receiving advanced/hidden options
-     */
-    void addCLOptions_(
-        boost::program_options::options_description &visible,
-        boost::program_options::options_description &hidden
-    ) {
-        // Note that we use the current values of the members as default values, because in a default constructed
-        // instance the defaults are already set. This allows to reduce duplication of those values
-        namespace po = boost::program_options;
-
-        visible.add_options()(
-            "mpi_asyncReq",
-            po::value<bool>(&useAsyncReq)->default_value(useAsyncReq),
-            "\t[mpi] Whether the clients should issue a request for the next work item while"
-            "the current work item is still being processed"
-        );
-
-        visible.add_options()(
-            "mpi_nHandlerThreads",
-            po::value<std::uint32_t>(&nHandlerThreads)->default_value(nHandlerThreads),
-            "\t[mpi] The number of threads in a thread pool which is used to handle incoming "
-            "requests."
-            "Defaults to the number of CPU cores in the system, if able to determine by C++ runtime"
-        );
-
-        hidden.add_options()(
-            "mpi_cleanSessInterval",
-            po::value<std::uint32_t>(&masterCleanSessIntervalMSec)
-                ->default_value(masterCleanSessIntervalMSec),
-            "\t[mpi] The time interval in ms between each check for the completion "
-            "of active sessions on the master node."
-        );
-
-        hidden.add_options()(
-            "mpi_serializationMode",
-            po::value<Gem::Common::serializationMode>(&serializationMode)
-                ->default_value(serializationMode),
-            "\t[mpi] Specifies whether serialization shall be done in TEXTMODE (0), XMLMODE (1), "
-            "BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)"
-        );
-    }
-
-    /**
-     * @brief Recommends a default number of handler threads based on available hardware concurrency.
-     * @return The number of hardware threads, or 8 if the C++ runtime cannot determine it
-     */
-    [[nodiscard]] static std::uint32_t nHandlerThreadsRecommendation() {
-        // query hint that indicates how many hardware threads are available (might return 0 if unknown)
-        const unsigned int hwThreads{std::thread::hardware_concurrency()};
-
-        // if hint has returned 0, default to 8
-        return hwThreads != 0 ? hwThreads : 8;
-    }
-};
 
 /**
      * The client of the MPI consumer: a GBaseClientT like the socket clients, built on a process

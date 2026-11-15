@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
     case Gem::Courtier::processRole::BYSTANDER:
         return 0;
     }
-    auto mpi_setup = Gem::Geneva::buildConsumerSetup(spec);
+    auto mpi_consumer = Gem::Geneva::buildConsumer(spec);
 
     /****************************************************************************/
     // We can now start creating populations. We refer to them through the base class
@@ -303,7 +303,7 @@ int main(int argc, char **argv) {
     // config the factory authors. Hand it to the EA directly.
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
 
-    // buildConsumerSetup already registered the MPI master consumer as the process consumer; the
+    // buildConsumer() already registered the MPI master consumer as the process consumer; the
     // algorithm submits through it automatically.
 
     /****************************************************************************/

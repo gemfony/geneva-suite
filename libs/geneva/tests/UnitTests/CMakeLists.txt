@@ -90,9 +90,13 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 #
 SET(GENEVA_BAD_MODULES
 	GStaleAbiModule
+	GContributionSizeModule
 	GUnknownKindModule
 	GNoContributionsModule
-	GNullFactoryModule)
+	GNullFactoryModule
+	GForeignSubjectModule
+	GNullSubjectModule
+	GMnemonicMismatchModule)
 
 FOREACH(_bad_module ${GENEVA_BAD_MODULES})
 	GENEVA_ADD_INDIVIDUAL_MODULE(${_bad_module} badmodules/${_bad_module}.cpp)
@@ -104,6 +108,10 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 	"GENEVA_TEST_MODULE_UNKNOWN_KIND=\"$<TARGET_FILE:GUnknownKindModule>\""
 	"GENEVA_TEST_MODULE_NO_CONTRIBUTIONS=\"$<TARGET_FILE:GNoContributionsModule>\""
 	"GENEVA_TEST_MODULE_NULL_FACTORY=\"$<TARGET_FILE:GNullFactoryModule>\""
+	"GENEVA_TEST_MODULE_CONTRIBUTION_SIZE=\"$<TARGET_FILE:GContributionSizeModule>\""
+	"GENEVA_TEST_MODULE_FOREIGN_SUBJECT=\"$<TARGET_FILE:GForeignSubjectModule>\""
+	"GENEVA_TEST_MODULE_NULL_SUBJECT=\"$<TARGET_FILE:GNullSubjectModule>\""
+	"GENEVA_TEST_MODULE_MNEMONIC_MISMATCH=\"$<TARGET_FILE:GMnemonicMismatchModule>\""
 	# A perfectly good shared library that is not a Geneva module at all -- the "you pointed me at
 	# something else" path. Geneva's own library is the one guaranteed to be there.
 	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${GENEVA_LIBNAME}>\"")

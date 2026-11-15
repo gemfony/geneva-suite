@@ -50,6 +50,7 @@ SET ( COMMUNICATIONINCLUDES
 SET ( CONSUMER_INCLUDES
     consumers/GAsioConsumerConfig.hpp
     consumers/GAsioConsumerT.hpp
+    consumers/GMPIConsumerConfig.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GTcpAcceptingConsumerT.hpp
     consumers/GStdThreadConsumerConfig.hpp

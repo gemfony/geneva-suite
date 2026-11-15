@@ -259,6 +259,18 @@ void validateAbiStampOrThrow(const GenevaModuleManifest &manifest, const std::st
             << " this program uses." << '\n'
         );
     }
+    if(manifest.contribution_size != static_cast<std::uint32_t>(sizeof(GenevaContribution))) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
+            << "The module '" << path_str << "' claims module ABI version " << manifest.abi_version
+            << " but carries contributions of " << manifest.contribution_size
+            << " bytes, where this program's are " << sizeof(GenevaContribution) << "." << '\n'
+            << "The ABI version was not bumped for a layout change (a Geneva bug) or the module"
+            << " was built with mismatched headers. Rebuild the module against the Geneva libraries"
+            << " this program uses." << '\n'
+        );
+    }
 }
 
 /** @brief The module, as the diagnostics name it: its path plus the self-description in its

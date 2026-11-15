@@ -40,6 +40,7 @@
  */
 
 // Standard headers go here
+#include <any>
 #include <memory>
 #include <string>
 
@@ -71,14 +72,15 @@ public:
         return false;
     }
 
-    /** @brief Builds no consumer. @return An empty setup */
-    Gem::Geneva::ConsumerSetup setup(const Gem::Geneva::ConsumerSpec & /*spec*/) override {
-        return {};
+    /** @brief Builds no consumer. @return nullptr */
+    std::shared_ptr<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>
+    setup(const Gem::Geneva::ConsumerSpec & /*spec*/) override {
+        return nullptr;
     }
 
-    /** @brief Reads nothing. @return An empty spec */
-    [[nodiscard]] Gem::Geneva::ConsumerSpec
-    specFromCommandLine(const boost::program_options::variables_map & /*vm*/) const override {
+    /** @brief Reads nothing. @return An empty configuration */
+    [[nodiscard]] std::any
+    configFromCommandLine(const boost::program_options::variables_map & /*vm*/) const override {
         return {};
     }
 

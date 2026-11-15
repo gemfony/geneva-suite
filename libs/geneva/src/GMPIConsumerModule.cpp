@@ -39,6 +39,7 @@
  */
 
 // Standard headers
+#include <any>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -55,6 +56,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GModuleManifest.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/transport/GMPIEnvironment.hpp"
 #include "geneva/GConsumerPlugin.hpp"
@@ -162,21 +164,6 @@ c2::processRole mpiProcessRole() {
 /******************************************************************************/
 namespace {
 
-/** @brief The configuration of the MPI consumer and its client, from the [mpi] fields of a spec.
- *  @param spec The consumer specification
- *  @return The configuration */
-c2::Consumers::MPIConsumerConfig mpiConfigFrom(const ConsumerSpec &spec) {
-    c2::Consumers::MPIConsumerConfig mpi_config;
-    mpi_config.useAsyncReq = spec.mpi_async_req;
-    // 0 == hardware concurrency: leave the default-constructed config's recommendation in place.
-    if(spec.mpi_n_handler_threads != 0) {
-        mpi_config.nHandlerThreads = spec.mpi_n_handler_threads;
-    }
-    mpi_config.serializationMode = spec.serialization_mode;
-    mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
-    return mpi_config;
-}
-
 /** @brief Throws unless this process has the role @p wanted.
  *  @param wanted The role the caller is for
  *  @param caller The name of the calling function, for the message */
@@ -215,31 +202,34 @@ public:
         return mpiProcessRole();
     }
 
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const ConsumerSpec &spec) override {
         requireRole(c2::processRole::SUBMITTER, "setup");
         auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
             mpiEnvironment(),
-            mpiConfigFrom(spec)
+            configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
         consumer->startServer();
-        ConsumerSetup setup;
-        setup.consumer = consumer;
-        return setup;
+        return consumer;
     }
 
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
-        if(vm.contains("mpi_asyncReq")) { spec.mpi_async_req = vm["mpi_asyncReq"].as<bool>(); }
-        if(vm.contains("mpi_nHandlerThreads")) {
-            spec.mpi_n_handler_threads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
+        c2::Consumers::MPIConsumerConfig config;
+        if(vm.contains("mpi_asyncReq")) {
+            config.useAsyncReq = vm["mpi_asyncReq"].as<bool>();
+        }
+        // 0 == hardware concurrency: leave the struct's recommendation for this machine in place.
+        if(vm.contains("mpi_nHandlerThreads") &&
+           vm["mpi_nHandlerThreads"].as<std::uint32_t>() != 0) {
+            config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
         }
         if(vm.contains("mpi_cleanSessInterval")) {
-            spec.mpi_clean_sess_interval = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
+            config.masterCleanSessIntervalMSec = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
         }
         if(vm.contains("mpi_serializationMode")) {
-            spec.serialization_mode = vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
+            config.serializationMode =
+                vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
         }
-        return spec;
+        return config;
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
@@ -247,7 +237,7 @@ public:
         requireRole(c2::processRole::CLIENT, "buildClient");
         return std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<gen::GGenome>>(
             mpiEnvironment(),
-            mpiConfigFrom(spec)
+            configOf<c2::Consumers::MPIConsumerConfig>(spec)
         );
     }
 

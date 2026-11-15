@@ -143,6 +143,17 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   names the reason. **Source-breaking for users of the sub-client classes:** a program that
   uses `GMPISubClientOptimizer` or `GMPISubClientIndividual` links `gemfony-geneva-mpi`
   (out of tree: `Geneva::geneva-mpi`) and MPI itself, in addition to Geneva.
+- **A program that builds its consumer without Go2 passes the configuration struct of the
+  consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
+  `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
+  the mnemonic (`MNEMONIC`), so struct and consumer cannot be mismatched, and a misspelt member does
+  not compile. The structs are `GStdThreadConsumerConfig`, `GWebsocketConsumerConfig`,
+  `GAsioConsumerConfig` and `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none
+  includes a network or MPI header). Development snapshots of the redesign had a `ConsumerSpec`
+  with one field per option of every consumer and a function `buildConsumerSetup()` returning a
+  `ConsumerSetup`; `ConsumerSpec` is now a mnemonic plus a `std::any config` (empty: the family's
+  defaults), for a mnemonic known only at run time, `buildConsumer()` returns the consumer, and a
+  provider reads the struct with `configOf<ConfigT>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
@@ -252,8 +263,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
   the `GENEVA_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
-  supply it. No contribution of a module is taken before all of them have been checked (a factory
-  entry point, a kind this program serves), so a module refused for one of these registers nothing.
+  supply it; the stamp also carries the size of a `GenevaContribution`. A contribution has a fourth
+  member, `subject`, last: for a consumer, the item type its provider distributes
+  (`typeid(...).name()`, written by `consumerManifest<>`); a hand-written entry of any other kind
+  leaves it out (null). A consumer contribution without a subject, or for another item type, is
+  refused before anything of the module is called; one whose provider's `getMnemonic()` is not the
+  mnemonic of its manifest entry is refused too. No contribution of a module is taken before all
+  of them have been checked (a factory entry point, a kind this program serves, the item type of a
+  consumer), so a module refused for one of these registers nothing.
   The loader is `common/GModuleLoader.hpp`, which takes one handler per kind of contribution; Geneva
   uses it through `Gem::Geneva::loadModule()`.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**

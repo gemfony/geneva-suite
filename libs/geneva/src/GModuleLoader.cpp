@@ -34,6 +34,10 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <typeinfo>
+
+// Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Geneva headers go here
 #include "GModuleLoaderInternal.hpp" // loadModuleWithGenevaHandlers(), loadOptionalConsumerModules
@@ -109,9 +113,37 @@ void registerMarshallerContribution(
     }
 }
 
+/** @brief Refuses a CONSUMER contribution whose provider is not for this program's item type.
+ *  Runs before any factory of the module is called: the loader casts a factory's result without a
+ *  check, so a provider for another item type must never be built.
+ *  @param contribution The contribution to check
+ *  @param context The module, for the messages */
+void checkConsumerContribution(
+    const GenevaContribution &contribution,
+    const GContributionContext &context
+) {
+    const char *expected = typeid(gen::GGenome).name();
+    if(contribution.subject != nullptr && std::string_view(contribution.subject) == expected) {
+        return;
+    }
+    const std::string found = contribution.subject == nullptr
+                                ? std::string("no item type (its subject is null)")
+                                : "the item type " + boost::core::demangle(contribution.subject);
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "In Gem::Geneva::loadModule(): Error!" << '\n'
+        << "The module " << context.description << " contributes a consumer '"
+        << (contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "")
+        << "' for " << found << "," << '\n'
+        << "but the consumers of this program distribute the item type "
+        << boost::core::demangle(expected) << "." << '\n'
+        << "A consumer module is built for one item type; consumerManifest<>() names it." << '\n'
+    );
+}
+
 /** @brief Registers one CONSUMER contribution's provider into consumerProviderStore() under the
- *  consumer's mnemonic. A mnemonic already held (a built-in consumer or another module) is a hard
- *  error.
+ *  consumer's mnemonic. A provider whose mnemonic is not the one its manifest entry states, and a
+ *  mnemonic already held (a built-in consumer or another module), are hard errors.
  *  @param contribution The contribution whose factory is called
  *  @param context The module, for the messages
  *  @param noun What the contribution is, for the messages */
@@ -122,6 +154,18 @@ void registerConsumerContribution(
 ) {
     auto const provider = takeContribution<GConsumerProviderPtr>(contribution, context, noun);
     const std::string mnemonic = provider->getMnemonic();
+    const std::string_view stated =
+        contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "";
+    if(mnemonic != stated) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Gem::Geneva::loadModule(): Error!" << '\n'
+            << "The module " << context.description
+            << " contributes a consumer under the mnemonic '" << stated << "'," << '\n'
+            << "but its provider calls itself '" << mnemonic << "'. The two must be the same."
+            << '\n'
+        );
+    }
     if(not consumerProviderStore()->setOnce(mnemonic, provider)) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -199,7 +243,7 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
              }},
         {.kind = GENEVA_CONTRIBUTION_CONSUMER,
          .noun = "consumer",
-         .check = {},
+         .check = checkConsumerContribution,
          .take = [&result](
                      const GenevaContribution &contribution,
                      const GContributionContext &context

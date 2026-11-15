@@ -473,7 +473,8 @@ private:
     /** @brief --update-configs pass: with GParserBuilder in update-in-place mode, produce one object from
      *  each registered algorithm factory and one individual from the content creator, so every algorithm
      *  config and the individual config is parsed and rewritten in canonical form (Go2.json was already
-     *  refreshed by the constructor's parse). Runs no optimization. */
+     *  refreshed by the constructor's parse), and let every consumer provider write the
+     *  configuration files it owns. Runs no optimization. */
     void refreshAllConfigs_();
 
     // --- optimize_ sub-steps (decomposition) ---
@@ -570,10 +571,10 @@ private:
 
     //---------------------------------------------------------------------------
     // courtier routing (the DEFAULT submission path). setupChosenConsumer() builds the consumer for the
-    // chosen mnemonic through the shared factory buildConsumerSetup(), which registers it as the
+    // chosen mnemonic through the shared factory buildConsumer(), which registers it as the
     // process's single consumer (GConsumerRegistry); every algorithm reads it from there -- no per-OA
     // injection. A fully custom consumer can be supplied directly via registerConsumer(); the GPU
-    // consumer is selected by the "gpu" mnemonic and built by buildConsumerSetup() from the problem's
+    // consumer is selected by the "gpu" mnemonic and built by buildConsumer() from the problem's
     // marshaller (registered into marshallerProviderStore()) like every other consumer.
     /** @brief The single server-backed/local courtier consumer, shared across all algorithms. Held here
      *  so it (and any listening server) outlives the run and is torn down by RAII at Go2 destruction.

@@ -38,7 +38,7 @@
 #include "common/GProviderT.hpp"
 #include "courtier/GBaseClientT.hpp" // the networked client run by clientRun_ (built via the setup layer)
 // courtier consumer construction, the per-mnemonic command-line spec, the consumer option surface and
-// the networked client all live in the shared setup layer (buildConsumerSetup / specFromCommandLine /
+// the networked client all live in the shared setup layer (buildConsumer / specFromCommandLine /
 // addConsumerOptions / buildConsumerClient); Go2 no longer touches the concrete consumer
 // types or the consumer store at all.
 #include "geneva/GConsumerSetup.hpp"
@@ -682,10 +682,12 @@ Go2 const *Go2::optimize_(std::uint32_t offset) {
  * @brief --update-configs pass: refresh every configuration file this binary owns.
  *
  * With GParserBuilder in update-in-place mode (set in the constructor), Go2.json was already rewritten by
- * the constructor's parse. Here we additionally produce one object from each registered algorithm factory
- * -- which parses (and thus rewrites) that algorithm's config file -- and one individual from the content
- * creator, refreshing the individual's config. No optimization is run. Per-config failures are warned
- * about rather than aborting, so one missing/odd config does not stop the rest from being refreshed.
+ * the constructor's parse. Here we additionally produce one object from each registered algorithm
+ * factory -- which parses (and thus rewrites) that algorithm's config file --, let every consumer
+ * provider write the configuration files it owns (materializeConsumerConfigFiles()), and produce
+ * one individual from the content creator, refreshing the individual's config. No optimization is
+ * run. Per-config failures are warned about rather than aborting, so one missing/odd config does
+ * not stop the rest from being refreshed.
  */
 void Go2::refreshAllConfigs_() {
     // Every registered optimization-algorithm factory: producing one algorithm parses its config file.
@@ -699,6 +701,10 @@ void Go2::refreshAllConfigs_() {
                     << GWARNING;
         }
     }
+
+    // The configuration files that consumer providers own alone, those of loaded modules included.
+    // (A provider that fails is warned about inside; the others are still written.)
+    Gem::Geneva::materializeConsumerConfigFiles();
 
     // The individual (content-creator) config, if an individual is available.
     if(content_creator_ptr_) {
@@ -1540,7 +1546,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     // consumer the program gave to registerConsumer() is the process consumer instead; the
     // mnemonic's consumer is then not built (it would replace the registered one in the registry).
     if(is_submitter && not consumer_) {
-        consumer_ = Gem::Geneva::buildConsumerSetup(consumer_spec_).consumer;
+        consumer_ = Gem::Geneva::buildConsumer(consumer_spec_);
         if(consumer_) {
             std::println("Routing consumer \"{}\" through courtier", consumer_name_);
         }

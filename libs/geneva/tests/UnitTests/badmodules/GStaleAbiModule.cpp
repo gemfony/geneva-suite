@@ -54,10 +54,12 @@ const GenevaModuleManifest g_manifest{
     GENEVA_BUILD_FINGERPRINT,
     GENEVA_MODULE_ABI_VERSION + 1u, // the defect: built against a later module ABI
     static_cast<std::uint32_t>(sizeof(GenevaModuleManifest)),
+    static_cast<std::uint32_t>(sizeof(GenevaContribution)),
     "GStaleAbiModule",
     GENEVA_VERSION_STRING,
     &g_contribution,
-    1u};
+    1u
+};
 
 } // anonymous namespace
 

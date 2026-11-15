@@ -34,15 +34,19 @@
  */
 
 // The configuration structs must be usable without the consumers: a program names a consumer
-// by its struct. If one of the three headers pulls in Boost.Asio or Beast, this file does not
+// by its struct. If one of the headers pulls in Boost.Asio, Beast or MPI, this file does not
 // compile. (Every Asio header defines BOOST_ASIO_VERSION, every Beast header
-// BOOST_BEAST_VERSION.)
+// BOOST_BEAST_VERSION, mpi.h MPI_VERSION.)
 #include "courtier/consumers/GAsioConsumerConfig.hpp"
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 
 #if defined(BOOST_ASIO_VERSION) || defined(BOOST_BEAST_VERSION)
 #error "A consumer configuration header includes Boost.Asio or Boost.Beast"
+#endif
+#ifdef MPI_VERSION
+#error "A consumer configuration header includes MPI"
 #endif
 
 #include <catch2/catch_test_macros.hpp>
@@ -66,9 +70,10 @@
 using Gem::Courtier::GAsioConsumerConfig;
 using Gem::Courtier::GStdThreadConsumerConfig;
 using Gem::Courtier::GWebsocketConsumerConfig;
+using Gem::Courtier::Consumers::MPIConsumerConfig;
 
 /******************************************************************************/
-// The three structs are plain, copyable aggregates and name the mnemonic of their family.
+// The structs are plain, copyable aggregates and name the mnemonic of their family.
 static_assert(std::is_aggregate_v<GStdThreadConsumerConfig>);
 static_assert(std::is_aggregate_v<GWebsocketConsumerConfig>);
 static_assert(std::is_aggregate_v<GAsioConsumerConfig>);
@@ -78,6 +83,9 @@ static_assert(std::copyable<GAsioConsumerConfig>);
 static_assert(GStdThreadConsumerConfig::MNEMONIC == "stc");
 static_assert(GWebsocketConsumerConfig::MNEMONIC == "beast");
 static_assert(GAsioConsumerConfig::MNEMONIC == "asio");
+static_assert(std::is_aggregate_v<MPIConsumerConfig>);
+static_assert(std::copyable<MPIConsumerConfig>);
+static_assert(MPIConsumerConfig::MNEMONIC == "mpi");
 
 namespace {
 
