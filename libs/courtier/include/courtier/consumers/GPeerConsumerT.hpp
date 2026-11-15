@@ -375,7 +375,18 @@ private:
                 .getPayloadItem =
                     [this, lease](Gem::Courtier::GWakeFn wake) {
                         auto result = this->checkoutOrPark(std::move(wake));
-                        lease->add(result.item, result.checkout); // no-op without an item
+                        if(result.item) {
+                            // An item that cannot enter the lease would be in flight with nobody
+                            // to give it back: it goes back at once, and the request is refused.
+                            // (No test: only a failing allocation gets here.)
+                            try {
+                                lease->add(result.item, result.checkout);
+                            }
+                            catch(...) {
+                                this->requeue(result.item->getCorrelationId(), result.checkout);
+                                throw;
+                            }
+                        }
                         return result;
                     },
                 .putPayloadItem =
