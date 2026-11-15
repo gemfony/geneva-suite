@@ -93,9 +93,10 @@ namespace Gem::Courtier::Consumers {
  *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
  *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
  *                                              0 (io thread)
- *  - when_answered_(kind)                   -- optional: a message has been decoded (io thread),
+ *  - when_answered_(kind, connection)       -- optional: a message has been decoded (io thread),
  *                                              before the books are done; NONE if it could not be
- *                                              read. A client that has it keeps pending_pulls_
+ *                                              read; connection is what dispatch_message_() was
+ *                                              given with it. A client that has it keeps pending_pulls_
  *                                              itself; without it the base counts one request
  *                                              answered for every message that could be read
  *  - after_decoded_()                       -- optional: the books of a decoded message are done;
@@ -163,14 +164,16 @@ protected:
      * included: the io thread does the books and starts the evaluation.
      *
      * @param message One complete message from the server
+     * @param connection Which connection it came on, as the concrete client counts them; handed
+     *        back with the decoded message (when_answered_())
      */
-    void dispatch_message_(std::string message) {
+    void dispatch_message_(std::string message, std::uint64_t connection = 0) {
         ++n_decoding_;
         auto self = derived().shared_from_this();
         auto guard = boost::asio::make_work_guard(io_context_);
         boost::asio::post(
             decode_strand_,
-            [self, message = std::move(message), guard = std::move(guard)]() mutable {
+            [self, message = std::move(message), connection, guard = std::move(guard)]() mutable {
                 GCommandContainerT<processable_type> container{GFrameKind::NONE};
                 std::string error;
                 try {
@@ -193,8 +196,9 @@ protected:
                     [self = std::move(self),
                      container = std::move(container),
                      error = std::move(error),
+                     connection,
                      guard = std::move(guard)]() mutable {
-                        self->decoded_(std::move(container), error);
+                        self->decoded_(std::move(container), error, connection);
                     }
                 );
             }
@@ -212,10 +216,15 @@ protected:
      *
      * @param container The decoded frame
      * @param error Why the message could not be decoded; empty if it could
+     * @param connection The connection it came on (see dispatch_message_())
      */
-    void decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+    void decoded_(
+        GCommandContainerT<processable_type> container,
+        const std::string &error,
+        std::uint64_t connection
+    ) {
         --n_decoding_;
-        this->book_decoded_(std::move(container), error);
+        this->book_decoded_(std::move(container), error, connection);
         if constexpr(requires(derived_type &d) { d.after_decoded_(); }) {
             derived().after_decoded_();
         }
@@ -223,13 +232,18 @@ protected:
 
     //-------------------------------------------------------------------------
     /** @brief The books of decoded_() @param container The decoded frame
-     *  @param error Why the message could not be decoded; empty if it could */
-    void book_decoded_(GCommandContainerT<processable_type> container, const std::string &error) {
+     *  @param error Why the message could not be decoded; empty if it could
+     *  @param connection The connection it came on */
+    void book_decoded_(
+        GCommandContainerT<processable_type> container,
+        const std::string &error,
+        std::uint64_t connection
+    ) {
         // A WORK frame that decodes but carries no work item cannot be read either.
         const bool readable =
             error.empty() && (container.kind() != GFrameKind::WORK || container.item() != nullptr);
-        if constexpr(requires(derived_type &d) { d.when_answered_(GFrameKind::NONE); }) {
-            derived().when_answered_(readable ? container.kind() : GFrameKind::NONE);
+        if constexpr(requires(derived_type &d) { d.when_answered_(GFrameKind::NONE, connection); }) {
+            derived().when_answered_(readable ? container.kind() : GFrameKind::NONE, connection);
         }
         else if(readable && pending_pulls_ > 0) {
             --pending_pulls_;

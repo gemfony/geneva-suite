@@ -327,6 +327,8 @@ private:
         EntryKind kind = EntryKind::ASK; ///< What it is
         GMessage bytes;                  ///< The message, shared with the transport
         std::uint8_t sentOn = 0;         ///< On how many connections it was sent
+        /// The connection it was sent on last (connection_); 0 if it has not been sent
+        std::uint64_t sentOnConnection = 0;
         /// A result's evaluated item, kept until the result is known to have arrived (to be
         /// saved if it cannot be delivered); empty for a request and for a failed item
         std::unique_ptr<processable_type> item;
@@ -393,8 +395,11 @@ private:
         peer->start(
             GPeerHandlers{
                 .onOpen = [self] { self->when_open_(); },
+                // A message is decoded with the number of its connection (rule 1: after onOpen)
                 .onMessage =
-                    [self](std::string &&message) { self->dispatch_message_(std::move(message)); },
+                    [self](std::string &&message) {
+                        self->dispatch_message_(std::move(message), self->connection_);
+                    },
                 .onClosed =
                     [self](GPeerEnd end, GPeerClose how, std::string_view detail) {
                         self->when_closed_(end, how, detail);
@@ -462,6 +467,7 @@ private:
      *  run_()). */
     void when_open_() {
         state_ = LinkState::OPEN;
+        ++connection_;
         opened_at_ = clock::now();
         contact_on_connection_ = false;
         n_connections_.fetch_add(1);
@@ -499,15 +505,21 @@ private:
     //-------------------------------------------------------------------------
     /** @brief Called by the pipeline for every decoded message, before its books: an answer of the
      *  server (WORK, NO_WORK, or a message that could not be read) is contact with it, and proves
-     *  the oldest request without an answer and every message before it (see the class comment).
-     *  Any other kind is a protocol error (when_decoded_()). @param kind What was decoded; NONE if
-     *  the message could not be read */
-    void when_answered_(GFrameKind kind) {
+     *  the oldest request without an answer and every message before it (see the class comment)
+     *  -- on its own connection only: it takes off the list only messages that were sent on that
+     *  connection, and an answer of a connection whose end has been booked takes nothing (what it
+     *  proved has been booked already). Any other kind is a protocol error (when_decoded_()).
+     *  @param kind What was decoded; NONE if the message could not be read
+     *  @param connection The connection the message came on */
+    void when_answered_(GFrameKind kind, std::uint64_t connection) {
         if(kind != GFrameKind::WORK && kind != GFrameKind::NO_WORK && kind != GFrameKind::NONE) {
             return;
         }
+        if(connection <= booked_connection_) {
+            return;
+        }
         this->noteContact_();
-        while(not unanswered_.empty()) {
+        while(not unanswered_.empty() && unanswered_.front().sentOnConnection == connection) {
             const bool request = unanswered_.front().kind != EntryKind::RESULT;
             unanswered_.pop_front();
             if(request) {
@@ -519,10 +531,17 @@ private:
 
     //-------------------------------------------------------------------------
     /** @brief Called by the pipeline when the books of a decoded message are done: the loss of a
-     *  connection is booked once its last message is (see the class comment). */
+     *  connection is booked once its last message is (see the class comment), and so is the wind-up
+     *  of a client that halts without a connection (windUp_()). */
     void after_decoded_() {
-        if(state_ == LinkState::DRAINING && n_decoding_ == 0) {
+        if(n_decoding_ != 0) {
+            return;
+        }
+        if(state_ == LinkState::DRAINING) {
             this->bookLoss_();
+        }
+        else if(state_ == LinkState::FINISHING) {
+            this->windUp_();
         }
     }
 
@@ -641,6 +660,12 @@ private:
         retry_timer_.cancel();
         drop_held_();
         n_unreadable_owed_ = 0;
+        if(n_decoding_ > 0) {
+            // Answers of the connection that is over are still being decoded: they prove what
+            // they prove before anything is taken off the list (after_decoded_() calls again).
+            return;
+        }
+        booked_connection_ = connection_;
         std::erase_if(unanswered_, [](const Entry &message) {
             return message.kind == EntryKind::ASK;
         });
@@ -772,6 +797,7 @@ private:
     /** @brief Books a loss (see the class comment): drops the requests that only asked for work
      *  and the results that reached the resend limit, then pauses before the next attempt. */
     void bookLoss_() {
+        booked_connection_ = connection_;
         if(contact_on_connection_) {
             last_contact_end_ = lost_at_;
         }
@@ -943,6 +969,7 @@ private:
     /** @brief Hands one message of the list to the peer @param message The message */
     void transmitEntry_(Entry &message) {
         ++message.sentOn;
+        message.sentOnConnection = connection_;
         if(auto peer = peer_.lock()) {
             peer->send(message.bytes);
         }
@@ -1210,6 +1237,11 @@ private:
     bool contact_on_connection_ =
         false;                  ///< There was contact on the current connection (io thread)
     clock::time_point lost_at_; ///< When the last connection was lost (io thread)
+    /// The number of the current (or last) connection, counted from 1 when it opens (io thread)
+    std::uint64_t connection_ = 0;
+    /// The last connection whose end has been booked (a loss, a wind-up): its answers prove
+    /// nothing any more (io thread)
+    std::uint64_t booked_connection_ = 0;
     /// The end of the last connection on which there was contact (io thread)
     clock::time_point last_contact_end_;
     bool busy_ = false; ///< What when_busy_() was told last (io thread)

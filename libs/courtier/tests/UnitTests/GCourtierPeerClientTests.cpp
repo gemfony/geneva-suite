@@ -48,6 +48,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <semaphore>
 #include <span>
 #include <string>
 #include <string_view>
@@ -2124,6 +2125,296 @@ TEST_CASE(
     CHECK(done);
     CHECK(client->connections() == 3);
     CHECK_FALSE(client->terminalErrorFlagged());
+}
+
+/******************************************************************************/
+// An answer of a connection is booked against that connection only, and the client that halts
+// without a connection books the answers still being decoded before it removes anything: an
+// answer decoded later must not take a result off the list that nothing has proven.
+
+namespace {
+
+/** @brief A connector whose attempts wait while it is held, then go to the in-process connector it
+ *  wraps. Held from the test thread; released there. */
+class GatedConnector final : public Gem::Courtier::Consumers::GConnectorI {
+public:
+    /** @brief @param inner The connector the attempts go to */
+    explicit GatedConnector(std::unique_ptr<GInProcessConnector> inner)
+      : inner_(std::move(inner)) { /* nothing */
+    }
+    /** @brief An attempt goes to the inner connector, or waits while held
+     *  @param executor Where it runs @param done What is told the outcome */
+    void connect(boost::asio::any_io_executor executor, done_type done) override {
+        const std::scoped_lock lock(state_->mutex);
+        if(state_->held) {
+            state_->work.emplace(boost::asio::make_work_guard(executor)); // as a transport would
+            state_->executor = std::move(executor);
+            state_->done = std::move(done);
+            state_->waiting = true;
+            return;
+        }
+        inner_->connect(std::move(executor), std::move(done));
+    }
+    /** @brief Gives up an attempt, also one that waits */
+    void cancel() override {
+        const std::scoped_lock lock(state_->mutex);
+        state_->done = nullptr;
+        state_->waiting = false;
+        state_->work.reset();
+        inner_->cancel();
+    }
+    /** @brief @return true */
+    [[nodiscard]] bool reconnectable() const override {
+        return true;
+    }
+
+    /** @brief What the test holds on to: the gate, after the client has taken the connector */
+    struct State {
+        std::mutex mutex;
+        bool held = false;
+        bool waiting = false;
+        boost::asio::any_io_executor executor;
+        done_type done;
+        /// Keeps the client's executor busy while an attempt waits
+        std::optional<boost::asio::executor_work_guard<boost::asio::any_io_executor>> work;
+    };
+    /** @brief @return The gate */
+    [[nodiscard]] std::shared_ptr<State> state() const {
+        return state_;
+    }
+    /** @brief Attempts wait from now on @param state The gate */
+    static void hold(const std::shared_ptr<State> &state) {
+        const std::scoped_lock lock(state->mutex);
+        state->held = true;
+    }
+    /** @brief Lets a waiting attempt go on; it is refused (reported on the client's executor)
+     *  @param state The gate */
+    static void release(const std::shared_ptr<State> &state) {
+        const std::scoped_lock lock(state->mutex);
+        state->held = false;
+        if(state->waiting && state->done) {
+            state->waiting = false;
+            boost::asio::post(state->executor, [done = std::move(state->done)]() mutable {
+                done(nullptr, "the server refuses");
+            });
+        }
+        state->work.reset();
+    }
+
+private:
+    std::unique_ptr<GInProcessConnector> inner_;
+    std::shared_ptr<State> state_ = std::make_shared<State>();
+};
+
+/** @brief A shell for GHeldDecodeItem and one client of it, in-process; the batches end with the
+ *  run if they cannot be completed (their slots are filled with clones) */
+class HeldWorld {
+public:
+    using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
+
+    /** @brief @param options The client's settings @param processor How it evaluates (empty: at
+     *  once) */
+    explicit HeldWorld(
+        GPeerClientOptions options,
+        Gem::Courtier::GItemProcessorT<GHeldDecodeItem> processor = {}
+    ) {
+        Gem::Courtier::GNetworkedTimeoutConfig config;
+        config.treatment = "wait_indefinitely";
+        shell_.applyTimeoutConfig(config);
+        shell_.startServer();
+        auto gated = std::make_unique<GatedConnector>(
+            std::make_unique<GInProcessConnector>(route_, true, watch_)
+        );
+        gate_ = gated->state();
+        client_ = std::make_shared<held_client_type>(std::move(gated), std::move(options));
+        if(processor) {
+            client_->setItemProcessor(std::move(processor));
+        }
+        runner_ = std::jthread([client = client_, done = done_] {
+            client->run();
+            done->store(true);
+        });
+    }
+    /** @brief Stops the server (the client ends with it) and joins the client */
+    ~HeldWorld() {
+        try {
+            shell_.stopServer();
+            GatedConnector::release(gate_);
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- a test's teardown goes on
+        }
+        client_->flagCloseRequested();
+        runner_ = std::jthread{};
+    }
+    HeldWorld(const HeldWorld &) = delete;
+    HeldWorld(HeldWorld &&) = delete;
+    HeldWorld &operator=(const HeldWorld &) = delete;
+    HeldWorld &operator=(HeldWorld &&) = delete;
+
+    /** @brief @param items A batch @return It, running; not fatal if it cannot be completed */
+    std::future<void> batch(std::vector<std::unique_ptr<GHeldDecodeItem>> &items) {
+        return std::async(std::launch::async, [this, &items] {
+            auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+            policy.fatal_on_none_returned = false;
+            auto clone_template = std::make_unique<GHeldDecodeItem>();
+            clone_template->markAsProcessedWith({true});
+            shell_.processBatch(
+                std::span(items.data(), items.size()),
+                policy,
+                std::move(clone_template)
+            );
+        });
+    }
+
+    [[nodiscard]] held_client_type &client() {
+        return *client_;
+    }
+    [[nodiscard]] Gem::Courtier::GPeerConsumerT<GHeldDecodeItem> &shell() {
+        return shell_;
+    }
+    [[nodiscard]] GInProcessRoute &route() {
+        return *route_;
+    }
+    [[nodiscard]] GInProcessPeerWatch &watch() {
+        return *watch_;
+    }
+    [[nodiscard]] const std::shared_ptr<GatedConnector::State> &gate() const {
+        return gate_;
+    }
+    [[nodiscard]] bool clientDone() const {
+        return done_->load();
+    }
+
+private:
+    std::shared_ptr<GInProcessListener> listener_ =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    std::shared_ptr<GInProcessRoute> route_ = std::make_shared<GInProcessRoute>(listener_);
+    std::shared_ptr<GInProcessPeerWatch> watch_ = std::make_shared<GInProcessPeerWatch>();
+    Gem::Courtier::GPeerConsumerT<GHeldDecodeItem> shell_{
+        "Shell",
+        std::make_unique<GInProcessListenerRef>(listener_),
+        2,
+        BIN
+    };
+    std::shared_ptr<GatedConnector::State> gate_;
+    std::shared_ptr<held_client_type> client_;
+    std::shared_ptr<std::atomic<bool>> done_ = std::make_shared<std::atomic<bool>>(false);
+    std::jthread runner_;
+};
+
+/** @brief @param n How many @return n held-decode items */
+std::vector<std::unique_ptr<GHeldDecodeItem>> heldItems(std::size_t n) {
+    std::vector<std::unique_ptr<GHeldDecodeItem>> items;
+    items.reserve(n);
+    for(std::size_t i = 0; i < n; ++i) {
+        items.push_back(std::make_unique<GHeldDecodeItem>());
+    }
+    return items;
+}
+
+} /* anonymous namespace */
+
+/**
+ * Look-ahead, depth 2: item A is evaluated while the request P is with the server, so A goes out
+ * as a RESULT behind P. The server answers P with B, and the connection is lost while B is being
+ * decoded. The client halts during the drain; the attempt it then makes waits. When B's decode
+ * is booked it proves P and nothing after it: A is still unproven and is saved when the last
+ * attempt fails. (The answer used to be decoded after the halt had removed P from the list, and
+ * took A instead.)
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: an answer decoded after a halt during the drain proves only its request",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    gatedDecodes.store(0);
+    heldDecode.store(1); // B
+    decodeHeld.store(true);
+    decodeWaits.store(false);
+    {
+        HeldWorld world(GPeerClientOptions{
+            .name = "look-ahead client",
+            .mode = BIN,
+            .prefetchDepth = 2,
+            .parallelEvaluations = 1,
+            .lookAhead = true,
+            .undeliveredDir = dir.path()
+        });
+        auto first = heldItems(1);
+        world.batch(first).get(); // A, a RESULT; P waits at the server
+        auto second = heldItems(1);
+        auto batch = world.batch(second); // B answers P
+        REQUIRE(eventually([] { return decodeWaits.load(); }));
+        GatedConnector::hold(world.gate()); // (no attempt runs now)
+        world.route().clear();
+        world.watch().last()->sever();
+        REQUIRE(eventually([&] { return world.client().losses() == 1; }));
+        world.client().flagCloseRequested();
+        std::this_thread::sleep_for(1500ms); // the halt poll has run during the drain
+        decodeHeld.store(false);
+        std::this_thread::sleep_for(300ms); // B's decode is booked
+        GatedConnector::release(world.gate());
+        REQUIRE(eventually([&] { return world.clientDone(); }));
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(dir.files().size() == 1);
+}
+
+/**
+ * Depth 3, two evaluations at a time: A and C are evaluated, B's decode is held (it answers the
+ * third request P). The client halts; the first of A and C to finish goes out as a RESULT behind
+ * P. The connection is lost; the client winds up without a connection. B's decode, booked only
+ * now, proves P and nothing after it: both results are saved when the last attempt fails.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: an answer decoded after a loss while halting proves only its request",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    gatedDecodes.store(0);
+    heldDecode.store(2); // B, the third item
+    decodeHeld.store(true);
+    decodeWaits.store(false);
+    auto permits = std::make_shared<std::counting_semaphore<4>>(0);
+    auto started = std::make_shared<std::atomic<int>>(0);
+    {
+        HeldWorld world(
+            GPeerClientOptions{
+                .name = "wide client",
+                .mode = BIN,
+                .prefetchDepth = 3,
+                .parallelEvaluations = 2,
+                .undeliveredDir = dir.path()
+            },
+            [permits, started](GHeldDecodeItem &item) {
+                started->fetch_add(1);
+                permits->acquire();
+                item.markAsProcessedWith({true});
+            }
+        );
+        auto items = heldItems(3);
+        auto batch = world.batch(items);
+        REQUIRE(eventually([&] { return started->load() == 2 && decodeWaits.load(); }));
+        world.client().flagCloseRequested();
+        permits->release(); // the first result: a RESULT behind P
+        std::this_thread::sleep_for(300ms);
+        GatedConnector::hold(world.gate());
+        world.route().clear();
+        world.watch().last()->sever(); // halted: the client winds up without a connection
+        std::this_thread::sleep_for(300ms);
+        decodeHeld.store(false);
+        std::this_thread::sleep_for(300ms); // B's decode is booked
+        permits->release(); // the second result
+        std::this_thread::sleep_for(300ms);
+        GatedConnector::release(world.gate());
+        REQUIRE(eventually([&] { return world.clientDone(); }));
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(dir.files().size() == 2);
 }
 
 /******************************************************************************/
