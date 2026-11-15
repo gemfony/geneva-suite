@@ -35,10 +35,12 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -431,4 +433,196 @@ TEST_CASE(
     CHECK(listener->nStops() == 0);
     CHECK_FALSE(listener->workEnded());
     CHECK(budget.reserved() == reserved_before);
+}
+
+/******************************************************************************/
+// A session that is made while the server stops: its peer's start() is held on the session thread
+// (by a wrapper around the server's end) while stopServer() looks at the registry of peers.
+
+namespace {
+
+/** @brief What the wrapped server ends of one test share: the hold of start(), and what was seen */
+struct StartHold {
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool entered = false;    ///< A start() is held (under mutex)
+    bool closeSeen = false;  ///< A close() has arrived (under mutex)
+    std::optional<std::chrono::steady_clock::time_point> stopAt; ///< stop() of the listener
+    std::atomic<std::size_t> closesBeforeStart{0}; ///< close() calls before start() had returned
+
+    /** @brief Holds start() until a close arrives or HOLD after the listener's stop() */
+    void hold() {
+        std::unique_lock lock(mutex);
+        entered = true;
+        changed.notify_all();
+        const auto give_up_at = std::chrono::steady_clock::now() + PATIENCE;
+        while(not closeSeen && std::chrono::steady_clock::now() < give_up_at &&
+              not(stopAt && std::chrono::steady_clock::now() >= *stopAt + HOLD)) {
+            changed.wait_for(lock, 5ms);
+        }
+    }
+    /** @brief Notes the listener's stop() */
+    void stopped() {
+        const std::scoped_lock lock(mutex);
+        stopAt = std::chrono::steady_clock::now();
+        changed.notify_all();
+    }
+    /** @brief Notes a close() @param before_start Whether start() had not returned */
+    void closed(bool before_start) {
+        if(before_start) {
+            closesBeforeStart.fetch_add(1);
+        }
+        const std::scoped_lock lock(mutex);
+        closeSeen = true;
+        changed.notify_all();
+    }
+    /** @brief @return Whether a start() is held or was */
+    bool wasEntered() {
+        const std::scoped_lock lock(mutex);
+        return entered;
+    }
+
+    static constexpr auto HOLD = 300ms; ///< How long a start() is held after the listener's stop()
+};
+
+/** @brief A server's end whose start() is held (StartHold); it records a close() before it.
+ *  It is owned by the handlers it installs on the end it wraps, as a role is (rule 4). */
+class HeldStartPeer final
+  : public GPeerI
+  , public std::enable_shared_from_this<HeldStartPeer> {
+public:
+    /** @brief @param inner The end it wraps @param hold What it shares with the test */
+    HeldStartPeer(const std::shared_ptr<GPeerI> &inner, std::shared_ptr<StartHold> hold)
+      : inner_(inner)
+      , hold_(std::move(hold)) { /* nothing */
+    }
+    /** @brief Waits for the hold, then starts the wrapped end @param handlers See GPeerI */
+    void start(GPeerHandlers handlers) override {
+        hold_->hold();
+        auto inner = inner_.lock();
+        if(inner) {
+            auto self = this->shared_from_this();
+            inner->start(
+                GPeerHandlers{
+                    .onOpen = std::move(handlers.onOpen),
+                    .onMessage =
+                        [self, on_message = std::move(handlers.onMessage)](
+                            std::string &&message
+                        ) mutable { on_message(std::move(message)); },
+                    .onClosed = std::move(handlers.onClosed),
+                }
+            );
+        }
+        started_.store(true);
+    }
+    /** @brief Forwards @param message See GPeerI */
+    void send(std::string message) override {
+        if(auto inner = inner_.lock()) {
+            inner->send(std::move(message));
+        }
+    }
+    /** @brief Records whether start() has returned, and forwards @param how See GPeerI */
+    void close(GPeerClose how) override {
+        hold_->closed(not started_.load());
+        if(auto inner = inner_.lock()) {
+            inner->close(how);
+        }
+    }
+    /** @brief Forwards */
+    void abort() override {
+        if(auto inner = inner_.lock()) {
+            inner->abort();
+        }
+    }
+    /** @brief Forwards @return The wrapped end's executor */
+    [[nodiscard]] boost::asio::any_io_executor executor() override {
+        auto inner = inner_.lock();
+        return inner ? inner->executor() : boost::asio::any_io_executor{};
+    }
+
+private:
+    std::weak_ptr<GPeerI> inner_;      ///< The wrapped end
+    std::shared_ptr<StartHold> hold_;  ///< Shared with the test
+    std::atomic<bool> started_{false}; ///< start() has returned
+};
+
+/** @brief The in-process listener, with every server end wrapped in a HeldStartPeer */
+class HeldStartListener final : public Gem::Courtier::Consumers::GListenerI {
+public:
+    /** @brief @param listener The in-process listener @param hold Shared with the ends */
+    HeldStartListener(std::shared_ptr<GInProcessListener> listener, std::shared_ptr<StartHold> hold)
+      : listener_(std::move(listener))
+      , hold_(std::move(hold)) { /* nothing */
+    }
+    /** @brief Wraps the ends @param executor See GListenerI @param on_peer See GListenerI */
+    void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
+        listener_->start(
+            std::move(executor),
+            [hold = hold_, on_peer = std::move(on_peer)](
+                const std::shared_ptr<GPeerI> &peer,
+                Gem::Courtier::GWirePeerId id
+            ) mutable { on_peer(std::make_shared<HeldStartPeer>(peer, hold), id); }
+        );
+    }
+    /** @brief Notes the stop, and forwards */
+    void stop() override {
+        hold_->stopped();
+        listener_->stop();
+    }
+    /** @brief Forwards */
+    void endWork() override {
+        listener_->endWork();
+    }
+    /** @brief Forwards @return The in-process listener's grace */
+    [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
+        return listener_->stopGrace();
+    }
+    /** @brief Forwards @return The in-process listener's answer */
+    [[nodiscard]] bool detectsLoss() const override {
+        return listener_->detectsLoss();
+    }
+
+private:
+    std::shared_ptr<GInProcessListener> listener_; ///< The in-process listener
+    std::shared_ptr<StartHold> hold_;              ///< Shared with the ends
+};
+
+} /* anonymous namespace */
+
+/**
+ * The shell never closes a peer before that peer has been started (GPeerI.hpp, rule 2): a session
+ * enters the registry only after its peer's start(). The stop comes while a session thread is held
+ * in the start() of a new peer; the stop neither closes that peer early nor waits its grace for a
+ * peer whose close was lost.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a peer is never closed before it has been started",
+    "[courtier][peer][shell]"
+) {
+    constexpr auto STOP_GRACE = 1500ms;
+    auto listener = std::make_shared<GInProcessListener>(
+        GInProcessListener::Options{.closeGrace = 3s, .stopGrace = STOP_GRACE}
+    );
+    auto hold = std::make_shared<StartHold>();
+    IoThreads clients;
+    GInProcessConnector connector{listener};
+    auto role = std::make_shared<ScriptedClient>(0, true);
+    {
+        Gem::Courtier::GPeerConsumerT<GFaultyContainer> shell{
+            "Shell",
+            std::make_unique<HeldStartListener>(listener, hold),
+            2,
+            BIN
+        };
+        shell.startServer();
+        role->connect(connector, clients.executor());
+        REQUIRE(eventually([&] { return hold->wasEntered(); }));
+
+        const auto stop_began = std::chrono::steady_clock::now();
+        shell.stopServer();
+        const auto stop_ms = msSince(stop_began);
+        INFO("stopServer() took " << stop_ms << " ms");
+        CHECK(hold->closesBeforeStart.load() == 0);
+        CHECK(stop_ms < STOP_GRACE.count());
+    }
 }

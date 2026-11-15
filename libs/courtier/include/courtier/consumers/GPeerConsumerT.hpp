@@ -73,9 +73,14 @@ namespace Gem::Courtier {
  * as "<consumer name>:sessions". The listener is handed the executor of that pool; the threads that
  * move the bytes, if the transport has any, are the listener's own (rule 2).
  *
- * The peers. A session enters the registry (keyed by the client's id in the blob registry) when it
- * is made and leaves it in its destructor, through its serverSignOn() hook; getNActiveSessions() is
- * the registry's size. The registry holds the peers weakly: it never keeps a connection alive.
+ * The peers. A session enters the registry (keyed by the client's id in the blob registry) when its
+ * peer has been started, and leaves it in its destructor, through its serverSignOn() hook;
+ * getNActiveSessions() is the registry's size. The registry holds the peers weakly: it never keeps a
+ * connection alive. The order is what keeps rule 2 of GPeerI.hpp: stopServer() closes only peers it
+ * finds in the registry, so it never closes a peer before that peer's start(). A session that
+ * enters the registry after stopServer() has looked at it sees the stop itself: the stop is
+ * requested before the registry is read, and the session looks at the stop after it has entered
+ * (startSession_()).
  *
  * The end of a run (stopServer()): the consumer is told to stop (parked sessions wake up and close
  * their connections with GPeerClose::RUN_ENDED); the listener makes no new peers; every peer in the
@@ -340,8 +345,8 @@ private:
         );
         session->start(peer);
 
-        // The stop may have come after stopServer() took its snapshot of the registry, which this
-        // session entered above: then it is told here.
+        // The session has entered the registry in start(), after its peer was started. The stop
+        // may have come after stopServer() took its snapshot of the registry: then it is told here.
         if(this->stopped()) {
             peer->close(Consumers::GPeerClose::RUN_ENDED);
         }

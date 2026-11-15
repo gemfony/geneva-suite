@@ -100,6 +100,12 @@ namespace Gem::Courtier::Consumers {
  * session off (serverSignOn(false)); the hooks themselves (and whatever the shell keeps in them,
  * such as the lease of the client's items) are destroyed with the session.
  *
+ * Signing on. The session signs on (serverSignOn(true)) in start(), after its peer's start() has
+ * returned, and not before: whoever learns of the session through the sign-on (the shell, which
+ * closes every signed-on peer at the end of a run) can then only close a peer that has been
+ * started (GPeerI.hpp, rule 2: start() before anything else). A session that is never started
+ * never signs on, and does not sign off.
+ *
  * @tparam processable_type The work-item type exchanged with the client (must be processable)
  */
 template <typename processable_type>
@@ -117,13 +123,14 @@ public:
         std::move_only_function<void()> abandonItems;
         /// Whether the server has been stopped
         std::move_only_function<bool()> checkServerStopped;
-        /// Called with true by the constructor and with false by the destructor
+        /// Called with true by start(), after the peer has been started, and with false by the
+        /// destructor of a session that signed on
         std::move_only_function<void(bool)> serverSignOn;
     };
 
     //-------------------------------------------------------------------------
     /**
-     * @brief The only allowed constructor for this class. Signs the session on.
+     * @brief The only allowed constructor for this class. The session signs on in start().
      *
      * @param hooks How the session pulls work, returns results, sees a stopped server and signs on/off
      * @param serialization_mode Which serialization format (binary or JSON) the wire protocol uses
@@ -153,8 +160,6 @@ public:
         wire_ctx_.peer = peer_id_;
         wire_ctx_.registry = wire_registry_;
         wire_ctx_.mode = serialization_mode_;
-
-        this->server_sign_on_(true);
     }
 
     //-------------------------------------------------------------------------
@@ -164,13 +169,16 @@ public:
         if(wire_registry_ != nullptr) {
             wire_registry_->forgetPeer(peer_id_);
         }
-        this->server_sign_on_(false);
+        if(signed_on_) {
+            this->server_sign_on_(false);
+        }
     }
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Takes the peer and starts it. Returns at once; all work proceeds on the peer's
-     * executor. From here on the peer owns this session through its handlers.
+     * @brief Takes the peer and starts it, then signs the session on (see the class comment).
+     * Returns at once; all work proceeds on the peer's executor. From here on the peer owns this
+     * session through its handlers.
      *
      * @param peer The connection to the client; not started yet
      */
@@ -188,6 +196,9 @@ public:
                     }
             }
         );
+        // Only now may anyone who learns of this session close its peer.
+        this->server_sign_on_(true);
+        signed_on_ = true;
     }
 
     //-------------------------------------------------------------------------
@@ -499,6 +510,7 @@ private:
     std::size_t owed_replies_ = 0; ///< Requests of the client that have no answer yet
     bool parked_ = false; ///< The consumer holds this session's wake function; nothing is served
     bool stopping_ = false; ///< The consumer said it is stopping: nothing is served any more
+    bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
     /// installed around (de)serialisation so a work item's blob is sent to this peer only once
