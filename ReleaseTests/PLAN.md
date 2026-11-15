@@ -162,7 +162,8 @@ are structured stubs with explicit TODOs:
 ## Phase 8 — CUDA / GPU matrix (DOCUMENTED + GPU-gated)
 
 See "GPU passthrough findings" below. The harness:
-* detects a usable GPU on the host (`nvidia-smi` returns success);
+* detects a usable GPU on the host (`nvidia-smi --query-gpu=driver_version` names a
+  driver; `releaseharness/gpu.py` decides it once, the matrix and `doctor` ask it);
 * if absent, **skips all CUDA matrix entries gracefully** and records them as
   `SKIPPED (no GPU)` in the report rather than failing;
 * if present and the backend is Docker, passes `--gpus all`

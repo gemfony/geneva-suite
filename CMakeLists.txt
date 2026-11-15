@@ -772,6 +772,24 @@ IF (GENEVA_BUILD_TESTS)
 	)
 	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
+
+	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
+	# external dependency of the test, not of the build, so it is registered only where configure
+	# finds one. -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the source tree.
+	FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
+	IF (Python3_Interpreter_FOUND)
+		ADD_TEST(
+			NAME ReleaseHarnessUnitTests
+			COMMAND ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
+				${Python3_EXECUTABLE} -B -m unittest discover
+				-s ${PROJECT_SOURCE_DIR}/ReleaseTests/tests
+			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		)
+		SET_TESTS_PROPERTIES(ReleaseHarnessUnitTests PROPERTIES LABELS "harness")
+		GENEVA_TEST_SIZE(ReleaseHarnessUnitTests S)
+	ELSE ()
+		MESSAGE(STATUS "ReleaseHarnessUnitTests not registered: no Python 3 interpreter found")
+	ENDIF ()
 ENDIF ()
 
 # Tests / examples / benchmarks are gated and dispatched inside each library's
