@@ -35,16 +35,21 @@
  * to start with are skipped (SKIP, exit code 4) in builds without the CUDA backend or without a device.
  */
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <set>
+#include <string>
 #include <thread>
 #include <tuple>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "hap/GRandomFactory.hpp"
 
@@ -232,6 +237,69 @@ void requireGpuChoice() {
     }
 }
 
+/**
+ * A log target that keeps the messages it is given, readable from another thread.
+ */
+class GCapturingTarget : public Gem::Common::GBaseLogTarget {
+public:
+    /** @brief Keeps a message @param message The message */
+    void log(std::string const &message) const override {
+        std::scoped_lock const lk(m_);
+        messages_.push_back(message);
+    }
+
+    /** @brief Keeps a message @param message The message */
+    void logWithSource(std::string const &message, std::string const &) const override {
+        log(message);
+    }
+
+    /**
+     * @brief Counts the kept messages that contain a text.
+     *
+     * @param text The text to look for
+     * @return The number of messages containing it
+     */
+    std::size_t count(std::string const &text) const {
+        std::scoped_lock const lk(m_);
+        std::size_t n = 0;
+        for(auto const &m : messages_) {
+            if(m.find(text) != std::string::npos) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
+    /** @brief @return A copy of the kept messages */
+    std::vector<std::string> messages() const {
+        std::scoped_lock const lk(m_);
+        return messages_;
+    }
+
+private:
+    mutable std::mutex m_;
+    mutable std::vector<std::string> messages_;
+};
+
+/**
+ * Waits until the predicate holds or the time limit is reached.
+ *
+ * @param done The condition to wait for
+ * @param limit The time limit
+ * @return Whether the condition held before the time limit
+ */
+template <typename Pred>
+bool waitUntil(Pred done, std::chrono::milliseconds limit) {
+    auto const deadline = std::chrono::steady_clock::now() + limit;
+    while(not done()) {
+        if(std::chrono::steady_clock::now() > deadline) {
+            return false;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return true;
+}
+
 } // namespace
 
 TEST_CASE("GPU switched off before the first draw: no source uses the GPU", "[gpu-off-at-start]") {
@@ -364,4 +432,105 @@ TEST_CASE("The program ends cleanly right after its first draw", "[exit-after-fi
     GReleaseAfterCheck release(hold, 0);
     std::ignore = randomFactory()->getNewRandomContainer();
     // Leaving the case lets the source go; the process ends right after
+}
+
+TEST_CASE(
+    "A start that takes long is reported while the call waits for it",
+    "[start-wait-warning]"
+) {
+    setProducerStartWarningPeriodsForTests(
+        std::chrono::milliseconds(300),
+        std::chrono::milliseconds(300)
+    );
+    auto capture = std::make_shared<GCapturingTarget>();
+    glogger.addLogTarget(capture);
+
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    {
+        GHeldStart start(hold, GpuSourceStartStage::CONTEXT_CREATION);
+        // The call waits for the held source: it says so, names the stage and repeats it
+        const bool warned_twice = waitUntil(
+            [&capture]() { return capture->count("has not finished") >= 2; },
+            std::chrono::seconds(5)
+        );
+        for(auto const &m : capture->messages()) {
+            UNSCOPED_INFO(m);
+        }
+        CHECK(warned_twice);
+        CHECK(capture->count("building its random-number engine") >= 2);
+    }
+    glogger.resetLogTargets();
+}
+
+TEST_CASE(
+    "The first draw waits for a held start without a time limit and then returns a container",
+    "[start-wait-first-draw]"
+) {
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
+    std::atomic<bool> returned{false};
+    std::atomic<bool> got_container{false};
+    randomFactory()->setNProducerThreads(1);
+    std::thread first_draw([&returned, &got_container]() {
+        got_container.store(static_cast<bool>(randomFactory()->getNewRandomContainer()));
+        returned.store(true);
+    });
+    const bool held = waitUntil(
+        []() { return nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) > 0; },
+        std::chrono::seconds(10)
+    );
+    if(not held) {
+        first_draw.join();
+        SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
+    }
+
+    // Five times the time limit of a draw: the first draw still waits, it does not return empty
+    std::this_thread::sleep_for(5 * std::chrono::milliseconds(DEFAULTFACTORYGETWAIT));
+    CHECK_FALSE(returned.load());
+
+    hold.release();
+    first_draw.join();
+    CHECK(got_container.load());
+}
+
+TEST_CASE(
+    "A draw from another thread is served while the first draw waits for a start",
+    "[start-wait-others-served]"
+) {
+    randomFactory()->setNProducerThreads(2);
+    GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION, 1); // the second source waits
+    std::atomic<bool> first_returned{false};
+    std::thread first_draw([&first_returned]() {
+        std::ignore = randomFactory()->getNewRandomContainer();
+        first_returned.store(true);
+    });
+    // The source that was let through has finished its start, the other one is held
+    const bool one_finished = waitUntil(
+        []() { return nGpuRandomSourceStartsForTests(GpuSourceStartStage::START_FINISHED) >= 1; },
+        std::chrono::seconds(10)
+    );
+    if(not one_finished ||
+       nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) < 2) {
+        hold.release();
+        first_draw.join();
+        SKIP("No random-number source starts on the GPU (no CUDA backend or no device)");
+    }
+
+    std::atomic<bool> second_returned{false};
+    std::atomic<bool> second_got_container{false};
+    std::thread second_draw([&second_returned, &second_got_container]() {
+        // The producer that has started fills the buffer: within a few tries a container comes
+        for(int i = 0; i < 5 && not second_got_container.load(); ++i) {
+            second_got_container.store(static_cast<bool>(randomFactory()->getNewRandomContainer()));
+        }
+        second_returned.store(true);
+    });
+    const bool served =
+        waitUntil([&second_returned]() { return second_returned.load(); }, std::chrono::seconds(3));
+    const bool first_waited = not first_returned.load();
+    hold.release();
+    second_draw.join();
+    first_draw.join();
+    CHECK(served);
+    CHECK(second_got_container.load());
+    CHECK(first_waited);
 }

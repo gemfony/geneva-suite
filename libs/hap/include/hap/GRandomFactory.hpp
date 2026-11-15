@@ -38,6 +38,7 @@
 #include <array>
 #include <atomic>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -47,9 +48,9 @@
 #include <limits>
 #include <mutex>
 #include <random>
-#include <type_traits>
 #include <sstream>
 #include <thread>
+#include <type_traits>
 
 // Geneva headers go here
 
@@ -344,8 +345,9 @@ public:
     /**
      * @brief Sets the number of producer threads for this factory.
      *
-     * Threads added while the producers run are started at once, and the call returns when they have
-     * finished their start.
+     * Threads added while the producers run are started at once, and the call returns when each of them
+     * has finished its start, as the first getNewRandomContainer() does: without a time limit, with a
+     * warning while it waits.
      *
      * @param n_producer_threads The desired number of threads producing random number packages
      */
@@ -382,11 +384,17 @@ public:
     /**
      * @brief Delivers a new random number container with the current standard size to clients.
      *
-     * The first call starts the producer threads and returns only when each of them has finished its
-     * start, so that no producer is still creating GPU resources when the program can end.
+     * The first call starts the producer threads and waits until each of them has finished its start
+     * -- has built its engine and filled its first container, or has ended -- so that no producer is
+     * still creating GPU resources when the program can end. That wait has no time limit; if it takes
+     * longer than PRODUCERSTARTFIRSTWARNING, a warning names what is waited for, and again every
+     * PRODUCERSTARTREPEATWARNING. Other threads that draw meanwhile are served from the producers that
+     * have finished their start. Every call, the first after its wait included, then waits at most
+     * DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null pointer if none came
+     * (counted in getNGetTimeouts()); callers retry.
      *
-     * @return A unique_ptr to a filled container, or a null pointer if none became
-     *         available within the internal timeout
+     * @return A unique_ptr to a filled container, or a null pointer if none came within
+     *         DEFAULTFACTORYGETWAIT milliseconds
      */
     std::unique_ptr<random_container> getNewRandomContainer();
     /**
@@ -436,12 +444,23 @@ public:
     //! [hap-factory-tuning#4]
 
 private:
+    /// The state of one start of producer threads (defined in the source file)
+    struct GProducerStart;
+
     /**
-     * @brief Starts producer threads and returns when each of them has finished its start.
+     * @brief Starts producer threads.
      *
      * @param n_new The number of producer threads to start
+     * @return The state of this start
      */
-    void startProducers(std::uint16_t n_new);
+    std::shared_ptr<GProducerStart> startProducers(std::uint16_t n_new);
+
+    /**
+     * @brief Returns when each producer of a start has finished its start; warns while it waits.
+     *
+     * @param start The state of the start
+     */
+    void awaitStart(GProducerStart &start);
 
     /**
      * @brief The production of random number packages takes place here.
@@ -450,18 +469,16 @@ private:
      * (and refilling recycled ones) until a stop is requested.
      *
      * @param seed The seed used to initialize this producer thread's engine
-     * @param started Counted down once, when this producer has finished its start
+     * @param start The state of the start this producer belongs to
      */
-    void producer(
-        std::uint32_t seed,
-        std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT> started
-    );
+    void producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start);
 
     std::atomic<std::uint64_t> n_packages_produced_{0}; ///< Lifetime count of packages delivered to the fresh buffer (supply-throughput signal)
     std::atomic<std::uint64_t> n_get_timeouts_{0}; ///< Lifetime count of empty getNewRandomContainer() results (aggregate starvation signal)
 
     std::atomic<bool> finalized_{false};
-    std::atomic<bool> threads_started_{false}; ///< Indicates whether threads were already started
+    /// Whether the producer threads have been launched (their start may still run)
+    std::atomic<bool> threads_started_{false};
     std::atomic<bool> threads_stop_requested_{false}; ///< Indicates whether all threads were requested to stop
     std::atomic<std::uint16_t> n_producer_threads_{
         autoProducerThreadCount()
@@ -483,8 +500,9 @@ private:
     Gem::Common::Concurrency::GMPMCQueueT<std::unique_ptr<random_container>, DEFAULTFACTORYBUFFERSIZE, FACTORYQUEUEBACKEND>
         p_ret_bfr_;
 
-    mutable std::mutex
-        thread_creation_mutex_; ///< Synchronization of access to the threads_started_ variable
+    /// Orders the start of producer threads: the first getNewRandomContainer() and
+    /// setNProducerThreads(). Not held by the first draw while it waits for the start.
+    mutable std::mutex thread_creation_mutex_;
 
     /// Source of non-deterministic random numbers. getSeed() draws a fresh set of entropy words
     /// from it for every seed batch -- a std::seed_seq built once and kept would regenerate the
@@ -583,6 +601,21 @@ void holdGpuRandomSourceStartsForTests(
  * @return The number of sources that have reached the stage
  */
 [[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
+
+/**
+ * @brief Sets how long the call that starts producer threads waits before its first warning about a
+ * start that has not finished, and how long between the warnings that follow (test hook).
+ *
+ * The defaults are PRODUCERSTARTFIRSTWARNING and PRODUCERSTARTREPEATWARNING. Only available in builds
+ * with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param first The wait before the first warning
+ * @param repeat The wait between later warnings
+ */
+void setProducerStartWarningPeriodsForTests(
+    std::chrono::milliseconds first,
+    std::chrono::milliseconds repeat
+);
 
 /******************************************************************************/
 /**
