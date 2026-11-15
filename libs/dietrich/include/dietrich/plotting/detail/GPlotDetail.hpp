@@ -155,8 +155,9 @@ inline void emitRootSeriesColour(
  * Emits what a ROOT pad with overlaid graphs needs after all of them are drawn: one frame that
  * holds every graph, and a legend. ROOT takes the frame from the first graph alone, so a graph
  * drawn "same" that reaches beyond it would be cut off. The emitted block looks at the graphs of
- * the current pad (it needs no names), widens the first one's frame by a twentieth -- by a factor
- * on a logarithmic axis -- and lets ROOT build the legend from the graphs' titles.
+ * the current pad (it needs no names), takes in their points and their error bars, widens the
+ * first one's frame by a twentieth -- by a factor on a logarithmic axis -- and lets ROOT build the
+ * legend from the graphs' titles.
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
@@ -169,10 +170,24 @@ inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &in
       << indent << "   while(TObject *o = next()) {" << '\n'
       << indent << "      TGraph *g = dynamic_cast<TGraph *>(o);" << '\n'
       << indent << "      if(!g || g->GetN() == 0) continue;" << '\n'
-      << indent << "      const double gxlo = TMath::MinElement(g->GetN(), g->GetX());" << '\n'
-      << indent << "      const double gxhi = TMath::MaxElement(g->GetN(), g->GetX());" << '\n'
-      << indent << "      const double gylo = TMath::MinElement(g->GetN(), g->GetY());" << '\n'
-      << indent << "      const double gyhi = TMath::MaxElement(g->GetN(), g->GetY());" << '\n'
+      << indent << "      double gxlo = 0., gxhi = 0., gylo = 0., gyhi = 0.;" << '\n'
+      << indent << "      for(int i = 0; i < g->GetN(); ++i) {" << '\n'
+      << indent
+      << "         // the error bars belong into the frame (a graph without them reports -1)"
+      << '\n'
+      << indent << "         const double x = g->GetX()[i], y = g->GetY()[i];" << '\n'
+      << indent << "         double xl = x - TMath::Max(0., g->GetErrorXlow(i));" << '\n'
+      << indent << "         double yl = y - TMath::Max(0., g->GetErrorYlow(i));" << '\n'
+      << indent << "         const double xh = x + TMath::Max(0., g->GetErrorXhigh(i));" << '\n'
+      << indent << "         const double yh = y + TMath::Max(0., g->GetErrorYhigh(i));" << '\n'
+      << indent << "         if(gPad->GetLogx() && xl <= 0.) xl = x; // no room below zero" << '\n'
+      << indent << "         if(gPad->GetLogy() && yl <= 0.) yl = y;" << '\n'
+      << indent
+      << "         if(i == 0) { gxlo = xl; gxhi = xh; gylo = yl; gyhi = yh; continue; }"
+      << '\n'
+      << indent << "         gxlo = TMath::Min(gxlo, xl); gxhi = TMath::Max(gxhi, xh);" << '\n'
+      << indent << "         gylo = TMath::Min(gylo, yl); gyhi = TMath::Max(gyhi, yh);" << '\n'
+      << indent << "      }" << '\n'
       << indent << "      if(!first) { first = g; xlo = gxlo; xhi = gxhi; ylo = gylo; yhi = gyhi; }"
       << '\n'
       << indent << "      xlo = TMath::Min(xlo, gxlo); xhi = TMath::Max(xhi, gxhi);" << '\n'

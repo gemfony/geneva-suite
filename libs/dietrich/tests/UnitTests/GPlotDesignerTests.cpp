@@ -1327,6 +1327,11 @@ TEST_CASE(
         CHECK(s.contains("gPad->BuildLegend();"));
         CHECK(s.contains("first->SetMinimum("));
         CHECK(s.contains("first->GetXaxis()->SetLimits("));
+        // The frame takes in the error bars too, or those of the extreme points are cut off.
+        CHECK(s.contains("g->GetErrorYlow(i)"));
+        CHECK(s.contains("g->GetErrorYhigh(i)"));
+        CHECK(s.contains("g->GetErrorXlow(i)"));
+        CHECK(s.contains("g->GetErrorXhigh(i)"));
         // The frame and the legend come after the last graph is drawn.
         CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
     }
