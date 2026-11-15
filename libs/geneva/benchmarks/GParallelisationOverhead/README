@@ -74,5 +74,7 @@ axes, one series per label, with error bars and the ideal speed-up as a line:
 
 Tables with the same label are averaged as compareSpeedups.py does. Further
 pads show the short evaluation times alone, which a linear axis crowds at the
-left (--zoom). It writes a ROOT script unless --backend names another one;
+left (--zoom). Each pad's legend goes where it covers the least of the curves,
+the lower right where that is free (--legend sets a place), and --no-title
+leaves out the figure's title. It writes a ROOT script unless --backend names another one;
 GSpeedupFigure --help lists the options.

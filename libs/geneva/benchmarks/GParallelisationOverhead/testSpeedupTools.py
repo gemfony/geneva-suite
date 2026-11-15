@@ -97,9 +97,12 @@ def check_figure(program, workdir):
 
     figure = open('figure.C', encoding='utf-8').read()
     # Two pads (all times, and those up to 0.1 s), each with both labels and the ideal line
-    for text, count in (('TGraphErrors(', 6), ('BuildLegend', 2), ('Divide(1,2)', 1),
-                        ('"All evaluation times: fast"', 1), ('"Up to 0.1 s: fast"', 1),
-                        ('"slow"', 2), ('"ideal (4)"', 2)):
+    # The series are named by their labels alone; each pad has a title of its own and a legend
+    # at the lower right.
+    for text, count in (('TGraphErrors(', 6), ('BuildLegend(', 2), ('Divide(1,2)', 1),
+                        ('"fast"', 2), ('"slow"', 2), ('"ideal (4)"', 2),
+                        ('"All evaluation times"', 1), ('"Up to 0.1 s"', 1), ('fast:', 0),
+                        ('BuildLegend()', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
         if figure.count(text) != count:
             fail(f'the figure holds "{text}" {figure.count(text)} times instead of {count}')
     if 'SetLogx' in figure or 'SetLogy' in figure:
@@ -122,6 +125,23 @@ def check_figure(program, workdir):
                      f'{(mean, error, runs)}')
     if len(means) != 5:
         fail(f'{len(means)} means instead of 5')
+
+    # A series that stays along the bottom covers the lower right, so the legend moves up; asked
+    # for a corner, it goes there.
+    write_table('low.txt', [(0.01, 0.1, 0.01), (0.1, 0.2, 0.01), (1, 0.3, 0.01)])
+    write_table('high.txt', [(0.01, 3.0, 0.01), (0.1, 3.9, 0.01), (1, 4.0, 0.01)])
+    for args, expected in (([], 'BuildLegend(0.56, 0.3875, 0.88, 0.6125)'),
+                           (['--legend', 'top_left'], 'BuildLegend(0.12, 0.655, 0.44, 0.88)')):
+        placed = subprocess.run([program, '--ideal', '4', '--zoom', '0', '--figure', 'placed.C']
+                                + args + ['high=high.txt', 'low=low.txt'],
+                                capture_output=True, text=True, check=False)
+        if placed.returncode != 0 or expected not in open('placed.C', encoding='utf-8').read():
+            fail(f'the legend is not at {expected} with {args}')
+
+    untitled = subprocess.run([program, '--no-title', '--figure', 'untitled.C', 'fast=fast-1.txt'],
+                              capture_output=True, text=True, check=False)
+    if untitled.returncode != 0 or 'TPaveLabel' in open('untitled.C', encoding='utf-8').read():
+        fail('--no-title does not leave the title out')
 
     bad = subprocess.run([program, 'fast=missing.txt'], capture_output=True, text=True,
                          check=False)

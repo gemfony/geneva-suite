@@ -36,7 +36,8 @@
 // with error bars, and the ideal speed-up as a line. Tables that carry the same label are runs of
 // the same kind; the figure shows their mean, with the error compareSpeedups.py gives it.
 //
-// Usage: GSpeedupFigure [--ideal S] [--figure F] [--backend B] [--zoom T]... [--means M] label=table...
+// Usage: GSpeedupFigure [--ideal S] [--figure F] [--backend B] [--zoom T]... [--means M] [--no-title]
+//                       label=table...
 //
 // With linear axes the short evaluation times crowd at the left of the figure, so every --zoom
 // adds a pad with the evaluation times up to T (default: up to 1 s and up to 0.1 s).
@@ -71,8 +72,12 @@ namespace {
 using Gem::Dietrich::GDataLog;
 using Gem::Dietrich::GPlotSpec;
 using Gem::Dietrich::graphPlotMode;
+using Gem::Dietrich::legendPosition;
 using Gem::Dietrich::plotBackend;
 using Gem::Dietrich::plotKind;
+
+/// The width of the drawn lines, and of their samples in the legend
+constexpr std::uint32_t LINEWIDTH = 2;
 
 /******************************************************************************/
 /** One evaluation time of a speed-up series: the speed-up, its error, and how many runs gave it */
@@ -216,32 +221,154 @@ plotBackend backendFromName(const std::string &name) {
 
 /******************************************************************************/
 /**
+ * Translates a legend position of the command line.
+ *
+ * @param name free, bottom_right, center_right, top_left, bottom_left or top_right
+ * @return The corner, or nothing for free (the freest corner of each pad)
+ */
+std::optional<legendPosition> legendFromName(const std::string &name) {
+    if(name == "free") {
+        return std::nullopt;
+    }
+    if(name == "bottom_right") {
+        return legendPosition::BOTTOM_RIGHT;
+    }
+    if(name == "top_left") {
+        return legendPosition::TOP_LEFT;
+    }
+    if(name == "bottom_left") {
+        return legendPosition::BOTTOM_LEFT;
+    }
+    if(name == "top_right") {
+        return legendPosition::TOP_RIGHT;
+    }
+    if(name == "center_right") {
+        return legendPosition::CENTER_RIGHT;
+    }
+    throw std::runtime_error("GSpeedupFigure: unknown legend position \"" + name + "\"");
+}
+
+/******************************************************************************/
+/**
+ * Chooses the place of a pad's legend where it covers the least of its curves. Speed-up curves
+ * rise from the lower left and flatten under the ideal line, so the lower right is usually free
+ * and is preferred; but a consumer that stays far below the others runs along the bottom, and then
+ * the middle of the right side or a corner is. The curves are sampled along their straight segments and placed in the pad
+ * as ROOT frames them (the range of the data, widened by a twentieth on each side, inside margins
+ * of a tenth); the legend's box is dietrich's (legendBox()).
+ *
+ * @param curves The curves of the pad, each as its points in order of the evaluation time
+ * @param n_series The number of entries of the legend
+ * @return The corner with the fewest samples of a curve inside the legend's box
+ */
+legendPosition freestCorner(
+    const std::vector<std::vector<std::pair<double, double>>> &curves,
+    std::size_t n_series
+) {
+    double x_lo = std::numeric_limits<double>::max();
+    double x_hi = std::numeric_limits<double>::lowest();
+    double y_lo = x_lo;
+    double y_hi = x_hi;
+    for(const auto &curve : curves) {
+        for(const auto &[x, y] : curve) {
+            x_lo = std::min(x_lo, x);
+            x_hi = std::max(x_hi, x);
+            y_lo = std::min(y_lo, y);
+            y_hi = std::max(y_hi, y);
+        }
+    }
+    const auto to_pad = [](double v, double lo, double hi) {
+        const double width = hi > lo ? hi - lo : 1.;
+        return 0.1 + (0.8 * (v - (lo - (0.05 * width))) / (1.1 * width));
+    };
+    constexpr int SAMPLES = 200;
+    std::vector<std::pair<double, double>> samples;
+    for(const auto &curve : curves) {
+        for(std::size_t i = 0; i + 1 < curve.size(); i++) {
+            for(int k = 0; k <= SAMPLES; k++) {
+                const double t = static_cast<double>(k) / SAMPLES;
+                const double x = curve[i].first + (t * (curve[i + 1].first - curve[i].first));
+                const double y = curve[i].second + (t * (curve[i + 1].second - curve[i].second));
+                samples.emplace_back(to_pad(x, x_lo, x_hi), to_pad(y, y_lo, y_hi));
+            }
+        }
+    }
+    legendPosition best = legendPosition::BOTTOM_RIGHT;
+    std::size_t fewest = std::numeric_limits<std::size_t>::max();
+    for(const auto corner :
+        {legendPosition::BOTTOM_RIGHT,
+         legendPosition::CENTER_RIGHT,
+         legendPosition::TOP_LEFT,
+         legendPosition::BOTTOM_LEFT,
+         legendPosition::TOP_RIGHT}) {
+        const auto [x1, y1, x2, y2] = Gem::Dietrich::legendBox(corner, n_series);
+        const auto covered =
+            static_cast<std::size_t>(std::ranges::count_if(samples, [&](const auto &p) {
+                return p.first >= x1 and p.first <= x2 and p.second >= y1 and p.second <= y2;
+            }));
+        if(covered < fewest) {
+            fewest = covered;
+            best = corner;
+        }
+    }
+    return best;
+}
+
+/******************************************************************************/
+/**
  * Declares one pad of the figure: a series per label, with error bars, and the ideal speed-up as a
  * line over the range of the evaluation times shown. All series of a pad are of the same kind
- * (dietrich overlays only those), so the ideal line is a graph with error bars of zero.
+ * (dietrich overlays only those), so the ideal line is a graph with error bars of zero. Every
+ * series is named by its label alone; the pad has a title of its own, and its legend lies in a
+ * corner, the same size in every pad.
  *
  * @param log The log the pad is declared in
  * @param title The title of the pad
  * @param series The combined series, per label, in the order of the legend
  * @param ideal The ideal speed-up; no line if it is not positive
  * @param up_to The longest evaluation time shown in this pad
+ * @param corner Where the legend lies; without one the corner that covers the least of the curves
  */
 void declarePad(
     GDataLog &log,
     const std::string &title,
     const std::vector<std::pair<std::string, SpeedupSeries>> &series,
     double ideal,
-    double up_to
+    double up_to,
+    std::optional<legendPosition> corner
 ) {
-    std::optional<GDataLog::SeriesId> primary;
+    // What the pad shows: the points of every series up to its longest time, and the ideal line
+    std::vector<std::vector<std::pair<double, double>>> curves;
     double shortest = std::numeric_limits<double>::max();
     double longest = 0.;
     for(const auto &[label, points] : series) {
+        curves.emplace_back();
+        for(const auto &[time, point] : points) {
+            if(time <= up_to) {
+                curves.back().emplace_back(time, point.speedup);
+                shortest = std::min(shortest, time);
+                longest = std::max(longest, time);
+            }
+        }
+    }
+    const bool ideal_line = ideal > 0. and longest > 0.;
+    if(ideal_line) {
+        curves.push_back({{shortest, ideal}, {longest, ideal}});
+    }
+    const legendPosition legend = corner.value_or(freestCorner(curves, curves.size()));
+
+    std::optional<GDataLog::SeriesId> primary;
+    const auto declare = [&](const std::string &name,
+                             const std::vector<std::pair<double, double>> &points,
+                             const SpeedupSeries *errors) {
         GPlotSpec spec(plotKind::graph_2d_err);
         spec.plot_mode = graphPlotMode::CURVE;
-        // The primary series' name is the title of the pad; ROOT builds the legend from the names
-        // of the overlays and of the primary alike.
-        spec.name = primary ? label : std::format("{}: {}", title, label);
+        spec.name = name;
+        spec.line_width = LINEWIDTH;
+        if(not primary) {
+            spec.pad_title = title;
+            spec.legend = legend;
+        }
         spec.x_label = "Evaluation time [s]";
         spec.y_label = "Speed-up";
         spec.columns = {"x", "ex", "y", "ey"};
@@ -249,26 +376,17 @@ void declarePad(
         if(not primary) {
             primary = id;
         }
-        for(const auto &[time, point] : points) {
-            if(time <= up_to) {
-                log.append(id, time, 0., point.speedup, point.error);
-                shortest = std::min(shortest, time);
-                longest = std::max(longest, time);
-            }
+        for(const auto &[x, y] : points) {
+            log.append(id, x, 0., y, errors ? errors->at(x).error : 0.);
         }
+    };
+    for(std::size_t i = 0; i < series.size(); i++) {
+        declare(series[i].first, curves[i], &series[i].second);
     }
-    if(ideal > 0. and primary and longest > 0.) {
-        GPlotSpec spec(plotKind::graph_2d_err);
-        spec.plot_mode = graphPlotMode::CURVE;
+    if(ideal_line) {
         std::ostringstream name;
         name << "ideal (" << ideal << ")";
-        spec.name = name.str();
-        spec.x_label = "Evaluation time [s]";
-        spec.y_label = "Speed-up";
-        spec.columns = {"x", "ex", "y", "ey"};
-        const auto id = log.overlaySeries(*primary, spec);
-        log.append(id, shortest, 0., ideal, 0.);
-        log.append(id, longest, 0., ideal, 0.);
+        declare(name.str(), curves.back(), nullptr);
     }
 }
 
@@ -280,6 +398,8 @@ struct Arguments {
     std::string figure = "speedupComparison.C"; ///< The plot script to write
     std::string backend = "root";               ///< The dietrich backend, by name
     std::string meansFile;                      ///< Where the means go; nowhere if empty
+    bool noTitle = false;                       ///< Leave the figure's title out
+    std::string legend = "free";                ///< Where the legends lie
     std::vector<std::string> tables;            ///< label=table, once per run
 };
 
@@ -311,6 +431,16 @@ std::optional<Arguments> parseArguments(int argc, char **argv) {
         "means",
         value<std::string>(&args.meansFile),
         "Also write the combined speed-up per label and evaluation time to this file"
+    )(
+        "legend",
+        value<std::string>(&args.legend)->default_value(args.legend),
+        "Where the legend of a pad lies: free (the corner, per pad, that covers the least of the "
+        "curves, the lower right where it is free), bottom_right, center_right, "
+        "top_left, bottom_left or top_right"
+    )(
+        "no-title",
+        boost::program_options::bool_switch(&args.noTitle),
+        "Leave out the title of the figure (a figure in a book carries it in its caption)"
     )("table", value<std::vector<std::string>>(&args.tables), "label=table, once per run");
     boost::program_options::positional_options_description positional;
     positional.add("table", -1);
@@ -441,10 +571,14 @@ int main(int argc, char **argv) try {
                                   : std::format("Up to {:g} s", up_to),
             series,
             args->ideal,
-            up_to
+            up_to,
+            legendFromName(args->legend)
         );
     }
     log.setCanvasDimensions(1000, static_cast<std::uint32_t>(150 + (450 * pads.size())));
+    if(args->noTitle) {
+        log.setShowCanvasLabel(false);
+    }
     log.writeToFile(args->figure, backendFromName(args->backend));
     std::cout << "GSpeedupFigure: wrote " << args->figure << '\n';
 
