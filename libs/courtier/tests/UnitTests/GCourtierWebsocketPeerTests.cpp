@@ -218,7 +218,7 @@ TEST_CASE(
         REQUIRE(peer);
         peer->send(makeMessage("last words"));
         peer->close(GPeerClose::RUN_ENDED);
-        peer->close(GPeerClose::NORMAL); // a second close changes nothing
+        peer->close(GPeerClose::NORMAL); // a second close changes nothing: the first decides
         peer->send(makeMessage("too late")); // after close(): dropped
     });
     client->send(

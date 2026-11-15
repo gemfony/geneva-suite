@@ -562,6 +562,19 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
 
+    SECTION("the first close decides what the other end is told") {
+        auto [a, b] = pairOn(io.executor());
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
+        a->close(GPeerClose::ERROR);
+        a->close(GPeerClose::RUN_ENDED); // changes nothing
+        REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
+        CHECK(role_b->events().back() == "closed:CLOSED_THERE:ERROR");
+    }
+
     SECTION("an end that loses what comes after three messages") {
         auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.deliverAtMost = 3});
         auto role_a = makeRole();

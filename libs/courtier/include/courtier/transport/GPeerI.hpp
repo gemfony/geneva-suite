@@ -198,7 +198,9 @@ public:
     virtual void send(GMessage) = 0;
 
     /** @brief Closes the connection in the regular way, after what was handed to send() before
-     *  (rule 6). From any thread; idempotent. */
+     *  (rule 6). From any thread; idempotent: the first call decides what the other end is told,
+     *  a later one changes nothing (a session that closes with ERROR and then sees the end of the
+     *  run must not turn the ERROR into RUN_ENDED). */
     virtual void close(GPeerClose) = 0;
 
     /** @brief Ends the connection at once, without waiting for the other end; may cut what has not
