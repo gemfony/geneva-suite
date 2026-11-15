@@ -141,7 +141,9 @@ struct GPeerClientOptions {
  * results of the evaluations that run are sent as RESULT as they finish, and the client closes when
  * none runs any more. So the number of items processed may pass an item limit by the evaluations
  * that were running when it was reached. While its compute pool evaluates an item the client tells
- * its peer that it is busy (GPeerI::setOwnerBusy()).
+ * its peer that it is busy (GPeerI::setOwnerBusy()). A client that closes with an error (a frame it
+ * cannot accept, a message it cannot encode) likewise starts nothing new; the result of an
+ * evaluation that runs then is saved.
  *
  * A message it cannot decode is reported to the server with UNREADABLE (after the pause that follows
  * a NO_WORK), which asks for the next
@@ -1005,6 +1007,13 @@ private:
     void do_close_(GPeerClose how) {
         // Stop the halt-poll and NO_WORK-backoff timers for good, so io_context::run() can return.
         this->stopPipelineTimers_();
+        if(how == GPeerClose::ERROR) {
+            // The client gives up: it starts nothing new, as after an announced end of the run.
+            // What it holds, and what is still being decoded, is dropped (the server puts it back
+            // when the connection ends); an evaluation that runs goes to its end, and its result,
+            // which can no longer be delivered, is saved.
+            drop_held_();
+        }
         if(n_reencoding_ > 0) {
             close_after_reencoding_ = how;
             close_pending_ = true;

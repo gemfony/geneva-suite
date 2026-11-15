@@ -2831,6 +2831,51 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+/**
+ * After its own close with ERROR (here: a frame a client cannot accept) the client starts nothing
+ * new: of the items it holds (depth 3, one evaluation at a time) only the one being evaluated is
+ * evaluated, and its result is saved; the held one is dropped (the server puts it back), and no
+ * file is written for it.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: after its close with ERROR a client starts no evaluation",
+    "[courtier][peer][client]"
+) {
+    const UndeliveredDir dir;
+    gatedDecodes.store(0);
+    heldDecode.store(std::numeric_limits<std::size_t>::max());
+    auto permits = std::make_shared<std::counting_semaphore<4>>(0);
+    auto started = std::make_shared<std::atomic<int>>(0);
+    {
+        HeldWorld world(
+            GPeerClientOptions{
+                .name = "client",
+                .mode = BIN,
+                .prefetchDepth = 3,
+                .undeliveredDir = dir.path()
+            },
+            [permits, started](GHeldDecodeItem &item) {
+                started->fetch_add(1);
+                permits->acquire();
+                item.markAsProcessedWith({true});
+            },
+            2 // the server's third message is a bad frame
+        );
+        auto items = heldItems(3);
+        auto batch = world.batch(items);
+        REQUIRE(eventually([&] { return started->load() == 1 && world.corrupted(); }));
+        std::this_thread::sleep_for(300ms); // the bad frame is decoded: the client closes
+        permits->release(3);
+        REQUIRE(eventually([&] { return world.clientDone(); }));
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(started->load() == 1);
+    CHECK(dir.files().size() == 1);
+}
+
+/******************************************************************************/
 // A finished result that can no longer be delivered is saved: the evaluated item, one file each,
 // in the client's undeliveredDir. Evaluations are never cut; a client that halts without a
 // connection makes one last attempt to deliver what it has finished.
