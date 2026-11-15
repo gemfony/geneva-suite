@@ -390,6 +390,7 @@ private:
         }
 
         state_ = LinkState::OPENING;
+        ++connection_; // a connection has a number from the moment it is made
         auto self = this->shared_from_this();
         peer_ = peer;
         peer->start(
@@ -467,7 +468,6 @@ private:
      *  run_()). */
     void when_open_() {
         state_ = LinkState::OPEN;
-        ++connection_;
         opened_at_ = clock::now();
         contact_on_connection_ = false;
         n_connections_.fetch_add(1);
@@ -634,8 +634,12 @@ private:
         }
         if(was == LinkState::CLOSING) {
             if(end == GPeerEnd::CLOSED_HERE) {
-                // The server confirmed the close: it has read everything sent before it
-                std::erase_if(unanswered_, [](const Entry &message) { return message.sentOn > 0; });
+                // The server confirmed the close: it has read everything sent before it on this
+                // connection -- and nothing else (a message sent only on an earlier connection,
+                // or never, is as unproven as before)
+                std::erase_if(unanswered_, [this](const Entry &message) {
+                    return message.sentOnConnection == connection_;
+                });
             }
             // Any other end -- a close the server did not confirm (CLOSED_HERE_UNCONFIRMED), a
             // loss -- proves nothing: what was sent is saved with what was never sent.
@@ -1237,7 +1241,8 @@ private:
     bool contact_on_connection_ =
         false;                  ///< There was contact on the current connection (io thread)
     clock::time_point lost_at_; ///< When the last connection was lost (io thread)
-    /// The number of the current (or last) connection, counted from 1 when it opens (io thread)
+    /// The number of the current (or last) connection, counted from 1 when the connector has made
+    /// it (io thread)
     std::uint64_t connection_ = 0;
     /// The last connection whose end has been booked (a loss, a wind-up): its answers prove
     /// nothing any more (io thread)
