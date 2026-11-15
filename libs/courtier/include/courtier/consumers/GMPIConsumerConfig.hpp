@@ -37,10 +37,6 @@
 #include <string_view>
 #include <thread>
 
-// Boost header files go here
-#include <boost/program_options/options_description.hpp>
-#include <boost/program_options/value_semantic.hpp>
-
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"     // serializationMode
 #include "courtier/GCourtierEnums.hpp" // GMPICONSUMERMASTERCLEANSESSINTERVALMSEC
@@ -69,55 +65,6 @@ struct MPIConsumerConfig {
     std::uint32_t nHandlerThreads{nHandlerThreadsRecommendation()};
     /// The time in ms between two checks whether sending a work item to a worker node completed
     std::uint32_t masterCleanSessIntervalMSec{GMPICONSUMERMASTERCLEANSESSINTERVALMSEC};
-
-    /**
-     * @brief Registers this config's command-line options into the given option descriptions.
-     *
-     * The current member values are used as the option defaults (a default-constructed instance
-     * already holds the intended defaults), avoiding duplicating the default values here.
-     *
-     * @param visible The options_description receiving user-facing options
-     * @param hidden The options_description receiving advanced/hidden options
-     */
-    void addCLOptions_(
-        boost::program_options::options_description &visible,
-        boost::program_options::options_description &hidden
-    ) {
-        // The current values of the members are the option defaults: a default-constructed instance
-        // holds the intended defaults already, so they are not stated a second time here.
-        using boost::program_options::value;
-
-        visible.add_options()(
-            "mpi_asyncReq",
-            value<bool>(&useAsyncReq)->default_value(useAsyncReq),
-            "\t[mpi] Whether the clients should issue a request for the next work item while"
-            "the current work item is still being processed"
-        );
-
-        visible.add_options()(
-            "mpi_nHandlerThreads",
-            value<std::uint32_t>(&nHandlerThreads)->default_value(nHandlerThreads),
-            "\t[mpi] The number of threads in a thread pool which is used to handle incoming "
-            "requests."
-            "Defaults to the number of CPU cores in the system, if able to determine by C++ runtime"
-        );
-
-        hidden.add_options()(
-            "mpi_cleanSessInterval",
-            value<std::uint32_t>(&masterCleanSessIntervalMSec)
-                ->default_value(masterCleanSessIntervalMSec),
-            "\t[mpi] The time interval in ms between each check for the completion "
-            "of active sessions on the master node."
-        );
-
-        hidden.add_options()(
-            "mpi_serializationMode",
-            value<Gem::Common::serializationMode>(&serializationMode)
-                ->default_value(serializationMode),
-            "\t[mpi] Specifies whether serialization shall be done in TEXTMODE (0), XMLMODE (1), "
-            "BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)"
-        );
-    }
 
     /**
      * @brief Recommends a number of handler threads from the available hardware concurrency.

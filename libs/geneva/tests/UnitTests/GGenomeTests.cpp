@@ -45,6 +45,9 @@
 
 #include <sstream>
 
+#include <boost/program_options.hpp>
+
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
 
 #include "weft/GBinaryArchive.hpp" // GArchive binary codec (3d-A GGenome gem round-trip)
 #include "weft/GJsonArchive.hpp"   // GArchive JSON codec (3d-A GGenome gem round-trip)
@@ -2545,6 +2548,44 @@ TEST_CASE(
     // The consumer of that mnemonic is the one of Geneva's own module.
     CHECK(Gem::Geneva::optionalConsumerNotes().empty());
     CHECK(mentions(Gem::Geneva::consumerListing(), "mpi:  GMPIConsumerT"));
+}
+#endif
+
+#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+// The command-line options of the "mpi" consumer are registered by Geneva's MPI module. Their
+// defaults must be those of MPIConsumerConfig: an option left unset must leave the consumer as a
+// default-constructed configuration describes it, and a default changed in the struct must change
+// what the command line gives, without a second place to edit.
+TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][plugin][mpi]") {
+    REQUIRE(Gem::Geneva::isKnownConsumer("mpi")); // loads Geneva's MPI module
+    std::shared_ptr<
+        Gem::Common::GProviderT<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>>
+        base;
+    REQUIRE(Gem::Geneva::consumerProviderStore()->get("mpi", base));
+    REQUIRE(base);
+    const auto provider = std::static_pointer_cast<Gem::Geneva::GConsumerProviderT>(base);
+
+    boost::program_options::options_description visible;
+    boost::program_options::options_description hidden;
+    provider->addCLOptions(visible, hidden);
+    boost::program_options::options_description all;
+    all.add(visible).add(hidden);
+    const std::vector<const char *> argv{"test"};
+    boost::program_options::variables_map vm;
+    boost::program_options::store(
+        boost::program_options::parse_command_line(static_cast<int>(argv.size()), argv.data(), all),
+        vm
+    );
+    boost::program_options::notify(vm);
+
+    const auto config = std::any_cast<Gem::Courtier::Consumers::MPIConsumerConfig>(
+        provider->configFromCommandLine(vm)
+    );
+    const Gem::Courtier::Consumers::MPIConsumerConfig defaults;
+    CHECK(config.useAsyncReq == defaults.useAsyncReq);
+    CHECK(config.serializationMode == defaults.serializationMode);
+    CHECK(config.nHandlerThreads == defaults.nHandlerThreads);
+    CHECK(config.masterCleanSessIntervalMSec == defaults.masterCleanSessIntervalMSec);
 }
 #endif
 

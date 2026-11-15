@@ -150,18 +150,31 @@ public:
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
-        // The defaults mirror MPIConsumerConfig so an unset option leaves the consumer's own default in place.
+        // The defaults are those of MPIConsumerConfig, read from a default-constructed one, so
+        // they are stated in one place only. --mpi_nHandlerThreads defaults to 0, "the
+        // recommendation for this machine", which configFromCommandLine() leaves to the struct.
+        const c2::Consumers::MPIConsumerConfig defaults;
         visible.add_options()(
-            "mpi_asyncReq", po::value<bool>()->default_value(true),
-            "\t[mpi] Whether clients prefetch the next work item")(
-            "mpi_nHandlerThreads", po::value<std::uint32_t>()->default_value(0),
-            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)");
+            "mpi_asyncReq",
+            po::value<bool>()->default_value(defaults.useAsyncReq),
+            "\t[mpi] Whether clients prefetch the next work item"
+        );
+        visible.add_options()(
+            "mpi_nHandlerThreads",
+            po::value<std::uint32_t>()->default_value(0),
+            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)"
+        );
         hidden.add_options()(
-            "mpi_cleanSessInterval", po::value<std::uint32_t>()->default_value(1000),
-            "\t[mpi] Interval in ms between master session-completion checks")(
+            "mpi_cleanSessInterval",
+            po::value<std::uint32_t>()->default_value(defaults.masterCleanSessIntervalMSec),
+            "\t[mpi] Interval in ms between master session-completion checks"
+        );
+        hidden.add_options()(
             "mpi_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
-            "\t[mpi] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)");
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
+            "\t[mpi] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), "
+            "GEM_BINARYMODE (3) or GEM_JSONMODE (4)"
+        );
     }
 };
 
