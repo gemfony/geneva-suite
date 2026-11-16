@@ -54,6 +54,7 @@
 #include <boost/asio/strand.hpp>
 
 #include "GInProcessPeer.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
@@ -265,13 +266,13 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
         };
         // The strand of a is held, so that the message of b arrives at a before a is opened, and
         // start()'s work runs only after close() was called.
-        std::promise<void> release;
-        boost::asio::post(a->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(a->executor(), [held = release]() { held->wait(); });
         role_b->start(b);
         REQUIRE(eventually([&] { return sent.load(); }));
         role_a->start(a);
         a->close(GPeerClose::NORMAL);
-        release.set_value();
+        release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
         CHECK(role_a->events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
     }
@@ -421,11 +422,11 @@ TEST_CASE(
         role_b->start(b);
         // The strand of b is held until a has sent everything: all of it arrives at b before b's
         // close goes out, which b's role asks for at the tenth message.
-        std::promise<void> release;
-        boost::asio::post(b->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(b->executor(), [held = release]() { held->wait(); });
         role_a->start(a);
         REQUIRE(eventually([&] { return all_sent.load(); }));
-        release.set_value();
+        release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->nMessages() == N_MESSAGES);
         CHECK(role_b->events().back() == "closed:CLOSED_HERE:NORMAL");
@@ -443,11 +444,11 @@ TEST_CASE(
         }));
         // The strand of a is held; a sends one more message before it hears of b's close, which
         // has gone out by then.
-        std::promise<void> release;
-        boost::asio::post(a->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(a->executor(), [held = release]() { held->wait(); });
         boost::asio::post(a->executor(), [&role_a] { role_a->send("late"); });
         role_b->close(GPeerClose::NORMAL);
-        release.set_value();
+        release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->events() ==
               std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
@@ -472,15 +473,16 @@ TEST_CASE(
         };
         role_a->start(a);
         REQUIRE(eventually([&] { return a_closed_out.load(); }));
-        std::promise<void> arrived; // what a sent has reached b (b's strand has run it)
-        boost::asio::post(b->executor(), [&arrived] { arrived.set_value(); });
-        REQUIRE(arrived.get_future().wait_for(PATIENCE) == std::future_status::ready);
+        // what a sent has reached b (b's strand has run it)
+        const auto arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(b->executor(), [arrived] { arrived->count_down(); });
+        REQUIRE(arrived->wait_for(PATIENCE));
 
-        std::promise<void> release;
-        boost::asio::post(b->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(b->executor(), [held = release]() { held->wait(); });
         role_b->start(b);
         role_b->close(GPeerClose::NORMAL); // before start()'s work has run
-        release.set_value();
+        release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
         CHECK(role_b->events() ==
@@ -498,14 +500,14 @@ TEST_CASE(
         }));
         // Both strands are held, so that each end's close has gone out before the other's
         // arrives.
-        std::promise<void> release_a;
-        std::promise<void> release_b;
-        boost::asio::post(a->executor(), [held = release_a.get_future()]() mutable { held.wait(); });
-        boost::asio::post(b->executor(), [held = release_b.get_future()]() mutable { held.wait(); });
+        const auto release_a = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto release_b = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(a->executor(), [held = release_a]() { held->wait(); });
+        boost::asio::post(b->executor(), [held = release_b]() { held->wait(); });
         role_a->close(GPeerClose::NORMAL);
         role_b->close(GPeerClose::ERROR);
-        release_a.set_value();
-        release_b.set_value();
+        release_a->count_down();
+        release_b->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:ERROR");
         CHECK(role_b->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
@@ -784,15 +786,15 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
 
     // cancel(): done is not called.
     std::atomic<bool> called{false};
-    std::promise<void> issued;
+    const auto issued = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     boost::asio::post(strand, [&] {
         connector.connect(strand, [&called](const std::shared_ptr<GPeerI> &, std::string_view) {
             called.store(true);
         });
         connector.cancel();
-        issued.set_value();
+        issued->count_down();
     });
-    issued.get_future().get();
+    issued->wait();
     std::this_thread::sleep_for(50ms);
     CHECK_FALSE(called.load());
 
@@ -829,17 +831,16 @@ TEST_CASE(
     auto [server_end, client_end] =
         GInProcessPeer::makePair(server.executor(), {}, client_ctx->get_executor(), {}, CLOSE_GRACE);
 
-    std::promise<void> in_hook;
-    std::promise<void> release;
-    auto released = release.get_future().share();
+    const auto in_hook = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     bool hooked = false; // on the server end's strand only
-    server_end->setTransmitHook([&in_hook, released, &hooked](std::string_view) {
+    server_end->setTransmitHook([&in_hook, release, &hooked](std::string_view) {
         if(hooked) {
             return;
         }
         hooked = true;
-        in_hook.set_value();
-        released.wait_for(PATIENCE);
+        in_hook->count_down();
+        release->wait_for(PATIENCE);
     });
     server_end->start(GPeerHandlers{});
     client_end->start(GPeerHandlers{});
@@ -850,13 +851,13 @@ TEST_CASE(
 
     // The server's end hands its CLOSE over, and is held there.
     server_end->close(GPeerClose::NORMAL);
-    REQUIRE(in_hook.get_future().wait_for(PATIENCE) == std::future_status::ready);
+    REQUIRE(in_hook->wait_for(PATIENCE));
 
     // The client's context goes, and with it everything that owns the client's end.
     client_ctx.reset();
     CHECK(client_weak.expired());
 
-    release.set_value();
+    release->count_down();
     REQUIRE(eventually([&] { return server_end->ended(); }));
 }
 
@@ -969,13 +970,12 @@ TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[
 
     // The message is on its way when the connection is cut: the other end's strand is held until
     // the cut has been made, so that it cannot have been delivered before.
-    std::promise<void> cut;
-    auto cut_made = cut.get_future().share();
-    boost::asio::post(b->executor(), [cut_made] { cut_made.wait(); });
+    const auto cut = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(b->executor(), [cut] { cut->wait(); });
     boost::asio::post(a->executor(), [role_a, a, &cut] {
         role_a->send("lost");
         a->sever();
-        cut.set_value();
+        cut->count_down();
     });
     REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
     std::this_thread::sleep_for(50ms);

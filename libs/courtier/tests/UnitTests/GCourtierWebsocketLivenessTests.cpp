@@ -57,6 +57,7 @@
 #include <boost/beast/websocket.hpp>
 
 #include "common/GLogger.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
@@ -343,15 +344,15 @@ TEST_CASE(
     boost::asio::io_context server_ctx;
     tcp::acceptor acceptor(server_ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     const unsigned short port = acceptor.local_endpoint().port();
-    std::promise<void> release;
-    const std::jthread server_thread([&acceptor, held = release.get_future()]() mutable {
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const std::jthread server_thread([&acceptor, held = release]() {
         boost::system::error_code ec;
         Websocket::stream<tcp::socket> ws(acceptor.accept(ec));
         std::ignore = acceptor.close(ec);
         if(not ec) {
             ws.accept(ec);
         }
-        held.wait(); // hold the connection open, silently, until the test is over
+        held->wait(); // hold the connection open, silently, until the test is over
     });
 
     // What the client logs goes here for the duration of this test.
@@ -387,7 +388,7 @@ TEST_CASE(
     glogger.resetLogTargets();
 
     client->flagCloseRequested(); // ends a client that is still waiting, so the test can finish
-    release.set_value();
+    release->count_down();
 }
 
 TEST_CASE(
@@ -654,9 +655,9 @@ TEST_CASE(
 
     // If an item does not arrive, the read below waits forever. The watchdog then stops the
     // server, and the batch that still waits ends the test process with a fatal error.
-    std::promise<void> all_arrived;
-    const std::jthread watchdog([&consumer, arrived = all_arrived.get_future()] {
-        if(arrived.wait_for(PATIENCE) != std::future_status::ready) {
+    const auto all_arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const std::jthread watchdog([&consumer, arrived = all_arrived] {
+        if(not arrived->wait_for(PATIENCE)) {
             consumer->stopServer();
         }
     });
@@ -668,7 +669,7 @@ TEST_CASE(
         work.push_back(next_frame());
         CHECK(work.back().kind() == GFrameKind::WORK);
     }
-    all_arrived.set_value();
+    all_arrived->count_down();
     for(auto &frame : work) {
         Gem::Courtier::processWorkFrame(frame, "hand-driven client");
         Gem::Courtier::makeReturnFrame(frame);
@@ -911,11 +912,10 @@ TEST_CASE(
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GRandomNumberContainer>(relay.port());
     std::atomic<int> n_evaluated{0};
-    std::promise<void> release;
-    const auto released = release.get_future().share();
-    client->setItemProcessor([&n_evaluated, released](GRandomNumberContainer &item) {
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    client->setItemProcessor([&n_evaluated, release](GRandomNumberContainer &item) {
         n_evaluated.fetch_add(1);
-        released.wait_for(PATIENCE);
+        release->wait_for(PATIENCE);
         item.markAsProcessedWith({true});
     });
     const std::jthread client_thread([client] { client->run(); });
@@ -930,7 +930,7 @@ TEST_CASE(
     });
     REQUIRE(eventually([&] { return n_evaluated.load() == 1; }));
     relay.cutAfter(Gem::Courtier::Tests::relayDirection::TO_SERVER, 400'000);
-    release.set_value();
+    release->count_down();
 
     const bool done = batch.wait_for(2 * PATIENCE) == std::future_status::ready;
     CHECK(done);

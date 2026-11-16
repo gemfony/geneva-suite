@@ -64,6 +64,7 @@
 #include <unistd.h> // getpid()
 
 #include "GInProcessPeer.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCommandContainerT.hpp"
@@ -1479,9 +1480,9 @@ TEST_CASE(
     ends.second.reset(); // neither end was started: they are gone
     const auto executor = counting->executor();
     REQUIRE(static_cast<bool>(executor));
-    std::promise<void> ran;
-    boost::asio::post(executor, [&ran] { ran.set_value(); });
-    CHECK(ran.get_future().wait_for(PATIENCE) == std::future_status::ready);
+    const auto ran = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(executor, [ran] { ran->count_down(); });
+    CHECK(ran->wait_for(PATIENCE));
 }
 
 /******************************************************************************/
@@ -1584,14 +1585,13 @@ namespace {
 
 /** @brief A gate an item processor waits at until the test opens it */
 struct Gate {
-    std::promise<void> opened;                                     ///< Set to open it
-    std::shared_future<void> waited = opened.get_future().share(); ///< Where processors wait
-    std::atomic<std::size_t> waiting{0};                           ///< Evaluations that arrived
+    Gem::Common::Concurrency::GCompletionLatchT opened{1}; ///< Counted down once to open it
+    std::atomic<std::size_t> waiting{0};                   ///< Evaluations that arrived
 
     /** @brief Opens the gate (once) */
     void open() {
         if(not open_.exchange(true)) {
-            opened.set_value();
+            opened.count_down();
         }
     }
 
@@ -1613,7 +1613,7 @@ gatedProcessor(const std::shared_ptr<Evaluations> &evaluations, const std::share
         }
         evaluations->total.fetch_add(1);
         gate->waiting.fetch_add(1);
-        gate->waited.wait_for(PATIENCE);
+        std::ignore = gate->opened.wait_for(PATIENCE);
         item.markAsProcessedWith({true});
     };
 }
@@ -3198,9 +3198,9 @@ TEST_CASE(
 
         // The strand of the server's end is held: what the client sends waits there, and so does
         // the server's own close, in the order of the calls.
-        std::promise<void> release;
-        boost::asio::post(server_end->executor(), [held = release.get_future()]() mutable {
-            held.wait_for(PATIENCE);
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(server_end->executor(), [held = release]() {
+            held->wait_for(PATIENCE);
         });
         if(server_close_out_first) {
             server_end->close(GPeerClose::ERROR); // goes out before the result arrives
@@ -3211,7 +3211,7 @@ TEST_CASE(
         if(not server_close_out_first) {
             server_end->close(GPeerClose::ERROR); // after the result arrived, before it is read
         }
-        release.set_value();
+        release->count_down();
         REQUIRE(eventually([&] { return world.clientsDone(); }));
         // Done at once when the session checked the result in; never done when it was dropped
         batch_done = batch.wait_for(server_close_out_first ? 0s : PATIENCE) ==

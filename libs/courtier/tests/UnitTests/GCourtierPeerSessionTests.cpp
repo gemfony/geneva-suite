@@ -51,6 +51,7 @@
 #include <boost/asio/post.hpp>
 
 #include "GInProcessPeer.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
@@ -740,17 +741,17 @@ TEST_CASE(
         // The strand of the session's end is held while the client sends a message whose kind
         // cannot be read (the session closes with ERROR on it), a RESULT and a PULL: all three
         // have arrived before the session's close goes out.
-        std::promise<void> release;
-        boost::asio::post(server_end->executor(), [held = release.get_future()]() mutable {
-            held.wait_for(PATIENCE);
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(server_end->executor(), [held = release]() {
+            held->wait_for(PATIENCE);
         });
         connection.client->sendBytes("x");
         connection.client->send(GFrameKind::RESULT);
         connection.client->send(GFrameKind::PULL);
-        std::promise<void> sent;
-        boost::asio::post(connection.clientPeer->executor(), [&sent] { sent.set_value(); });
-        REQUIRE(sent.get_future().wait_for(PATIENCE) == std::future_status::ready);
-        release.set_value();
+        const auto sent = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(connection.clientPeer->executor(), [sent] { sent->count_down(); });
+        REQUIRE(sent->wait_for(PATIENCE));
+        release->count_down();
 
         REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
         CHECK(consumer.nCheckedIn() == 1);        // the RESULT

@@ -39,7 +39,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
-#include <latch>
 #include <map>
 #include <memory>
 #include <set>
@@ -48,6 +47,7 @@
 #include <thread>
 #include <vector>
 
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
@@ -273,7 +273,7 @@ TEST_CASE(
 
     // Both submitters start together and submit several rounds each, as two algorithms sharing the
     // one process consumer would.
-    std::latch start{1};
+    Gem::Common::Concurrency::GCompletionLatchT start{1};
     auto submit = [&](std::vector<item_ptr> &batch) {
         start.wait();
         for(int r = 0; r < ROUNDS; ++r) {

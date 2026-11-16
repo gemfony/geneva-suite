@@ -55,6 +55,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeer.hpp"
@@ -394,27 +395,29 @@ TEST_CASE(
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     GSeen server_seen;
     std::weak_ptr<GWebsocketPeer> server_weak;
-    std::promise<void> opened;      // the end under test is open (and has queued its messages)
-    std::promise<void> closed_here; // close() has been called on it
+    // the end under test is open (and has queued its messages)
+    const auto opened = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    // close() has been called on it
+    const auto closed_here = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     std::promise<std::uint16_t> their_view; // the code of the close frame the other end read
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
     const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
-                                  open = opened.get_future(),
-                                  ours_called = closed_here.get_future()]() mutable {
+                                  open = opened,
+                                  ours_called = closed_here]() {
         try {
             ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
             ws.handshake("localhost", "/");
             // The end under test is closed only now, so that its close frame does not arrive
             // together with the answer to the handshake (Beast would read it with the answer)
-            open.wait_for(10s);
-            boost::asio::post(ctx, [&server_weak, &closed_here] {
+            open->wait_for(10s);
+            boost::asio::post(ctx, [&server_weak, closed_here] {
                 if(auto peer = server_weak.lock()) {
                     peer->close(GPeerClose::NORMAL);
                 }
-                closed_here.set_value();
+                closed_here->count_down();
             });
-            ours_called.wait_for(10s);
+            ours_called->wait_for(10s);
             if(which == Order::OURS_FIRST) {
                 // Waits until the close frame of the end under test has arrived (it goes out at
                 // once: nothing was queued before it); nothing reads it before the message below
@@ -449,7 +452,7 @@ TEST_CASE(
                 }
             }
         }
-        opened.set_value();
+        opened->count_down();
     });
     server.reset();
 
@@ -518,17 +521,17 @@ TEST_CASE(
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     GSeen server_seen;
     std::atomic<bool> shaken{false};
-    std::promise<void> go;
+    const auto go = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     std::promise<std::uint16_t> their_view;
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
     const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
-                                  sent = go.get_future()]() mutable {
+                                  sent = go]() {
         try {
             ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
             ws.handshake("localhost", "/");
             shaken.store(true);
-            sent.wait_for(10s);
+            sent->wait_for(10s);
             ws.write(boost::asio::buffer(std::string("D")));
             ws.close(boost::beast::websocket::close_code::internal_error);
             their_view.set_value(ws.reason().code);
@@ -556,7 +559,7 @@ TEST_CASE(
         run(ctx); // the handshake; the role is not told (its strand does not run)
     }
     REQUIRE(shaken.load());
-    go.set_value(); // D and the other end's close are on their way
+    go->count_down(); // D and the other end's close are on their way
     auto view = their_view.get_future();
     const auto window = std::chrono::steady_clock::now() + 1s;
     while(view.wait_for(0s) != std::future_status::ready && std::chrono::steady_clock::now() < window) {
@@ -831,9 +834,9 @@ TEST_CASE(
     boost::asio::io_context ctx;
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
 
-    std::promise<void> release;
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     const std::jthread other_end([port = acceptor.local_endpoint().port(),
-                                  held = release.get_future()]() mutable {
+                                  held = release]() {
         boost::asio::io_context own;
         boost::beast::websocket::stream<tcp::socket> ws(own);
         ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
@@ -841,7 +844,7 @@ TEST_CASE(
         // A close frame written by hand (masked, as a client's frames are; code 1000)
         const std::array<unsigned char, 8> close_frame{0x88, 0x82, 0, 0, 0, 0, 0x03, 0xE8};
         boost::asio::write(ws.next_layer(), boost::asio::buffer(close_frame));
-        held.wait_for(15s); // holds the connection open, and reads nothing
+        held->wait_for(15s); // holds the connection open, and reads nothing
     });
 
     GSeen server_seen;
@@ -853,7 +856,7 @@ TEST_CASE(
     server.reset();
 
     const bool dry = runsDry(ctx);
-    release.set_value();
+    release->count_down();
     REQUIRE(dry);
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);

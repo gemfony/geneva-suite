@@ -55,6 +55,7 @@
 #include <boost/asio/post.hpp>
 
 #include "GInProcessPeer.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GCommandContainerT.hpp"
@@ -971,12 +972,11 @@ TEST_CASE(
     {
         Shell shell{listener, 2};
         shell.startServer();
-        std::promise<void> release;
-        auto released = release.get_future().share();
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
         auto holding = std::make_shared<std::atomic<bool>>(false);
-        listener->holdAcceptStrand([holding, released] {
+        listener->holdAcceptStrand([holding, release] {
             holding->store(true);
-            released.wait();
+            release->wait();
         });
         const bool held = eventually([&] { return holding->load(); });
         role->connect(connector, clients.executor());
@@ -988,7 +988,7 @@ TEST_CASE(
         });
         const bool stopping = eventually([&] { return listener->nStops() == 1; });
         std::this_thread::sleep_for(100ms); // the stop waits for the call of on_peer now
-        release.set_value();
+        release->count_down();
         stop_ms = stop.get();
         REQUIRE(held);
         REQUIRE(connected);

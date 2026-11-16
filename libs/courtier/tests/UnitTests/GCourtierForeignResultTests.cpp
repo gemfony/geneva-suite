@@ -53,6 +53,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -190,8 +191,7 @@ TEST_CASE(
     // The client evaluates in this process; it counts per item, and its first evaluation waits
     std::mutex mutex;
     std::map<std::size_t, int> evaluated;
-    std::promise<void> release;
-    const auto released = release.get_future().share();
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     auto client = std::make_shared<Gem::Courtier::Consumers::GWebsocketClientT<GFaultyContainer>>(
         Gem::Courtier::GWebsocketConsumerConfig{
             .ip = "127.0.0.1",
@@ -202,13 +202,13 @@ TEST_CASE(
             .pingInterval = 0
         }
     );
-    client->setItemProcessor([&mutex, &evaluated, released](GFaultyContainer &item) {
+    client->setItemProcessor([&mutex, &evaluated, release](GFaultyContainer &item) {
         {
             const std::scoped_lock lock(mutex);
             ++evaluated[item.get_stored_number()];
         }
         if(item.get_stored_number() == FIRST_ITEM) {
-            released.wait_for(10s);
+            release->wait_for(10s);
         }
         item.markAsProcessedWith({true});
     });
@@ -231,7 +231,7 @@ TEST_CASE(
     });
     relay.setUpstream(second->getPort());
     relay.cutAfter(Gem::Courtier::Tests::relayDirection::TO_SERVER, 0);
-    release.set_value();
+    release->count_down();
 
     const bool done = batch.wait_for(15s) == std::future_status::ready;
     CHECK(done);
