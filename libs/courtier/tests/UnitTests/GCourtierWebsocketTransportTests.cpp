@@ -36,6 +36,8 @@
 #include <chrono>
 #include <csignal>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -450,6 +452,35 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+namespace {
+
+/**
+ * @brief Whether every thread of this process but the calling one sleeps (state S in
+ * /proc/self/task/<tid>/stat): none is running or about to run, so none is inside a system call
+ * that holds a descriptor for a moment (an accept, say). Needs a descriptor of its own for the
+ * directory. @return true if so
+ */
+bool otherThreadsSleep() {
+    const auto self = std::to_string(::gettid());
+    std::error_code ec;
+    for(const auto &task : std::filesystem::directory_iterator("/proc/self/task", ec)) {
+        if(task.path().filename() == self) {
+            continue;
+        }
+        std::ifstream stat(task.path() / "stat");
+        std::string line;
+        std::getline(stat, line);
+        // pid (comm) state ...: the state follows the last ')'
+        const auto close = line.rfind(')');
+        if(close == std::string::npos || close + 2 >= line.size() || line[close + 2] != 'S') {
+            return false;
+        }
+    }
+    return not ec;
+}
+
+} /* anonymous namespace */
+
 /**
  * An accept that fails for want of a descriptor is retried after a pause, not at once and not
  * never. In a child process the client's socket is made, and then every descriptor up to a low
@@ -487,6 +518,17 @@ TEST_CASE(
             sessions.executor(),
             [&n_peers](const std::shared_ptr<GPeerI> &, GWirePeerId) { n_peers.fetch_add(1); }
         );
+
+        // The listener's I/O thread makes a first accept right after start(). Linux takes a
+        // descriptor for every accept before it looks for a connection, and gives it back when
+        // there is none: an accept that runs while the descriptors are taken below makes the
+        // filling stop one short, the client's connection is then accepted, and what follows is
+        // not the case under test (on a loaded host the first accept came that late). So the
+        // filling waits until every other thread of this process sleeps: the I/O thread then
+        // waits for a connection and makes no accept before the client's arrives.
+        if(not eventually(otherThreadsSleep)) {
+            ::_exit(8);
+        }
 
         // A low limit, and every descriptor below it taken
         const int probe_fd = ::open("/dev/null", O_RDONLY);
@@ -574,7 +616,7 @@ TEST_CASE(
     INFO(
         "the child " << (done == 0 ? "hung and was killed" : "ended") << ", status " << status
                      << " (exit code 5: no retry, 6: retried without a pause, 7: did not accept "
-                        "again)"
+                        "again, 8: the listener's thread did not come to rest)"
     );
     CHECK(done == child);
     CHECK(WIFEXITED(status));
