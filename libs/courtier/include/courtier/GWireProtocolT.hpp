@@ -88,23 +88,28 @@ struct GNoLibraryPayload {
 //! [courtier-wire-seam]
 template <typename processable_type>
 struct GWireProtocolT {
-    /** @brief The library-defined payload alternative of a frame (see GCommandContainerT). */
+    /** @brief The library-defined payload alternative of a frame (see
+     *  GCommandContainerT). */
     using payload_type = GNoLibraryPayload;
 
-    /** @brief @return The library tag a server puts on a WORK frame ("what should be done with this
-     *  item?"). Courtier only relays it. */
+    /** @brief @return The library tag a server puts on a WORK frame ("what
+     *  should be done with this item?"). Courtier only relays it. */
     static std::uint32_t workTag() { return 0; }
 
-    /** @brief @return The library tag a server puts on a SHUTDOWN frame. Courtier only relays it. */
+    /** @brief @return The library tag a server puts on a SHUTDOWN frame.
+     *  Courtier only relays it. */
     static std::uint32_t shutdownTag() { return 0; }
 
     /**
-     * @brief Worker side: decides how a just-processed work item is returned to the server.
+     * @brief Worker side: decides how a just-processed work item is
+     * returned to the server.
      *
      * @param item The processed work item (never null)
      * @param tag Receives the library tag to put on the RETURN frame
-     * @param payload Receives the library payload, iff the return does not ship the item
-     * @return true if the work item itself must travel in the frame, false if @p payload replaces it
+     * @param payload Receives the library payload, iff the return does not
+     *        ship the item
+     * @return true if the work item itself must travel in the frame, false
+     *         if @p payload replaces it
      */
     static bool buildReturn(
         [[maybe_unused]] const processable_type &item,
@@ -118,14 +123,19 @@ struct GWireProtocolT {
     /**
      * @brief Server side: writes a return onto the live slot it belongs to.
      *
-     * The frame's GProcessingOutcome has already been applied by the consumer; this call adds whatever
-     * the library considers the RESULT of an evaluation. The slot is reconciled IN PLACE (its heap
-     * address is load-bearing), so an implementation copies into @p slot rather than replacing it.
+     * The frame's GProcessingOutcome has already been applied by the
+     * consumer; this call adds whatever the library considers the RESULT of
+     * an evaluation. The slot is reconciled IN PLACE (its heap address is
+     * load-bearing), so an implementation copies into @p slot rather than
+     * replacing it.
      *
-     * @param slot The live work item the return belongs to (reconciled in place)
+     * @param slot The live work item the return belongs to (reconciled in
+     *        place)
      * @param tag The library tag the worker put on the frame
-     * @param payload The library payload, or nullptr when the frame carried the work item instead
-     * @param item The returned work item, or nullptr when the frame carried a library payload instead
+     * @param payload The library payload, or nullptr when the frame carried
+     *        the work item instead
+     * @param item The returned work item, or nullptr when the frame carried
+     *        a library payload instead
      */
     static void applyReturn(
         processable_type &slot,
