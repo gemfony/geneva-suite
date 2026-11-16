@@ -1325,7 +1325,7 @@ TEST_CASE(
         CHECK(s.contains("->SetLineColor(2);"));
         CHECK(s.contains("->SetLineColor(8);"));
         CHECK(s.contains("->SetMarkerColor(8);"));
-        CHECK(s.contains("gPad->BuildLegend();"));
+        CHECK(s.contains("new TLegend(0.3, 0.21);")); // ROOT's own placement
         CHECK(s.contains("first->SetMinimum("));
         CHECK(s.contains("first->GetXaxis()->SetLimits("));
         // The frame takes in the error bars too, or those of the extreme points are cut off.
@@ -1334,7 +1334,7 @@ TEST_CASE(
         CHECK(s.contains("g->GetErrorXlow(i)"));
         CHECK(s.contains("g->GetErrorXhigh(i)"));
         // The frame and the legend come after the last graph is drawn.
-        CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
+        CHECK(s.rfind("Draw(\"") < s.find("new TLegend("));
     }
 
     SECTION("matplotlib and Octave show the legend their plot calls prepared") {
@@ -1388,7 +1388,8 @@ TEST_CASE(
         const std::string s = script(plotBackend::ROOT, true);
         CHECK(s.contains("SetTitle(\"websocket\");"));
         CHECK(s.contains("SetTitle(\"MPI\");"));
-        const auto legend = s.find("gPad->BuildLegend(0.56, 0.13, 0.88, 0.29)->SetTextSize(0.045);");
+        const auto legend = s.find("new TLegend(0.56, 0.13, 0.88, 0.29);");
+        CHECK(s.contains("legend->SetTextSize(0.045);"));
         const auto title = s.find("n->SetTitle(\"Up to 1 s\");");
         REQUIRE(legend != std::string::npos);
         REQUIRE(title != std::string::npos);
@@ -1420,7 +1421,7 @@ TEST_CASE(
 
     SECTION("without the settings every backend emits what it did before") {
         const std::string root = script(plotBackend::ROOT, false);
-        CHECK(root.contains("gPad->BuildLegend();"));
+        CHECK(root.contains("new TLegend(0.3, 0.21);"));
         CHECK(root.contains("TPaveLabel"));
         CHECK_FALSE(root.contains("SetLineWidth"));
         CHECK_FALSE(root.contains("the title of the pad"));
@@ -1474,5 +1475,81 @@ TEST_CASE(
         CHECK_FALSE(gpd.getShowCanvasLabel());
         gpd.setPlotBackend(plotBackend::ROOT);
         CHECK(gpd.plot().contains("n->SetTitle(\"All\");"));
+    }
+}
+
+/******************************************************************************/
+// A legend names series. It lists the labelled series of a pad, and a pad none of whose series
+// carries a label gets no legend at all -- in 3-d as in 2-d. In ROOT the legend is built from the
+// series alone: TPad::BuildLegend() made an entry of every object drawn into the pad, so a colour
+// map drawn cell by cell under points filled the legend with thousands of cells and left an
+// unreadable box over the pad.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A legend lists the labelled series of a pad and a pad without any gets none",
+    "[plotting][overlay][legend]"
+) {
+    // A colour map on the floor of the box, without its surface, under points casting shadows: what
+    // a progress plotter draws for two parameters.
+    const auto map_under_points = [](const std::string &map_label, const std::string &points_label) {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel(map_label);
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        (*points) & std::tuple<double, double, double>(-0.5, 0.0, 1.0);
+        points->setFloorShadow(true);
+        points->setPlotLabel(points_label);
+        map->registerSecondaryPlotter(points);
+        return map;
+    };
+
+    SECTION("a 3-d pad with an overlay and no labels has no legend in any backend") {
+        const auto map = map_under_points("", "");
+        CHECK(map->nLegendEntries() == 0);
+        CHECK_FALSE(render(map, plotBackend::ROOT).contains("Legend"));
+        CHECK_FALSE(render(map, plotBackend::MATPLOTLIB).contains("legend"));
+        CHECK_FALSE(render(map, plotBackend::OCTAVE).contains("legend"));
+    }
+
+    SECTION("a 2-d pad with an overlay and no labels has none either") {
+        auto first = decadesGraph(false, false);
+        first->registerSecondaryPlotter(decadesGraph(false, false));
+        CHECK(first->nLegendEntries() == 0);
+        CHECK_FALSE(render(first, plotBackend::ROOT).contains("Legend"));
+        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("legend"));
+        CHECK_FALSE(render(first, plotBackend::OCTAVE).contains("legend"));
+    }
+
+    SECTION("a labelled 3-d pad gets its legend where it was asked for, built from its series") {
+        const auto map = map_under_points("the landscape", "evaluated candidates");
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        CHECK(map->nLegendEntries() == 2);
+        const std::string s = render(map, plotBackend::ROOT);
+        CHECK(s.contains("new TLegend(0.56, 0.13, 0.88, 0.29);"));
+        CHECK(s.contains("->SetTextSize(0.045);"));
+        // Only the series enter: the objects that carry a label as their title. The map's cells,
+        // the shadows and the frame are not named objects; a series drawn twice is listed once.
+        CHECK(s.contains("dynamic_cast<TNamed *>"));
+        CHECK(s.contains("->GetObject() == o"));
+        CHECK_FALSE(s.contains("BuildLegend"));
+        // The legend comes after everything of the pad is drawn.
+        CHECK(s.rfind("Draw(\"") < s.find("new TLegend("));
+        CHECK(render(map, plotBackend::MATPLOTLIB).contains("ax.legend(loc=\"lower right\")"));
+        CHECK(render(map, plotBackend::OCTAVE).contains("legend('show');"));
+    }
+
+    SECTION("a placed legend is sized for the labelled series only") {
+        const auto map = map_under_points("", "evaluated candidates");
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        CHECK(map->nLegendEntries() == 1);
+        CHECK(render(map, plotBackend::ROOT).contains("new TLegend(0.56, 0.13, 0.88, 0.225);"));
+    }
+
+    SECTION("a single series gets no legend, labelled or not") {
+        auto single = smallSurface(surfaceProjection::NONE);
+        single->setPlotLabel("a surface");
+        CHECK(single->nLegendEntries() == 0);
+        CHECK_FALSE(render(single, plotBackend::ROOT).contains("Legend"));
     }
 }

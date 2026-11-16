@@ -293,8 +293,9 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
                 "fig"
             );
         }
-        // Several series in one pad are told apart by a legend (each call above set its label).
-        if(not p->secondaryPlotters().empty()) {
+        // Several series in one pad are told apart by a legend of those the calls above labelled
+        // (GBasePlotter::nLegendEntries(): none labelled, no legend).
+        if(p->nLegendEntries() > 0) {
             const std::string location = matplotlibLegendLocation(p->getLegendPosition());
             if(location.empty()) {
                 result << "ax.legend()" << '\n';

@@ -258,6 +258,15 @@ public:
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
 
     /**
+     * @brief The number of entries the legend of this (primary) plotter's pad gets, in every
+     * backend. A legend names series: a pad that holds several series lists those that carry a
+     * label (a plot label with more than white space); a pad with a single series, or with none
+     * labelled, gets no legend at all, whatever its dimension.
+     * @return The number of labelled series of a pad with several series, otherwise 0 (no legend)
+     */
+    [[nodiscard]] std::size_t nLegendEntries() const;
+
+    /**
      * @brief Allows to retrieve the id of this object
      * @return The id currently assigned to this plotter
      */

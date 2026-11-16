@@ -291,8 +291,9 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
                 *sp, classifyForScript(*sp, true, "OctaveEmitter::emitDocument()", "Octave")
             );
         }
-        // Several series in one pad are told apart by a legend (each call above set its name).
-        if(not p->secondaryPlotters().empty()) {
+        // Several series in one pad are told apart by a legend of those the calls above named
+        // (GBasePlotter::nLegendEntries(): none named, no legend).
+        if(p->nLegendEntries() > 0) {
             result << "legend('show');" << '\n';
             const std::string location = octaveLegendLocation(p->getLegendPosition());
             if(not location.empty()) {

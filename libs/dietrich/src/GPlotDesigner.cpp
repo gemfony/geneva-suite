@@ -40,6 +40,7 @@
 #include "common/GLogger.hpp"
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -657,6 +658,30 @@ const std::vector<std::shared_ptr<GBasePlotter>> &GBasePlotter::secondaryPlotter
 
 /******************************************************************************/
 /**
+ * The number of entries the legend of this (primary) plotter's pad gets. A legend names series,
+ * so it lists the series of the pad that carry a label; a label of white space only names nothing
+ * (the ROOT script draws it as a blank title, which its legend passes over too). A pad with a
+ * single series shows its label as the pad's title and gets no legend, and so does a pad none of
+ * whose series is labelled -- in 2-d and 3-d alike. Every backend asks this function, so they
+ * agree on whether a pad has a legend.
+ *
+ * @return The number of labelled series of a pad with several series, otherwise 0 (no legend)
+ */
+std::size_t GBasePlotter::nLegendEntries() const {
+    if(secondary_plotter_.empty()) {
+        return 0;
+    }
+    const auto labelled = [](std::string const &label) {
+        return std::ranges::any_of(label, [](unsigned char c) { return std::isspace(c) == 0; });
+    };
+    const auto n_secondary = std::ranges::count_if(
+        secondary_plotter_, [&labelled](auto const &sp) { return labelled(sp->plotLabel()); }
+    );
+    return (labelled(plot_label_) ? 1 : 0) + static_cast<std::size_t>(n_secondary);
+}
+
+/******************************************************************************/
+/**
  * Sets the id of the object
  *
  * @param id The id to be assigned to this object
@@ -753,14 +778,9 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
         pos++;
     }
 
-    // Several plotters share this pad: give them one frame and a legend.
+    // Several plotters share this pad: give them one frame, and a legend of their labelled series.
     if(not secondary_plotter_.empty()) {
-        emitRootOverlayFrameAndLegend(
-            footer_data,
-            indent,
-            legend_position_,
-            1 + secondary_plotter_.size()
-        );
+        emitRootOverlayFrameAndLegend(footer_data, indent, legend_position_, nLegendEntries());
     }
     // A pad title set apart from the first series' label replaces that label as the title, once
     // the legend has taken the label.
