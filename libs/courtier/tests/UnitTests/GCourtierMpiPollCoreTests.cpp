@@ -834,3 +834,30 @@ TEST_CASE("The sends under way are looked at once per link and not once per mess
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
 }
+
+/******************************************************************************/
+TEST_CASE("A send under way keeps the pause short while every owner is busy") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    world->swallow(0); // what is sent to rank 0 stays under way
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
+    core->receiverBusy(true);
+    core->start();
+    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
+
+    const auto looks = [&] {
+        std::this_thread::sleep_for(200ms);
+        const auto before = world->counts(1).probes;
+        std::this_thread::sleep_for(500ms);
+        return world->counts(1).probes - before;
+    };
+    const auto busy = looks();
+    core->startSend(0, 50, "a large result, say");
+    const auto busy_sending = looks();
+    INFO("looks in 500 ms: busy " << busy << ", busy with a send under way " << busy_sending);
+    CHECK(busy * 10 <= busy_sending);
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}

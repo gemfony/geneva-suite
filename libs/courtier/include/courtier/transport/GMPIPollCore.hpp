@@ -134,9 +134,11 @@ public:
  * turn --, otherwise after a pause that grows from GMPIPollTiming::pauseMin to pauseMax. A
  * received message and a started send reset the pause, and a started send ends a pause that is
  * under way (the "kick"): the answer to a send is what the poll waits for. While the owner of every
- * receiver that has not ended is busy (receiverBusy(); a client that evaluates), the pause grows to
- * GMPIPollTiming::pauseBusy instead: nothing that may arrive is needed before the evaluation ends,
- * and the end of a busy spell is a kick too.
+ * receiver that has not ended is busy (receiverBusy(); a client that evaluates) and no send of
+ * this process is under way, the pause grows to GMPIPollTiming::pauseBusy instead: nothing that
+ * may arrive is needed before the evaluation ends, and the end of a busy spell is a kick too. (A
+ * send under way may need this process's MPI calls to make progress -- a large message on a
+ * transport whose data moves only when its sender looks -- so it keeps the short pause.)
  *
  * Where it runs is its owner's choice and makes no difference to it: on a master an io context of
  * its own with one thread (no handler of a session holds it up), on a client the client's io

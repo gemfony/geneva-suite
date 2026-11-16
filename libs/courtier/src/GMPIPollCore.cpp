@@ -456,8 +456,12 @@ void GMPIPollCore::link_() {
         pause_ = timing_.pauseMin;
     }
     timer_.expires_after(pause_);
-    // Every receiver that has not ended has a busy owner: the pause may grow further
-    const bool relaxed = live_receivers_ > 0 && busy_receivers_.load() >= live_receivers_;
+    // Every receiver that has not ended has a busy owner, and no send of this process is under
+    // way: the pause may grow further. A send under way may need this process's MPI calls to make
+    // progress (a large message whose data moves only when its sender looks), and its receiver
+    // waits for it.
+    const bool relaxed =
+        live_receivers_ > 0 && busy_receivers_.load() >= live_receivers_ && requests_.empty();
     pause_ = std::min(2 * pause_, relaxed ? timing_.pauseBusy : timing_.pauseMax);
     // The link runs whether the timer expired or was cancelled by a kick.
     timer_.async_wait([self]([[maybe_unused]] const boost::system::error_code &ec) {
