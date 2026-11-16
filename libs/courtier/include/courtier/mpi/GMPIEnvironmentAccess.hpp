@@ -59,7 +59,8 @@ namespace Gem::Courtier {
 
 /** Builds the environment on the communicator @p make_base returns; it is called once MPI is
  *  initialized. For a program that brings or splits its own communicator. Must be the first of
- *  these functions to be called: it throws if an environment exists already. */
+ *  these functions to be called: it throws if an environment exists already. @p make_base must not
+ *  call these functions (nor build anything that does): on its thread they throw. */
 [[nodiscard]] std::shared_ptr<Consumers::GMPIEnvironment>
 mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base);
 

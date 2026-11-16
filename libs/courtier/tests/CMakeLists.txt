@@ -65,6 +65,28 @@ IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( CourtierMpiLinksMpi PROPERTIES LABELS "courtier" )
 	GENEVA_TEST_SIZE ( CourtierMpiLinksMpi S )
+
+	# The MPI cascade and its members need nothing of Geneva: its test program, which links
+	# courtier's MPI library, does not depend on a library of Geneva at load time.
+	ADD_TEST ( NAME GCourtierMpiCascadeTestNoGeneva
+		COMMAND ${CMAKE_COMMAND}
+			"-DLIBS=$<TARGET_FILE:GCourtierMpiCascadeTest>"
+			"-DPATTERN=libgemfony-geneva"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+	SET_TESTS_PROPERTIES ( GCourtierMpiCascadeTestNoGeneva PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( GCourtierMpiCascadeTestNoGeneva S )
+
+	# The driver of the cascade's entries counts a launcher that ends by a signal after the job as a
+	# non-zero end, not as a job that did not end
+	ADD_TEST ( NAME GCourtierCheckJobEndsLauncherSignal
+		COMMAND ${CMAKE_COMMAND}
+			"-DCOMMAND=sh;-c;echo the job said this && kill -SEGV $$"
+			-DEXPECT_EXIT=nonzero
+			"-DEXPECT=the job said this"
+			-DLIMIT=20
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckJobEnds.cmake )
+	SET_TESTS_PROPERTIES ( GCourtierCheckJobEndsLauncherSignal PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( GCourtierCheckJobEndsLauncherSignal S )
 ENDIF ()
 
 GENEVA_AGGREGATE_TARGET( "tests-courtier" )

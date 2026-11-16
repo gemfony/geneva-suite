@@ -40,8 +40,8 @@ own. If a primitive does not meet a requirement, **improve it or add a variant t
 tests — and a distinct, named dependency makes Invariant 1 unforgettable. The original cleanups owed to this
 rule are discharged (the consumer's `late_returns_` buffer + retained-original map → `GAgingStoreT`, the
 in-flight borrow set → `GThreadSafeSetT`, Hap's `GRotatingPool` → `GSPSCStagingRingT`, the global option
-stores → `GThreadSafeKeyedStoreT`). *Remaining (deferred, MPI-transport-local):* the MPI transport's raw
-`receiverThread_`/`cleanUpThread_` → `GThreadGroup` and its `openSessions_` vector reaping → a library store.
+stores → `GThreadSafeKeyedStoreT`, and the MPI transport's raw `receiverThread_`/`cleanUpThread_` and
+`openSessions_` reaping, which left with that transport when MPI moved onto the shared peer classes).
 
 ## 3. Build out-of-source only
 
@@ -528,6 +528,36 @@ changes whose origin has not been checked is never the way back.
 *Why:* without a rollback point, "revert" has no clean target, and a reset over a mixed working tree
 destroys whatever else was in it. That happened once, to uncommitted manual edits of the
 maintainer's; they survived only because the editor kept a local history.
+
+## 29. Large work starts with a thin slice through all its layers; depth follows the first decision
+
+When a task spans several layers or stages — an interface and its implementations, a protocol and
+both its ends, a library and the programs, tests and documentation that stand on it — the first goal
+is a thin version that runs through all of them (the slice), before any one of them is completed
+in depth.
+
+- **Narrow, not sloppy.** Every commit of the slice compiles and keeps the suite green (Inv 9, 26).
+  What the slice does not handle yet it refuses loudly, with an error that names the missing case —
+  never a silent stub, a default that hides the gap, or a disabled test.
+- **An abstraction is sliced across everything it abstracts.** Where the task introduces one
+  interface over several existing things (transports, backends, algorithms), the slice carries all
+  of them thinly rather than one of them completely.
+- **Open edges are listed once**, in the work's plan, each with what is missing and where it is
+  refused. That list is the trigger Invariant 20 asks for: the series is neither complete nor
+  merged while it holds an entry the maintainer has not accepted.
+- **The slice ends with a decision.** With it running, the maintainer decides whether the design
+  stands, changes or is dropped; what the task is for (speed, memory, a simpler interface) is
+  measured on the slice, for direction only. Only then does the costly work begin: edge cases,
+  exhaustive tests, repeat runs, full reviews, documentation.
+- **Defects.** A defect on the slice's own path is fixed at once (Inv 9, 15). A gap or defect in a
+  path the slice refuses goes on the list and is fixed, with its regression test, in the depth phase.
+- Small and behaviour-preserving changes are done in one go; this rule is for work that might have
+  to change direction.
+
+*Why:* detail spent on a step that the next step overturns is lost, and a design is tested only by
+what is built on it. In the courtier rework of November 2026 one transport was completed and
+reviewed three times before the second touched the shared classes; the contract both must keep
+changed three times in that period.
 
 ---
 

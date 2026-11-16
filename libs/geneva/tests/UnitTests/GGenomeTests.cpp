@@ -1581,8 +1581,9 @@ TEST_CASE("Wire send-once: a cache miss is resolved by the fetch fallback", "[fl
         s_idonly = a.toString(mode::GEM_BINARY);     // second send: id-only
     }
 
-    // A late-joining / reconnected worker with an EMPTY cache receives the id-only item. Its fetch
-    // callback pulls the blob from the server registry (the REQUEST_BLOB/SEND_BLOB round trip).
+    // A worker with an EMPTY cache receives the id-only item. A fetch callback (the hook of
+    // GWireSerializationContext; courtier's clients install none) pulls the blob from the server
+    // registry.
     GWireBlobRegistry worker_reg;
     std::size_t fetch_calls = 0;
     GWireSerializationContext worker_ctx;
@@ -2503,10 +2504,12 @@ TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][p
         provider->configFromCommandLine(vm)
     );
     const Gem::Courtier::Consumers::MPIConsumerConfig defaults;
-    CHECK(config.useAsyncReq == defaults.useAsyncReq);
     CHECK(config.serializationMode == defaults.serializationMode);
     CHECK(config.nHandlerThreads == defaults.nHandlerThreads);
-    CHECK(config.masterCleanSessIntervalMSec == defaults.masterCleanSessIntervalMSec);
+    CHECK(config.clientPrefetchDepth == defaults.clientPrefetchDepth);
+    CHECK(config.clientParallelEvaluations == defaults.clientParallelEvaluations);
+    CHECK(config.clientFirstContactLimit == defaults.clientFirstContactLimit);
+    CHECK(config.clientUndeliveredDir == defaults.clientUndeliveredDir);
 }
 #endif
 

@@ -109,24 +109,28 @@ const std::vector<double> &asDoubleColumn(const GPlotColumn &c) {
 
 /** @brief The `with <style> ...` spec for a plotter's dataset (the dataset source -- a named
  *  datablock -- is prepended by the caller). gnuplot cannot read inline `'-'` data inside a
- *  `set multiplot` block, so each dataset is emitted as a `$Dn` datablock and referenced here. */
-std::string datasetSpec(const GBasePlotter &p, scriptKind k) {
+ *  `set multiplot` block, so each dataset is emitted as a `$Dn` datablock and referenced here.
+ *  @p title is the dataset's key clause: `title "..."` for a series the pad's legend lists,
+ *  `notitle` for any other (see keyClause()). */
+std::string datasetSpec(const GBasePlotter &p, scriptKind k, const std::string &title) {
     EmitStream spec; // NOLINT(cppcoreguidelines-init-variables)
-    const std::string title = backslashEscape(p.plotLabel());
+    // How the series is drawn (GBasePlotter::drawStyle()); gnuplot's key draws its sample from it.
+    const GDrawStyle style = p.drawStyle();
+    const std::string lines_points = style.line ? (style.markers ? "linespoints" : "lines") : "points pointtype 7";
     switch(k) {
         case scriptKind::g2d:
-            spec << "with linespoints title \"" << title << "\"";
+            spec << "with " << (style.fill ? "filledcurves y1=0" : lines_points) << " " << title;
             break;
         case scriptKind::g2ed:
-            spec << "with xyerrorbars title \"" << title << "\"";
+            spec << "with " << (style.line ? "xyerrorlines" : "xyerrorbars") << " " << title;
             break;
         case scriptKind::g3d:
-            // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
-            spec << (isCurve3D(p) ? "with linespoints" : "with points pointtype 7") << " title \"" << title
-                 << "\"";
+            // A colour map of the graph's own drawing arguments is drawn as its points: gnuplot's
+            // pm3d needs gridded data (a projection gives it).
+            spec << "with " << (style.colour_map ? "points pointtype 7" : lines_points) << " " << title;
             break;
         case scriptKind::g4d:
-            spec << "using 1:2:3:4 with points palette pointtype 7 title \"" << title << "\"";
+            spec << "using 1:2:3:4 with points palette pointtype 7 " << title;
             break;
         default: // unreachable: validateScriptPads rejected the histogram kinds up front
             break;
@@ -135,6 +139,18 @@ std::string datasetSpec(const GBasePlotter &p, scriptKind k) {
         spec << " linewidth " << p.lineWidth();
     }
     return spec.str();
+}
+
+/** @brief The key clause of the pad's series @p series: `title "<label>"` if the pad's legend
+ *  (GBasePlotter::legendEntries()) lists it, otherwise `notitle`, so that the key names exactly
+ *  the series the description names, in its order (the order of the datasets). */
+std::string keyClause(const std::vector<GLegendEntry> &entries, std::size_t series) {
+    for(const auto &e : entries) {
+        if(e.series == series) {
+            return "title \"" + backslashEscape(e.label) + "\"";
+        }
+    }
+    return "notitle";
 }
 
 /** @brief gnuplot's name of a legend corner ("bottom right", ...); AUTO has none */
@@ -146,6 +162,7 @@ std::string gnuplotKeyPosition(legendPosition position) {
         case legendPosition::BOTTOM_RIGHT: return "bottom right";
         case legendPosition::CENTER_RIGHT: return "right center";
         case legendPosition::AUTO:         break;
+        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -305,9 +322,19 @@ void emitMultiplot(
             result << indent << "set zlabel \"" << backslashEscape(p->zAxisLabel()) << "\"" << '\n';
         }
         result << indent << "set title \"" << backslashEscape(p->padTitleOrLabel()) << "\"" << '\n';
-        // A legend placed in a corner; the default is restored after the pad's plot command.
-        const std::string key_position = gnuplotKeyPosition(p->getLegendPosition());
-        if(not key_position.empty()) {
+        // The pad's legend, as the description lists it: none at all (gnuplot would show a key for
+        // a single series), or in a chosen corner. The default is restored after the pad's plot
+        // command.
+        const auto entries = p->legendEntries();
+        // AUTO on a 3-d pad is the upper left, as in the other backends.
+        std::string key_position = gnuplotKeyPosition(p->legendPlace());
+        if(key_position.empty() and three_d) {
+            key_position = "top left";
+        }
+        if(entries.empty()) {
+            result << indent << "unset key" << '\n';
+        }
+        else if(not key_position.empty()) {
             result << indent << "set key " << key_position << '\n';
         }
         if(p->xAxisLogarithmic() != log_x_in_force) {
@@ -365,7 +392,7 @@ void emitMultiplot(
         for(std::size_t i = 0; i < pad.size(); ++i) {
             result << (i == 0 ? "" : ", ");
             if(i == 0 && proj != surfaceProjection::NONE) {
-                result << "$G" << db_ref << " with pm3d title \"" << backslashEscape(pad[i]->plotLabel()) << "\"";
+                result << "$G" << db_ref << " with pm3d " << keyClause(entries, i);
             }
             else {
                 if(three_d && castsFloorShadow(*pad[i])) {
@@ -374,12 +401,13 @@ void emitMultiplot(
                            << ") with points pointtype 7 pointsize 0.3 linecolor rgb \"gray60\" notitle, ";
                 }
                 result << "$D" << db_ref << ' '
-                       << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"));
+                       << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"),
+                                      keyClause(entries, i));
             }
             ++db_ref;
         }
         result << '\n' << '\n';
-        if(not key_position.empty()) {
+        if(entries.empty() or not key_position.empty()) {
             result << indent << "set key default" << '\n';
         }
 
@@ -404,6 +432,11 @@ void emitMultiplot(
  * `set output`): it lays the pads out as a `set multiplot` grid and, per pad, sets
  * the axis labels and title and emits a `plot`/`splot` with one inline dataset per
  * primary-or-secondary plotter sharing that pad.
+ *
+ * The key follows the pad's legend description (GBasePlotter::legendEntries()): the datasets of
+ * the series it lists carry their label as title, every other dataset `notitle`, and a pad whose
+ * legend is empty -- a single series, or none labelled -- has no key. Its limitation is stated
+ * with the class (GPlotEmitter.hpp).
  *
  * @param gpd The designer holding the graph plotters and canvas configuration
  * @return The complete gnuplot script as a string

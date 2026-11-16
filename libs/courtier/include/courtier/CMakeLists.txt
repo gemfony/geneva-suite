@@ -61,12 +61,13 @@ SET ( CONSUMER_INCLUDES
 )
 
 # Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
-# interface, the websocket transport and the MPI master/worker nodes that the networked
-# consumers reuse. Named under transport/ so they no
+# interface, and the websocket and MPI transports (ends, listeners, connectors, the MPI poll)
+# that the networked consumers stand on. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
     transport/GIoContext.hpp
     transport/GMPICallsI.hpp
+    transport/GMPIPeerTransport.hpp
     transport/GMPIPollCore.hpp
     transport/GPeerClientT.hpp
     transport/GPeerI.hpp
@@ -106,8 +107,11 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
     # The headers of courtier's MPI library (libgemfony-courtier-mpi)
     SET( MPI_INCLUDES
             mpi/GMPICalls.hpp
+            mpi/GMPICascade.hpp
+            mpi/GMPICascadeConfig.hpp
             mpi/GMPIEnvironment.hpp
-            mpi/GMPIEnvironmentAccess.hpp)
+            mpi/GMPIEnvironmentAccess.hpp
+            mpi/GMPIPolledCalls.hpp)
 ENDIF ()
 
 set_source_files_properties(

@@ -95,7 +95,26 @@ struct dataSeries {
     GPlotSpec spec;                                ///< the plotter's full reported plot spec
     std::size_t pad = 0;                           ///< the canvas pad this series draws into
     bool secondary = false;                        ///< true if it overlays a primary in the same pad
+    std::optional<legendSample> legend;            ///< its sample, if the pad's legend lists it (by its name)
+    GDrawStyle style;                              ///< how it is drawn (scriptStyle(), as the external renderer draws it)
 };
+
+/** @brief A draw style as its parts joined by '+' (line+markers, ...), "none" for none, as the
+ *  export carries it for the external renderer */
+std::string styleTokens(const GDrawStyle &style) {
+    std::string out;
+    const auto add = [&out](bool on, const char *name) {
+        if(on) {
+            out += (out.empty() ? "" : "+") + std::string(name);
+        }
+    };
+    add(style.line, "line");
+    add(style.markers, "markers");
+    add(style.error_bars, "error_bars");
+    add(style.fill, "fill");
+    add(style.colour_map, "colour_map");
+    return out.empty() ? "none" : out;
+}
 
 /** @brief The canvas-level layout the data export records so an external renderer can
  *  reproduce the multi-pad figure: the canvas title and the pad grid (columns x rows). */
@@ -114,6 +133,7 @@ std::optional<dataSeries> captureSeries(const GBasePlotter &p) {
     s.name = p.plotLabel();
     s.kind = p.getPlotterName();
     s.spec = p.plotSpec();
+    s.style = scriptStyle(p);
     s.columns = p.dataColumns();
 
     // A plotter with no exportable columns (a function plotter) reports nothing here --
@@ -152,8 +172,9 @@ std::string csvComment(const std::string &in) {
 }
 
 /** @brief Render all captured series as the CSV document: one section per series separated
- *  by a blank line; each section a `# series ...` comment header, a column-name header row,
- *  then the data rows. Values are full-precision and locale-independent (EmitStream). */
+ *  by a blank line; each section a `# series ...` comment header (with the series' `draw_style`,
+ *  its `line_width` if set and, if the pad's legend lists it, its `legend_sample`), a
+ *  column-name header row, then the data rows. Values are full-precision and locale-independent (EmitStream). */
 std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &canvas) {
     EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
 
@@ -174,7 +195,17 @@ std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &can
         out << "# series " << si << ": \"" << csvComment(s.name) << "\" kind=" << s.kind
             << " plotkind=" << to_string(s.spec.kind) << " role=" << s.spec.role
             << " columns=" << col_list
-            << " pad=" << s.pad << " secondary=" << (s.secondary ? 1 : 0) << '\n';
+            << " pad=" << s.pad << " secondary=" << (s.secondary ? 1 : 0);
+        // How the series is drawn (scriptStyle()), and whether and with which sample the pad's
+        // legend lists it (scriptLegendEntries()): an external renderer draws both from these.
+        out << " draw_style=" << styleTokens(s.style);
+        if(s.style.line_width > 0) {
+            out << " line_width=" << s.style.line_width;
+        }
+        if(s.legend.has_value()) {
+            out << " legend_sample=" << to_string(*s.legend);
+        }
+        out << '\n';
 
         // Column-name header row.
         for(std::size_t c = 0; c < s.column_names.size(); ++c) {
@@ -377,8 +408,11 @@ std::string buildZip(const std::vector<zipMember> &members) {
  *  (`series_0`, `series_1`, ...) plus a `manifest.json`. The manifest is a self-describing
  *  object -- the canvas (title + pad grid) and an ordered `series` array -- so (data +
  *  manifest) fully describes the multi-pad figure for an external renderer. Each series
- *  entry is the plotter's GPlotSpec augmented with the `pad` it draws into and a
- *  `secondary` flag (true if it overlays a primary in that pad). */
+ *  entry is the plotter's GPlotSpec augmented with the `pad` it draws into, a
+ *  `secondary` flag (true if it overlays a primary in that pad), its `draw_style`
+ *  (scriptStyle()) and, if the pad's legend lists the series (scriptLegendEntries()), its
+ *  `legend_sample`; an external renderer draws each series and the legend of the series that
+ *  carry a sample, in their order, with their names, from these. */
 std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &canvas) {
     std::vector<zipMember> members;
 
@@ -401,7 +435,14 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
         std::string spec_json = s.spec.toJson();
         spec_json.pop_back(); // drop the trailing '}'
         spec_json += ", \"pad\": " + std::to_string(s.pad)
-            + ", \"secondary\": " + (s.secondary ? "true" : "false") + "}";
+            + ", \"secondary\": " + (s.secondary ? "true" : "false");
+        // Whether and with which sample the pad's legend lists the series (by its name), from
+        // GBasePlotter::legendEntries(): an external renderer draws the same legend.
+        spec_json += ", \"draw_style\": \"" + styleTokens(s.style) + "\"";
+        if(s.legend.has_value()) {
+            spec_json += ", \"legend_sample\": \"" + to_string(*s.legend) + "\"";
+        }
+        spec_json += "}";
         manifest += "    " + spec_json;
         manifest += (si + 1 == std::ssize(series) ? "\n" : ",\n");
     }
@@ -426,16 +467,27 @@ std::vector<dataSeries> collectSeries(
     // pad numbers line up with where ROOT / matplotlib would draw each plot.
     for(const auto &[idx, p] : plotters | std::views::enumerate) {
         const auto pad = static_cast<std::size_t>(idx);
+        const auto entries = scriptLegendEntries(*p);
+        const auto sample_of = [&entries](std::size_t series_in_pad) -> std::optional<legendSample> {
+            for(const auto &e : entries) {
+                if(e.series == series_in_pad) {
+                    return e.sample;
+                }
+            }
+            return std::nullopt;
+        };
         if(auto s = captureSeries(*p)) {
             s->pad = pad;
             s->secondary = false;
+            s->legend = sample_of(0);
             series.push_back(std::move(*s));
         }
         // Secondary plotters are independent datasets sharing the primary's pad.
-        for(const auto &sp : p->secondaryPlotters()) {
+        for(const auto &[pos, sp] : p->secondaryPlotters() | std::views::enumerate) {
             if(auto s = captureSeries(*sp)) {
                 s->pad = pad;
                 s->secondary = true;
+                s->legend = sample_of(static_cast<std::size_t>(pos) + 1);
                 series.push_back(std::move(*s));
             }
         }

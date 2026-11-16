@@ -53,14 +53,16 @@
 #              (adaptive | fixed | wait_indefinitely); a test of "nothing is
 #              lost" wants wait_indefinitely, or a lost item is resubmitted
 #              after the give-up window and the loss stays hidden
+#   NVARIABLES the number of double parameters of an individual (the item's size: 8 bytes
+#              each; the configuration's 100 if unset)
 #   SRVOPTS    further options for the server (for MPI: for every rank)
 #   MPISTART   seconds to wait after mpirun before rank 0 is looked up (8)
 #
 # The server waits until all N clients are connected (--waitForClients N) before
 # it starts the run, so that no iteration is slowed down by clients that are still
-# starting. A consumer that cannot tell how many clients it has (MPI) is not waited
-# for; its RESULT line then ends with UNGATED, and its first iterations may include
-# the start of the clients.
+# starting (websocket and MPI both can tell). A consumer that cannot tell how many
+# clients it has is not waited for; its RESULT line then ends with UNGATED, and its
+# first iterations may include the start of the clients.
 #
 # What a RESULT line holds: the number of iterations seen, the smallest, median,
 # largest and mean iteration time in seconds (the first two iterations after the
@@ -105,7 +107,10 @@ f = 'config/GEvolutionaryAlgorithm.json'; d = json.load(open(f))
 d['population']['size']['value'] = int(sys.argv[1]); d['max_iteration']['value'] = 100000
 d['max_stall_iteration']['value'] = 0; json.dump(d, open(f, 'w'), indent=1)
 f = 'config/GDelayIndividual.json'; d = json.load(open(f))
-d['delays']['value'] = sys.argv[2]; json.dump(d, open(f, 'w'), indent=1)
+d['delays']['value'] = sys.argv[2]
+if 'NVARIABLES' in os.environ:
+    d['n_variables']['value'] = int(os.environ['NVARIABLES'])
+json.dump(d, open(f, 'w'), indent=1)
 if 'TREATMENT' in os.environ:
     f = 'config/GNetworkedConsumer.json'; d = json.load(open(f))
     d['treatment']['value'] = os.environ['TREATMENT']; json.dump(d, open(f, 'w'), indent=1)
@@ -114,7 +119,8 @@ P
     # measure is looked up instead of taken from $!.
     if [ "$C" = mpi ]; then
         # shellcheck disable=SC2086
-        mpirun --oversubscribe -np $((N + 1)) stdbuf -oL "$X" -c mpi ${SRVOPTS:-} > >(stamp) 2>&1 &
+        mpirun --oversubscribe -np $((N + 1)) stdbuf -oL "$X" -c mpi --waitForClients "$N" \
+            ${SRVOPTS:-} > >(stamp) 2>&1 &
         WRAP=$!
         sleep "${MPISTART:-8}"
         S=$(for p in $(pgrep -x "$NAME"); do

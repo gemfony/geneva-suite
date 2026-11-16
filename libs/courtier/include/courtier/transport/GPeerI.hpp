@@ -34,7 +34,9 @@
 
 // Standard headers go here
 #include <chrono>
+#include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -228,9 +230,18 @@ public:
     /** @brief The executor all handlers of this peer run on. From any thread. */
     [[nodiscard]] virtual boost::asio::any_io_executor executor() = 0;
 
-    /** @brief Tells the transport whether the owner of this peer (a client) is busy evaluating. On
-     *  the executor. A polling transport may look less often while its owner is busy; the
-     *  default ignores it. */
+    /** @brief The longest message the transport can carry; a longer one handed to send() ends the
+     *  connection (FAILED). A role checks the length of what it encodes against it and fails the
+     *  item instead, so that the connection, and the other items, go on. Any thread. The default:
+     *  no limit. @return The length in bytes */
+    [[nodiscard]] virtual std::size_t maxMessageBytes() const {
+        return std::numeric_limits<std::size_t>::max();
+    }
+
+    /** @brief Tells the transport whether the owner of this peer (a client) is busy: every one of
+     *  its evaluation slots is taken, so that nothing that may arrive is needed before an
+     *  evaluation ends. On the executor. A polling transport may look less often while its owner is
+     *  busy; the default ignores it. */
     virtual void setOwnerBusy(bool) { /* nothing */
     }
 };
@@ -288,6 +299,16 @@ public:
      *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
      *  time lease. */
     [[nodiscard]] virtual bool detectsLoss() const = 0;
+
+    /** @brief Tells the clients that are waiting for a server which will never start that the run
+     *  has ended (GPeerClose::RUN_ENDED), and waits for them, at most stopGrace(). Called once, by
+     *  the stop of a shell that was never started, or whose listener's start() threw (which leaves
+     *  it as if not started); the listener is neither started nor asked to stop or to end its work
+     *  afterwards, and holds nothing running when this returns. For a transport whose clients wait for their server without a limit (MPI: they wait
+     *  for the greeting). The default does nothing: a client of a transport that connects finds no
+     *  server and gives up by its own limits. */
+    virtual void announceEndWithoutStart() { /* nothing */
+    }
 };
 
 /******************************************************************************/

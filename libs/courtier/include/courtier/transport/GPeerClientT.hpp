@@ -140,8 +140,9 @@ struct GPeerClientOptions {
  * being decoded or arrive, are dropped (the server puts them back when the connection ends). The
  * results of the evaluations that run are sent as RESULT as they finish, and the client closes when
  * none runs any more. So the number of items processed may pass an item limit by the evaluations
- * that were running when it was reached. While its compute pool evaluates an item the client tells
- * its peer that it is busy (GPeerI::setOwnerBusy()). A client that closes with an error (a frame it
+ * that were running when it was reached. While every one of its evaluation slots is taken (as many
+ * items are evaluated as parallelEvaluations allows) the client tells its peer that it is busy
+ * (GPeerI::setOwnerBusy()). A client that closes with an error (a frame it
  * cannot accept, a message it cannot encode) likewise starts nothing new; the result of an
  * evaluation that runs then is saved.
  *
@@ -215,10 +216,11 @@ class GPeerClientT
     using pipeline_base::drop_held_;
     using pipeline_base::in_flight_;
     using pipeline_base::io_context_;
+    using pipeline_base::max_message_bytes_;
     using pipeline_base::n_decoding_;
-    using pipeline_base::n_nodata_;
     using pipeline_base::n_halt_polls_;
     using pipeline_base::n_messages_booked_;
+    using pipeline_base::n_nodata_;
     using pipeline_base::pending_pulls_;
     using pipeline_base::prefetch_depth_;
     using pipeline_base::schedule_refill_;
@@ -490,6 +492,9 @@ private:
      *  run_()). */
     void when_open_() {
         state_ = LinkState::OPEN;
+        if(auto peer = peer_.lock()) {
+            max_message_bytes_.store(peer->maxMessageBytes(), std::memory_order_relaxed);
+        }
         opened_at_ = clock::now();
         contact_on_connection_ = false;
         n_connections_.fetch_add(1);
@@ -1282,8 +1287,8 @@ private:
         }
     }
 
-    /** @brief Busy hook: tells the peer whether the compute pool evaluates an item.
-     *  @param busy Whether it does */
+    /** @brief Busy hook: tells the peer whether every evaluation slot is taken.
+     *  @param busy Whether they are */
     void when_busy_(bool busy) {
         busy_ = busy;
         if(auto peer = peer_.lock()) {

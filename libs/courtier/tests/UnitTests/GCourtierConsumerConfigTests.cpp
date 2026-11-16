@@ -40,6 +40,7 @@
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
+#include "courtier/mpi/GMPICascadeConfig.hpp" // read by programs and tests without MPI
 
 #if defined(BOOST_ASIO_VERSION) || defined(BOOST_BEAST_VERSION)
 #error "A consumer configuration header includes Boost.Asio or Boost.Beast"
@@ -53,15 +54,21 @@
 #include <chrono>
 #include <concepts>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
-#include <optional>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <span>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <type_traits>
 #include <vector>
+
+#include <unistd.h>
 
 #include "common/GExceptions.hpp"
 #include "courtier/GConsumerSpec.hpp"
@@ -184,6 +191,16 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
     CHECK(beast.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
+
+    // The MPI consumer's sessions run on two threads unless told otherwise (one more thread polls),
+    // and its client fetches the next item while it evaluates one
+    const MPIConsumerConfig mpi{};
+    CHECK(mpi.nHandlerThreads == 2);
+    CHECK(mpi.serializationMode == Gem::Common::serializationMode::GEM_BINARY);
+    CHECK(mpi.clientPrefetchDepth == 2);
+    CHECK(mpi.clientParallelEvaluations == 1);
+    CHECK(mpi.clientFirstContactLimit == 0);
+    CHECK(mpi.clientUndeliveredDir == ".");
 }
 
 /******************************************************************************/
@@ -262,3 +279,103 @@ static_assert(Gem::Courtier::ConsumerConfig<GStdThreadConsumerConfig>);
 static_assert(Gem::Courtier::ConsumerConfig<GWebsocketConsumerConfig>);
 static_assert(Gem::Courtier::ConsumerConfig<MPIConsumerConfig>);
 static_assert(not Gem::Courtier::ConsumerConfig<int>);
+
+/******************************************************************************/
+// The configuration of the MPI cascade (courtier/mpi/GMPICascadeConfig.hpp): its three keys, the
+// group size and the two poll pauses, are read from a file that is written with their defaults if
+// it is absent; a file that cannot be parsed is refused, never replaced by the defaults.
+
+namespace {
+
+/** @brief A directory of its own for one test, empty, below the system's temporary directory
+ *  @param name The test's part of the directory's name @return The directory */
+std::filesystem::path scratchDirectory(const std::string &name) {
+    const auto dir = std::filesystem::temp_directory_path() /
+                     ("geneva_cascade_config_" + name + "_" + std::to_string(::getpid()));
+    std::error_code ignored;
+    std::filesystem::remove_all(dir, ignored);
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+
+} // anonymous namespace
+
+TEST_CASE(
+    "the configuration of the MPI cascade is read from its file",
+    "[courtier][config][cascade]"
+) {
+    const auto dir = scratchDirectory("load");
+
+    SECTION("an absent file is written with the default group size") {
+        const auto file = dir / "config" / "GMPICascade.json";
+        Gem::Courtier::GMPICascadeConfig config;
+        config.load(file.string());
+        CHECK(config.groupSize == Gem::Courtier::GMPICASCADEDEFAULTGROUPSIZE);
+        CHECK(config.groupSize == 4);
+        REQUIRE(std::filesystem::exists(file));
+        std::string text;
+        {
+            std::ifstream in(file);
+            text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+        }
+        CHECK(text.contains("\"sub_client_group_size\""));
+        CHECK(text.contains("\"sub_client_poll_pause_min_us\""));
+        CHECK(text.contains("\"sub_client_poll_pause_max_us\""));
+        Gem::Courtier::GMPICascadeConfig reread{.groupSize = 0};
+        reread.load(file.string());
+        CHECK(reread.groupSize == 4);
+    }
+
+    SECTION("a file with a group size of 3 gives 3") {
+        const auto file = dir / "three.json";
+        std::ofstream(file) << R"({ "sub_client_group_size": { "value": 3 } })";
+        Gem::Courtier::GMPICascadeConfig config;
+        config.load(file.string());
+        CHECK(config.groupSize == 3);
+        CHECK(config.pauseMin == Gem::Courtier::GMPIPEERPOLLPAUSEMIN);
+        CHECK(config.pauseMax == Gem::Courtier::GMPIPEERPOLLPAUSEMAX);
+    }
+
+    SECTION("a file with the two poll pauses gives them") {
+        const auto file = dir / "pauses.json";
+        std::ofstream(file) << R"({ "sub_client_poll_pause_min_us": { "value": 20 },
+                                    "sub_client_poll_pause_max_us": { "value": 400 } })";
+        Gem::Courtier::GMPICascadeConfig config;
+        config.load(file.string());
+        CHECK(config.pauseMin == std::chrono::microseconds(20));
+        CHECK(config.pauseMax == std::chrono::microseconds(400));
+        CHECK(config.groupSize == Gem::Courtier::GMPICASCADEDEFAULTGROUPSIZE);
+    }
+
+    SECTION("a file that cannot be parsed is refused") {
+        const auto file = dir / "broken.json";
+        std::ofstream(file) << "{ this is not JSON";
+        Gem::Courtier::GMPICascadeConfig config;
+        CHECK_THROWS_AS(config.load(file.string()), geneva_exception);
+    }
+
+    std::error_code ignored;
+    std::filesystem::remove_all(dir, ignored);
+}
+
+TEST_CASE(
+    "the configuration of the MPI cascade refuses what a cascade cannot use",
+    "[courtier][config][cascade]"
+) {
+    using Gem::Courtier::GMPICascadeConfig;
+    using std::chrono::microseconds;
+    CHECK_NOTHROW(GMPICascadeConfig{}.check());
+    CHECK_THROWS_AS(GMPICascadeConfig{.groupSize = 0}.check(), geneva_exception);
+    CHECK_THROWS_AS(GMPICascadeConfig{.pauseMin = microseconds(0)}.check(), geneva_exception);
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): the value that is refused
+    constexpr auto UNKNOWN_LAYOUT = static_cast<Gem::Courtier::GMPICascadeLayout>(7);
+    CHECK_THROWS_AS((GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()), geneva_exception);
+    CHECK_THROWS_AS(
+        (GMPICascadeConfig{.pauseMin = microseconds(20), .pauseMax = microseconds(10)}.check()),
+        geneva_exception
+    );
+    CHECK_NOTHROW(
+        (GMPICascadeConfig{.groupSize = 1, .pauseMin = microseconds(1), .pauseMax = microseconds(1)}
+             .check())
+    );
+}

@@ -33,13 +33,14 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
-#include <thread>
 
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"     // serializationMode
-#include "courtier/GCourtierEnums.hpp" // GMPICONSUMERMASTERCLEANSESSINTERVALMSEC
+#include "courtier/GCourtierEnums.hpp" // GCLIENTFIRSTCONTACTLIMIT, GMPICONSUMERSESSIONTHREADS
 
 // No MPI header: a program can fill the configuration of the MPI consumer without seeing MPI (the
 // consumer itself is in courtier/consumers/GMPIConsumerT.hpp).
@@ -48,35 +49,37 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /**
- * The configuration of the MPI consumer GMPIConsumerT and of its client (mnemonic "mpi"), used by
- * the master node and the worker nodes alike. A plain aggregate, shared by the consumer and its
- * client and to be copied freely; it can be written with designated initializers.
+ * The configuration of the MPI consumer GMPIConsumerT and of its client GMPIConsumerWorkerNodeT
+ * (mnemonic "mpi"). Server and client are built from the same struct; each member says which side
+ * reads it. A plain aggregate, to be copied freely; it can be written with designated
+ * initializers.
  */
 struct MPIConsumerConfig {
     /// The mnemonic of the consumer family this struct configures, as chosen with --consumer
     static constexpr std::string_view MNEMONIC = "mpi";
 
-    /// Whether the clients ask for the next work item while the current one is still processed
-    bool useAsyncReq{true};
-    /// The serialization of the messages between the master node and the worker nodes
+    /// Both: the serialization of the messages between the submitter and its clients
     Gem::Common::serializationMode serializationMode{Gem::Common::serializationMode::GEM_BINARY};
-    /// The number of threads of the pool that handles incoming requests. Starts as the
-    /// recommendation for this machine (nHandlerThreadsRecommendation()).
-    std::uint32_t nHandlerThreads{nHandlerThreadsRecommendation()};
-    /// The time in ms between two checks whether sending a work item to a worker node completed
-    std::uint32_t masterCleanSessIntervalMSec{GMPICONSUMERMASTERCLEANSESSINTERVALMSEC};
-
-    /**
-     * @brief Recommends a number of handler threads from the available hardware concurrency.
-     * @return The number of hardware threads, or 8 if the C++ runtime cannot determine it
-     */
-    [[nodiscard]] static std::uint32_t nHandlerThreadsRecommendation() {
-        // how many hardware threads are available (0 if unknown)
-        const unsigned int hw_threads{std::thread::hardware_concurrency()};
-
-        // if hint has returned 0, default to 8
-        return hw_threads != 0 ? hw_threads : 8;
-    }
+    /// Server: the number of threads the sessions run on (they encode and decode the messages);
+    /// 0: as many as the machine has hardware threads. The poll that receives for every session
+    /// runs on a thread of its own besides them.
+    std::uint32_t nHandlerThreads{GMPICONSUMERSESSIONTHREADS};
+    /// Client: n, how many work items it holds at once -- the one(s) being evaluated and those
+    /// fetched ahead, so that the transfer of the next item overlaps the evaluation of the
+    /// current one (1: it asks for the next item when it returns the current one). An MPI client
+    /// has at most one request unanswered (look-ahead, see GPeerClientT). How many items it
+    /// evaluates at the same time is clientParallelEvaluations.
+    std::size_t clientPrefetchDepth = 2;
+    /// Client: m, how many of the items it holds (clientPrefetchDepth) it evaluates at the same
+    /// time; 1 by default; from 1 to clientPrefetchDepth
+    std::size_t clientParallelEvaluations = 1;
+    /// Client: seconds it waits for the submitter's greeting before it gives up (0: for as long
+    /// as it runs)
+    std::size_t clientFirstContactLimit =
+        static_cast<std::size_t>(GCLIENTFIRSTCONTACTLIMIT.count());
+    /// Client: where a finished result that can no longer be delivered is saved (its evaluated
+    /// item, one file each; see GPeerClientT)
+    std::string clientUndeliveredDir = ".";
 };
 
 /******************************************************************************/

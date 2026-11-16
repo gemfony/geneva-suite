@@ -54,6 +54,7 @@ import importlib.util
 import math
 import os
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -101,12 +102,13 @@ def check_figure(program, workdir):
 
     figure = open('figure.C', encoding='utf-8').read()
     # Two pads (all times, and those up to 0.1 s), each with both labels and the ideal line
-    # The series are named by their labels alone; each pad has a title of its own and a legend
-    # at the lower right.
-    for text, count in (('TGraphErrors(', 6), ('BuildLegend(', 2), ('Divide(1,2)', 1),
-                        ('"fast"', 2), ('"slow"', 2), ('"ideal (4)"', 2),
+    # The series are named by their labels alone, each label once as its graph's title and once
+    # as its legend entry; each pad has a title of its own and a legend at the lower right.
+    for text, count in (('TGraphErrors(', 6), ('new TLegend(', 2), ('Divide(1,2)', 1),
+                        ('SetTitle("fast")', 2), ('SetTitle("slow")', 2), ('SetTitle("ideal (4)")', 2),
+                        ('"fast", "lp");', 2), ('"slow", "lp");', 2), ('"ideal (4)", "lp");', 2),
                         ('"All evaluation times"', 1), ('"Up to 0.1 s"', 1), ('fast:', 0),
-                        ('BuildLegend()', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
+                        ('new TLegend(0.3, 0.21)', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
         if figure.count(text) != count:
             fail(f'the figure holds "{text}" {figure.count(text)} times instead of {count}')
     if 'SetLogx' in figure or 'SetLogy' in figure:
@@ -134,8 +136,8 @@ def check_figure(program, workdir):
     # for a corner, it goes there.
     write_table('low.txt', [(0.01, 0.1, 0.01), (0.1, 0.2, 0.01), (1, 0.3, 0.01)])
     write_table('high.txt', [(0.01, 3.0, 0.01), (0.1, 3.9, 0.01), (1, 4.0, 0.01)])
-    for args, expected in (([], 'BuildLegend(0.56, 0.3875, 0.88, 0.6125)'),
-                           (['--legend', 'top_left'], 'BuildLegend(0.12, 0.655, 0.44, 0.88)')):
+    for args, expected in (([], 'new TLegend(0.56, 0.3875, 0.88, 0.6125)'),
+                           (['--legend', 'top_left'], 'new TLegend(0.12, 0.655, 0.44, 0.88)')):
         placed = subprocess.run([program, '--ideal', '4', '--zoom', '0', '--figure', 'placed.C']
                                 + args + ['high=high.txt', 'low=low.txt'],
                                 capture_output=True, text=True, check=False)
@@ -154,11 +156,14 @@ def check_figure(program, workdir):
     print('figure and means as expected')
 
 
-def run_script(program, workdir, consumer, rows, reference_delays):
-    """Runs runWithClients.sh with two clients and returns its exit code."""
-    return subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                           consumer, '2', '4', '2', rows, reference_delays, '1'],
-                          check=False, timeout=240).returncode
+def run_script(program, workdir, consumer, rows, reference_delays, env=None):
+    """Runs runWithClients.sh with two clients and returns its exit code and its output."""
+    run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                          consumer, '2', '4', '2', rows, reference_delays, '1'],
+                         env=dict(os.environ, **(env or {})), capture_output=True, text=True,
+                         check=False, timeout=240)
+    sys.stdout.write(run.stdout)
+    return run.returncode, run.stdout
 
 
 def check_run(program, workdir, consumer, reference_dir):
@@ -169,9 +174,24 @@ def check_run(program, workdir, consumer, reference_dir):
             os.remove(os.path.join(workdir, name))
     if reference_dir:
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
-    status = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)')
+    # A websocket server's first port is held by another process: the script must try another one
+    holder = None
+    env = None
+    if consumer != 'mpi':
+        holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        holder.bind(('0.0.0.0', 0))
+        holder.listen(1)
+        env = {'SERVER_PORT': str(holder.getsockname()[1])}
+    try:
+        status, out = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)',
+                                 env)
+    finally:
+        if holder is not None:
+            holder.close()
     if status != 0:
         fail(f'runWithClients.sh exited with {status}; see {workdir}/server.log')
+    if holder is not None and 'is taken; the server is started on another one' not in out:
+        fail('the script did not move to another port when the first one was taken')
     if reference_dir and os.path.exists(os.path.join(workdir, 'reference.log')):
         fail('the shared reference was measured again')
     rows = [l.split() for l in open(os.path.join(workdir, 'shortDelayResults.txt'),
@@ -179,10 +199,7 @@ def check_run(program, workdir, consumer, reference_dir):
     if len(rows) != 1 or float(rows[0][0]) != 0.01 or not float(rows[0][5]) > 0.:
         fail(f'unexpected table {rows}')
     log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
-    if consumer == 'mpi':
-        if 'cannot tell how many clients are connected' not in log:
-            fail('the MPI server did not say that it cannot wait for its clients')
-    elif 'Waiting for clients: 2 of 2 clients connected after' not in log:
+    if 'Waiting for clients: 2 of 2 clients connected after' not in log:
         fail('the server did not wait for its two clients')
     if reference_dir:
         line = open(os.path.join(reference_dir, 'referenceLine.txt'), encoding='utf-8').read()
@@ -236,7 +253,7 @@ def check_refusal(program, workdir):
     for name in ('referenceLine.txt', 'reference.log'):
         if os.path.exists(os.path.join(workdir, name)):
             os.remove(os.path.join(workdir, name))
-    status = run_script(program, workdir, 'beast', '(0,10)', '(0,10), (0,20)')
+    status, _ = run_script(program, workdir, 'beast', '(0,10)', '(0,10), (0,20)')
     log = open(os.path.join(workdir, 'reference.log'), encoding='utf-8').read()
     if status == 0 or 'it needs at least 3' not in log:
         fail(f'a reference of two measurements was not refused (exit {status}): {log[-300:]}')

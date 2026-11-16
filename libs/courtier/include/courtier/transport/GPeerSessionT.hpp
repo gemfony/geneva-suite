@@ -36,6 +36,7 @@
 #include <cstddef>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,6 +50,8 @@
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
@@ -211,6 +214,7 @@ public:
     void start(const std::shared_ptr<GPeerI> &peer) {
         auto self = this->shared_from_this();
         peer_ = peer;
+        max_message_bytes_ = peer->maxMessageBytes();
         peer->start(
             GPeerHandlers{
                 .onOpen = {},
@@ -534,11 +538,22 @@ private:
                 return std::move(result.item);
             });
             try {
-                return Gem::Courtier::wireEncode(
+                std::string bytes = Gem::Courtier::wireEncode(
                     command_container_,
                     wire_ctx_.enabled ? &wire_ctx_ : nullptr,
                     serialization_mode_
                 );
+                // An item the transport cannot carry fails here, and only it: handed to the peer,
+                // it would end the connection, and the next client would meet it again.
+                if(bytes.size() > max_message_bytes_) {
+                    throw geneva_exception(
+                        g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+                        << "the message of " << bytes.size()
+                        << " bytes is longer than the transport can carry (" << max_message_bytes_
+                        << " bytes)" << '\n'
+                    );
+                }
+                return bytes;
             }
             catch(...) {
                 this->itemFailed_(id, std::current_exception());
@@ -626,6 +641,8 @@ private:
     /// (blob send-once). wire_registry_ is null when the feature is disabled.
     Gem::Courtier::GWireBlobRegistry *wire_registry_ = nullptr;
     Gem::Courtier::GWirePeerId peer_id_ = 0;
+    /// The longest message the peer's transport carries (GPeerI::maxMessageBytes()); set by start()
+    std::size_t max_message_bytes_ = std::numeric_limits<std::size_t>::max();
     Gem::Courtier::GWireSerializationContext wire_ctx_;
 
     //-------------------------------------------------------------------------

@@ -32,8 +32,25 @@ endif()
 #    when present, both no-ops when unsupported), the generated terminal-agnostic body,
 #    then a print of a known PNG.
 file(READ "${WORKDIR}/result.m" _script)
+#    After the print the probe checks every legend against what the gnuplot toolkit can key: it
+#    keys line objects only, so every text of a legend must name a line object of its axes (a
+#    sample drawn as a patch was silently dropped from the key).
+set(_legend_probe [=[
+lines_ = findobj(gcf, 'Type', 'line');
+shown_ = get(lines_, 'displayname');
+if ischar(shown_), shown_ = {shown_}; end
+for leg_ = findobj(gcf, 'Tag', 'legend')'
+   names_ = get(leg_, 'string');
+   if ischar(names_), names_ = {names_}; end
+   keyed_ = 0;
+   for k_ = 1:numel(names_)
+      if any(strcmp(shown_, names_{k_})), keyed_ = keyed_ + 1; end
+   end
+   printf('GPD-OCT-LEGEND %d %d\n', numel(names_), keyed_);
+end
+]=])
 file(WRITE "${WORKDIR}/gpd_oct_validate.m"
-	"set(0, 'defaultfigurevisible', 'off');\ntry; graphics_toolkit('gnuplot'); catch; end;\n${_script}\nprint('-dpng', 'gpd_oct.png');\n")
+	"set(0, 'defaultfigurevisible', 'off');\ntry; graphics_toolkit('gnuplot'); catch; end;\n${_script}\nprint('-dpng', 'gpd_oct.png');\n${_legend_probe}")
 file(REMOVE "${WORKDIR}/gpd_oct.png")
 
 # 3. Run it through octave headless (no window system needed).
@@ -76,6 +93,18 @@ if(NOT EXISTS "${WORKDIR}/gpd_oct.png")
 		"stdout:\n${_out}\nstderr:\n${_err}")
 endif()
 file(SIZE "${WORKDIR}/gpd_oct.png" _sz)
+# 6. Every text of every legend names a line object, which the gnuplot toolkit keys.
+string(REGEX MATCHALL "GPD-OCT-LEGEND [0-9]+ [0-9]+" _legends "${_out}")
+if(NOT _legends)
+	message(FATAL_ERROR "octave reported no legend, but the generated script has pads with one.\nstdout:\n${_out}")
+endif()
+foreach(_legend IN LISTS _legends)
+	string(REGEX REPLACE "GPD-OCT-LEGEND ([0-9]+) ([0-9]+)" "\\1" _names "${_legend}")
+	string(REGEX REPLACE "GPD-OCT-LEGEND ([0-9]+) ([0-9]+)" "\\2" _keyed "${_legend}")
+	if(NOT _names EQUAL _keyed)
+		message(FATAL_ERROR "A legend names ${_names} series but only ${_keyed} line objects carry them; the others never reach the gnuplot toolkit's key.\nstdout:\n${_out}")
+	endif()
+endforeach()
 if(_sz LESS 1000)
 	message(FATAL_ERROR "octave produced a suspiciously small PNG (${_sz} bytes); the script likely did not render.")
 endif()

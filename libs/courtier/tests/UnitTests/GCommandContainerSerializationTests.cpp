@@ -105,7 +105,7 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 
         // --- payload-free control frames -------------------------------------------------------
-        for(const auto kind : {GFrameKind::PULL, GFrameKind::NO_WORK, GFrameKind::SHUTDOWN}) {
+        for(const auto kind : {GFrameKind::PULL, GFrameKind::NO_WORK, GFrameKind::UNREADABLE}) {
             test_container_type sent{kind};
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
@@ -201,6 +201,11 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
 
         test_container_type got{GFrameKind::NONE};
         CHECK_THROWS(container_from_string(message, got, mode));
+
+        // A value below the highest kind that GFrameKind does not have is no frame either
+        test_container_type unused{GFrameKind::PULL};
+        unused.setKind(static_cast<GFrameKind>(5));
+        CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
 
         // The highest kind there is still decodes.
         const test_container_type last{GFrameKind::UNREADABLE};

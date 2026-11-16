@@ -227,6 +227,8 @@ TEST_CASE("The defaults of the poll's timing are the constants and an unusable t
     CHECK(timing.pauseMax == Gem::Courtier::GMPIPEERPOLLPAUSEMAX);
     CHECK(timing.rounds == Gem::Courtier::GMPIPEERPOLLROUNDS);
     CHECK(timing.drainGrace == Gem::Courtier::GMPIPEERDRAINGRACE);
+    CHECK(timing.pauseBusy == Gem::Courtier::GMPIPEERPOLLPAUSEBUSY);
+    CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEBUSY == 50ms);
     CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEMIN == 50us);
     CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEMAX == 1ms);
     CHECK(Gem::Courtier::GMPIPEERPOLLROUNDS == 16);
@@ -256,6 +258,13 @@ TEST_CASE("The defaults of the poll's timing are the constants and an unusable t
             GMPIPollTiming{.rounds = 0}
         )
     );
+    CHECK_THROWS(
+        std::make_shared<GMPIPollCore>(
+            world->calls(0),
+            threads.executor(),
+            GMPIPollTiming{.pauseMax = 2ms, .pauseBusy = 1ms}
+        )
+    );
 }
 
 /******************************************************************************/
@@ -271,7 +280,7 @@ TEST_CASE("Receivers are added before the start and one per rank of the communic
     CHECK_THROWS(core->addReceiver(1, std::make_shared<Receiver>(threads.executor())));
     core->start();
     CHECK_THROWS(core->addReceiver(2, std::make_shared<Receiver>(threads.executor())));
-    CHECK_THROWS(core->startSend(3, Gem::Courtier::TAG_SEND_WORK_ITEM, "x"));
+    CHECK_THROWS(core->startSend(3, Gem::Courtier::TAG_PEER_MESSAGE, "x"));
 
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
@@ -322,7 +331,7 @@ TEST_CASE("A send during the longest pause is followed by a look within a bound"
     auto core = std::make_shared<GMPIPollCore>(
         world->calls(1),
         threads.executor(),
-        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s}
+        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s, .pauseBusy = 30s}
     );
     core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
     core->start();
@@ -738,4 +747,137 @@ TEST_CASE("A poll whose owner did not call shutdown() gives up its sends when it
     CHECK(world->sendsUnderWay() == 0);
     CHECK(world->counts(0).givenUp == 1);
     CHECK(one->discards() == 1);
+}
+
+/******************************************************************************/
+TEST_CASE("While every receiver's owner is busy the poll looks far less often") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
+    core->start();
+    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
+
+    // The looks of 500 ms, after the pause has grown to its bound
+    const auto looks = [&] {
+        std::this_thread::sleep_for(200ms);
+        const auto before = world->counts(1).probes;
+        std::this_thread::sleep_for(500ms);
+        return world->counts(1).probes - before;
+    };
+    const auto idle = looks();
+    core->receiverBusy(true);
+    const auto busy = looks();
+    core->receiverBusy(false);
+    const auto idle_again = looks();
+    INFO("looks in 500 ms: idle " << idle << ", busy " << busy << ", idle again " << idle_again);
+    CHECK(busy * 10 <= idle);
+    CHECK(busy * 10 <= idle_again);
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("A send while every owner is busy and the end of a busy spell are followed by a look") {
+    // Every pause is 30 s: a look that comes sooner comes from a kick.
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(
+        world->calls(1),
+        threads.executor(),
+        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s, .pauseBusy = 30s}
+    );
+    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
+    core->receiverBusy(true);
+    core->start();
+    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
+    std::this_thread::sleep_for(100ms); // the chain sleeps now
+    const auto asleep = world->counts(1).probes;
+
+    core->startSend(0, 50, "a result");
+    CHECK(eventually([&] { return world->counts(1).probes > asleep; }, 5s));
+
+    std::this_thread::sleep_for(100ms); // asleep once more
+    const auto asleep_again = world->counts(1).probes;
+    core->receiverBusy(false);
+    CHECK(eventually([&] { return world->counts(1).probes > asleep_again; }, 5s));
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("The sends under way are looked at once per link and not once per message received") {
+    // A send that never completes stays under way; then many messages arrive at once.
+    constexpr int N_MESSAGES = 160;
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    world->swallow(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    auto receiver = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(0, receiver);
+    core->addReceiver(2, std::make_shared<Receiver>(threads.executor()));
+    core->startSend(2, 50, "never received");
+    for(int i = 0; i < N_MESSAGES; ++i) {
+        world->inject(0, 1, 50, std::to_string(i));
+    }
+    core->start();
+    REQUIRE(eventually([&] { return receiver->count() == N_MESSAGES; }, 10s));
+
+    const auto counts = world->counts(1);
+    const auto polls = core->counts().polls;
+    INFO("links " << polls << ", looks at the sends " << counts.testSomes);
+    CHECK(counts.testSomes <= polls);
+    CHECK(polls < static_cast<std::uint64_t>(N_MESSAGES)); // more than one message per link
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("A send under way keeps the pause short while every owner is busy") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    world->swallow(0); // what is sent to rank 0 stays under way
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
+    core->receiverBusy(true);
+    core->start();
+    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
+
+    const auto looks = [&] {
+        std::this_thread::sleep_for(200ms);
+        const auto before = world->counts(1).probes;
+        std::this_thread::sleep_for(500ms);
+        return world->counts(1).probes - before;
+    };
+    const auto busy = looks();
+    core->startSend(0, 50, "a large result, say");
+    const auto busy_sending = looks();
+    INFO("looks in 500 ms: busy " << busy << ", busy with a send under way " << busy_sending);
+    CHECK(busy * 10 <= busy_sending);
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("The poll counts the time it spends in receives") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    world->delayReceives(5ms);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    auto receiver = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(0, receiver);
+    for(int i = 0; i < 3; ++i) {
+        world->inject(0, 1, 50, std::to_string(i));
+    }
+    core->start();
+    REQUIRE(eventually([&] { return receiver->count() == 3; }, 5s));
+    const auto counts = core->counts();
+    CHECK(counts.receiving >= 15ms);
+    CHECK(counts.longestReceive >= 5ms);
+    CHECK(counts.longestReceive <= counts.receiving);
+    std::ignore = finish(core, {&threads});
 }

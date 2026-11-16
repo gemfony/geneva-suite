@@ -167,11 +167,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
-  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result / shutdown /
+  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result /
   blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on, and
-  nothing else. What a message *means* is Geneva's: a numeric tag (`geneva_command`:
-  `evaluate` / `evaluation` / `evaluated_and_modified` / `terminate`) and a per-command
-  payload, both relayed by courtier without interpretation. A library plugs its own answers
+  nothing else. The end of a run is said by the transport's close, not by a frame: the `shutdown`
+  frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What a message
+  *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
+  `evaluated_and_modified`) and a per-command payload, both relayed by courtier without
+  interpretation. A library plugs its own answers
   in by specializing `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no
   Geneva code and knows no Geneva vocabulary.
 - **A processed item returns its RESULTS, not a hollowed-out copy of itself.** The ordinary
@@ -192,10 +194,51 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   soon as there is one, and idle clients cause no traffic beyond the keep-alive. Measured with
   400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
   fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `mpi`
-  workers still ask again after a random pause of 50 to 200 ms
-  (`GCLIENTNOWORKPAUSE{LOWER,UPPER}BOUNDARYMSEC`), which adds up to about that much to an
-  iteration; for evaluations of less than a few seconds the websocket consumer is the better
-  choice.
+  clients now do the same (next item).
+- **The MPI consumer works as the websocket consumer does.** Its client waits at the submitter when
+  there is no work (the pause of 50 to 200 ms after NO_WORK, and the cost it added to every
+  iteration, are gone) and fetches the next item while it evaluates the current one, with at most
+  one request unanswered. A client opens when the submitter's consumer has started: the consumer
+  greets every client rank, and `--mpi_firstContactLimit` (seconds, default 0: as long as it runs)
+  bounds the wait for it. A submitter without a client rank (a program started as one process, with
+  or without the launcher) refuses to start, says how the program is started, and ends with a
+  non-zero code; it used to wait for ever. A client honours its time and item limits and a close
+  request, which had no effect on an MPI client before: it sends the results of the evaluations that
+  run and leaves; the submitter goes on with the others and hands out again what it held. At the end
+  of a run every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and
+  a second); a send that is still under way when the work ends (a large item for a rank that has
+  left, say) is waited for up to 2 s more (`GMPIPEERDRAINGRACE`) and then given up. A result a
+  client can no longer deliver is saved (`--mpi_undeliveredDir`). The consumer answers
+  `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
+  `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket: an MPI
+  client has at most one request unanswered, so an idle client never has two items asked for while
+  others wait, as a websocket client at depth 2 would. The submitter serves waiting requests oldest
+  first and does not ask whether their client is evaluating. While items are pending no request
+  waits, and one sent ahead takes an item nobody waits for; but when fewer items become available
+  than requests wait (between iterations, or when items are put back), or a new request comes while
+  waiting ones are being woken, a request sent during an evaluation can take an item while an idle
+  client waits for the next one. A submitter whose consumer is destroyed without having been started
+  tells its clients that the run has ended, and they end at once; so does a submitter whose side of
+  a client fails (a failed MPI poll, a session that cannot be made, the end of its work before a
+  close went out): no client is left waiting for a submitter that has gone. There is no keep-alive
+  and no limit on a client's wait once it has been greeted: a client whose submitter hangs, or whose
+  submitter ends without starting its consumer and without telling it (a program that exits before
+  it builds its consumer), waits until the job is ended. Before 1.99, a worker ended after 120 s
+  without word from its master. A message is limited to INT_MAX bytes (about 2 GiB): an item that
+  would be longer fails where it is handed out, a result that would be longer comes back flagged;
+  the connection, and the run, go on. While every evaluation slot of a client is taken, its poll
+  looks for messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1
+  ms); what it sends goes out at once, so this costs no time per item, and a stop that reaches a
+  client during an evaluation may take that much longer. Options: `--mpi_asyncReq` is removed --
+  `true` is now `--mpi_prefetchDepth 2` (the default), `false` is `--mpi_prefetchDepth 1`;
+  `--mpi_parallelEvaluations` (default 1) says how many of the items held are evaluated at once;
+  `--mpi_nHandlerThreads` is the number of threads the submitter's sessions run on, default 2 (it
+  was one per hardware thread; 0 still means that), and one more thread polls MPI for every client;
+  `--mpi_cleanSessInterval` is removed. In `MPIConsumerConfig`, `useAsyncReq`,
+  `masterCleanSessIntervalMSec` and `nHandlerThreadsRecommendation()` are replaced by
+  `clientPrefetchDepth`, `clientParallelEvaluations`, `clientFirstContactLimit` and
+  `clientUndeliveredDir`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a
+  `std::shared_ptr`.
 - **One keep-alive for both ends of a websocket connection.** `--beast_pingInterval` (default
   15 s) applies to the server and to the client: after that much silence a ping is sent, and after
   twice as much without any inbound data the connection is closed. The same limit bounds the
@@ -264,7 +307,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
   does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
-  A websocket client that cannot read an item tells the server (`unreadable`), which puts back what
+  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts back what
   the client held and sends it its blobs anew; the client stays. A result that
   cannot be applied to its item marks the item as failed, and so does an item that the server
   cannot encode for a client, or whose result the client cannot encode or return (the client
@@ -466,6 +509,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   own API uses are still imported per-name; a consumer that relied on the blanket
   re-export for its *own* unqualified use of common names must now qualify or import
   them itself.
+- **dietrich: one description of how a series is drawn and what its legend shows.**
+  `GBasePlotter` has `drawStyle()` (virtual; by default resolved from `plotSpec()`),
+  `legendEntries()` (the legend of a pad, in every backend) and `rootLegendObject_()`
+  (virtual; by default the ROOT legend gives the series a sample object of its own). A plotter
+  of one's own overrides `drawStyle()` where it draws otherwise. The matplotlib, Octave and
+  gnuplot writers and the external renderer now draw a series as that description says, as
+  ROOT does: a 2-d scatter plot as markers alone, an error-bar curve with its line, a 3-d
+  curve as a line through markers.
 - **A process-wide thread budget now accounts every pool** (`GThreadBudget` in
   `common/concurrency/`). The budget does accounting only — every reservation is granted in
   full; its single behavioral effect is a warning (at most three per process) when the

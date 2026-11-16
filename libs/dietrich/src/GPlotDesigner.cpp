@@ -125,6 +125,7 @@ GBasePlotter::GBasePlotter(const GBasePlotter &cp)
   , ds_marker_(cp.ds_marker_)
   , pad_title_(cp.pad_title_)
   , legend_position_(cp.legend_position_)
+  , legend_room_(cp.legend_room_)
   , line_width_(cp.line_width_)
   , id_(cp.id_) {
     // Note: Explicit scope needed for name resolution of clone -- compare
@@ -159,6 +160,7 @@ GBasePlotter &GBasePlotter::operator=(GBasePlotter const &cp) {
     ds_marker_ = cp.ds_marker_;
     pad_title_ = cp.pad_title_;
     legend_position_ = cp.legend_position_;
+    legend_room_ = cp.legend_room_;
     line_width_ = cp.line_width_;
     id_ = cp.id_;
 
@@ -338,6 +340,75 @@ legendPosition GBasePlotter::getLegendPosition() const {
 }
 
 /**
+ * Where the legend of this pad lies, as the backends place it: FREEST is resolved from the data of
+ * the pad's series -- those drawn with a line as curves, the others as points, each by its x and y
+ * values -- into the corner that covers the fewest of them; on a 3-d pad it is AUTO.
+ *
+ * @return The legend position, never FREEST
+ */
+legendPosition GBasePlotter::legendPlace() const {
+    if(legend_position_ != legendPosition::FREEST) {
+        return legend_position_;
+    }
+    if(isThreeDimensional(this->plotSpec())) {
+        return legendPosition::AUTO;
+    }
+    std::vector<std::vector<std::pair<double, double>>> curves;
+    std::vector<std::vector<std::pair<double, double>>> points;
+    const auto value = [](const GPlotColumn &c, std::size_t i) {
+        return std::visit([i](const auto *v) { return static_cast<double>((*v)[i]); }, c);
+    };
+    const auto add = [&](const GBasePlotter &p) {
+        const auto cols = p.dataColumns();
+        if(cols.size() < 2) {
+            return; // nothing to place (a 1-d histogram, a function)
+        }
+        // x and y: a graph with errors stores (x, ex, y, ey)
+        const std::size_t y_col = p.plotSpec().kind == plotKind::graph_2d_err ? 2 : 1;
+        const std::size_t n = std::visit([](const auto *v) { return v->size(); }, cols[0]);
+        std::vector<std::pair<double, double>> series;
+        for(std::size_t i = 0; i < n; ++i) {
+            series.emplace_back(value(cols[0], i), value(cols[y_col], i));
+        }
+        (p.drawStyle().line ? curves : points).push_back(std::move(series));
+    };
+    add(*this);
+    for(const auto &sp : secondary_plotter_) {
+        add(*sp);
+    }
+    // The width the legend's box will take: a label too long for the box at the smallest text size
+    // widens it (see setLegendPosition()). Estimated from the longest label, at an average width of
+    // a character of 0.55 of the text's height and a pad four parts wide to three high, plus the
+    // samples; a little more than ROOT measures, so that the estimate errs to the free side.
+    const auto entries = legendEntries();
+    std::size_t longest = 0;
+    for(const auto &e : entries) {
+        longest = std::max(longest, e.label.size());
+    }
+    const double width = (static_cast<double>(longest) * 0.55 * LEGENDMINTEXTSIZE * 0.75 / 0.95) + 0.08;
+    return freestLegendCorner(
+        curves, points, std::max<std::size_t>(1, entries.size()), x_axis_logarithmic_, y_axis_logarithmic_, width
+    );
+}
+
+/**
+ * Makes room for the legend of this pad: the frame leaves it a band of its own below or above the
+ * data (see the declaration).
+ *
+ * @param legend_room true: leave the legend a band of its own
+ */
+void GBasePlotter::setLegendRoom(bool legend_room) {
+    legend_room_ = legend_room;
+}
+
+/**
+ * @return Whether the frame of this plotter's pad leaves the legend a band of its own
+ */
+bool GBasePlotter::legendRoom() const {
+    return legend_room_;
+}
+
+/**
  * Sets the width of the line this plotter draws (2-d graphs); its legend sample follows it.
  *
  * @param line_width The width in the backend's units (0: the backend's default)
@@ -377,6 +448,9 @@ GPlotSpec GBasePlotter::plotSpec() const {
     }
     if(line_width_ > 0) {
         spec.line_width = line_width_;
+    }
+    if(legend_room_) {
+        spec.legend_room = true;
     }
     return spec;
 }
@@ -497,15 +571,25 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     p->setXAxisLogarithmic(spec.x_log);
     p->setYAxisLogarithmic(spec.y_log);
     p->setDrawingArguments(spec.drawing_args);
+    // A 2-d histogram's spec reports its set2DOpt() choice as its drawing arguments; it is the
+    // choice again, not arguments of its own, so that an overlay keeps adding ",same".
+    if(auto *h2 = dynamic_cast<GHistogram2D *>(p.get())) {
+        if(const auto option = GHistogram2D::drawingOptionNamed(spec.drawing_args)) {
+            h2->setDrawingArguments("");
+            h2->set2DOpt(*option);
+        }
+    }
     p->setPadTitle(spec.pad_title);
     p->setLegendPosition(spec.legend.value_or(legendPosition::AUTO));
     p->setLineWidth(spec.line_width.value_or(0));
+    p->setLegendRoom(spec.legend_room.value_or(false));
 
     // The plot mode (scatter vs. curve) is a GGraph2D / GGraph2ED render choice; apply it
     // when the spec carries one and the built plotter supports it.
     if(spec.plot_mode.has_value()) {
         if(auto *g2d = dynamic_cast<GGraph2D *>(p.get())) {
             g2d->setPlotMode(*spec.plot_mode);
+            g2d->setDrawArrows(spec.arrows.value_or(false));
         }
         else if(auto *g2ed = dynamic_cast<GGraph2ED *>(p.get())) {
             g2ed->setPlotMode(*spec.plot_mode);
@@ -657,6 +741,61 @@ const std::vector<std::shared_ptr<GBasePlotter>> &GBasePlotter::secondaryPlotter
 
 /******************************************************************************/
 /**
+ * The legend of this (primary) plotter's pad, in the one form every backend draws it (ROOT,
+ * matplotlib, Octave, gnuplot, and the data export for an external renderer). A legend
+ * names series, so it lists the series of the pad that carry a label, the primary first and then
+ * the secondary plotters in their order; a label of white space only names nothing. Each entry's
+ * sample shows how its series is drawn (legendSampleOf()). A pad with a single series shows its
+ * label as the pad's title and gets no legend, and so does a pad none of whose series is labelled
+ * -- in 2-d and 3-d alike.
+ *
+ * @return The entries; empty: the pad has no legend
+ */
+std::vector<GLegendEntry> GBasePlotter::legendEntries() const {
+    std::vector<GLegendEntry> entries;
+    if(secondary_plotter_.empty()) {
+        return entries;
+    }
+    const auto add = [&entries](GBasePlotter const &p, std::size_t series) {
+        if(isLegendLabel(p.plot_label_)) {
+            const GDrawStyle style = p.drawStyle();
+            entries.push_back({series, p.plot_label_, legendSampleOf(style), style.line_width});
+        }
+    };
+    add(*this, 0);
+    for(const auto &[pos, sp] : secondary_plotter_ | std::views::enumerate) {
+        add(*sp, static_cast<std::size_t>(pos) + 1);
+    }
+    return entries;
+}
+
+/******************************************************************************/
+/**
+ * How this plotter's series is drawn, resolved from its plot spec (drawStyleOf()).
+ *
+ * @return How the series is drawn
+ */
+GDrawStyle GBasePlotter::drawStyle() const {
+    return drawStyleOf(this->plotSpec());
+}
+
+/******************************************************************************/
+/**
+ * The base names no object: the legend gives the series a sample object of its own, made from
+ * drawStyle().
+ *
+ * @return An empty name
+ */
+std::string GBasePlotter::rootLegendObject_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id
+) const {
+    return {};
+}
+
+/******************************************************************************/
+/**
  * Sets the id of the object
  *
  * @param id The id to be assigned to this object
@@ -753,15 +892,29 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
         pos++;
     }
 
-    // Several plotters share this pad: give them one frame and a legend.
+    // Several plotters share this pad: give them one frame, and the legend the description lists,
+    // each sample drawn from its series' object.
+    const auto entries = legendEntries();
     if(not secondary_plotter_.empty()) {
+        std::vector<rootLegendEntry> root_entries;
+        for(const auto &e : entries) {
+            const std::string object = e.series == 0
+                ? this->rootLegendObject_(false, 0, this->id())
+                : secondary_plotter_[e.series - 1]->rootLegendObject_(true, this->id(), e.series - 1);
+            root_entries.push_back({object, e.label, e.sample, e.series, e.line_width});
+        }
         emitRootOverlayFrameAndLegend(
-            footer_data,
-            indent,
-            legend_position_,
-            1 + secondary_plotter_.size()
+            footer_data, indent, legendPlace(), root_entries, isThreeDimensional(this->plotSpec()), legend_room_
         );
     }
+    // Whether the frame leaves the legend a band of its own, for the same reader.
+    footer_data << indent << "// legend room: " << (legend_room_ ? 1 : 0) << '\n';
+    // The number of rows ROOT draws of the description (the band of a 3-d pad shows at most
+    // LEGEND3DMAXROWS), for a reader of the script that checks what ROOT drew (the validity test
+    // of the plotting library).
+    const bool band = legendPlace() == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
+    footer_data << indent << "// legend entries: "
+                << (band ? std::min(entries.size(), LEGEND3DMAXROWS) : entries.size()) << '\n';
     // A pad title set apart from the first series' label replaces that label as the title, once
     // the legend has taken the label.
     if(not pad_title_.empty()) {

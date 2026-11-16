@@ -72,11 +72,13 @@
 #            (--waitForClients; default: the number of clients started). The
 #            measurement's clock starts when they are all connected, not when the
 #            server starts. A consumer that cannot tell how many clients it has
-#            (the MPI one) is not waited for; its log says so.
+#            is not waited for; its log says so.
 #   CLIENT_WAIT_LIMIT  seconds the server waits for them (--clientWaitLimit,
 #            default 600); with fewer clients by then the server ends with an error
 #   LAST_CLIENT_DELAY  seconds the last networked client is started after the
 #            server has begun to wait for its clients (default 0: with the others)
+#   SERVER_PORT  the port the websocket server tries first (default: one drawn at random from
+#            15000 to 16999); a port another process holds is replaced by another one
 #   TIMEOUT_TREATMENT  the networked consumer's timeout treatment (the key
 #            "treatment" of config/GNetworkedConsumer.json: adaptive, fixed or
 #            wait_indefinitely; unset: the configuration's). A check that every
@@ -151,10 +153,20 @@ if [ "$C" = mpi ]; then
         > server.log 2>&1
     STATUS=$?
 else
-    PORT=$((15000 + RANDOM % 2000))
-    "$X" -c "$C" "--${C}_port" $PORT "${GATE[@]}" "$@" > server.log 2>&1 &
-    SRV=$!
-    sleep 2
+    # The port is drawn at random; another process on the host may hold it. A server that could
+    # not bind it is started again on another one (SERVER_PORT: the first port to try).
+    PORT=${SERVER_PORT:-$((15000 + RANDOM % 2000))}
+    for _ in $(seq 1 10); do
+        "$X" -c "$C" "--${C}_port" $PORT "${GATE[@]}" "$@" > server.log 2>&1 &
+        SRV=$!
+        sleep 2
+        if kill -0 "$SRV" 2>/dev/null || ! grep -q 'could not bind to port' server.log; then
+            break
+        fi
+        wait "$SRV" 2>/dev/null
+        echo "port $PORT is taken; the server is started on another one"
+        PORT=$((15000 + RANDOM % 2000))
+    done
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
     LAUNCH=(); GROUPOPT=()
     if [ "$GROUP" -gt 1 ]; then

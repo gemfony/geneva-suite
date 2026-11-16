@@ -84,6 +84,9 @@ struct GInProcessFaults {
     bool acknowledgeClose = true;
     /// true: start() fails; onClosed (FAILED) is reported, onOpen never
     bool failStart = false;
+    /// The longest message this end carries (maxMessageBytes()); a longer one handed to send()
+    /// ends the connection as FAILED, as with the MPI transport
+    std::size_t maxMessageBytes = std::numeric_limits<std::size_t>::max();
 };
 
 /******************************************************************************/
@@ -263,7 +266,28 @@ public:
            link_->severed.load()) {
             return;
         }
+        if(message->size() > faults_.maxMessageBytes) {
+            // As a transport with a limit does: the connection fails, reported on the strand
+            boost::asio::post(strand_, [self = this->shared_from_this(), size = message->size()] {
+                if(self->state_ == state::OPEN) {
+                    self->close_requested_.store(true);
+                    self->transmit_(wire::CLOSE, encode_(GPeerClose::ERROR));
+                    self->finish_(
+                        GPeerEnd::FAILED,
+                        GPeerClose::NORMAL,
+                        "a message of " + std::to_string(size) + " bytes, above the limit of " +
+                            std::to_string(self->faults_.maxMessageBytes)
+                    );
+                }
+            });
+            return;
+        }
         this->transmit_(wire::MESSAGE, std::string(*message));
+    }
+
+    /** @brief @return The longest message this end carries (GInProcessFaults::maxMessageBytes) */
+    [[nodiscard]] std::size_t maxMessageBytes() const override {
+        return faults_.maxMessageBytes;
     }
 
     /** @brief Closes after what was handed to send() before. Any thread; idempotent.
@@ -301,6 +325,9 @@ public:
     /** @brief Records what the owner said, for the test to read. @param busy Whether it is busy */
     void setOwnerBusy(bool busy) override {
         owner_busy_.store(busy);
+        if(busy) {
+            n_told_busy_.fetch_add(1);
+        }
     }
 
     /***************************************************************************/
@@ -309,6 +336,10 @@ public:
     /** @brief @return What the owner said last through setOwnerBusy() */
     [[nodiscard]] bool ownerBusy() const {
         return owner_busy_.load();
+    }
+    /** @brief @return How often the owner said that it is busy */
+    [[nodiscard]] std::size_t nToldBusy() const {
+        return n_told_busy_.load();
     }
     /** @brief @return How many messages have been delivered to the role */
     [[nodiscard]] std::size_t nDelivered() const {
@@ -545,6 +576,7 @@ private:
     GPeerEnd aborted_end_ = GPeerEnd::CLOSED_HERE;
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
     std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
+    std::atomic<std::size_t> n_told_busy_{0};  ///< For the test: setOwnerBusy(true) calls
     std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role
 };
 
@@ -628,6 +660,11 @@ public:
         return options_.detectsLoss;
     }
 
+    /** @brief Counts the call: this transport has no clients that wait for a server */
+    void announceEndWithoutStart() override {
+        n_announced_.fetch_add(1);
+    }
+
     /***************************************************************************/
     /**
      * @brief Makes a connection for a connector: the server end goes to on_peer (posted to the
@@ -694,6 +731,10 @@ public:
     [[nodiscard]] std::size_t nStops() const {
         return n_stops_.load();
     }
+    /** @brief @return How often announceEndWithoutStart() has been called */
+    [[nodiscard]] std::size_t nAnnounced() const {
+        return n_announced_.load();
+    }
     /** @brief @return How often stop() gave up waiting for the calls of on_peer */
     [[nodiscard]] std::size_t nStopBoundsHit() const {
         return n_stop_bounds_hit_.load();
@@ -713,6 +754,7 @@ private:
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
     std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called
     std::atomic<std::size_t> n_stop_bounds_hit_{0}; ///< How often stop() gave up waiting
+    std::atomic<std::size_t> n_announced_{0}; ///< How often announceEndWithoutStart() was called
     /// The calls of on_peer posted and not returned, by connection id (stop() waits for them)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::GWirePeerId, bool>
         on_peer_calls_;
@@ -751,6 +793,10 @@ public:
     /** @brief Forwards @return What the listener says */
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
+    }
+    /** @brief Forwards */
+    void announceEndWithoutStart() override {
+        listener_->announceEndWithoutStart();
     }
 
 private:

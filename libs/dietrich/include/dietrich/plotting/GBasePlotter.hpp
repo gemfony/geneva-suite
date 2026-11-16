@@ -81,6 +81,7 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
             Gem::Common::make_member("ds_marker_", self.ds_marker_),
             Gem::Common::make_member("pad_title_", self.pad_title_),
             Gem::Common::make_member("legend_position_", self.legend_position_),
+            Gem::Common::make_member("legend_room_", self.legend_room_),
             Gem::Common::make_member("line_width_", self.line_width_),
             Gem::Common::make_cloneable_container_member(
                 "secondary_plotter_",
@@ -185,7 +186,10 @@ public:
     [[nodiscard]] bool yAxisLogarithmic() const;
 
     /**
-     * @brief Allows to assign a label to the entire plot
+     * @brief Allows to assign a label to the entire plot. In a pad with several series the label
+     * names this series in the legend. In ROOT a label longer than the legend's box at the smallest
+     * text size widens the box up to the pad's frame; beyond that it is shortened at its end and
+     * marked with "..." (see setLegendPosition()).
      * @param plot_label The label for the entire plot
      */
     void setPlotLabel(std::string p_l);
@@ -213,9 +217,22 @@ public:
      */
     [[nodiscard]] std::string padTitleOrLabel() const;
     /**
-     * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad holds
-     * several series
-     * @param position A corner, or AUTO (the default: the backend's own choice)
+     * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad has one
+     * (legendEntries()). In ROOT a corner gets the box of legendBox() and a fixed text size
+     * (LEGENDTEXTSIZE); labels too long for the box are drawn smaller, down to LEGENDMINTEXTSIZE,
+     * and where the widest still does not fit, the box grows away from its side of the pad, at
+     * most to the pad's frame (on a 3-d pad: left of the palette); a label longer still is
+     * shortened at its end and marked with "...". AUTO is ROOT's own placement on a 2-d pad
+     * (TPad::PlaceBox(), which looks for room among the drawn objects but does not guarantee to
+     * avoid data: a dense marker plot can lie under it), and the band at the top left on a 3-d
+     * pad (legendBox3D()). FREEST puts a 2-d pad's legend in the corner that covers the fewest of
+     * its data points and line samples (freestLegendCorner()), in every backend -- the freest, not
+     * necessarily a free one, measured for the box before it grows for a long label; on a 3-d
+     * pad it is AUTO. The band of a 3-d pad reaches down to 0.70 of the pad for five entries,
+     * six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of LEGEND3DMAXROWS
+     * rows says how many series are not shown. The other backends name the corner (AUTO on a 2-d
+     * pad: their own placement; matplotlib's avoids data), and on a 3-d pad AUTO is the upper left.
+     * @param position A corner, FREEST, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);
     /**
@@ -223,6 +240,29 @@ public:
      * @return The legend position
      */
     [[nodiscard]] legendPosition getLegendPosition() const;
+    /**
+     * @brief Where the legend of this (primary) plotter's pad lies, as the backends place it: the
+     * position that was set, with FREEST resolved from the pad's data (freestLegendCorner()); on a
+     * 3-d pad FREEST is AUTO.
+     * @return The legend position, never FREEST
+     */
+    [[nodiscard]] legendPosition legendPlace() const;
+    /**
+     * @brief Makes room for the legend of this (primary) plotter's 2-d pad: the frame is extended
+     * below the data (a legend at the lower left or right) or above them (at the top left or
+     * right) by the height of the legend's box, so that the legend lies over no data by
+     * construction, whatever the data are -- for a figure whose data leave no corner free. It
+     * takes effect where the legend lies in a corner (set, or chosen by FREEST; not AUTO or the
+     * middle of the right side), in ROOT; the other backends place the legend in the corner
+     * without the room.
+     * @param legend_room true: leave the legend a band of its own
+     */
+    void setLegendRoom(bool legend_room);
+    /**
+     * @brief Whether the frame of this plotter's pad leaves the legend a band of its own
+     * @return true if it does
+     */
+    [[nodiscard]] bool legendRoom() const;
     /**
      * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
      * follows it
@@ -256,6 +296,26 @@ public:
      * @return A const reference to the list of registered secondary plotters
      */
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
+
+    /**
+     * @brief The legend of this (primary) plotter's pad, as every backend draws it (gnuplot with
+     * the limitation its writer states): which series it
+     * names, in which order, with which text and which sample. A legend names series: a pad that
+     * holds several series lists those that carry a label (a plot label with more than white
+     * space), the primary first, then the secondary plotters in their order; each entry's sample
+     * shows how its series is drawn (legendSampleOf()). A pad with a single series, or with none
+     * labelled, gets no legend at all, whatever its dimension.
+     * @return The entries; empty: the pad has no legend
+     */
+    [[nodiscard]] std::vector<GLegendEntry> legendEntries() const;
+
+    /**
+     * @brief How this plotter's series is drawn, as every backend draws it and as its legend
+     * sample shows it. The default resolves it from plotSpec() (drawStyleOf()); a plotter of its
+     * own that draws otherwise overrides it.
+     * @return How the series is drawn
+     */
+    [[nodiscard]] virtual GDrawStyle drawStyle() const;
 
     /**
      * @brief Allows to retrieve the id of this object
@@ -396,6 +456,19 @@ protected:
     [[nodiscard]] virtual std::string drawingArguments(bool is_secondary) const = 0;
 
     /**
+     * @brief The name of the object in the ROOT script whose look (line, marker, fill) the legend
+     * sample of this plotter's series copies: the graph, histogram or function its footer draws (a
+     * 4-d graph: one of its markers; a 3-d curve: a sample object of its own, never drawn). The
+     * default, an empty name, gives the series a sample object made from drawStyle() in the
+     * pad's colour of the series -- the choice for a plotter of one's own.
+     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
+     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
+     * @param own_id This plotter's own emit index, as footerData_() gets it
+     * @return The name of the object, or empty
+     */
+    [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
+
+    /**
      * @brief Check that a given plotter is compatible with us
      * @param other The other plotter whose compatibility with this one is checked
      * @return true if the other plotter is compatible (by default, has the same plotter name)
@@ -423,6 +496,7 @@ protected:
         plot_label_ += "_m";
         ds_marker_ += "_m";
         pad_title_ += "_m";
+        legend_room_ = not legend_room_;
         line_width_ += 1;
         ++id_;
         return true;
@@ -445,6 +519,7 @@ protected:
     ); ///< A marker to make the origin of data structures clear in the output file
     std::string pad_title_; ///< The title of the pad, apart from the plot label (empty: the label)
     legendPosition legend_position_ = legendPosition::AUTO; ///< Where the pad's legend lies
+    bool legend_room_ = false; ///< Whether the pad's frame leaves the legend a band of its own
     std::uint32_t line_width_ = 0; ///< The width of the drawn line (0: the backend's default)
 
 private:

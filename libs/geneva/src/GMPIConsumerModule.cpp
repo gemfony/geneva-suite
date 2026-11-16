@@ -43,6 +43,7 @@
 
 // Standard headers
 #include <any>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -121,20 +122,24 @@ public:
 
     [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
         c2::Consumers::MPIConsumerConfig config;
-        if(vm.contains("mpi_asyncReq")) {
-            config.useAsyncReq = vm["mpi_asyncReq"].as<bool>();
-        }
-        // 0 == hardware concurrency: leave the struct's recommendation for this machine in place.
-        if(vm.contains("mpi_nHandlerThreads") &&
-           vm["mpi_nHandlerThreads"].as<std::uint32_t>() != 0) {
-            config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
-        }
-        if(vm.contains("mpi_cleanSessInterval")) {
-            config.masterCleanSessIntervalMSec = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
-        }
         if(vm.contains("mpi_serializationMode")) {
             config.serializationMode =
                 vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
+        }
+        if(vm.contains("mpi_nHandlerThreads")) {
+            config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
+        }
+        if(vm.contains("mpi_prefetchDepth")) {
+            config.clientPrefetchDepth = vm["mpi_prefetchDepth"].as<std::size_t>();
+        }
+        if(vm.contains("mpi_parallelEvaluations")) {
+            config.clientParallelEvaluations = vm["mpi_parallelEvaluations"].as<std::size_t>();
+        }
+        if(vm.contains("mpi_firstContactLimit")) {
+            config.clientFirstContactLimit = vm["mpi_firstContactLimit"].as<std::size_t>();
+        }
+        if(vm.contains("mpi_undeliveredDir")) {
+            config.clientUndeliveredDir = vm["mpi_undeliveredDir"].as<std::string>();
         }
         return config;
     }
@@ -151,28 +156,44 @@ public:
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
         // The defaults are those of MPIConsumerConfig, read from a default-constructed one, so
-        // they are stated in one place only. --mpi_nHandlerThreads defaults to 0, "the
-        // recommendation for this machine", which configFromCommandLine() leaves to the struct.
+        // they are stated in one place only.
         const c2::Consumers::MPIConsumerConfig defaults;
         visible.add_options()(
-            "mpi_asyncReq",
-            po::value<bool>()->default_value(defaults.useAsyncReq),
-            "\t[mpi] Whether clients prefetch the next work item"
-        );
-        visible.add_options()(
             "mpi_nHandlerThreads",
-            po::value<std::uint32_t>()->default_value(0),
-            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)"
-        );
-        hidden.add_options()(
-            "mpi_cleanSessInterval",
-            po::value<std::uint32_t>()->default_value(defaults.masterCleanSessIntervalMSec),
-            "\t[mpi] Interval in ms between master session-completion checks"
+            po::value<std::uint32_t>()->default_value(defaults.nHandlerThreads),
+            "\t[mpi] The number of threads the submitter's sessions run on (0 == as many as the "
+            "machine has hardware threads); one more thread polls for every client"
+        )(
+            "mpi_prefetchDepth",
+            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
+            "\t[mpi] n: how many work items a client holds at once -- the one(s) being evaluated "
+            "and the next one, fetched while the current one is evaluated (1: none is fetched "
+            "ahead; how many it evaluates at once: --mpi_parallelEvaluations). 2 by default, unlike "
+            "--beast_prefetchDepth: an MPI client has at most one request unanswered, so an idle "
+            "client never asks for two items. Waiting requests are served oldest first, whether "
+            "their client evaluates or not: when fewer items become available than requests wait "
+            "(between iterations, say), one sent while evaluating may get an item before a newer "
+            "one of an idle client"
         );
         hidden.add_options()(
             "mpi_serializationMode",
             po::value<serializationMode>()->default_value(defaults.serializationMode),
             ("\t[mpi] Serialization in " + Gem::Common::serializationModeChoices()).c_str()
+        )(
+            "mpi_parallelEvaluations",
+            po::value<std::size_t>()->default_value(defaults.clientParallelEvaluations),
+            "\t[mpi] m: how many of the items a client holds (--mpi_prefetchDepth) it evaluates "
+            "at the same time; from 1 to the prefetch depth"
+        )(
+            "mpi_firstContactLimit",
+            po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),
+            "\t[mpi] Seconds a client waits for the submitter's greeting before it gives up "
+            "(0 == for as long as it runs)"
+        )(
+            "mpi_undeliveredDir",
+            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
+            "\t[mpi] Where a client saves a finished result it can no longer deliver (the "
+            "evaluated item, one file each)"
         );
     }
 };

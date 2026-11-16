@@ -406,20 +406,6 @@ protected:
     }
 
     /***************************************************************************/
-    /** @brief Like checkout(), but blocks up to @p wait for a slot to become available before
-     *  giving up and returning null. Keeps a transport from churning "no data" responses during the
-     *  gaps between batches.
-     *  @param wait The maximum time to block waiting for a pending slot
-     *  @return A clone of the next pending item, or nullptr if none became available within @p wait */
-    item_ptr checkoutWait(std::chrono::milliseconds wait) {
-        std::unique_lock<std::mutex> lk(mtx_);
-        if(total_pending_ == 0) {
-            cv_work_.wait_for(lk, wait, [this] { return total_pending_ > 0 || stop_.load(); });
-        }
-        return checkout_locked();
-    }
-
-    /***************************************************************************/
     /** @brief Accepts a returned RETURN frame and writes it into its slot. The frame's (batch_id, slot)
      *  is decoded from the correlation id in its processing outcome. A return whose batch is no
      *  longer active (timed out / finished) takes the late-return path; a return for a slot that
@@ -1056,8 +1042,8 @@ private:
     }
 
     /***************************************************************************/
-    /** @brief Tells those who wait for work that @p n_items have become available: the callers
-     *  blocked in checkoutWait(), and up to @p n_items parked callers. Called WITHOUT mtx_, by
+    /** @brief Tells those who wait for work that @p n_items have become available: up to
+     *  @p n_items parked callers. Called WITHOUT mtx_, by
      *  every place that made work pending (or set the stop flag) under it.
      *
      *  One caller is woken per item, not everyone: with many small batches and many idle
@@ -1072,7 +1058,6 @@ private:
      *
      *  @param n_items How many items became available */
     void announceWork_(std::size_t n_items) noexcept {
-        cv_work_.notify_all();
         for(std::size_t in_list = parked_.size(); in_list > 0 && n_items > 0; --in_list) {
             auto wake = parked_.try_pop();
             if(not wake) {
@@ -1148,7 +1133,6 @@ protected:
 private:
     mutable std::mutex mtx_;
     std::condition_variable cv_done_; ///< Signalled when a batch's last slot reaches DONE
-    std::condition_variable cv_work_; ///< Signalled when a slot becomes available
 
     std::map<batch_key_t, BatchState> batches_; ///< All currently-active batches, keyed by batch_id
     batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 40 bits)

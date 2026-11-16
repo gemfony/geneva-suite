@@ -43,11 +43,13 @@
 #include <array>
 #include <cmath>
 #include <span>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp" // emitRootLegend(), tested directly
 
 #include "Dietrich_tests.hpp" // the local standard-tests driver (mirrors Geneva_tests.hpp)
 
@@ -1191,6 +1193,25 @@ std::shared_ptr<GGraph2D> decadesGraph(bool log_x, bool log_y) {
     return g;
 }
 
+/** @brief Whether everything of a ROOT script is drawn before its (one) legend is built: after
+ *  `new TLegend(` the only drawing is the legend's own. */
+bool drawnBeforeLegend(const std::string &s) {
+    const auto at = s.find("new TLegend(");
+    if(at == std::string::npos) {
+        return false;
+    }
+    const std::string tail = s.substr(at);
+    std::size_t draws = 0;
+    for(auto p = tail.find("Draw("); p != std::string::npos; p = tail.find("Draw(", p + 1)) {
+        ++draws;
+    }
+    std::size_t legend_draws = 0;
+    for(auto p = tail.find("legend->Draw("); p != std::string::npos; p = tail.find("legend->Draw(", p + 1)) {
+        ++legend_draws;
+    }
+    return draws == legend_draws and legend_draws == 1;
+}
+
 /** @brief The script of @p backend for the given plotters, one pad each. */
 std::string scriptFor(plotBackend backend, const std::vector<std::shared_ptr<GGraph2D>> &graphs) {
     GPlotDesigner gpd("axes", 1, graphs.size());
@@ -1325,7 +1346,7 @@ TEST_CASE(
         CHECK(s.contains("->SetLineColor(2);"));
         CHECK(s.contains("->SetLineColor(8);"));
         CHECK(s.contains("->SetMarkerColor(8);"));
-        CHECK(s.contains("gPad->BuildLegend();"));
+        CHECK(s.contains("new TLegend(0.3, 0.21);")); // ROOT's own placement
         CHECK(s.contains("first->SetMinimum("));
         CHECK(s.contains("first->GetXaxis()->SetLimits("));
         // The frame takes in the error bars too, or those of the extreme points are cut off.
@@ -1334,12 +1355,12 @@ TEST_CASE(
         CHECK(s.contains("g->GetErrorXlow(i)"));
         CHECK(s.contains("g->GetErrorXhigh(i)"));
         // The frame and the legend come after the last graph is drawn.
-        CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
+        CHECK(drawnBeforeLegend(s));
     }
 
     SECTION("matplotlib and Octave show the legend their plot calls prepared") {
-        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend()"));
-        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend('show');"));
+        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend(handles=["));
+        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend(s_, {'first', 'second', 'third'});"));
     }
 
     SECTION("a pad with a single graph gets none of this") {
@@ -1348,7 +1369,7 @@ TEST_CASE(
         CHECK_FALSE(root.contains("SetLineColor"));
         CHECK_FALSE(root.contains("BuildLegend"));
         CHECK_FALSE(root.contains("SetMinimum"));
-        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("legend"));
+        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("ax.legend("));
         CHECK_FALSE(scriptFor(plotBackend::OCTAVE, {single}).contains("legend"));
     }
 }
@@ -1388,7 +1409,8 @@ TEST_CASE(
         const std::string s = script(plotBackend::ROOT, true);
         CHECK(s.contains("SetTitle(\"websocket\");"));
         CHECK(s.contains("SetTitle(\"MPI\");"));
-        const auto legend = s.find("gPad->BuildLegend(0.56, 0.13, 0.88, 0.29)->SetTextSize(0.045);");
+        const auto legend = s.find("new TLegend(0.56, 0.13, 0.88, 0.29);");
+        CHECK(s.contains("legend->SetTextSize(0.045);"));
         const auto title = s.find("n->SetTitle(\"Up to 1 s\");");
         REQUIRE(legend != std::string::npos);
         REQUIRE(title != std::string::npos);
@@ -1409,24 +1431,25 @@ TEST_CASE(
         const std::string py = script(plotBackend::MATPLOTLIB, true);
         CHECK(py.contains("ax.set_title(\"Up to 1 s\")"));
         CHECK(py.contains("label=\"websocket\""));
-        CHECK(py.contains("ax.legend(loc=\"lower right\")"));
+        CHECK(py.contains("], loc=\"lower right\")"));
         CHECK(py.contains("linewidth=2"));
         CHECK_FALSE(py.contains("suptitle"));
         const std::string m = script(plotBackend::OCTAVE, true);
         CHECK(m.contains("title('Up to 1 s');"));
-        CHECK(m.contains("'DisplayName', 'websocket', 'LineWidth', 2"));
+        CHECK(m.contains("'-o', 'LineWidth', 2"));
+        CHECK(m.contains("legend(s_, {'websocket', 'MPI'});"));
         CHECK(m.contains("legend('location', 'southeast');"));
     }
 
     SECTION("without the settings every backend emits what it did before") {
         const std::string root = script(plotBackend::ROOT, false);
-        CHECK(root.contains("gPad->BuildLegend();"));
+        CHECK(root.contains("new TLegend(0.3, 0.21);"));
         CHECK(root.contains("TPaveLabel"));
         CHECK_FALSE(root.contains("SetLineWidth"));
         CHECK_FALSE(root.contains("the title of the pad"));
         CHECK(script(plotBackend::GNUPLOT, false).contains("title \"The figure\""));
         CHECK_FALSE(script(plotBackend::GNUPLOT, false).contains("set key"));
-        CHECK(script(plotBackend::MATPLOTLIB, false).contains("ax.legend()\n"));
+        CHECK(script(plotBackend::MATPLOTLIB, false).contains("labels=[\"websocket\", \"MPI\"])\n"));
         CHECK(script(plotBackend::MATPLOTLIB, false).contains("fig.suptitle(\"The figure\")"));
         CHECK_FALSE(script(plotBackend::OCTAVE, false).contains("'location'"));
         CHECK_FALSE(GPlotSpec(plotKind::graph_2d).toJson().contains("pad_title"));
@@ -1443,7 +1466,7 @@ TEST_CASE(
         gpd.setPlotBackend(plotBackend::GNUPLOT);
         CHECK(gpd.plot().contains("set key right center"));
         gpd.setPlotBackend(plotBackend::MATPLOTLIB);
-        CHECK(gpd.plot().contains("ax.legend(loc=\"center right\")"));
+        CHECK(gpd.plot().contains("], loc=\"center right\")"));
         gpd.setPlotBackend(plotBackend::OCTAVE);
         CHECK(gpd.plot().contains("legend('location', 'east');"));
     }
@@ -1475,4 +1498,606 @@ TEST_CASE(
         gpd.setPlotBackend(plotBackend::ROOT);
         CHECK(gpd.plot().contains("n->SetTitle(\"All\");"));
     }
+}
+
+/******************************************************************************/
+// A legend names series. It lists the labelled series of a pad, and a pad none of whose series
+// carries a label gets no legend at all -- in 3-d as in 2-d. In ROOT the legend is built from the
+// series alone: TPad::BuildLegend() made an entry of every object drawn into the pad, so a colour
+// map drawn cell by cell under points filled the legend with thousands of cells and left an
+// unreadable box over the pad.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A legend lists the labelled series of a pad and a pad without any gets none",
+    "[plotting][overlay][legend]"
+) {
+    // A colour map on the floor of the box, without its surface, under points casting shadows: what
+    // a progress plotter draws for two parameters.
+    const auto map_under_points = [](const std::string &map_label, const std::string &points_label) {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel(map_label);
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        (*points) & std::tuple<double, double, double>(-0.5, 0.0, 1.0);
+        points->setFloorShadow(true);
+        points->setPlotLabel(points_label);
+        map->registerSecondaryPlotter(points);
+        return map;
+    };
+
+    SECTION("a 3-d pad with an overlay and no labels has no legend in any backend") {
+        const auto map = map_under_points("", "");
+        CHECK(map->legendEntries().size() == 0);
+        CHECK_FALSE(render(map, plotBackend::ROOT).contains("Legend"));
+        CHECK_FALSE(render(map, plotBackend::MATPLOTLIB).contains("ax.legend("));
+        CHECK_FALSE(render(map, plotBackend::OCTAVE).contains("legend"));
+    }
+
+    SECTION("a 2-d pad with an overlay and no labels has none either") {
+        auto first = decadesGraph(false, false);
+        first->registerSecondaryPlotter(decadesGraph(false, false));
+        CHECK(first->legendEntries().size() == 0);
+        CHECK_FALSE(render(first, plotBackend::ROOT).contains("Legend"));
+        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("ax.legend("));
+        CHECK_FALSE(render(first, plotBackend::OCTAVE).contains("legend"));
+    }
+
+    SECTION("a labelled 3-d pad gets its legend where it was asked for, built from its series") {
+        const auto map = map_under_points("the landscape", "evaluated candidates");
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        CHECK(map->legendEntries().size() == 2);
+        const std::string s = render(map, plotBackend::ROOT);
+        CHECK(s.contains("new TLegend(0.56, 0.13, 0.88, 0.29);"));
+        CHECK(s.contains("->SetTextSize(0.045);"));
+        // Only the series enter, each once, named in the script: not the map's cells, the shadows
+        // or the frame, which TPad::BuildLegend() would have listed.
+        CHECK(s.contains("legend->AddEntry(graph__0_0, \"evaluated candidates\", \"p\");"));
+        CHECK(s.contains("legend->AddEntry(sample, \"the landscape\", \"f\");"));
+        CHECK(s.contains("legend entries: 2"));
+        CHECK_FALSE(s.contains("BuildLegend"));
+        // The legend comes after everything of the pad is drawn.
+        CHECK(drawnBeforeLegend(s));
+        CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"lower right\")"));
+        CHECK(render(map, plotBackend::OCTAVE).contains("legend(s_, {'the landscape', 'evaluated candidates'});"));
+    }
+
+    SECTION("a placed legend is sized for the labelled series only") {
+        const auto map = map_under_points("", "evaluated candidates");
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        CHECK(map->legendEntries().size() == 1);
+        CHECK(render(map, plotBackend::ROOT).contains("new TLegend(0.56, 0.13, 0.88, 0.225);"));
+    }
+
+    SECTION("a placed legend draws a label too long for its box smaller, ROOT's own one need not") {
+        const auto map = map_under_points("the landscape", "evaluated candidates");
+        map->setLegendPosition(legendPosition::TOP_LEFT);
+        const std::string placed = render(map, plotBackend::ROOT);
+        CHECK(placed.contains("GetXsize()"));
+        CHECK(placed.contains("size = TMath::Max(floor_size, size * room / widest);"));
+        CHECK(placed.contains("legend->SetTextSize(size);"));
+        // ROOT's own placement on a 2-d pad sizes the text to its box itself.
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        first->registerSecondaryPlotter(second);
+        CHECK_FALSE(render(first, plotBackend::ROOT).contains("GetXsize()"));
+    }
+
+    SECTION("a single series gets no legend, labelled or not") {
+        auto single = smallSurface(surfaceProjection::NONE);
+        single->setPlotLabel("a surface");
+        CHECK(single->legendEntries().size() == 0);
+        CHECK_FALSE(render(single, plotBackend::ROOT).contains("Legend"));
+    }
+}
+
+/******************************************************************************/
+// The legend of a pad is one description -- which series, in which order, with which text and
+// which sample -- that every backend draws. A sample shows how its series is drawn: a line for a
+// line, markers for points, both for a curve through points, the bars of a histogram, the middle
+// colour of a colour map.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A legend entry's sample shows how its series is drawn in every backend",
+    "[plotting][overlay][legend]"
+) {
+    SECTION("the sample follows the draw mode of every kind of series") {
+        GPlotSpec g2(plotKind::graph_2d);
+        g2.plot_mode = graphPlotMode::SCATTER;
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::MARKER);
+        g2.plot_mode = graphPlotMode::CURVE;
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::LINE_AND_MARKER);
+        g2.drawing_args = "L,same";
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::LINE);
+        g2.drawing_args = "A*";
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::MARKER);
+        GPlotSpec g3(plotKind::graph_3d);
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::MARKER);
+        g3.plot_mode = graphPlotMode::CURVE;
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::LINE_AND_MARKER);
+        g3.projection = surfaceProjection::FLOOR;
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::COLOUR_MAP);
+        GPlotSpec surface(plotKind::graph_3d);
+        surface.drawing_args = "SURF2Z";
+        CHECK(legendSampleOf(drawStyleOf(surface)) == legendSample::COLOUR_MAP);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::graph_4d))) == legendSample::MARKER);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::hist_1d))) == legendSample::FILL);
+        GPlotSpec h2(plotKind::hist_2d);
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::COLOUR_MAP); // no option: ROOT's COL
+        h2.drawing_args = "COLZ";
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::COLOUR_MAP);
+        h2.drawing_args = "BOX";
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::FILL);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::function_1d))) == legendSample::LINE);
+    }
+
+    SECTION("ROOT draws each sample from its series' object as the description says") {
+        auto scatter = decadesGraph(false, false);
+        scatter->setPlotMode(graphPlotMode::SCATTER);
+        scatter->setPlotLabel("points");
+        auto curve = decadesGraph(false, false);
+        curve->setPlotMode(graphPlotMode::CURVE);
+        curve->setPlotLabel("a curve");
+        scatter->registerSecondaryPlotter(curve);
+        const std::string s = render(scatter, plotBackend::ROOT);
+        CHECK(s.contains("legend->AddEntry(graph_0, \"points\", \"p\");"));
+        CHECK(s.contains("legend->AddEntry(graph_0_0, \"a curve\", \"lp\");"));
+        CHECK_FALSE(s.contains("InheritsFrom"));
+    }
+
+    SECTION("a labelled 4-d graph laid over another is listed, in ROOT and in Octave") {
+        const auto cloud = [](const std::string &label) {
+            auto g = std::make_shared<GGraph4D>();
+            (*g) & std::tuple<double, double, double, double>(0., 0., 0., 1.);
+            (*g) & std::tuple<double, double, double, double>(1., 1., 1., 2.);
+            (*g) & std::tuple<double, double, double, double>(2., 0., 1., 3.);
+            g->setPlotLabel(label);
+            return g;
+        };
+        auto first = cloud("first");
+        first->registerSecondaryPlotter(cloud("second"));
+        const std::string root = render(first, plotBackend::ROOT);
+        CHECK(root.contains("legend->AddEntry(pm3d__0_1, \"first\", \"p\");"));
+        CHECK(root.contains("legend->AddEntry(pm3d__0_0_1, \"second\", \"p\");"));
+        CHECK_FALSE(root.contains("fr__0_0")); // an overlay draws no frame of its own: the pad keeps its box
+        const std::string oct = render(first, plotBackend::OCTAVE);
+        CHECK(oct.contains("legend(s_, {'first', 'second'});"));
+        CHECK_FALSE(oct.contains("legend('show')"));
+    }
+
+    SECTION("a labelled map without its surface is listed in matplotlib and Octave too") {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel("the landscape");
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel(" "); // white space names nothing
+        map->registerSecondaryPlotter(points);
+        REQUIRE(map->legendEntries().size() == 1);
+        CHECK(map->legendEntries()[0].sample == legendSample::COLOUR_MAP);
+        const std::string mpl = render(map, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains(
+            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\", 0)], labels=[\"the landscape\"], loc=\"upper left\")"
+        ));
+        CHECK_FALSE(mpl.contains("ax.legend()"));
+        const std::string oct = render(map, plotBackend::OCTAVE);
+        // A filled sample is a square marker: a patch without data never reaches the gnuplot
+        // toolkit's key.
+        CHECK(oct.contains("s_(end + 1) = plot3(NaN, NaN, NaN, 'LineStyle', 'none', 'Marker', 's', 'MarkerSize', 10, 'MarkerFaceColor', cs_{1}"));
+        CHECK_FALSE(oct.contains("patch("));
+        CHECK(oct.contains("legend(s_, {'the landscape'});"));
+        const std::string root = render(map, plotBackend::ROOT);
+        CHECK(root.contains("legend->AddEntry(sample, \"the landscape\", \"f\");"));
+        CHECK(root.contains("legend entries: 1"));
+    }
+
+    SECTION("matplotlib and Octave draw a scatter plot as markers alone, as its sample shows") {
+        auto scatter = decadesGraph(false, false);
+        scatter->setPlotMode(graphPlotMode::SCATTER);
+        scatter->setPlotLabel("points");
+        auto curve = decadesGraph(false, false);
+        curve->setPlotLabel("a curve");
+        scatter->registerSecondaryPlotter(curve);
+        const std::string mpl = render(scatter, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains("marker=\"o\", linestyle=\"none\", label=\"points\""));
+        CHECK(mpl.contains("_legend_sample(_colours[0], \"marker\", 0), _legend_sample(_colours[1], \"line_and_marker\", 0)"));
+        const std::string oct = render(scatter, plotBackend::OCTAVE);
+        CHECK(oct.contains("], 'o');"));
+        CHECK(oct.contains("], '-o');"));
+        CHECK_FALSE(oct.contains("DisplayName")); // a named object would enter the key twice
+    }
+}
+
+/******************************************************************************/
+// gnuplot and the data export (for an external renderer) follow the same legend description as
+// ROOT, matplotlib and Octave: no key for a single series or none labelled, the listed series
+// alone, and how each is drawn.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE(
+    "gnuplot and the data export follow the legend description",
+    "[plotting][overlay][legend]"
+) {
+    const auto pad = [] {
+        auto first = decadesGraph(false, false);
+        first->setPlotMode(graphPlotMode::SCATTER);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false); // no label
+        first->registerSecondaryPlotter(second);
+        return first;
+    };
+
+    SECTION("gnuplot names the listed series alone and shows no key where there is no legend") {
+        const std::string gp = render(pad(), plotBackend::GNUPLOT);
+        CHECK(gp.contains("with points pointtype 7 title \"first\""));
+        CHECK(gp.contains("with linespoints notitle"));
+        CHECK_FALSE(gp.contains("unset key"));
+        auto single = decadesGraph(false, false);
+        single->setPlotLabel("alone");
+        const std::string one = render(single, plotBackend::GNUPLOT);
+        CHECK(one.contains("unset key"));
+        CHECK(one.contains("set key default"));
+    }
+
+    SECTION("the data export says which series the legend lists, with which sample") {
+        GPlotDesigner gpd("data csv", 1, 1);
+        gpd.setDataFormat(dataFormat::CSV);
+        gpd.registerPlotter(pad());
+        const std::string csv = gpd.plot();
+        CHECK(csv.contains("secondary=0 draw_style=markers legend_sample=marker\n"));
+        CHECK(csv.contains("secondary=1 draw_style=line+markers\n"));
+    }
+}
+
+/******************************************************************************/
+// Where a legend lies and how small its text may get. On a 3-d pad ROOT's own placement sees only
+// the pad's 2-d grid and put the legend over the front-left axis; AUTO there is the band at the top
+// left, in every backend the upper left. A label too long for its box is drawn smaller down to a
+// readable size, and then the box grows away from its side of the pad.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A 3-d pad's legend lies at the upper left and a long label widens its box",
+    "[plotting][overlay][legend]"
+) {
+    const auto map_under_points = [](const std::string &points_label) {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel("the landscape");
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel(points_label);
+        map->registerSecondaryPlotter(points);
+        return map;
+    };
+
+    SECTION("AUTO on a 3-d pad is the band at the top left, on a 2-d pad ROOT's own placement") {
+        const auto map = map_under_points("evaluated candidates");
+        const auto [x1, y1, x2, y2] = legendBox3D(2);
+        CHECK(std::abs(y2 - 0.92) < 1e-12);
+        CHECK(std::abs(y1 - 0.82) < 1e-12);
+        CHECK(std::abs(x1 - 0.01) < 1e-12);
+        const std::string root = render(map, plotBackend::ROOT);
+        CHECK(root.contains("TLegend *legend = new TLegend(0.01, 0.82, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+        CHECK(root.contains("legend->SetTextSize(0.035);"));
+        CHECK_FALSE(root.contains("new TLegend(0.3, 0.21)"));
+        CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"upper left\")"));
+        CHECK(render(map, plotBackend::OCTAVE).contains("legend('location', 'northwest');"));
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        first->registerSecondaryPlotter(second);
+        CHECK(render(first, plotBackend::ROOT).contains("TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT"));
+        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("loc="));
+    }
+
+    SECTION("gnuplot puts the key of a 3-d pad at the top left") {
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel("points");
+        auto more = std::make_shared<GGraph3D>();
+        (*more) & std::tuple<double, double, double>(0.2, 0.1, 1.0);
+        more->setPlotLabel("more points");
+        points->registerSecondaryPlotter(more);
+        CHECK(render(points, plotBackend::GNUPLOT).contains("set key top left"));
+    }
+
+    SECTION("a label too long for its box: no smaller than the floor, and the box grows") {
+        const std::string long_label(120, 'x');
+        auto map = map_under_points(long_label);
+        map->setLegendPosition(legendPosition::TOP_LEFT);
+        const std::string left = render(map, plotBackend::ROOT);
+        CHECK(left.contains("floor_size = 0.035;"));
+        CHECK(left.contains("legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + width));"));
+        CHECK(left.contains("e->SetLabel((text + \"...\").Data());"));
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        const std::string right = render(map, plotBackend::ROOT);
+        CHECK(right.contains("legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));"));
+        CHECK(LEGENDMINTEXTSIZE < LEGENDTEXTSIZE);
+    }
+}
+
+/******************************************************************************/
+// One resolved description per series, GBasePlotter::drawStyle(): every backend takes both its
+// drawing of a series and the series' legend sample from it, the data export carries it for the
+// external renderer, and ROOT's draw option of a 2-d graph is made from it.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "Every backend draws a series and its legend sample from one draw style",
+    "[plotting][overlay][legend][style]"
+) {
+    const auto errors = [](const std::string &label) {
+        auto g = std::make_shared<GGraph2ED>();
+        (*g) & std::tuple<double, double, double, double>(1., 0.1, 2., 0.2);
+        (*g) & std::tuple<double, double, double, double>(2., 0.1, 3., 0.2);
+        g->setPlotLabel(label);
+        return g;
+    };
+
+    SECTION("an error-bar curve is drawn with its line and listed with it, in every backend") {
+        auto first = errors("first");
+        first->registerSecondaryPlotter(errors("second"));
+        CHECK(first->drawStyle().line);
+        CHECK(first->drawStyle().error_bars);
+        const std::string mpl = render(first, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains("fmt=\"-o\""));
+        CHECK(mpl.contains("_legend_sample(_colours[0], \"line_and_marker\", 0)"));
+        const std::string oct = render(first, plotBackend::OCTAVE);
+        CHECK(oct.contains("], '-o');"));
+        CHECK(render(first, plotBackend::GNUPLOT).contains("with xyerrorlines title \"first\""));
+        CHECK(render(first, plotBackend::ROOT).contains("->Draw(\"APL\");"));
+        GPlotDesigner gpd("data", 1, 1);
+        gpd.setDataFormat(dataFormat::CSV);
+        gpd.registerPlotter(first);
+        CHECK(gpd.plot().contains("draw_style=line+markers+error_bars legend_sample=line_and_marker"));
+    }
+
+    SECTION("a line sample takes the series' line width in matplotlib and Octave") {
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        first->setLineWidth(2);
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        second->setLineWidth(2);
+        first->registerSecondaryPlotter(second);
+        CHECK(render(first, plotBackend::MATPLOTLIB).contains("_legend_sample(_colours[0], \"line_and_marker\", 2)"));
+        CHECK(render(first, plotBackend::OCTAVE).contains("'Color', cs_{1}, 'LineWidth', 2);"));
+    }
+
+    SECTION("a 2-d histogram's own option and a graph's arrows reach the draw style") {
+        GHistogram2D boxes(10, 10);
+        CHECK(boxes.drawStyle().colour_map); // no option: ROOT draws COL
+        boxes.set2DOpt(tddropt::BOX);
+        CHECK(boxes.drawStyle().fill); // boxes in the histogram's colours
+        CHECK_FALSE(isThreeDimensional(boxes.plotSpec()));
+        GHistogram2D surface(10, 10);
+        surface.set2DOpt(tddropt::SURFONE);
+        CHECK(surface.drawStyle().colour_map);
+        CHECK(isThreeDimensional(surface.plotSpec()));
+        auto arrows = decadesGraph(false, false);
+        arrows->setDrawArrows(true);
+        CHECK(arrows->plotSpec().toJson().contains("\"arrows\": true"));
+        CHECK_FALSE(arrows->drawStyle().line); // the arrows join the points, ROOT draws them alone
+        CHECK(legendSampleOf(arrows->drawStyle()) == legendSample::MARKER);
+        CHECK(makePlotter(arrows->plotSpec())->drawStyle().arrows);
+    }
+
+    SECTION("a 3-d curve's sample is an object of its own; the drawn graph keeps its line") {
+        auto map = smallSurface(surfaceProjection::NONE);
+        map->setPlotLabel("points");
+        auto curve = std::make_shared<GGraph3D>();
+        (*curve) & std::tuple<double, double, double>(0., 0., 1.);
+        (*curve) & std::tuple<double, double, double>(1., 1., 2.);
+        curve->setDrawLines(true);
+        curve->setPlotLabel("a curve");
+        map->registerSecondaryPlotter(curve);
+        const std::string root = render(map, plotBackend::ROOT);
+        // Only the poly-line has width 3, not the drawn graph.
+        CHECK(root.contains("lines_graph__0_0->SetLineWidth(3);"));
+        CHECK_FALSE(root.contains("\ngraph__0_0->SetLineWidth(3);"));
+        CHECK_FALSE(root.contains(" graph__0_0->SetLineWidth(3);"));
+        CHECK(root.contains("TGraph *legend_graph__0_0 = new TGraph();"));
+        CHECK(root.contains("legend->AddEntry(legend_graph__0_0, \"a curve\", \"lp\");"));
+    }
+
+    SECTION("a series that names no ROOT object gets a sample object in its colour") {
+        std::ostringstream out;
+        emitRootLegend(out, "", legendPosition::TOP_LEFT, {{"", "mine", legendSample::LINE, 1, 3}}, false);
+        const std::string s = out.str();
+        CHECK(s.contains("sample->SetLineColor(2);"));
+        CHECK(s.contains("sample->SetLineWidth(3);"));
+        CHECK(s.contains("legend->AddEntry(sample, \"mine\", \"l\");"));
+    }
+}
+
+/******************************************************************************/
+// The band of a 3-d pad has a bottom: five entries reach it, six or seven share it at a second,
+// lower text size, and more are summed up in a last row.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[plotting][overlay][legend]") {
+    CHECK(std::abs(std::get<1>(legendBox3D(5)) - 0.70) < 1e-12);
+    CHECK(std::abs(std::get<1>(legendBox3D(9)) - 0.70) < 1e-12);
+    CHECK(legendTextSize3D(5) == LEGENDMINTEXTSIZE);
+    CHECK(legendTextSize3D(6) == LEGENDCROWDEDTEXTSIZE);
+
+    auto primary = smallSurface(surfaceProjection::NONE);
+    primary->setPlotLabel("series 0");
+    for(int i = 1; i < 9; ++i) {
+        auto more = std::make_shared<GGraph3D>();
+        (*more) & std::tuple<double, double, double>(0.1 * i, 0.2, 1.);
+        more->setPlotLabel("series " + std::to_string(i));
+        primary->registerSecondaryPlotter(more);
+    }
+    REQUIRE(primary->legendEntries().size() == 9);
+    const std::string root = render(primary, plotBackend::ROOT);
+    CHECK(root.contains("new TLegend(0.01, 0.7, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+    CHECK(root.contains("legend->SetTextSize(0.025);"));
+    CHECK(root.contains("\"series 5\""));
+    CHECK_FALSE(root.contains("\"series 6\", "));
+    CHECK(root.contains("legend->AddEntry((TObject *)nullptr, \"and 3 more series\", \"\");"));
+    CHECK(root.contains("legend entries: 7"));
+}
+
+/******************************************************************************/
+// ROOT's own placement of a 2-d legend does not avoid data; FREEST puts it in the corner that
+// covers the fewest of the pad's points and line samples, in every backend.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[plotting][overlay][legend]") {
+    SECTION("the freest corner of points and a curve") {
+        // A cloud along the top and a curve through the lower right: the lower right, the first
+        // preference, is covered, the middle of the right side, the second, is free.
+        std::vector<std::pair<double, double>> cloud;
+        for(int i = 0; i <= 40; ++i) {
+            cloud.emplace_back(i, 8. + 0.05 * (i % 7));
+        }
+        const std::vector<std::vector<std::pair<double, double>>> curve{{{20., 0.}, {40., 0.5}}};
+        CHECK(freestLegendCorner(curve, {cloud}, 2) == legendPosition::CENTER_RIGHT);
+        // A point in the lower left instead of the curve: the lower right is free.
+        auto with_point = cloud;
+        with_point.emplace_back(0., 0.);
+        CHECK(freestLegendCorner({}, {with_point}, 2) == legendPosition::BOTTOM_RIGHT);
+        // Covered everywhere: the corner that covers the fewest.
+        std::vector<std::pair<double, double>> everywhere;
+        for(int i = 0; i <= 40; ++i) {
+            for(int j = 0; j <= 40; ++j) {
+                if(not(i > 30 and j > 30)) { // the top right is left a little freer
+                    everywhere.emplace_back(i, j);
+                }
+            }
+        }
+        CHECK(freestLegendCorner({}, {everywhere}, 2) == legendPosition::TOP_RIGHT);
+        // A box that grows for a long label is judged at its grown width: points at the left of the
+        // middle of the right side leave it free for a narrow box only.
+        std::vector<std::pair<double, double>> left_of_middle{{0., 0.}, {40., 10.}};
+        for(int i = 10; i <= 20; ++i) {
+            left_of_middle.emplace_back(i, 5.);
+        }
+        const std::vector<std::vector<std::pair<double, double>>> bottom_curve{{{0., 0.}, {40., 0.}}};
+        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2) == legendPosition::CENTER_RIGHT);
+        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2, false, false, 0.75) != legendPosition::CENTER_RIGHT);
+        // A vertex of a curve weighs as much as a marker: a box over a piece of line with two
+        // vertices is freer than one over ten markers.
+        std::vector<std::pair<double, double>> right_cloud{{0., 0.}, {40., 10.}};
+        for(int i = 0; i < 10; ++i) {
+            right_cloud.emplace_back(35. + 0.3 * i, 1.);   // the lower right
+            right_cloud.emplace_back(35. + 0.3 * i, 5.);   // the middle of the right side
+            right_cloud.emplace_back(2. + 0.3 * i, 9.);    // the top left
+            right_cloud.emplace_back(35. + 0.3 * i, 9.);   // the top right
+        }
+        const std::vector<std::vector<std::pair<double, double>>> low_left{{{0., 0.5}, {8., 0.5}}};
+        CHECK(freestLegendCorner(low_left, {right_cloud}, 2) == legendPosition::BOTTOM_LEFT);
+        // A segment that crosses a box without a vertex inside counts like a marker: a box it
+        // crosses is no freer than one over a single marker (the first of them in the order of
+        // preference is taken), however little of the segment lies inside.
+        const std::vector<std::vector<std::pair<double, double>>> crossing{{{30., 3.6}, {30., 6.4}}};
+        const std::vector<std::vector<std::pair<double, double>>> markers{
+            {{0., 0.}, {40., 10.}, {38., 1.},                 // the range; one marker in the lower right
+             {2., 9.}, {3., 9.}, {4., 9.}, {2., 1.}, {3., 1.}, // three in the top left and lower left,
+             {4., 1.}, {36., 9.}, {37., 9.}, {38., 9.}}};     // and in the top right
+        CHECK(freestLegendCorner(crossing, markers, 2) == legendPosition::BOTTOM_RIGHT);
+    }
+
+    SECTION("every backend places a FREEST legend in that corner; a 3-d pad keeps its band") {
+        auto points = std::make_shared<GGraph2D>();
+        points->setPlotMode(graphPlotMode::SCATTER);
+        points->setPlotLabel("points");
+        auto line = std::make_shared<GGraph2D>();
+        line->setPlotLabel("a line");
+        for(int i = 0; i <= 40; ++i) {
+            (*points) & std::tuple<double, double>(i, 8. + 0.05 * (i % 7));
+        }
+        (*line) & std::tuple<double, double>(20., 0.);
+        (*line) & std::tuple<double, double>(40., 0.5);
+        points->registerSecondaryPlotter(line);
+        points->setLegendPosition(legendPosition::FREEST);
+        CHECK(points->getLegendPosition() == legendPosition::FREEST);
+        CHECK(points->legendPlace() == legendPosition::CENTER_RIGHT);
+        CHECK(render(points, plotBackend::ROOT).contains("new TLegend(0.56, 0.42, 0.88, 0.58);"));
+        CHECK(render(points, plotBackend::MATPLOTLIB).contains("], loc=\"center right\")"));
+        CHECK(render(points, plotBackend::OCTAVE).contains("legend('location', 'east');"));
+        CHECK(render(points, plotBackend::GNUPLOT).contains("set key right center"));
+        CHECK(points->plotSpec().toJson().contains("\"legend\": \"freest\""));
+
+        auto map = smallSurface(surfaceProjection::NONE);
+        map->setPlotLabel("a surface");
+        auto more = smallSurface(surfaceProjection::NONE);
+        more->setPlotLabel("another");
+        map->registerSecondaryPlotter(more);
+        map->setLegendPosition(legendPosition::FREEST);
+        CHECK(map->legendPlace() == legendPosition::AUTO);
+        CHECK(render(map, plotBackend::ROOT).contains("// a 3-d pad: the band at the top left"));
+    }
+}
+
+/******************************************************************************/
+// 4-d graphs laid over each other share the primary's frame, which holds all their points; every
+// marker paints its one point only.
+TEST_CASE("Overlaid 4-d graphs share one frame that holds all their points", "[plotting][overlay]") {
+    auto first = std::make_shared<GGraph4D>();
+    (*first) & std::tuple<double, double, double, double>(0., 0., 0., 1.);
+    (*first) & std::tuple<double, double, double, double>(2., 1., 1., 2.);
+    auto second = std::make_shared<GGraph4D>();
+    (*second) & std::tuple<double, double, double, double>(3., -1., 4., 1.);
+    (*second) & std::tuple<double, double, double, double>(1., 0.5, 0.5, 3.);
+    first->registerSecondaryPlotter(second);
+    const std::string root = render(first, plotBackend::ROOT);
+    CHECK(root.contains("new TH3F(\"fr__0\",\"fr__0\",10, 0, 3, 10, -1, 1, 10, 0, 4);"));
+    CHECK_FALSE(root.contains("fr__0_0"));
+    CHECK(root.contains("pm3d__0_1->SetPoint(0, "));
+    CHECK(root.contains("pm3d__0_0_1->SetPoint(0, "));
+    CHECK_FALSE(root.contains("->SetPoint(1, "));
+}
+
+/******************************************************************************/
+// A figure whose data leave no corner free makes room for its legend: the frame leaves the legend a
+// band of its own below (or above) the data.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("A pad can leave its legend a band of its own", "[plotting][overlay][legend]") {
+    auto first = decadesGraph(false, false);
+    first->setPlotLabel("first");
+    auto second = decadesGraph(false, false);
+    second->setPlotLabel("second");
+    first->registerSecondaryPlotter(second);
+    first->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+    CHECK_FALSE(render(first, plotBackend::ROOT).contains("the legend's band"));
+    first->setLegendRoom(true);
+    const std::string below = render(first, plotBackend::ROOT);
+    CHECK(below.contains("the legend's band: no data under the legend, by construction"));
+    CHECK(below.contains("const double edge = 0.31; // of the pad"));
+    CHECK(below.contains("if(new_lo < lo) first->SetMinimum(g(new_lo));"));
+    CHECK(below.contains("// legend room: 1"));
+    first->setLegendPosition(legendPosition::TOP_LEFT);
+    const std::string above = render(first, plotBackend::ROOT);
+    CHECK(above.contains("const double edge = 0.7; // of the pad"));
+    CHECK(above.contains("if(new_hi > hi) first->SetMaximum(g(new_hi));"));
+    // No band where the legend lies in no corner.
+    first->setLegendPosition(legendPosition::CENTER_RIGHT);
+    CHECK_FALSE(render(first, plotBackend::ROOT).contains("the legend's band"));
+    // It travels through the spec.
+    first->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+    CHECK(first->plotSpec().toJson().contains("\"legend_room\": true"));
+    CHECK(makePlotter(first->plotSpec())->legendRoom());
+}
+
+/******************************************************************************/
+// A 2-d histogram rebuilt from its plot spec keeps its set2DOpt() choice as a choice: as an overlay
+// it is still drawn into the pad of its primary.
+TEST_CASE("A 2-d histogram rebuilt from its spec keeps its option and its place as an overlay", "[plotting][overlay]") {
+    auto primary = std::make_shared<GHistogram2D>(10, 10);
+    primary->set2DOpt(tddropt::BOX);
+    (*primary) & std::tuple<double, double>(0., 0.);
+    (*primary) & std::tuple<double, double>(1., 1.);
+    auto original = std::make_shared<GHistogram2D>(10, 10);
+    original->set2DOpt(tddropt::BOX);
+    auto rebuilt = makePlotter(original->plotSpec());
+    auto *h2 = dynamic_cast<GHistogram2D *>(rebuilt.get());
+    REQUIRE(h2 != nullptr);
+    (*h2) & std::tuple<double, double>(0.5, 0.5);
+    (*h2) & std::tuple<double, double>(0.2, 0.8);
+    CHECK(h2->get2DOpt() == tddropt::BOX);
+    CHECK(h2->plotSpec().drawing_args == "BOX");
+    primary->registerSecondaryPlotter(std::shared_ptr<GBasePlotter>(std::move(rebuilt)));
+    const std::string root = render(primary, plotBackend::ROOT);
+    CHECK(root.contains("->Draw(\"BOX,same\");"));
 }

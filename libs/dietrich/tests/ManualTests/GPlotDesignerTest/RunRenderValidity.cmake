@@ -38,7 +38,7 @@ function(render_and_check _input _png)
 	file(REMOVE "${WORKDIR}/${_png}")
 	execute_process(
 		COMMAND "${CMAKE_COMMAND}" -E env
-			"MPLBACKEND=Agg" "MPLCONFIGDIR=${WORKDIR}/.mplconfig"
+			"MPLBACKEND=Agg" "MPLCONFIGDIR=${WORKDIR}/.mplconfig" "PYTHONDONTWRITEBYTECODE=1"
 			"${PYTHON_EXE}" "${RENDER_PY}" "${_input}" "-o" "${_png}"
 		WORKING_DIRECTORY "${WORKDIR}"
 		RESULT_VARIABLE _py_rc
@@ -90,11 +90,31 @@ file(WRITE "${WORKDIR}/gpd_render_validate.py"
 "lin = pads['g2ed']\n"
 "assert lin.get_xscale() == 'linear' and lin.get_yscale() == 'linear', 'g2ed is not linear'\n"
 "assert lin.get_legend() is None, 'a legend for a single graph'\n"
+"# The legend follows the manifest's legend_sample: none when no series carries one, the listed\n"
+"# series alone, with their samples, otherwise.\n"
+"canvas = {'label': '', 'c_x_div': 1, 'c_y_div': 1}\n"
+"two = [{'kind': 'graph_2d', 'name': 'a', 'pad': 0, 'data': [[0, 1], [0, 1]]},\n"
+"       {'kind': 'graph_2d', 'name': 'b', 'pad': 0, 'data': [[0, 1], [1, 0]]}]\n"
+"assert r.build_figure(canvas, two).axes[0].get_legend() is None, 'a legend without a listed series'\n"
+"two[1]['legend_sample'] = 'marker'\n"
+"listed = r.build_figure(canvas, two).axes[0].get_legend()\n"
+"assert [t.get_text() for t in listed.get_texts()] == ['b'], 'listed: ' + repr([t.get_text() for t in listed.get_texts()])\n"
+"assert listed.legend_handles[0].get_linestyle() == 'None', 'a marker sample with a line'\n"
+"# The drawing follows the export's draw_style, as the sample does: an error-bar curve keeps its line.\n"
+"curve = [{'kind': 'graph_2d_err', 'name': 'a', 'pad': 0, 'draw_style': 'line+markers+error_bars',\n"
+"          'legend_sample': 'line_and_marker', 'line_width': 2, 'data': [[0, 1], [0, 0], [0, 1], [0.1, 0.1]]},\n"
+"         {'kind': 'graph_2d_err', 'name': 'b', 'pad': 0, 'draw_style': 'markers+error_bars',\n"
+"          'legend_sample': 'marker', 'data': [[0, 1], [0, 0], [1, 0], [0.1, 0.1]]}]\n"
+"ax = r.build_figure(canvas, curve).axes[0]\n"
+"drawn = [l.get_linestyle() for l in ax.get_lines()]\n"
+"assert drawn[:2] == ['-', 'None'], 'drawn: ' + repr(drawn)\n"
+"sample = ax.get_legend().legend_handles[0]\n"
+"assert sample.get_linestyle() == '-' and sample.get_linewidth() == 2, 'sample: ' + repr((sample.get_linestyle(), sample.get_linewidth()))\n"
 "print('GPlotDesignerRenderValidity: logarithmic axes and the legend follow the manifest.')\n"
 )
 execute_process(
 	COMMAND "${CMAKE_COMMAND}" -E env
-		"MPLBACKEND=Agg" "MPLCONFIGDIR=${WORKDIR}/.mplconfig"
+		"MPLBACKEND=Agg" "MPLCONFIGDIR=${WORKDIR}/.mplconfig" "PYTHONDONTWRITEBYTECODE=1"
 		"${PYTHON_EXE}" gpd_render_validate.py "${_render_dir}"
 	WORKING_DIRECTORY "${WORKDIR}"
 	RESULT_VARIABLE _py_rc

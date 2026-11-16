@@ -194,18 +194,80 @@ int main(int argc, char **argv) {
     noisyParabola_plotter_2D_ptr->setYAxisLabel("Noisy parabola");
     noisyParabola_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 3);
+    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 5);
 
-    gpd.setCanvasDimensions(1200, 1400);
+    gpd.setCanvasDimensions(1200, 2200);
     gpd.registerPlotter(gsin_ptr);
     gpd.registerPlotter(gcos_ptr);
     gpd.registerPlotter(gsin_plotter_1D_ptr);
     gpd.registerPlotter(gcos_plotter_1D_ptr);
     gpd.registerPlotter(schwefel_plotter_2D_ptr);
     gpd.registerPlotter(noisyParabola_plotter_2D_ptr);
-    gpd.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor"));
+    // The floor projection's legend is placed in a corner: its labels are longer than the box is
+    // wide at the fixed text size of a placed legend, so ROOT must draw them smaller.
+    auto floor_projection = projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor");
+    floor_projection->setLegendPosition(legendPosition::TOP_LEFT);
+    gpd.registerPlotter(floor_projection);
     gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
     gpd.registerPlotter(decadesGraph("a power law with logarithmic axes"));
+    // Labels too long for a legend: on a 3-d pad with a palette, where the band may grow only to
+    // the palette, and in a 2-d corner, where even the grown box is too narrow for the label.
+    {
+        auto surface = projectedSurface(surfaceProjection::FLOOR, "a surface");
+        surface->secondaryPlotters().front()->setPlotLabel(
+            "a path whose label is far too long for the band at the top left of the pad");
+        gpd.registerPlotter(surface);
+        auto power = decadesGraph(
+            "a power law whose label is longer than any legend box can be, so that it has to be "
+            "shortened at its end, marked with three dots");
+        power->setLegendPosition(legendPosition::TOP_LEFT);
+        gpd.registerPlotter(power);
+        // Two labelled 4-d graphs of different ranges in one pad: one frame for both, a marker
+        // sample for each.
+        auto cloud = std::make_shared<GGraph4D>();
+        auto other = std::make_shared<GGraph4D>();
+        for(int i = 0; i < 20; ++i) {
+            const double t = static_cast<double>(i) / 19.;
+            (*cloud) & std::tuple<double, double, double, double>(t, t * t, 1. - t, t);
+            (*other) & std::tuple<double, double, double, double>(1. + t, -t, 2. * t, 1. - t);
+        }
+        cloud->setPlotLabel("a cloud");
+        other->setPlotLabel("another cloud, further out");
+        cloud->registerSecondaryPlotter(other);
+        gpd.registerPlotter(cloud);
+        // Points that fill the whole frame and a curve along their bottom: no corner is free, so
+        // the legend gets a band of its own below them.
+        auto everywhere = std::make_shared<GGraph2D>();
+        everywhere->setPlotMode(graphPlotMode::SCATTER);
+        everywhere->setPlotLabel("points everywhere");
+        auto bottom = std::make_shared<GGraph2D>();
+        bottom->setPlotLabel("a curve along the bottom");
+        for(int i = 0; i <= 20; ++i) {
+            for(int j = 0; j <= 10; ++j) {
+                (*everywhere) & std::tuple<double, double>(i, 1. + j);
+            }
+            (*bottom) & std::tuple<double, double>(i, 1.);
+        }
+        everywhere->registerSecondaryPlotter(bottom);
+        everywhere->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        everywhere->setLegendRoom(true);
+        gpd.registerPlotter(everywhere);
+        // A 3-d pad of nine labelled series: the band shows six at its second, smaller text size
+        // and sums up the other three in its last row.
+        auto crowd = std::make_shared<GGraph3D>();
+        crowd->setPlotLabel("series 1");
+        for(int i = 0; i < 9; ++i) {
+            auto member = i == 0 ? crowd : std::make_shared<GGraph3D>();
+            for(int k = 0; k < 5; ++k) {
+                (*member) & std::tuple<double, double, double>(0.1 * k, 0.1 * i, 0.05 * (i + k));
+            }
+            if(i > 0) {
+                member->setPlotLabel("series " + std::to_string(i + 1));
+                crowd->registerSecondaryPlotter(member);
+            }
+        }
+        gpd.registerPlotter(crowd);
+    }
 
     gpd.writeToFile("result.C");
 
@@ -393,6 +455,14 @@ int main(int argc, char **argv) {
     gpd_oct.registerPlotter(oct_hist1i_ptr);
     gpd_oct.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave"));
     gpd_oct.registerPlotter(decadesGraph("a power law with logarithmic axes, Octave"));
+    // A labelled map without its surface under unlabelled points: the map is the legend's only
+    // entry, a filled sample, which must reach Octave's key.
+    {
+        auto map = projectedSurface(surfaceProjection::FLOOR, "a map, Octave");
+        map->setDrawSurface(false);
+        map->secondaryPlotters().front()->setPlotLabel("");
+        gpd_oct.registerPlotter(map);
+    }
     gpd_oct.writeToFile("result.m");
 
     // -------------------------------------------------------------------------
