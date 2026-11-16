@@ -124,7 +124,7 @@ addClientGateOptions(boost::program_options::options_description &options, Clien
         "connected clients (0: it does not wait). A client counts once it has asked for work on "
         "an open connection; one that has died without its connection ending counts until the "
         "transport notices the loss, and one that has connected again after such a loss counts "
-        "for its old connection too until then. A consumer that cannot tell how many clients it has (MPI) "
+        "for its old connection too until then. A consumer that cannot tell how many clients it has "
         "is not waited for; the log says so"
     )(
         "clientWaitLimit",

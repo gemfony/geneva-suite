@@ -184,6 +184,16 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
     CHECK(beast.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
+
+    // The MPI consumer's sessions run on two threads unless told otherwise (one more thread polls),
+    // and its client fetches the next item while it evaluates one
+    const MPIConsumerConfig mpi{};
+    CHECK(mpi.nHandlerThreads == 2);
+    CHECK(mpi.serializationMode == Gem::Common::serializationMode::GEM_BINARY);
+    CHECK(mpi.clientPrefetchDepth == 2);
+    CHECK(mpi.clientParallelEvaluations == 1);
+    CHECK(mpi.clientFirstContactLimit == 0);
+    CHECK(mpi.clientUndeliveredDir == ".");
 }
 
 /******************************************************************************/

@@ -36,98 +36,87 @@
 // have (see courtier/mpi/GMPIEnvironment.hpp).
 
 // Standard headers
-#include <atomic>
-#include <chrono>
-#include <cstddef>
 #include <memory>
 #include <utility>
-
-// MPI
-#include <mpi.h>
 
 // Geneva headers
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "courtier/GCourtierEnums.hpp" // GMPICONSUMERCHECKOUTWAIT, processRole
-#include "courtier/consumers/GNetworkedConsumerT.hpp"
-#include "courtier/mpi/GMPIEnvironment.hpp"       // MPI initialization, communicator, role
-#include "courtier/transport/GMPITransportT.hpp"  // the master node
+#include "courtier/GCourtierEnums.hpp" // processRole
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
+#include "courtier/consumers/GPeerConsumerT.hpp"
+#include "courtier/mpi/GMPICalls.hpp"               // the MPI calls of courtier's communicator
+#include "courtier/mpi/GMPIEnvironment.hpp"         // MPI initialization, communicator, role
+#include "courtier/transport/GMPIPeerTransport.hpp" // the listener
+#include "courtier/transport/GMPITransportT.hpp"    // the client, for users of this header
 
 namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * The courtier MPI consumer. It reuses the existing, battle-tested Gem::Courtier::Consumers master
- * node and drives it from the courtier per-batch queue by injecting the
- * work-item source/sink callbacks at master-node construction (they are required constructor
- * parameters -- the master cannot usefully run without them).
+ * The courtier MPI consumer: the server's shell (GPeerConsumerT) over a GMPIListener. Every other
+ * rank of courtier's communicator is a client; its GPeerSessionT hands out work from the current
+ * batch and collects results. Its client is GMPIConsumerWorkerNodeT; both are configured by an
+ * MPIConsumerConfig.
  *
- * The consumer is the master only: it works on the communicator of the GMPIEnvironment it is given
- * and is built on the process whose role there is SUBMITTER (rank RANK_MASTER_NODE of the
- * communicator, which need not be rank 0 of MPI_COMM_WORLD). Like the socket consumers, it has a
- * client of its own, GMPIConsumerWorkerNodeT, which a process whose role is CLIENT builds and runs
- * instead; a BYSTANDER (a process without a communicator) builds neither. A program asks for the
- * role first (the environment's role(), or Gem::Geneva::consumerRole() for a Geneva program). The
+ * The consumer is built on the process whose role is SUBMITTER (rank RANK_MASTER_NODE of the
+ * communicator, which need not be rank 0 of MPI_COMM_WORLD); a process whose role is CLIENT builds
+ * the client, a BYSTANDER (a process without a communicator) neither. A program asks for the role
+ * first (the environment's role(), or Gem::Geneva::consumerRole() for a Geneva program). The
  * consumer holds the environment, so MPI stays initialized while it exists.
  *
- * @tparam processable_type The work-item type distributed to the worker ranks and collected back.
+ * Threads. One thread polls courtier's communicator for every rank (the listener's); the sessions
+ * run on nHandlerThreads threads (2 by default; 0: one per hardware thread). A session may take as
+ * long as it likes over a message without holding up the poll.
+ *
+ * The start of a run (startServer()): every client rank is greeted, and its client then asks for
+ * work. A client that has nothing to do waits at the server; its request is answered when an item
+ * becomes available.
+ *
+ * The end of a run (stopServer()): every client is told that the run has ended and the server
+ * waits for the clients to confirm, at most the stop grace (GMPICONSUMERSHUTDOWNGRACE and a
+ * second); see GPeerConsumerT. A client that leaves by its own limits during the run is let go;
+ * what it held is handed out again.
+ *
+ * Lost clients: a rank that dies ends the job (MPI's errors are fatal on courtier's communicator);
+ * the items of a rank that hangs come back by the time lease.
+ *
+ * @tparam processable_type The work-item type distributed to the client ranks and collected back
  */
 template <typename processable_type>
-class GMPIConsumerT final : public GNetworkedConsumerT<processable_type> {
+class GMPIConsumerT final : public GPeerConsumerT<processable_type> {
 public:
-    using master_node_type = Gem::Courtier::Consumers::GMPIConsumerMasterNodeT<processable_type>;
+    /// The configuration this consumer (and its client) is built from
     using config_type = Gem::Courtier::Consumers::MPIConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Builds the master node on the submitter.
+    /** @brief Builds the consumer on the submitter.
      *
      *  @param environment The process's MPI environment; the consumer keeps it for as long as it
      *         exists. Must not be null.
-     *  @param config Configuration for the master node (timeouts, buffer sizes, etc.)
+     *  @param config Reads nHandlerThreads (the session threads; 0: one per hardware thread) and
+     *         serializationMode. The client members are ignored.
      *  @throws geneva_exception if @p environment is null or the role of this process is not
      *          SUBMITTER */
     explicit GMPIConsumerT(
         std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment,
-        config_type config = config_type{}
+        const config_type &config = config_type{}
     )
-      : config_(config)
-      , environment_(std::move(environment)) {
-        if(not environment_) {
-            throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
-                << "The MPI environment must not be empty" << '\n'
-            );
-        }
-
-        if(environment_->role() != Gem::Courtier::processRole::SUBMITTER) {
-            throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
-                << "The MPI consumer is built on the submitter only; this process has the role "
-                << static_cast<int>(environment_->role())
-                << ". A client builds a GMPIConsumerWorkerNodeT instead." << '\n'
-            );
-        }
-
-        // Drive the master node from the courtier per-batch queue: the work-item source/sink are
-        // required constructor parameters of the master node.
-        master_ = std::make_shared<master_node_type>(
-            environment_->communicator(),
-            config_,
-            [this]() -> std::unique_ptr<processable_type> {
-                return this->checkoutWait(checkout_wait_);
-            },
-            [this](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
-                this->checkin(std::move(frame));
-            }
-        );
+      : GPeerConsumerT<processable_type>(
+            CONSUMER_NAME,
+            std::make_unique<Consumers::GMPIListener>(
+                std::make_shared<Consumers::GMPICalls>(requireSubmitter_(std::move(environment))),
+                Consumers::GMPIPeerOptions{.name = CONSUMER_NAME}
+            ),
+            config.nHandlerThreads,
+            config.serializationMode
+        ) { /* nothing */
     }
 
-    /** @brief The destructor stops the server. MPI is finalized by the environment, when its
-     *  last holder lets go of it. */
+    /** @brief Stops the server while this object is still complete. MPI is finalized by the
+     *  environment, when its last holder lets go of it. */
     ~GMPIConsumerT() override {
-        this->stopServer();
+        this->stopServerNoThrow_();
     }
 
     GMPIConsumerT(const GMPIConsumerT &) = delete;
@@ -135,44 +124,36 @@ public:
     GMPIConsumerT &operator=(const GMPIConsumerT &) = delete;
     GMPIConsumerT &operator=(GMPIConsumerT &&) = delete;
 
-    /***************************************************************************/
-    /** @brief The number of distinct blobs the master has interned for transport (blob
-     *  send-once). One per distinct genome structure across all worker ranks.
-     *  @return The count of interned blobs. */
-    [[nodiscard]] std::size_t getInternedBlobCount() const {
-        return master_->getInternedBlobCount();
-    }
-
-    /***************************************************************************/
-    /** @brief Starts the background threads that serve the clients' requests. */
-    void startServer() {
-        if(not server_started_.exchange(true)) {
-            master_->async_startProcessing();
-        }
-    }
-
-    /** @brief Signals the clients to stop and joins the master's background threads. */
-    void stopServer() {
-        if(not server_stopped_.exchange(true)) {
-            this->requestStop();
-            master_->shutdown(); // sends the stop signal to every client and joins its threads
-        }
-    }
-
 private:
     /***************************************************************************/
-    config_type config_;
-    /// The process's MPI environment. Declared before the nodes, so that it is destroyed after
-    /// them: MPI must still be initialized while they shut down.
-    std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment_;
+    /**
+     * @brief Returns @p environment if this process is the submitter of it; throws otherwise.
+     * @param environment The process's MPI environment
+     * @return The environment
+     */
+    static std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment>
+    requireSubmitter_(std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment) {
+        if(not environment) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
+                << "The MPI environment must not be empty" << '\n'
+            );
+        }
+        if(environment->role() != Gem::Courtier::processRole::SUBMITTER) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
+                << "The MPI consumer is built on the submitter only; this process has the role "
+                << static_cast<int>(environment->role())
+                << ". A client builds a GMPIConsumerWorkerNodeT instead." << '\n'
+            );
+        }
+        return environment;
+    }
 
-    std::shared_ptr<master_node_type> master_;
-
-    std::atomic<bool> server_started_{false};
-    std::atomic<bool> server_stopped_{false};
-
-    /// How long the master blocks for a pending item before answering a worker with "no data".
-    std::chrono::milliseconds checkout_wait_{Gem::Courtier::GMPICONSUMERCHECKOUTWAIT};
+    /// The name of this consumer, for the log and the thread budget
+    static constexpr const char *CONSUMER_NAME = "Gem::Courtier::GMPIConsumerT";
 };
 
 /******************************************************************************/

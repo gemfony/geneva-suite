@@ -72,7 +72,7 @@
 #            (--waitForClients; default: the number of clients started). The
 #            measurement's clock starts when they are all connected, not when the
 #            server starts. A consumer that cannot tell how many clients it has
-#            (the MPI one) is not waited for; its log says so.
+#            is not waited for; its log says so.
 #   CLIENT_WAIT_LIMIT  seconds the server waits for them (--clientWaitLimit,
 #            default 600); with fewer clients by then the server ends with an error
 #   LAST_CLIENT_DELAY  seconds the last networked client is started after the

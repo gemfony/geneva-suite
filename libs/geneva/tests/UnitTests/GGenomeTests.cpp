@@ -2503,10 +2503,12 @@ TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][p
         provider->configFromCommandLine(vm)
     );
     const Gem::Courtier::Consumers::MPIConsumerConfig defaults;
-    CHECK(config.useAsyncReq == defaults.useAsyncReq);
     CHECK(config.serializationMode == defaults.serializationMode);
     CHECK(config.nHandlerThreads == defaults.nHandlerThreads);
-    CHECK(config.masterCleanSessIntervalMSec == defaults.masterCleanSessIntervalMSec);
+    CHECK(config.clientPrefetchDepth == defaults.clientPrefetchDepth);
+    CHECK(config.clientParallelEvaluations == defaults.clientParallelEvaluations);
+    CHECK(config.clientFirstContactLimit == defaults.clientFirstContactLimit);
+    CHECK(config.clientUndeliveredDir == defaults.clientUndeliveredDir);
 }
 #endif
 

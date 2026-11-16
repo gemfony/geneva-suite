@@ -179,10 +179,7 @@ def check_run(program, workdir, consumer, reference_dir):
     if len(rows) != 1 or float(rows[0][0]) != 0.01 or not float(rows[0][5]) > 0.:
         fail(f'unexpected table {rows}')
     log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
-    if consumer == 'mpi':
-        if 'cannot tell how many clients are connected' not in log:
-            fail('the MPI server did not say that it cannot wait for its clients')
-    elif 'Waiting for clients: 2 of 2 clients connected after' not in log:
+    if 'Waiting for clients: 2 of 2 clients connected after' not in log:
         fail('the server did not wait for its two clients')
     if reference_dir:
         line = open(os.path.join(reference_dir, 'referenceLine.txt'), encoding='utf-8').read()

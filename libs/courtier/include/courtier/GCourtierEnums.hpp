@@ -257,10 +257,10 @@ constexpr int TAG_PEER_OPEN = 46;
 constexpr int TAG_PEER_MESSAGE = 47;
 constexpr int TAG_PEER_CLOSE = 48;
 constexpr int TAG_PEER_CLOSE_ACK = 49;
-/// Once the master has been asked to stop, how long it keeps waiting for stragglers (a live
-/// worker's final double-buffered request, or an open session to finish) before abandoning them.
-/// Bounds shutdown so the loss of a worker cannot wedge the master at teardown. Also how long a
-/// closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its close.
+/// The number of threads the sessions of the MPI consumer run on, by default (MPIConsumerConfig)
+constexpr std::uint32_t GMPICONSUMERSESSIONTHREADS = 2;
+/// How long a closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its
+/// close; the MPI consumer's stop grace is this and a second (GMPIListener::stopGrace()).
 constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 /// How long a worker waits for the master to complete a send/receive before giving up. The master
 /// always answers a request promptly (work or NO_WORK), so this only trips when the master has died

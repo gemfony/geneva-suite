@@ -58,9 +58,9 @@
 #
 # The server waits until all N clients are connected (--waitForClients N) before
 # it starts the run, so that no iteration is slowed down by clients that are still
-# starting. A consumer that cannot tell how many clients it has (MPI) is not waited
-# for; its RESULT line then ends with UNGATED, and its first iterations may include
-# the start of the clients.
+# starting (websocket and MPI both can tell). A consumer that cannot tell how many
+# clients it has is not waited for; its RESULT line then ends with UNGATED, and its
+# first iterations may include the start of the clients.
 #
 # What a RESULT line holds: the number of iterations seen, the smallest, median,
 # largest and mean iteration time in seconds (the first two iterations after the

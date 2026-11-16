@@ -90,13 +90,14 @@ int main(int argc, char **argv) {
     // the end of main.
     const auto environment = std::make_shared<c2::Consumers::GMPIEnvironment>(&argc, &argv);
 
-    // A client serves the master until it is told to stop.
+    // A client serves the master until the master announces the end of the run.
     if(environment->role() == c2::processRole::CLIENT) {
-        c2::Consumers::GMPIConsumerWorkerNodeT<GRandomNumberContainer> client(
-            environment,
-            c2::Consumers::MPIConsumerConfig{}
-        );
-        client.run();
+        const auto client =
+            std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<GRandomNumberContainer>>(
+                environment,
+                c2::Consumers::MPIConsumerConfig{}
+            );
+        client->run();
         return 0;
     }
 

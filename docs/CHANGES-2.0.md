@@ -192,10 +192,28 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   soon as there is one, and idle clients cause no traffic beyond the keep-alive. Measured with
   400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
   fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `mpi`
-  workers still ask again after a random pause of 50 to 200 ms
-  (`GCLIENTNOWORKPAUSE{LOWER,UPPER}BOUNDARYMSEC`), which adds up to about that much to an
-  iteration; for evaluations of less than a few seconds the websocket consumer is the better
-  choice.
+  clients now do the same (next item).
+- **The MPI consumer works as the websocket consumer does.** Its client waits at the submitter
+  when there is no work (the pause of 50 to 200 ms after NO_WORK, and the cost it added to every
+  iteration, are gone) and fetches the next item while it evaluates the current one, with at most
+  one request unanswered. A client opens when the submitter's consumer has started: the consumer
+  greets every client rank, and `--mpi_firstContactLimit` (seconds, default 0: as long as it runs)
+  bounds the wait for it. A client honours its time and item limits and a close request, which had
+  no effect on an MPI client before: it sends the results of the evaluations that run and leaves;
+  the submitter goes on with the others and hands out again what it held. At the end of a run
+  every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and a
+  second). A result a client can no longer deliver is saved (`--mpi_undeliveredDir`). The
+  consumer answers `connectedClients()` (the clients that have asked for work), so the speed-up
+  benchmarks' `--waitForClients` works for MPI. Options: `--mpi_asyncReq` is removed --
+  `true` is now `--mpi_prefetchDepth 2` (the default), `false` is `--mpi_prefetchDepth 1`;
+  `--mpi_parallelEvaluations` (default 1) says how many of the items held are evaluated at once;
+  `--mpi_nHandlerThreads` is the number of threads the submitter's sessions run on, default 2
+  (it was one per hardware thread; 0 still means that), and one more thread polls MPI for every
+  client; `--mpi_cleanSessInterval` is removed. In `MPIConsumerConfig`, `useAsyncReq`,
+  `masterCleanSessIntervalMSec` and `nHandlerThreadsRecommendation()` are replaced by
+  `clientPrefetchDepth`, `clientParallelEvaluations`, `clientFirstContactLimit` and
+  `clientUndeliveredDir`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a
+  `std::shared_ptr`.
 - **One keep-alive for both ends of a websocket connection.** `--beast_pingInterval` (default
   15 s) applies to the server and to the client: after that much silence a ping is sent, and after
   twice as much without any inbound data the connection is closed. The same limit bounds the

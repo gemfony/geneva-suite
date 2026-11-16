@@ -28,12 +28,12 @@ loaded when present. Container images with a complete Geneva are built from cont
 GPU random numbers can be switched off per process (Gem::Hap::setGpuRandomNumbersAllowed); Go2
 clients do so, and a failing CUDA call moves the random-number source to the CPU.
 
-Websocket clients without work wait at the server and are served when there is some, instead
-of asking again after a pause: an iteration with 400 clients takes a few milliseconds longer than
-its evaluations (it was 70 to 200 ms), and idle clients cost the server next to nothing. A client
-may start before its server and survives a lost connection; what it cannot deliver is saved. The
-asio consumer is removed; the websocket consumer ("beast") takes its place. Failures in the
-networked consumers stay with the item they belong to; docs/CHANGES-2.0.md, section 5, has more.
+Websocket and MPI clients without work wait at the server instead of asking again after a pause:
+an iteration with 400 clients takes a few milliseconds longer than its evaluations (it was 70 to
+200 ms). A websocket client may start before its server and survives a lost connection; what a
+client cannot deliver is saved; MPI clients honour their time and item limits. The asio consumer
+is removed; the websocket consumer ("beast") takes its place. Failures in the networked consumers
+stay with the item they belong to; docs/CHANGES-2.0.md, section 5, has more.
 
 The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
 built standalone against an installed Geneva; the numbered examples are renumbered and start with
