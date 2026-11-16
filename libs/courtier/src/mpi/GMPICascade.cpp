@@ -45,6 +45,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <tuple>
 
 // MPI headers go here
@@ -288,6 +289,7 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
 void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     this->requireMpi_("lead()");
     this->requireCascadeRole_(processRole::CLIENT, "lead()");
+    this->refuseInsideRound_("lead()");
     const std::scoped_lock lock(round_mutex_);
     if(released_) {
         throw geneva_exception(
@@ -326,6 +328,7 @@ void GMPICascade::release() noexcept {
     if(not environment_ || role_ != processRole::CLIENT) {
         return;
     }
+    this->refuseInsideRound_("release()");
     const std::scoped_lock lock(round_mutex_);
     this->releaseLocked_();
 }
@@ -592,6 +595,28 @@ void GMPICascade::broadcast_(
     }
     this->mpiChecked_(completed, what);
     // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+}
+
+/******************************************************************************/
+/**
+ * @brief Ends the MPI job if the calling thread runs a lead's half: round(), lead() and release()
+ * take the round lock, which that thread holds, and would wait for ever.
+ *
+ * @param where The function that was called
+ */
+void GMPICascade::refuseInsideRound_(std::string_view where) const noexcept {
+    if(round_thread_.load() != std::this_thread::get_id()) {
+        return;
+    }
+    std::string reason;
+    try {
+        reason = std::string(where) +
+                 " was called from inside the lead's half of a round; it would wait for that round "
+                 "for ever. Call it after round() has returned.";
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
+    }
+    this->endJob_(where, reason);
 }
 
 /******************************************************************************/

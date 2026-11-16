@@ -48,6 +48,7 @@
 #include <memory>
 #include <mutex>
 #include <string_view>
+#include <thread>
 #include <utility>
 
 // MPI headers go here
@@ -141,7 +142,9 @@ public:
  * the program's main thread. round() may be called by any thread; rounds run one after the other
  * (a lock is held from the announcement to the return of the lead's half). release() may be called
  * by any thread, not concurrently with the destructor; it waits for a round that runs, and a later
- * round() throws. role(), group() and config() may be called by any thread.
+ * round() throws. round(), lead() and release() are not called from inside a lead's half: they
+ * would wait for the round they run in; the cascade detects it and ends the MPI job with a message
+ * that says so. role(), group() and config() may be called by any thread.
  *
  * <b>Lifetime.</b> The member and lifecycle objects passed to serve() and lead() are declared
  * before the cascade, so that they outlive it. The cascade outlives every call of an item
@@ -222,6 +225,8 @@ private:
         std::chrono::microseconds,
         std::string_view
     ) noexcept;
+    /** @brief Ends the job if the calling thread runs a lead's half (the call would wait for ever) */
+    void refuseInsideRound_(std::string_view) const noexcept;
     /** @brief Ends the job unless an MPI call returned MPI_SUCCESS */
     void mpiChecked_(int, std::string_view) const noexcept;
     /** @brief On a member: waits for the next command; false for the stop */
@@ -255,6 +260,30 @@ private:
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
+    /// The thread that runs a round, from the announcement to the end of the lead's half; empty
+    /// between rounds
+    std::atomic<std::thread::id> round_thread_{};
+
+    /** Marks the calling thread as the one that runs a round, for the time of the round. */
+    class RoundMark {
+    public:
+        /** @brief Marks the calling thread @param round_thread Where the mark goes */
+        explicit RoundMark(std::atomic<std::thread::id> &round_thread)
+          : round_thread_(round_thread) {
+            round_thread_ = std::this_thread::get_id();
+        }
+        /** @brief Removes the mark */
+        ~RoundMark() {
+            round_thread_ = std::thread::id{};
+        }
+        RoundMark(const RoundMark &) = delete;
+        RoundMark(RoundMark &&) = delete;
+        RoundMark &operator=(const RoundMark &) = delete;
+        RoundMark &operator=(RoundMark &&) = delete;
+
+    private:
+        std::atomic<std::thread::id> &round_thread_; ///< The cascade's mark (not owned)
+    };
     /// A lead: the lifecycle passed to lead(), torn down by release(); not owned (it outlives the
     /// cascade), null if lead() was not called
     GMPIGroupLifecycleI *lifecycle_ = nullptr;
@@ -273,7 +302,9 @@ private:
  */
 template <typename F>
 decltype(auto) GMPICascade::round(F &&lead_half) {
+    this->refuseInsideRound_("round()");
     const std::scoped_lock lock(round_mutex_); // one round at a time
+    const RoundMark mark(round_thread_);
     this->announceRound_();
     try {
         return std::invoke(std::forward<F>(lead_half), group_);

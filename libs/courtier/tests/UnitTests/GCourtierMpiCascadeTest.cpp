@@ -1332,6 +1332,33 @@ int leadOrderScenario(Report &report, bool twice) {
 }
 
 /**
+ * A call from inside a lead's half that would wait for its own round ends the job with a message
+ * (entries ...ReleaseInsideRound, ...RoundInsideRound) instead of a deadlock.
+ *
+ * @param release Whether the half calls release() rather than round()
+ */
+int insideRoundScenario(Report &report, bool release) {
+    SquareMember member(report);
+    Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
+    if(cascade.role() != processRole::CLIENT) {
+        runGroups(report, cascade, member, 1);
+        return report.failures();
+    }
+    cascade.requireRole(processRole::CLIENT);
+    std::ignore = cascade.round([&](MPI_Comm group) {
+        if(release) {
+            cascade.release();
+        }
+        else {
+            std::ignore = cascade.round(NOTHING);
+        }
+        return squareRound(group, cascade, 3.);
+    });
+    report.fail("the call from inside the round did not end the job");
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1591,6 +1618,8 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"release-inside-round", [](Report &r) { return insideRoundScenario(r, true); }},
+        {"round-inside-round", [](Report &r) { return insideRoundScenario(r, false); }},
         {"lead-after-round", [](Report &r) { return leadOrderScenario(r, false); }},
         {"lead-twice", [](Report &r) { return leadOrderScenario(r, true); }},
         {"ibcast-start-fails", [](Report &r) { return mpiErrorScenario(r, true); }},

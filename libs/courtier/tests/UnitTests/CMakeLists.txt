@@ -387,6 +387,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# lead() after a round, after release() or a second time is refused
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadAfterRound 3 M zero lead-after-round)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadTwice 3 M zero lead-twice)
+	# release() or round() from inside a lead's half ends the job with a message, not a deadlock
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeReleaseInsideRound 3 M nonzero release-inside-round
+		EXPECT "release() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideRound 3 M nonzero round-inside-round
+		EXPECT "round() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged
