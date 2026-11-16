@@ -61,6 +61,12 @@ Commit messages, code comments, and documentation carry **no** AI attribution of
 `Co-Authored-By` trailers naming an AI, no "Generated with …" lines, no session links, no model names in
 prose. The git author is the maintainer; the work stands on its own.
 
+The same holds for indirect traces. Commit messages, merge-commit messages and pull-request texts
+contain **no paths that point to an AI**: no build, scratch, session or configuration directory named
+after an AI tool, and no file inside one. A message that has to say where something was built or
+measured names the role of the place ("an external build directory", "a worktree at the pinned
+commit"), not its local name. (Maintainer decision, 2026-11-16.)
+
 ## AI-5. The supervisor verifies gates independently before anything is pushed
 
 An executing agent's green report is a claim, not a fact. Before a push, the supervising tier re-runs or
