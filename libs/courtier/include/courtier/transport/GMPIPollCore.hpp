@@ -166,6 +166,10 @@ public:
  * up the sends that have not completed; its owner calls it when no handler of the executors runs
  * any more.
  *
+ * Sends that must arrive (the last closes of the ends) are drained before shutdown()
+ * (drainSends()): shutdown() gives up what has not completed, and a given-up send may be taken back
+ * by MPI (the stand-in of the tests always takes it back).
+ *
  * shutdown() is its owner's duty. If the owner did not call it -- an exception on its way, say --,
  * the destructor does, so that no send under way loses its bytes; the calls are still held then.
  *

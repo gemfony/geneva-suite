@@ -100,6 +100,32 @@
  * GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
  * ends with GPeerEnd::FAILED, reported on its executor, and tells the other end with a close
  * (GPeerClose::ERROR).
+ *
+ * **Rules a change of this file must keep** (each is relied on elsewhere):
+ *  - Every message between two ranks -- the role's, the greeting, a close, an answer, and any kind
+ *    added later (a ping, say) -- is started through GMPIPollCore::startSend() from a context
+ *    that serializes the sender (an end's strand; the listener's start() before it posts on_peer),
+ *    and received only by the poll. That one ordered path is what makes "the close comes after
+ *    everything sent before it" and "nothing arrived since" true; a message sent another way could
+ *    overtake or fall behind.
+ *  - The greeting goes out before anything an end on the submitter sends (start() greets before it
+ *    hands the ends to the shell); a client's end treats a message of the role before it as a
+ *    protocol error.
+ *  - Every way an end ends tells the other rank once (tellOther_()), unless it knows: a client
+ *    has no keep-alive and would otherwise wait for ever. A new way to end must go through
+ *    finish_() after tellOther_(), or through endOfWork() before the poll's shutdown(). After
+ *    shutdown() a send is dropped, so what must arrive is sent and drained before it
+ *    (GMPIListener::endWork() does: tell, drainSends(), shutdown()).
+ *  - An end's state is touched on its strand, and off it only when no handler runs (abort(),
+ *    discard(), endOfWork()).
+ *  - The busy count of the poll must balance: an end tells it of changes only (busy_told_), and an
+ *    end that ends busy says "not busy" first.
+ *  - On a client the poll runs on the client's io thread: anything that blocks that thread (a
+ *    decode, an evaluation) stops the poll, and with it the answers the submitter waits for.
+ *  - A receive is a blocking MPI_Recv on the one poll thread. On the submitter a long message
+ *    from one rank holds up the messages of every other rank for its length; measured, the
+ *    submitter's receives took 0.01 to 0.1 % of a run (Geneva's results are small), so the receive
+ *    was left blocking.
  */
 
 namespace Gem::Courtier::Consumers {
