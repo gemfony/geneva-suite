@@ -67,6 +67,7 @@ SET ( CONSUMER_INCLUDES
 SET ( TRANSPORT_INCLUDES
     transport/GIoContext.hpp
     transport/GMPICallsI.hpp
+    transport/GMPIPeerTransport.hpp
     transport/GMPIPollCore.hpp
     transport/GPeerClientT.hpp
     transport/GPeerI.hpp

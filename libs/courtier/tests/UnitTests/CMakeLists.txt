@@ -96,9 +96,10 @@ geneva_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTrans
 # The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound
 geneva_courtier_test(GCourtierWebsocketStopTests M  GCourtierWebsocketStopTests.cpp)
 # The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
-# directory, used by later tests of the roles as their transport)
+# directory, used by later tests of the roles as their transport) and on the MPI transport's ends
+# over the in-memory stand-in for MPI (GMPIFakeCalls.hpp): one set of rule tests for both
 geneva_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
-	GInProcessTestSupport.hpp)
+	GInProcessTestSupport.hpp GMPIFakeCalls.hpp GPeerTestRole.hpp)
 geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
@@ -121,6 +122,9 @@ ADD_DEPENDENCIES(GCourtierForeignResultTests GCourtierHelperServer)
 # build with ThreadSanitizer, which has no MPI
 geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp)
+# The MPI transport's ends, listener and connector on the same stand-in
+geneva_courtier_test(GCourtierMpiPeerTests     S  GCourtierMpiPeerTests.cpp GMPIFakeCalls.hpp
+	GInProcessTestSupport.hpp GPeerTestRole.hpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp
 	GTcpRelay.hpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six

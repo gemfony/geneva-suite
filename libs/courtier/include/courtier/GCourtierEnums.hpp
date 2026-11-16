@@ -251,9 +251,16 @@ constexpr int TAG_SEND_WORK_ITEM = 43;
 constexpr int TAG_REQUEST_BLOB = 44;
 constexpr int TAG_SEND_BLOB = 45;
 constexpr int RANK_MASTER_NODE = 0;
+/// The message tags of the MPI transport's ends (GMPIPeer): the greeting of the submitter's
+/// listener, a message of the role, a close (with what it says), and the answer to a close.
+constexpr int TAG_PEER_OPEN = 46;
+constexpr int TAG_PEER_MESSAGE = 47;
+constexpr int TAG_PEER_CLOSE = 48;
+constexpr int TAG_PEER_CLOSE_ACK = 49;
 /// Once the master has been asked to stop, how long it keeps waiting for stragglers (a live
 /// worker's final double-buffered request, or an open session to finish) before abandoning them.
-/// Bounds shutdown so the loss of a worker cannot wedge the master at teardown.
+/// Bounds shutdown so the loss of a worker cannot wedge the master at teardown. Also how long a
+/// closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its close.
 constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 /// How long a worker waits for the master to complete a send/receive before giving up. The master
 /// always answers a request promptly (work or NO_WORK), so this only trips when the master has died

@@ -27,10 +27,13 @@
  *
  ********************************************************************************/
 
-// The rules of GPeerI.hpp, checked on the in-process pair of GInProcessPeer.hpp. The pair is the
-// reference the roles are tested against later, so it must keep the rules itself; a transport
-// that is added later can be run through the same cases.
+// The rules of GPeerI.hpp, checked on every transport that can run in one process: the in-process
+// pair of GInProcessPeer.hpp -- the reference the roles are tested against -- and the MPI
+// transport's ends (GMPIPeer) on the in-memory stand-in for MPI of GMPIFakeCalls.hpp. The cases
+// that need what one transport alone can do (a fault of the in-process pair) run on that one; the
+// websocket peer has rule tests of its own (GCourtierWebsocketPeerTests).
 
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
@@ -44,6 +47,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -54,23 +58,35 @@
 #include <boost/asio/strand.hpp>
 
 #include "GInProcessPeer.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
+#include "GMPIFakeCalls.hpp"
+#include "GPeerTestRole.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GThreadGroup.hpp"
+#include "courtier/transport/GIoContext.hpp"
+#include "courtier/transport/GMPIPeerTransport.hpp"
+#include "courtier/transport/GMPIPollCore.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
+using Gem::Common::Concurrency::GThreadGroup;
 using Gem::Courtier::GWirePeerId;
+using Gem::Courtier::Consumers::GIoContext;
+using Gem::Courtier::Consumers::GMPIPeer;
+using Gem::Courtier::Consumers::GMPIPeerOptions;
+using Gem::Courtier::Consumers::GMPIPollCore;
 using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
-using Gem::Courtier::Tests::closeName;
-using Gem::Courtier::Tests::endName;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessPeer;
 using Gem::Courtier::Tests::GInProcessRoute;
+using Gem::Courtier::Tests::GMPIFakeWorld;
 using Gem::Courtier::Tests::IoThreads;
+using Gem::Courtier::Tests::makeRole;
+using Gem::Courtier::Tests::Role;
 using namespace std::chrono_literals;
 
 namespace {
@@ -84,129 +100,6 @@ bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 
-/** @brief @return How deep this thread is inside calls of GPeerI made by a role (rule 3) */
-int &inPeerCall() {
-    thread_local int depth = 0;
-    return depth;
-}
-
-/** @brief Marks the span of a call of GPeerI, so that a handler run inside it is seen (rule 3) */
-struct InPeerCall {
-    InPeerCall() {
-        ++inPeerCall();
-    }
-    ~InPeerCall() {
-        --inPeerCall();
-    }
-    InPeerCall(const InPeerCall &) = delete;
-    InPeerCall(InPeerCall &&) = delete;
-    InPeerCall &operator=(const InPeerCall &) = delete;
-    InPeerCall &operator=(InPeerCall &&) = delete;
-};
-
-/**
- * A role for the tests: records what its peer tells it ("open", "msg:<text>",
- * "closed:<end>:<how>") and whether a handler ran inside one of its calls of GPeerI. What it does
- * when it is opened or gets a message is up to the test. Like the real roles it is owned by its
- * peer's handlers and refers to the peer weakly.
- */
-class Role : public std::enable_shared_from_this<Role> {
-public:
-    std::function<void(Role &)> whenOpen;                         ///< Done on onOpen
-    std::function<void(Role &, const std::string &)> whenMessage; ///< Done on onMessage
-
-    /** @brief @return Handlers that report to this role (and own it) */
-    GPeerHandlers handlers() {
-        auto self = this->shared_from_this();
-        return GPeerHandlers{
-            .onOpen =
-                [self] {
-                    self->note_("open");
-                    if(self->whenOpen) {
-                        self->whenOpen(*self);
-                    }
-                },
-            .onMessage =
-                [self](std::string &&message) {
-                    const std::string text{std::move(message)};
-                    self->note_("msg:" + text);
-                    if(self->whenMessage) {
-                        self->whenMessage(*self, text);
-                    }
-                },
-            .onClosed =
-                [self](GPeerEnd end, GPeerClose how, std::string_view) {
-                    self->note_("closed:" + endName(end) + ":" + closeName(how));
-                    self->n_closed_.fetch_add(1);
-                },
-        };
-    }
-
-    /** @brief Starts @p peer for this role, which then holds it weakly @param peer The peer */
-    void start(const std::shared_ptr<GPeerI> &peer) {
-        peer_ = peer;
-        const InPeerCall call;
-        peer->start(this->handlers());
-    }
-
-    /** @brief Sends through the peer (on its executor) @param message What is sent */
-    void send(std::string message) {
-        if(auto peer = peer_.lock()) {
-            const InPeerCall call;
-            peer->send(Gem::Courtier::Consumers::makeMessage(std::move(message)));
-        }
-    }
-
-    /** @brief Closes the peer (any thread) @param how What the other end is told */
-    void close(GPeerClose how) {
-        if(auto peer = peer_.lock()) {
-            const InPeerCall call;
-            peer->close(how);
-        }
-    }
-
-    /** @brief @return A copy of what has been recorded */
-    std::vector<std::string> events() const {
-        const std::scoped_lock lock(mutex_);
-        return events_;
-    }
-
-    /** @brief @return How many messages have been recorded */
-    std::size_t nMessages() const {
-        const std::scoped_lock lock(mutex_);
-        std::size_t n = 0;
-        for(const auto &event : events_) {
-            n += event.starts_with("msg:") ? 1 : 0;
-        }
-        return n;
-    }
-
-    /** @brief @return How often onClosed was called */
-    int nClosed() const {
-        return n_closed_.load();
-    }
-    /** @brief @return How often a handler ran inside a call of GPeerI made by this role */
-    int nNested() const {
-        return n_nested_.load();
-    }
-
-private:
-    /** @brief Records one event @param event What happened */
-    void note_(std::string event) {
-        if(inPeerCall() > 0) {
-            n_nested_.fetch_add(1);
-        }
-        const std::scoped_lock lock(mutex_);
-        events_.push_back(std::move(event));
-    }
-
-    mutable std::mutex mutex_;        ///< Guards events_ (the test reads them on its own thread)
-    std::vector<std::string> events_; ///< What happened, in order
-    std::atomic<int> n_closed_{0};    ///< onClosed calls
-    std::atomic<int> n_nested_{0};    ///< Handlers run inside a call of GPeerI
-    std::weak_ptr<GPeerI> peer_;      ///< The peer, weakly (rule 4)
-};
-
 /** @brief Two ends on one executor, with the given faults */
 auto pairOn(
     const boost::asio::any_io_executor &executor,
@@ -217,9 +110,130 @@ auto pairOn(
     return GInProcessPeer::makePair(executor, first, executor, second, grace);
 }
 
-/** @brief @return A role, owned by the caller until its peer takes it over */
-std::shared_ptr<Role> makeRole() {
-    return std::make_shared<Role>();
+/******************************************************************************/
+/**
+ * The transports the cases of the rules are run on (one set of rule tests for every transport).
+ * Each makes the two ends of a connection on threads of its own, and says when what the first end
+ * has handed over has reached the second end's executor (arrived()).
+ */
+
+/** @brief The in-process pair of GInProcessPeer.hpp */
+class InProcessTransport {
+public:
+    using peer_type = GInProcessPeer;
+
+    /** @brief @return The executor of the threads */
+    boost::asio::any_io_executor executor() {
+        return io_.executor();
+    }
+
+    /** @brief @param grace How long a close waits for its answer @return The two ends */
+    std::pair<std::shared_ptr<GInProcessPeer>, std::shared_ptr<GInProcessPeer>>
+    pair(std::chrono::milliseconds grace = CLOSE_GRACE) {
+        auto [a, b] = pairOn(io_.executor(), {}, {}, grace);
+        auto handed_over = std::make_shared<std::atomic<std::size_t>>(0);
+        handed_over_ = handed_over;
+        a->setTransmitHook([handed_over](std::string_view) { handed_over->fetch_add(1); });
+        return {a, b};
+    }
+
+    /** @brief @param n A number @return Whether @p n messages (closes included) of the first end of
+     *  the last pair have been posted to the second end's strand */
+    [[nodiscard]] bool arrived(std::size_t n) const {
+        return handed_over_ && handed_over_->load() >= n;
+    }
+
+private:
+    IoThreads io_;                                          ///< The threads
+    std::shared_ptr<std::atomic<std::size_t>> handed_over_; ///< See arrived()
+};
+
+/**
+ * The MPI transport's ends (GMPIPeer) on the in-memory stand-in for MPI: every pair is a
+ * communicator of two ranks, each with its poll. The threads are joined before the polls are ended
+ * (GMPIPollCore::shutdown()), and the context goes after them.
+ */
+class MpiTransport {
+public:
+    using peer_type = GMPIPeer;
+
+    MpiTransport() {
+        for(std::size_t i = 0; i < 4; ++i) {
+            threads_.create_thread([this] { ctx_.run(); });
+        }
+    }
+    ~MpiTransport() {
+        guard_.reset();
+        ctx_.stop();
+        threads_.join_all();
+        for(auto &core : cores_) {
+            std::ignore = core->shutdown();
+        }
+        ctx_.shutdown();
+    }
+    MpiTransport(const MpiTransport &) = delete;
+    MpiTransport(MpiTransport &&) = delete;
+    MpiTransport &operator=(const MpiTransport &) = delete;
+    MpiTransport &operator=(MpiTransport &&) = delete;
+
+    /** @brief @return The executor of the threads */
+    boost::asio::any_io_executor executor() {
+        return ctx_.get_executor();
+    }
+
+    /** @brief @param grace How long a close waits for its answer @return The two ends: rank 0's
+     *  end of the connection to rank 1, and rank 1's end of the connection to rank 0 */
+    std::pair<std::shared_ptr<GMPIPeer>, std::shared_ptr<GMPIPeer>>
+    pair(std::chrono::milliseconds grace = CLOSE_GRACE) {
+        world_ = std::make_shared<GMPIFakeWorld>(2);
+        const GMPIPeerOptions options{.name = "MPI pair", .closeGrace = grace};
+        auto first_core = std::make_shared<GMPIPollCore>(world_->calls(0), ctx_.get_executor());
+        auto second_core = std::make_shared<GMPIPollCore>(world_->calls(1), ctx_.get_executor());
+        auto a = std::make_shared<GMPIPeer>(
+            first_core,
+            ctx_.get_executor(),
+            1,
+            GMPIPeer::GOpening::AT_START,
+            options
+        );
+        auto b = std::make_shared<GMPIPeer>(
+            second_core,
+            ctx_.get_executor(),
+            0,
+            GMPIPeer::GOpening::AT_START,
+            options
+        );
+        first_core->addReceiver(1, a);
+        second_core->addReceiver(0, b);
+        first_core->start();
+        second_core->start();
+        cores_.push_back(std::move(first_core));
+        cores_.push_back(std::move(second_core));
+        return {a, b};
+    }
+
+    /** @brief @param n A number @return Whether @p n messages (closes included) of the first end of
+     *  the last pair have been received by the second rank's poll (and posted to its end's strand) */
+    [[nodiscard]] bool arrived(std::size_t n) const {
+        return world_ && world_->counts(1).receives >= n;
+    }
+
+private:
+    GIoContext ctx_; ///< The context of the polls and the ends
+    boost::asio::executor_work_guard<GIoContext::executor_type> guard_ =
+        boost::asio::make_work_guard(ctx_);
+    GThreadGroup threads_;                             ///< Its threads
+    std::vector<std::shared_ptr<GMPIPollCore>> cores_; ///< Every poll made, to be ended
+    std::shared_ptr<GMPIFakeWorld> world_;             ///< The communicator of the last pair
+};
+
+/** @brief Holds the strand of @p executor until the latch it returns is counted down
+ *  @param executor A strand @return The latch */
+std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT>
+holdStrand(const boost::asio::any_io_executor &executor) {
+    auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(executor, [held = release]() { held->wait(); });
+    return release;
 }
 
 } /* anonymous namespace */
@@ -227,14 +241,20 @@ std::shared_ptr<Role> makeRole() {
 /******************************************************************************/
 /**
  * Rule 1: nothing is reported before start(), and onOpen comes before any message. Messages that
- * reach an end before it is started are kept, not lost, by this transport.
+ * reach an end before it is started are kept, not lost. After close() onOpen is not delivered, nor
+ * is any message that arrived before.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
-    IoThreads io;
+TEMPLATE_TEST_CASE(
+    "Peer rules: rule 1 -- two phases",
+    "[courtier][peer]",
+    InProcessTransport,
+    MpiTransport
+) {
+    TestType transport;
 
     SECTION("onOpen precedes the messages that arrived before start()") {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->whenOpen = [](Role &role) {
@@ -243,8 +263,9 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
             role.send("m3");
         };
         role_a->start(a);
-        REQUIRE(eventually([&] { return b->nDelivered() == 0 && role_a->events().size() == 1; }));
-        std::this_thread::sleep_for(50ms); // the messages are on their way to b
+        REQUIRE(eventually([&] { return role_a->events().size() == 1; }));
+        REQUIRE(eventually([&] { return transport.arrived(3); }));
+        std::this_thread::sleep_for(50ms); // what arrived is on b's strand
         CHECK(role_b->events().empty());
 
         role_b->start(b);
@@ -256,7 +277,7 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
 
     SECTION("after close() onOpen is not delivered, also when close() precedes the open; nor is "
             "any message then") {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         std::atomic<bool> sent{false};
@@ -266,8 +287,7 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
         };
         // The strand of a is held, so that the message of b arrives at a before a is opened, and
         // start()'s work runs only after close() was called.
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(a->executor(), [held = release]() { held->wait(); });
+        const auto release = holdStrand(a->executor());
         role_b->start(b);
         REQUIRE(eventually([&] { return sent.load(); }));
         role_a->start(a);
@@ -275,14 +295,6 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
         release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
         CHECK(role_a->events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
-    }
-
-    SECTION("a peer that cannot be opened reports FAILED without onOpen") {
-        auto [a, b] = pairOn(io.executor(), GInProcessFaults{.failStart = true});
-        auto role_a = makeRole();
-        role_a->start(a);
-        REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
-        CHECK(role_a->events() == std::vector<std::string>{"closed:FAILED:NORMAL"});
     }
 }
 
@@ -294,14 +306,16 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
  * closes from inside its handlers.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE(
-    "Peer rules (in-process): rules 2 and 3 -- one executor and no handler inside a call",
-    "[courtier][peer]"
+TEMPLATE_TEST_CASE(
+    "Peer rules: rules 2 and 3 -- one executor and no handler inside a call",
+    "[courtier][peer]",
+    InProcessTransport,
+    MpiTransport
 ) {
-    IoThreads io;
+    TestType transport;
     constexpr int ROUNDS = 100;
     for(int round = 0; round < ROUNDS; ++round) {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->whenOpen = [](Role &role) { role.send("ping"); };
@@ -332,11 +346,16 @@ TEST_CASE(
  * both close at once from two threads, and when close() is called twice.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE("Peer rules (in-process): rule 5 -- onClosed exactly once", "[courtier][peer]") {
-    IoThreads io;
+TEMPLATE_TEST_CASE(
+    "Peer rules: rule 5 -- onClosed exactly once",
+    "[courtier][peer]",
+    InProcessTransport,
+    MpiTransport
+) {
+    TestType transport;
     constexpr int ROUNDS = 100;
     for(int round = 0; round < ROUNDS; ++round) {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->start(a);
@@ -364,20 +383,22 @@ TEST_CASE("Peer rules (in-process): rule 5 -- onClosed exactly once", "[courtier
 /**
  * Rule 6: a close sends what was handed to send() before it, and what the close says reaches the
  * other end; a send() after close() is dropped; what arrives after close() is delivered until this
- * end's close has gone out, and not after; only an acknowledgement confirms a close, the other
- * end's own close crossing it does not; an end whose role closed before it was told of the open
- * confirms nothing.
+ * end's close has gone out, and not after; only an answer confirms a close, the other end's own
+ * close crossing it does not; an end whose role closed before it was told of the open confirms
+ * nothing.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE(
-    "Peer rules (in-process): rule 6 -- what a close sends and what it stops",
-    "[courtier][peer]"
+TEMPLATE_TEST_CASE(
+    "Peer rules: rule 6 -- what a close sends and what it stops",
+    "[courtier][peer]",
+    InProcessTransport,
+    MpiTransport
 ) {
-    IoThreads io;
+    TestType transport;
 
     SECTION("everything sent before the close arrives, in order, before the close") {
         constexpr int N_MESSAGES = 50;
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->whenOpen = [](Role &role) {
@@ -397,22 +418,20 @@ TEST_CASE(
         }
         expected.emplace_back("closed:CLOSED_THERE:RUN_ENDED");
         CHECK(role_b->events() == expected);
-        // The other end acknowledged the close: confirmed (rule 6)
+        // The other end answered the close: confirmed (rule 6)
         CHECK(role_a->events().back() == "closed:CLOSED_HERE:RUN_ENDED");
     }
 
     SECTION("what arrives after close() and before this end's close has gone out is delivered") {
         constexpr std::size_t N_MESSAGES = 100;
         constexpr std::size_t CLOSE_AT = 10;
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
-        std::atomic<bool> all_sent{false};
-        role_a->whenOpen = [&all_sent](Role &role) {
+        role_a->whenOpen = [](Role &role) {
             for(std::size_t i = 0; i < N_MESSAGES; ++i) {
                 role.send(std::to_string(i));
             }
-            all_sent.store(true);
         };
         role_b->whenMessage = [](Role &role, const std::string &) {
             if(role.nMessages() == CLOSE_AT) {
@@ -420,12 +439,11 @@ TEST_CASE(
             }
         };
         role_b->start(b);
-        // The strand of b is held until a has sent everything: all of it arrives at b before b's
-        // close goes out, which b's role asks for at the tenth message.
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(b->executor(), [held = release]() { held->wait(); });
+        // The strand of b is held until everything a sent has reached it: all of it arrives at b's
+        // role before b's close goes out, which b's role asks for at the tenth message.
+        const auto release = holdStrand(b->executor());
         role_a->start(a);
-        REQUIRE(eventually([&] { return all_sent.load(); }));
+        REQUIRE(eventually([&] { return transport.arrived(N_MESSAGES); }));
         release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->nMessages() == N_MESSAGES);
@@ -434,7 +452,7 @@ TEST_CASE(
     }
 
     SECTION("what arrives after this end's close has gone out is not delivered") {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->start(a);
@@ -444,8 +462,7 @@ TEST_CASE(
         }));
         // The strand of a is held; a sends one more message before it hears of b's close, which
         // has gone out by then.
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(a->executor(), [held = release]() { held->wait(); });
+        const auto release = holdStrand(a->executor());
         boost::asio::post(a->executor(), [&role_a] { role_a->send("late"); });
         role_b->close(GPeerClose::NORMAL);
         release->count_down();
@@ -458,28 +475,21 @@ TEST_CASE(
         // a sends D and closes before b is started: both wait at b. b's role then asks for the
         // close before it is told of the open. b's role never sees D, so a's close must not be
         // confirmed: b's close goes out before b reads what has arrived, and the two cross.
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
-        std::atomic<bool> a_closed_out{false};
-        a->setTransmitHook([&a_closed_out](std::string_view payload) {
-            if(payload.size() == 1) {
-                a_closed_out.store(true); // a close's word
-            }
-        });
         role_a->whenOpen = [](Role &role) {
             role.send("D");
             role.close(GPeerClose::NORMAL);
         };
         role_a->start(a);
-        REQUIRE(eventually([&] { return a_closed_out.load(); }));
+        REQUIRE(eventually([&] { return transport.arrived(2); })); // D and the close
         // what a sent has reached b (b's strand has run it)
         const auto arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
         boost::asio::post(b->executor(), [arrived] { arrived->count_down(); });
         REQUIRE(arrived->wait_for(PATIENCE));
 
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(b->executor(), [held = release]() { held->wait(); });
+        const auto release = holdStrand(b->executor());
         role_b->start(b);
         role_b->close(GPeerClose::NORMAL); // before start()'s work has run
         release->count_down();
@@ -490,7 +500,7 @@ TEST_CASE(
     }
 
     SECTION("two closes that cross confirm neither") {
-        auto [a, b] = pairOn(io.executor());
+        auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
         role_a->start(a);
@@ -500,10 +510,8 @@ TEST_CASE(
         }));
         // Both strands are held, so that each end's close has gone out before the other's
         // arrives.
-        const auto release_a = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        const auto release_b = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(a->executor(), [held = release_a]() { held->wait(); });
-        boost::asio::post(b->executor(), [held = release_b]() { held->wait(); });
+        const auto release_a = holdStrand(a->executor());
+        const auto release_b = holdStrand(b->executor());
         role_a->close(GPeerClose::NORMAL);
         role_b->close(GPeerClose::ERROR);
         release_a->count_down();
@@ -512,6 +520,60 @@ TEST_CASE(
         CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:ERROR");
         CHECK(role_b->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
+
+    SECTION("abort() reports at once; the other end hears a close") {
+        auto [a, b] = transport.pair();
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] {
+            return role_a->events().size() == 1 && role_b->events().size() == 1;
+        }));
+
+        std::promise<int> closed_in_abort;
+        boost::asio::post(a->executor(), [&, peer = a] {
+            peer->abort();
+            closed_in_abort.set_value(role_a->nClosed());
+        });
+        CHECK(closed_in_abort.get_future().get() == 1);
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE:NORMAL");
+        REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
+        CHECK(role_b->events().back() == "closed:CLOSED_THERE:NORMAL");
+    }
+
+    SECTION("the first close decides what the other end is told") {
+        auto [a, b] = transport.pair();
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
+        a->close(GPeerClose::ERROR);
+        a->close(GPeerClose::RUN_ENDED); // changes nothing
+        REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
+        CHECK(role_b->events().back() == "closed:CLOSED_THERE:ERROR");
+    }
+
+    SECTION("setOwnerBusy() reaches the end") {
+        auto [a, b] = transport.pair();
+        std::promise<bool> busy;
+        boost::asio::post(a->executor(), [&, peer = a] {
+            peer->setOwnerBusy(true);
+            busy.set_value(peer->ownerBusy());
+        });
+        CHECK(busy.get_future().get());
+    }
+}
+/******************************************************************************/
+/** Rule 1, for the in-process pair: a peer that cannot be opened reports FAILED without onOpen. */
+TEST_CASE("Peer rules (in-process): rule 1 -- a peer that cannot be opened", "[courtier][peer]") {
+    IoThreads io;
+    auto [a, b] = pairOn(io.executor(), GInProcessFaults{.failStart = true});
+    auto role_a = makeRole();
+    role_a->start(a);
+    REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
+    CHECK(role_a->events() == std::vector<std::string>{"closed:FAILED:NORMAL"});
 }
 
 /******************************************************************************/
@@ -597,10 +659,11 @@ TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
 
 /******************************************************************************/
 /**
- * The close protocol of the pair: a close that is never acknowledged ends at the grace, and is
- * not confirmed (rule 6); abort() ends at once and the other end hears a close -- CLOSED_HERE for
- * an end that had not been closed, CLOSED_HERE_UNCONFIRMED for one whose close was under way; an
- * end that loses messages after a number of them still hears the close.
+ * The close protocol of the in-process pair: a close that is never acknowledged ends at the grace,
+ * and is not confirmed (rule 6); abort() of an end whose close was under way reports
+ * CLOSED_HERE_UNCONFIRMED; an end that loses messages after a number of them still hears the close.
+ * (abort() of an end that had not been closed, and the first close's word, are cases of rule 6 for
+ * every transport.)
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[courtier][peer]") {
@@ -624,25 +687,6 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         CHECK_FALSE(b->ended()); // it is let go with the context, without onClosed (rule 5)
     }
 
-    SECTION("abort() reports at once; the other end hears a close") {
-        auto [a, b] = pairOn(io.executor());
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->start(a);
-        role_b->start(b);
-        REQUIRE(eventually([&] { return role_a->events().size() == 1; }));
-
-        std::promise<int> closed_in_abort;
-        boost::asio::post(a->executor(), [&, peer = a] {
-            peer->abort();
-            closed_in_abort.set_value(role_a->nClosed());
-        });
-        CHECK(closed_in_abort.get_future().get() == 1);
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE:NORMAL");
-        REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
-        CHECK(role_b->events().back() == "closed:CLOSED_THERE:NORMAL");
-    }
-
     SECTION("abort() of an end whose close is not confirmed reports it so") {
         auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.acknowledgeClose = false});
         auto role_a = makeRole();
@@ -663,19 +707,6 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
 
-    SECTION("the first close decides what the other end is told") {
-        auto [a, b] = pairOn(io.executor());
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->start(a);
-        role_b->start(b);
-        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
-        a->close(GPeerClose::ERROR);
-        a->close(GPeerClose::RUN_ENDED); // changes nothing
-        REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
-        CHECK(role_b->events().back() == "closed:CLOSED_THERE:ERROR");
-    }
-
     SECTION("an end that loses what comes after three messages") {
         auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.deliverAtMost = 3});
         auto role_a = makeRole();
@@ -692,15 +723,7 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         CHECK(role_b->nMessages() == 3);
     }
 
-    SECTION("setOwnerBusy() reaches the end; GPeerI's default ignores it") {
-        auto [a, b] = pairOn(io.executor());
-        std::promise<bool> busy;
-        boost::asio::post(a->executor(), [&, peer = a] {
-            peer->setOwnerBusy(true);
-            busy.set_value(peer->ownerBusy());
-        });
-        CHECK(busy.get_future().get());
-
+    SECTION("GPeerI's default of setOwnerBusy() ignores it") {
         /** A peer that does not override setOwnerBusy() */
         struct Minimal final : GPeerI {
             void start(GPeerHandlers) override {

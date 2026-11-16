@@ -468,7 +468,9 @@ void GMPIPollCore::fail_(const std::exception_ptr &cause) noexcept {
         }
     }
     catch(...) { // NOLINT(bugprone-empty-catch) -- nothing is left to tell (out of memory, say)
-        // The chain has ended; a receiver that could not be told learns of it at shutdown().
+        // The chain has ended. A receiver that could not be told is not told later either:
+        // shutdown() lets it go without a report (GMPIPollReceiverI::discard()), and its peer
+        // ends without onClosed (GPeerI.hpp, rule 5). Only a failing allocation gets here.
     }
 }
 
