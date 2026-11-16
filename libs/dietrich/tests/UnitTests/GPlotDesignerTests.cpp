@@ -1546,6 +1546,17 @@ TEST_CASE(
         CHECK(render(map, plotBackend::ROOT).contains("new TLegend(0.56, 0.13, 0.88, 0.225);"));
     }
 
+    SECTION("a placed legend draws a label too long for its box smaller, ROOT's own one need not") {
+        const auto map = map_under_points("the landscape", "evaluated candidates");
+        map->setLegendPosition(legendPosition::TOP_LEFT);
+        const std::string placed = render(map, plotBackend::ROOT);
+        CHECK(placed.contains("GetXsize()"));
+        CHECK(placed.contains("size *= room / widest;"));
+        CHECK(placed.contains("legend->SetTextSize(size);"));
+        map->setLegendPosition(legendPosition::AUTO);
+        CHECK_FALSE(render(map, plotBackend::ROOT).contains("GetXsize()"));
+    }
+
     SECTION("a single series gets no legend, labelled or not") {
         auto single = smallSurface(surfaceProjection::NONE);
         single->setPlotLabel("a surface");

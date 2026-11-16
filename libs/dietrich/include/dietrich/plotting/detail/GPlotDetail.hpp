@@ -162,8 +162,11 @@ inline void emitRootSeriesColour(
  * Each entry shows what its object draws (line, marker, fill), as BuildLegend() chooses it.
  *
  * AUTO is ROOT's own placement, as BuildLegend() makes it: a box of 0.3 x 0.21 of the pad, put
- * where it covers the least at painting time. A corner puts the box of legendBox() there, with a
- * fixed text size relative to the pad's height, so that pads of one size show their legends alike.
+ * where it covers the least at painting time, with its text sized to the box. A corner puts the box
+ * of legendBox() there, with a fixed text size relative to the pad's height, so that pads of one
+ * size show their legends alike. A label too long for that box at that size would run out of it
+ * over the pad; then the whole legend is drawn just small enough for its widest label (ROOT
+ * measures the labels), and the box stays where legendBox() says.
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
@@ -178,11 +181,13 @@ inline void emitRootLegend(
     std::size_t n_entries
 ) {
     s << indent << "{ // the legend: one entry per series of the pad that carries a label" << '\n';
+    double box_width = 0.; // of a placed legend, in coordinates of the pad (0 to 1)
     if(position == legendPosition::AUTO) {
         s << indent << "   TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT" << '\n';
     } else {
         constexpr double TEXT_SIZE = 0.045;
         const auto [x1, y1, x2, y2] = legendBox(position, n_entries);
+        box_width = x2 - x1;
         std::ostringstream box;
         box.imbue(std::locale::classic());
         box << "new TLegend(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ");";
@@ -207,8 +212,32 @@ inline void emitRootLegend(
       << indent << "      if(o->InheritsFrom(TAttMarker::Class())) option += \"p\";" << '\n'
       << indent << "      if(o->InheritsFrom(TAttFill::Class())) option += \"f\";" << '\n'
       << indent << "      legend->AddEntry(o, n->GetTitle(), option);" << '\n'
-      << indent << "   }" << '\n'
-      << indent << "   legend->Draw();" << '\n'
+      << indent << "   }" << '\n';
+    if(position != legendPosition::AUTO) {
+        // The room of a label is the box less the margin of the samples, and a little air. The
+        // width is written out: the legend knows its coordinates in the pad only once it is painted.
+        std::ostringstream width;
+        width.imbue(std::locale::classic());
+        width << box_width;
+        s << indent << "   { // labels too long for the box are drawn smaller, so that they stay inside it" << '\n'
+          << indent << "      const double room = 0.95 * (1. - legend->GetMargin()) * " << width.str() << ";" << '\n'
+          << indent << "      double size = legend->GetTextSize();" << '\n'
+          << indent << "      for(int pass = 0; pass < 8; ++pass) { // a font's width is not quite proportional to its size" << '\n'
+          << indent << "         double widest = 0.;" << '\n'
+          << indent << "         TIter next_label(legend->GetListOfPrimitives());" << '\n'
+          << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_label())) {" << '\n'
+          << indent << "            TLatex label(0., 0., e->GetLabel());" << '\n'
+          << indent << "            label.SetTextFont(legend->GetTextFont());" << '\n'
+          << indent << "            label.SetTextSize(size);" << '\n'
+          << indent << "            widest = TMath::Max(widest, label.GetXsize() / (gPad->GetX2() - gPad->GetX1()));" << '\n'
+          << indent << "         }" << '\n'
+          << indent << "         if(widest <= room) break;" << '\n'
+          << indent << "         size *= room / widest;" << '\n'
+          << indent << "      }" << '\n'
+          << indent << "      legend->SetTextSize(size);" << '\n'
+          << indent << "   }" << '\n';
+    }
+    s << indent << "   legend->Draw();" << '\n'
       << indent << "}" << '\n';
 }
 

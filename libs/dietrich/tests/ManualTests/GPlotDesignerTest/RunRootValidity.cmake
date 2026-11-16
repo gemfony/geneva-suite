@@ -30,7 +30,8 @@ endif()
 #    reports the number of entries of every legend in the pads of the canvas (cc, the graph pad,
 #    its sub-pads): a legend lists the series of its pad, so no legend may have more entries than
 #    the most series a pad of the generator holds (GPD_MAX_SERIES_PER_PAD). A legend built from
-#    every object of a pad took in each cell of a colour map drawn cell by cell.
+#    every object of a pad took in each cell of a colour map drawn cell by cell. For a legend placed
+#    in a corner (a fixed text size) it reports whether each label fits into the box.
 file(READ "${WORKDIR}/result.C" _macro)
 string(FIND "${_macro}" "}" _last_brace REVERSE)
 if(_last_brace LESS 0)
@@ -49,7 +50,20 @@ set(_legend_probe [=[
             TIter l3(p2->GetListOfPrimitives());
             while(TObject *o3 = l3()) {
                TLegend *l = dynamic_cast<TLegend *>(o3);
-               if(l) printf("GPD-LEGEND-ENTRIES %d\n", l->GetListOfPrimitives()->GetSize());
+               if(!l) continue;
+               printf("GPD-LEGEND-ENTRIES %d\n", l->GetListOfPrimitives()->GetSize());
+               if(l->GetTextSize() <= 0.) continue; // ROOT sizes the text to the box itself
+               p2->cd();
+               const double room = (l->GetX2NDC() - l->GetX1NDC()) * (1. - l->GetMargin());
+               TIter l4(l->GetListOfPrimitives());
+               while(TObject *o4 = l4()) {
+                  TLegendEntry *e = static_cast<TLegendEntry *>(o4);
+                  TLatex label(0., 0., e->GetLabel());
+                  label.SetTextFont(l->GetTextFont());
+                  label.SetTextSize(l->GetTextSize());
+                  const double width = label.GetXsize() / (p2->GetX2() - p2->GetX1());
+                  printf("GPD-PLACED-LABEL %s\n", width > room ? "overflows" : "fits");
+               }
             }
          }
       }
@@ -84,6 +98,15 @@ string(REGEX MATCHALL "GPD-LEGEND-ENTRIES [0-9]+" _legends "${_out}")
 list(LENGTH _legends _n_legends)
 if(_n_legends EQUAL 0)
 	message(FATAL_ERROR "ROOT reported no legend, but the generated macro has pads with several series.\nstdout:\n${_out}")
+endif()
+# A placed legend has a fixed text size; a label too long for its box at that size must be drawn
+# smaller rather than run out of the box over the pad.
+string(REGEX MATCHALL "GPD-PLACED-LABEL [a-z]+" _placed "${_out}")
+if(NOT _placed)
+	message(FATAL_ERROR "ROOT reported no label of a placed legend, but the generated macro has one.\nstdout:\n${_out}")
+endif()
+if("GPD-PLACED-LABEL overflows" IN_LIST _placed)
+	message(FATAL_ERROR "A label of a placed legend runs out of its box.\nstdout:\n${_out}")
 endif()
 foreach(_legend IN LISTS _legends)
 	string(REGEX REPLACE "GPD-LEGEND-ENTRIES " "" _entries "${_legend}")

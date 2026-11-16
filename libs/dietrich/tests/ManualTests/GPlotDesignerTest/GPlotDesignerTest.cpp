@@ -203,7 +203,11 @@ int main(int argc, char **argv) {
     gpd.registerPlotter(gcos_plotter_1D_ptr);
     gpd.registerPlotter(schwefel_plotter_2D_ptr);
     gpd.registerPlotter(noisyParabola_plotter_2D_ptr);
-    gpd.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor"));
+    // The floor projection's legend is placed in a corner: its labels are longer than the box is
+    // wide at the fixed text size of a placed legend, so ROOT must draw them smaller.
+    auto floor_projection = projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor");
+    floor_projection->setLegendPosition(legendPosition::TOP_LEFT);
+    gpd.registerPlotter(floor_projection);
     gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
     gpd.registerPlotter(decadesGraph("a power law with logarithmic axes"));
 
