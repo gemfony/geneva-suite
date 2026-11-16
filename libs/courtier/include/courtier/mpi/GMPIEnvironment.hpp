@@ -67,8 +67,9 @@ namespace Gem::Courtier::Consumers {
  *    nowhere else, because duplicating is a collective call: every process of the base
  *    communicator must construct its environment, or the others wait for it. A program in which
  *    only some processes of MPI_COMM_WORLD take part passes the communicator of those that do.
- *  - A process that takes no part in courtier's protocol (in a cascade: a sub-client) passes
- *    MPI_COMM_NULL. It has the role BYSTANDER and no communicator.
+ *  - A process that takes no part in courtier's protocol (in a cascade: a member; in a cascade
+ *    laid out GROUPS_ONLY, every process) passes MPI_COMM_NULL. It has the role BYSTANDER and no
+ *    communicator. A cascade builds the environment itself (courtier/mpi/GMPICascade.hpp).
  *
  * The destructor frees the duplicate and finalizes MPI if this object initialized it. A program
  * that initialized MPI itself finalizes it itself, and must let go of its consumer or client

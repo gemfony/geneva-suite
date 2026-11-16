@@ -65,6 +65,16 @@ IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( CourtierMpiLinksMpi PROPERTIES LABELS "courtier" )
 	GENEVA_TEST_SIZE ( CourtierMpiLinksMpi S )
+
+	# The MPI cascade and its members need nothing of Geneva: its test program, which links
+	# courtier's MPI library, does not depend on a library of Geneva at load time.
+	ADD_TEST ( NAME GCourtierMpiCascadeTestNoGeneva
+		COMMAND ${CMAKE_COMMAND}
+			"-DLIBS=$<TARGET_FILE:GCourtierMpiCascadeTest>"
+			"-DPATTERN=libgemfony-geneva"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+	SET_TESTS_PROPERTIES ( GCourtierMpiCascadeTestNoGeneva PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( GCourtierMpiCascadeTestNoGeneva S )
 ENDIF ()
 
 GENEVA_AGGREGATE_TARGET( "tests-courtier" )

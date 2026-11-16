@@ -39,6 +39,7 @@
 #include <istream>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 // Boost headers go here
 
@@ -135,7 +136,7 @@ enum class consumerType : Gem::Common::ENUMBASETYPE {
 enum class processRole : Gem::Common::ENUMBASETYPE {
     SUBMITTER = 0, ///< Builds the consumer and submits work through it
     CLIENT = 1,    ///< Serves work
-    BYSTANDER = 2  ///< Takes no part in the consumer's protocol (in an MPI cascade: a sub-client)
+    BYSTANDER = 2  ///< Takes no part in the consumer's protocol (in an MPI cascade: a member)
 };
 
 /******************************************************************************/
@@ -290,6 +291,15 @@ constexpr int GMPIPEERPOLLROUNDS = 16;
 /// How long the MPI poll keeps looking after its last receiver has ended, for sends that have not
 /// completed (a large message to a rank that no longer receives never does).
 constexpr std::chrono::seconds GMPIPEERDRAINGRACE{2};
+
+/******************************************************************************
+ * Constants of the MPI cascade (mpi/GMPICascade.hpp, mpi/GMPICascadeConfig.hpp):
+ */
+/// The number of processes of a group of the cascade, its lead included, unless a program or the
+/// cascade's configuration file says otherwise.
+constexpr std::uint16_t GMPICASCADEDEFAULTGROUPSIZE = 4;
+/// The configuration file of the cascade, relative to the working directory of rank 0.
+inline constexpr std::string_view GMPICASCADECONFIGFILE = "./config/GMPICascade.json";
 
 /******************************************************************************/
 /** @brief The default number of threads for parallelization with threads */

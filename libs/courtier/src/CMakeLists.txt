@@ -115,15 +115,20 @@ INSTALL(TARGETS ${COURTIER_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_P
 ################################################################################
 # Courtier's MPI library (libgemfony-courtier-mpi, out of tree Geneva::courtier-mpi), built only
 # with the MPI consumer. It holds the binding of the MPI transport's calls to MPI (mpi/GMPICalls.cpp,
-# the GMPICallsI of the poll in libgemfony-courtier) and the process's one MPI environment
-# (mpi/GMPIEnvironmentAccess.cpp):
+# the GMPICallsI of the poll in libgemfony-courtier), the MPI cascade (mpi/GMPICascade.cpp: a client
+# shares each evaluation with a group of MPI processes) with its polled waits
+# (mpi/GMPIPolledCalls.cpp), and the process's one MPI environment (mpi/GMPIEnvironmentAccess.cpp):
 # that state must be defined in exactly one shared object, so that a program, Geneva's MPI module
 # and any other library of the process share it, and it calls MPI, which libgemfony-courtier must
 # not link (tests/CheckNoDriverLink.cmake). Nothing links it unless it uses MPI: Geneva's MPI module
 # does, and so does a program that names the functions of courtier/mpi/. Its headers include mpi.h,
 # so MPI is part of its interface.
 IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-    ADD_LIBRARY(${COURTIER_MPI_LIBNAME} SHARED mpi/GMPICalls.cpp mpi/GMPIEnvironmentAccess.cpp)
+    ADD_LIBRARY(${COURTIER_MPI_LIBNAME} SHARED
+            mpi/GMPICalls.cpp
+            mpi/GMPICascade.cpp
+            mpi/GMPIEnvironmentAccess.cpp
+            mpi/GMPIPolledCalls.cpp)
     SET_TARGET_PROPERTIES(
             ${COURTIER_MPI_LIBNAME}
             PROPERTIES

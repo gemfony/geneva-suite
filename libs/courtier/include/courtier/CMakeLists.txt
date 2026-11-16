@@ -107,8 +107,11 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
     # The headers of courtier's MPI library (libgemfony-courtier-mpi)
     SET( MPI_INCLUDES
             mpi/GMPICalls.hpp
+            mpi/GMPICascade.hpp
+            mpi/GMPICascadeConfig.hpp
             mpi/GMPIEnvironment.hpp
-            mpi/GMPIEnvironmentAccess.hpp)
+            mpi/GMPIEnvironmentAccess.hpp
+            mpi/GMPIPolledCalls.hpp)
 ENDIF ()
 
 set_source_files_properties(

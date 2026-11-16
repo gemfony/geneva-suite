@@ -1,0 +1,657 @@
+/********************************************************************************
+ *
+ * This file is part of the Geneva library collection. The following license
+ * applies to this file:
+ *
+ * ------------------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ------------------------------------------------------------------------------
+ *
+ * Note that other files in the Geneva library collection may use a different
+ * license. Please see the licensing information in each file.
+ *
+ ********************************************************************************
+ *
+ * See the NOTICE file in the top-level directory of the Geneva library
+ * collection for a list of contributors and copyright information.
+ *
+ ********************************************************************************/
+
+/*
+ * The MPI cascade (see GMPICascade.hpp): everything of GMPICascade that is not a template.
+ */
+
+#include "courtier/mpi/GMPICascade.hpp"
+
+// Standard headers go here
+#include <array>
+#include <cstdint>
+#include <cstdlib>
+#include <exception>
+#include <functional>
+#include <iostream>
+#include <mutex>
+#include <span>
+#include <string>
+#include <string_view>
+
+// MPI headers go here
+#include <mpi.h>
+
+// Geneva headers go here
+#include "common/GCommonHelperFunctionsT.hpp"
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
+#include "common/GParserBuilder.hpp"
+#include "courtier/GCourtierEnums.hpp"
+#include "courtier/GCourtierHelperFunctions.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
+#include "courtier/mpi/GMPIPolledCalls.hpp"
+
+namespace Gem::Courtier {
+
+namespace {
+
+/// The two commands a lead announces to its members, one MPI_INT on the status communicator
+constexpr int ROUNDSTOP = 0;
+constexpr int ROUNDGO = 1;
+
+/// Rank 0's configuration travels as these numbers: whether rank 0 could provide it, then its
+/// fields in the order of GMPICascadeConfig
+constexpr std::int64_t CONFIGFAILED = 0;
+constexpr std::int64_t CONFIGPROVIDED = 1;
+constexpr int CONFIGFIELDS = 5;
+using packed_config_type = std::array<std::int64_t, CONFIGFIELDS>;
+
+/******************************************************************************/
+/**
+ * @brief What a role is in the cascade, for messages.
+ * @param role The role
+ * @return Its name
+ */
+std::string_view roleName(processRole role) {
+    switch(role) {
+    case processRole::SUBMITTER:
+        return "the submitter";
+    case processRole::CLIENT:
+        return "a lead";
+    case processRole::BYSTANDER:
+        return "a member";
+    }
+    return "an unknown role";
+}
+
+/******************************************************************************/
+/**
+ * @brief What a process of a role calls, for messages.
+ * @param role The role
+ * @return The calls
+ */
+std::string_view callsOf(processRole role) {
+    switch(role) {
+    case processRole::SUBMITTER:
+        return "the submitter submits through its consumer and takes no part in the rounds";
+    case processRole::CLIENT:
+        return "a lead calls lead(), round() and release()";
+    case processRole::BYSTANDER:
+        return "a member calls serve()";
+    }
+    return "";
+}
+
+/******************************************************************************/
+/**
+ * @brief The name of a layout, for messages.
+ * @param layout The layout
+ * @return Its name
+ */
+std::string_view layoutName(GMPICascadeLayout layout) {
+    switch(layout) {
+    case GMPICascadeLayout::SUBMITTER_AND_GROUPS:
+        return "SUBMITTER_AND_GROUPS";
+    case GMPICascadeLayout::GROUPS_ONLY:
+        return "GROUPS_ONLY";
+    }
+    return "an unknown layout";
+}
+
+/******************************************************************************/
+/**
+ * @brief What a program has to add when the role of a lead or the submitter was not confirmed,
+ * for messages.
+ * @return The advice
+ */
+std::string_view confirmationAdvice() {
+    return "Call requireRole() with the role the consumer gave this process (a program without a "
+           "consumer, which calls round() itself: requireRole(processRole::CLIENT)) before the "
+           "first lead() or round(); a wrong consumer would otherwise run nothing while the "
+           "members idle.";
+}
+
+} // namespace
+
+/******************************************************************************/
+/**
+ * @brief Splits @p base into the cascade's groups (see the class comment). Collective on @p base:
+ * every process of it constructs its cascade at the same point. Without configuration emission
+ * the cascade builds the process's MPI environment, which initializes MPI with
+ * MPI_THREAD_MULTIPLE unless the program has done so.
+ *
+ * @param config_on_rank0 Called on rank 0 of @p base only (and without MPI under configuration
+ *                        emission); provides the configuration of every rank
+ * @param base The communicator whose processes form the cascade; the caller's, never freed. A
+ *             communicator other than MPI_COMM_WORLD implies that the program initialized MPI.
+ * @throws geneva_exception if an MPI environment exists already, if MPI has been finalized or
+ *         cannot provide MPI_THREAD_MULTIPLE, if rank 0 could not provide the configuration (rank
+ *         0 rethrows what its callable threw), or if the configuration is refused by
+ *         GMPICascadeConfig::check() -- on every rank alike; MPI is then finalized again if the
+ *         environment initialized it
+ */
+GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI_Comm base)
+  : base_(base) {
+    if(Gem::Common::GParserBuilder::updateInPlace()) {
+        // Configuration emission: no MPI call at all. The callable writes its file.
+        config_ = config_on_rank0();
+        config_.check();
+        return;
+    }
+    environment_ =
+        mpiEnvironmentOn([this, &config_on_rank0] { return this->split_(config_on_rank0); });
+}
+
+/******************************************************************************/
+/**
+ * @brief The destructor, on every rank. In this order: nothing without MPI or once MPI is
+ * finalized; a member that has neither served nor received the stop ends the job (its lead would
+ * wait for ever); a lead releases its group; a lead or the submitter whose role was never
+ * confirmed with requireRole() and that never used the cascade (a lead that used it was refused
+ * at the first use) ends the job, unless an exception is unwinding; then the
+ * communicators are freed and the environment is let go of, which finalizes MPI if it initialized
+ * it and this was its last holder.
+ */
+GMPICascade::~GMPICascade() {
+    if(not environment_) {
+        return; // no MPI was used
+    }
+    int finalized = 0;
+    MPI_Finalized(&finalized);
+    if(finalized != 0) {
+        return; // the program finalized MPI while the cascade lived: nothing can be done
+    }
+    if(role_ == processRole::BYSTANDER && not served_ && not stop_received_) {
+        this->endJob_(
+            "~GMPICascade()",
+            "a member of the cascade left without serve(); its lead would wait for ever. A member "
+            "calls serve() before its cascade is destroyed."
+        );
+    }
+    if(role_ == processRole::CLIENT) {
+        this->release();
+    }
+    if(role_ != processRole::BYSTANDER && not role_confirmed_ && not used_ &&
+       std::uncaught_exceptions() == 0) {
+        this->endJob_(
+            "~GMPICascade()",
+            std::string("the role of ") + std::string(roleName(role_)) + " was never confirmed. " +
+                std::string(confirmationAdvice())
+        );
+    }
+    for(MPI_Comm *communicator : {&courtier_, &group_, &status_}) {
+        if(*communicator != MPI_COMM_NULL) {
+            MPI_Comm_free(communicator);
+        }
+    }
+    environment_.reset();
+}
+
+/******************************************************************************/
+/**
+ * @brief The cascade's role of this process (not the environment's, which in GROUPS_ONLY is
+ * BYSTANDER on a lead too).
+ * @return SUBMITTER, CLIENT (a lead) or BYSTANDER (a member); SUBMITTER without MPI
+ */
+processRole GMPICascade::role() const noexcept {
+    return role_;
+}
+
+/******************************************************************************/
+/**
+ * @brief The group's communicator, for the halves of a round.
+ * @return The communicator; MPI_COMM_NULL on the submitter and without MPI
+ */
+MPI_Comm GMPICascade::group() const noexcept {
+    return group_;
+}
+
+/******************************************************************************/
+/**
+ * @brief The configuration every rank uses.
+ * @return Rank 0's configuration, as every rank received it
+ */
+const GMPICascadeConfig &GMPICascade::config() const noexcept {
+    return config_;
+}
+
+/******************************************************************************/
+/**
+ * @brief On a member: calls @p member's setUp(), its serveRound() for every round its lead
+ * announces, and its tearDown() after the stop. The stop is latched: a further call returns 0 at
+ * once and calls nothing. An exception out of @p member's functions ends the MPI job.
+ *
+ * @param member The member's half; outlives the cascade
+ * @return 0, the exit code of the process
+ * @throws geneva_exception without MPI, or on a process that is not a member
+ */
+int GMPICascade::serve(GMPIGroupMemberI &member) {
+    this->requireMpi_("serve()");
+    this->requireCascadeRole_(processRole::BYSTANDER, "serve()");
+    // Latched: after the stop nothing is posted on the status communicator, where no broadcast of
+    // the lead would ever answer, and the member half is not set up again.
+    if(stop_received_) {
+        return 0;
+    }
+    this->guarded_("setUp()", [&] { member.setUp(group_); });
+    while(this->waitForRound_()) {
+        this->guarded_("serveRound()", [&] { member.serveRound(group_); });
+    }
+    this->guarded_("tearDown()", [&] { member.tearDown(group_); });
+    served_ = true;
+    return 0;
+}
+
+/******************************************************************************/
+/**
+ * @brief On a lead: calls @p lifecycle's setUp() now, in step with the members' setUp(), and its
+ * tearDown() at release(). Optional: a lead that does not call it is released without a
+ * tearDown(). An exception out of setUp() ends the MPI job.
+ *
+ * @param lifecycle The lead's lifecycle; outlives the cascade
+ * @throws geneva_exception without MPI, on a process that is not a lead, after release(), on a
+ *         second call, or before requireRole() -- then after the lifecycle was set up and the group
+ *         released (setUp() and tearDown() run in step with the members')
+ */
+void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
+    this->requireMpi_("lead()");
+    this->requireCascadeRole_(processRole::CLIENT, "lead()");
+    const std::scoped_lock lock(round_mutex_);
+    used_ = true;
+    if(released_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::lead(): Error!" << '\n'
+            << "The group was released (release()); lead() comes before the first round" << '\n'
+        );
+    }
+    if(lifecycle_ != nullptr) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::lead(): Error!" << '\n'
+            << "lead() was called before; a group is set up once" << '\n'
+        );
+    }
+    lifecycle_ = &lifecycle;
+    this->guarded_("setUp()", [this] { lifecycle_->setUp(group_); });
+    this->requireConfirmedRole_("lead()");
+}
+
+/******************************************************************************/
+/**
+ * @brief On a lead: announces the stop to the members, then calls the tearDown() of the lifecycle
+ * passed to lead(). Waits for a round that runs; latched; a later round() or lead() throws. Does
+ * nothing on another process and without MPI. An exception out of tearDown() ends the MPI job.
+ */
+void GMPICascade::release() noexcept {
+    if(not environment_ || role_ != processRole::CLIENT) {
+        return;
+    }
+    const std::scoped_lock lock(round_mutex_);
+    this->releaseLocked_();
+}
+
+/******************************************************************************/
+/**
+ * @brief Announces the stop to the members and tears down the lifecycle passed to lead(), once.
+ * Called with the round lock held, on a lead with MPI. An exception out of tearDown() ends the MPI
+ * job.
+ */
+void GMPICascade::releaseLocked_() noexcept {
+    if(released_) {
+        return;
+    }
+    released_ = true;
+    this->guarded_("release()", [this] { this->announce_(ROUNDSTOP); });
+    if(lifecycle_ != nullptr) {
+        this->guarded_("tearDown()", [this] { lifecycle_->tearDown(group_); });
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Refuses the first use of a lead whose role requireRole() has not confirmed: releases the
+ * group first, so that every member's serve() returns and no process is left waiting, then throws.
+ * Called with the round lock held.
+ *
+ * @param where The function that was called
+ * @throws geneva_exception unless the role was confirmed; the text says what the program has to add
+ */
+void GMPICascade::requireConfirmedRole_(std::string_view where) {
+    if(role_confirmed_) {
+        return;
+    }
+    this->releaseLocked_();
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "In GMPICascade::" << where << ": Error!" << '\n'
+        << "The role of this process (base rank " << base_rank_ << ", " << roleName(role_)
+        << ") was not confirmed with requireRole(). " << confirmationAdvice() << '\n'
+        << "The group was released: its members have left serve()." << '\n'
+    );
+}
+
+/******************************************************************************/
+/**
+ * @brief On a lead or the submitter: confirms that the consumer gave this process the role the
+ * cascade gave it. Every lead and the submitter must call it, a lead before its first lead() or
+ * round() (see the class comment).
+ *
+ * @param consumer_role The role this process's consumer gave it (a program without a consumer
+ *                      passes processRole::CLIENT on a lead)
+ * @throws geneva_exception on a member (it has no consumer), or if @p consumer_role differs from
+ *         role(); the text names the base rank, the layout, both roles and the remedy
+ */
+void GMPICascade::requireRole(processRole consumer_role) {
+    if(role_ == processRole::BYSTANDER) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::requireRole(): Error!" << '\n'
+            << "This process (base rank " << base_rank_ << ") is a member of the cascade; a member "
+            << "has no consumer, it calls serve()" << '\n'
+        );
+    }
+    if(consumer_role == role_) {
+        role_confirmed_ = true;
+        return;
+    }
+    const std::string_view remedy =
+        config_.layout == GMPICascadeLayout::SUBMITTER_AND_GROUPS
+            ? "Start the job with --consumer mpi."
+            : "Start every lead with --client and a networked consumer (for example --consumer "
+              "beast), and the job without the MPI consumer.";
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "In GMPICascade::requireRole(): Error!" << '\n'
+        << "Base rank " << base_rank_ << " of a cascade laid out " << layoutName(config_.layout)
+        << ": the consumer gave this process the role of " << roleName(consumer_role)
+        << ", the cascade the role of " << roleName(role_) << '\n'
+        << remedy << '\n'
+    );
+}
+
+/******************************************************************************/
+/**
+ * @brief The callable of the environment, called once MPI is initialized: broadcasts rank 0's
+ * configuration, checks it and makes the splits (see the class comment). Rank 0 must never throw
+ * before the broadcast, or the other ranks would wait in it for ever.
+ *
+ * @param config_on_rank0 Provides the configuration; called on rank 0 of base_ only
+ * @return Courtier's communicator: the submitter's and the leads' in SUBMITTER_AND_GROUPS,
+ *         MPI_COMM_NULL on a member and on every process in GROUPS_ONLY
+ * @throws geneva_exception if rank 0 could not provide the configuration (rank 0 rethrows what
+ *         its callable threw), or if GMPICascadeConfig::check() refuses it
+ */
+MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on_rank0) {
+    MPI_Comm_rank(base_, &base_rank_);
+
+    // Rank 0's configuration, or a marker that it has none, for every rank.
+    packed_config_type packed{};
+    packed[0] = CONFIGFAILED;
+    std::exception_ptr failure;
+    if(base_rank_ == 0) {
+        try {
+            const GMPICascadeConfig provided = config_on_rank0();
+            packed = {
+                CONFIGPROVIDED,
+                provided.groupSize,
+                static_cast<std::int64_t>(provided.layout),
+                provided.pauseMin.count(),
+                provided.pauseMax.count()
+            };
+        }
+        catch(...) {
+            failure = std::current_exception();
+        }
+    }
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
+    // checker does not know it
+    MPI_Request request = MPI_REQUEST_NULL;
+    MPI_Ibcast(packed.data(), CONFIGFIELDS, MPI_INT64_T, 0, base_, &request);
+    if(waitPolled(
+           std::span<MPI_Request>(&request, 1),
+           GMPIPEERPOLLPAUSEMIN,
+           GMPIPEERPOLLPAUSEMAX
+       ) != MPI_SUCCESS) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::GMPICascade(): Error!" << '\n'
+            << "The broadcast of the cascade's configuration failed" << '\n'
+        );
+    }
+    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+    if(packed[0] != CONFIGPROVIDED) {
+        if(failure) {
+            std::rethrow_exception(failure);
+        }
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::GMPICascade(): Error!" << '\n'
+            << "Rank 0 of the base communicator could not provide the cascade's configuration"
+            << '\n'
+        );
+    }
+    config_.groupSize = Gem::Common::narrow<std::uint16_t>(packed[1]);
+    // An unknown value is kept as it is, so that check() refuses it with its number.
+    config_.layout =
+        static_cast<GMPICascadeLayout>( // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+            Gem::Common::narrow<Gem::Common::ENUMBASETYPE>(packed[2])
+        );
+    config_.pauseMin = std::chrono::microseconds(packed[3]);
+    config_.pauseMax = std::chrono::microseconds(packed[4]);
+    config_.check(); // on every rank alike, after the broadcast
+
+    // The layout: groups start after the submitter (SUBMITTER_AND_GROUPS) or at rank 0. Both
+    // splits are made by every rank in both layouts (they are collective); the layout only
+    // colours differently.
+    const int g = config_.groupSize;
+    const int first = config_.layout == GMPICascadeLayout::SUBMITTER_AND_GROUPS ? 1 : 0;
+    const bool submitter = base_rank_ < first;
+    const bool lead = not submitter && (base_rank_ - first) % g == 0;
+    const int colour = submitter ? MPI_UNDEFINED : (base_rank_ - first) / g;
+    const int key = lead ? 0 : base_rank_; // the lead is rank 0 of its group
+    MPI_Comm_split(base_, colour, key, &group_);
+    const bool in_courtier =
+        config_.layout == GMPICascadeLayout::SUBMITTER_AND_GROUPS && (submitter || lead);
+    MPI_Comm_split(base_, in_courtier ? 0 : MPI_UNDEFINED, base_rank_, &courtier_);
+    if(submitter) {
+        role_ = processRole::SUBMITTER;
+    }
+    else {
+        role_ = lead ? processRole::CLIENT : processRole::BYSTANDER;
+    }
+
+    if(group_ != MPI_COMM_NULL) {
+        // The announcements travel on a communicator of their own, apart from the halves' traffic.
+        MPI_Comm_set_errhandler(group_, MPI_ERRORS_ARE_FATAL);
+        MPI_Comm_dup(group_, &status_);
+        MPI_Comm_set_errhandler(status_, MPI_ERRORS_ARE_FATAL);
+    }
+    return courtier_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Checks that a round may be announced and announces it. Called by round() with the round
+ * lock held; throws before anything is announced, so the group stays in step.
+ *
+ * @throws geneva_exception without MPI, on a process that is not a lead, before requireRole()
+ *         (the group is then released), or after release()
+ */
+void GMPICascade::announceRound_() {
+    this->requireMpi_("round()");
+    this->requireCascadeRole_(processRole::CLIENT, "round()");
+    used_ = true;
+    this->requireConfirmedRole_("round()");
+    if(released_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::round(): Error!" << '\n'
+            << "The group was released (release()); no round follows the stop" << '\n'
+        );
+    }
+    this->announce_(ROUNDGO);
+}
+
+/******************************************************************************/
+/**
+ * @brief Broadcasts @p command from the lead to its members on the status communicator and waits
+ * for the broadcast to complete, polled.
+ *
+ * @param command ROUNDGO or ROUNDSTOP
+ * @throws geneva_exception if the broadcast fails (not on a communicator with MPI_ERRORS_ARE_FATAL)
+ */
+void GMPICascade::announce_(int command) {
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
+    // checker does not know it
+    MPI_Request request = MPI_REQUEST_NULL;
+    MPI_Ibcast(&command, 1, MPI_INT, 0, status_, &request);
+    if(waitPolled(std::span<MPI_Request>(&request, 1), config_.pauseMin, config_.pauseMax) !=
+       MPI_SUCCESS) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::announce_(): Error!" << '\n'
+            << "The broadcast of a command to the group failed" << '\n'
+        );
+    }
+    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+}
+
+/******************************************************************************/
+/**
+ * @brief On a member: waits, polled, for the lead's next command.
+ * @return true for a round, false for the stop (which is latched)
+ * @throws geneva_exception if the broadcast fails (not on a communicator with MPI_ERRORS_ARE_FATAL)
+ */
+bool GMPICascade::waitForRound_() {
+    int command = ROUNDSTOP;
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
+    // checker does not know it
+    MPI_Request request = MPI_REQUEST_NULL;
+    MPI_Ibcast(&command, 1, MPI_INT, 0, status_, &request);
+    if(waitPolled(std::span<MPI_Request>(&request, 1), config_.pauseMin, config_.pauseMax) !=
+       MPI_SUCCESS) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::serve(): Error!" << '\n'
+            << "The broadcast of a command from the lead failed" << '\n'
+        );
+    }
+    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+    stop_received_ = (command != ROUNDGO);
+    return not stop_received_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Refuses a function that needs MPI in the state without MPI (configuration emission).
+ * @param where The function that was called
+ * @throws geneva_exception without MPI
+ */
+void GMPICascade::requireMpi_(std::string_view where) const {
+    if(not environment_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::" << where << ": Error!" << '\n'
+            << "The cascade makes no MPI call while the configuration files are emitted "
+            << "(--update-configs), so " << where << " cannot be used" << '\n'
+        );
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Refuses a function called by a process of the wrong role, before anything is announced.
+ * @param needed The role the function is for
+ * @param where The function that was called
+ * @throws geneva_exception unless this process has the role @p needed
+ */
+void GMPICascade::requireCascadeRole_(processRole needed, std::string_view where) const {
+    if(role_ != needed) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::" << where << ": Error!" << '\n'
+            << where << " is called on " << roleName(needed) << " of the cascade, but this "
+            << "process (base rank " << base_rank_ << ") is " << roleName(role_) << "; "
+            << callsOf(role_) << '\n'
+        );
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Ends the MPI job after an exception left a half or a lifecycle function of the group:
+ * logs it and calls MPI_Abort on the base communicator.
+ *
+ * @param where The function that was running
+ * @param failure The exception
+ */
+void GMPICascade::endJob_(
+    std::string_view where,
+    const std::exception_ptr &failure
+) const noexcept {
+    std::string reason;
+    try {
+        reason = "an exception left " + std::string(where) + ": " + describeException(failure) +
+                 "\nThe group can no longer be assumed to be in step.";
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
+    }
+    this->endJob_(where, reason);
+}
+
+/******************************************************************************/
+/**
+ * @brief Ends the MPI job: logs @p reason and calls MPI_Abort on the base communicator, which
+ * ends every process of the job (in SUBMITTER_AND_GROUPS the whole optimization, in GROUPS_ONLY
+ * one client job).
+ *
+ * @param where The function that was running
+ * @param reason Why
+ */
+void GMPICascade::endJob_(std::string_view where, std::string_view reason) const noexcept {
+    try {
+        glogger << "In GMPICascade (base rank " << base_rank_ << "), " << where << ": " << reason
+                << '\n'
+                << "The job is ended (MPI_Abort)." << '\n'
+                << GWARNING;
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
+    }
+    std::cout.flush();
+    std::cerr.flush();
+    MPI_Abort(base_, EXIT_FAILURE);
+    std::abort(); // not reached: MPI_Abort does not return
+}
+
+/******************************************************************************/
+
+} /* namespace Gem::Courtier */

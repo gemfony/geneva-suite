@@ -107,6 +107,9 @@ geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cp
 geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
+# run() returns only once no evaluation of the client runs any more, also when it is asked to close
+# while one runs
+geneva_courtier_test(GCourtierClientRunEndTests M  GCourtierClientRunEndTests.cpp GInProcessTestSupport.hpp)
 # The TCP relay that stands between a client and its server in the tests of a lost connection
 geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.hpp)
 # A result that a client carries from one server process to another is dropped there; the first
@@ -271,6 +274,101 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiLargePayloadExerciser> ${MPIEXEC_POSTFLAGS})
 	SET_TESTS_PROPERTIES(GCourtierMpiLargePayloadTest PROPERTIES LABELS "courtier" PROCESSORS 3)
 	GENEVA_TEST_SIZE(GCourtierMpiLargePayloadTest M)
+
+	# The MPI cascade (courtier/mpi/GMPICascade.hpp) under mpirun, with real MPI. The program links
+	# courtier's MPI library and MPI only -- nothing of Geneva (GCourtierMpiCascadeTestNoGeneva, in
+	# ../CMakeLists.txt) -- and exports its symbols, so that its watch of MPI calls
+	# (GMPICallWatch.cpp) also sees the calls made inside courtier's MPI library.
+	ADD_EXECUTABLE(GCourtierMpiCascadeTest GCourtierMpiCascadeTest.cpp GMPICallWatch.cpp GMPICallWatch.hpp)
+	TARGET_LINK_LIBRARIES(GCourtierMpiCascadeTest ${COURTIER_MPI_LIBNAME} ${Boost_LIBRARIES} MPI::MPI_CXX)
+	SET_TARGET_PROPERTIES(GCourtierMpiCascadeTest PROPERTIES ENABLE_EXPORTS TRUE)
+	INSTALL(TARGETS GCourtierMpiCascadeTest
+			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
+
+	# Helper: an entry that runs one scenario of GCourtierMpiCascadeTest and judges how the job ends
+	# (../CheckJobEnds.cmake: exit code, texts, a bound of 60 s)
+	#
+	#     geneva_courtier_mpi_cascade_test(<entry> <ranks> <size> <zero|nonzero> <scenario>
+	#                                      [NO_LAUNCHER] [ARGS <arguments>] [EXPECT <texts>])
+	#
+	# Each entry runs in a directory of its own below the build directory. An entry that must end
+	# with 0 under mpirun also expects the watch's verdict "OK: rank <r>:" of every rank. NO_LAUNCHER
+	# starts the program directly, as one process.
+	FUNCTION(geneva_courtier_mpi_cascade_test entry ranks size expect_exit scenario)
+		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 5 arg "NO_LAUNCHER" "" "ARGS;EXPECT")
+		SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/cascade/${entry})
+		FILE(MAKE_DIRECTORY ${_dir})
+		SET(_program $<TARGET_FILE:GCourtierMpiCascadeTest> --scenario=${scenario} ${arg_ARGS})
+		SET(_expect ${arg_EXPECT})
+		IF(arg_NO_LAUNCHER)
+			SET(_command ${_program})
+		ELSE()
+			SET(_command ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS}
+				${_program} ${MPIEXEC_POSTFLAGS})
+			IF(expect_exit STREQUAL "zero")
+				MATH(EXPR _last "${ranks} - 1")
+				FOREACH(_rank RANGE ${_last})
+					LIST(APPEND _expect "OK: rank ${_rank}:")
+				ENDFOREACH()
+			ENDIF()
+		ENDIF()
+		ADD_TEST(NAME ${entry}
+				COMMAND ${CMAKE_COMMAND}
+					"-DCOMMAND=${_command}"
+					-DEXPECT_EXIT=${expect_exit}
+					"-DEXPECT=${_expect}"
+					-DLIMIT=60
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
+				WORKING_DIRECTORY ${_dir})
+		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" TIMEOUT 90 PROCESSORS ${ranks})
+		GENEVA_TEST_SIZE(${entry} ${size})
+	ENDFUNCTION()
+
+	# The roles, groups and rounds of the two layouts; a member's second serve() returns at once
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutA 7 M zero layout-a)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutB 3 M zero layout-b)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutBTwoGroups 6 M zero layout-b)
+	# A group of one is a group: its lead announces every round
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeOneA 2 M zero one-a)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeOneB 1 M zero one-b)
+	# Only rank 0 provides the configuration
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRankZeroSize 7 M zero rank-zero-size)
+	# setUp() and tearDown() of lead and members run once, collectively, around the rounds
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLifecycle 4 M zero lifecycle)
+	# A member that leaves without serve() ends the job
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeMemberNeverServes 4 M nonzero member-never-serves
+		EXPECT "without serve()" "The job is ended (MPI_Abort)")
+	# A base communicator whose rank 0 is not rank 0 of MPI_COMM_WORLD, on MPI the program initialized
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeBaseComm 5 M zero base-comm)
+	# Rounds from two threads run one after the other
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeTwoThreads 3 M zero two-threads)
+	# release() waits for a running round; a round() after it throws
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeReleaseDuringRound 3 M zero release-during-round)
+	# --update-configs: no MPI call, the file is written
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRefresh 1 M zero refresh NO_LAUNCHER
+		ARGS --update-configs)
+	# A wrong role is refused with the layout and the remedy
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRequireRoleA 4 M zero require-role-a)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRequireRoleB 3 M zero require-role-b)
+	# An idle member does not wait busily
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeIdleMember 3 M zero idle-member)
+	# A configuration that is refused, or that rank 0 cannot provide: every rank throws, none hangs
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeGroupSizeZero 3 M zero group-size-zero)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadePausesRefused 3 M zero pauses-refused)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeConfigThrows 3 M zero config-throws)
+	# The group size and the poll pauses from the cascade's configuration file reach every rank
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeConfigFile 3 M zero config-file)
+	# A lead whose role was not confirmed is refused at its first round() or lead(); its members end
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmed 3 M zero role-not-confirmed)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmedLead 3 M zero role-not-confirmed-lead)
+	# A lead that never confirms its role and never uses the cascade ends the job in the destructor
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeNeverUsed 3 M nonzero never-used
+		EXPECT "requireRole()" "The job is ended (MPI_Abort)")
+	# The cascade behind a websocket client with two evaluations at a time
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
+	# The time of an empty round: printed for a caption, not judged
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEmptyRound 3 M zero empty-round
+		EXPECT "empty round: median")
 ENDIF()
 
 GENEVA_AGGREGATE_TARGET( "tests-courtier-unit" )
