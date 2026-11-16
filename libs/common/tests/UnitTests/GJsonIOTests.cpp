@@ -207,8 +207,10 @@ json::value sampleConfig() {
 }
 } // namespace
 
-TEST_CASE("applyConfigOverrides: an override replaces only the value, keeping default and comment",
-          "[common][json-io][override]") {
+TEST_CASE(
+    "applyConfigOverrides: an override replaces only the value and keeps default and comment",
+    "[common][json-io][override]"
+) {
     json::value cfg = sampleConfig();
     applyConfigOverrides(cfg, json::parse(R"({ "consumer": "gpu" })"));
 

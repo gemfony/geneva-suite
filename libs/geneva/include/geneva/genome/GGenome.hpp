@@ -35,6 +35,7 @@
 // Standard header files go here
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <span>
@@ -129,11 +130,11 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      *    load (it is SHARED, not value-copied) and excluded from compare_() (it is problem metadata, not
      *    per-individual identity) and from the folded serialize() -- save()/load() below emit it through
      *    the bespoke send-once wire protocol.
-     *  @tparam Self The (const or non-const) deduced type of *this
+     *  @tparam self_type The (const or non-const) deduced type of *this
      *  @param self A reference to *this whose members are tied into the tuple
      *  @return A tuple of named member references */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_base_object_member<Gem::Courtier::GProcessable>("GProcessable", self),
             Gem::Common::make_member("pre_processing_disabled_", self.pre_processing_disabled_),
@@ -164,12 +165,12 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      * @brief Serialises the genome: every member plus the shared structural layout, the latter either by
      * value (self-contained form) or by content id (transport send-once form), as selected by the active
      * wire-serialisation scope. See the body for the two forms.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to write the genome into
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void save(Archive &ar, [[maybe_unused]] const unsigned int version) const {
+    template <typename archive_type>
+    void save(archive_type &ar, [[maybe_unused]] const unsigned int version) const {
         using Gem::Common::archive_named;
         Gem::Common::serialize_members(ar, localMembers_());
 
@@ -208,13 +209,13 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      * @brief Restores the genome from an archive: the value channels plus a freshly-owned layout, read
      * either by value or resolved from a content id against the wire registry (with a cache-miss fetch),
      * following the self-describing tag written by save().
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read the genome from
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
+    template <typename archive_type>
     // NOLINTNEXTLINE(readability-function-size) -- one coherent serialization sweep: the self-describing wire-format tag dispatch (by-value / interned-by-id, with cache-miss fetch) must stay in lockstep with save()'s tag order; splitting would scatter tightly coupled archive-decode branches
-    void load(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    void load(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::serialize_members(ar, localMembers_());
 
@@ -276,15 +277,16 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
     /**
      * @brief The single (de)serialization entry point, split by direction on the GArchive codec's
      * compile-time direction, routing to save()/load().
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The serialization format version, forwarded to the split
      */
-    template <typename Archive>
-    void serialize(Archive &ar, const unsigned int version) {
-        if constexpr (Archive::is_saving) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, const unsigned int version) {
+        if constexpr(archive_type::is_saving) {
             save(ar, version);
-        } else {
+        }
+        else {
             load(ar, version);
         }
     }
@@ -306,7 +308,7 @@ public:
     ~GGenome() override = default;
 
     /** @brief Un-hide the inherited public load(shared_ptr/unique_ptr/ref) overloads, which the boost
-     *  split-member load(Archive&, unsigned) below would otherwise hide by name. */
+     *  split-member load(archive_type&, unsigned) below would otherwise hide by name. */
     using Gem::Common::GCommonInterfaceT<GGenome>::load;
 
     /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder.
@@ -323,17 +325,25 @@ public:
     // a mutable genome yields std::span<T>, a const genome std::span<const T> (span CTAD over the vector).
 
     /** @brief @return A span over the raw internal double channel (const iff *this is const) */
-    template <typename Self>
-    auto internalDoubleValues(this Self &&self) noexcept { return std::span{self.dv_}; }
+    template <typename self_type>
+    auto internalDoubleValues(this self_type &&self) noexcept {
+        return std::span{self.dv_};
+    }
     /** @brief @return A span over the raw internal float channel (const iff *this is const) */
-    template <typename Self>
-    auto internalFloatValues(this Self &&self) noexcept { return std::span{self.fv_}; }
+    template <typename self_type>
+    auto internalFloatValues(this self_type &&self) noexcept {
+        return std::span{self.fv_};
+    }
     /** @brief @return A span over the raw internal int32 channel (const iff *this is const) */
-    template <typename Self>
-    auto internalInt32Values(this Self &&self) noexcept { return std::span{self.iv_}; }
+    template <typename self_type>
+    auto internalInt32Values(this self_type &&self) noexcept {
+        return std::span{self.iv_};
+    }
     /** @brief @return A span over the raw internal bool channel, bytes 1/0 (const iff *this is const) */
-    template <typename Self>
-    auto internalBoolValues(this Self &&self) noexcept { return std::span{self.bv_}; }
+    template <typename self_type>
+    auto internalBoolValues(this self_type &&self) noexcept {
+        return std::span{self.bv_};
+    }
 
     /***************************************************************************/
     // Bulk-flatten fast path (the GPU marshallers) -- see GGenome's historical notes.
@@ -871,6 +881,28 @@ public:
             std::vector<individual_processing_result>()
     );
 
+    /** @brief An evaluation a caller supplies to process(): it gets the candidate, read-only,
+     *  and returns the raw results in the order evaluate() returns them (main criterion at
+     *  index 0, one entry per criterion). */
+    using evaluation_function = std::move_only_function<std::vector<double>(const GGenome &)>;
+
+    /**
+     * @brief Performs the evaluation of this candidate as process() does, with @p evaluation
+     * called where process() would call evaluate(). Everything else is the lifecycle of
+     * process(): only an item with the DO_PROCESS status is accepted; the pre-processor runs
+     * before the evaluation; a candidate that violates its constraints is not evaluated unless
+     * the evaluation policy says so (it then needs no call of @p evaluation); the processing time
+     * covers the evaluation; an exception out of it sets the fitnesses to the worst case, leaves
+     * the candidate with the EXCEPTION_CAUGHT status and is rethrown as a processing exception;
+     * the post-processor runs afterwards. This is how an execution environment that evaluates
+     * differently (a process group, a device) stays inside the lifecycle.
+     * @param evaluation Computes the raw results of this candidate; must not be empty. It must
+     *        return as many results as the candidate has criteria.
+     * @return The first stored result after processing
+     * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
+     */
+    individual_processing_result process(evaluation_function evaluation);
+
     /**
      * @brief Sets the vector of stored results to a given collection and marks the candidate PROCESSED.
      * @param result_cnt The new result vector (size must match the configured number of stored results)
@@ -930,14 +962,6 @@ public:
     }
     /** @brief Removes any registered post-processor */
     void clearPostProcessor() { post_processor_ptr_.reset(); }
-
-    /** @brief Loads otherwise-constant data into this (freshly de-serialized) item from a template held at
-     *  a remote site, so that data need not travel with every work item (a networked-client convenience;
-     *  the default is a no-op, a derived type overrides the hook below if it carries such data).
-     *  @param cd_ptr A template item whose constant data is loaded into this one */
-    void loadConstantData(std::shared_ptr<GGenome> cd_ptr) {
-        this->loadConstantData_(std::move(cd_ptr));
-    }
 
     /***************************************************************************/
     // Fitness accessors / multi-criterion support.
@@ -1171,7 +1195,8 @@ public:
      * @return The number of parameters of the requested type
      */
     template <typename par_type>
-    [[nodiscard]] [[nodiscard]] [[nodiscard]] std::size_t countParameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+    [[nodiscard]] std::size_t
+    countParameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
         if constexpr(std::is_same_v<par_type, double>) {
             return countParametersDouble_(am);
         }
@@ -1469,13 +1494,13 @@ protected:
     /***************************************************************************/
     // Pure-virtual hooks implemented by the genome layer.
 
-
     /** @brief The evaluation hook a concrete individual implements: computes and RETURNS this individual's
      *  raw result vector (size 1 for a single-criterion problem, one entry per criterion otherwise -- main
      *  at index 0). It reads the individual through @c this (genome via streamline(), any per-run context via
      *  the individual's own accessors) and RETURNS the results; the caller (@c runEvaluation_) writes them and
      *  applies feasibility + policy + PROCESSED, so the hook itself sets no fitness. The single evaluation
-     *  call site dispatches here for a locally-evaluated individual. Implemented by every concrete
+     *  call site dispatches here for a locally-evaluated individual; process(evaluation) calls the
+     *  supplied evaluation there instead. Implemented by every concrete
      *  individual (the value-bearing genome layer's problem definition).
      *  @return The raw result vector */
     virtual std::vector<double> evaluate() = 0;
@@ -1545,27 +1570,44 @@ private:
      *  @return true (the optimization individual supports in-place substitution) */
     bool loadContentFrom_(const Gem::Courtier::GProcessable &src) override;
 
-    /** @brief Default no-op constant-data load; a derived type overrides if it deposits constant data at a
-     *  remote site. @param cd_ptr A template item whose constant data would be loaded into this one */
-    virtual void loadConstantData_([[maybe_unused]] std::shared_ptr<GGenome> cd_ptr) { /* nothing */ }
-
     /***************************************************************************/
     // Evaluation internals.
 
+    /** @brief The body of both process() overloads. @param res_vec Optional pre-computed raw
+     *  results @param evaluation The evaluation to call in place of evaluate(), or nullptr
+     *  @return The first stored result after processing */
+    individual_processing_result processWith_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
+
     /** @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec
-     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results */
-    void runEvaluation_(const std::vector<individual_processing_result> &res_vec);
+     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results
+     *  @param evaluation The evaluation to call in place of evaluate(), or nullptr */
+    void runEvaluation_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
     /** @brief runEvaluation_() feasible branch: adopt the raw results and apply the evaluation-policy
      *  transform (or worst-case the surface if the user flagged an error). @param res_vec Optional
-     *  pre-computed raw results */
-    void finalizeFeasibleEvaluation_(const std::vector<individual_processing_result> &res_vec);
+     *  pre-computed raw results @param evaluation The evaluation to call in place of evaluate(), or
+     *  nullptr */
+    void finalizeFeasibleEvaluation_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
-    /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec (external
-     *  GPU/network path) or from a local evaluate() -- returning the main (index-0) raw result and storing
-     *  the secondary criteria. Worst-cases the whole surface and rethrows on any failure. Extracted from
-     *  runEvaluation_(). @param res_vec Optional pre-computed raw results @return The main raw result */
-    double adoptRawResults_(const std::vector<individual_processing_result> &res_vec);
+    /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec
+     *  (external GPU/network path), from the evaluation supplied to process(), or from a local
+     *  evaluate() -- returning the main (index-0) raw result and storing the secondary criteria.
+     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_().
+     *  @param res_vec Optional pre-computed raw results @param evaluation The evaluation to call in
+     *  place of evaluate(), or nullptr @return The main raw result */
+    double adoptRawResults_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
 
     /** @brief Applies the configured invalidity policy (worst-case, or the sigmoid barrier value)
      *  to the whole quality surface of a constraint-violating candidate. Shared by

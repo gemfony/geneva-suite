@@ -61,13 +61,14 @@ struct GProcessingOutcome {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De)serialises the outcome. Written only for RETURN frames (see GCommandContainerT).
-     * @tparam Archive The GArchive codec type
+     * @brief (De)serialises the outcome. Written only for RETURN and RESULT frames (see
+     * GCommandContainerT).
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "status", status);
         archive_named(ar, "error_descriptions", error_descriptions);
@@ -86,7 +87,9 @@ struct GProcessingOutcome {
     double processing_time = 0.;                             ///< Processing duration (seconds)
     double post_processing_time = 0.;                        ///< Post-processing duration (seconds)
     CORRELATION_ID_TYPE correlation_id = 0;                  ///< (batch, slot) routing token of the slot
-    SUBMISSION_UUID_TYPE submission_uuid{0, 0};              ///< The item's stable lineage id (informational)
+    /// The item's stable lineage id; its first half names the process that handed the item out and
+    /// is checked at check-in
+    SUBMISSION_UUID_TYPE submission_uuid{0, 0};
 };
 
 /******************************************************************************/

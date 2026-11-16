@@ -70,8 +70,8 @@ class GPersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
      * list is required (a missing one is rejected at compile time by GReflectiveInterfaceBaseT).
      * @return An empty member tuple
      */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

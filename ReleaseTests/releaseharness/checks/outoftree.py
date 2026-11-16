@@ -58,11 +58,12 @@ def build_against_install(ctx: JobContext) -> CheckResult:
         # Build only the GStarter executable (skip the optional Catch2 test).
         "make -j$(nproc) GStarter\n"
         "test -x ./GStarter || { echo 'MISSING GStarter binary'; exit 1; }\n"
-        # Run it against the installed shared libraries. The quickstart runs a full
-        # optimization and exits on its own; cap the wall-clock as a safety net
-        # (a clean finish OR a timeout both prove it started and linked).
-        f"LD_LIBRARY_PATH='{prefix}'/lib:\"$LD_LIBRARY_PATH\" "
-        "timeout -k 5 -s INT 180s ./GStarter; rc=$?\n"
+        # Run it against the installed shared libraries, found through the run
+        # paths alone: no LD_LIBRARY_PATH, which would hide a missing run path.
+        # The quickstart runs a full optimization and exits on its own; cap the
+        # wall-clock as a safety net (a clean finish OR a timeout both prove it
+        # started and linked).
+        "timeout -k 5 -s INT 180s env -u LD_LIBRARY_PATH ./GStarter; rc=$?\n"
         'if [ "$rc" = 0 ] || [ "$rc" = 124 ]; then\n'
         '  echo "out-of-tree GStarter ran OK (rc=$rc)"\n'
         "else\n"
@@ -83,8 +84,8 @@ def build_mpi_module_probe(ctx: JobContext) -> CheckResult:
 
     The MPI consumer lives in libgemfony-geneva-mpi, a module installed next to libgemfony-geneva and
     loaded at run time. The probe (libs/geneva/tests/OutOfTree/MpiModuleProbe) finds the installed
-    package, links Geneva::geneva-mpi, and exits 0 only if the "mpi" consumer was loaded from the
-    installation.
+    package, links Geneva::geneva-mpi and Geneva::courtier-mpi, and exits 0 only if the "mpi"
+    consumer was loaded from the installation.
     """
     tier = Tier.SHORT
     if not ctx.job.spec.with_mpi:
@@ -106,7 +107,9 @@ def build_mpi_module_probe(ctx: JobContext) -> CheckResult:
         f"-DCMAKE_PREFIX_PATH='{prefix}' -DBOOST_ROOT='{spec.boost_root}' "
         f"-DCMAKE_C_COMPILER='{cc}' -DCMAKE_CXX_COMPILER='{cxx}'\n"
         f"cmake --build '{_MPI_PROBE_BUILD}'\n"
-        f"LD_LIBRARY_PATH='{prefix}'/lib:\"$LD_LIBRARY_PATH\" '{_MPI_PROBE_BUILD}/GenevaMpiModuleProbe'\n"
+        # Found through the run paths alone (the probe's, the libraries' and the module's): no
+        # LD_LIBRARY_PATH, which would hide a missing one.
+        f"env -u LD_LIBRARY_PATH '{_MPI_PROBE_BUILD}/GenevaMpiModuleProbe'\n"
     )
     res = ctx.exec_in_guest(["bash", "-lc", script], workdir=GUEST_BUILD, timeout=900)
     return ctx.record("outoftree/mpi-module", tier, res, started=started)

@@ -41,17 +41,29 @@
 
 #include <boost/program_options.hpp>
 
+#include <any>
 #include <cstddef>
+#include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <typeinfo>
+#include <utility>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
+#include "common/GExceptions.hpp"
+#include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
+#include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -138,6 +150,100 @@ protected:
             s += x * x;
         }
         return {s};
+    }
+};
+
+/** @brief The configuration of the consumer of GProbeConsumerProvider, a family of the tests. */
+struct GProbeConsumerConfig {
+    /// The mnemonic the probe provider is registered under
+    static constexpr std::string_view MNEMONIC = "probe-consumer";
+    /// Passed on to the thread-pool consumer the probe builds
+    unsigned int nThreads = 1;
+    /// Shows which configuration reached the provider
+    std::string label = "default";
+};
+
+/**
+ * @brief A consumer provider of the tests: it records every configuration it is given (through
+ * configOf(), as a real provider reads it) and how often it was asked to write its configuration
+ * files, and builds a thread-pool consumer.
+ */
+class GProbeConsumerProvider final : public Gem::Geneva::GConsumerProviderT {
+public:
+    /** @brief The mnemonic of the probe family. @return "probe-consumer" */
+    [[nodiscard]] std::string getMnemonic() const override {
+        return std::string(GProbeConsumerConfig::MNEMONIC);
+    }
+    /** @brief The name of this provider. @return "GProbeConsumerProvider" */
+    [[nodiscard]] std::string getName() const override {
+        return "GProbeConsumerProvider";
+    }
+    /** @brief The probe is local. @return false */
+    [[nodiscard]] bool needsClient() const override {
+        return false;
+    }
+
+    /** @brief Records the configuration of @p spec and builds a thread-pool consumer from it.
+     *  @param spec The consumer specification @return The consumer */
+    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
+    setup(const Gem::Courtier::ConsumerSpec &spec) override {
+        const auto config = Gem::Courtier::configOf<GProbeConsumerConfig>(spec);
+        configsSeen.push_back(config);
+        return std::make_shared<Gem::Courtier::GStdThreadConsumerT<gen::GGenome>>(
+            Gem::Courtier::GStdThreadConsumerConfig{.nThreads = config.nThreads}
+        );
+    }
+
+    /** @brief The probe has no options. @return The default configuration */
+    [[nodiscard]] std::any
+    configFromCommandLine(const boost::program_options::variables_map & /*vm*/) const override {
+        return GProbeConsumerConfig{};
+    }
+
+    /** @brief Records the configuration of @p spec; the probe has no client.
+     *  @param spec The consumer specification @return nullptr */
+    [[nodiscard]] std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
+    buildClient(const Gem::Courtier::ConsumerSpec &spec) const override {
+        clientConfigsSeen.push_back(Gem::Courtier::configOf<GProbeConsumerConfig>(spec));
+        return nullptr;
+    }
+
+    /** @brief Counts the calls. */
+    void materializeConfigFiles() const override {
+        ++nMaterialized;
+    }
+
+    /** @brief The probe adds no options. */
+    void addCLOptions(
+        boost::program_options::options_description & /*visible*/,
+        boost::program_options::options_description & /*hidden*/
+    ) override {                                      /* no options */
+    }
+
+    std::vector<GProbeConsumerConfig> configsSeen;               ///< What setup() was given
+    mutable std::vector<GProbeConsumerConfig> clientConfigsSeen; ///< What buildClient() was given
+    mutable std::size_t nMaterialized = 0; ///< Calls of materializeConfigFiles()
+};
+
+/** @brief Registers a GProbeConsumerProvider for the life of a test case and removes it again, so
+ *  the process-global catalogue is left as it was found (also when a REQUIRE ends the case). */
+struct GProbeRegistration {
+    /// The registered provider
+    std::shared_ptr<GProbeConsumerProvider> provider = std::make_shared<GProbeConsumerProvider>();
+    /// Whether the provider could be registered (the mnemonic was free)
+    bool registered =
+        Gem::Geneva::consumerProviderStore()->setOnce(provider->getMnemonic(), provider);
+
+    GProbeRegistration() = default;
+    GProbeRegistration(const GProbeRegistration &) = delete;
+    GProbeRegistration &operator=(const GProbeRegistration &) = delete;
+    GProbeRegistration(GProbeRegistration &&) = delete;
+    GProbeRegistration &operator=(GProbeRegistration &&) = delete;
+    /** @brief Removes the provider from the catalogue. */
+    ~GProbeRegistration() {
+        if(registered) {
+            (void)Gem::Geneva::consumerProviderStore()->remove(provider->getMnemonic());
+        }
     }
 };
 
@@ -269,33 +375,186 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("buildConsumerSetup registers the process consumer", "[consumer][sharing][registry]") {
+TEST_CASE("buildConsumer registers the process consumer", "[consumer][sharing][registry]") {
     using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
 
     auto &reg = Registry::instance();
     reg.clear();
 
-    auto stc = Gem::Geneva::buildConsumerSetup(Gem::Geneva::ConsumerSpec{.mnemonic = "stc"});
-    REQUIRE(stc.consumer);
-    CHECK(reg.consumer() == stc.consumer); // registered, so un-injected algorithms submit through it
+    auto stc = Gem::Geneva::buildConsumer(Gem::Courtier::ConsumerSpec{.mnemonic = "stc"});
+    REQUIRE(stc);
+    CHECK(reg.consumer() == stc); // registered, so un-injected algorithms submit through it
 
     // A later build replaces the single process consumer (the process has one work endpoint).
-    auto stc2 = Gem::Geneva::buildConsumerSetup(
-        Gem::Geneva::ConsumerSpec{.mnemonic = "stc", .n_threads = 1});
-    REQUIRE(stc2.consumer);
-    CHECK(stc2.consumer != stc.consumer);  // a genuinely new consumer was built
-    CHECK(reg.consumer() == stc2.consumer);
+    auto stc2 = Gem::Geneva::buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
+    REQUIRE(stc2);
+    CHECK(stc2 != stc); // a genuinely new consumer was built
+    CHECK(reg.consumer() == stc2);
 
     reg.clear();
 }
 
 // ---------------------------------------------------------------------------
-// The options for the number of io threads of the socket servers were registered and shown in the
-// help text, but their values never reached the consumer: it always ran as many io threads as the
+// A program that knows its consumer when it is compiled passes the configuration struct; the struct
+// names the mnemonic. That must build what a spec with the same mnemonic and struct builds.
+TEST_CASE("the typed front door and a spec build the same consumer", "[consumer][setup][config]") {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    const GProbeRegistration probe;
+    REQUIRE(probe.registered);
+
+    const GProbeConsumerConfig config{.nThreads = 2, .label = "chosen in code"};
+    auto typed = Gem::Geneva::buildConsumer(config);
+    auto by_spec = Gem::Geneva::buildConsumer(
+        Gem::Courtier::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
+    );
+    REQUIRE(typed);
+    REQUIRE(by_spec);
+    CHECK(typeid(*typed) == typeid(*by_spec));
+    CHECK(reg.consumer() == by_spec);
+
+    // The provider was reached under the struct's mnemonic and read the same configuration twice.
+    REQUIRE(probe.provider->configsSeen.size() == 2);
+    CHECK(probe.provider->configsSeen[0].label == "chosen in code");
+    CHECK(probe.provider->configsSeen[1].label == "chosen in code");
+    CHECK(probe.provider->configsSeen[1].nThreads == 2);
+
+    reg.clear();
+}
+
+TEST_CASE("the typed front door and a spec build the same client", "[consumer][setup][config]") {
+    const GProbeRegistration probe;
+    REQUIRE(probe.registered);
+
+    const GProbeConsumerConfig config{.label = "chosen in code"};
+    (void)Gem::Geneva::buildConsumerClient(config);
+    (void)Gem::Geneva::buildConsumerClient(
+        Gem::Courtier::ConsumerSpec{.mnemonic = "probe-consumer", .config = config}
+    );
+    REQUIRE(probe.provider->clientConfigsSeen.size() == 2);
+    CHECK(probe.provider->clientConfigsSeen[0].label == "chosen in code");
+    CHECK(probe.provider->clientConfigsSeen[1].label == "chosen in code");
+}
+
+TEST_CASE(
+    "the typed front door builds a built-in consumer from its struct",
+    "[consumer][setup][config]"
+) {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    const std::size_t before = StcConsumer::instances_constructed().load();
+    auto stc = Gem::Geneva::buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
+    CHECK(std::dynamic_pointer_cast<StcConsumer>(stc) != nullptr);
+    CHECK(StcConsumer::instances_constructed().load() == before + 1);
+    CHECK(reg.consumer() == stc);
+
+    reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// --update-configs writes the configuration files a consumer provider owns alone: Go2 asks every
+// provider of the catalogue through materializeConsumerConfigFiles().
+TEST_CASE(
+    "every consumer provider is asked to write its configuration files",
+    "[consumer][setup][config]"
+) {
+    const GProbeRegistration probe;
+    REQUIRE(probe.registered);
+
+    Gem::Geneva::materializeConsumerConfigFiles();
+    CHECK(probe.provider->nMaterialized == 1);
+}
+
+// ---------------------------------------------------------------------------
+// A consumer a program hands to Go2::registerConsumer() is the process consumer of the run. Go2
+// builds the consumer of its mnemonic lazily, when the run is configured (the first of optimize(),
+// clientRun() and a role-at-runtime clientMode()); that build must not replace the registered one.
+TEST_CASE("a consumer given to Go2::registerConsumer() is used", "[consumer][sharing][go2]") {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+    const std::filesystem::path base =
+        std::filesystem::temp_directory_path() / "geneva_registerconsumer_tests";
+    std::filesystem::create_directories(base);
+
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    int const argc = 3;
+    char arg0[] = "unit-test";
+    char arg1[] = "--consumer";
+    char arg2[] = "stc";
+    char *argv[] = {arg0, arg1, arg2, nullptr};
+    {
+        Gem::Geneva::Go2 go(argc, argv, base / "Go2.json");
+
+        auto registered = std::make_shared<StcConsumer>();
+        StcConsumer::instances_constructed().store(0);
+        go.registerConsumer(registered);
+        CHECK(reg.consumer() == registered);
+
+        // optimize() configures the run, then throws: no individual was registered.
+        CHECK_THROWS(go.optimize());
+
+        // Still the process consumer every algorithm submits to; the mnemonic's was not built.
+        CHECK(reg.consumer() == registered);
+        CHECK(StcConsumer::instances_constructed().load() == 0);
+    }
+    reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Go2::consumer() hands out the consumer of the run -- the one every algorithm submits through --
+// without owning it: what a caller keeps of it does not keep the consumer (and a networked
+// consumer's server) alive beyond the Go2.
+TEST_CASE("Go2::consumer() does not keep the consumer beyond its Go2", "[consumer][sharing][go2]") {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+    const std::filesystem::path base =
+        std::filesystem::temp_directory_path() / "geneva_go2consumer_tests";
+    std::filesystem::create_directories(base);
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    // Whether what a caller kept still holds a consumer, whatever the type it was handed
+    const auto holds = [](const auto &kept) {
+        if constexpr(requires { kept.expired(); }) {
+            return not kept.expired();
+        }
+        else {
+            return kept != nullptr;
+        }
+    };
+
+    int const argc = 3;
+    char arg0[] = "unit-test";
+    char arg1[] = "--consumer";
+    char arg2[] = "stc";
+    char *argv[] = {arg0, arg1, arg2, nullptr};
+    std::optional<decltype(std::declval<Gem::Geneva::Go2 &>().consumer())> kept;
+    {
+        Gem::Geneva::Go2 go(argc, argv, base / "Go2.json");
+        kept = go.consumer(); // configures the run: the consumer of "stc" is built
+        REQUIRE(holds(*kept));
+        CHECK(reg.consumer() != nullptr);
+    }
+    CHECK_FALSE(holds(*kept)); // it went with the Go2
+    CHECK(reg.consumer() == nullptr);
+    reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// The option for the number of io threads of the socket server was registered and shown in the
+// help text, but its value never reached the consumer: it always ran as many io threads as the
 // machine has hardware threads. The value given on the command line -- or the default -- must be
 // in the spec the consumer is built from.
 TEST_CASE(
-    "the io thread options of the socket consumers take effect",
+    "the io thread option of the websocket consumer takes effect",
     "[consumer][setup][options]"
 ) {
     namespace po = boost::program_options;
@@ -313,14 +572,123 @@ TEST_CASE(
             po::notify(vm);
             return Gem::Geneva::specFromCommandLine(mnemonic, vm);
         };
+    const auto beast_threads = [&spec_for](const std::vector<std::string> &args) {
+        return Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+                   spec_for("beast", args)
+        )
+            .nThreads;
+    };
 
-    CHECK(spec_for("beast", {"--beast_nListenerThreads", "7"}).n_threads == 7);
-    CHECK(spec_for("asio", {"--asio_nProcessingThreads", "9"}).n_threads == 9);
-    CHECK(spec_for("beast", {"--beast_nListenerThreads", "0"}).n_threads == 0); // hardware threads
+    CHECK(beast_threads({"--beast_nListenerThreads", "7"}) == 7);
+    CHECK(beast_threads({"--beast_nListenerThreads", "0"}) == 0); // hardware threads
 
     // Without the option the documented default applies, not the number of hardware threads.
-    CHECK(spec_for("beast", {}).n_threads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
-    CHECK(spec_for("asio", {}).n_threads == Gem::Courtier::GCONSUMERLISTENERTHREADS);
+    CHECK(beast_threads({}) == Gem::Courtier::GCONSUMERLISTENERTHREADS);
+}
+
+// ---------------------------------------------------------------------------
+// The serialization options name the modes there are (their help text used to offer the removed
+// Boost archives TEXTMODE, XMLMODE and BINARYMODE), and the parser refuses a value that names none.
+TEST_CASE(
+    "the serialization options name the modes there are and refuse others",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+    po::options_description all;
+    all.add(visible).add(hidden);
+    CHECK(
+        all.find("beast_serializationMode", false)
+            .description()
+            .contains(Gem::Common::serializationModeChoices())
+    );
+    for(const auto &option : all.options()) {
+        for(const std::string_view stale :
+            {"TEXTMODE", "XMLMODE", "BINARYMODE (", "GEM_JSONMODE"}) {
+            INFO(option->long_name() << ": " << stale);
+            CHECK_FALSE(option->description().contains(stale));
+        }
+    }
+
+    const auto parse = [&all](const std::string &value) {
+        po::variables_map vm;
+        po::store(
+            po::command_line_parser(std::vector<std::string>{"--beast_serializationMode", value})
+                .options(all)
+                .run(),
+            vm
+        );
+        po::notify(vm);
+        return Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+                   Gem::Geneva::specFromCommandLine("beast", vm)
+        )
+            .serializationMode;
+    };
+    for(const auto mode : Gem::Common::SERIALIZATIONMODES) {
+        CHECK(parse(std::to_string(std::to_underlying(mode))) == mode);
+    }
+    CHECK_THROWS(parse("0")); // the removed text archive
+    CHECK_THROWS(parse("2")); // the removed binary archive
+}
+
+// ---------------------------------------------------------------------------
+// The defaults of the websocket consumer's options are those of its configuration struct: an option
+// left unset leaves the consumer as a default-constructed configuration describes it, and a default
+// changed in the struct changes what the command line gives, without a second place to edit. The
+// port is the one exception: on the command line server and client are two processes and meet on
+// GCONSUMERDEFAULTPORT, while a configuration built in a program lets the server pick a free port.
+TEST_CASE(
+    "the websocket consumer's options default to its configuration struct",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+    po::options_description all;
+    all.add(visible).add(hidden);
+    po::variables_map vm;
+    po::store(po::command_line_parser(std::vector<std::string>{}).options(all).run(), vm);
+    po::notify(vm);
+
+    const auto beast = Gem::Courtier::configOf<Gem::Courtier::GWebsocketConsumerConfig>(
+        Gem::Geneva::specFromCommandLine("beast", vm)
+    );
+    const Gem::Courtier::GWebsocketConsumerConfig beast_defaults;
+    CHECK(beast.ip == beast_defaults.ip);
+    CHECK(beast.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
+    CHECK(beast.serializationMode == beast_defaults.serializationMode);
+    CHECK(beast.nThreads == beast_defaults.nThreads);
+    CHECK(beast.pingInterval == beast_defaults.pingInterval);
+    CHECK(beast.verboseControlFrames == beast_defaults.verboseControlFrames);
+    CHECK(beast.clientPrefetchDepth == beast_defaults.clientPrefetchDepth);
+    CHECK(beast.clientParallelEvaluations == beast_defaults.clientParallelEvaluations);
+    CHECK(beast.clientFirstContactLimit == beast_defaults.clientFirstContactLimit);
+    CHECK(beast.clientReconnectLimit == beast_defaults.clientReconnectLimit);
+    CHECK(beast.clientUndeliveredDir == beast_defaults.clientUndeliveredDir);
+}
+
+// ---------------------------------------------------------------------------
+// The thread consumer registered an option "stcCapableOfFullReturn" that nothing ever read. An
+// option that is offered must have an effect, so it is gone; the consumers' option set must not
+// offer it (the neighbouring stc option is there, so the lookup itself works).
+TEST_CASE(
+    "the consumers do not offer the unread option stcCapableOfFullReturn",
+    "[consumer][setup][options]"
+) {
+    namespace po = boost::program_options;
+
+    po::options_description visible;
+    po::options_description hidden;
+    Gem::Geneva::addConsumerOptions(visible, hidden);
+
+    CHECK(hidden.find_nothrow("nWorkerThreads", false) != nullptr);
+    CHECK(visible.find_nothrow("stcCapableOfFullReturn", false) == nullptr);
+    CHECK(hidden.find_nothrow("stcCapableOfFullReturn", false) == nullptr);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,30 +698,26 @@ TEST_CASE("Consumer provider store exposes the built-in consumer catalog", "[con
     // The built-in local + socket consumers are always registered; unknown mnemonics are not (the retired
     // "sc" serial consumer is now "stc" with one thread, so "sc" is no longer a known mnemonic).
     CHECK(Gem::Geneva::isKnownConsumer("stc"));
-    CHECK(Gem::Geneva::isKnownConsumer("asio"));
     CHECK(Gem::Geneva::isKnownConsumer("beast"));
     CHECK_FALSE(Gem::Geneva::isKnownConsumer("sc"));
     CHECK_FALSE(Gem::Geneva::isKnownConsumer("does_not_exist"));
 
     // The local consumer needs no networked client; the socket consumers do. An unknown mnemonic never does.
     CHECK_FALSE(Gem::Geneva::consumerNeedsClient("stc"));
-    CHECK(Gem::Geneva::consumerNeedsClient("asio"));
     CHECK(Gem::Geneva::consumerNeedsClient("beast"));
     CHECK_FALSE(Gem::Geneva::consumerNeedsClient("does_not_exist"));
 
-    // The listing names each registered consumer, and the count covers at least the three always-built ones.
+    // The listing names each registered consumer, and the count covers at least the two always-built ones.
     const std::string listing = Gem::Geneva::consumerListing();
     CHECK(listing.contains("stc:"));
-    CHECK(listing.contains("asio:"));
     CHECK(listing.contains("beast:"));
     CHECK_FALSE(listing.contains("sc:"));
-    CHECK(Gem::Geneva::consumerCount() >= 3);
+    CHECK(Gem::Geneva::consumerCount() >= 2);
 
     // The always-built consumers take their client/server role from --client (known before the consumer is
     // built), so they do NOT determine it at runtime. This is the generic capability generic drivers query
     // instead of naming a specific consumer. An unknown mnemonic is never role-at-runtime.
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("stc"));
-    CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("asio"));
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("beast"));
     CHECK_FALSE(Gem::Geneva::consumerDeterminesRoleAtRuntime("does_not_exist"));
     // The MPI consumer, when built into this binary, self-assigns the role from its process rank.

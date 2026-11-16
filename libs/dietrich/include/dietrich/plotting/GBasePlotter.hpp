@@ -68,8 +68,8 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
      * @brief Single declaration of this class'es local data members
      * @return A tuple of named member references driving the GReflectiveInterfaceBaseT-generated serialize()/load_()/compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("drawing_arguments_", self.drawing_arguments_),
             Gem::Common::make_member("x_axis_label_", self.x_axis_label_),
@@ -79,6 +79,9 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
             Gem::Common::make_member("y_axis_logarithmic_", self.y_axis_logarithmic_),
             Gem::Common::make_member("plot_label_", self.plot_label_),
             Gem::Common::make_member("ds_marker_", self.ds_marker_),
+            Gem::Common::make_member("pad_title_", self.pad_title_),
+            Gem::Common::make_member("legend_position_", self.legend_position_),
+            Gem::Common::make_member("line_width_", self.line_width_),
             Gem::Common::make_cloneable_container_member(
                 "secondary_plotter_",
                 self.secondary_plotter_
@@ -192,6 +195,45 @@ public:
      */
     [[nodiscard]] std::string plotLabel() const;
 
+    /**
+     * @brief Sets the title of the pad this (primary) plotter draws into, apart from its plot
+     * label. Without one the plot label is the pad's title, as before; with one the plot label
+     * names the series only (in the legend of a pad with several series).
+     * @param pad_title The title of the pad (empty: the plot label)
+     */
+    void setPadTitle(std::string pad_title);
+    /**
+     * @brief The title set apart from the plot label
+     * @return The pad title, empty if none was set
+     */
+    [[nodiscard]] std::string padTitle() const;
+    /**
+     * @brief The title the pad shows: the pad title if one was set, otherwise the plot label
+     * @return The title of the pad
+     */
+    [[nodiscard]] std::string padTitleOrLabel() const;
+    /**
+     * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad holds
+     * several series
+     * @param position A corner, or AUTO (the default: the backend's own choice)
+     */
+    void setLegendPosition(legendPosition position);
+    /**
+     * @brief Where the legend of this plotter's pad lies
+     * @return The legend position
+     */
+    [[nodiscard]] legendPosition getLegendPosition() const;
+    /**
+     * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
+     * follows it
+     * @param line_width The width in the backend's units (0: the backend's default)
+     */
+    void setLineWidth(std::uint32_t line_width);
+    /**
+     * @brief The width of the line this plotter draws
+     * @return The line width, 0 for the backend's default
+     */
+    [[nodiscard]] std::uint32_t lineWidth() const;
     /**
      * @brief Allows to assign a marker to data structures
      * @param ds_marker A marker that makes the origin of data structures clear in the output file
@@ -380,6 +422,8 @@ protected:
         z_axis_label_ += "_m";
         plot_label_ += "_m";
         ds_marker_ += "_m";
+        pad_title_ += "_m";
+        line_width_ += 1;
         ++id_;
         return true;
     }
@@ -399,6 +443,9 @@ protected:
     std::string ds_marker_ = std::string(
         ""
     ); ///< A marker to make the origin of data structures clear in the output file
+    std::string pad_title_; ///< The title of the pad, apart from the plot label (empty: the label)
+    legendPosition legend_position_ = legendPosition::AUTO; ///< Where the pad's legend lies
+    std::uint32_t line_width_ = 0; ///< The width of the drawn line (0: the backend's default)
 
 private:
     /***************************************************************************/

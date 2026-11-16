@@ -164,9 +164,9 @@ private:
 
     /** @brief Single declaration of this class'es local data members */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as the (const) class type.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    // overloads are trivial forwarders. self_type is deduced as the (const) class type.
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("n_simplices_", self.n_simplices_),
             Gem::Common::make_member("n_fp_parms_first_", self.n_fp_parms_first_),

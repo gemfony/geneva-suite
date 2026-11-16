@@ -206,14 +206,12 @@ int main(int argc, char **argv) {
 
     // Build the unified GPU consumer (the SAME GGPUConsumerT example 14 uses) and register it as the
     // process consumer. The whole population is scored in one bulk, runtime-compiled kernel launch; the
-    // kernel is selected in config/GGPUConsumer.json (the GPU consumer is device-only). The clone function
-    // is the polymorphic GGenome clone needed by the clone-on-partial-return policy.
+    // kernel is selected in config/GGPUConsumer.json (the GPU consumer is device-only).
     auto marshaller = std::make_shared<GBenchmarkGPUMarshaller>();
     auto consumer = std::make_shared<Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome>>(
-        "./config/GGPUConsumer.json", marshaller);
-    consumer->setCloneFunction([](const std::unique_ptr<gen::GGenome> &p) {
-        return p->clone();
-    });
+        "./config/GGPUConsumer.json",
+        marshaller
+    );
     Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().setConsumer(consumer);
 
     GAlgorithmBenchmarkRunner runner(cfg);

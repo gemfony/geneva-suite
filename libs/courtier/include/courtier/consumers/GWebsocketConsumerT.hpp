@@ -32,69 +32,79 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
-#include <atomic>
-#include <cstddef>
+#include <chrono>
 #include <memory>
-#include <utility>
-
-// Boost headers
-#include <boost/asio.hpp>
 
 // Geneva headers
-#include "courtier/transport/GWebsocketTransportT.hpp" // reuse the existing session + client + protocol
-#include "courtier/consumers/GTcpAcceptingConsumerT.hpp"
+#include "courtier/GCourtierEnums.hpp"
+#include "courtier/consumers/GPeerConsumerT.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
+#include "courtier/transport/GWebsocketPeerTransport.hpp" // the listener
+#include "courtier/transport/GWebsocketTransportT.hpp"    // the client, for users of this header
 
 namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * The courtier websocket consumer. Functionally the websocket twin of GAsioConsumerT: a TCP server
- * whose accepted connections are upgraded to websocket sessions (with keep-alive ping/pong) that
- * hand out work from the current batch and collect results, reconciled via the inherited
- * GTcpAcceptingConsumerT / GNetworkedConsumerT / GBaseConsumerT machinery. The whole server
- * lifecycle (accept loop, io threads, shutdown) lives on the shared GTcpAcceptingConsumerT shell;
- * this class contributes only the websocket session construction (with its liveness-driven
- * CheckoutLease) and the websocket-specific knobs.
+ * The courtier websocket consumer: the server's shell (GPeerConsumerT) over a GWebsocketListener.
+ * Every connection is a GWebsocketPeer with keep-alive; its GPeerSessionT hands out work from the
+ * current batch and collects results. Its client is GWebsocketClientT; both are configured by a
+ * GWebsocketConsumerConfig.
  *
- * As with the ASIO consumer it reuses the existing courtier session
- * (Gem::Courtier::Consumers::GWebsocketConsumerSessionT) and GCommandContainerT wire protocol, so an
- * unmodified Gem::Courtier::Consumers::GWebsocketClientT serves a courtier server.
+ * Threads. nThreads I/O threads (the listener's) move the bytes and run nothing else; the sessions
+ * run on as many threads of the shell's (0: one of each per hardware thread). A session may take
+ * as long as it likes over a message without its connection, or any other, missing a ping.
+ *
+ * The end of a run (stopServer()): every client is told that the run has ended (close code
+ * GCONSUMERCLOSECODERUNENDED) and the server waits for the clients to confirm, at most the stop
+ * grace (GWEBSOCKETCONSUMERSTOPGRACE by default); see GPeerConsumerT.
+ *
+ * Lost clients: with the keep-alive on (a ping interval above 0) a lost client ends its connection
+ * by the idle limit and what it held is put back at once; without it the consumer reclaims items
+ * by the time lease.
  *
  * @tparam processable_type The work-item type handed to clients and reconciled back into the population
  */
 template <typename processable_type>
-class GWebsocketConsumerT final : public GTcpAcceptingConsumerT<processable_type> {
+class GWebsocketConsumerT final : public GPeerConsumerT<processable_type> {
 public:
-    using session_type = Gem::Courtier::Consumers::GWebsocketConsumerSessionT<processable_type>;
+    /// The configuration this consumer (and its client) is built from
+    using config_type = GWebsocketConsumerConfig;
 
     /***************************************************************************/
-    /** @brief Constructs the websocket consumer.
+    /** @brief Constructs the websocket consumer from the configuration of its family.
      *
-     *  @param port The TCP port the server listens on (0 lets the OS pick; the chosen port is read back)
-     *  @param n_threads Number of io threads to run; 0 selects the hardware concurrency
-     *  @param serialization_mode Which serialization format (binary/XML/text) the wire protocol uses
-     *  @param ping_interval Seconds of silence after which a session pings its client; after twice
-     *         that time without any inbound data the client is presumed gone (0 switches this off)
-     *  @param verbose_control_frames If true, sessions log a diagnostic message for every control frame */
+     *  @param config Reads port (0 lets the OS pick; the chosen port is read back with getPort()
+     *         after startServer()), nThreads (the I/O threads, and as many threads for the
+     *         sessions; 0 selects the hardware concurrency), serializationMode (the wire format),
+     *         pingInterval (seconds of silence after which a ping is sent; after twice that time
+     *         without any inbound data the client is presumed gone; 0 switches this off) and
+     *         verboseControlFrames. The client members (ip, clientPrefetchDepth, ...) are ignored.
+     *  @param stop_grace How long stopServer() waits for the clients to confirm the end of the run */
     explicit GWebsocketConsumerT(
-        unsigned short port,
-        std::size_t n_threads = 0,
-        Gem::Common::serializationMode serialization_mode =
-            Gem::Common::serializationMode::GEM_BINARY,
-        std::size_t ping_interval = GBEASTCONSUMERPINGINTERVAL,
-        bool verbose_control_frames = false
+        const config_type &config,
+        std::chrono::milliseconds stop_grace = GWEBSOCKETCONSUMERSTOPGRACE
     )
-      : GTcpAcceptingConsumerT<processable_type>(
-            "Gem::Courtier::GWebsocketConsumerT",
-            port,
-            n_threads
-        )
-      , serialization_mode_(serialization_mode)
-      , ping_interval_(ping_interval)
-      , verbose_control_frames_(verbose_control_frames) { /* nothing */
+      : GPeerConsumerT<processable_type>(
+            CONSUMER_NAME,
+            std::make_unique<Consumers::GWebsocketListener>(
+                CONSUMER_NAME,
+                config.port,
+                Consumers::GWebsocketPeer::GOptions{
+                    .name = "GWebsocketConsumerT<> session",
+                    .mode = config.serializationMode,
+                    .verboseControlFrames = config.verboseControlFrames,
+                    .pingInterval = std::chrono::seconds(config.pingInterval)
+                },
+                config.nThreads,
+                stop_grace
+            ),
+            config.nThreads,
+            config.serializationMode
+        ) { /* nothing */
     }
 
-    /** @brief Stops the server while this object is still complete (see the base class). */
+    /** @brief Stops the server while this object is still complete. */
     ~GWebsocketConsumerT() override {
         this->stopServerNoThrow_();
     }
@@ -104,67 +114,16 @@ public:
     GWebsocketConsumerT &operator=(const GWebsocketConsumerT &) = delete;
     GWebsocketConsumerT &operator=(GWebsocketConsumerT &&) = delete;
 
-protected:
     /***************************************************************************/
-    /** @brief The websocket consumer has a real client-liveness signal (its persistent session +
-     *  keep-alive ping/pong), so it reclaims a lost item immediately on disconnect via the session's
-     *  CheckoutLease and does NOT use the time lease -- a live-but-slow client keeps its item. */
-    [[nodiscard]] bool usesTimeLease() const override { return false; }
-
-private:
-    /***************************************************************************/
-    /** @brief Starts one persistent websocket session for a freshly accepted connection, with a
-     *  CheckoutLease that requeues any in-flight items if the client dies.
-     *  @param socket The freshly accepted TCP socket, moved into the new session */
-    void start_session_(boost::asio::ip::tcp::socket socket) override {
-        // The websocket session is persistent (the client keeps the connection open while it
-        // evaluates), so a disconnect IS a real death signal. Give the session a CheckoutLease: if it
-        // dies still holding items, the lease requeues all of them immediately for other clients --
-        // liveness-driven put-back, no time lease needed (see usesTimeLease()). A prefetching client may
-        // hold several items at once, so the lease tracks the whole in-flight set, not just the latest.
-        auto lease = std::make_shared<typename GNetworkedConsumerT<processable_type>::CheckoutLease>();
-        // The lease and the hooks below refer to this consumer through `this`. They live in a
-        // session, and every session is gone before the networked base of this object is destroyed
-        // (see the lifetime note in GTcpAcceptingConsumerT).
-        lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id) { this->requeue(id); };
-
-        std::make_shared<session_type>(
-            std::move(socket),
-            typename session_type::SessionHooks{
-                .get_payload_item =
-                    [this, lease](Gem::Courtier::GWakeFn wake) {
-                        auto result = this->checkoutOrPark(std::move(wake));
-                        lease->add(
-                            result.item
-                        ); // no-op without an item; records its correlation id
-                        return result;
-                    },
-                .put_payload_item =
-                    [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
-                        // returned normally -> nothing for the lease to reclaim
-                        lease->remove(frame.outcome().correlation_id);
-                        this->checkin(std::move(frame));
-                    },
-                .abandonItems = [lease] { lease->abandonAll(); },
-                .check_server_stopped = [this]() -> bool { return this->stopped(); },
-                .server_sign_on = [this](bool sign_on) { this->adjustSessionCount(sign_on); },
-            },
-            serialization_mode_,
-            ping_interval_,
-            verbose_control_frames_,
-            &this->wire_registry_,
-            next_peer_id_.fetch_add(1) // a fresh peer id per session (connection)
-        )
-            ->async_start_run();
+    /** @brief The port the server listens on (useful when 0 was passed to pick an ephemeral port).
+     *  @return The port asked for before startServer(), the bound one afterwards */
+    [[nodiscard]] unsigned short getPort() const noexcept {
+        return static_cast<const Consumers::GWebsocketListener &>(this->listener()).getPort();
     }
 
-    /***************************************************************************/
-    Gem::Common::serializationMode serialization_mode_;
-    std::size_t ping_interval_;
-    bool verbose_control_frames_;
-
-    /// Hands each session a distinct peer id for the blob send-once registry's per-peer ack tracking.
-    std::atomic<Gem::Courtier::GWirePeerId> next_peer_id_{1};
+private:
+    /// The name of this consumer, for the log and the thread budget
+    static constexpr const char *CONSUMER_NAME = "Gem::Courtier::GWebsocketConsumerT";
 };
 
 /******************************************************************************/

@@ -65,8 +65,8 @@ namespace {
 
 constexpr std::size_t BOUNDED_CAP = 1024;
 
-// ---- one MPMC run over a queue with compile-time capacity Cap ----------------
-template <std::size_t Cap>
+// ---- one MPMC run over a queue with compile-time capacity CAP ----------------
+template <std::size_t CAP>
 struct RunResult {
     double seconds = 0.0;
     long long produced = 0;
@@ -75,9 +75,9 @@ struct RunResult {
     long long expected = 0;     // expected sum (for conservation check)
 };
 
-template <std::size_t Cap>
-RunResult<Cap> run_mpmc(int producers, int consumers, long long items_per_producer) {
-    GBlockingMPMCQueueT<std::uint64_t, Cap> q;
+template <std::size_t CAP>
+RunResult<CAP> run_mpmc(int producers, int consumers, long long items_per_producer) {
+    GBlockingMPMCQueueT<std::uint64_t, CAP> q;
     std::atomic<long long> consumed{0};
     std::atomic<long long> checksum{0};
 
@@ -113,7 +113,7 @@ RunResult<Cap> run_mpmc(int producers, int consumers, long long items_per_produc
     for(auto &t : cons) t.join();
     auto t1 = clk::now();
 
-    RunResult<Cap> r;
+    RunResult<CAP> r;
     r.seconds = std::chrono::duration<double>(t1 - t0).count();
     r.produced = static_cast<long long>(producers) * items_per_producer;
     r.consumed = consumed.load();
@@ -123,9 +123,9 @@ RunResult<Cap> run_mpmc(int producers, int consumers, long long items_per_produc
     return r;
 }
 
-template <std::size_t Cap>
+template <std::size_t CAP>
 void report(const char *label, int prod, int cons, long long per_prod) {
-    auto r = run_mpmc<Cap>(prod, cons, per_prod);
+    auto r = run_mpmc<CAP>(prod, cons, per_prod);
     double const mips = (r.seconds > 0.0) ? (static_cast<double>(r.consumed) / r.seconds / 1e6) : 0.0;
     bool const ok = (r.consumed == r.produced) && (r.checksum == r.expected);
     std::printf(

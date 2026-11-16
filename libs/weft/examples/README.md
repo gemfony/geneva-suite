@@ -7,7 +7,7 @@ other Geneva library — so they double as proof that Weft is reusable on its ow
 | Example | Shows |
 |---|---|
 | `quickstart.cpp` | The minimal case: a value type with an intrusive member `serialize`, round-tripped through the **binary** and **JSON** codecs. |
-| `nonintrusive.cpp` | Serializing a **third-party type you cannot modify**, via a free `gem_archive_serialize(Archive&, T&)` found by argument-dependent lookup in the type's namespace. Nested containers compose automatically. |
+| `nonintrusive.cpp` | Serializing a **third-party type you cannot modify**, via a free `gem_archive_serialize(archive_type&, T&)` found by argument-dependent lookup in the type's namespace. Nested containers compose automatically. |
 | `polymorphic.cpp` | Round-tripping a `shared_ptr` to a hierarchy root and **reconstructing the exact dynamic type**, using one `GEM_REGISTER_ARCHIVABLE(Type)` per concrete class (the analogue of `BOOST_CLASS_EXPORT`), plus the boot-time completeness check. |
 
 ## Building and running
@@ -27,9 +27,9 @@ quickstart: OK
 ## The serialize contract in one paragraph
 
 A type opts in exactly as it would with Boost.Serialization: a member
-`template <typename Archive> void serialize(Archive& ar, unsigned version)` (make
+`template <typename archive_type> void serialize(archive_type& ar, unsigned version)` (make
 it private and `friend struct Gem::Weft::access;` to keep it encapsulated), or a
-free `gem_archive_serialize(Archive&, T&)` in the type's namespace when the class
+free `gem_archive_serialize(archive_type&, T&)` in the type's namespace when the class
 can't be touched. Inside, stream each field with `ar & Gem::Weft::make_nvp("name",
-field)`; for a base slice use `ar & Gem::Weft::base_object<Base>(*this)`. The same
+field)`; for a base slice use `ar & Gem::Weft::base_object<base_type>(*this)`. The same
 method serves every codec.

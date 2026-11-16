@@ -76,8 +76,8 @@ class GPlotDesigner
      * list) is included so a checkpointed monitor's accumulated plots survive a resume.
      * @return A tuple of named member references
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("plotters_cnt_", self.plotters_cnt_),
             Gem::Common::make_member("c_x_div_", self.c_x_div_),
@@ -86,6 +86,7 @@ class GPlotDesigner
             Gem::Common::make_member("c_y_dim_", self.c_y_dim_),
             Gem::Common::make_member("canvas_label_", self.canvas_label_),
             Gem::Common::make_member("add_print_command_", self.add_print_command_),
+            Gem::Common::make_member("show_canvas_label_", self.show_canvas_label_),
             Gem::Common::make_member("n_indention_spaces_", self.n_indention_spaces_)
         );
     }
@@ -219,6 +220,18 @@ public:
      */
     bool getAddPrintCommand() const;
 
+    /**
+     * @brief Whether the canvas label is shown as the title of the whole figure. It is by
+     * default; a figure that carries its title elsewhere (a caption in a book) leaves it out.
+     * @param show_canvas_label Whether to show the canvas label
+     */
+    void setShowCanvasLabel(bool show_canvas_label);
+    /**
+     * @brief Whether the canvas label is shown
+     * @return true if the figure shows the canvas label as its title
+     */
+    bool getShowCanvasLabel() const;
+
     /** @brief Resets the plotters */
     void resetPlotters();
 
@@ -259,6 +272,7 @@ protected:
         c_x_dim_ += 1;
         c_y_dim_ += 1;
         add_print_command_ = not add_print_command_;
+        show_canvas_label_ = not show_canvas_label_;
         this->registerPlotter(std::make_shared<GGraph2D>());
         return true;
     }
@@ -279,6 +293,8 @@ private:
 
     bool add_print_command_ =
         false; ///< Indicates whether a print command for the creation of a png file should be added
+
+    bool show_canvas_label_ = true; ///< Whether the canvas label is shown as the figure's title
 
     std::size_t n_indention_spaces_ = (DEFNINDENTIONSPACES);
 

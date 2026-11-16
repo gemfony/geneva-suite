@@ -249,9 +249,9 @@ private:
      *  state (current points/energies, cooling clocks, stall counters, parameter bounds) is transient
      *  and rebuilt in init(). */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as the (const) class type.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    // overloads are trivial forwarders. self_type is deduced as the (const) class type.
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("n_chains_", self.n_chains_),
             Gem::Common::make_member("qv_", self.qv_),

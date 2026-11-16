@@ -130,7 +130,9 @@ ENV OMPI_ALLOW_RUN_AS_ROOT=1
 ENV OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
 ENV BOOST_ROOT={boost_root}
-ENV LD_LIBRARY_PATH={boost_root}/lib:$LD_LIBRARY_PATH
+# No LD_LIBRARY_PATH: Geneva's libraries, modules, tests and installed programs must find Boost
+# through their own run paths, as on a user's machine; an environment variable would hide a
+# missing one.
 
 WORKDIR /work
 """

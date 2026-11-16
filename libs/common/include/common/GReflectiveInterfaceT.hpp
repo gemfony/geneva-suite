@@ -166,9 +166,9 @@ concept ReflectiveInterfaceManaged =
  *
  * This is the base half of the reflective-interface mixin, used directly by *abstract*
  * classes (those whose clone_() stays pure) and inherited by GReflectiveInterfaceT for
- * *concrete* classes. It derives from the class's real Parent and inserts no
+ * *concrete* classes. It derives from the class's real parent_type and inserts no
  * data of its own, so it is transparent to serialization: the folded
- * serialize() writes the Parent base slice (skipping this stateless layer) plus
+ * serialize() writes the parent_type base slice (skipping this stateless layer) plus
  * the class's own members, exactly as the hand-written code did.
  *
  * The three overriders and the folded serialize() are single-sourced here from
@@ -177,32 +177,32 @@ concept ReflectiveInterfaceManaged =
  * prevent). Everything that varies is a template parameter or is recovered from
  * the hierarchy:
  *  - the load_() parameter type / the interface base is Root, recovered from
- *    Parent::gemfony_common_root_t;
- *  - the class name comes from Derived::class_name;
- *  - the member list comes from Derived::localMembers_().
+ *    parent_type::gemfony_common_root_t;
+ *  - the class name comes from derived_type::class_name;
+ *  - the member list comes from derived_type::localMembers_().
  *
- * The root of a hierarchy (Parent == GCommonInterfaceT<Root>) is handled by the
+ * The root of a hierarchy (parent_type == GCommonInterfaceT<Root>) is handled by the
  * two `if constexpr` guards: it has no serializable/loadable parent slice, but
  * its compare_() still compares the GCommonInterfaceT base (the non-pure
  * same-type overload), matching the hand-written root behaviour.
  *
  * All member bodies are instantiated lazily (when the vtable is emitted / the
- * archive is used), by which point Derived is complete -- the same reason the
+ * archive is used), by which point derived_type is complete -- the same reason the
  * pre-existing name_/clone_ generators (GGenomeT, GOptimizationAlgorithmT, ...)
- * can name Derived's constructor from a CRTP base.
+ * can name derived_type's constructor from a CRTP base.
  *
- * @tparam Derived The managed (CRTP self) class
- * @tparam Parent  The class's real base (a GCommonInterfaceT derivative, or
+ * @tparam derived_type The managed (CRTP self) class
+ * @tparam parent_type  The class's real base (a GCommonInterfaceT derivative, or
  *                 GCommonInterfaceT<Root> itself for a hierarchy root)
  */
-template <typename Derived, typename Parent>
-class GReflectiveInterfaceBaseT : public Parent {
+template <typename derived_type, typename parent_type>
+class GReflectiveInterfaceBaseT : public parent_type {
 protected:
     /** @brief The most-derived public root of the hierarchy (load_() parameter / clone_() base). */
-    using Root = typename Parent::gemfony_common_root_t;
+    using Root = typename parent_type::gemfony_common_root_t;
 
     /** @brief Inherit the parent's constructors so a managed class keeps its initialization surface. */
-    using Parent::Parent;
+    using parent_type::parent_type;
 
     // Inherited constructors never include the default / copy / move members, so
     // declare them explicitly (the mixin adds no state, hence all defaulted).
@@ -217,31 +217,34 @@ protected:
      * @brief Loads the data of another object of the same hierarchy into this one.
      *
      * Protected (not private) because a subclass's generated load_() invokes its
-     * own Parent::load_() by qualified-id to load the parent slice.
+     * own parent_type::load_() by qualified-id to load the parent slice.
      *
      * @param cp The other object, passed as a hierarchy-root pointer
      */
     void load_(Root const *cp) override {
         static_assert(
-            ReflectiveInterfaceManaged<Derived>,
-            "GReflectiveInterfaceBaseT: Derived must declare its own localMembers_() and a static class_name"
+            ReflectiveInterfaceManaged<derived_type>,
+            "GReflectiveInterfaceBaseT: derived_type must declare its own localMembers_() and a "
+            "static "
+            "class_name"
         );
-        auto const *p_load = Gem::Common::g_convert_and_compare(cp, static_cast<Derived const *>(this));
+        auto const *p_load =
+            Gem::Common::g_convert_and_compare(cp, static_cast<derived_type const *>(this));
 
         // Load the parent slice, unless this is the hierarchy root (whose parent is the pure interface).
-        if constexpr (!std::same_as<Parent, Gem::Common::GCommonInterfaceT<Root>>) {
-            Parent::load_(cp);
+        if constexpr(!std::same_as<parent_type, Gem::Common::GCommonInterfaceT<Root>>) {
+            parent_type::load_(cp);
         }
 
         // ... and then this class's own members, from the single localMembers_() declaration.
         Gem::Common::g_load_members(
-            GReflectiveInterfaceAccess::members(static_cast<Derived &>(*this)),
-            GReflectiveInterfaceAccess::members(static_cast<Derived const &>(*p_load))
+            GReflectiveInterfaceAccess::members(static_cast<derived_type &>(*this)),
+            GReflectiveInterfaceAccess::members(static_cast<derived_type const &>(*p_load))
         );
 
         // Finally, let the class repair any cached/derived state keyed on the members
         // just loaded (no-op unless the class declares its own postLoad_()).
-        GReflectiveInterfaceAccess::postLoad(static_cast<Derived &>(*this));
+        GReflectiveInterfaceAccess::postLoad(static_cast<derived_type &>(*this));
     }
 
     /**
@@ -276,8 +279,8 @@ private:
      * an inherited localMembers_() would silently serialize the parent's members
      * a second time.
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) = delete;
+    template <typename self_type>
+    auto localMembers_(this self_type &self) = delete;
 
     /**
      * @brief Serializes the parent slice (unless this is the hierarchy root) and
@@ -285,28 +288,38 @@ private:
      * Codec-generic: the same body serves every @c GArchive codec (the codec-specific
      * spellings live once in @c archive_named_base / @c serialize_members), so adding a
      * codec never touches a serialize() body.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive being read from or written to
      * @param version The (unused) serialization format version
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int const version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int const version) {
         static_assert(
-            ReflectiveInterfaceManaged<Derived>,
-            "GReflectiveInterfaceBaseT: Derived must declare its own localMembers_() and a static class_name"
+            ReflectiveInterfaceManaged<derived_type>,
+            "GReflectiveInterfaceBaseT: derived_type must declare its own localMembers_() and a "
+            "static "
+            "class_name"
         );
-        if constexpr (!std::same_as<Parent, Gem::Common::GCommonInterfaceT<Root>>) {
-            // The Parent slice is taken from the *concrete* Derived reference, so what crosses the
-            // archive is exactly what a hand-written archive_named_base<Parent>(ar, "gemfonyParent",
-            // *this) inside Derived would write -- the codec narrows to the Parent sub-object itself.
-            Gem::Common::archive_named_base<Parent>(ar, "gemfonyParent", static_cast<Derived &>(*this));
+        if constexpr(!std::same_as<parent_type, Gem::Common::GCommonInterfaceT<Root>>) {
+            // The parent_type slice is taken from the *concrete* derived_type reference, so what crosses the
+            // archive is exactly what a hand-written archive_named_base<parent_type>(ar, "gemfonyParent",
+            // *this) inside derived_type would write -- the codec narrows to the parent_type sub-object itself.
+            Gem::Common::archive_named_base<parent_type>(
+                ar,
+                "gemfonyParent",
+                static_cast<derived_type &>(*this)
+            );
         }
-        Gem::Common::serialize_members(ar, GReflectiveInterfaceAccess::members(static_cast<Derived &>(*this)));
+        Gem::Common::serialize_members(
+            ar,
+            GReflectiveInterfaceAccess::members(static_cast<derived_type &>(*this))
+        );
     }
     ///////////////////////////////////////////////////////////////////////
 
     /** @brief Grant this class's compare_ to a subclass comparing this slice (friendship is not inherited). */
-    friend void Gem::Common::compare_base_t<Derived>(Derived const &, Derived const &, GToken &);
+    friend void
+    Gem::Common::compare_base_t<derived_type>(derived_type const &, derived_type const &, GToken &);
 
     /**
      * @brief Compares this object to another of the same hierarchy against an expectation.
@@ -318,21 +331,24 @@ private:
     void compare_(Root const &cp, Gem::Common::expectation const &e, [[maybe_unused]] double const &limit)
         const override {
         static_assert(
-            ReflectiveInterfaceManaged<Derived>,
-            "GReflectiveInterfaceBaseT: Derived must declare its own localMembers_() and a static class_name"
+            ReflectiveInterfaceManaged<derived_type>,
+            "GReflectiveInterfaceBaseT: derived_type must declare its own localMembers_() and a "
+            "static "
+            "class_name"
         );
-        // Convert cp to Derived, guarding against self-comparison.
-        auto const *p_load = Gem::Common::g_convert_and_compare(cp, static_cast<Derived const *>(this));
+        // Convert cp to derived_type, guarding against self-comparison.
+        auto const *p_load =
+            Gem::Common::g_convert_and_compare(cp, static_cast<derived_type const *>(this));
 
-        GToken token(std::string(Derived::class_name), e);
+        GToken token(std::string(derived_type::class_name), e);
 
         // Compare the parent slice (for the root this is the GCommonInterfaceT base's same-type overload) ...
-        Gem::Common::compare_base_t<Parent>(*this, *p_load, token);
+        Gem::Common::compare_base_t<parent_type>(*this, *p_load, token);
 
         // ... and then this class's own members, from the single localMembers_() declaration.
         Gem::Common::g_compare_members(
-            GReflectiveInterfaceAccess::members(static_cast<Derived const &>(*this)),
-            GReflectiveInterfaceAccess::members(static_cast<Derived const &>(*p_load)),
+            GReflectiveInterfaceAccess::members(static_cast<derived_type const &>(*this)),
+            GReflectiveInterfaceAccess::members(static_cast<derived_type const &>(*p_load)),
             token
         );
 
@@ -342,10 +358,10 @@ private:
 
     /**
      * @brief Emits this class's name.
-     * @return Derived::class_name as a std::string
+     * @return derived_type::class_name as a std::string
      */
     [[nodiscard]] std::string name_() const override {
-        return std::string(Derived::class_name);
+        return std::string(derived_type::class_name);
     }
 };
 
@@ -354,32 +370,32 @@ private:
  * @brief The full boilerplate mixin for a *concrete* class: GReflectiveInterfaceBaseT
  * (name_/load_/compare_/serialize) plus a generated clone_().
  *
- * clone_() cannot live in the shared base because its body (`new Derived(...)`)
+ * clone_() cannot live in the shared base because its body (`new derived_type(...)`)
  * would be instantiated into the vtable of an abstract class too, so it is added
  * only here, where a class opting in is asserting it is concrete.
  *
- * clone_() returns the hierarchy root, recovered from Parent. There was once a third
+ * clone_() returns the hierarchy root, recovered from parent_type. There was once a third
  * template parameter for a narrower, covariant return type: GGenomeT declared
  * GGenome* while the root was GOptimizableEntity. Folding those two classes together
  * left the parameter with no client, so it is gone -- one fewer knob, and one fewer way
  * for a derivative to disagree with its own hierarchy about what a clone is.
  *
- * @tparam Derived The managed (CRTP self) concrete class
- * @tparam Parent  The class's real base
+ * @tparam derived_type The managed (CRTP self) concrete class
+ * @tparam parent_type  The class's real base
  */
-template <typename Derived, typename Parent>
-class GReflectiveInterfaceT : public GReflectiveInterfaceBaseT<Derived, Parent> {
+template <typename derived_type, typename parent_type>
+class GReflectiveInterfaceT : public GReflectiveInterfaceBaseT<derived_type, parent_type> {
 protected:
     /** @brief Inherit the base mixin's (and thereby the parent's) constructors. */
-    using GReflectiveInterfaceBaseT<Derived, Parent>::GReflectiveInterfaceBaseT;
+    using GReflectiveInterfaceBaseT<derived_type, parent_type>::GReflectiveInterfaceBaseT;
 
 private:
     /**
-     * @brief Creates a deep clone of this object via the Derived copy constructor.
+     * @brief Creates a deep clone of this object via the derived_type copy constructor.
      * @return A heap-allocated deep copy of this object (caller takes ownership)
      */
-    [[nodiscard]] typename Parent::gemfony_common_root_t *clone_() const override {
-        return new Derived(*static_cast<Derived const *>(this));
+    [[nodiscard]] typename parent_type::gemfony_common_root_t *clone_() const override {
+        return new derived_type(*static_cast<derived_type const *>(this));
     }
 };
 

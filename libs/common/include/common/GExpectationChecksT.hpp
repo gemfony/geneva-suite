@@ -459,8 +459,8 @@ void compare(
  * equality. The function will throw a g_expectation_violation exception if the expectation
  * was violated.
  *
- * @tparam Clock The clock type of the compared time points
- * @tparam Duration The duration type of the compared time points (defaults to Clock::duration)
+ * @tparam clock_type The clock type of the compared time points
+ * @tparam duration_type The duration type of the compared time points (defaults to clock_type::duration)
  * @param x The first parameter to be compared
  * @param y The second parameter to be compared
  * @param x_name The name of the first parameter
@@ -470,10 +470,10 @@ void compare(
  * @note The trailing double `limit` argument is an unused tolerance value,
  *       present only to match the common compare() signature.
  */
-template <typename Clock, typename Duration = typename Clock::duration>
+template <typename clock_type, typename duration_type = typename clock_type::duration>
 void compare(
-    std::chrono::time_point<Clock, Duration> const &x,
-    std::chrono::time_point<Clock, Duration> const &y,
+    std::chrono::time_point<clock_type, duration_type> const &x,
+    std::chrono::time_point<clock_type, duration_type> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
@@ -520,8 +520,8 @@ void compare(
  * equality. The function will throw a g_expectation_violation exception if the expectation
  * was violated.
  *
- * @tparam Rep The arithmetic representation type of the compared durations
- * @tparam Period The std::ratio tick period of the compared durations (defaults to std::ratio<1>)
+ * @tparam rep_type The arithmetic representation type of the compared durations
+ * @tparam period_type The std::ratio tick period of the compared durations (defaults to std::ratio<1>)
  * @param x The first parameter to be compared
  * @param y The second parameter to be compared
  * @param x_name The name of the first parameter
@@ -531,10 +531,10 @@ void compare(
  * @note The trailing double `limit` argument is an unused tolerance value,
  *       present only to match the common compare() signature.
  */
-template <typename Rep, typename Period = std::ratio<1>>
+template <typename rep_type, typename period_type = std::ratio<1>>
 void compare(
-    std::chrono::duration<Rep, Period> const &x,
-    std::chrono::duration<Rep, Period> const &y,
+    std::chrono::duration<rep_type, period_type> const &x,
+    std::chrono::duration<rep_type, period_type> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
@@ -1540,25 +1540,27 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
  *
  * @tparam A The referenced member type of the first descriptor
  * @tparam B The referenced member type of the second descriptor
- * @tparam Ser The (unused here) serialize policy
- * @tparam Load The (unused here) load policy
- * @tparam Cmp The compare policy tag dispatched on
+ * @tparam ser_type The (unused here) serialize policy
+ * @tparam load_type The (unused here) load policy
+ * @tparam cmp_type The compare policy tag dispatched on
  * @param a The first member descriptor (its .ref value and .name are compared)
  * @param b The second member descriptor (its .ref value and .name are compared)
  * @param token The token holding the expectation and recording the comparison result
  */
-template <typename A, typename B, typename Ser, typename Load, typename Cmp>
+template <typename A, typename B, typename ser_type, typename load_type, typename cmp_type>
 void g_compare_one(
-    const member_desc<A, Ser, Load, Cmp> &a,
-    const member_desc<B, Ser, Load, Cmp> &b,
+    const member_desc<A, ser_type, load_type, cmp_type> &a,
+    const member_desc<B, ser_type, load_type, cmp_type> &b,
     GToken &token
 ) {
-    if constexpr (std::same_as<Cmp, cmp_skip>) {
+    if constexpr(std::same_as<cmp_type, cmp_skip>) {
         // skipped: excluded from comparable identity
-    } else if constexpr (std::same_as<Cmp, cmp_atomic>) {
+    }
+    else if constexpr(std::same_as<cmp_type, cmp_atomic>) {
         // Compare the loaded values rather than the atomic objects themselves.
         compare_t(getIdentity(a.ref.load(), b.ref.load(), a.name, b.name), token);
-    } else { // cmp_value
+    }
+    else { // cmp_value
         compare_t(getIdentity(a.ref, b.ref, a.name, b.name), token);
     }
 }
@@ -1566,8 +1568,8 @@ void g_compare_one(
 /**
  * @brief Compares two tuples of member descriptors element-by-element via a fold over an index sequence.
  *
- * @tparam ATuple The tuple type of the first set of member descriptors
- * @tparam BTuple The tuple type of the second set of member descriptors
+ * @tparam a_tuple_type The tuple type of the first set of member descriptors
+ * @tparam b_tuple_type The tuple type of the second set of member descriptors
  * @tparam I The compile-time index pack enumerating the tuple elements to compare
  * @param a The first tuple of member descriptors
  * @param b The second tuple of member descriptors
@@ -1576,9 +1578,12 @@ void g_compare_one(
  * @note The trailing std::index_sequence<I...> argument only carries the indices I... that
  *       drive the comparison fold; it has no runtime value.
  */
-template <typename ATuple, typename BTuple, std::size_t... I>
+template <typename a_tuple_type, typename b_tuple_type, std::size_t... I>
 void g_compare_members_impl(
-    const ATuple &a, const BTuple &b, GToken &token, [[maybe_unused]] std::index_sequence<I...> indices
+    const a_tuple_type &a,
+    const b_tuple_type &b,
+    GToken &token,
+    [[maybe_unused]] std::index_sequence<I...> indices
 ) {
     (g_compare_one(std::get<I>(a), std::get<I>(b), token), ...);
 }
@@ -1586,19 +1591,24 @@ void g_compare_members_impl(
 /**
  * @brief Compares each local member pairwise, recording results in the token.
  *
- * @tparam ATuple The tuple type of the first object's local member descriptors
- * @tparam BTuple The tuple type of the second object's local member descriptors
+ * @tparam a_tuple_type The tuple type of the first object's local member descriptors
+ * @tparam b_tuple_type The tuple type of the second object's local member descriptors
  * @param a The first object's tuple of local member descriptors (e.g. from localMembers())
  * @param b The second object's tuple of local member descriptors (e.g. from localMembers())
  * @param token The token holding the expectation and accumulating the per-member comparison results
  */
-template <typename ATuple, typename BTuple>
-void g_compare_members(ATuple a, BTuple b, GToken &token) {
+template <typename a_tuple_type, typename b_tuple_type>
+void g_compare_members(a_tuple_type a, b_tuple_type b, GToken &token) {
     static_assert(
-        std::tuple_size_v<ATuple> == std::tuple_size_v<BTuple>,
+        std::tuple_size_v<a_tuple_type> == std::tuple_size_v<b_tuple_type>,
         "g_compare_members: localMembers() arity mismatch"
     );
-    g_compare_members_impl(a, b, token, std::make_index_sequence<std::tuple_size_v<ATuple>>{});
+    g_compare_members_impl(
+        a,
+        b,
+        token,
+        std::make_index_sequence<std::tuple_size_v<a_tuple_type>>{}
+    );
 }
 
 /******************************************************************************/

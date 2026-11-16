@@ -65,8 +65,10 @@ class GSerializableFunctionObjectT
     // localMembers_() + class_name; this is a stateless abstract root (clone_ / process_ stay pure).
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
 
     ///////////////////////////////////////////////////////////////////////
 

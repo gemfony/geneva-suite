@@ -131,9 +131,9 @@ private:
      * memory, so it needs no special handling.
      */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as the (const) class type.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    // overloads are trivial forwarders. self_type is deduced as the (const) class type.
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             // The population held by the GUniquePtrContainerT base, tied in as a member (see above).
             Gem::Common::make_cloneable_container_member("data_cnt_", self.data_cnt_),
@@ -179,11 +179,11 @@ private:
      *  ambiguity and emits the single member list -- which now ties in the container's population as
      *  data_cnt_ and skips the transient best_iteration_individuals_pq_. The stateless GCommonInterfaceT
      *  root and GOptimizerIT interface contribute nothing.
-     *  @tparam Archive The archive type used for (de-)serialization
+     *  @tparam archive_type The archive type used for (de-)serialization
      *  @param ar The archive to serialize to / from
      *  @param version The (unused) serialization format version */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
 
@@ -193,7 +193,7 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceBaseT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GOptimizationAlgorithmBase";
 
-    // The private split-serialization member load(Archive&, unsigned) below
+    // The private split-serialization member load(archive_type&, unsigned) below
     // name-hides the public load(const&) / load(shared_ptr<>) inherited from
     // Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>. Re-expose them so callers (and
     // the standard unit tests) can load one GOptimizationAlgorithmBase from another.

@@ -393,14 +393,14 @@ int_type checkValueRange(
 /**
  * @brief Finds the minimum and maximum component in a vector of undefined types.
  *
- * This function requires that x_type_undet can be compared using the usual operators.
+ * This function requires that x_type can be compared using the usual operators.
  *
- * @tparam x_type_undet The element type of the vector (must be comparable)
+ * @tparam x_type The element type of the vector (must be comparable)
  * @param ext_dat The vector holding the data, for which extreme values should be calculated
  * @return A std::tuple {min, max} holding the extreme values
  */
-template <typename x_type_undet>
-auto getMinMax(const std::vector<x_type_undet> &ext_dat) {
+template <typename x_type>
+auto getMinMax(const std::vector<x_type> &ext_dat) {
     if(ext_dat.size() < 2uz) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -410,7 +410,7 @@ auto getMinMax(const std::vector<x_type_undet> &ext_dat) {
     }
 
     auto [min_it, max_it] = std::minmax_element(ext_dat.begin(), ext_dat.end());
-    return std::tuple<x_type_undet, x_type_undet>{*min_it, *max_it};
+    return std::tuple<x_type, x_type>{*min_it, *max_it};
 }
 
 /******************************************************************************/
@@ -422,36 +422,37 @@ auto getMinMax(const std::vector<x_type_undet> &ext_dat) {
  * comparable with the usual operators; the comparison shape (a plain `<`/`>` pair seeded from the
  * first entry) is preserved exactly, so NaN handling is unchanged.
  *
- * @tparam tuple_types The tuple's component types (any arity >= 1)
+ * @tparam tuple_element_type The tuple's component types (any arity >= 1)
  * @param ext_dat The vector holding the data, for which extreme values should be calculated
  * @return A std::tuple {min_0, max_0, min_1, max_1, ...} holding the per-component extreme values
  */
-template <typename... tuple_types>
-auto getMinMax(const std::vector<std::tuple<tuple_types...>> &ext_dat) {
+template <typename... tuple_element_type>
+auto getMinMax(const std::vector<std::tuple<tuple_element_type...>> &ext_dat) {
     // Do some error checking
     if(ext_dat.size() < 2uz) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GBasePlotter::getMinMax(" << sizeof...(tuple_types) << "D): Error!" << '\n'
+            << "In GBasePlotter::getMinMax(" << sizeof...(tuple_element_type) << "D): Error!"
+            << '\n'
             << "Got vector of invalid size " << ext_dat.size() << '\n'
         );
     }
 
     // Seed every {min, max} pair from the first entry: {min_0, max_0, min_1, max_1, ...}
-    auto result = [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+    auto result = [&]<std::size_t... INDICES>(std::index_sequence<INDICES...>) {
         return std::tuple_cat([&] {
-            const auto &v = std::get<Is>(ext_dat.at(0));
-            return std::tuple<tuple_types, tuple_types>{v, v};
+            const auto &v = std::get<INDICES>(ext_dat.at(0));
+            return std::tuple<tuple_element_type, tuple_element_type>{v, v};
         }()...);
-    }(std::index_sequence_for<tuple_types...>{});
+    }(std::index_sequence_for<tuple_element_type...>{});
 
     for(std::size_t i = 1; i < ext_dat.size(); i++) {
-        [&]<std::size_t... Is>(std::index_sequence<Is...>) {
+        [&]<std::size_t... INDICES>(std::index_sequence<INDICES...>) {
             (
                 [&] {
-                    const auto &v = std::get<Is>(ext_dat.at(i));
-                    auto &mn = std::get<2 * Is>(result);
-                    auto &mx = std::get<2 * Is + 1>(result);
+                    const auto &v = std::get<INDICES>(ext_dat.at(i));
+                    auto &mn = std::get<2 * INDICES>(result);
+                    auto &mx = std::get<2 * INDICES + 1>(result);
                     if(v < mn) {
                         mn = v;
                     }
@@ -459,9 +460,8 @@ auto getMinMax(const std::vector<std::tuple<tuple_types...>> &ext_dat) {
                         mx = v;
                     }
                 }(),
-                ...
-            );
-        }(std::index_sequence_for<tuple_types...>{});
+                ...);
+        }(std::index_sequence_for<tuple_element_type...>{});
     }
 
     return result;
@@ -721,7 +721,9 @@ fp_type squareDeviation(
 /**
  * @brief Calculates the parameters a and b of a regression line, plus their errors.
  *
- * The line is defined by L(x) = a + b*x. An empty input yields an all-zero result tuple.
+ * The line is defined by L(x) = a + b*x. An empty input yields an all-zero result tuple. The errors
+ * need at least three points: for two they are not finite (a line through two points has no
+ * deviation to estimate them from).
  *
  * @tparam fp_type The floating point type of the data and the computed parameters
  * @param data_points A vector of (x, y) data points to which the line's parameters should fit

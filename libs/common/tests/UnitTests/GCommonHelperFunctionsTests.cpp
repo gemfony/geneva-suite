@@ -164,8 +164,10 @@ TEST_CASE("stringToDoubleVec: parses comma-separated doubles",
     CHECK(v[2] == 3.5);
 }
 
-TEST_CASE("stringToUIntTupleVec: parses '(a,b) (c,d)' style input",
-          "[common][helper-nonT][split]") {
+TEST_CASE(
+    "stringToUIntTupleVec: parses a sequence of parenthesized pairs",
+    "[common][helper-nonT][split]"
+) {
     auto v = stringToUIntTupleVec("(1,2),(3,4)");
     REQUIRE(v.size() == 2);
     CHECK(std::get<0>(v[0]) == 1u);

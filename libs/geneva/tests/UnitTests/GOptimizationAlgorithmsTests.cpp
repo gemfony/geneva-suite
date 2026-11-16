@@ -599,7 +599,10 @@ TEST_CASE("checkpoint round-trip re-shares one problem policy across the populat
 
 /******************************************************************************/
 
-TEST_CASE("checkpoint directory is created lazily, and a final checkpoint is actually written", "[flat][oa]") {
+TEST_CASE(
+    "checkpoint directory is created lazily and a final checkpoint is actually written",
+    "[flat][oa]"
+) {
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
@@ -817,7 +820,10 @@ TEST_CASE("Swarm optimization optimizes a flat individual", "[flat][oa]") {
 
 /******************************************************************************/
 
-TEST_CASE("Swarm neighborhood-best accessor hands out a sole-owned copy, not the stored best", "[flat][oa]") {
+TEST_CASE(
+    "Swarm neighborhood-best accessor hands out a sole-owned copy and not the stored best",
+    "[flat][oa]"
+) {
     // getBestNeighborhoodIndividual<>() was the one getBest*-named accessor that returned a co-owning
     // handle to the algorithm's own stored best, mutable behind its back. It now clones like its
     // siblings. Pin both halves: the caller owns a fresh copy, and mutating it leaves the algorithm's
@@ -1795,7 +1801,10 @@ TEST_CASE("individual copy runs through localMembers_ (copy ctor vs single sourc
 
 /******************************************************************************/
 
-TEST_CASE("meta-EA orchestration-thread count is real config: copied, serialized AND compared", "[flat][oa]") {
+TEST_CASE(
+    "meta-EA orchestration-thread count is real config: copied and serialized AND compared",
+    "[flat][oa]"
+) {
     using Gem::Common::expectation;
     using Gem::Common::serializationMode;
 

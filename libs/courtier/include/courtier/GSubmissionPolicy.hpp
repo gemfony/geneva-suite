@@ -44,8 +44,12 @@ namespace Gem::Courtier {
  */
 //! [courtier-submission-policy#1]
 enum class on_unresolved : Gem::Common::ENUMBASETYPE {
-    fatal = 0, ///< Cannot continue -- terminate the program (e.g. gradient methods need every value)
-    clone = 1  ///< Refill the slot with a clone of a successfully evaluated item (population-based, tolerant)
+    /// Cannot continue -- terminate the program (e.g. gradient methods need
+    /// every value)
+    fatal = 0,
+    /// Refill the slot with a clone of a successfully evaluated item
+    /// (population-based, tolerant)
+    clone = 1
 };
 //! [courtier-submission-policy#1]
 
@@ -66,17 +70,21 @@ enum class on_unresolved : Gem::Common::ENUMBASETYPE {
  */
 //! [courtier-submission-policy#2]
 struct GSubmissionPolicy {
-    /** @brief What to do with a slot that cannot be successfully evaluated */
+    /** @brief What to do with a slot that cannot be successfully
+     *  evaluated */
     on_unresolved unresolved_action = on_unresolved::fatal;
 
-    /** @brief Maximum number of times a MISSING item is resubmitted before it counts as unresolved */
+    /** @brief Maximum number of times a MISSING item is resubmitted before
+     *  it counts as unresolved */
     std::size_t max_resubmissions = 5;
 
-    /** @brief Maximum number of times a FAILED item is re-evaluated (to ride out *transient* crashes;
-     *  a deterministic crash will keep failing). 0 == a FAILED item is immediately unresolved. */
+    /** @brief Maximum number of times a FAILED item is re-evaluated (to
+     *  ride out *transient* crashes; a deterministic crash will keep
+     *  failing). 0 == a FAILED item is immediately unresolved. */
     std::size_t max_failed_retries = 0;
 
-    /** @brief Floor under every policy: if NOTHING usable came back at all, terminate fatally */
+    /** @brief Floor under every policy: if NOTHING usable came back at all,
+     *  terminate fatally */
     bool fatal_on_none_returned = true;
 //! [courtier-submission-policy#2]
 

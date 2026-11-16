@@ -260,21 +260,39 @@ build with the GPU consumer enabled. Configure says so for each one it leaves
 out, so a missing test always has a stated reason.
 
 
-Making the libraries known to the system on Linux
-=================================================
+Finding the libraries at run time on Linux
+==========================================
 
-After "make install" you have to make the installation directory known to the
-dynamic linker, so that programs find the libraries at run time. System-wide,
-create a file /etc/ld.so.conf.d/geneva.conf containing the library directory,
-for example:
+Geneva's installed libraries, modules and programs (examples, benchmarks,
+tests) carry run paths: they find Geneva's libraries relative to their own
+location, also after an installation of the default layout (no INSTALL_PREFIX_*
+set, see below) has been moved, and they find a Boost outside the system's
+library directories -- one compiled by yourself, for example -- in the
+directory it was linked from when Geneva was built. After "make install"
+nothing needs to be set for them. If that Boost is moved or removed later, they
+no longer find it.
 
-/opt/geneva/lib
+A program of your own that is built with CMake and find_package(Geneva) gets a
+run path to Geneva's and Boost's library directories in its build tree and runs
+there as it is. "make install" of your project removes that run path (CMake's
+default). To keep it, configure your project with
 
-then run "sudo ldconfig". Alternatively, set the location per session:
+  cmake -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON ...
+
+A program linked by hand with -L and -l has no run path unless you give it
+one, for example
+
+  g++ ... -L/opt/geneva/lib -lgemfony-geneva -Wl,-rpath,/opt/geneva/lib
+
+Geneva's libraries then find what they need themselves; add Boost's library
+directory in the same way if your program links Boost libraries itself.
+
+Instead of a run path, the library directories (Geneva's, and Boost's if you
+compiled it yourself) can be made known to the dynamic linker, system-wide
+with a file /etc/ld.so.conf.d/geneva.conf that names them, one per line,
+followed by "sudo ldconfig", or per session:
 
 export LD_LIBRARY_PATH="/opt/geneva/lib:$LD_LIBRARY_PATH"
-
-Follow the same procedure for Boost if you compiled your own version of it.
 
 
 Consuming Geneva from your own project
@@ -289,6 +307,12 @@ The imported targets are Geneva::common, Geneva::hap, Geneva::weft,
 Geneva::dietrich, Geneva::courtier and Geneva::geneva; linking Geneva::geneva
 pulls in the layers beneath it, the C++23
 requirement and the Boost dependency transitively.
+
+An installation made without the separate INSTALL_PREFIX_* locations (the
+default) is relocatable: everything in it refers to the installation's own
+location, so it may be moved, installed with "cmake --install --prefix", or
+staged with DESTDIR and used from there. With the four INSTALL_PREFIX_*
+variables set, the exported targets name those absolute directories.
 
 libs/geneva/quickstart/ is a working project of exactly this shape and the
 recommended starting point: it is not built by the in-tree build, it locates
@@ -334,5 +358,6 @@ To match Geneva's compiler too, pass "--with-toolset=clang" to bootstrap.sh and
 "toolset=clang" to b2.
 
 Afterwards, point genevaConfig.gcfg (BOOSTROOT="/opt/boost") or the cmake call
-(-DBOOST_ROOT="/opt/boost") at this location, and do not forget to add an entry
-for Boost to ldconfig, as discussed above.
+(-DBOOST_ROOT="/opt/boost") at this location. Geneva's libraries and programs
+find this Boost through their run paths; for programs of your own see "Finding
+the libraries at run time on Linux" above.

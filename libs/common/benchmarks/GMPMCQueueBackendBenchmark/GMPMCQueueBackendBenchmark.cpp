@@ -77,10 +77,10 @@ struct RunResult {
 };
 
 // One MPMC run: `n` producers and `n` consumers move `total_items` items through the queue.
-template <QueueBackend Backend>
+template <QueueBackend BACKEND>
 // NOLINTNEXTLINE(readability-function-size) -- one coherent thread-orchestration-and-measurement kernel for a single MPMC run; producer/consumer lambdas share atomics and the queue by reference, so splitting would only add parameter-heavy helpers around the same shared mutable state
 RunResult run(int n, long long total_items) {
-    GMPMCQueueT<std::uint64_t, CAP, Backend> q;
+    GMPMCQueueT<std::uint64_t, CAP, BACKEND> q;
 
     // Split the fixed total as evenly as possible across the producers.
     const long long base = total_items / n;

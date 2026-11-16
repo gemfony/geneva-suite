@@ -192,6 +192,16 @@ void GDataLog::setAddPrintCommand(bool add_print_command) {
 
 /******************************************************************************/
 /**
+ * Forwards whether the canvas label is shown as the figure's title to the built GPlotDesigner.
+ *
+ * @param show_canvas_label Whether to show the canvas label
+ */
+void GDataLog::setShowCanvasLabel(bool show_canvas_label) {
+    show_canvas_label_ = show_canvas_label;
+}
+
+/******************************************************************************/
+/**
  * Realizes the log into a populated GPlotDesigner: each series' plotter is built from
  * its spec (makePlotter) and filled (appendRow); an overlay is attached as a secondary
  * plotter of its primary. Primaries are registered in declaration order, so the emitted
@@ -206,6 +216,9 @@ GPlotDesigner GDataLog::toDesigner() const {
     }
     if(add_print_command_.has_value()) {
         gpd.setAddPrintCommand(*add_print_command_);
+    }
+    if(show_canvas_label_.has_value()) {
+        gpd.setShowCanvasLabel(*show_canvas_label_);
     }
 
     // Build every series' plotter (primary or overlay) from its spec + rows, sorting

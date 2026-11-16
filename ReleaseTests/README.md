@@ -214,9 +214,13 @@ Example output on the reference host:
 
 ## GPU / CUDA passthrough
 
-CUDA matrix entries run only on `--full` and only when a GPU is usable. A
-driver/library version mismatch is treated as *usable-with-warning* (CUDA
-compute still works), not absent.
+CUDA matrix entries run only on `--full` and only when a GPU is usable: when
+`nvidia-smi --query-gpu=driver_version --format=csv,noheader` succeeds and names a
+driver (the table `nvidia-smi` prints is not read; its wording changes between
+drivers). A driver/library version mismatch is treated as *usable-with-warning*
+(CUDA compute still works), not absent. The detection has unit tests with a fake
+`nvidia-smi` (`ReleaseTests/tests`; ctest entry `ReleaseHarnessUnitTests`, or
+`python3 -B -m unittest discover -s ReleaseTests/tests`).
 
 * **Podman**: generate a CDI spec once on the host, then the harness passes the
   CDI device automatically:

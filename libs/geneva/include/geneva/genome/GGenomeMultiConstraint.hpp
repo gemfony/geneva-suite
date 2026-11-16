@@ -64,8 +64,8 @@ class GGenomeConstraint // NOLINT(cppcoreguidelines-special-member-functions)
 
     /** @brief This class adds no own members; the explicit empty declaration is required
      *  (the mixin's deleted fallback rejects a missing one). */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

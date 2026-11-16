@@ -41,7 +41,15 @@
 #
 # Linking Geneva::geneva transitively brings in the other four targets, the
 # Geneva include directory, the required Boost components and the C++23
-# requirement.
+# requirement. An installation built with the MPI consumer also has
+#
+#   Geneva::courtier-mpi - courtier's MPI library: the process's one MPI
+#                          environment (courtier/mpi/); carries MPI::MPI_CXX
+#   Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
+#                          libgemfony-geneva; linked only by a program that
+#                          uses GMPISubClientOptimizer
+#
+# None of the five targets above needs MPI.
 #
 ################################################################################
 
@@ -53,7 +61,9 @@ include(CMakeFindDependencyMacro)
 # compatible Boost. The component list is GENEVA_BOOST_LIBS from
 # CommonGenevaBuild.cmake, filled in when the package is configured, so it
 # cannot drift from what the build itself requires.
-find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ COMPONENTS @GENEVA_BOOST_LIBS@)
+# CONFIG: Boost's own BoostConfig.cmake, as the build itself uses (CMP0167); CMake's FindBoost
+# module is gone from CMake 4, and asking for it warns in every project that has not set CMP0167.
+find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST_LIBS@)
 
 # The build flavor of this installation: TRUE if it was built with testing
 # support (GENEVA_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.
@@ -74,6 +84,19 @@ set(GENEVA_TESTING @GENEVA_INSTALLED_WITH_TESTING@)
 if(GENEVA_TESTING)
     find_dependency(Catch2 3)
 endif()
+
+# An installation built with the MPI consumer exports Geneva::courtier-mpi, whose
+# interface names MPI::MPI_CXX (its headers include mpi.h).
+set(GENEVA_MPI @GENEVA_INSTALLED_WITH_MPI@)
+if(GENEVA_MPI)
+    find_dependency(MPI COMPONENTS CXX)
+endif()
+
+# An installation built with the GPU consumer has its backends compiled into
+# Geneva::courtier. The GPU headers are installed in any case, so a program that
+# uses them gates on this variable: without the consumer they do not link. The
+# CUDA driver is loaded at run time, so there is no dependency to find here.
+set(GENEVA_GPU @GENEVA_INSTALLED_WITH_GPU@)
 
 # Pull in the exported Geneva::* imported targets.
 include("${CMAKE_CURRENT_LIST_DIR}/GenevaTargets.cmake")

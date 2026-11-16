@@ -28,12 +28,12 @@
 ################################################################################
 
 SET ( GENEVAWEFTINCLUDES
-	GWeft.hpp
 	GArchive.hpp
 	GArchivePolymorphic.hpp
 	GBinaryArchive.hpp
 	GJsonArchive.hpp
 	GPolymorphicRegistry.hpp
+	GWeft.hpp
 	GWeftError.hpp
 )
 

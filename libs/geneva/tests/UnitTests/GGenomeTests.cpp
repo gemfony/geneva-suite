@@ -45,6 +45,9 @@
 
 #include <sstream>
 
+#include <boost/program_options.hpp>
+
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
 
 #include "weft/GBinaryArchive.hpp" // GArchive binary codec (3d-A GGenome gem round-trip)
 #include "weft/GJsonArchive.hpp"   // GArchive JSON codec (3d-A GGenome gem round-trip)
@@ -59,8 +62,6 @@
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
-#include "courtier/consumers/GAsioConsumerT.hpp"
-#include "courtier/transport/GAsioTransportT.hpp"
 #include <atomic>
 #include <chrono>
 #include <thread>
@@ -88,6 +89,9 @@
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
+
+// The consumer catalogue: optionalConsumerNotes(), consumerListing()
+#include "geneva/GConsumerSetup.hpp"
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
@@ -154,8 +158,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<Sphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -191,8 +195,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<GemSphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -262,8 +266,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<FactorySphere>>(ar, "GGenomeT", *this);
     }
 };
@@ -1095,8 +1099,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<Mixed>>(ar, "GGenomeT", *this);
     }
 };
@@ -1136,8 +1140,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<IntGauss>>(ar, "GGenomeT", *this);
     }
 };
@@ -1171,8 +1175,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<ManyGroups>>(ar, "GGenomeT", *this);
     }
 };
@@ -1206,8 +1210,8 @@ private:
     std::vector<double> data_points_; ///< the leaf's own problem data
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<BulkyLeaf>>(ar, "GGenomeT", *this);
         Gem::Common::archive_named(ar, "data_points_", data_points_);
     }
@@ -1499,7 +1503,10 @@ std::vector<double> valuesOf(ManyGroups &ind) {
 } // namespace
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: first item carries the layout, later items only the id", "[flat][wire]") {
+TEST_CASE(
+    "Wire send-once: first item carries the layout while later items carry only the id",
+    "[flat][wire]"
+) {
     using mode = Gem::Common::serializationMode;
 
     ManyGroups a(64);
@@ -1819,7 +1826,6 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
     using namespace std::chrono_literals;
 
     Gem::Tests::LateReturnConsumer consumer;
-    consumer.setCloneFunction([](const std::unique_ptr<GGenome> &p) { return p->clone(); });
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
     consumer.setLeaseBootstrap(20ms);
     consumer.setLeaseBounds(10ms, 200ms);
@@ -2014,24 +2020,22 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
         items.push_back(std::move(ind));
     }
 
-    auto consumer =
-        std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
-    // The work item is the abstract GGenome base, so the consumer needs a polymorphic clone
-    // (copy-construction would slice). This mirrors GConsumerSetup's individualCloneFunction().
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2078,81 +2082,6 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
 }
 
 /******************************************************************************/
-TEST_CASE("Wire send-once over a real ASIO loopback interns one layout", "[flat][wire][net]") {
-    // The ASIO twin of the websocket loopback test. ASIO uses a fresh one-shot connection per exchange,
-    // so the server keys its per-peer send-once tracking on a stable id the client announces; with
-    // prefetch + several clients this also exercises the cache-miss REQUEST_BLOB/SEND_BLOB fetch
-    // path. Every item must still come back processed, and the server must intern exactly one layout.
-    namespace c2 = Gem::Courtier;
-    namespace ccons = Gem::Courtier::Consumers;
-    constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
-
-    constexpr std::size_t N = 100;
-    std::vector<std::unique_ptr<GGenome>> items;
-    items.reserve(N);
-    for(std::size_t i = 0; i < N; ++i) {
-        auto ind = std::make_unique<ManyGroups>(40);
-        ind->randomInit(activityMode::ALLPARAMETERS);
-        items.push_back(std::move(ind));
-    }
-
-    auto consumer = std::make_shared<c2::GAsioConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
-    consumer->startServer();
-    const unsigned short port = consumer->getPort();
-
-    constexpr std::size_t n_clients = 3;
-    std::vector<std::shared_ptr<ccons::GAsioConsumerClientT<GGenome>>> clients;
-    std::vector<std::thread> client_threads;
-    std::atomic<bool> any_threw{false};
-    for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GAsioConsumerClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*max_reconnects=*/50, /*prefetch_depth=*/8
-        );
-        clients.push_back(client);
-        client_threads.emplace_back([client, &any_threw] {
-            try {
-                client->run();
-            }
-            catch(...) {
-                any_threw.store(true);
-            }
-        });
-    }
-
-    consumer->processBatch(std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
-                           c2::GSubmissionPolicy::full_success_or_fatal());
-
-    for(auto &client : clients) {
-        client->flagCloseRequested();
-    }
-    for(auto &t : client_threads) {
-        if(t.joinable()) {
-            t.join();
-        }
-    }
-
-    std::size_t processed = 0;
-    std::size_t with_genome = 0;
-    for(const auto &it : items) {
-        if(it && it->is_processed()) {
-            ++processed;
-        }
-        if(it && it->countParameters<double>() == 40) {
-            ++with_genome;
-        }
-    }
-    CHECK(processed == N);
-    CHECK(with_genome == N); // `evaluation` returns must still leave each item with its full genome
-    CHECK(consumer->getInternedBlobCount() == 1);
-
-    consumer->stopServer();
-    CHECK_FALSE(any_threw.load());
-}
-
-/******************************************************************************/
 TEST_CASE("Networked reconciliation keeps population elements at stable addresses",
           "[flat][wire][net][identity]") {
     // Regression guard (Inv 15) for the in-place return reconciliation: a networked return must be
@@ -2179,21 +2108,22 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
         | std::views::transform([](const auto &it) -> const GGenome * { return it.get(); })
         | std::ranges::to<std::vector<const GGenome *>>();
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2262,22 +2192,23 @@ TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay c
         items.push_back(std::move(ind));
     }
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/2, BIN);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 2,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->setInternedBlobCapacity(2); // below the 4 distinct layouts -> eviction is forced
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     constexpr std::size_t n_clients = 3;
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < n_clients; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose_control_frames=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try {
@@ -2333,20 +2264,21 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
     constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
-    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(/*port=*/0, /*threads=*/4, BIN);
-    consumer->setCloneFunction(
-        [](const std::unique_ptr<GGenome> &p) { return p->clone(); }
-    );
+    c2::GWebsocketConsumerConfig config{
+        .ip = "127.0.0.1",
+        .serializationMode = BIN,
+        .nThreads = 4,
+        .clientPrefetchDepth = 4,
+    };
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GGenome>>(config);
     consumer->startServer();
-    const unsigned short port = consumer->getPort();
+    config.port = consumer->getPort(); // the server chose a free port; its clients are told
 
     std::vector<std::shared_ptr<ccons::GWebsocketClientT<GGenome>>> clients;
     std::vector<std::thread> client_threads;
     std::atomic<bool> any_threw{false};
     for(std::size_t c = 0; c < 4; ++c) {
-        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(
-            "127.0.0.1", port, BIN, /*verbose=*/false, /*prefetch_depth=*/4
-        );
+        auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
             try { client->run(); } catch(...) { any_threw.store(true); }
@@ -2384,8 +2316,8 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
 // (GLoadableIndividual / GLoadableOA / GLoadableGPU_CPU).
 // The loader's negative paths, each against a REAL shared object built with the genuine module recipe and
 // really dlopened. A failed load must never be silent and never cryptic: every case below asserts that the
-// defect is DETECTED and that the diagnostic says which module and what is wrong with it. The four broken
-// modules live in badmodules/ and are wired in by this directory's CMakeLists.
+// defect is DETECTED and that the diagnostic says which module and what is wrong with it. The
+// broken modules live in badmodules/ and are wired in by this directory's CMakeLists.
 namespace {
 
 /** @brief Loads @p path, requires that it throws, and returns the diagnostic text.
@@ -2431,6 +2363,25 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, GENEVA_TEST_MODULE_STALE_ABI));
     }
 
+    SECTION("a module whose manifest has another size than this program's") {
+        // Gate 2 as well: ABI version and contribution size are this build's, the stamped size of
+        // the manifest is not. The module's factory ends the process, so passing the gate would
+        // fail loudly.
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MANIFEST_SIZE);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "carries a manifest of"));
+        CHECK(mentions(msg, GENEVA_TEST_MODULE_MANIFEST_SIZE));
+    }
+
+    SECTION("a module whose contributions have another size than this program's") {
+        // Gate 2 as well: the ABI version is this build's, the stamped size of a contribution is
+        // not. The module's factory ends the process, so passing the gate would fail loudly.
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_CONTRIBUTION_SIZE);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "carries contributions of"));
+        CHECK(mentions(msg, GENEVA_TEST_MODULE_CONTRIBUTION_SIZE));
+    }
+
     SECTION("a contribution of a kind this Geneva cannot load") {
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_UNKNOWN_KIND);
         REQUIRE_FALSE(msg.empty());
@@ -2438,6 +2389,11 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, "GUnknownKindModule"));         // ... and the module, by its own name
         CHECK(mentions(msg, "SomethingElse"));              // ... and the contribution
         CHECK(mentions(msg, "Supported kinds"));            // ... and what this Geneva does serve
+        // ... namely all four of Geneva's kinds, each with its noun
+        CHECK(mentions(msg, "1 (individual)"));
+        CHECK(mentions(msg, "2 (optimization algorithm)"));
+        CHECK(mentions(msg, "5 (GPU marshaller)"));
+        CHECK(mentions(msg, "4 (consumer)"));
     }
 
     SECTION("a manifest that advertises nothing") {
@@ -2455,6 +2411,39 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, "GNullFactoryModule"));
     }
 
+    // A consumer contribution names the item type its provider distributes. One for another item
+    // type, or one that names none, is refused before its factory is called -- the factories of
+    // both modules end the process.
+    SECTION("a consumer contribution for another item type") {
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_FOREIGN_SUBJECT);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "GForeignSubjectModule"));
+        CHECK(mentions(msg, "'foreign'"));
+        CHECK(mentions(msg, "Gem::Tests::GForeignItem"));     // the item type found, demangled
+        CHECK(mentions(msg, "Gem::Geneva::Genome::GGenome")); // ... and the one expected
+        CHECK_FALSE(Gem::Geneva::isKnownConsumer("foreign"));
+    }
+
+    SECTION("a consumer contribution that names no item type") {
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_NULL_SUBJECT);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "GNullSubjectModule"));
+        CHECK(mentions(msg, "'nosubject'"));
+        CHECK(mentions(msg, "no item type"));
+        CHECK(mentions(msg, "Gem::Geneva::Genome::GGenome"));
+        CHECK_FALSE(Gem::Geneva::isKnownConsumer("nosubject"));
+    }
+
+    SECTION("a consumer whose provider has another mnemonic than its manifest entry") {
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MNEMONIC_MISMATCH);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "GMnemonicMismatchModule"));
+        CHECK(mentions(msg, "'manifest-says'"));
+        CHECK(mentions(msg, "'provider-says'"));
+        CHECK_FALSE(Gem::Geneva::isKnownConsumer("manifest-says"));
+        CHECK_FALSE(Gem::Geneva::isKnownConsumer("provider-says"));
+    }
+
     SECTION("a path that does not exist") {
         const std::string msg =
             rejectionMessage(std::filesystem::temp_directory_path() / "geneva_no_such_module_xyz.so");
@@ -2464,48 +2453,62 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     }
 }
 
-// Toolchain-compatibility gate (GenevaCompat). The loader validates a module's fingerprint before touching
-// any of its C++ contributions; here we exercise that gate directly (a .so is not needed) via the exposed
-// comparator. Regression guard for the silent-crash hole where a same-GENEVA_VERSION module built with an
-// incompatible compiler/stdlib/Boost/build-mode used to pass and then corrupt the process.
-TEST_CASE("Module compat gate accepts this host's own fingerprint", "[flat][plugin][compat]") {
-    const GenevaCompat self = Gem::Geneva::thisHostCompat();
-    CHECK(Gem::Geneva::moduleCompatMismatch(self).empty());
+#ifdef GENEVA_TEST_MODULE_MPI_MNEMONIC
+// Needs a process in which no function of the consumer catalogue has run: once one has, the
+// optional modules are loaded whatever loadModule() does, and this case could not fail. It is
+// therefore hidden from the shards and run alone by the ctest entry GenevaOptionalModulesFirst.
+TEST_CASE(
+    "A module cannot take the mnemonic of an optional consumer module",
+    "[.optional-first][plugin]"
+) {
+    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MPI_MNEMONIC);
+    REQUIRE_FALSE(msg.empty());
+    CHECK(mentions(msg, "already registered"));
+    CHECK(mentions(msg, "'mpi'"));
+    CHECK(mentions(msg, GENEVA_TEST_MODULE_MPI_MNEMONIC));
+    // The consumer of that mnemonic is the one of Geneva's own module.
+    CHECK(Gem::Geneva::optionalConsumerNotes().empty());
+    CHECK(mentions(Gem::Geneva::consumerListing(), "mpi:  GMPIConsumerT"));
 }
+#endif
 
-TEST_CASE("Module compat gate rejects a mismatched toolchain, naming the axis", "[flat][plugin][compat]") {
-    using Gem::Geneva::moduleCompatMismatch;
-    const GenevaCompat host = Gem::Geneva::thisHostCompat();
+#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+// The command-line options of the "mpi" consumer are registered by Geneva's MPI module. Their
+// defaults must be those of MPIConsumerConfig: an option left unset must leave the consumer as a
+// default-constructed configuration describes it, and a default changed in the struct must change
+// what the command line gives, without a second place to edit.
+TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][plugin][mpi]") {
+    REQUIRE(Gem::Geneva::isKnownConsumer("mpi")); // loads Geneva's MPI module
+    std::shared_ptr<
+        Gem::Common::GProviderT<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>>
+        base;
+    REQUIRE(Gem::Geneva::consumerProviderStore()->get("mpi", base));
+    REQUIRE(base);
+    const auto provider = std::static_pointer_cast<Gem::Geneva::GConsumerProviderT>(base);
 
-    SECTION("compiler version") {
-        GenevaCompat m = host;
-        m.compiler_major += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("compiler major") != std::string::npos);
-    }
-    SECTION("standard-library version") {
-        GenevaCompat m = host;
-        m.stdlib_version += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("standard-library version") != std::string::npos);
-    }
-    SECTION("build-mode ABI flags") {
-        GenevaCompat m = host;
-        m.abi_flags ^= GENEVA_ABI_FLAG_ASAN; // pretend the module was built with AddressSanitizer
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("ABI flags") != std::string::npos);
-    }
-    SECTION("Geneva version") {
-        GenevaCompat m = host;
-        m.geneva_version += 1;
-        const std::string d = moduleCompatMismatch(m);
-        CHECK_FALSE(d.empty());
-        CHECK(d.find("Geneva version") != std::string::npos);
-    }
+    boost::program_options::options_description visible;
+    boost::program_options::options_description hidden;
+    provider->addCLOptions(visible, hidden);
+    boost::program_options::options_description all;
+    all.add(visible).add(hidden);
+    const std::vector<const char *> argv{"test"};
+    boost::program_options::variables_map vm;
+    boost::program_options::store(
+        boost::program_options::parse_command_line(static_cast<int>(argv.size()), argv.data(), all),
+        vm
+    );
+    boost::program_options::notify(vm);
+
+    const auto config = std::any_cast<Gem::Courtier::Consumers::MPIConsumerConfig>(
+        provider->configFromCommandLine(vm)
+    );
+    const Gem::Courtier::Consumers::MPIConsumerConfig defaults;
+    CHECK(config.useAsyncReq == defaults.useAsyncReq);
+    CHECK(config.serializationMode == defaults.serializationMode);
+    CHECK(config.nHandlerThreads == defaults.nHandlerThreads);
+    CHECK(config.masterCleanSessIntervalMSec == defaults.masterCleanSessIntervalMSec);
 }
+#endif
 
 namespace {
 /** @brief A trivial host-only GPU marshaller: the flat-genome flatten/scatter scaffolding is complete in the
@@ -2525,7 +2528,7 @@ TEST_CASE("Marshaller module manifest contributes a registrable GPU marshaller",
     const GenevaModuleManifest *manifest =
         marshallerManifest<ProbeGPUMarshaller, "cuda", "config/ProbeGPU.json">();
     REQUIRE(manifest != nullptr);
-    CHECK(Gem::Geneva::moduleCompatMismatch(manifest->compat).empty());
+    CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     const GenevaContribution &contribution = manifest->contributions[0];
     CHECK(contribution.kind == GENEVA_CONTRIBUTION_MARSHALLER);
@@ -2588,7 +2591,7 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     const GenevaModuleManifest *manifest =
         Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
     REQUIRE(manifest != nullptr);
-    CHECK(Gem::Geneva::moduleCompatMismatch(manifest->compat).empty());
+    CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     CHECK(manifest->contributions[0].kind == GENEVA_CONTRIBUTION_OA);
     REQUIRE(manifest->contributions[0].make_factory != nullptr);

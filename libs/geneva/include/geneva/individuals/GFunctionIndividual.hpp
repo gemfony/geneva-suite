@@ -609,8 +609,8 @@ protected:
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("demo_function_", self.demo_function_));
     }
 
@@ -684,8 +684,8 @@ class GDoubleSumConstraint
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("c_", self.c_));
     }
     ///////////////////////////////////////////////////////////////////////
@@ -768,8 +768,8 @@ class GDoubleSumGapConstraint
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief The single declaration of this class'es local data members. */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("c_", self.c_),
             Gem::Common::make_member("gap_", self.gap_));
@@ -847,8 +847,8 @@ class GSphereConstraint
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("diameter_", self.diameter_));
     }
     ///////////////////////////////////////////////////////////////////////

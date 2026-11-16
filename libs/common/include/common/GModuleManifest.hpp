@@ -55,12 +55,17 @@
  *    what turns such a disagreement into a diagnostic instead of a misread pointer.
  *
  * @par When to bump GENEVA_MODULE_ABI_VERSION
- * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any change
- * to the layout of the two structs; to the numeric value or meaning of a contribution kind; or to the C++
- * type a kind's @c void* payload denotes (e.g. redefining @c GOAProviderPtr). Adding a NEW kind number does
- * not require a bump -- an older loader already rejects a kind it does not know. Before 2.0 bumping is free
- * (every module is rebuilt anyway); afterwards a bump is a major-release event, so the counter is expected
- * to move rarely and only alongside a deliberate module-ABI decision.
+ * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any
+ * change to the layout of the two structs; to the numeric value or meaning of a contribution kind;
+ * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g.
+ * redefining @c GOAProviderPtr, or changing the interface of the consumer provider a
+ * @c GConsumerProviderPtr points at, or a type its functions take, such as @c ConsumerSpec). Also when
+ * state that a module and its host must share moves from the module into a library of the
+ * collection: an older module would keep its own copy next to the library's (version 5: the MPI
+ * module's environment moved into libgemfony-courtier-mpi). Adding a NEW kind number does not
+ * require a bump -- an older loader already rejects a kind it does not know. Before 2.0 bumping is
+ * free (every module is rebuilt anyway); afterwards a bump is a major-release event, so the counter
+ * is expected to move rarely and only alongside a deliberate module-ABI decision.
  */
 
 // Global checks, defines and includes needed for all of Geneva
@@ -90,7 +95,9 @@
  * types), stamped into every manifest and matched EXACTLY by the loader. See the file comment for the
  * bump rule. A plain counter -- it is not derived from GENEVA_VERSION and does not follow it.
  */
-#define GENEVA_MODULE_ABI_VERSION 1u
+// A macro, not an enum: it is part of the plain-C contract of this header, like the kinds above.
+// NOLINTNEXTLINE(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum)
+#define GENEVA_MODULE_ABI_VERSION 5u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal
  * (a module's own version string when it is a Geneva-shipped module). GENEVA_VERSION_PRERELEASE
@@ -106,11 +113,20 @@
 extern "C" {
 #endif
 
-/** @brief One thing a module provides: a typed factory keyed by name/mnemonic. Plain C. */
+/**
+ * @brief One thing a module provides: a typed factory keyed by name/mnemonic. Plain C.
+ *
+ * @c subject is the last member, so that a hand-written contribution that names only the first
+ * three leaves it null. Only a consumer contribution has a subject: the name of the item type its
+ * provider distributes, as @c typeid(item type).name() gives it (consumerManifest<>() writes it).
+ * The loader's cast of the factory's @c void* is unchecked, so a host refuses a consumer for
+ * another item type before it calls the factory. Every other kind leaves @c subject null.
+ */
 typedef struct GenevaContribution {
     std::uint32_t kind;             /* GENEVA_CONTRIBUTION_*                                     */
     const char *name_or_mnemonic;   /* NUL-terminated; the mnemonic/name the host resolves by    */
     void *(*make_factory)(void);    /* returns the base factory ptr for `kind` (loader casts it)  */
+    const char *subject;            /* consumer: typeid(item type).name(); NULL for other kinds  */
 } GenevaContribution;
 
 /**
@@ -118,13 +134,16 @@ typedef struct GenevaContribution {
  *
  * Field order is load-bearing and must not be rearranged without a GENEVA_MODULE_ABI_VERSION bump: the
  * loader reads @c compat first (it is self-describing via its own struct_version/struct_size, so it can be
- * read under any toolchain skew), then the two stamp fields at their fixed offset right behind it, and only
- * once BOTH gates pass does it touch anything further along.
+ * read under any toolchain skew), then the stamp fields at their fixed offset right behind it
+ * (the ABI version first: only a module of this version is known to have the two sizes behind
+ * it), and only once BOTH gates pass does it touch anything further along.
  */
 typedef struct GenevaModuleManifest {
     GenevaCompat compat;                     /* gate 1: the toolchain, validated before any C++   */
     std::uint32_t abi_version;               /* gate 2: == GENEVA_MODULE_ABI_VERSION              */
     std::uint32_t manifest_size;             /* sizeof(GenevaModuleManifest), for the diagnostic  */
+    // NOLINTNEXTLINE(readability-identifier-naming) -- the plain-C fields are snake_case, as above
+    std::uint32_t contribution_size;         /* sizeof(GenevaContribution), checked with gate 2   */
     const char *module_name;                 /* diagnostics + (later) checkpoint self-description */
     const char *module_version;              /* the module's own version string                   */
     const GenevaContribution *contributions; /* array of length contributions_count               */
@@ -143,9 +162,9 @@ typedef struct GenevaModuleManifest {
  *   static const GenevaModuleManifest manifest{
  *       GENEVA_MODULE_ABI_STAMP, "MyModule", "1.0.0", contributions, 2u};
  */
-#define GENEVA_MODULE_ABI_STAMP                                                                          \
-    GENEVA_BUILD_FINGERPRINT, GENEVA_MODULE_ABI_VERSION,                                                 \
-        (std::uint32_t)sizeof(GenevaModuleManifest)
+#define GENEVA_MODULE_ABI_STAMP                                                                    \
+    GENEVA_BUILD_FINGERPRINT, GENEVA_MODULE_ABI_VERSION,                                           \
+        (std::uint32_t)sizeof(GenevaModuleManifest), (std::uint32_t)sizeof(GenevaContribution)
 
 namespace Gem::Common {
 

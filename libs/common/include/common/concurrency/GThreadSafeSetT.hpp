@@ -52,9 +52,9 @@ namespace Gem::Common::Concurrency {
  * returns them, so the caller can act on each element @e without holding the lock (e.g. invoke a
  * requeue callback that may re-enter other machinery).
  *
- * @tparam Key The element type (must be usable as a std::set key)
+ * @tparam key_type The element type (must be usable as a std::set key)
  */
-template <typename Key>
+template <typename key_type>
 class GThreadSafeSetT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     GThreadSafeSetT() = default;
@@ -62,19 +62,19 @@ public:
     GThreadSafeSetT &operator=(const GThreadSafeSetT &) = delete;
 
     /** @brief Inserts @p key. @param key The element to add. @return true iff it was newly inserted. */
-    bool insert(const Key &key) {
+    bool insert(const key_type &key) {
         std::scoped_lock const lk(mtx_);
         return set_.insert(key).second;
     }
 
     /** @brief Removes @p key if present. @param key The element to drop. @return true iff it was present. */
-    bool erase(const Key &key) {
+    bool erase(const key_type &key) {
         std::scoped_lock const lk(mtx_);
         return set_.erase(key) > 0;
     }
 
     /** @brief @param key The element to test. @return true iff @p key is currently a member. */
-    [[nodiscard]] bool contains(const Key &key) const {
+    [[nodiscard]] bool contains(const key_type &key) const {
         std::scoped_lock const lk(mtx_);
         return set_.find(key) != set_.end();
     }
@@ -93,8 +93,8 @@ public:
 
     /** @brief Atomically removes and returns every element, leaving the set empty.
      *  @return The drained elements (ascending order). */
-    std::vector<Key> drain() {
-        std::set<Key> taken;
+    std::vector<key_type> drain() {
+        std::set<key_type> taken;
         {
             std::scoped_lock const lk(mtx_);
             taken.swap(set_);
@@ -110,7 +110,7 @@ public:
 
 private:
     mutable std::mutex mtx_;
-    std::set<Key> set_;
+    std::set<key_type> set_;
 };
 
 /******************************************************************************/

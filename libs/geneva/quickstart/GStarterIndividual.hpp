@@ -122,8 +122,8 @@ class GStarterIndividual
      * @return A tuple of named member references
      */
     //! [weft-local-members#2]
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("targetFunction_", self.targetFunction_));
     }
     //! [weft-local-members#2]

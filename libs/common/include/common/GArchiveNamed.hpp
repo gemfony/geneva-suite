@@ -56,32 +56,32 @@ namespace Gem::Common {
 /******************************************************************************/
 
 /**
- * @brief The saving/loading direction of @p Archive as a plain @c bool (a @c GArchive codec
+ * @brief The saving/loading direction of @p archive_type as a plain @c bool (a @c GArchive codec
  * exposes @c is_saving as a @c static @c constexpr @c bool). A hand-written serialize that must
  * branch on direction (e.g. a wire-conditional member) uses this.
  */
-template <typename Archive>
-inline constexpr bool archive_is_saving_v = Archive::is_saving;
+template <typename archive_type>
+inline constexpr bool archive_is_saving_v = archive_type::is_saving;
 
 /**
  * @brief Emits @p ref through @p ar under NVP @p name.
  * @param ar The archive. @param name The NVP tag. @param ref The member reference.
  */
-template <typename Archive, typename T>
-inline void archive_named(Archive &ar, const char *name, T &ref) {
+template <typename archive_type, typename T>
+inline void archive_named(archive_type &ar, const char *name, T &ref) {
     ar &Gem::Weft::make_nvp(name, ref);
 }
 
 /**
- * @brief Emits the @p Base slice of @p derived as a named, nested sub-object, nesting via
+ * @brief Emits the @p base_type slice of @p derived as a named, nested sub-object, nesting via
  * @c named_base so base/derived members cannot collide on a shared name in the self-describing
  * (JSON) codec.
- * @tparam Base The base slice to serialize.
+ * @tparam base_type The base slice to serialize.
  * @param ar The archive. @param name The NVP tag. @param derived The derived object.
  */
-template <typename Base, typename Archive, typename Derived>
-inline void archive_named_base(Archive &ar, const char *name, Derived &derived) {
-    ar &Gem::Weft::named_base<Base>(name, derived);
+template <typename base_type, typename archive_type, typename derived_type>
+inline void archive_named_base(archive_type &ar, const char *name, derived_type &derived) {
+    ar &Gem::Weft::named_base<base_type>(name, derived);
 }
 
 /**
@@ -89,8 +89,9 @@ inline void archive_named_base(Archive &ar, const char *name, Derived &derived) 
  * caller-managed both ways (serialize/recover it separately; pre-size the buffer on load).
  * @param ar The archive. @param name The NVP tag. @param data The block address. @param bytes The block length.
  */
-template <typename Archive>
-inline void archive_named_binary(Archive &ar, const char *name, void *data, std::size_t bytes) {
+template <typename archive_type>
+inline void
+archive_named_binary(archive_type &ar, const char *name, void *data, std::size_t bytes) {
     ar.member(name); // key the blob (a JSON member; a no-op for the flat binary codec)
     ar &Gem::Weft::make_binary(data, bytes);
 }
@@ -101,8 +102,8 @@ inline void archive_named_binary(Archive &ar, const char *name, void *data, std:
  * @tparam T The element type (possibly const on save).
  * @param ar The archive. @param name The NVP tag. @param data The first element. @param count The element count.
  */
-template <typename Archive, typename T>
-inline void archive_named_array(Archive &ar, const char *name, T *data, std::size_t count) {
+template <typename archive_type, typename T>
+inline void archive_named_array(archive_type &ar, const char *name, T *data, std::size_t count) {
     ar.member(name); // key the range (a JSON member; a no-op for the flat binary codec)
     ar &Gem::Weft::make_array(data, count);
 }

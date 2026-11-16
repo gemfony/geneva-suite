@@ -47,21 +47,29 @@
 
 namespace {
 
-const GenevaContribution g_contribution{
-    GENEVA_CONTRIBUTION_INDIVIDUAL, "StaleAbi", []() -> void * { return nullptr; }};
+const GenevaContribution CONTRIBUTION{
+    .kind = GENEVA_CONTRIBUTION_INDIVIDUAL,
+    .name_or_mnemonic = "StaleAbi",
+    .make_factory = []() -> void * { return nullptr; }
+};
 
-const GenevaModuleManifest g_manifest{
-    GENEVA_BUILD_FINGERPRINT,
-    GENEVA_MODULE_ABI_VERSION + 1u, // the defect: built against a later module ABI
-    static_cast<std::uint32_t>(sizeof(GenevaModuleManifest)),
-    "GStaleAbiModule",
-    GENEVA_VERSION_STRING,
-    &g_contribution,
-    1u};
+const GenevaModuleManifest MANIFEST{
+    .compat = GENEVA_BUILD_FINGERPRINT,
+    .abi_version = GENEVA_MODULE_ABI_VERSION + 1u, // the defect: built against a later module ABI
+    .manifest_size = static_cast<std::uint32_t>(sizeof(GenevaModuleManifest)),
+    .contribution_size = static_cast<std::uint32_t>(sizeof(GenevaContribution)),
+    .module_name = "GStaleAbiModule",
+    .module_version = GENEVA_VERSION_STRING,
+    .contributions = &CONTRIBUTION,
+    .contributions_count = 1u
+};
 
 } // anonymous namespace
 
+// The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
-    return &g_manifest;
+    return &MANIFEST;
 }

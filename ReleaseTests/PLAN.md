@@ -146,7 +146,7 @@ are structured stubs with explicit TODOs:
 
 * `checks/install.py` — `make install` into a prefix in the work area; verify
   headers/libs/cmake config land under the prefix; `ldd` the main executables
-  for unresolved symbols; `ldconfig`/`LD_LIBRARY_PATH` resolution.
+  for unresolved symbols; resolution through the run paths alone (`LD_LIBRARY_PATH` unset).
 * `checks/outoftree.py` — build a tiny app against the installed tree via
   `FindGeneva`; verify the `GENEVA_BUILD_TESTS` mismatch produces a useful
   error.
@@ -162,7 +162,8 @@ are structured stubs with explicit TODOs:
 ## Phase 8 — CUDA / GPU matrix (DOCUMENTED + GPU-gated)
 
 See "GPU passthrough findings" below. The harness:
-* detects a usable GPU on the host (`nvidia-smi` returns success);
+* detects a usable GPU on the host (`nvidia-smi --query-gpu=driver_version` names a
+  driver; `releaseharness/gpu.py` decides it once, the matrix and `doctor` ask it);
 * if absent, **skips all CUDA matrix entries gracefully** and records them as
   `SKIPPED (no GPU)` in the report rather than failing;
 * if present and the backend is Docker, passes `--gpus all`

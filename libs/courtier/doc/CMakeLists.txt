@@ -36,7 +36,7 @@ ENDIF ()
 
 SET (GENEVA_DOC_LIB_NAME "courtier")
 SET (GENEVA_DOC_LIB_DESC "Consumer-based parallelisation framework: "
-		"the process-global GConsumerRegistry, thread-pool / Asio / "
+		"the process-global GConsumerRegistry, thread-pool / "
 		"Beast-websocket / MPI consumers, command-container protocol, "
 		"processing-container CRTP")
 # Upstream: common, hap. Single space-separated string (multi-arg SET would

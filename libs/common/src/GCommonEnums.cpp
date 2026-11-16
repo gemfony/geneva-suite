@@ -69,7 +69,7 @@ std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x) {
  * Converts a serializationMode to a string representation for debugging purposes
  *
  * @param ser_mod The serialization mode to convert
- * @return A string representation of the mode ("TEXT", "XML", "BINARY", or "unknown")
+ * @return A string representation of the mode ("GEM_BINARY", "GEM_JSON", or "unknown")
  */
 std::string serModeToString(Gem::Common::serializationMode ser_mod) {
     switch(ser_mod) {
@@ -80,6 +80,47 @@ std::string serModeToString(Gem::Common::serializationMode ser_mod) {
     default:
         return "unknown";
     }
+}
+
+/******************************************************************************/
+/**
+ * Reads a serializationMode as its numeric value and refuses one that names no mode.
+ *
+ * @param i The input stream to read from
+ * @param x The mode read (unchanged if the stream fails)
+ * @return A reference to the input stream
+ */
+std::istream &operator>>(std::istream &i, serializationMode &x) {
+    std::int64_t value = 0;
+    if(not(i >> value)) {
+        return i;
+    }
+    for(const serializationMode mode : SERIALIZATIONMODES) {
+        if(std::cmp_equal(value, std::to_underlying(mode))) {
+            x = mode;
+            return i;
+        }
+    }
+    i.setstate(std::ios_base::failbit);
+    return i;
+}
+
+/******************************************************************************/
+/**
+ * The modes for a help text, built from SERIALIZATIONMODES.
+ *
+ * @return "GEM_BINARY (3) or GEM_JSON (4)", for the modes there are
+ */
+std::string serializationModeChoices() {
+    std::string text;
+    for(std::size_t m = 0; m < SERIALIZATIONMODES.size(); ++m) {
+        if(m > 0) {
+            text += (m + 1 == SERIALIZATIONMODES.size()) ? " or " : ", ";
+        }
+        text += serModeToString(SERIALIZATIONMODES.at(m)) + " (" +
+                std::to_string(std::to_underlying(SERIALIZATIONMODES.at(m))) + ")";
+    }
+    return text;
 }
 
 /******************************************************************************/

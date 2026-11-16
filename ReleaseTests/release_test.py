@@ -21,6 +21,9 @@ import argparse
 import sys
 from pathlib import Path
 
+# The harness lives in the source tree, which stays free of generated files: no __pycache__.
+sys.dont_write_bytecode = True
+
 # Allow running both as `python3 release_test.py` and `python3 -m`.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 

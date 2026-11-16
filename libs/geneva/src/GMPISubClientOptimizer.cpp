@@ -29,13 +29,10 @@
 
 #include "geneva/GMPISubClientOptimizer.hpp"
 
-// Used directly below (initializeMPI / setMPICommunicator). Previously pulled in
-// transitively via Go2.hpp; that path was removed when Go2 was decoupled from the
-// concrete consumers, so include it explicitly here.
-#include "courtier/transport/GMPITransportT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GMPISubClientIndividual.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -50,17 +47,25 @@ namespace Gem::Geneva {
  * @brief Constructs the optimizer, sets up the MPI sub-client topology and splits communicators.
  *
  * Verifies that the MPI consumer is in use, re-parses the configuration file to pick up this
- * class's own options, initializes MPI if the base communicator is MPI_COMM_WORLD, and then
- * partitions the processes into the geneva server, geneva clients and sub-clients. The resulting
- * communicators are handed to the MPI consumer and to GMPISubClientIndividual.
+ * class's own options, and then obtains the process's MPI environment
+ * (Gem::Courtier::mpiEnvironmentOn()), which initializes MPI unless the program did. Once MPI is
+ * initialized, the environment lets this constructor partition the processes into the geneva
+ * server, geneva clients and sub-clients; the communicator of the server and the clients becomes
+ * the environment's base (a sub-client has none and is a bystander), the sub-client communicator
+ * is handed to GMPISubClientIndividual.
  *
  * @param argc Argument count forwarded to the Go2 base class for command-line parsing.
  * @param argv Argument vector forwarded to the Go2 base class for command-line parsing.
  * @param configFilePath Path to the JSON configuration file, parsed both by Go2 and again here for this class's options.
  * @param userDescriptions Additional user-defined command-line option descriptions forwarded to Go2.
- * @param baseCommunicator The outermost MPI communicator to partition; if MPI_COMM_WORLD, MPI is initialized here, otherwise the user is assumed to have done so.
+ * @param baseCommunicator The outermost MPI communicator to partition. MPI is initialized here
+ *        unless the program has done so; a communicator other than MPI_COMM_WORLD implies that
+ *        it has.
  */
-// NOLINTNEXTLINE(readability-function-size) -- one coherent MPI topology setup: rank/color computation and the communicator splits are tightly sequential and depend on each other's results (isServer, isSubClient_, subCommColor); splitting would scatter interdependent MPI bootstrap steps
+// One coherent MPI topology setup: rank/color computation and the communicator splits are tightly
+// sequential and depend on each other's results (is_server, isSubClient_, sub_comm_color);
+// splitting would scatter interdependent MPI bootstrap steps.
+// NOLINTNEXTLINE(readability-function-size)
 GMPISubClientOptimizer::GMPISubClientOptimizer(
     int argc,
     char **argv,
@@ -98,104 +103,97 @@ GMPISubClientOptimizer::GMPISubClientOptimizer(
         return;
     }
 
-    // If the base communicator is already a sub communicator, this means MPI must already have been initialized by the user
-    if(baseCommunicator == MPI_COMM_WORLD) {
-        // Initialize MPI in the way required by the MPI consumer, and remember whether WE performed
-        // the initialization: that ownership carries the duty to call the matching MPI_Finalize in
-        // the destructor (a rank that exits without finalizing makes mpirun treat the whole job as
-        // abnormally terminated and kill the remaining ranks).
-        i_initialized_mpi_ = Gem::Courtier::Consumers::initializeMPI();
-    }
+    // The environment initializes MPI (unless the program did) before it calls the callable, which
+    // the rank arithmetic and the splits below need. The communicator of the server and the geneva
+    // clients becomes courtier's base; a sub-client gets MPI_COMM_NULL from its split and is a
+    // bystander.
+    environment_ = Gem::Courtier::mpiEnvironmentOn([&]() -> MPI_Comm {
+        // initialize position in MPI world e.g. in the outermost communicator
+        MPI_Comm_rank(baseCommunicator, &baseCommRank_);
+        MPI_Comm_size(baseCommunicator, &baseCommSize_);
 
-    // initialize position in MPI world e.g. in the outermost communicator
-    MPI_Comm_rank(baseCommunicator, &baseCommRank_);
-    MPI_Comm_size(baseCommunicator, &baseCommSize_);
+        // server has rank 0
+        const bool is_server = baseCommRank_ == 0;
 
-    // server has rank 0
-    const bool isServer = baseCommRank_ == 0;
+        // All processes but the geneva server and the geneva clients are sub-clients.
+        // As an example: In case of 17 processes with one server, 4 clients and 4 sub-clients the
+        // ranks [0, 1, 5, 7, 13] are server and geneva clients. All other processes will be
+        // sub-clients.
+        isSubClient_ = !is_server && ((baseCommRank_ - 1) % subClientGroupSize_ != 0);
+        const int sub_comm_color =
+            ((baseCommRank_ - 1) / (subClientGroupSize_)) + M_MPI_GENEVA_COLOR;
 
-    // All processes but the geneva server and the geneva clients are sub-clients.
-    // As an example: In case of 17 processes with one server, 4 clients and 4 sub-clients the ranks
-    // [0, 1, 5, 7, 13] are server and geneva clients. All other processes will be sub-clients.
-    isSubClient_ = !isServer && ((baseCommRank_ - 1) % subClientGroupSize_ != 0);
-    const int subCommColor = ((baseCommRank_ - 1) / (subClientGroupSize_)) + M_MPI_GENEVA_COLOR;
-
-    // emit output about this instance
-    if(!isServer) { // the server is in no sub-client group
-        glogger << "baseRank=" << baseCommRank_
-                << " with mode=" << (isSubClient() ? "`sub-client`" : "`client`")
-                << " is in subgroup " << subCommColor << '\n'
-                << GLOGGING;
-    }
-    else {
-        glogger << "baseRank=" << baseCommRank_ << " is the server and in no sub-group"
-                << '\n'
-                << GLOGGING;
-    }
-
-    // create new communicators based on the current position in the baseRank
-    if(isSubClient_) { // process is a sub-client
-
-        // create the genevaCommunicator, because the call is collective.
-        // But as this process is a sub-client we do not want to communicate inside that subgroup and therefore
-        // pass MPI_UNDEFINED as color
-        MPI_Comm_split(baseCommunicator, MPI_UNDEFINED, baseCommRank_, &genevaComm_);
-
-        // putting nSubClients in one communicator by using down-rounding integer division
-        MPI_Comm_split(baseCommunicator, subCommColor, baseCommRank_, &subClientComm_);
-    }
-    else { // process is a geneva client or the geneva server
-
-        // Create a communicator to be used by GMPIConsumerT
-        MPI_Comm_split(baseCommunicator, M_MPI_GENEVA_COLOR, baseCommRank_, &genevaComm_);
-
-        if(isServer) { // process is the geneva server (master node)
-            // The geneva server has rank 0 and does not need to be in any sub-client communicator.
-            // It only communicates with the geneva clients and does not communicate inside of subgroups.
-            MPI_Comm_split(baseCommunicator, MPI_UNDEFINED, baseCommRank_, &subClientComm_);
+        // emit output about this instance
+        if(!is_server) { // the server is in no sub-client group
+            glogger << "baseRank=" << baseCommRank_
+                    << " with mode=" << (isSubClient() ? "`sub-client`" : "`client`")
+                    << " is in subgroup " << sub_comm_color << '\n'
+                    << GLOGGING;
         }
         else {
-            // all geneva clients are in separate communicators by using down-rounding integer division
-            // This process (geneva client) receives rank 0 inside the subgroup. All other processes in this subgroup
-            // will definitely pass numbers greater 0 as key and therefore get the ranks 1 - (subClientGroupSize_ - 1)
-            MPI_Comm_split(baseCommunicator, subCommColor, 0, &subClientComm_);
+            glogger << "baseRank=" << baseCommRank_ << " is the server and in no sub-group" << '\n'
+                    << GLOGGING;
         }
-    }
 
-    // Notify the MPI consumer to use this inter-communicator
-    Gem::Courtier::Consumers::setMPICommunicator(genevaComm_);
+        // create new communicators based on the current position in the baseRank
+        if(isSubClient_) { // process is a sub-client
+
+            // create the genevaCommunicator, because the call is collective.
+            // But as this process is a sub-client we do not want to communicate inside that
+            // subgroup and therefore pass MPI_UNDEFINED as color
+            MPI_Comm_split(baseCommunicator, MPI_UNDEFINED, baseCommRank_, &genevaComm_);
+
+            // putting nSubClients in one communicator by using down-rounding integer division
+            MPI_Comm_split(baseCommunicator, sub_comm_color, baseCommRank_, &subClientComm_);
+        }
+        else { // process is a geneva client or the geneva server
+
+            // Create a communicator to be used by GMPIConsumerT
+            MPI_Comm_split(baseCommunicator, M_MPI_GENEVA_COLOR, baseCommRank_, &genevaComm_);
+
+            if(is_server) { // process is the geneva server (master node)
+                // The geneva server has rank 0 and does not need to be in any sub-client
+                // communicator. It only communicates with the geneva clients and does not
+                // communicate inside of subgroups.
+                MPI_Comm_split(baseCommunicator, MPI_UNDEFINED, baseCommRank_, &subClientComm_);
+            }
+            else {
+                // all geneva clients are in separate communicators by using down-rounding integer
+                // division. This process (geneva client) receives rank 0 inside the subgroup. All
+                // other processes in this subgroup will definitely pass numbers greater 0 as key
+                // and therefore get the ranks 1 - (subClientGroupSize_ - 1)
+                MPI_Comm_split(baseCommunicator, sub_comm_color, 0, &subClientComm_);
+            }
+        }
+
+        return genevaComm_;
+    });
 
     // Notify the individual to use this inter-communicator
     GMPISubClientIndividual::setCommunicator(subClientComm_);
 
     // set sub-client group status communicator
-    if(!isServer) {
+    if(baseCommRank_ != 0) { // the server is in no sub-client group
         // create the status communicator as a copy of the local group communicator
         MPI_Comm_dup(subClientComm_, &subClientStatusComm_);
     }
 }
 
 /**
- * @brief The destructor: releases the consumer, then finalizes MPI if this object initialized it.
+ * @brief The destructor: releases the consumer, then the MPI environment.
  *
- * Ordering matters twice over. The consumer must be torn down BEFORE MPI_Finalize (the master node's
- * shutdown still sends the stop signal to the worker ranks over MPI), but the base-class destructor
- * would only release it after this body has run -- hence the explicit releaseConsumer_() here (the
- * base destructor's own call then finds nothing left to do). And every rank must actually reach
- * MPI_Finalize: a rank that simply exits makes mpirun/hydra declare the job abnormally terminated
- * and SIGKILL the remaining ranks -- which used to hit the sub-clients, still waiting for their
- * group's shutdown barrier, on every run of the sub-client example.
+ * Ordering matters twice over. The consumer must be torn down BEFORE MPI is finalized (the master
+ * node's shutdown still sends the stop signal to the worker ranks over MPI), but the base-class
+ * destructor would only release it after this body has run -- hence the explicit releaseConsumer_()
+ * here (the base destructor's own call then finds nothing left to do). Releasing the environment
+ * then finalizes MPI if the environment initialized it and this was its last holder. And every rank
+ * must actually reach MPI_Finalize: a rank that simply exits makes mpirun/hydra declare the job
+ * abnormally terminated and SIGKILL the remaining ranks -- which used to hit the sub-clients, still
+ * waiting for their group's shutdown barrier, on every run of the sub-client example.
  */
 GMPISubClientOptimizer::~GMPISubClientOptimizer() {
     this->releaseConsumer_();
-
-    if(i_initialized_mpi_) {
-        int finalized{0};
-        MPI_Finalized(&finalized);
-        if(not finalized) {
-            MPI_Finalize();
-        }
-    }
+    environment_.reset();
 }
 
 /**

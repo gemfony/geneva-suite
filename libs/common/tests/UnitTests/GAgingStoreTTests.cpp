@@ -50,7 +50,7 @@ using IntStore = GAgingStoreT<int, int>;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GAgingStoreT: non-copyable, holds move-only values", "[common][aging-store]") {
+TEST_CASE("GAgingStoreT: non-copyable and holds move-only values", "[common][aging-store]") {
     static_assert(not std::is_copy_constructible_v<MoStore>);
     static_assert(not std::is_copy_assignable_v<MoStore>);
 }
@@ -109,8 +109,10 @@ TEST_CASE("GAgingStoreT: park/drainParked preserves FIFO order and empties", "[c
     CHECK(s.parkedSize() == 0); // drain emptied the FIFO
 }
 
-TEST_CASE("GAgingStoreT: park enforces the capacity bound, evicting the oldest first",
-          "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: park enforces the capacity bound by evicting the oldest first",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(/*cap*/ 2, /*ttl*/ 100);
     CHECK(s.park(std::make_unique<int>(1)) == 0);

@@ -38,6 +38,7 @@
 #include <array>
 #include <atomic>
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
@@ -47,9 +48,9 @@
 #include <limits>
 #include <mutex>
 #include <random>
-#include <type_traits>
 #include <sstream>
 #include <thread>
+#include <type_traits>
 
 // Geneva headers go here
 
@@ -59,6 +60,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "hap/GRandomDefines.hpp"
@@ -213,12 +215,12 @@ private:
 	  * std::mt19937_64) values are drawn one at a time. Selected at compile
 	  * time via a requires-expression; no virtual dispatch.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
 	  * @param rng The random number generator used to fill the buffer
 	  * @param n The number of entries (from the front of the buffer) to fill
 	  */
-    template <typename RNG>
-    void fill_from(RNG &rng, std::size_t n) {
+    template <typename rng_type>
+    void fill_from(rng_type &rng, std::size_t n) {
         if constexpr (requires { rng.generate(r_.data(), n); }) {
             rng.generate(r_.data(), n);
         }
@@ -235,11 +237,11 @@ private:
 	  * the fill in try/catch and rethrows allocation or unknown failures as a
 	  * geneva_exception.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
 	  * @param rng A reference to an external random number generator used to fill the whole buffer
 	  */
-    template <typename RNG>
-    explicit random_container(RNG &rng) {
+    template <typename rng_type>
+    explicit random_container(rng_type &rng) {
         // fill_from writes into the in-object std::array -- it allocates nothing, so there is
         // no bad_alloc to guard against here (the producer's `new` has its own catch-all).
         fill_from(rng, r_.size());
@@ -253,11 +255,11 @@ private:
 	  * regenerated, then the read position is reset to zero so the container can
 	  * be recycled.
 	  *
-	  * @tparam RNG A std::uniform_random_bit_generator, or a bulk refill engine exposing generate(dst, n)
+	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk refill engine exposing generate(dst, n)
 	  * @param rng A reference to the random number generator used to refill the consumed entries
 	  */
-    template <typename RNG>
-    void refresh(RNG &rng) {
+    template <typename rng_type>
+    void refresh(rng_type &rng) {
         fill_from(rng, current_pos_);
         current_pos_ = 0;
     }
@@ -343,6 +345,11 @@ public:
     /**
      * @brief Sets the number of producer threads for this factory.
      *
+     * Threads added while the producers run are started at once, and the call returns when each of them
+     * has finished its start, as the first getNewRandomContainer() does: without a time limit, with a
+     * warning while it waits. If only some of the added threads can be created, those run and are
+     * counted; if none can, the call throws and the count stays as it was.
+     *
      * @param n_producer_threads The desired number of threads producing random number packages
      */
     //! [hap-factory-tuning#1]
@@ -378,8 +385,22 @@ public:
     /**
      * @brief Delivers a new random number container with the current standard size to clients.
      *
-     * @return A unique_ptr to a filled container, or a null pointer if none became
-     *         available within the internal timeout
+     * The first call starts the producer threads and waits until each of them has finished its start
+     * -- has built its engine and filled its first container, or has ended -- so that no producer is
+     * still creating GPU resources when the program can end. That wait has no time limit; if it takes
+     * longer than PRODUCERSTARTFIRSTWARNING, a warning names what is waited for, and again every
+     * PRODUCERSTARTREPEATWARNING. Other threads that draw meanwhile are served from the producers that
+     * have finished their start. Every call, the first after its wait included, then waits at most
+     * DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null pointer if none came
+     * (counted in getNGetTimeouts()); callers retry.
+     *
+     * If only k of the n producer threads can be created, the factory runs with those k: the
+     * producer count (getNProducerThreads()) and the reservation in the thread budget become k, a
+     * warning names both numbers, and the start counts as done. If not one can be created, the call
+     * throws, and the factory stays as if never started: a later call tries again.
+     *
+     * @return A unique_ptr to a filled container, or a null pointer if none came within
+     *         DEFAULTFACTORYGETWAIT milliseconds
      */
     std::unique_ptr<random_container> getNewRandomContainer();
     /**
@@ -411,7 +432,9 @@ public:
      * @return The lifetime count of packages delivered to the fresh buffer
      */
     //! [hap-factory-tuning#3]
-    [[nodiscard]] std::uint64_t getNPackagesProduced() const noexcept { return n_packages_produced_.load(std::memory_order_relaxed); }
+    [[nodiscard]] std::uint64_t getNPackagesProduced() const noexcept {
+        return n_packages_produced_.load(std::memory_order_relaxed);
+    }
     //! [hap-factory-tuning#3]
 
     /**
@@ -425,10 +448,37 @@ public:
      * @return The lifetime count of empty (timed-out) getNewRandomContainer() results
      */
     //! [hap-factory-tuning#4]
-    [[nodiscard]] std::uint64_t getNGetTimeouts() const noexcept { return n_get_timeouts_.load(std::memory_order_relaxed); }
+    [[nodiscard]] std::uint64_t getNGetTimeouts() const noexcept {
+        return n_get_timeouts_.load(std::memory_order_relaxed);
+    }
     //! [hap-factory-tuning#4]
 
 private:
+    /// The state of one start of producer threads (defined in the source file)
+    struct GProducerStart;
+
+    /**
+     * @brief Starts producer threads.
+     *
+     * @param n_new The number of producer threads to start
+     * @return The state of this start
+     */
+    std::shared_ptr<GProducerStart> startProducers(std::uint16_t n_new);
+
+    /**
+     * @brief Makes the producers' reservation in the thread budget fit the producers that run.
+     *
+     * @param n_running The number of producer threads that run
+     */
+    void accountProducers(std::uint16_t n_running);
+
+    /**
+     * @brief Returns when each producer of a start has finished its start; warns while it waits.
+     *
+     * @param start The state of the start
+     */
+    void awaitStart(GProducerStart &start);
+
     /**
      * @brief The production of random number packages takes place here.
      *
@@ -436,14 +486,16 @@ private:
      * (and refilling recycled ones) until a stop is requested.
      *
      * @param seed The seed used to initialize this producer thread's engine
+     * @param start The state of the start this producer belongs to
      */
-    void producer(std::uint32_t seed);
+    void producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start);
 
     std::atomic<std::uint64_t> n_packages_produced_{0}; ///< Lifetime count of packages delivered to the fresh buffer (supply-throughput signal)
     std::atomic<std::uint64_t> n_get_timeouts_{0}; ///< Lifetime count of empty getNewRandomContainer() results (aggregate starvation signal)
 
     std::atomic<bool> finalized_{false};
-    std::atomic<bool> threads_started_{false}; ///< Indicates whether threads were already started
+    /// Whether the producer threads have been launched (their start may still run)
+    std::atomic<bool> threads_started_{false};
     std::atomic<bool> threads_stop_requested_{false}; ///< Indicates whether all threads were requested to stop
     std::atomic<std::uint16_t> n_producer_threads_{
         autoProducerThreadCount()
@@ -465,8 +517,9 @@ private:
     Gem::Common::Concurrency::GMPMCQueueT<std::unique_ptr<random_container>, DEFAULTFACTORYBUFFERSIZE, FACTORYQUEUEBACKEND>
         p_ret_bfr_;
 
-    mutable std::mutex
-        thread_creation_mutex_; ///< Synchronization of access to the threads_started_ variable
+    /// Orders the start of producer threads: the first getNewRandomContainer() and
+    /// setNProducerThreads(). Not held by the first draw while it waits for the start.
+    mutable std::mutex thread_creation_mutex_;
 
     /// Source of non-deterministic random numbers. getSeed() draws a fresh set of entropy words
     /// from it for every seed batch -- a std::seed_seq built once and kept would regenerate the
@@ -506,8 +559,10 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
 /**
  * @brief Reports how many bulk random-number sources currently draw from the GPU.
  *
- * A source stops counting when it switches to the CPU, either because GPU use was forbidden or
- * because a CUDA call failed. Always 0 in a build without the CUDA backend.
+ * A source counts from the moment it has chosen the GPU, before its CUDA resources exist, and stops
+ * counting when it switches to the CPU, either because GPU use was forbidden or because a CUDA call
+ * failed. Once setGpuRandomNumbersAllowed(false) has returned and this count has been seen at 0, no
+ * source uses the GPU and none begins to. Always 0 in a build without the CUDA backend.
  *
  * @return The number of sources that currently use the GPU
  */
@@ -521,6 +576,89 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
  * @param fail Whether GPU calls should be treated as failed
  */
 void simulateGpuRandomFailureForTests(bool fail);
+
+/**
+ * @brief The stages a bulk random-number source passes when it starts on the GPU (test hook).
+ *
+ * START_FINISHED is reached by every producer thread of the factory, on the GPU or the CPU, once its
+ * source has filled its first container (or the producer has ended before).
+ */
+enum class GpuSourceStartStage {
+    GPU_CHOSEN = 0,       ///< The source has found GPU use allowed and a device present
+    CONTEXT_CREATION = 1, ///< The source is about to create its CUDA resources (the slow step)
+    START_FINISHED = 2    ///< A producer has finished its start
+};
+
+/**
+ * @brief Holds every bulk source that starts on the GPU at the given stage, or lets the held ones go
+ * (test hook).
+ *
+ * Starting sources wait at a held stage until it is released, or for at most 60 seconds; the first
+ * @p n_pass sources that reach the stage after it was held pass without waiting. Call it from one
+ * thread only, and release every stage it held before the process ends. Only available in builds with
+ * GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage to hold or to release
+ * @param hold Whether starting sources should wait at that stage
+ * @param n_pass How many sources may pass the held stage before the others wait
+ */
+void holdGpuRandomSourceStartsForTests(
+    GpuSourceStartStage stage,
+    bool hold,
+    std::size_t n_pass = 0
+);
+
+/**
+ * @brief Makes every bulk source that starts on the GPU throw when it reaches the given stage, as a
+ * failing call there would, or stops doing so (test hook).
+ *
+ * The exception is a std::runtime_error; the producer whose source throws ends, as on any other
+ * exception. START_FINISHED cannot be made to throw. Only available in builds with GEM_TESTING;
+ * otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage at which starting sources throw
+ * @param fail Whether they throw there
+ */
+void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
+
+/**
+ * @brief Reports how many bulk sources have reached the given stage of a GPU start since the process
+ * began, including those held there (test hook).
+ *
+ * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param stage The stage asked about
+ * @return The number of sources that have reached the stage
+ */
+[[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
+
+/**
+ * @brief Makes the creation of the factory's producer threads fail, as a lack of system resources
+ * would, or stops doing so (test hook).
+ *
+ * While it is on, the first @p n_pass creations from the call on succeed and every later one throws a
+ * std::system_error. Only available in builds with GEM_TESTING; otherwise it reports that the hook is
+ * unavailable.
+ *
+ * @param fail Whether creations fail
+ * @param n_pass How many creations succeed before the others fail
+ */
+void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass = 0);
+
+/**
+ * @brief Sets how long the call that starts producer threads waits before its first warning about a
+ * start that has not finished, and how long between the warnings that follow (test hook).
+ *
+ * The defaults are PRODUCERSTARTFIRSTWARNING and PRODUCERSTARTREPEATWARNING. Only available in builds
+ * with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ *
+ * @param first The wait before the first warning
+ * @param repeat The wait between later warnings
+ */
+void setProducerStartWarningPeriodsForTests(
+    std::chrono::milliseconds first,
+    std::chrono::milliseconds repeat
+);
 
 /******************************************************************************/
 /**

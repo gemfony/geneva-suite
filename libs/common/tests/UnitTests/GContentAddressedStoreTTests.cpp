@@ -45,7 +45,10 @@ using Store = GContentAddressedStoreT<int, std::string, int>;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GContentAddressedStoreT: non-copyable, default-constructible", "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: non-copyable and default-constructible",
+    "[common][content-store]"
+) {
     static_assert(std::is_default_constructible_v<Store>);
     static_assert(not std::is_copy_constructible_v<Store>);
     static_assert(not std::is_copy_assignable_v<Store>);

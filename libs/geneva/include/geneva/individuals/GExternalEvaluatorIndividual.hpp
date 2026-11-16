@@ -130,8 +130,8 @@ class GExternalEvaluatorIndividual
      * @brief Single declaration of this class'es local data members
      * @return A tuple of named member references driving the generated serialize()/load_()/compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("program_name_", self.program_name_),
             Gem::Common::make_member("custom_options_", self.custom_options_),

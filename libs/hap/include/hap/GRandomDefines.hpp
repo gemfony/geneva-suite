@@ -34,6 +34,7 @@
 
 // Standard includes go here
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <random>
@@ -87,6 +88,11 @@ const std::uint16_t DEFAULTFACTORYGETWAIT =
 #else
 constexpr std::uint16_t DEFAULTFACTORYGETWAIT = 200; ///< waiting time in milliseconds
 #endif /* GENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT */
+
+/// How long the call that starts producer threads waits for their start before it warns that it waits
+constexpr std::chrono::seconds PRODUCERSTARTFIRSTWARNING{10};
+/// How long that call waits between its later warnings
+constexpr std::chrono::seconds PRODUCERSTARTREPEATWARNING{60};
 
 #ifdef GENEVA_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE
 const std::size_t DEFAULTSEEDVECTORSIZE =

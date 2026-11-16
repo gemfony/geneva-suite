@@ -52,10 +52,12 @@
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "courtier/GBaseClientT.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GenevaInitializer.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -90,7 +92,6 @@ const std::uint32_t DEFAULTREPORTITERATION = 1;
 const long DEFAULTMAXMINUTES = 10;
 const duplicationScheme DEFAULTRSCHEME = duplicationScheme::VALUEDUPLICATIONSCHEME;
 const sortingMode DEFAULTEAAPPSORTINGMODE = sortingMode::MUCOMMANU_SINGLEEVAL;
-const std::size_t DEFAULTMAXRECONNECTS = 10;
 
 /******************************************************************************/
 /**
@@ -114,8 +115,7 @@ bool parseCommandLine(
     long &maxMinutes,
     std::uint32_t &reportIteration,
     duplicationScheme &rScheme,
-    sortingMode &smode,
-    std::size_t &maxReconnects
+    sortingMode &smode
 ) {
     // Create the parser builder
     Gem::Common::GParserBuilder gpb;
@@ -148,8 +148,7 @@ bool parseCommandLine(
         "serializationMode",
         serMode,
         DEFAULTSERMODE,
-        "Specifies whether serialization shall be done in TEXTMODE (0), XMLMODE (1) or BINARYMODE "
-        "(2)"
+        "Specifies the serialization: " + Gem::Common::serializationModeChoices()
     );
 
     gpb.registerCLParameter<bool>(
@@ -228,13 +227,6 @@ bool parseCommandLine(
         "or MUNU1PRETAIN (2) mode"
     );
 
-    gpb.registerCLParameter<std::size_t>(
-        "maxReconnects",
-        maxReconnects,
-        DEFAULTMAXRECONNECTS,
-        "The number of times a client will try to reconnect when it couldn't reach the server"
-    );
-
     // Parse the command line and leave if the help flag was given. The parser
     // will emit an appropriate help message by itself
     if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {
@@ -265,7 +257,6 @@ int main(int argc, char **argv) {
     sortingMode smode;
     Gem::Common::serializationMode serMode;
     bool addLocalConsumer = false;
-    std::size_t maxReconnects = 0;
 
     /****************************************************************************/
     // Initialization of Geneva
@@ -302,8 +293,7 @@ int main(int argc, char **argv) {
            maxMinutes,
            reportIteration,
            rScheme,
-           smode,
-           maxReconnects
+           smode
        )) {
         exit(1);
     }
@@ -318,17 +308,15 @@ int main(int argc, char **argv) {
     // If this is a client in networked mode, we can just start the listener and
     // return when it has finished
     if(PM_NETWORKED == parallelizationMode && !serverMode) {
-        // Build the networked client through the courtier setup layer. The single mnemonic below
-        // drives both this client and the server below -- change it (e.g. to "beast") in both places to
-        // switch transport, with no other code change.
-        ConsumerSpec spec;
-        spec.mnemonic           = "asio";
-        spec.ip                 = ip;
-        spec.port               = port;
-        spec.serialization_mode = serMode;
-        spec.max_reconnects     = maxReconnects;
-
-        auto client = buildConsumerClient(spec);
+        // Build the networked client through the courtier setup layer. The configuration struct
+        // names the consumer and drives both this client and the server below.
+        auto client = buildConsumerClient(
+            GWebsocketConsumerConfig{
+                .ip = ip,
+                .port = port,
+                .serializationMode = serMode,
+            }
+        );
 
         // Start the actual processing loop
         client->run();
@@ -375,40 +363,39 @@ int main(int argc, char **argv) {
 
     // Build and register the ONE process-wide consumer, depending on the parallelisation mode.
     // The algorithm submits through it automatically.
-    {
-        Gem::Geneva::ConsumerSpec spec;
-        switch(parallelizationMode) {
+    switch(parallelizationMode) {
+    //----------------------------------------------------------------------------
+    case PM_SERIAL: // Serial (single-threaded) execution
+        buildConsumer(GStdThreadConsumerConfig{.nThreads = 1});
+        break;
+
         //----------------------------------------------------------------------------
-        case PM_SERIAL: // Serial (single-threaded) execution
-            spec.mnemonic  = "stc";
-            spec.n_threads = 1;
-            break;
+    case PM_MULTITHREADED: // Multi-threaded local execution
+        buildConsumer(
+            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+        );
+        break;
 
-            //----------------------------------------------------------------------------
-        case PM_MULTITHREADED: // Multi-threaded local execution
-            spec.mnemonic  = "stc";
-            spec.n_threads = static_cast<unsigned int>(nEvaluationThreads);
-            break;
-
-            //----------------------------------------------------------------------------
-        case PM_NETWORKED: // Networked execution (or a purely local consumer for testing)
-            if(addLocalConsumer) {
-                // "Broker mode" with only a local multi-threaded consumer (testing / benchmarking).
-                spec.mnemonic  = "stc";
-                spec.n_threads = static_cast<unsigned int>(nEvaluationThreads);
-            }
-            else {
-                // Build a courtier ASIO server via the shared factory; the clients started above (built by
-                // buildConsumerClient for the same mnemonic) connect to it.
-                spec.mnemonic           = "asio";
-                spec.port               = port;
-                spec.serialization_mode = serMode;
-            }
-            break;
-
-            //----------------------------------------------------------------------------
+        //----------------------------------------------------------------------------
+    case PM_NETWORKED: // Networked execution (or a purely local consumer for testing)
+        if(addLocalConsumer) {
+            // "Broker mode" with only a local multi-threaded consumer (testing / benchmarking).
+            buildConsumer(
+                GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+            );
         }
-        Gem::Geneva::buildConsumerSetup(spec); // registers the process consumer
+        else {
+            // Build a courtier websocket server via the shared factory; the clients started above
+            // (built by buildConsumerClient from the same configuration struct) connect to it.
+            buildConsumer(GWebsocketConsumerConfig{.port = port, .serializationMode = serMode});
+        }
+        break;
+
+        //----------------------------------------------------------------------------
+    default: // no consumer here: the algorithm falls back to the process default
+        break;
+
+        //----------------------------------------------------------------------------
     }
 
     /****************************************************************************/

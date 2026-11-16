@@ -68,6 +68,7 @@
 
 #include "common/GGlobalDefines.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GOptimizationEnums.hpp"
@@ -116,8 +117,8 @@ class GSearchTraceMonitor final
 
     /** @brief The monitor's state is run state wired to a plot, not configuration; hence the
      *  explicit empty member list the CRTP base requires. */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -406,10 +407,7 @@ int main() {
     GenevaInitializer const gi;
 
     // One consumer per process (Invariant 5); a single thread is plenty for these small runs.
-    ConsumerSpec consumer;
-    consumer.mnemonic = "stc";
-    consumer.n_threads = 1;
-    buildConsumerSetup(consumer);
+    buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
 
     bool all_searched = true;
     for(auto const &s : showcases()) {

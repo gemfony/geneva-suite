@@ -96,8 +96,8 @@ public:
 
     /** @brief Blocks until completion or @p d elapses.
      *  @param d The maximum time to wait. @return true if the latch completed, false on timeout. */
-    template <typename Rep, typename Period>
-    bool wait_for(const std::chrono::duration<Rep, Period> &d) {
+    template <typename rep_type, typename period_type>
+    bool wait_for(const std::chrono::duration<rep_type, period_type> &d) {
         std::unique_lock<std::mutex> lk(m_);
         return cv_.wait_for(lk, d, [this] { return remaining_.load() == 0; });
     }

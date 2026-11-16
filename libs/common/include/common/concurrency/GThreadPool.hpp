@@ -152,16 +152,16 @@ public:
      * exception it threw.
      *
      * @tparam F The callable type to be invoked on a worker thread
-     * @tparam Args The argument types forwarded to and bound into the task
+     * @tparam args_type The argument types forwarded to and bound into the task
      * @param f The callable to be executed by a worker thread
      * @param args Arguments forwarded to and bound into the task
      * @return A std::future holding the result (and/or exception) of f(args...)
      */
-    template <typename F, typename... Args>
-        requires std::invocable<F, Args...>
-    auto async_schedule(F &&f, Args &&...args)
-        -> std::future<std::invoke_result_t<F, Args...>> {
-        using result_type = std::invoke_result_t<F, Args...>;
+    template <typename F, typename... args_type>
+        requires std::invocable<F, args_type...>
+    auto async_schedule(F &&f, args_type &&...args)
+        -> std::future<std::invoke_result_t<F, args_type...>> {
+        using result_type = std::invoke_result_t<F, args_type...>;
 
         auto promise_ptr = std::make_shared<std::promise<result_type>>();
         std::future<result_type> result = promise_ptr->get_future();
@@ -171,7 +171,7 @@ public:
         // non-void via if constexpr.
         auto task = [promise_ptr,
                      f = std::forward<F>(f),
-                     ... args = std::forward<Args>(args)]() mutable {
+                     ... args = std::forward<args_type>(args)]() mutable {
             try {
                 if constexpr(std::is_void_v<result_type>) {
                     f(std::move(args)...);
@@ -216,15 +216,14 @@ public:
      * not need to observe; it still participates in wait().
      *
      * @tparam F The callable type to be invoked on a worker thread
-     * @tparam Args The argument types forwarded to and bound into the task
+     * @tparam args_type The argument types forwarded to and bound into the task
      * @param f The callable to be executed by a worker thread
      * @param args Arguments forwarded to and bound into the task
      */
-    template <typename F, typename... Args>
-        requires std::invocable<F, Args...>
-    void post(F &&f, Args &&...args) {
-        auto task = [f = std::forward<F>(f),
-                     ... args = std::forward<Args>(args)]() mutable {
+    template <typename F, typename... args_type>
+        requires std::invocable<F, args_type...>
+    void post(F &&f, args_type &&...args) {
+        auto task = [f = std::forward<F>(f), ... args = std::forward<args_type>(args)]() mutable {
             try {
                 (void) f(std::move(args)...); // any return value is discarded
             }
@@ -263,12 +262,12 @@ public:
      * submission order.
      *
      * @tparam T The element type of the span (e.g. a work-item unique_ptr)
-     * @tparam Fn A callable invoked as @c per_item(T&) for each element
+     * @tparam fn_type A callable invoked as @c per_item(T&) for each element
      * @param items The batch to run; its backing storage must outlive the call (this blocks until done)
      * @param per_item The work to run on each element (invoked concurrently)
      */
-    template <typename T, typename Fn>
-    void blocking_for_each(std::span<T> items, const Fn &per_item) {
+    template <typename T, typename fn_type>
+    void blocking_for_each(std::span<T> items, const fn_type &per_item) {
         if(items.empty()) {
             return;
         }

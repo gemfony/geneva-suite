@@ -47,6 +47,7 @@
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/Go2.hpp"
@@ -405,27 +406,24 @@ int main(int argc, char **argv) {
     // All three modes are LOCAL here (the "broker" mode used a local thread consumer too); build and
     // register the ONE process-wide consumer. Serial -> stc with one thread, the others -> multithreaded.
     {
-        Gem::Geneva::ConsumerSpec spec;
+        GStdThreadConsumerConfig config;
         switch(parallelizationMode) {
         case PM_SERIAL: // Serial (single-threaded) execution
             std::cout << "Using serial execution." << std::endl;
-            spec.mnemonic  = "stc";
-            spec.n_threads = 1;
+            config.nThreads = 1;
             break;
 
         case PM_MULTITHREADED: // Multi-threaded local execution
             std::cout << "Using plain multi-threaded execution." << std::endl;
-            spec.mnemonic  = "stc";
-            spec.n_threads = static_cast<unsigned int>(nEvaluationThreads);
+            config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
 
         case PM_NETWORKED: // Historically a local thread consumer behind the broker -- still local.
             std::cout << "Using a local multi-threaded courtier consumer." << std::endl;
-            spec.mnemonic  = "stc";
-            spec.n_threads = static_cast<unsigned int>(nEvaluationThreads);
+            config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
         }
-        Gem::Geneva::buildConsumerSetup(spec); // registers the process consumer
+        Gem::Geneva::buildConsumer(config); // registers the process consumer
     }
 
     // Add individuals to the population

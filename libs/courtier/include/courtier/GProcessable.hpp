@@ -36,7 +36,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <random>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -59,6 +59,11 @@ namespace Gem::Courtier {
 /******************************************************************************/
 namespace detail {
 
+/** @brief The random salt of this process: the first half of every lineage id minted in it.
+ *  One instance per process (defined in the courtier library, not in the header, so that a
+ *  loaded module and its host agree on it). */
+[[nodiscard]] std::uint64_t lineageSalt() noexcept;
+
 /**
  * @brief Mints a process-unique 128-bit work-item lineage id: a per-process random salt combined with a
  * monotonic atomic counter. The salt makes ids minted in different runs (or after a checkpoint resume,
@@ -68,12 +73,8 @@ namespace detail {
  * @return A fresh, process-unique 128-bit lineage id
  */
 inline SUBMISSION_UUID_TYPE mint_submission_uuid() {
-    static const std::uint64_t salt = [] {
-        std::random_device rd;
-        return (static_cast<std::uint64_t>(rd()) << 32) ^ static_cast<std::uint64_t>(rd());
-    }();
     static std::atomic<std::uint64_t> counter{0};
-    return SUBMISSION_UUID_TYPE{salt, counter.fetch_add(1, std::memory_order_relaxed)};
+    return SUBMISSION_UUID_TYPE{lineageSalt(), counter.fetch_add(1, std::memory_order_relaxed)};
 }
 
 /**
@@ -139,12 +140,12 @@ class GProcessable {
      * @brief Serialises the non-generic lifecycle state (status, errors, routing ids, timing).
      * The transient dispatch-scheduling state (dispatch_state_) is deliberately NOT serialised.
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise the lifecycle state with
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         // The stable lineage id travels by value (its two 64-bit halves) so a wire / checkpoint round-trip
         // PRESERVES it -- see detail::LineageId for why this preserves while clone() mints fresh.
@@ -292,7 +293,9 @@ public:
      * @brief Overwrites the lineage id. Used only to RESTORE a source's identity onto a stand-in copy:
      * a plain clone mints a fresh id, but a copy that stands in for an existing item (a consumer's
      * retained original, a checkpoint restore) must keep the lineage of the item it represents. Not for
-     * general use -- the id is otherwise immutable after construction.
+     * general use -- the id is otherwise immutable after construction. In particular, the clone a
+     * consumer hands out must keep the id it got when it was made: its first half names the process
+     * that handed it out, and check-in drops a result whose id names another process.
      * @param uuid The lineage id to stamp onto this work item
      */
     void setSubmissionUuid(const SUBMISSION_UUID_TYPE &uuid) noexcept { submission_uuid_.value = uuid; }
@@ -378,8 +381,9 @@ public:
      * to. The status is assigned DIRECTLY rather than through set_processing_status(), because this is a
      * remote report of an already-completed evaluation, not a local state transition: the validating
      * setter would reject e.g. PROCESSED -> PROCESSED and would clear the very results the caller is about
-     * to write. The item KEEPS its own lineage id (the outcome's uuid is informational -- a slot's
-     * identity is not redefined by a return); the transient dispatch state is likewise untouched.
+     * to write. The item KEEPS its own lineage id (the consumer checks the outcome's uuid at
+     * check-in, but a slot's identity is not redefined by a return); the transient dispatch state
+     * is likewise untouched.
      * @param outcome The lifecycle record reported by the worker
      */
     void applyProcessingOutcome(const GProcessingOutcome &outcome) {
@@ -448,12 +452,12 @@ protected:
      * @param core A callable running the class-specific evaluation/processing
      * @param post A callable running the class-specific post-processing step
      */
-    template <typename PreFn, typename CoreFn, typename PostFn>
+    template <typename pre_fn_type, typename core_fn_type, typename post_fn_type>
     void runProcessingLifecycle_(
         std::string_view context,
-        PreFn &&pre,
-        CoreFn &&core,
-        PostFn &&post
+        pre_fn_type &&pre,
+        core_fn_type &&core,
+        post_fn_type &&post
     ) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
@@ -608,6 +612,17 @@ protected:
     processingStatus processing_status_ =
         processingStatus::UNPROCESSED; ///< By default no processing is initiated
 };
+
+/******************************************************************************/
+/**
+ * A function that processes one work item in place of the item's own process(). A client can be
+ * given one (GBaseClientT::setItemProcessor()); processWorkFrame() calls it for an item that is
+ * due. The function must leave the item processed or flagged, as process() does.
+ *
+ * @tparam processable_type The type of the work item
+ */
+template <typename processable_type>
+using GItemProcessorT = std::move_only_function<void(processable_type &) const>;
 
 /******************************************************************************/
 

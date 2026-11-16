@@ -37,21 +37,21 @@
 
 using namespace Gem::Common;
 
-TEST_CASE("GTupleIO::g_to_string: single-element tuple is rendered as \"(v)\"",
-          "[common][tuple-io]") {
+TEST_CASE("GTupleIO::g_to_string: single-element tuple is rendered as (v)", "[common][tuple-io]") {
     CHECK(g_to_string(std::make_tuple(42))             == "(42)");
     CHECK(g_to_string(std::make_tuple(std::string{"x"})) == "(x)");
 }
 
-TEST_CASE("GTupleIO::g_to_string: multi-element tuple is rendered as \"(v0, v1, ...)\"",
-          "[common][tuple-io]") {
+TEST_CASE(
+    "GTupleIO::g_to_string: a multi-element tuple is rendered as a parenthesized list",
+    "[common][tuple-io]"
+) {
     CHECK(g_to_string(std::make_tuple(1, 2))           == "(1, 2)");
     CHECK(g_to_string(std::make_tuple(1, 2, 3))        == "(1, 2, 3)");
     CHECK(g_to_string(std::make_tuple(1, 2.5, "k"))    == "(1, 2.5, k)");
 }
 
-TEST_CASE("GTupleIO::g_to_string: empty tuple renders as \"()\"",
-          "[common][tuple-io]") {
+TEST_CASE("GTupleIO::g_to_string: empty tuple renders as ()", "[common][tuple-io]") {
     CHECK(g_to_string(std::make_tuple()) == "()");
 }
 
@@ -61,8 +61,10 @@ TEST_CASE("GTupleIO::g_to_string: non-tuple overload forwards via operator<<",
     CHECK(g_to_string(std::string{"abc"}) == "abc");
 }
 
-TEST_CASE("GTupleIO::operator<<(ostream&, tuple): streams the same string as g_to_string",
-          "[common][tuple-io]") {
+TEST_CASE(
+    "GTupleIO::operator<< for a tuple streams the same string as g_to_string",
+    "[common][tuple-io]"
+) {
     std::ostringstream oss;
     auto t = std::make_tuple(10, 20, 30);
     oss << t;

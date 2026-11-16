@@ -55,16 +55,20 @@
 using namespace Gem::Courtier;
 
 //! [courtier-consumer-surface#1]
-/** A consumer of one's own: evaluate this round's DO_PROCESS slots in place, let no exception
- *  escape, and leave every other part of the contract to the base class. This one runs the
- *  evaluations serially in the calling thread; GStdThreadConsumerT spreads the same loop over a
- *  thread pool, and a networked consumer sends the slots to remote clients. */
+/** A consumer of one's own: evaluate this round's DO_PROCESS slots in
+ *  place, let no exception escape, and leave every other part of the
+ *  contract to the base class. This one runs the evaluations serially in
+ *  the calling thread; GStdThreadConsumerT spreads the same loop over a
+ *  thread pool, and a networked consumer sends the slots to remote
+ *  clients. */
 class GSerialDocConsumer final : public GBaseConsumerT<GSimpleContainer> {
 protected:
     void dispatch_(std::span<item_ptr> items) override {
+        using enum processingStatus;
         for(auto &item : items) {
-            if(item && item->getProcessingStatus() == processingStatus::DO_PROCESS) {
-                item->process(); // records PROCESSED, or EXCEPTION_CAUGHT if the evaluation throws
+            if(item && item->getProcessingStatus() == DO_PROCESS) {
+                // records PROCESSED, or EXCEPTION_CAUGHT if it throws
+                item->process();
             }
         }
     }
@@ -78,12 +82,15 @@ int main() {
     }
 
     //! [courtier-consumer-surface#2]
-    // The single submission entry point. On return every slot of the span holds a successfully
-    // evaluated item -- here under the strictest policy, which terminates rather than hand back a
-    // batch with a hole in it.
+    // The single submission entry point. On return every slot of the span
+    // holds a successfully evaluated item -- here under the strictest
+    // policy, which terminates rather than hand back a batch with a hole
+    // in it.
     GSerialDocConsumer consumer;
-    consumer.processBatch(std::span<GSerialDocConsumer::item_ptr>(batch.data(), batch.size()),
-                          GSubmissionPolicy::full_success_or_fatal());
+    consumer.processBatch(
+        std::span<GSerialDocConsumer::item_ptr>(batch.data(), batch.size()),
+        GSubmissionPolicy::full_success_or_fatal()
+    );
     //! [courtier-consumer-surface#2]
 
     std::size_t processed = 0;

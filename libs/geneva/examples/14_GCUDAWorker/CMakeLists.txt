@@ -140,6 +140,26 @@ ADD_TEST (
 SET_TESTS_PROPERTIES ( GCUDAWorker_CPU PROPERTIES LABELS "geneva;example" TIMEOUT 300 )
 GENEVA_TEST_SIZE(GCUDAWorker_CPU L)
 
+# A networked run: a server and three clients, all of them ranks of the MPI consumer (the launcher
+# that starts the processes is the only infrastructure this needs, so the test exists only where the
+# MPI consumer is built). Each client evaluates against the target image it loaded itself; an
+# evaluation without a target throws, and a best fitness of exactly 0 -- what an empty target
+# scores -- fails the test as well. One generation covers the path (Inv 22); three clients rather
+# than one keep a Debug run of it below a minute.
+IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+	ADD_TEST (
+		NAME GCUDAWorker_NetworkedClient
+		COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
+			${MPIEXEC_PREFLAGS} $<TARGET_FILE:${EXECUTABLENAME}> ${MPIEXEC_POSTFLAGS}
+			--module $<TARGET_FILE:GImageIndividual> --consumer mpi --eaMaxIterations 1
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+	)
+	SET_TESTS_PROPERTIES ( GCUDAWorker_NetworkedClient PROPERTIES
+		LABELS "geneva;example" TIMEOUT 300 PROCESSORS 4
+		FAIL_REGULAR_EXPRESSION "no target image is loaded;Best fitness: 0[\r\n]" )
+	GENEVA_TEST_SIZE(GCUDAWorker_NetworkedClient L)
+ENDIF ()
+
 INSTALL ( TARGETS ${EXECUTABLENAME} GImageIndividual
 	DESTINATION ${INSTALL_PREFIX_DATA}/examples/14_GCUDAWorker )
 INSTALL ( DIRECTORY kernels pictures

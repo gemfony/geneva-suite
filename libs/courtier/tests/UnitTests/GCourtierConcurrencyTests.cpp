@@ -117,8 +117,8 @@ public:
 
 /** @brief Waits until @p condition holds, for at most five seconds.
  *  @return Whether the condition held in the end */
-template <typename ConditionF>
-bool eventually(ConditionF condition) {
+template <typename condition_fn_type>
+bool eventually(condition_fn_type condition) {
     const auto deadline = std::chrono::steady_clock::now() + 5s;
     while(not condition()) {
         if(std::chrono::steady_clock::now() > deadline) {
@@ -167,8 +167,10 @@ submit(SimNetConsumer &consumer, std::vector<item_ptr> &batch, std::atomic<bool>
 /******************************************************************************/
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent fan-in scenario: spawns a shared client pool plus per-batch submitter threads against one networked consumer, then verifies each batch's own slots come back correctly routed; splitting would scatter the capturing lambdas
-TEST_CASE("courtier(fanin): concurrent submitters to one networked consumer, results not cross-routed",
-          "[courtier][concurrency][fanin]") {
+TEST_CASE(
+    "courtier(fanin): concurrent submitters to one networked consumer get no results cross-routed",
+    "[courtier][concurrency][fanin]"
+) {
     constexpr std::size_t M = 6;  // concurrent submitters (inner algorithms)
     constexpr std::size_t N = 25; // items per batch
     constexpr std::size_t CLIENTS = 4;
@@ -307,7 +309,9 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
     constexpr std::size_t M = 8;
     constexpr std::size_t N = 30;
 
-    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(4);
+    auto consumer = std::make_shared<c2::GStdThreadConsumerT<GFaultyContainer>>(
+        c2::GStdThreadConsumerConfig{.nThreads = 4}
+    );
 
     std::vector<std::vector<item_ptr>> batches;
     batches.reserve(M);
@@ -342,7 +346,7 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "courtier(park): a new batch wakes one parked caller per item, the longest-waiting first",
+    "courtier(park): a new batch wakes one parked caller per item -- the longest-waiting first",
     "[courtier][park]"
 ) {
     constexpr std::size_t CALLERS = 10;
@@ -475,6 +479,10 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     auto batch = make_tagged_batch(0, 1);
     std::atomic<bool> done{false};
     auto submitter = submit(consumer, batch, done);
+    // The parked callers count into these. They are declared before stop_at_end: its stop wakes
+    // the caller that is still parked at the end, and that must find its counter alive.
+    std::atomic<int> woken{0};
+    std::atomic<int> second_woken{0};
     const GStopAtEnd stop_at_end(consumer);
 
     // The first caller takes the only item and then loses its client. (It waits for the batch
@@ -486,7 +494,6 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
         return static_cast<bool>(first);
     }));
 
-    std::atomic<int> woken{0};
     const auto parked_caller = consumer.checkoutOrPark([&woken] {
         ++woken;
         return true;
@@ -494,7 +501,6 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
     REQUIRE(parked_caller.parked);
     CHECK(woken.load() == 0);
 
-    std::atomic<int> second_woken{0};
     const auto second_caller = consumer.checkoutOrPark([&second_woken] {
         ++second_woken;
         return true;
@@ -585,10 +591,42 @@ TEST_CASE(
 TEST_CASE("courtier(park): a late return is kept when its caller parks next", "[courtier][park]") {
     SimNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
+    consumer.setLeaseBootstrap(20ms);
+    consumer.setLeaseBounds(10ms, 200ms);
+    consumer.setSweepTick(5ms);
 
-    auto late = std::make_unique<GFaultyContainer>(42, fault_mode::NONE);
-    late->setCorrelationId(0); // no batch is active, so any id is a late one
-    consumer.checkin(std::move(late));
+    // Only the return of a slot that had not returned when its batch ended is kept, so a batch of
+    // two retires with the slot a slow worker holds still missing; the other slot returns, which
+    // lets the give-up window engage.
+    auto batch = make_tagged_batch(0, 2);
+    std::atomic<bool> done{false};
+    std::jthread submitter([&] {
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::clone_on_partial_return()
+        );
+        done.store(true);
+    });
+    item_ptr late;
+    while(not done.load()) {
+        auto p = consumer.checkout();
+        if(not p) {
+            std::this_thread::sleep_for(1ms);
+            continue;
+        }
+        if(not late) {
+            late = std::move(p); // the slow worker keeps it
+            continue;
+        }
+        if(p->getCorrelationId() == late->getCorrelationId()) {
+            continue; // the same slot handed out again after its lease: never returned either
+        }
+        evaluateAndReturn(consumer, std::move(p));
+    }
+    submitter.join();
+    REQUIRE(late);
+    late->process();
+    consumer.checkin(std::move(late)); // its batch has ended: a late return
     CHECK(consumer.checkoutOrPark([] { return true; }).parked);
 
     CHECK(consumer.lateReturnBufferSize() == 1);

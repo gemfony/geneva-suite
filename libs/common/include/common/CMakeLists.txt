@@ -37,6 +37,7 @@
 #
 
 SET ( GENEVACOMMONINCLUDES
+	GArchiveNamed.hpp
 	GBuildFingerprint.hpp
 	GCommonEnums.hpp
 	GCommonHelperFunctions.hpp
@@ -53,11 +54,16 @@ SET ( GENEVACOMMONINCLUDES
 	GFixedSizePriorityQueueT.hpp
 	GGlobalDefines.hpp
 	GGlobalOptionsT.hpp
+	GJsonIO.hpp
 	GLogger.hpp
 	GMemberReflectionT.hpp
+	GModuleLoader.hpp
 	GModuleManifest.hpp
 	GParserBuilder.hpp
+	GProviderStoreT.hpp
 	GProviderT.hpp
+	GReflectiveInterfaceT.hpp
+	GSelfTestable.hpp
 	GSerializableFunctionObjectT.hpp
 	GSerializationHelperFunctionsT.hpp
 	GSigHupHandler.hpp
@@ -76,10 +82,12 @@ SET ( GENEVACOMMONCONCURRENCYINCLUDES
 	concurrency/GBlockingMPMCQueueT.hpp
 	concurrency/GCompletionLatchT.hpp
 	concurrency/GContentAddressedStoreT.hpp
+	concurrency/GLoadOnceCellT.hpp
 	concurrency/GMPMCQueueT.hpp
 	concurrency/GPreallocatedMPMCQueueT.hpp
 	concurrency/GQueueCommon.hpp
 	concurrency/GSPSCStagingRingT.hpp
+	concurrency/GThreadBudget.hpp
 	concurrency/GThreadGroup.hpp
 	concurrency/GThreadPool.hpp
 	concurrency/GThreadSafeKeyedStoreT.hpp

@@ -47,12 +47,16 @@ ENDIF()
 
 SET ( HAPINCLUDES
 	GHapEnums.hpp
+	GQuarantineSource.hpp
 	GRandomBase.hpp
-	GRandomDistributionsT.hpp
 	GRandomDefines.hpp
+	GRandomDistributionsT.hpp
 	GRandomFactory.hpp
+	GRandomLeasePool.hpp
 	GRandomT.hpp
+	GStagedSource.hpp
 	GXoshiro256pp.hpp
+	GXoshiro256ppSIMD.hpp
 )
 
 IF(GENEVA_USE_CUDA_RNG_ENABLED)

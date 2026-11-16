@@ -70,8 +70,8 @@ struct Point {
     double y = 0.0;
     std::string name;
 
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("x", x);
         ar &Gem::Weft::make_nvp("y", y);
         ar &Gem::Weft::make_nvp("name", name);
@@ -87,8 +87,8 @@ public:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("a", a_);
         ar &Gem::Weft::make_nvp("b", b_);
     }
@@ -98,8 +98,8 @@ private:
 
 struct Base {
     int b = 0;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &Gem::Weft::make_nvp("b", b);
     }
     bool operator==(const Base &) const = default;
@@ -107,8 +107,8 @@ struct Base {
 
 struct Derived : Base {
     int d = 0;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
         ar &base_object<Base>(*this);
         ar &Gem::Weft::make_nvp("d", d);
     }
@@ -122,7 +122,10 @@ enum class Color : std::uint8_t { red = 1, green = 2, blue = 250 };
 // ---------------------------------------------------------------------------
 // Scalars.
 
-TEST_CASE("GJsonArchive: integers, bool and enum round-trip through text", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: integers and bool and enum round-trip through text",
+    "[common][archive][json]"
+) {
     CHECK(roundtrip<std::int32_t>(-2000000000) == -2000000000);
     CHECK(roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
           std::numeric_limits<std::uint64_t>::max());
@@ -215,7 +218,10 @@ TEST_CASE("GJsonArchive: containers round-trip", "[common][archive][json]") {
 // ---------------------------------------------------------------------------
 // Serializable classes.
 
-TEST_CASE("GJsonArchive: classes (public, private-via-access, base_object) round-trip", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: classes (public / private-via-access / base_object) round-trip",
+    "[common][archive][json]"
+) {
     Point p{42, 3.5, "origin"};
     CHECK(roundtrip(p) == p);
 

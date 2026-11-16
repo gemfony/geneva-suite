@@ -41,6 +41,7 @@
 
 #include <memory>
 #include <array>
+#include <cmath>
 #include <span>
 #include <string>
 #include <tuple>
@@ -152,7 +153,7 @@ TEST_CASE("GGraph3D sets its axis titles after the draw command", "[plotting]") 
 /******************************************************************************/
 // BUG-5/6: function plotters emit a QUOTED draw option, and the 2D plotter honours
 // its configured drawing arguments (pre-fix it emitted an unquoted, and for 2D empty, option).
-TEST_CASE("function plotters emit a quoted, honoured draw option", "[plotting]") {
+TEST_CASE("function plotters emit a quoted and honoured draw option", "[plotting]") {
     const std::tuple<double, double> rx(-1., 1.);
     const std::tuple<double, double> ry(-1., 1.);
 
@@ -956,8 +957,10 @@ TEMPLATE_TEST_CASE(
 // emitted plotting code only for markers OUTSIDE the axis ranges and swallowed in-range markers.
 // The contract is the opposite: an in-range marker is drawn, an out-of-range one is clipped.
 
-TEST_CASE("GMarker clips to the plot boundaries (in-range drawn, out-of-range empty)",
-          "[plotting][decorators]") {
+TEST_CASE(
+    "GMarker clips to the plot boundaries (in-range drawn and out-of-range empty)",
+    "[plotting][decorators]"
+) {
     const GMarker<double> marker(
         std::tuple<double, double>(0.5, 0.5), gMarker::closedCircle, gColor::black, 0.05
     );
@@ -1039,7 +1042,10 @@ TEST_CASE("A surface projection is reported in the plot spec and its JSON", "[pl
     CHECK(not smallSurface(surfaceProjection::NONE)->plotSpec().projection.has_value());
 }
 
-TEST_CASE("makePlotter applies a projection and a 3-d curve, and refuses a projection elsewhere", "[plotting]") {
+TEST_CASE(
+    "makePlotter applies a projection and a 3-d curve and refuses a projection elsewhere",
+    "[plotting]"
+) {
     GPlotSpec spec(plotKind::graph_3d);
     spec.projection = surfaceProjection::CEILING;
     spec.plot_mode = graphPlotMode::CURVE;
@@ -1099,7 +1105,10 @@ TEST_CASE("The script backends draw a projected surface with their own means", "
     CHECK(oct.contains("zlim([0 4])"));
 }
 
-TEST_CASE("A projected map can be drawn without its surface, under points casting floor shadows", "[plotting]") {
+TEST_CASE(
+    "A projected map can be drawn without its surface under points casting floor shadows",
+    "[plotting]"
+) {
     // The map alone: the surface is not drawn, and with it goes the colour scale.
     auto map = smallSurface(surfaceProjection::FLOOR);
     map->setDrawSurface(false);
@@ -1295,7 +1304,7 @@ TEST_CASE(
 // itself; ROOT, matplotlib and Octave have to be told.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
 TEST_CASE(
-    "Overlaid graphs get colours, a legend and room in every backend",
+    "Overlaid graphs get colours and a legend and room in every backend",
     "[plotting][overlay]"
 ) {
     const auto overlaid = [] {
@@ -1319,6 +1328,11 @@ TEST_CASE(
         CHECK(s.contains("gPad->BuildLegend();"));
         CHECK(s.contains("first->SetMinimum("));
         CHECK(s.contains("first->GetXaxis()->SetLimits("));
+        // The frame takes in the error bars too, or those of the extreme points are cut off.
+        CHECK(s.contains("g->GetErrorYlow(i)"));
+        CHECK(s.contains("g->GetErrorYhigh(i)"));
+        CHECK(s.contains("g->GetErrorXlow(i)"));
+        CHECK(s.contains("g->GetErrorXhigh(i)"));
         // The frame and the legend come after the last graph is drawn.
         CHECK(s.rfind("Draw(") < s.find("gPad->BuildLegend();"));
     }
@@ -1336,5 +1350,129 @@ TEST_CASE(
         CHECK_FALSE(root.contains("SetMinimum"));
         CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("legend"));
         CHECK_FALSE(scriptFor(plotBackend::OCTAVE, {single}).contains("legend"));
+    }
+}
+
+/******************************************************************************/
+// A pad's title apart from the label of its first series, a legend in a chosen corner, the width
+// of a line and a figure without the canvas title: each reaches every backend, and a plot that
+// does not use them is emitted as before.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE(
+    "A pad title and a placed legend and a line width and an untitled figure reach every backend",
+    "[plotting][overlay][padtitle]"
+) {
+    const auto pad = [](bool set) {
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("websocket");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("MPI");
+        first->registerSecondaryPlotter(second);
+        if(set) {
+            first->setPadTitle("Up to 1 s");
+            first->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+            first->setLineWidth(2);
+            second->setLineWidth(2);
+        }
+        return first;
+    };
+    const auto script = [&pad](plotBackend backend, bool set) {
+        GPlotDesigner gpd("The figure", 1, 1);
+        gpd.setPlotBackend(backend);
+        gpd.setShowCanvasLabel(not set);
+        gpd.registerPlotter(pad(set));
+        return gpd.plot();
+    };
+
+    SECTION("ROOT: the legend takes the labels, then the pad takes its title") {
+        const std::string s = script(plotBackend::ROOT, true);
+        CHECK(s.contains("SetTitle(\"websocket\");"));
+        CHECK(s.contains("SetTitle(\"MPI\");"));
+        const auto legend = s.find("gPad->BuildLegend(0.56, 0.13, 0.88, 0.29)->SetTextSize(0.045);");
+        const auto title = s.find("n->SetTitle(\"Up to 1 s\");");
+        REQUIRE(legend != std::string::npos);
+        REQUIRE(title != std::string::npos);
+        CHECK(legend < title);
+        CHECK(s.contains("->SetLineWidth(2);"));
+        CHECK_FALSE(s.contains("TPaveLabel"));
+        CHECK(s.contains(R"(new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.99);)"));
+    }
+
+    SECTION("gnuplot, matplotlib and Octave") {
+        const std::string gp = script(plotBackend::GNUPLOT, true);
+        CHECK(gp.contains("set title \"Up to 1 s\""));
+        CHECK(gp.contains("title \"websocket\""));
+        CHECK(gp.contains("set key bottom right"));
+        CHECK(gp.contains("set key default"));
+        CHECK(gp.contains("linewidth 2"));
+        CHECK_FALSE(gp.contains("The figure"));
+        const std::string py = script(plotBackend::MATPLOTLIB, true);
+        CHECK(py.contains("ax.set_title(\"Up to 1 s\")"));
+        CHECK(py.contains("label=\"websocket\""));
+        CHECK(py.contains("ax.legend(loc=\"lower right\")"));
+        CHECK(py.contains("linewidth=2"));
+        CHECK_FALSE(py.contains("suptitle"));
+        const std::string m = script(plotBackend::OCTAVE, true);
+        CHECK(m.contains("title('Up to 1 s');"));
+        CHECK(m.contains("'DisplayName', 'websocket', 'LineWidth', 2"));
+        CHECK(m.contains("legend('location', 'southeast');"));
+    }
+
+    SECTION("without the settings every backend emits what it did before") {
+        const std::string root = script(plotBackend::ROOT, false);
+        CHECK(root.contains("gPad->BuildLegend();"));
+        CHECK(root.contains("TPaveLabel"));
+        CHECK_FALSE(root.contains("SetLineWidth"));
+        CHECK_FALSE(root.contains("the title of the pad"));
+        CHECK(script(plotBackend::GNUPLOT, false).contains("title \"The figure\""));
+        CHECK_FALSE(script(plotBackend::GNUPLOT, false).contains("set key"));
+        CHECK(script(plotBackend::MATPLOTLIB, false).contains("ax.legend()\n"));
+        CHECK(script(plotBackend::MATPLOTLIB, false).contains("fig.suptitle(\"The figure\")"));
+        CHECK_FALSE(script(plotBackend::OCTAVE, false).contains("'location'"));
+        CHECK_FALSE(GPlotSpec(plotKind::graph_2d).toJson().contains("pad_title"));
+    }
+
+    SECTION("the middle of the right side") {
+        const auto [x1, y1, x2, y2] = legendBox(legendPosition::CENTER_RIGHT, 3);
+        CHECK(std::abs(x2 - 0.88) < 1e-12);
+        CHECK(std::abs(((y1 + y2) / 2.) - 0.5) < 1e-12);
+        auto first = pad(true);
+        first->setLegendPosition(legendPosition::CENTER_RIGHT);
+        GPlotDesigner gpd("The figure", 1, 1);
+        gpd.registerPlotter(first);
+        gpd.setPlotBackend(plotBackend::GNUPLOT);
+        CHECK(gpd.plot().contains("set key right center"));
+        gpd.setPlotBackend(plotBackend::MATPLOTLIB);
+        CHECK(gpd.plot().contains("ax.legend(loc=\"center right\")"));
+        gpd.setPlotBackend(plotBackend::OCTAVE);
+        CHECK(gpd.plot().contains("legend('location', 'east');"));
+    }
+
+    SECTION("the settings travel through a GPlotSpec and a GDataLog") {
+        const auto first = pad(true);
+        const GPlotSpec spec = first->plotSpec();
+        CHECK(spec.pad_title == "Up to 1 s");
+        CHECK(spec.legend == legendPosition::BOTTOM_RIGHT);
+        CHECK(spec.line_width == 2u);
+        CHECK(spec.toJson().contains("\"pad_title\": \"Up to 1 s\", \"legend\": \"bottom_right\", \"line_width\": 2"));
+        const auto rebuilt = makePlotter(spec);
+        CHECK(rebuilt->padTitle() == "Up to 1 s");
+        CHECK(rebuilt->getLegendPosition() == legendPosition::BOTTOM_RIGHT);
+        CHECK(rebuilt->lineWidth() == 2u);
+        CHECK(first->clone<GGraph2D>()->padTitle() == "Up to 1 s");
+
+        GDataLog log("The figure", 1, 1);
+        GPlotSpec s(plotKind::graph_2d);
+        s.name = "websocket";
+        s.pad_title = "All";
+        s.columns = {"x", "y"};
+        const auto id = log.declareSeries(s);
+        log.append(id, 1., 2.);
+        log.append(id, 2., 3.);
+        log.setShowCanvasLabel(false);
+        auto gpd = log.toDesigner();
+        CHECK_FALSE(gpd.getShowCanvasLabel());
+        gpd.setPlotBackend(plotBackend::ROOT);
+        CHECK(gpd.plot().contains("n->SetTitle(\"All\");"));
     }
 }

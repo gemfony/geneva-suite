@@ -195,11 +195,11 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
      *  only state -- GContainerT serialises just data_cnt_), so the container stays a behaviour-only base
      *  and needs no base_object handling. var_ (a std::tuple) is listed as its three named sub-elements
      *  (compare_t cannot stream a whole tuple). GScanParInterface is a stateless pure-virtual interface. */
-    // The member list is written ONCE, in the static template helper below. Self is deduced as
+    // The member list is written ONCE, in the static template helper below. self_type is deduced as
     // GBaseScanParT or const GBaseScanParT, so each member binds with the matching const-ness and
     // make_member() deduces accordingly; the two localMembers() overloads are trivial forwarders.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("data_cnt_", self.data_cnt_),
             Gem::Common::make_member("var_mode", std::get<0>(self.var_)),
@@ -218,11 +218,11 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
      *  and GContainerT) declare a serialize(), so this one-liner resolves the ambiguity and emits the
      *  single member list (which now includes the container's data_cnt_). The stateless GCommonInterfaceT
      *  root and GScanParInterface contribute nothing.
-     *  @tparam Archive The archive type used for (de-)serialization
+     *  @tparam archive_type The archive type used for (de-)serialization
      *  @param ar The archive to serialize to / from
      *  @param version The (unused) serialization format version */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
 
@@ -496,26 +496,29 @@ inline std::int32_t GBaseScanParT<std::int32_t>::getRandomItem(Gem::Hap::GRandom
 /**
  * @brief A CRTP helper supplying the boilerplate shared by every concrete scan-parameter type.
  *
- * It derives GReflectiveInterfaceT<Derived, GBaseScanParT<T>> -- so name_()/clone_()/load_()/compare_()/serialize()
+ * It derives GReflectiveInterfaceT<derived_type, GBaseScanParT<T>> -- so name_()/clone_()/load_()/compare_()/serialize()
  * are all generated from the concrete's class_name and (empty) localMembers_() -- and injects the derived
  * type's single-character descriptor at construction. Each concrete type (GBScanPar, GInt32ScanPar,
  * GDScanPar, GFScanPar) is a stateless leaf: it declares only its class_name, an empty localMembers_() and
  * a one-line scanTypeDescriptor().
  *
- * @tparam Derived The concrete scan-parameter class (CRTP)
+ * @tparam derived_type The concrete scan-parameter class (CRTP)
  * @tparam T The parameter type held and scanned (bool, std::int32_t, float, double)
  */
-template <typename Derived, typename T>
+template <typename derived_type, typename T>
 class GScanParT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<Derived, GBaseScanParT<T>> {
+  : public Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>> {
 public:
     /** @brief Construction from a parameter property specification and a random-scan flag.
      *  @param pps The parameter property specification (variable address, boundaries, steps)
      *  @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled */
-    GScanParT(const gen::parPropSpec<T>& pps, bool random_scan)
-      : Gem::Common::GReflectiveInterfaceT<Derived, GBaseScanParT<T>>(
-            pps, random_scan, Derived::scanTypeDescriptor()
-        ) { /* nothing */ }
+    GScanParT(const gen::parPropSpec<T> &pps, bool random_scan)
+      : Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>>(
+            pps,
+            random_scan,
+            derived_type::scanTypeDescriptor()
+        ) { /* nothing */
+    }
     /** @brief Copy constructor (deep-copies the base, including the pre-computed grid) */
     GScanParT(const GScanParT &) = default;
     /** @brief The destructor */
@@ -534,8 +537,10 @@ class GBScanPar final : public GScanParT<GBScanPar, bool> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief A stateless leaf: it adds no members of its own beyond the GBaseScanParT<bool> base. */
-    template <typename Self>
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
 
 public:
     using GScanParT<GBScanPar, bool>::GScanParT;
@@ -553,8 +558,10 @@ class GInt32ScanPar final : public GScanParT<GInt32ScanPar, std::int32_t> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief A stateless leaf: it adds no members of its own beyond the GBaseScanParT<std::int32_t> base. */
-    template <typename Self>
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
 
 public:
     using GScanParT<GInt32ScanPar, std::int32_t>::GScanParT;
@@ -572,8 +579,10 @@ class GDScanPar final : public GScanParT<GDScanPar, double> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief A stateless leaf: it adds no members of its own beyond the GBaseScanParT<double> base. */
-    template <typename Self>
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
 
 public:
     using GScanParT<GDScanPar, double>::GScanParT;
@@ -591,8 +600,10 @@ class GFScanPar final : public GScanParT<GFScanPar, float> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief A stateless leaf: it adds no members of its own beyond the GBaseScanParT<float> base. */
-    template <typename Self>
-    auto localMembers_(this Self &) { return std::make_tuple(); }
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
 
 public:
     using GScanParT<GFScanPar, float>::GScanParT;
@@ -719,11 +730,11 @@ private:
      * load and compares them element-by-element through each scan parameter's compare_() -- no hand-written
      * tail is needed. */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as GParameterScan or const GParameterScan, so
+    // overloads are trivial forwarders. self_type is deduced as GParameterScan or const GParameterScan, so
     // each member binds with the matching const-ness and make_member()/make_cloneable_container_member()
     // deduce accordingly.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("scan_randomly_", self.scan_randomly_),
             Gem::Common::make_member("simple_scan_items_", self.simple_scan_items_),

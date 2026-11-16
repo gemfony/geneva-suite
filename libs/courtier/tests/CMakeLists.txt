@@ -41,4 +41,30 @@ IF ( GENEVA_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )
 	GENEVA_TEST_SIZE ( CourtierNoDriverLink S )
 ENDIF ()
 
+# With the MPI consumer built: courtier, hap and common need no MPI library at load time, so that a
+# courtier program that does not use MPI starts on a machine without it; MPI is linked by courtier's
+# MPI library only, which in turn must link it (it holds the process's MPI environment).
+IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+	SET ( _mpi_free_libs
+		$<TARGET_FILE:${COURTIER_LIBNAME}>
+		$<TARGET_FILE:${HAP_LIBNAME}>
+		$<TARGET_FILE:${COMMON_LIBNAME}> )
+	ADD_TEST ( NAME CourtierNoMpiLink
+		COMMAND ${CMAKE_COMMAND}
+			"-DLIBS=${_mpi_free_libs}"
+			"-DPATTERN=libmpi\\.so"
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+	SET_TESTS_PROPERTIES ( CourtierNoMpiLink PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( CourtierNoMpiLink S )
+
+	ADD_TEST ( NAME CourtierMpiLinksMpi
+		COMMAND ${CMAKE_COMMAND}
+			"-DLIBS=$<TARGET_FILE:${COURTIER_MPI_LIBNAME}>"
+			"-DPATTERN=libmpi\\.so"
+			-DEXPECT=present
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+	SET_TESTS_PROPERTIES ( CourtierMpiLinksMpi PROPERTIES LABELS "courtier" )
+	GENEVA_TEST_SIZE ( CourtierMpiLinksMpi S )
+ENDIF ()
+
 GENEVA_AGGREGATE_TARGET( "tests-courtier" )

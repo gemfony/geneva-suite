@@ -53,7 +53,6 @@ const auto ALL_MODES = {
 test_container_type makeWorkFrame() {
     test_container_type frame{GFrameKind::WORK, std::make_unique<GSimpleContainer>(42)};
     frame.setTag(7);
-    frame.setPeerId(0x1234'5678'9ABC'DEF0ULL);
     return frame;
 }
 
@@ -73,7 +72,7 @@ TEST_CASE("container_to_string emits a non-empty document in every mode", "[cour
 /******************************************************************************/
 /**
  * The companion round-trip: every serialization mode must survive a write/read cycle with the frame
- * kind, the library tag, the peer id, the work item and the item's stable lineage id intact.
+ * kind, the library tag, the work item and the item's stable lineage id intact.
  */
 TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[courtier][serialization]") {
     for(const auto mode : ALL_MODES) {
@@ -90,7 +89,6 @@ TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[co
 
         CHECK(restored.kind() == GFrameKind::WORK);
         CHECK(restored.tag() == 7);
-        CHECK(restored.peerId() == 0x1234'5678'9ABC'DEF0ULL);
         REQUIRE(restored.item() != nullptr);
         CHECK(restored.item()->getSubmissionUuid() == original_uuid);
     }
@@ -109,11 +107,9 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
         // --- payload-free control frames -------------------------------------------------------
         for(const auto kind : {GFrameKind::PULL, GFrameKind::NO_WORK, GFrameKind::SHUTDOWN}) {
             test_container_type sent{kind};
-            sent.setPeerId(99);
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
             CHECK(got.kind() == kind);
-            CHECK(got.peerId() == 99);
             CHECK(got.item() == nullptr);
             CHECK(got.blobRequest() == nullptr);
             CHECK(got.blobReply() == nullptr);
@@ -163,6 +159,53 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.outcome().correlation_id == 0xABCDEF);
             CHECK(got.item() != nullptr);
         }
+
+        // --- a RESULT frame: a RETURN that asks for nothing. Its outcome travels with it, the
+        // lineage id among it: the server's check-in routes the result by the one and checks it
+        // by the other ---------------------------------------------------------------------------
+        {
+            test_container_type sent{GFrameKind::RESULT};
+            GProcessingOutcome outcome;
+            outcome.status = processingStatus::PROCESSED;
+            outcome.processing_time = 0.25;
+            outcome.correlation_id = 0x5150;
+            outcome.submission_uuid = {0x1111'2222'3333'4444ULL, 77};
+            sent.setOutcome(outcome);
+            sent.setItem(std::make_unique<GSimpleContainer>(4));
+
+            test_container_type got{GFrameKind::NONE};
+            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
+            CHECK(got.kind() == GFrameKind::RESULT);
+            CHECK(got.outcome().status == processingStatus::PROCESSED);
+            CHECK(got.outcome().processing_time == 0.25);
+            CHECK(got.outcome().correlation_id == 0x5150);
+            CHECK(got.outcome().submission_uuid == outcome.submission_uuid);
+            CHECK(got.item() != nullptr);
+        }
+    }
+}
+
+/******************************************************************************/
+/**
+ * A message from the network may be anything. One whose kind is not a GFrameKind is not a frame,
+ * and decoding it fails, however the rest of it would decode: a server refuses it as a message it
+ * cannot read, instead of taking it for a frame of an unknown kind.
+ */
+TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier][serialization]") {
+    for(const auto mode : ALL_MODES) {
+        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+
+        test_container_type sent{GFrameKind::PULL};
+        sent.setKind(static_cast<GFrameKind>(42));
+        const std::string message = container_to_string(sent, mode);
+
+        test_container_type got{GFrameKind::NONE};
+        CHECK_THROWS(container_from_string(message, got, mode));
+
+        // The highest kind there is still decodes.
+        const test_container_type last{GFrameKind::UNREADABLE};
+        REQUIRE_NOTHROW(container_from_string(container_to_string(last, mode), got, mode));
+        CHECK(got.kind() == GFrameKind::UNREADABLE);
     }
 }
 

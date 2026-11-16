@@ -29,10 +29,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdlib>
 #include <memory>
+#include <new>
 #include <thread>
 #include <vector>
 
@@ -41,6 +44,36 @@
 using namespace Gem::Common;
 using namespace Gem::Common::Concurrency;
 using namespace std::chrono_literals;
+
+// ---------------------------------------------------------------------------
+// A seam for one test, outside the class: this executable replaces the global allocation
+// functions, and a thread can ask that its next allocation of one exact size fails.
+
+namespace {
+/// @return The size of the next allocation of this thread that fails; 0: none
+std::size_t &failAllocationOfSize() {
+    thread_local std::size_t size = 0;
+    return size;
+}
+} // namespace
+
+void *operator new(std::size_t size) {
+    if(failAllocationOfSize() != 0 && size == failAllocationOfSize()) {
+        failAllocationOfSize() = 0;
+        throw std::bad_alloc();
+    }
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    if(void *p = std::malloc(size == 0 ? 1 : size)) {
+        return p;
+    }
+    throw std::bad_alloc();
+}
+void operator delete(void *p) noexcept {
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+}
+void operator delete(void *p, [[maybe_unused]] std::size_t size) noexcept {
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+}
 
 // ---------------------------------------------------------------------------
 // Empty group
@@ -215,6 +248,43 @@ TEST_CASE("GThreadGroup::create_thread is safe under concurrent creation",
 
     g.join_all();
     CHECK(counter.load() == static_cast<int>(kDrivers * kPerDriver));
+}
+
+// ---------------------------------------------------------------------------
+// The room for a thread is made before it is started: a group that cannot grow starts no thread
+// (it would otherwise be started and then joined by the destructor of its handle, inside
+// create_thread()).
+
+TEST_CASE(
+    "GThreadGroup::create_thread starts no thread when the group cannot make room for it",
+    "[common][thread-group]"
+) {
+    GThreadGroup g;
+    for(int i = 0; i < 4; ++i) {
+        g.create_thread([] {});
+    }
+    REQUIRE(g.size() == 4);
+
+    // Four handles fill a capacity of four; the fifth makes the group grow to eight. The thread's
+    // own state is larger than eight handles, so only the growth of the group has this size.
+    std::atomic<bool> started{false};
+    const std::array<char, 512> ballast{};
+    failAllocationOfSize() = 8 * sizeof(std::shared_ptr<std::jthread>);
+    CHECK_THROWS_AS(
+        g.create_thread([&started, ballast] { started.store(not ballast.empty()); }),
+        std::bad_alloc
+    );
+    failAllocationOfSize() = 0;
+
+    std::this_thread::sleep_for(50ms);
+    CHECK_FALSE(started.load());
+    CHECK(g.size() == 4);
+
+    // The group is usable afterwards
+    g.create_thread([&started] { started.store(true); });
+    g.join_all();
+    CHECK(started.load());
+    CHECK(g.size() == 5);
 }
 
 // ---------------------------------------------------------------------------

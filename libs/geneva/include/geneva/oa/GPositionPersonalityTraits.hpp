@@ -91,8 +91,8 @@ public:
 protected:
     /***************************************************************************/
     /** @brief Single declaration of this class'es local data members */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(Gem::Common::make_member("pop_pos_", self.pop_pos_));
     }
 

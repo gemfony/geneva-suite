@@ -152,16 +152,74 @@ inline void emitRootSeriesColour(
 
 /******************************************************************************/
 /**
- * Emits what a ROOT pad with overlaid graphs needs after all of them are drawn: one frame that
- * holds every graph, and a legend. ROOT takes the frame from the first graph alone, so a graph
- * drawn "same" that reaches beyond it would be cut off. The emitted block looks at the graphs of
- * the current pad (it needs no names), widens the first one's frame by a twentieth -- by a factor
- * on a logarithmic axis -- and lets ROOT build the legend from the graphs' titles.
+ * The ROOT statement that builds the legend of the current pad. AUTO lets ROOT place it and size
+ * its text to the box (the historical form); a corner puts the box of legendBox() there, with a
+ * fixed text size relative
+ * to the pad's height, so that pads of one size show their legends alike. The legend copies each
+ * graph's line, marker and fill attributes into its sample, so a sample looks like its graph.
+ *
+ * @param position Where the legend lies
+ * @param n_series The number of entries
+ * @return The statement
+ */
+inline std::string rootLegend(legendPosition position, std::size_t n_series) {
+    if(position == legendPosition::AUTO) {
+        return "gPad->BuildLegend();";
+    }
+    constexpr double TEXT_SIZE = 0.045;
+    const auto [x1, y1, x2, y2] = legendBox(position, n_series);
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << "gPad->BuildLegend(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ")->SetTextSize("
+        << TEXT_SIZE << ");";
+    return out.str();
+}
+
+/******************************************************************************/
+/**
+ * Emits what a ROOT pad needs to show a title set apart from the label of its first series
+ * (GBasePlotter::setPadTitle()): ROOT takes a pad's title from the first object drawn into it,
+ * the object whose title is also its legend entry. The emitted block runs after the legend has
+ * been built (the legend keeps its own copy of each entry's text) and gives the first object
+ * of the pad the pad's title.
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
+ * @param title The title of the pad
  */
-inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &indent) {
+inline void emitRootPadTitle(std::ostream &s, const std::string &indent, const std::string &title) {
+    s << indent << "{ // the title of the pad, apart from the label of its first series" << '\n'
+      << indent << "   TIter next(gPad->GetListOfPrimitives());" << '\n'
+      << indent << "   while(TObject *o = next()) {" << '\n'
+      << indent << "      if(TNamed *n = dynamic_cast<TNamed *>(o)) {" << '\n'
+      << indent << "         n->SetTitle(\"" << rootEscape(title) << "\");" << '\n'
+      << indent << "         break;" << '\n'
+      << indent << "      }" << '\n'
+      << indent << "   }" << '\n'
+      << indent << "   gPad->Modified();" << '\n'
+      << indent << "}" << '\n';
+}
+
+/******************************************************************************/
+/**
+ * Emits what a ROOT pad with overlaid graphs needs after all of them are drawn: one frame that
+ * holds every graph, and a legend. ROOT takes the frame from the first graph alone, so a graph
+ * drawn "same" that reaches beyond it would be cut off. The emitted block looks at the graphs of
+ * the current pad (it needs no names), takes in their points and their error bars, widens the
+ * first one's frame by a twentieth -- by a factor on a logarithmic axis -- and lets ROOT build the
+ * legend from the graphs' titles (see rootLegend()).
+ *
+ * @param s The stream the ROOT macro lines are written to
+ * @param indent The indentation prefix of the emitted lines
+ * @param position Where the legend lies (AUTO: where ROOT puts it)
+ * @param n_series The number of graphs of the pad, for the size of a placed legend
+ */
+inline void emitRootOverlayFrameAndLegend(
+    std::ostream &s,
+    const std::string &indent,
+    legendPosition position = legendPosition::AUTO,
+    std::size_t n_series = 0
+) {
     s << indent << "{ // one frame for all graphs of this pad, and a legend" << '\n'
       << indent << "   TGraph *first = nullptr;" << '\n'
       << indent << "   double xlo = 0., xhi = 0., ylo = 0., yhi = 0.;" << '\n'
@@ -169,10 +227,24 @@ inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &in
       << indent << "   while(TObject *o = next()) {" << '\n'
       << indent << "      TGraph *g = dynamic_cast<TGraph *>(o);" << '\n'
       << indent << "      if(!g || g->GetN() == 0) continue;" << '\n'
-      << indent << "      const double gxlo = TMath::MinElement(g->GetN(), g->GetX());" << '\n'
-      << indent << "      const double gxhi = TMath::MaxElement(g->GetN(), g->GetX());" << '\n'
-      << indent << "      const double gylo = TMath::MinElement(g->GetN(), g->GetY());" << '\n'
-      << indent << "      const double gyhi = TMath::MaxElement(g->GetN(), g->GetY());" << '\n'
+      << indent << "      double gxlo = 0., gxhi = 0., gylo = 0., gyhi = 0.;" << '\n'
+      << indent << "      for(int i = 0; i < g->GetN(); ++i) {" << '\n'
+      << indent
+      << "         // the error bars belong into the frame (a graph without them reports -1)"
+      << '\n'
+      << indent << "         const double x = g->GetX()[i], y = g->GetY()[i];" << '\n'
+      << indent << "         double xl = x - TMath::Max(0., g->GetErrorXlow(i));" << '\n'
+      << indent << "         double yl = y - TMath::Max(0., g->GetErrorYlow(i));" << '\n'
+      << indent << "         const double xh = x + TMath::Max(0., g->GetErrorXhigh(i));" << '\n'
+      << indent << "         const double yh = y + TMath::Max(0., g->GetErrorYhigh(i));" << '\n'
+      << indent << "         if(gPad->GetLogx() && xl <= 0.) xl = x; // no room below zero" << '\n'
+      << indent << "         if(gPad->GetLogy() && yl <= 0.) yl = y;" << '\n'
+      << indent
+      << "         if(i == 0) { gxlo = xl; gxhi = xh; gylo = yl; gyhi = yh; continue; }"
+      << '\n'
+      << indent << "         gxlo = TMath::Min(gxlo, xl); gxhi = TMath::Max(gxhi, xh);" << '\n'
+      << indent << "         gylo = TMath::Min(gylo, yl); gyhi = TMath::Max(gyhi, yh);" << '\n'
+      << indent << "      }" << '\n'
       << indent << "      if(!first) { first = g; xlo = gxlo; xhi = gxhi; ylo = gylo; yhi = gyhi; }"
       << '\n'
       << indent << "      xlo = TMath::Min(xlo, gxlo); xhi = TMath::Max(xhi, gxhi);" << '\n'
@@ -193,7 +265,7 @@ inline void emitRootOverlayFrameAndLegend(std::ostream &s, const std::string &in
          "(yhi - ylo)); }"
       << '\n'
       << indent << "   }" << '\n'
-      << indent << "   gPad->BuildLegend();" << '\n'
+      << indent << "   " << rootLegend(position, n_series) << '\n'
       << indent << "   gPad->Modified();" << '\n'
       << indent << "}" << '\n';
 }

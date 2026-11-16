@@ -443,7 +443,7 @@ TEST_CASE(
     REQUIRE(sigma == Approx(0.));
 }
 
-TEST_CASE("GStandardDeviation: known values {1,2,3,4,5}", "[common][math][GStandardDeviation]") {
+TEST_CASE("GStandardDeviation: known values 1 to 5", "[common][math][GStandardDeviation]") {
     std::vector<double> const v{1., 2., 3., 4., 5.};
     auto [mean, sigma] = Gem::Common::GStandardDeviation(v);
     REQUIRE(mean == Approx(3.));
@@ -611,7 +611,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "getRegressionParameters: points on y=2x+1 recover a=1, b=2",
+    "getRegressionParameters: points on y=2x+1 recover a=1 and b=2",
     "[common][math][getRegressionParameters]"
 ) {
     using T = std::tuple<double, double>;

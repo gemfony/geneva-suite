@@ -33,8 +33,10 @@
 #   courtier/include/courtier/             public headers (install layout 1:1),
 #       *.hpp + consumers/*.hpp            including the consumers/ subgroup
 #   courtier/src/*.cpp                     implementation + the gemfony-courtier
-#                                          target (with the MPI consumer code
-#                                          under GENEVA_BUILD_WITH_MPI_CONSUMER)
+#                                          target (links no MPI)
+#   courtier/src/mpi/, include/courtier/mpi/
+#                                          the gemfony-courtier-mpi target, built
+#                                          only under GENEVA_BUILD_WITH_MPI_CONSUMER
 #   courtier/tests/                        UnitTests
 #   courtier/examples/                     stub (no examples yet, the aggregate
 #                                          target lives here for symmetry)

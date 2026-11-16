@@ -11,8 +11,8 @@ Backend states:
                          (Docker: user not in the ``docker`` group).
   * WORKING            — fully usable.
 
-GPU states:
-  * WORKING            — nvidia-smi succeeds and lists a GPU.
+GPU states (decided by ``gpu.probe()``):
+  * WORKING            — nvidia-smi names the driver of at least one GPU.
   * VERSION_MISMATCH   — nvidia-smi reports a driver/library version mismatch.
                          CUDA may still work (e.g. example 14 runs); recommend a
                          reboot or kernel-module reload to clear NVML.
@@ -25,6 +25,8 @@ from __future__ import annotations
 import shutil
 import subprocess
 from dataclasses import dataclass
+
+from . import gpu
 
 
 @dataclass
@@ -85,22 +87,19 @@ def _diagnose_podman() -> Diagnosis:
 
 
 def _diagnose_gpu() -> Diagnosis:
-    if shutil.which("nvidia-smi") is None:
+    found = gpu.probe()
+    if found.state == gpu.ABSENT:
         return Diagnosis(
-            "gpu", "ABSENT", "nvidia-smi not found",
+            "gpu", found.state, found.detail,
             "No NVIDIA GPU detected — CUDA matrix entries are skipped. "
             "Install the driver if a GPU is expected.",
         )
-    rc, out, err = _run(["nvidia-smi"], timeout=15)
-    blob = (out + err).lower()
-    if rc == 0 and "driver version" in blob:
-        return Diagnosis("gpu", "WORKING", "nvidia-smi reports a usable GPU",
+    if found.state == gpu.WORKING:
+        return Diagnosis("gpu", found.state, found.detail,
                          "CUDA passthrough: Podman --device nvidia.com/gpu=all (CDI).")
-    if "version mismatch" in blob or "driver/library version mismatch" in blob:
+    if found.state == gpu.VERSION_MISMATCH:
         return Diagnosis(
-            "gpu", "VERSION_MISMATCH",
-            "NVML driver/library version mismatch (nvidia-smi fails, "
-            "but CUDA compute may still work)",
+            "gpu", found.state, found.detail,
             "Clear the stale kernel module: reboot, OR reload modules "
             "(sudo rmmod nvidia_uvm nvidia_drm nvidia_modeset nvidia; "
             "sudo modprobe nvidia). Ensure your user is in the 'video' and "
@@ -108,8 +107,7 @@ def _diagnose_gpu() -> Diagnosis:
             "for compute (Podman --device nvidia.com/gpu=all).",
         )
     return Diagnosis(
-        "gpu", "UNREACHABLE",
-        (err or out).strip().splitlines()[0] if (err or out).strip() else f"exit {rc}",
+        "gpu", found.state, found.detail,
         "nvidia-smi cannot talk to the driver. Verify the kernel module is "
         "loaded (lsmod | grep nvidia) and reboot if it was just updated.",
     )

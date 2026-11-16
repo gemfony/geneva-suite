@@ -33,7 +33,7 @@
  * codecs and read it back.
  *
  * A type opts into serialization the Boost.Serialization way — a member
- * @c serialize(Archive&, unsigned) that streams each field with @c make_nvp. The
+ * @c serialize(archive_type&, unsigned) that streams each field with @c make_nvp. The
  * SAME method drives every codec; here the binary codec (compact, for the wire or
  * a checkpoint) and the JSON codec (human-readable, which Boost.Serialization has
  * no equivalent of). This program links only against gemfony-weft + Boost.JSON.
@@ -56,8 +56,8 @@ struct Particle {
 
     bool operator==(const Particle &) const = default;
 
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned /*version*/) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned /*version*/) {
         ar &Gem::Weft::make_nvp("id", id);
         ar &Gem::Weft::make_nvp("mass", mass);
         ar &Gem::Weft::make_nvp("label", label);

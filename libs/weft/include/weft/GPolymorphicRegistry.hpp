@@ -70,11 +70,11 @@ namespace Gem::Weft {
  * or, better, at a boot-time completeness self-check (a later step).
  *
  * @par One registry per category root
- * The template parameter @p Root is the category root of a hierarchy (the type a
+ * The template parameter @p root_type is the category root of a hierarchy (the type a
  * class passes to @c GCommonInterfaceT, recoverable from any derivative as
- * @c gemfony_common_root_t). Each @c GPolymorphicRegistry<Root> is an
+ * @c gemfony_common_root_t). Each @c GPolymorphicRegistry<root_type> is an
  * independent map, so tags need only be unique @e within a hierarchy, and the
- * factory can hand back a @c std::unique_ptr<Root>. The @ref GEM_REGISTER_TYPE
+ * factory can hand back a @c std::unique_ptr<root_type>. The @ref GEM_REGISTER_TYPE
  * macro auto-routes a concrete type @c T to @c GPolymorphicRegistry<T::gemfony_common_root_t>.
  *
  * @par The tag is decoupled from @c class_name
@@ -118,20 +118,20 @@ namespace Gem::Weft {
  * be marked default-visible (as Boost marks its registry @c BOOST_SYMBOL_VISIBLE), or a
  * plugin's registrations would land in a per-module copy and fail as "unknown tag" at the read.
  *
- * @tparam Root The category root of the hierarchy this registry serves.
+ * @tparam root_type The category root of the hierarchy this registry serves.
  */
-template <typename Root>
+template <typename root_type>
 class GPolymorphicRegistry {
 public:
-    /** @brief A capture-less factory reconstructing a default @p Root derivative on the heap. */
-    using factory_t = std::unique_ptr<Root> (*)();
+    /** @brief A capture-less factory reconstructing a default @p root_type derivative on the heap. */
+    using factory_t = std::unique_ptr<root_type> (*)();
 
     /******************************************************************************/
     /**
-     * @brief Registers concrete type @p Derived under wire tag @p tag, using
-     * @c std::make_unique<Derived> as the factory.
+     * @brief Registers concrete type @p derived_type under wire tag @p tag, using
+     * @c std::make_unique<derived_type> as the factory.
      *
-     * Requires @p Derived to be a @p Root derivative with a default constructor
+     * Requires @p derived_type to be a @p root_type derivative with a default constructor
      * accessible at the call site. For a type whose default constructor is
      * private (constructed on load through a friend), register via the explicit
      * @ref reg(std::string_view,std::type_index,factory_t) overload with a
@@ -141,22 +141,30 @@ public:
      * accidental placement of @ref GEM_REGISTER_TYPE in a header, re-run by every
      * including TU, is harmless rather than a static-init crash. It throws a
      * @c weft_exception if @p tag is already bound to a @e different type
-     * (a tag collision), or if @p Derived was already registered under a
+     * (a tag collision), or if @p derived_type was already registered under a
      * @e different tag (a type must have one stable tag).
      *
-     * @tparam Derived The concrete type to register.
-     * @param tag The stable wire tag identifying @p Derived within this hierarchy.
+     * @tparam derived_type The concrete type to register.
+     * @param tag The stable wire tag identifying @p derived_type within this hierarchy.
      * @return @c true on first registration, @c false if this exact (type, tag) pair was already present.
      */
-    template <typename Derived>
+    template <typename derived_type>
     static bool reg(std::string_view tag) {
-        static_assert(std::is_base_of_v<Root, Derived>,
-                      "GPolymorphicRegistry::reg<Derived>: Derived must derive from Root");
-        static_assert(std::is_default_constructible_v<Derived>,
-                      "GPolymorphicRegistry::reg<Derived>: Derived needs an accessible default constructor; "
-                      "for a private-ctor type register via the explicit (tag, type_index, factory) overload");
-        return reg(tag, std::type_index(typeid(Derived)),
-                   +[]() -> std::unique_ptr<Root> { return std::make_unique<Derived>(); });
+        static_assert(
+            std::is_base_of_v<root_type, derived_type>,
+            "GPolymorphicRegistry::reg<derived_type>: derived_type must derive from root_type"
+        );
+        static_assert(
+            std::is_default_constructible_v<derived_type>,
+            "GPolymorphicRegistry::reg<derived_type>: derived_type needs an accessible default "
+            "constructor; "
+            "for a private-ctor type register via the explicit (tag, type_index, factory) overload"
+        );
+        return reg(
+            tag,
+            std::type_index(typeid(derived_type)),
+            +[]() -> std::unique_ptr<root_type> { return std::make_unique<derived_type>(); }
+        );
     }
 
     /******************************************************************************/
@@ -207,10 +215,10 @@ public:
     /**
      * @brief Reconstructs a default instance of the type registered under @p tag.
      * @param tag The wire tag read from the archive.
-     * @return An owning pointer to a freshly default-constructed @p Root derivative.
+     * @return An owning pointer to a freshly default-constructed @p root_type derivative.
      * @throws weft_exception if no type is registered under @p tag.
      */
-    static std::unique_ptr<Root> create(std::string_view tag) {
+    static std::unique_ptr<root_type> create(std::string_view tag) {
         std::string key{tag};
         const std::scoped_lock lock{instance().mutex_};
         auto &tag_to_entry = instance().tag_to_entry_;
@@ -232,7 +240,7 @@ public:
      * @return The registered tag string (by value).
      * @throws weft_exception if the dynamic type of @p obj was never registered.
      */
-    static std::string tagOf(const Root &obj) {
+    static std::string tagOf(const root_type &obj) {
         std::type_index ti{typeid(obj)};
         const std::scoped_lock lock{instance().mutex_};
         auto &type_to_tag = instance().type_to_tag_;
@@ -291,7 +299,7 @@ private:
     GPolymorphicRegistry() = default;
 
     /**
-     * @brief The process-wide, deliberately-leaked singleton for this @p Root.
+     * @brief The process-wide, deliberately-leaked singleton for this @p root_type.
      *
      * Heap-allocated and never freed (see the class-level lifetime note): this
      * defeats static-destruction-order hazards for cross-TU and plugin-time

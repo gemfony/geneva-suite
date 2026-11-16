@@ -31,23 +31,34 @@
  *
  ********************************************************************************/
 
-
 /**
  * An out-of-tree program against an installed Geneva with the MPI module (see CMakeLists.txt beside it).
  * It exits with 0 if the "mpi" consumer is available, and otherwise prints why the module could not be
- * loaded and exits with 1.
+ * loaded and exits with 1. It is compiled without any definition of the collection's own build (in
+ * particular without GENEVA_BUILD_WITH_MPI_CONSUMER), as a program outside the tree is.
  */
 
 #include <cstdio>
+#include <type_traits>
 
+#include "courtier/consumers/GMPIConsumerT.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GMPISubClientOptimizer.hpp"
+#include "geneva/genome/GGenome.hpp"
+
+// The MPI consumer is a class template in an installed header: it must be there for a program
+// outside the tree, which knows none of the collection's own compile definitions. (Whether a class
+// is polymorphic can only be told from its complete definition, so this instantiates it.)
+static_assert(std::is_polymorphic_v<Gem::Courtier::GMPIConsumerT<Gem::Geneva::Genome::GGenome>>);
 
 int main(int argc, char **argv) {
-    // Linked: the sub-client optimizer from libgemfony-geneva-mpi. It is never constructed here --
-    // that would initialize MPI -- but the reference makes the link real.
+    // Linked: the sub-client optimizer from libgemfony-geneva-mpi and the environment's functions
+    // from libgemfony-courtier-mpi. Neither is called here -- that would initialize MPI -- but the
+    // references make the links real.
     if(argc > 1000) {
         Gem::Geneva::GMPISubClientOptimizer const optimizer(argc, argv, "./config/Go2.json");
+        return static_cast<int>(Gem::Courtier::mpiProcessRole());
     }
 
     // Loaded at run time: the "mpi" consumer, from the module installed next to libgemfony-geneva.

@@ -45,8 +45,10 @@ using namespace Gem::Common;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GGlobalOptionsT: rule-of-five — copy/move are deleted, default-construct works",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT: rule-of-five — copy/move are deleted and default-construct works",
+    "[common][global-options]"
+) {
     static_assert(std::is_default_constructible_v<GGlobalOptionsT<int>>);
     static_assert(not std::is_copy_constructible_v<GGlobalOptionsT<int>>);
     static_assert(not std::is_move_constructible_v<GGlobalOptionsT<int>>);
@@ -94,8 +96,10 @@ TEST_CASE("GGlobalOptionsT::get(key) throws on missing key (no silent insert)",
     CHECK_FALSE(opts.exists("absent"));
 }
 
-TEST_CASE("GGlobalOptionsT::get(key,&out) returns false on miss without writing the out-param",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::get with an out-param returns false on a miss without writing it",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     opts.set("known", 9);
 

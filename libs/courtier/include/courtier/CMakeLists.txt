@@ -31,15 +31,17 @@ SET ( COMMUNICATIONINCLUDES
     GBaseClientT.hpp
     GBaseConsumerT.hpp
     GCommandContainerT.hpp
+    GConsumerRegistry.hpp
+    GConsumerSpec.hpp
     GCourtierEnums.hpp
     GCourtierHelperFunctions.hpp
     GDemoProcessingContainers.hpp
-    GSubmissionStatusT.hpp
     GProcessable.hpp
     GProcessingContainerT.hpp
     GProcessingOutcome.hpp
     GServerSessionLogic.hpp
     GSubmissionPolicy.hpp
+    GSubmissionStatusT.hpp
     GWireCodec.hpp
     GWireProtocolT.hpp
     GWireSerializationContext.hpp
@@ -48,19 +50,30 @@ SET ( COMMUNICATIONINCLUDES
 # Consumer classes (namespace Gem::Courtier): the span+policy submission consumers (formerly the
 # courtier2 rework, merged in at Stage E).
 SET ( CONSUMER_INCLUDES
-    consumers/GAsioConsumerT.hpp
+    consumers/GMPIConsumerConfig.hpp
     consumers/GNetworkedConsumerT.hpp
-    consumers/GTcpAcceptingConsumerT.hpp
+    consumers/GNetworkedTimeoutConfig.hpp
+    consumers/GPeerConsumerT.hpp
+    consumers/GStdThreadConsumerConfig.hpp
     consumers/GStdThreadConsumerT.hpp
+    consumers/GWebsocketConsumerConfig.hpp
     consumers/GWebsocketConsumerT.hpp
 )
 
-# Transport classes (namespace Gem::Courtier::Consumers): the asio/websocket sessions + clients and
-# the MPI master/worker nodes that the networked consumers reuse. Named under transport/ so they no
+# Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
+# interface, the websocket transport and the MPI master/worker nodes that the networked
+# consumers reuse. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
-    transport/GAsioTransportT.hpp
+    transport/GIoContext.hpp
+    transport/GMPICallsI.hpp
+    transport/GMPIPollCore.hpp
+    transport/GPeerClientT.hpp
+    transport/GPeerI.hpp
+    transport/GPeerSessionT.hpp
     transport/GPrefetchingClientT.hpp
+    transport/GWebsocketPeer.hpp
+    transport/GWebsocketPeerTransport.hpp
     transport/GWebsocketTransportT.hpp
 )
 
@@ -90,17 +103,24 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
     SET( TRANSPORT_INCLUDES
             ${TRANSPORT_INCLUDES}
             transport/GMPITransportT.hpp)
+    # The headers of courtier's MPI library (libgemfony-courtier-mpi)
+    SET( MPI_INCLUDES
+            mpi/GMPICalls.hpp
+            mpi/GMPIEnvironment.hpp
+            mpi/GMPIEnvironmentAccess.hpp)
 ENDIF ()
 
 set_source_files_properties(
     ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
+    ${MPI_INCLUDES}
     PROPERTIES
     LANGUAGE CXX
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
 ADD_CUSTOM_TARGET(CLION_ALL_COURTIER_HEADERS
-    SOURCES ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES})
+    SOURCES ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
+    ${MPI_INCLUDES})
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
 # cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)

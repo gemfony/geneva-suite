@@ -59,11 +59,11 @@ namespace Gem::Hap::detail {
  * away. The fill callback captures @c this and reaches @c backend_, which is fully constructed by the
  * time the ring's constructor runs the initial fill / starts the producer.
  *
- * @tparam ChunkWords     Words per claimed chunk
- * @tparam ChunksPerPool  Chunks per pool (pool size = ChunkWords * ChunksPerPool words)
- * @tparam NPools         Number of rotating pools (must be >= 3 for the quarantine separation)
+ * @tparam CHUNK_WORDS     Words per claimed chunk
+ * @tparam CHUNKS_PER_POOL  Chunks per pool (pool size = CHUNK_WORDS * CHUNKS_PER_POOL words)
+ * @tparam N_POOLS         Number of rotating pools (must be >= 3 for the quarantine separation)
  */
-template <std::size_t ChunkWords, std::size_t ChunksPerPool = 64, int NPools = 4>
+template <std::size_t CHUNK_WORDS, std::size_t CHUNKS_PER_POOL = 64, int N_POOLS = 4>
 class GRotatingPool {
 public:
     GRotatingPool()
@@ -76,20 +76,20 @@ public:
     GRotatingPool &operator=(GRotatingPool &&) = delete;
 
     /** @brief Claims the next chunk and returns a pointer to its span for in-place reading.
-     *  @return Pointer to ChunkWords words inside one of the pools */
+     *  @return Pointer to CHUNK_WORDS words inside one of the pools */
     const std::uint64_t *claimSpan() {
         return ring_.claimSpan();
     }
 
     /** @brief Claims the next chunk and copies it out word-by-word into dst.
-     *  @param dst Destination buffer (at least ChunkWords words) */
+     *  @param dst Destination buffer (at least CHUNK_WORDS words) */
     void copyChunkInto(std::uint64_t *dst) {
         ring_.copyChunkInto(dst);
     }
 
 private:
     GFillBackend backend_; ///< the shared bulk source (chosen once); MUST outlive ring_ (declared first)
-    Gem::Common::Concurrency::GSPSCStagingRingT<ChunkWords, ChunksPerPool, NPools> ring_;
+    Gem::Common::Concurrency::GSPSCStagingRingT<CHUNK_WORDS, CHUNKS_PER_POOL, N_POOLS> ring_;
 };
 
 /******************************************************************************/

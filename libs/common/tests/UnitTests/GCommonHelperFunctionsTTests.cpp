@@ -253,7 +253,10 @@ TEST_CASE("splitStringT<string>: splits pipe-separated strings", "[common][helpe
 
 // --- splitStringT (two separators) ---------------------------------------
 
-TEST_CASE("splitStringT<int,int>: splits pairs from '0/1 2/3'", "[common][helper][splitStringT2]") {
+TEST_CASE(
+    "splitStringT for pairs of int: splits pairs from '0/1 2/3'",
+    "[common][helper][splitStringT2]"
+) {
     auto result = Gem::Common::splitStringT<int, int>("0/1 2/3", " ", "/");
     REQUIRE(result.size() == 2);
     REQUIRE(std::get<0>(result[0]) == 0);

@@ -94,6 +94,7 @@ geneva_common_test(GLoadOnceCellTTests            S  GLoadOnceCellTTests.cpp)
 geneva_common_test(GLoggerTests                   S  GLoggerTests.cpp)
 geneva_common_test(GMPMCQueueConformanceTests     M  GMPMCQueueConformanceTests.cpp)
 geneva_common_test(GMPMCQueueShutdownStressTests  L  GMPMCQueueShutdownStressTests.cpp)
+geneva_common_test(GModuleLoaderTests             S  GModuleLoaderTests.cpp)
 geneva_common_test(GParserBuilderTests            S  GParserBuilderTests.cpp)
 geneva_common_test(GProviderStoreTTests           S  GProviderStoreTTests.cpp)
 geneva_common_test(GSelfTestableTests             S  GSelfTestableTests.cpp)
@@ -109,6 +110,15 @@ geneva_common_test(GTupleIOTests                  S  GTupleIOTests.cpp)
 geneva_common_test(GTypeToStringTTests            S  GTypeToStringTTests.cpp)
 geneva_common_test(GTypeTraitsTTests              S  GTypeTraitsTTests.cpp)
 geneva_common_test(GUnitTestFrameworkTTests       S  GUnitTestFrameworkTTests.cpp)
+
+# A real module for GModuleLoaderTests, built with the recipe of a genuine one (it links no
+# library of the collection). Its path reaches the test as a compile definition.
+GENEVA_ADD_INDIVIDUAL_MODULE(GTwoContributionsModule modules/GTwoContributionsModule.cpp)
+ADD_DEPENDENCIES(GModuleLoaderTests GTwoContributionsModule)
+TARGET_COMPILE_DEFINITIONS(GModuleLoaderTests PRIVATE
+	"GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS=\"$<TARGET_FILE:GTwoContributionsModule>\""
+	# A shared library that is no module: common's own.
+	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${COMMON_LIBNAME}>\"")
 
 ################################################################################
 # Aggregate `tests-common-unit` target builds every Common test exe at once.

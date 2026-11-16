@@ -160,10 +160,20 @@ CheckOptions:
   # contract, so type aliases and typedefs accept any case.
   readability-identifier-naming.TypeAliasCase: aNy_CasE
   readability-identifier-naming.TypedefCase: aNy_CasE
-  readability-identifier-naming.TemplateParameterCase: CamelCase
-  readability-identifier-naming.TypeTemplateParameterCase: CamelCase
-  readability-identifier-naming.ValueTemplateParameterCase: CamelCase
-  readability-identifier-naming.TemplateTemplateParameterCase: CamelCase
+  # Template parameters (maintainer decision 2026-11-15): a type or template template
+  # parameter is snake_case ending in '_type' (archive_type, derived_type); a single
+  # capital letter, with an 's' for a pack (T, U, F, Ts), stays allowed for a parameter
+  # without a specific role. A non-type parameter is UPPER_CASE, as the other constants
+  # (N, N_DIM, CAP). A constrained type parameter (template <std::integral int_type>)
+  # counts as a type parameter. The general TemplateParameterCase is not set: the three
+  # specific options cover every kind.
+  readability-identifier-naming.TypeTemplateParameterCase: lower_case
+  readability-identifier-naming.TypeTemplateParameterSuffix: _type
+  readability-identifier-naming.TypeTemplateParameterIgnoredRegexp: '^[A-Z]s?$'
+  readability-identifier-naming.TemplateTemplateParameterCase: lower_case
+  readability-identifier-naming.TemplateTemplateParameterSuffix: _type
+  readability-identifier-naming.TemplateTemplateParameterIgnoredRegexp: '^[A-Z]s?$'
+  readability-identifier-naming.ValueTemplateParameterCase: UPPER_CASE
   readability-identifier-naming.ConceptCase: CamelCase
   readability-identifier-naming.NamespaceCase: CamelCase
   readability-identifier-naming.MacroDefinitionCase: UPPER_CASE

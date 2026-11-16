@@ -44,11 +44,13 @@ def make_install(ctx: JobContext) -> CheckResult:
 def ldd_check(ctx: JobContext) -> CheckResult:
     """Run ldd on every installed shared library, fail on unresolved symbols.
 
-    Geneva installs four shared libraries (libgemfony-{common,hap,courtier,geneva})
-    and no binaries. After install/make-install populates the prefix this check
-    runs ``ldd`` on each non-symlink library with ``LD_LIBRARY_PATH`` covering the
-    install prefix's lib dir, so transitive ``Geneva::*`` deps resolve. Any
-    ``not found`` line is a packaging/visibility regression and fails the check.
+    After install/make-install populates the prefix this check runs ``ldd`` on
+    each non-symlink libgemfony-* library (the libraries and the optional
+    modules) with ``LD_LIBRARY_PATH`` unset: the transitive ``Geneva::*``
+    dependencies, and Boost's, must resolve through the libraries' own run
+    paths, as they do for a program that uses the installation. Any ``not found``
+    line is a packaging regression (a missing install run path among them) and
+    fails the check.
     """
     tier = Tier.SHORT
     if not ctx.should_run(tier):
@@ -58,7 +60,7 @@ def ldd_check(ctx: JobContext) -> CheckResult:
     script = (
         "set -e\n"
         f"PREFIX='{prefix}'\n"
-        'export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"\n'
+        "unset LD_LIBRARY_PATH\n"
         "fail=0\n"
         "checked=0\n"
         'for so in "$PREFIX"/lib*/libgemfony-*.so*; do\n'

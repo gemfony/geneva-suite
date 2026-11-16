@@ -35,10 +35,21 @@
 # fails if a link dependency on such a library comes back, directly or through another library; ldd
 # lists the whole dependency closure.
 #
-# Driven via `cmake -P` with -DLIBS="<file>;<file>;..." and -DPATTERN=<regex> (default: libcuda\.so).
+# The same check, turned round (-DEXPECT=present), shows that a library which is meant to carry
+# such a dependency does: libgemfony-courtier-mpi, where the process's MPI environment lives,
+# links MPI.
+#
+# Driven via `cmake -P` with -DLIBS="<file>;<file>;...", -DPATTERN=<regex> (default: libcuda\.so)
+# and -DEXPECT=absent|present (default: absent).
 
 if(NOT DEFINED PATTERN)
     set(PATTERN "libcuda\\.so")
+endif()
+if(NOT DEFINED EXPECT)
+    set(EXPECT "absent")
+endif()
+if(NOT EXPECT MATCHES "^(absent|present)$")
+    message(FATAL_ERROR "EXPECT must be 'absent' or 'present', not '${EXPECT}'")
 endif()
 
 foreach(_lib IN LISTS LIBS)
@@ -50,13 +61,25 @@ foreach(_lib IN LISTS LIBS)
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "ldd failed on ${_lib}: ${_err}")
     endif()
+    if(EXPECT STREQUAL "present")
+        if(NOT _out MATCHES "${PATTERN}")
+            message(FATAL_ERROR
+                "${_lib} does not depend at load time on a library matching '${PATTERN}':\n${_out}")
+        endif()
+        continue()
+    endif()
     if(_out MATCHES "${PATTERN}")
         message(FATAL_ERROR
             "${_lib} depends at load time on a library matching '${PATTERN}':\n${_out}\n"
             "Programs linked against it would not start on a machine without that library. It must be "
             "loaded at run time instead (see libs/courtier/src/gpu/GCUDADriver.hpp for the CUDA driver, "
-            "libs/geneva/src/GMPIConsumerModule.cpp for MPI).")
+            "libs/geneva/src/GMPIConsumerModule.cpp and libs/courtier/src/mpi/ for MPI).")
     endif()
 endforeach()
 
-message(STATUS "CheckNoDriverLink: nothing checked needs a library matching '${PATTERN}' at load time")
+if(EXPECT STREQUAL "present")
+    set(_what "everything checked needs")
+else()
+    set(_what "nothing checked needs")
+endif()
+message(STATUS "CheckNoDriverLink: ${_what} a library matching '${PATTERN}' at load time")

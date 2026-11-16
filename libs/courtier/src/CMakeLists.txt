@@ -31,12 +31,17 @@ SET(COMMUNICATIONSOURCES
         GCourtierHelperFunctions.cpp
         GCourtierEnums.cpp
         GDemoProcessingContainers.cpp
+        GMPIPollCore.cpp
         GWebsocketPeer.cpp
+        GWebsocketPeerTransport.cpp
         )
 
 # The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp,
-# GMPIHelperFunctions.hpp): courtier itself links no MPI. It is instantiated in Geneva's MPI module
-# (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start.
+# GMPIHelperFunctions.hpp): this library links no MPI. It is instantiated in Geneva's MPI module
+# (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start. What
+# must exist once per process and calls MPI lives in courtier's MPI library (below). The MPI poll
+# (GMPIPollCore.cpp) is compiled here all the same: it makes its MPI calls through
+# transport/GMPICallsI.hpp, whose binding to MPI is part of courtier's MPI library.
 
 # The GPU consumer is optional, and is folded into this one courtier library: the device backends compile in (and CUDA links in) only when requested. The backend
 # source list + toolkit detection come from gpu/GPUBackends.cmake (which sets COURTIER_GPU_SRCS and the
@@ -104,3 +109,25 @@ IF (GENEVA_GPU_CONSUMER_ENABLED)
 ENDIF ()
 
 INSTALL(TARGETS ${COURTIER_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS})
+
+################################################################################
+# Courtier's MPI library (libgemfony-courtier-mpi, out of tree Geneva::courtier-mpi), built only
+# with the MPI consumer. It holds the binding of the MPI transport's calls to MPI (mpi/GMPICalls.cpp,
+# the GMPICallsI of the poll in libgemfony-courtier) and the process's one MPI environment
+# (mpi/GMPIEnvironmentAccess.cpp):
+# that state must be defined in exactly one shared object, so that a program, Geneva's MPI module
+# and any other library of the process share it, and it calls MPI, which libgemfony-courtier must
+# not link (tests/CheckNoDriverLink.cmake). Nothing links it unless it uses MPI: Geneva's MPI module
+# does, and so does a program that names the functions of courtier/mpi/. Its headers include mpi.h,
+# so MPI is part of its interface.
+IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+    ADD_LIBRARY(${COURTIER_MPI_LIBNAME} SHARED mpi/GMPICalls.cpp mpi/GMPIEnvironmentAccess.cpp)
+    SET_TARGET_PROPERTIES(
+            ${COURTIER_MPI_LIBNAME}
+            PROPERTIES
+            VERSION ${GENEVA_VERSION}
+            EXPORT_NAME courtier-mpi
+    )
+    TARGET_LINK_LIBRARIES(${COURTIER_MPI_LIBNAME} PUBLIC ${COURTIER_LIBNAME} MPI::MPI_CXX)
+    INSTALL(TARGETS ${COURTIER_MPI_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS})
+ENDIF ()

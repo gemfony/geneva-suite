@@ -82,12 +82,12 @@ struct AuxBlock {
      * tag. It therefore stays at its default 0 on load, which metaRecords()'s debug check treats as
      * "type-unchecked" (the stride / size check, which IS stable, still applies).
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to serialize to / from
      * @param version The serialization version (unused)
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         auto scope_u = std::to_underlying(scope);
         archive_named(ar, "scope", scope_u);
@@ -110,12 +110,12 @@ struct AuxBlock {
 /**
  * @brief A cheap, stable-per-process type tag used to sanity-check typed POD access (debug only)
  *
- * @tparam POD The POD type whose type tag is requested
+ * @tparam pod_type The POD type whose type tag is requested
  * @return A per-process-stable hash of the POD type's typeid
  */
-template <typename POD>
+template <typename pod_type>
 inline std::uint32_t auxTypeTag() {
-    return static_cast<std::uint32_t>(typeid(POD).hash_code());
+    return static_cast<std::uint32_t>(typeid(pod_type).hash_code());
 }
 
 /******************************************************************************/
@@ -204,8 +204,8 @@ public:
      *
      * @return A reference to the personality-traits shared pointer slot (const iff *this is const)
      */
-    template <typename Self>
-    auto &personalityRef(this Self &&self) {
+    template <typename self_type>
+    auto &personalityRef(this self_type &&self) {
         return self.personality_;
     }
 
@@ -223,54 +223,61 @@ public:
     }
 
     /**
-     * @brief Installs (or replaces) a zero-initialised POD block of record_count records of type POD
+     * @brief Installs (or replaces) a zero-initialised POD block of record_count records of type pod_type
      * under the given key. The OA calls this at setup to size its per-group metadata.
      *
-     * @tparam POD The standard-layout, trivially-copyable record type held by the block
+     * @tparam pod_type The standard-layout, trivially-copyable record type held by the block
      * @param key The key under which the block is installed (overwriting any existing block)
-     * @param record_count The number of records to allocate (each sizeof(POD) bytes)
+     * @param record_count The number of records to allocate (each sizeof(pod_type) bytes)
      * @param scope Whether the block holds one record per genome group or one per individual
      */
-    template <typename POD>
-    void installAuxBlock(AuxKey key, std::size_t record_count, AuxScope scope = AuxScope::PerGroup) {
+    template <typename pod_type>
+    void
+    installAuxBlock(AuxKey key, std::size_t record_count, AuxScope scope = AuxScope::PerGroup) {
         static_assert(
-            std::is_trivially_copyable_v<POD> && std::is_standard_layout_v<POD>,
+            std::is_trivially_copyable_v<pod_type> && std::is_standard_layout_v<pod_type>,
             "GAuxiliaryStore: auxiliary POD blocks must be standard-layout, trivially-copyable"
         );
         AuxBlock b;
         b.scope = scope;
-        b.stride = static_cast<std::uint32_t>(sizeof(POD));
-        b.tag = auxTypeTag<POD>();
-        b.bytes.assign(record_count * sizeof(POD), std::byte{0});
+        b.stride = static_cast<std::uint32_t>(sizeof(pod_type));
+        b.tag = auxTypeTag<pod_type>();
+        b.bytes.assign(record_count * sizeof(pod_type), std::byte{0});
         pods_[key] = std::move(b);
     }
 
     /**
      * @brief A typed view over the records of the POD block under key. The explicit object parameter
-     * lets the store's constness flow through to the span: a const store yields std::span<const POD>.
+     * lets the store's constness flow through to the span: a const store yields std::span<const pod_type>.
      *
-     * @tparam POD The record type the block holds
+     * @tparam pod_type The record type the block holds
      * @param key The key identifying the auxiliary POD block
      * @return A span over the block's records (const iff *this is const)
      */
-    template <typename POD, typename Self>
-    auto metaRecords(this Self &&self, AuxKey key) {
-        auto &b = self.fetch(key, sizeof(POD), auxTypeTag<POD>());
-        using QPOD = std::conditional_t<std::is_const_v<std::remove_reference_t<decltype(b)>>, const POD, POD>;
-        return std::span<QPOD>(reinterpret_cast<QPOD *>(b.bytes.data()), b.bytes.size() / sizeof(POD));
+    template <typename pod_type, typename self_type>
+    auto metaRecords(this self_type &&self, AuxKey key) {
+        auto &b = self.fetch(key, sizeof(pod_type), auxTypeTag<pod_type>());
+        using QPOD = std::conditional_t<
+            std::is_const_v<std::remove_reference_t<decltype(b)>>,
+            const pod_type,
+            pod_type>;
+        return std::span<QPOD>(
+            reinterpret_cast<QPOD *>(b.bytes.data()),
+            b.bytes.size() / sizeof(pod_type)
+        );
     }
 
     /**
      * @brief Typed access to a per-individual (single-record) POD block. The explicit object parameter
      * lets the store's constness flow: a const store yields a const reference to the record.
      *
-     * @tparam POD The record type the block holds
+     * @tparam pod_type The record type the block holds
      * @param key The key identifying the single-record auxiliary POD block
      * @return A reference to the block's single record (const iff *this is const)
      */
-    template <typename POD, typename Self>
-    auto &metaScalar(this Self &&self, AuxKey key) {
-        return self.template metaRecords<POD>(key)[0];
+    template <typename pod_type, typename self_type>
+    auto &metaScalar(this self_type &&self, AuxKey key) {
+        return self.template metaRecords<pod_type>(key)[0];
     }
 
     /**
@@ -314,12 +321,12 @@ private:
     /**
      * @brief Full-state (de)serialization of the personality object and the opaque POD blocks
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to serialize to / from
      * @param version The serialization version (unused)
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "personality_", personality_);
         archive_named(ar, "pods_", pods_);
@@ -336,8 +343,13 @@ private:
      * @param pod_tag The expected type tag of the caller's POD type
      * @return A reference to the matching auxiliary block (const iff *this is const)
      */
-    template <typename Self>
-    auto &fetch(this Self &&self, AuxKey key, [[maybe_unused]] std::size_t pod_size, [[maybe_unused]] std::uint32_t pod_tag) {
+    template <typename self_type>
+    auto &fetch(
+        this self_type &&self,
+        AuxKey key,
+        [[maybe_unused]] std::size_t pod_size,
+        [[maybe_unused]] std::uint32_t pod_tag
+    ) {
         auto it = self.pods_.find(key);
 #ifdef DEBUG
         self.verify(it != self.pods_.end(), key, pod_size, pod_tag, it);
@@ -348,15 +360,16 @@ private:
     /**
      * @brief Throws if a fetched POD block is absent or its stride / type tag disagrees with the caller's POD type
      *
-     * @tparam It The map iterator type pointing at the looked-up block
+     * @tparam it_type The map iterator type pointing at the looked-up block
      * @param found Whether the lookup found a block under the key
      * @param key The key that was looked up (for the error message)
      * @param pod_size The expected record stride (sizeof of the caller's POD type)
      * @param pod_tag The expected type tag of the caller's POD type (0 on a deserialised block is treated as type-unchecked)
      * @param it An iterator to the looked-up block (valid only when found is true)
      */
-    template <typename It>
-    void verify(bool found, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag, It it) const {
+    template <typename it_type>
+    void
+    verify(bool found, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag, it_type it) const {
         if(not found) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())

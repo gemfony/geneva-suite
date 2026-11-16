@@ -1,21 +1,24 @@
 SET ( OPTIMIZATIONINCLUDES
-    GenevaHelperFunctions.hpp
-	GenevaInitializer.hpp
-	Go2.hpp
-	GConsumerSetup.hpp
-	GMarshallerSetup.hpp
-	GModuleLoader.hpp
+    GConsumerPlugin.hpp
+    GConsumerSetup.hpp
+    GFaultInjector.hpp
+    GMarshallerPlugin.hpp
+    GMarshallerSetup.hpp
+    GModuleLoader.hpp
     GOptimizationEnums.hpp
-	GPersonalityTraits.hpp
+    GPersonalityTraits.hpp
+    GenevaHelperFunctions.hpp
+    GenevaInitializer.hpp
+    Go2.hpp
 )
 
 # Parameter / adaptor object hierarchy (namespace Gem::Geneva::Genome),
 # installed under geneva/par to mirror the `gen` alias.
 SET ( PARAM_INCLUDES
-    genome/GParameterPropertyParser.hpp
     genome/GGenomeFactory.hpp
     genome/GGenomeFixedSizePriorityQueue.hpp
     genome/GGenomeMultiConstraint.hpp
+    genome/GParameterPropertyParser.hpp
 )
 
 # Individual / genome headers (namespace Gem::Geneva::Genome), installed
@@ -25,72 +28,79 @@ SET ( PARAM_INCLUDES
 # kernels. All are pulled in transitively by the installed individuals/*.hpp,
 # so every one must ship.
 SET ( IND_INCLUDES
-    genome/GAuxiliaryStore.hpp
-    genome/GIndividualProcessingResult.hpp
-    genome/GProblemPolicy.hpp
-    genome/GGenomeT.hpp
     genome/GAdaptionAuxKeys.hpp
     genome/GAdaptionKernels.hpp
+    genome/GAuxiliaryStore.hpp
+    genome/GBaseGPUMarshallerT.hpp
+    genome/GGenome.hpp
+    genome/GGenomeArchitecture.hpp
+    genome/GGenomeBuilder.hpp
     genome/GGenomeLayout.hpp
     genome/GGenomeLayoutSerialization.hpp
-    genome/GGenomeBuilder.hpp
-    genome/GGenomeArchitecture.hpp
-    genome/GGenome.hpp
+    genome/GGenomeT.hpp
     genome/GGenomeWireProtocol.hpp
     genome/GIndividualFactory.hpp
-    genome/GIndividualPlugin.hpp
-    genome/GMultiConstraintT.hpp
     genome/GIndividualMultiConstraint.hpp
+    genome/GIndividualPlugin.hpp
+    genome/GIndividualProcessingResult.hpp
+    genome/GMultiConstraintT.hpp
+    genome/GProblemPolicy.hpp
+    genome/GProblemStoreT.hpp
 )
 
 # Optimization-algorithm headers (namespace Gem::Geneva::OptimizationAlgorithms),
 # installed under geneva/oa to mirror the `oa` alias.
 SET ( OA_INCLUDES
-    oa/GOptimizationAlgorithmBase.hpp
-    oa/GOptimizationAlgorithmT.hpp
-    oa/GOptimizationAlgorithmFactoryT.hpp
-    oa/GPluggableOptimizationMonitors.hpp
-    oa/GPostProcessorT.hpp
-    oa/GParChild.hpp
-    oa/GAdaptionConfig.hpp
-    oa/GParetoTools.hpp
     oa/GAdaption.hpp
-    oa/GInitializerT.hpp
-    oa/GOAFactoryT.hpp
-    oa/GOAPlugin.hpp
-    oa/GFactoryStore.hpp
+    oa/GAdaptionConfig.hpp
+    oa/GAlgorithmPersonalityTraitsT.hpp
+    oa/GAntColonyOptimization.hpp
+    oa/GAntColonyOptimization_PersonalityTraits.hpp
     oa/GBaseParChildPersonalityTraits.hpp
-    oa/GPositionPersonalityTraits.hpp
+    oa/GBasePluggableOM.hpp
     oa/GConjugateGradientDescent.hpp
     oa/GConjugateGradientDescent_PersonalityTraits.hpp
-    oa/GHesseError.hpp
-    oa/GLineSearch.hpp
     oa/GEvolutionaryAlgorithm.hpp
     oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp
+    oa/GFactoryStore.hpp
+    oa/GGeneralizedSimulatedAnnealing.hpp
+    oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.hpp
+    oa/GHesseError.hpp
+    oa/GInitializerT.hpp
+    oa/GLineSearch.hpp
+    oa/GMetaEvolutionaryAlgorithm.hpp
     oa/GNelderMead.hpp
     oa/GNelderMead_PersonalityTraits.hpp
+    oa/GOAFactoryT.hpp
+    oa/GOAPlugin.hpp
+    oa/GOptimizationAlgorithmBase.hpp
+    oa/GOptimizationAlgorithmFactoryT.hpp
+    oa/GOptimizationAlgorithmT.hpp
+    oa/GParChild.hpp
     oa/GParameterScan.hpp
     oa/GParameterScanFactory.hpp
     oa/GParameterScan_PersonalityTraits.hpp
-    oa/GSimulatedAnnealing.hpp
-    oa/GSimulatedAnnealing_PersonalityTraits.hpp
-    oa/GSwarmAlgorithm.hpp
-    oa/GSwarmAlgorithm_PersonalityTraits.hpp
+    oa/GParetoTag.hpp
+    oa/GParetoTools.hpp
+    oa/GPluggableOptimizationMonitors.hpp
+    oa/GPositionPersonalityTraits.hpp
+    oa/GPostProcessorT.hpp
     oa/GSepCmaEvolutionStrategy.hpp
     oa/GSepCmaEvolutionStrategy_PersonalityTraits.hpp
+    oa/GSimulatedAnnealing.hpp
+    oa/GSimulatedAnnealing_PersonalityTraits.hpp
     oa/GStandardPSO2011.hpp
     oa/GStandardPSO2011_PersonalityTraits.hpp
-    oa/GAntColonyOptimization.hpp
-    oa/GAntColonyOptimization_PersonalityTraits.hpp
-    oa/GGeneralizedSimulatedAnnealing.hpp
-    oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.hpp
+    oa/GSwarmAlgorithm.hpp
+    oa/GSwarmAlgorithm_PersonalityTraits.hpp
+    oa/GTunableManifest.hpp
 )
 
 # Interface headers (namespace Gem::Geneva::Interface), installed under
 # geneva/Interface to mirror the nested `Interface` namespace.
 SET ( IFACE_INCLUDES
-    Interface/GRateableI.hpp
     Interface/GOptimizerIT.hpp
+    Interface/GRateableI.hpp
 )
 
 # Reusable sample individuals (namespace Gem::Geneva::Individuals),
@@ -114,8 +124,8 @@ SET ( INDIVIDUALS_INCLUDES
 IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET(OPTIMIZATIONINCLUDES
 			${OPTIMIZATIONINCLUDES}
-			GMPISubClientOptimizer.hpp
-			GMPISubClientIndividual.hpp)
+			GMPISubClientIndividual.hpp
+			GMPISubClientOptimizer.hpp)
 ENDIF()
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker

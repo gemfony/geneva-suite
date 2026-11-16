@@ -65,8 +65,8 @@ public:
 
 private:
     friend struct Gem::Weft::access;
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
         Gem::Common::archive_named(ar, "i", i_);
         Gem::Common::archive_named(ar, "d", d_);
         Gem::Common::archive_named(ar, "s", s_);

@@ -1,0 +1,43 @@
+GSubClientOverhead measures, as GParallelisationOverhead does, the speed-up of
+an optimization over a serial reference with individuals that sleep instead of
+calculating -- here with clients that share every evaluation with sub-clients.
+A client (the lead) and its sub-clients form a group of processes that talk
+through MPI; between server and clients either MPI or a networked consumer such
+as the websocket one. With a group of one (no sub-clients) it measures what
+GParallelisationOverhead measures, with its own individual.
+
+One evaluation of nominal duration T, in a group of n processes: the lead sends
+every sub-client a message with T/n (the time to sleep) and its share of the
+individual's parameter values, sleeps T/n itself, computes the sum of the
+squares of its own share, and waits for the answer of every sub-client, the sum
+of the squares of its share. The fitness is the sum of the answers. With
+split_evaluation false every process sleeps the whole T instead. Nobody waits
+busily: a process that waits for a message looks with a non-blocking test and
+pauses between two looks, from poll_pause_min up to poll_pause_max microseconds
+(50 and 1000 by default, in config/GSleepGroupIndividual.json; every process of
+a run reads the same file, and the server prints them into its log). The serial
+reference does all of it in one process, so with C clients of n processes the
+ideal speed-up is C x n.
+
+The measurement, the serial reference and the results (shortDelayResults.txt
+and the plot script) are those of GParallelisationOverhead: the code is shared
+(GSpeedupMeasurement.hpp there), the configuration has the same keys, and a
+reference of either program serves the other with the same population and
+iterations.
+
+  ./GSubClientOverhead --reference
+      the serial reference (one process, a group of one)
+  mpirun -np <1 + C x n> ./GSubClientOverhead -c mpi
+      MPI between server and clients: rank 0 is the server, the communicators
+      are split by GMPISubClientOptimizer (n is sub_client_group_size in
+      config/GMPISubClientOptimizer.json)
+  ./GSubClientOverhead -c beast, and per client
+  mpirun -np <n> ./GSubClientOverhead -c beast --client --group <n>
+      websockets: every client is an MPI job of its own, whose rank 0 is the
+      client and lead (a group of one is started without mpirun)
+
+As there, --waitForClients C makes the server wait for its C clients before its
+first run (the MPI consumer cannot tell how many it has and is not waited for).
+runWithClients.sh beside GParallelisationOverhead starts both modes (GROUP=n in
+its environment), and GSpeedupFigure there draws the tables of several runs
+into one figure. Run everything from a work directory outside the source tree.

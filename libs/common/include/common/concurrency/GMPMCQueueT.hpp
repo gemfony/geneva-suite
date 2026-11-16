@@ -52,11 +52,11 @@ namespace Gem::Common::Concurrency {
 /**
  * A thin facade over the interchangeable MPMC-queue backends. It exposes exactly the
  * GBlockingMPMCQueueT interface (the MPMCQueue concept) and forwards every call to the backend
- * chosen at compile time by the @p Backend template argument:
+ * chosen at compile time by the @p BACKEND template argument:
  *
- *   - QueueBackend::Deque        -> GBlockingMPMCQueueT<T, Cap>        (the default; supports the
- *                                   unbounded case Cap == 0). Default keeps existing behaviour.
- *   - QueueBackend::Preallocated -> GPreallocatedMPMCQueueT<T, Cap>    (preallocated ring; Cap > 0).
+ *   - QueueBackend::Deque        -> GBlockingMPMCQueueT<T, CAP>        (the default; supports the
+ *                                   unbounded case CAP == 0). Default keeps existing behaviour.
+ *   - QueueBackend::Preallocated -> GPreallocatedMPMCQueueT<T, CAP>    (preallocated ring; CAP > 0).
  *
  * The facade COMPOSES its backend rather than inheriting it, because GBlockingMPMCQueueT is `final`
  * and must not be modified. The forwarders are trivial and fully inlined, so there is no runtime
@@ -67,22 +67,24 @@ namespace Gem::Common::Concurrency {
  * bounded buffer) -- callers depend only on the stable facade, not on a concrete backend.
  *
  * @tparam T The element type stored in the queue
- * @tparam Cap The queue capacity; Cap == 0 means unbounded (only valid for the Deque backend)
- * @tparam Backend The backend selected at compile time (Deque or Preallocated)
+ * @tparam CAP The queue capacity; CAP == 0 means unbounded (only valid for the Deque backend)
+ * @tparam BACKEND The backend selected at compile time (Deque or Preallocated)
  */
-template <typename T, std::size_t Cap = DEFAULTBUFFERSIZE, QueueBackend Backend = QueueBackend::Deque>
+template <
+    typename T,
+    std::size_t CAP = DEFAULTBUFFERSIZE,
+    QueueBackend BACKEND = QueueBackend::Deque>
 class GMPMCQueueT final {
     static_assert(
-        Backend != QueueBackend::Preallocated || Cap > 0,
-        "GMPMCQueueT: the preallocated backend cannot be unbounded (Cap must be > 0); "
+        BACKEND != QueueBackend::Preallocated || CAP > 0,
+        "GMPMCQueueT: the preallocated backend cannot be unbounded (CAP must be > 0); "
         "use the Deque backend for an unbounded queue"
     );
 
     using impl_type = std::conditional_t<
-        Backend == QueueBackend::Deque,
-        GBlockingMPMCQueueT<T, Cap>,
-        GPreallocatedMPMCQueueT<T, Cap>
-    >;
+        BACKEND == QueueBackend::Deque,
+        GBlockingMPMCQueueT<T, CAP>,
+        GPreallocatedMPMCQueueT<T, CAP>>;
 
     static_assert(
         MPMCQueue<impl_type, T>,
@@ -105,9 +107,11 @@ public:
     /*************************************************************************/
     /**
      * @brief Which backend this instance uses. Compile-time.
-     * @return The QueueBackend selected via the Backend template argument
+     * @return The QueueBackend selected via the BACKEND template argument
      */
-    [[nodiscard]] static constexpr QueueBackend backend() noexcept { return Backend; }
+    [[nodiscard]] static constexpr QueueBackend backend() noexcept {
+        return BACKEND;
+    }
 
     /*************************************************************************/
     // --- producer side (forwarded verbatim) ---
@@ -135,15 +139,16 @@ public:
     /**
      * @brief Pushes an item, blocking until space is available or the timeout elapses
      * @tparam U The (forwarded) type of the value used to construct a T
-     * @tparam Rep The arithmetic representation type of the timeout duration
-     * @tparam Period The std::ratio tick period of the timeout duration
+     * @tparam rep_type The arithmetic representation type of the timeout duration
+     * @tparam period_type The std::ratio tick period of the timeout duration
      * @param item The value to enqueue (perfect-forwarded into a T)
      * @param timeout The maximum time to wait for free space
      * @return true if the item was enqueued, false if the queue stayed full until the timeout or was closed
      */
-    template <typename U, typename Rep, typename Period>
+    template <typename U, typename rep_type, typename period_type>
         requires std::constructible_from<T, U &&>
-    [[nodiscard]] bool push_wait(U &&item, std::chrono::duration<Rep, Period> const &timeout) {
+    [[nodiscard]] bool
+    push_wait(U &&item, std::chrono::duration<rep_type, period_type> const &timeout) {
         return impl_.push_wait(std::forward<U>(item), timeout);
     }
 
@@ -163,13 +168,14 @@ public:
 
     /**
      * @brief Pops an item, blocking until one is available or the timeout elapses
-     * @tparam Rep The arithmetic representation type of the timeout duration
-     * @tparam Period The std::ratio tick period of the timeout duration
+     * @tparam rep_type The arithmetic representation type of the timeout duration
+     * @tparam period_type The std::ratio tick period of the timeout duration
      * @param timeout The maximum time to wait for an item
      * @return The dequeued item, or std::nullopt on timeout / a closed-and-drained queue
      */
-    template <typename Rep, typename Period>
-    [[nodiscard]] std::optional<T> pop_wait(std::chrono::duration<Rep, Period> const &timeout) {
+    template <typename rep_type, typename period_type>
+    [[nodiscard]] std::optional<T>
+    pop_wait(std::chrono::duration<rep_type, period_type> const &timeout) {
         return impl_.pop_wait(timeout);
     }
 

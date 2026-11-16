@@ -54,8 +54,8 @@ class GGraph2D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("p_m_", self.p_m_),
             make_member("draw_arrows_", self.draw_arrows_)
@@ -183,8 +183,8 @@ class GGraph2ED
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("p_m_", self.p_m_));
     }
     ///////////////////////////////////////////////////////////////////////
@@ -299,8 +299,8 @@ class GGraph3D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("draw_lines_", self.draw_lines_), make_member("projection_", self.projection_),
             make_member("draw_surface_", self.draw_surface_), make_member("floor_shadow_", self.floor_shadow_)
@@ -486,8 +486,8 @@ class GGraph4D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("min_marker_size_", self.min_marker_size_),
             make_member("max_marker_size_", self.max_marker_size_),
@@ -643,8 +643,8 @@ class GFunctionPlotter1D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("function_description_", self.function_description_),
             make_member("x_extremes_", self.x_extremes_),
@@ -764,8 +764,8 @@ class GFunctionPlotter2D
 	 * GReflectiveInterfaceT-generated serialize()/load_()/compare_()
 	 * @return A tuple of named local members of this object
 	 */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("function_description_", self.function_description_),
             make_member("x_extremes_", self.x_extremes_),

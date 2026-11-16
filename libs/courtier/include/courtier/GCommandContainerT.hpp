@@ -34,9 +34,13 @@
 
 // Standard headers go here
 #include <cstdint>
+#include <exception>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <variant>
 
 // Boost headers go here
@@ -48,7 +52,7 @@
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
 #include "courtier/GWireProtocolT.hpp"            // the library seam (tag + payload type)
-#include "courtier/GWireSerializationContext.hpp" // GWireBlobId / GWirePeerId / the blob frame payloads
+#include "courtier/GWireSerializationContext.hpp" // GWireBlobId / the blob frame payloads
 #include "weft/GArchivePolymorphic.hpp" // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
 
 namespace Gem::Courtier {
@@ -62,7 +66,7 @@ namespace Gem::Courtier {
  *
  * The class is deliberately two-layered, and the layers belong to different owners:
  *
- *  - **Courtier's layer** is the frame kind (GFrameKind), the announcing peer id and -- on a RETURN --
+ *  - **Courtier's layer** is the frame kind (GFrameKind) and -- on a RETURN or a RESULT --
  *    the GProcessingOutcome. These are the things courtier itself acts on: dispatch, check-in, shutdown,
  *    blob fetch, reconciliation.
  *  - **The using library's layer** is an opaque numeric @c tag and, for frames that do not ship a work
@@ -86,26 +90,38 @@ class GCommandContainerT {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De-)serializes the frame header, the payload variant and -- for a RETURN frame -- the
-     * processing outcome.
+     * @brief (De-)serializes the frame header, the payload variant and -- for a RETURN or a RESULT
+     * frame -- the processing outcome.
      *
      * The payload rides Weft's native, index-tagged std::variant support, so the stream stays
      * self-describing and each frame writes only its own alternative. The outcome is written only where
      * it is meaningful; the frame kind is streamed first, so save and load agree on that branch without
-     * any version field.
+     * any version field. A loaded kind that is not a GFrameKind is refused: the message is not a
+     * frame.
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The class version (unused)
      */
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "kind_", kind_);
+        if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
+            // A message from the network may be anything: a kind that GFrameKind does not have
+            // means that it is not a frame, however the rest of it would decode.
+            if(std::to_underlying(kind_) > std::to_underlying(GFrameKind::UNREADABLE)) {
+                throw geneva_exception(
+                    g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+                    << "In GCommandContainerT<processable_type>::serialize():" << '\n'
+                    << "The message is not a frame: its kind " << std::to_underlying(kind_)
+                    << " is not a GFrameKind" << '\n'
+                );
+            }
+        }
         archive_named(ar, "tag_", tag_);
-        archive_named(ar, "peer_id_", peer_id_);
         archive_named(ar, "payload_", payload_);
-        if(kind_ == GFrameKind::RETURN) {
+        if(kind_ == GFrameKind::RETURN || kind_ == GFrameKind::RESULT) {
             archive_named(ar, "outcome_", outcome_);
         }
     }
@@ -168,7 +184,7 @@ public:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Resets the frame to a new kind, dropping every payload, tag, peer id and outcome, so a
+	  * @brief Resets the frame to a new kind, dropping every payload, tag and outcome, so a
 	  * reused container never carries stale data into the next message.
 	  *
 	  * @param kind The new frame kind (defaults to NONE, i.e. cleared)
@@ -177,7 +193,6 @@ public:
     const GCommandContainerT &reset(GFrameKind kind = GFrameKind::NONE) {
         kind_ = kind;
         tag_ = 0;
-        peer_id_ = 0;
         payload_ = payload_variant{};
         outcome_ = GProcessingOutcome{};
         return *this;
@@ -204,13 +219,6 @@ public:
     void setKind(GFrameKind kind) noexcept { kind_ = kind; }
     /** @brief @return The kind of this frame */
     [[nodiscard]] GFrameKind kind() const noexcept { return kind_; }
-
-    /** @brief Sets the announcing peer's stable id (used by ASIO, whose one-shot connections have no
-     *  persistent per-connection identity, to tell the server which peer a request belongs to).
-     *  @param peer The stable peer id of the announcing client. */
-    void setPeerId(GWirePeerId peer) noexcept { peer_id_ = peer; }
-    /** @brief @return The stable peer id announced on this frame (0 if none). */
-    [[nodiscard]] GWirePeerId peerId() const noexcept { return peer_id_; }
 
     /** @brief Sets the processing outcome reported by a RETURN frame.
      *  @param outcome The worker's lifecycle report for the returned slot */
@@ -290,29 +298,36 @@ public:
 
     //-------------------------------------------------------------------------
     /**
-	  * @brief Processing of the carried work item. Delegates to the item's process() method.
+	  * @brief Processing of the carried work item: through @p processor if one is given and the
+	  * item is due, otherwise through the item's process() method.
 	  *
 	  * Errors during processing are handled one layer down: GProcessingContainerT::process()
 	  * wraps the user's process_() in a try/catch, records the failure on the item
 	  * (processing_status_ = EXCEPTION_CAUGHT plus stored error descriptions) and rethrows a
 	  * typed g_processing_exception. This method intentionally lets that exception propagate to
 	  * the caller (the worker compute loop), which catches it and returns the item carrying its
-	  * error state -- so a faulty work item never crashes the worker.
+	  * error state -- so a faulty work item never crashes the worker. An item that is not due is
+	  * handed to its own process() also when a processor is given: the processing lifecycle
+	  * refuses it there, and no processor is spent on it.
 	  *
+	  * @param processor Processes a due item in place of its process(); nullptr: process()
 	  * @throws geneva_exception if the frame holds no work item
 	  * @throws g_processing_exception (from the item) if processing flagged or threw an error
 	  */
-    void process() {
+    void process(GItemProcessorT<processable_type> *processor = nullptr) {
         auto *held = std::get_if<std::unique_ptr<processable_type>>(&payload_);
-        if(held != nullptr && *held) {
-            (*held)->process();
-        }
-        else {
+        if(held == nullptr || not *held) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommandContainerT<processable_type>::process():" << '\n'
                 << "Tried to process a work item while the frame carries none" << '\n'
             );
+        }
+        if(processor != nullptr && (*held)->is_due_for_processing()) {
+            (*processor)(**held);
+        }
+        else {
+            (*held)->process();
         }
     }
 
@@ -321,10 +336,9 @@ private:
     // Data
 
     GFrameKind kind_{GFrameKind::NONE}; ///< What this frame does to the transport (courtier's own)
-    std::uint32_t tag_{0};              ///< What this frame means to the using library (relayed only)
-    GWirePeerId peer_id_{0};            ///< Stable announcing-peer id (ASIO); 0 == none
+    std::uint32_t tag_{0}; ///< What this frame means to the using library (relayed only)
     payload_variant payload_;           ///< What the frame carries (one alternative per purpose)
-    GProcessingOutcome outcome_;        ///< The worker's lifecycle report; meaningful on RETURN only
+    GProcessingOutcome outcome_;        ///< The worker's lifecycle report (RETURN and RESULT)
 
     //-------------------------------------------------------------------------
 };
@@ -341,9 +355,11 @@ private:
  *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the just-processed work item; rewritten in place into a RETURN
+ * @return The processed work item if the RETURN does not ship it (a library payload replaces it),
+ *         for a caller that keeps it; empty if the frame holds it
  */
 template <typename processable_type>
-void makeReturnFrame(GCommandContainerT<processable_type> &container) {
+std::unique_ptr<processable_type> makeReturnFrame(GCommandContainerT<processable_type> &container) {
     auto item_ptr = container.releaseItem();
     GProcessingOutcome outcome;
     std::uint32_t tag = 0;
@@ -360,34 +376,70 @@ void makeReturnFrame(GCommandContainerT<processable_type> &container) {
     container.setOutcome(std::move(outcome));
     if(ships_item) {
         container.setItem(std::move(item_ptr));
+        return nullptr;
     }
-    else {
-        container.setLibraryPayload(std::move(payload));
-    }
+    container.setLibraryPayload(std::move(payload));
+    return item_ptr;
 }
 
 /******************************************************************************/
 /**
  * @brief Worker side: processes the work item a WORK frame carries, without letting a failure of
- * the user's processing code escape.
+ * the item's processing escape.
  *
- * Such a failure surfaces as a g_processing_exception, with the work item already flagged
- * (EXCEPTION_CAUGHT) and its error text stored. It must not end the worker: the flagged item is
- * returned like any other result, and the server's submission policy decides what happens to the
- * slot. Every transport's worker processes through this function, so the rule is stated once.
+ * A failure of the user's processing code surfaces as a g_processing_exception, with the work item
+ * already flagged (EXCEPTION_CAUGHT) and its error text stored. Any other exception out of the
+ * item's processing -- e.g. the geneva_exception the processing lifecycle throws for an item that
+ * is not due (its status is not DO_PROCESS) -- leaves the item unflagged; it is flagged here
+ * (ERROR_FLAGGED, the text appended to its error descriptions, unless the item already reports an
+ * error), the way the networked consumer flags a result it cannot apply. Neither ends the worker:
+ * the flagged item is returned like any other result, and the server's submission policy decides
+ * what happens to the slot. Every transport's worker processes through this function, so the rule
+ * is stated once.
+ *
+ * A due item is processed by @p processor if one is given (a client's item processor, see
+ * GBaseClientT::setItemProcessor()), otherwise by its own process(). Any exception out of the
+ * item's processing or out of the processor, of whatever type -- a processor is user code and
+ * may throw something that is not a std::exception -- leaves the item flagged in the same way.
  *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the work item to process
  * @param worker_name The worker's name, used in the warning
- * @throws geneva_exception if the frame holds no work item
+ * @param processor Processes a due item in place of its process(); nullptr: the item's process()
+ * @throws geneva_exception if the frame holds no work item (a WORK frame without an item is a
+ * protocol error)
  */
 template <typename processable_type>
 void processWorkFrame(
     GCommandContainerT<processable_type> &container,
-    std::string_view worker_name
+    std::string_view worker_name,
+    // not deduced: a caller may pass nullptr, from which no type could be deduced
+    std::type_identity_t<GItemProcessorT<processable_type>> *processor = nullptr
 ) {
+    // Flags the item (unless it reports an error already) and puts it back into the frame.
+    const auto return_flagged = [&](std::string_view reason) {
+        auto item = container.releaseItem();
+        if(not item) {
+            return false; // no item to return: a protocol error, not a failed evaluation
+        }
+        if(not item->has_errors()) {
+            auto outcome = item->processingOutcome();
+            outcome.status = processingStatus::ERROR_FLAGGED;
+            outcome.error_descriptions += "The work item could not be processed: ";
+            outcome.error_descriptions += reason;
+            item->applyProcessingOutcome(outcome);
+        }
+        container.setItem(std::move(item));
+        glogger << "In " << worker_name << ":" << '\n'
+                << "The work item could not be processed:" << '\n'
+                << reason << '\n'
+                << "It is returned to the server flagged; the worker keeps running." << '\n'
+                << GWARNING;
+        return true;
+    };
+
     try {
-        container.process();
+        container.process(processor);
     }
     catch(const g_processing_exception &e) {
         glogger << "In " << worker_name << ":" << '\n'
@@ -395,6 +447,16 @@ void processWorkFrame(
                 << e.what() << '\n'
                 << "It is returned to the server flagged; the worker keeps running." << '\n'
                 << GWARNING;
+    }
+    catch(const std::exception &e) {
+        if(not return_flagged(e.what())) {
+            throw;
+        }
+    }
+    catch(...) {
+        if(not return_flagged("an exception that is not derived from std::exception")) {
+            throw;
+        }
     }
 }
 

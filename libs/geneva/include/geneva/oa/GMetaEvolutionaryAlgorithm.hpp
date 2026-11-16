@@ -92,8 +92,8 @@ protected:
      *
      * @return A tuple of named, comparable/serializable references to this object's local data members
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("n_orchestration_threads_", self.n_orchestration_threads_)
         );

@@ -43,6 +43,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <array>
 #include <csignal>
 #include <cstdint>
 #include <istream>
@@ -242,8 +243,30 @@ enum class serializationMode : Gem::Common::ENUMBASETYPE {
     GEM_JSON = 4    ///< GArchive self-describing JSON codec (the checkpoint default)
 };
 
+/** @brief Every serialization mode there is: the one list help texts and the parser read */
+inline constexpr std::array<serializationMode, 2> SERIALIZATIONMODES{
+    serializationMode::GEM_BINARY,
+    serializationMode::GEM_JSON
+};
+
 /** @brief serializationMode streams as its underlying numeric value (see numeric_enum_io_v) */
 template <> inline constexpr bool numeric_enum_io_v<serializationMode> = true;
+
+/**
+ * @brief Reads a serializationMode as its numeric value; a value that names no mode (one of the
+ * removed Boost archives, say) fails the stream, so that an option or a configuration that names
+ * one is refused where it is read. Preferred over the generic numeric reader.
+ * @param i The input stream to read from
+ * @param x The mode read (unchanged if the stream fails)
+ * @return A reference to the input stream
+ */
+std::istream &operator>>(std::istream &i, serializationMode &x);
+
+/**
+ * @brief The modes for a help text, from SERIALIZATIONMODES: "GEM_BINARY (3) or GEM_JSON (4)"
+ * @return The names of the modes with their values
+ */
+[[nodiscard]] std::string serializationModeChoices();
 
 /**
  * @brief Converts a serializationMode to a string representation for debugging purposes.

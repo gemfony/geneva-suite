@@ -166,6 +166,22 @@ enum class surfaceProjection : ENUMBASETYPE {
 };
 
 /******************************************************************************/
+/**
+ * Where the legend of a pad with several series lies. AUTO leaves it to the backend (ROOT places
+ * it by itself and sizes its text to the box, gnuplot and matplotlib choose a corner, Octave
+ * takes its default); a corner, or the middle of the right side, puts it there, with the same text
+ * size in every pad.
+ */
+enum class legendPosition : ENUMBASETYPE {
+    AUTO = 0,
+    TOP_LEFT = 1,
+    TOP_RIGHT = 2,
+    BOTTOM_LEFT = 3,
+    BOTTOM_RIGHT = 4,
+    CENTER_RIGHT = 5 ///< at the right, halfway up
+};
+
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -230,4 +246,5 @@ template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gLineStyle> =
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::graphPlotMode> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::surfaceProjection> = true;
 template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::tddropt> = true;
+template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::legendPosition> = true;
 } /* namespace Gem::Common */

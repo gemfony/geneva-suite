@@ -267,9 +267,10 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${COURTIER_LIBNAME})
 # geneva's pluggable monitors render through the dietrich plotting library.
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 
-# The runtime module loader (GModuleLoader) uses Boost.DLL, which needs the dynamic
-# loading library (libdl) on platforms that provide it. Boost.DLL is otherwise header-only, so
-# libdl is its only link-time requirement here.
+# GConsumerSetup finds this library's own path with Boost.DLL (boost::dll::this_line_location()),
+# to load the optional consumer modules installed next to it. Boost.DLL needs the dynamic loading
+# library (libdl) on platforms that provide it; it is otherwise header-only, so libdl is its only
+# link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
 IF ( GENEVA_BUILD_TESTS )
@@ -289,13 +290,15 @@ ENDIF ()
 INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
 
 ################################################################################
-# The MPI module (libgemfony-geneva-mpi): everything in Geneva that needs MPI. MPI is the one consumer
-# that needs a library not every machine has, so it is not linked into libgemfony-geneva -- every Geneva
-# program would otherwise need libmpi to start, even for a run on the thread-pool consumer. The module
-# carries the "mpi" consumer provider and is loaded at run time when it lies next to libgemfony-geneva
-# (GConsumerSetup.cpp, loadOptionalConsumerModules()); a program that uses GMPISubClientOptimizer or
-# GMPISubClientIndividual links it directly. It is built into the same directory as libgemfony-geneva,
-# in the build tree as in the installation, which is where the loader looks.
+# The MPI module (libgemfony-geneva-mpi): everything in Geneva that needs MPI. MPI is the one
+# consumer that needs a library not every machine has, so it is not linked into libgemfony-geneva --
+# every Geneva program would otherwise need libmpi to start, even for a run on the thread-pool
+# consumer. The module carries the "mpi" consumer provider and is loaded at run time when it lies
+# next to libgemfony-geneva (GConsumerSetup.cpp, loadOptionalConsumerModules()); a program that uses
+# GMPISubClientOptimizer or GMPISubClientIndividual links it directly. It is built into the same
+# directory as libgemfony-geneva, in the build tree as in the installation, which is where the
+# loader looks. Where libgemfony-courtier-mpi or the MPI library is missing, the module fails to
+# load, and the loader says so (a Geneva program that does not use MPI still starts).
 IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
 	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} SHARED
 		GMPIConsumerModule.cpp
@@ -304,10 +307,16 @@ IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TARGET_PROPERTIES ( ${GENEVA_MPI_LIBNAME} PROPERTIES
 		VERSION ${GENEVA_VERSION}
 		EXPORT_NAME geneva-mpi )
-	# Like a loadable individual module, it links no Geneva library -- the process that loads (or links) it
-	# already carries them, and a testing build's Geneva would hand the static Catch2 on to a shared library
-	# that cannot take it. COMPILE_ONLY takes Geneva's include paths and compile settings without linking.
-	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME} PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> MPI::MPI_CXX )
+	# Like a loadable individual module, it links no Geneva library -- the process that loads (or
+	# links) it already carries libgemfony-geneva, and a testing build's Geneva would hand the
+	# static Catch2 on to a shared library that cannot take it. COMPILE_ONLY takes Geneva's include
+	# paths and compile settings without linking. The one exception is courtier's MPI library: the
+	# process's MPI environment is defined there, once, and the module needs it at load time (also
+	# when a program that does not link it loads the module). It brings courtier and MPI with it.
+	# PUBLIC: GMPISubClientOptimizer.hpp includes its headers.
+	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME}
+		PUBLIC ${COURTIER_MPI_LIBNAME}
+		PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> )
 	ADD_DEPENDENCIES ( ${GENEVA_MPI_LIBNAME} ${GENEVA_LIBNAME} )
 	INSTALL ( TARGETS ${GENEVA_MPI_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
 

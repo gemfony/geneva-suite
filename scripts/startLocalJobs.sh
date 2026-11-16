@@ -44,8 +44,8 @@
 #     port        TCP port the server listens on (> 1000). IGNORED for the MPI
 #                 consumer (MPI uses no listening socket); pass any placeholder,
 #                 e.g. 0.
-#     consumer    Consumer mnemonic: "asio" (default), "beast" (websocket) or
-#                 "mpi". For "asio"/"beast" the program is started once in server
+#     consumer    Consumer mnemonic: "beast" (websocket, the default) or "mpi".
+#                 For "beast" the program is started once in server
 #                 mode plus n_clients times in client mode over local TCP. For
 #                 "mpi" the program is launched ONCE via mpirun (one process that
 #                 internally splits into the rank-0 master and the worker ranks);
@@ -55,11 +55,11 @@
 #                 addition to the consumer/port/--client flags the script already
 #                 supplies. Use it for options the script does not model itself --
 #                 e.g. an algorithm chain (-a "ea,cgd") or a client prefetch depth
-#                 (--asio_prefetchDepth=4). Flags meant for one role are harmless to
+#                 (--beast_prefetchDepth=4). Flags meant for one role are harmless to
 #                 the other (a client ignores -a; a server has no prefetch).
 #
 # Examples:
-#   ./startLocalJobs.sh ./GSimpleOptimizer 15 10000 asio -- -a "ea,cgd" --asio_prefetchDepth=4
+#   ./startLocalJobs.sh ./GSimpleOptimizer 15 10000 beast -- -a "ea,cgd" --beast_prefetchDepth=4
 #
 # Environment:
 #   GENEVA_RUN_TIMEOUT   If set to a positive number of seconds, the script runs
@@ -71,10 +71,6 @@
 #                        output interactively (Ctrl-C to stop; all jobs are cleaned
 #                        up on exit).
 #   MPIRUN               Override the MPI launcher (default: mpirun). MPI only.
-#
-# Note: if your program opens many connections to the server (e.g. a large number
-# of individuals and cycles), you might run out of local ports (max 64k). See the
-# Geneva FAQ.
 ####################################################################
 
 set -u
@@ -97,7 +93,7 @@ done
 set -- "${POSITIONAL[@]}"
 
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-    echo "Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: asio|beast|mpi] [-- <extra args>...]"
+    echo "Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: beast|mpi] [-- <extra args>...]"
     echo "       (for mpi the port is ignored and n_clients is the number of worker ranks)"
     echo "       (everything after -- is forwarded to every program invocation)"
     exit 1
@@ -106,7 +102,7 @@ fi
 PROGNAME=$1
 NCLIENTS=$2
 PORT=$3
-CONSUMER=${4:-asio}
+CONSUMER=${4:-beast}
 
 if [ ! -x "${PROGNAME}" ] && [ ! -e "${PROGNAME}" ]; then
     echo "Error: program file '${PROGNAME}' does not exist."
@@ -126,14 +122,13 @@ if [ "${CONSUMER}" != "mpi" ]; then
 fi
 
 # Map the consumer mnemonic to its CLI option names (verified against the current
-# courtier consumers: GAsioConsumerT -> "asio"/--asio_*, GWebsocketConsumerT -> "beast"/--beast_*,
-# GMPIConsumerT -> "mpi"). MPI is launched via mpirun rather than as server + clients.
+# courtier consumers: GWebsocketConsumerT -> "beast"/--beast_*, GMPIConsumerT -> "mpi").
+# MPI is launched via mpirun rather than as server + clients.
 case "${CONSUMER}" in
-    asio)  IP_OPT="asio_ip";  PORT_OPT="asio_port"  ;;
     beast) IP_OPT="beast_ip"; PORT_OPT="beast_port" ;;
     mpi)   ;; # handled separately below
     *)
-        echo "Error: unknown consumer '${CONSUMER}'. Use 'asio', 'beast' or 'mpi'. Leaving."
+        echo "Error: unknown consumer '${CONSUMER}'. Use 'beast' or 'mpi'. Leaving."
         exit 1
         ;;
 esac

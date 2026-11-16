@@ -133,8 +133,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GLoadableParaboloid>>(ar, "GGenomeT", *this);
     }
 };

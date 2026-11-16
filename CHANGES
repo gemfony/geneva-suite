@@ -30,9 +30,10 @@ clients do so, and a failing CUDA call moves the random-number source to the CPU
 
 Websocket clients without work wait at the server and are served when there is some, instead
 of asking again after a pause: an iteration with 400 clients takes a few milliseconds longer than
-its evaluations (it was 70 to 200 ms), and idle clients cost the server next to nothing. One
-keep-alive setting covers both ends of a connection. Failures in the networked consumers stay
-with the item they belong to; docs/CHANGES-2.0.md, section 5, has the details.
+its evaluations (it was 70 to 200 ms), and idle clients cost the server next to nothing. A client
+may start before its server and survives a lost connection; what it cannot deliver is saved. The
+asio consumer is removed; the websocket consumer ("beast") takes its place. Failures in the
+networked consumers stay with the item they belong to; docs/CHANGES-2.0.md, section 5, has more.
 
 The GStarter starting point is now the self-contained quickstart in libs/geneva/quickstart/,
 built standalone against an installed Geneva; the numbered examples are renumbered and start with

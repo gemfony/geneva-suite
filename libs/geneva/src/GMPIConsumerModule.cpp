@@ -30,15 +30,19 @@
 /*
  * The MPI consumer as a module of its own (libgemfony-geneva-mpi).
  *
- * MPI is the one consumer that needs a library not every machine has. Linked into libgemfony-geneva, it
- * kept every Geneva program from starting where no MPI library is installed -- even for a run on the
- * thread-pool consumer. Here, its provider lives in a library that Geneva loads at run time when it is
- * present next to libgemfony-geneva (see loadOptionalConsumerModules() in GConsumerSetup.cpp); the
- * consumer "mpi" exists exactly when that load succeeds. The library also carries GMPISubClientOptimizer
- * and GMPISubClientIndividual, which a program that uses them links directly.
+ * MPI is the one consumer that needs a library not every machine has. Linked into
+ * libgemfony-geneva, it kept every Geneva program from starting where no MPI library is installed
+ * -- even for a run on the thread-pool consumer. Here, its provider lives in a library that Geneva
+ * loads at run time when it is present next to libgemfony-geneva (see loadOptionalConsumerModules()
+ * in GConsumerSetup.cpp); the consumer "mpi" exists exactly when that load succeeds. The library
+ * also carries GMPISubClientOptimizer and GMPISubClientIndividual, which a program that uses them
+ * links directly. The process's one MPI environment is not defined here but in courtier's MPI
+ * library (libgemfony-courtier-mpi), which this module links: the module, the program and any other
+ * library of the process share it.
  */
 
 // Standard headers
+#include <any>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -49,9 +53,13 @@
 
 // Geneva headers
 #include "common/GCommonEnums.hpp"
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GModuleManifest.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/consumers/GMPIConsumerConfig.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
+#include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerPlugin.hpp"
 #include "geneva/GConsumerSetup.hpp"
 
@@ -61,77 +69,111 @@ namespace c2 = Gem::Courtier;
 namespace po = boost::program_options;
 
 /******************************************************************************/
-/** @brief Provider for the MPI consumer (built on every rank; self-determines master vs worker). */
+namespace {
+
+/** @brief Throws unless this process has the role @p wanted.
+ *  @param wanted The role the caller is for
+ *  @param caller The name of the calling function, for the message */
+void requireRole(c2::processRole wanted, const char *caller) {
+    const c2::processRole actual = c2::mpiProcessRole();
+    if(actual != wanted) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPIConsumerProvider::" << caller << "(): Error!" << '\n'
+            << "This process has the role " << static_cast<int>(actual) << " in the MPI "
+            << "environment, but " << caller << "() is for the role " << static_cast<int>(wanted)
+            << " only (see consumerRole())" << '\n'
+        );
+    }
+}
+
+} // namespace
+
+/******************************************************************************/
+/** @brief Provider for the MPI consumer. The role of a process follows its rank in courtier's
+ *  communicator (see Gem::Courtier::mpiEnvironment()): the submitter builds the consumer, a client
+ *  the MPI client, a bystander neither. */
 class GMPIConsumerProvider final : public GConsumerProviderT {
 public:
     [[nodiscard]] std::string getMnemonic() const override { return "mpi"; }
     [[nodiscard]] std::string getName() const override { return "GMPIConsumerT"; }
     [[nodiscard]] bool needsClient() const override { return true; }
-    // MPI is deliberately NOT a bindsListeningPort() consumer: it is built on every rank and
-    // self-determines master/worker, so it is constructed normally rather than reused from the registry.
-    // The master/worker role is fixed by the process rank, discovered only when setup() runs on each rank.
+    // MPI is deliberately NOT a bindsListeningPort() consumer: there is no port to share, and the
+    // consumer is built on the submitter only.
     [[nodiscard]] bool determinesRoleAtRuntime() const override { return true; }
 
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
-        // MPI fixes the master/worker split by rank; the consumer is built on every rank and branches.
-        // Forward the [mpi] command-line options into the consumer's config.
-        Gem::Courtier::Consumers::MPIConsumerConfig mpi_config;
-        mpi_config.useAsyncReq = spec.mpi_async_req;
-        // 0 == hardware concurrency: leave the default-constructed config's recommendation in place.
-        if(spec.mpi_n_handler_threads != 0) {
-            mpi_config.nHandlerThreads = spec.mpi_n_handler_threads;
-        }
-        mpi_config.serializationMode = spec.serialization_mode;
-        mpi_config.masterCleanSessIntervalMSec = spec.mpi_clean_sess_interval;
-        auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
-            nullptr, nullptr, mpi_config);
-        ConsumerSetup setup;
-        if(consumer->isMasterNode()) {
-            consumer->setCloneFunction(individualCloneFunction());
-            consumer->startServer();
-            setup.consumer = consumer;
-        }
-        else {
-            // Worker rank: serve through the consumer (kept alive by the capture); no consumer to register.
-            setup.run_worker = [consumer]() { consumer->runWorker(); };
-        }
-        return setup;
+    /** @brief The role of this process in the MPI environment; --client plays no part.
+     *  @return The role of this process */
+    [[nodiscard]] c2::processRole
+    role(const c2::ConsumerSpec & /*spec*/, bool /*client_requested*/) const override {
+        return c2::mpiProcessRole();
     }
 
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
-        if(vm.contains("mpi_asyncReq")) { spec.mpi_async_req = vm["mpi_asyncReq"].as<bool>(); }
-        if(vm.contains("mpi_nHandlerThreads")) {
-            spec.mpi_n_handler_threads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
+        requireRole(c2::processRole::SUBMITTER, "setup");
+        auto consumer = std::make_shared<c2::GMPIConsumerT<gen::GGenome>>(
+            c2::mpiEnvironment(),
+            c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
+        );
+        consumer->startServer();
+        return consumer;
+    }
+
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
+        c2::Consumers::MPIConsumerConfig config;
+        if(vm.contains("mpi_asyncReq")) {
+            config.useAsyncReq = vm["mpi_asyncReq"].as<bool>();
+        }
+        // 0 == hardware concurrency: leave the struct's recommendation for this machine in place.
+        if(vm.contains("mpi_nHandlerThreads") &&
+           vm["mpi_nHandlerThreads"].as<std::uint32_t>() != 0) {
+            config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
         }
         if(vm.contains("mpi_cleanSessInterval")) {
-            spec.mpi_clean_sess_interval = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
+            config.masterCleanSessIntervalMSec = vm["mpi_cleanSessInterval"].as<std::uint32_t>();
         }
         if(vm.contains("mpi_serializationMode")) {
-            spec.serialization_mode = vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
+            config.serializationMode =
+                vm["mpi_serializationMode"].as<Gem::Common::serializationMode>();
         }
-        return spec;
+        return config;
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
-        return nullptr; // the mpi worker loop comes from setup().run_worker, not a socket client
+    buildClient(const c2::ConsumerSpec &spec) const override {
+        requireRole(c2::processRole::CLIENT, "buildClient");
+        return std::make_shared<c2::Consumers::GMPIConsumerWorkerNodeT<gen::GGenome>>(
+            c2::mpiEnvironment(),
+            c2::configOf<c2::Consumers::MPIConsumerConfig>(spec)
+        );
     }
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
-        // The defaults mirror MPIConsumerConfig so an unset option leaves the consumer's own default in place.
+        // The defaults are those of MPIConsumerConfig, read from a default-constructed one, so
+        // they are stated in one place only. --mpi_nHandlerThreads defaults to 0, "the
+        // recommendation for this machine", which configFromCommandLine() leaves to the struct.
+        const c2::Consumers::MPIConsumerConfig defaults;
         visible.add_options()(
-            "mpi_asyncReq", po::value<bool>()->default_value(true),
-            "\t[mpi] Whether clients prefetch the next work item")(
-            "mpi_nHandlerThreads", po::value<std::uint32_t>()->default_value(0),
-            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)");
+            "mpi_asyncReq",
+            po::value<bool>()->default_value(defaults.useAsyncReq),
+            "\t[mpi] Whether clients prefetch the next work item"
+        );
+        visible.add_options()(
+            "mpi_nHandlerThreads",
+            po::value<std::uint32_t>()->default_value(0),
+            "\t[mpi] The number of request-handler threads (0 == hardware concurrency)"
+        );
         hidden.add_options()(
-            "mpi_cleanSessInterval", po::value<std::uint32_t>()->default_value(1000),
-            "\t[mpi] Interval in ms between master session-completion checks")(
+            "mpi_cleanSessInterval",
+            po::value<std::uint32_t>()->default_value(defaults.masterCleanSessIntervalMSec),
+            "\t[mpi] Interval in ms between master session-completion checks"
+        );
+        hidden.add_options()(
             "mpi_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
-            "\t[mpi] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)");
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
+            ("\t[mpi] Serialization in " + Gem::Common::serializationModeChoices()).c_str()
+        );
     }
 };
 

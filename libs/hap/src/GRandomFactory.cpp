@@ -32,6 +32,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "hap/GRandomDefines.hpp"
 #include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar) + fill seam
 #include <array>
@@ -50,6 +51,76 @@
 #include <utility>
 
 namespace Gem::Hap {
+
+/******************************************************************************/
+/**
+ * How long the call that starts producer threads waits before it warns about a start that has not
+ * finished, and between the later warnings, in milliseconds. Constant-initialized; changed only by the
+ * test hook setProducerStartWarningPeriodsForTests().
+ */
+namespace {
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::chrono::milliseconds::rep> g_producer_start_first_warning_ms{
+    std::chrono::duration_cast<std::chrono::milliseconds>(PRODUCERSTARTFIRSTWARNING).count()
+};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::chrono::milliseconds::rep> g_producer_start_repeat_warning_ms{
+    std::chrono::duration_cast<std::chrono::milliseconds>(PRODUCERSTARTREPEATWARNING).count()
+};
+
+/**
+ * The state of the test hook that makes the creation of producer threads fail: whether it is on, and
+ * how many creations may still succeed before the others fail. Constant-initialized; changed only by
+ * failProducerThreadCreationsForTests().
+ */
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<bool> g_producer_creation_fails{false};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::size_t> g_producer_creations_to_pass{0};
+
+/**
+ * Throws as a failing creation of a thread would, while the test hook asks for it. A no-op in builds
+ * without GEM_TESTING.
+ */
+void producerThreadCreationHook() {
+#ifdef GEM_TESTING
+    if(g_producer_creation_fails.load()) {
+        std::size_t n_pass = g_producer_creations_to_pass.load();
+        while(n_pass > 0 &&
+              not g_producer_creations_to_pass.compare_exchange_weak(n_pass, n_pass - 1)) {
+        }
+        if(0 == n_pass) {
+            throw std::system_error(
+                std::make_error_code(std::errc::resource_unavailable_try_again),
+                "The creation of a producer thread failed (test hook)"
+            );
+        }
+    }
+#endif /* GEM_TESTING */
+}
+} // namespace
+
+/******************************************************************************/
+/**
+ * The state of one start of producer threads, shared by the call that starts them and by each of them:
+ * how many are at which stage of their start, and the latch that the call waits on. A producer is first
+ * building its random-number engine (on the GPU: its CUDA context, stream and cuRAND generator), then
+ * filling its first container; when that is done, or the producer has ended before, it counts down the
+ * latch.
+ */
+struct GRandomFactory::GProducerStart {
+    /** @brief Prepares the start of n producers @param n The number of producers */
+    explicit GProducerStart(std::uint16_t n)
+      : n_producers(n)
+      , n_building(n)
+      , finished(n) { /* nothing */
+    }
+
+    std::uint16_t n_producers;             ///< How many producers this start launched
+    std::atomic<std::size_t> n_building;   ///< How many are building their engine
+    std::atomic<std::size_t> n_filling{0}; ///< How many are filling their first container
+    Gem::Common::Concurrency::GCompletionLatchT finished; ///< Counted down by each producer once
+};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +254,8 @@ void GRandomFactory::returnUsedPackage(std::unique_ptr<random_container> &&p) {
  *
  * A request for 0 threads auto-sizes the pool to the hardware
  * (autoProducerThreadCount()). While producer threads are already running only
- * an increase is possible: the missing threads are started on the spot and the
+ * an increase is possible: the missing threads are started on the spot -- the call
+ * returns when they have finished their start (see awaitStart()) -- and the
  * stored count is updated; a requested decrease is ignored with a warning.
  * Before the first start (threads are launched lazily on the first
  * getNewRandomContainer() call) the count is simply stored.
@@ -214,14 +286,22 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
             return;
         }
 
-        // Start the missing producer threads (a no-op if the count is unchanged)
-        for(std::uint16_t i = n_current; i < n_producer_threads_local; i++) {
-            producer_threads_.create_thread([this]() { this->producer(this->getSeed()); });
+        // Start the missing producer threads (a no-op if the count is unchanged). The wait holds
+        // thread_creation_mutex_, which only another setNProducerThreads() takes once the producers run:
+        // a draw does not wait here.
+        if(n_producer_threads_local > n_current) {
+            const auto start =
+                startProducers(static_cast<std::uint16_t>(n_producer_threads_local - n_current));
+            // Only the producers that could be started run and are counted
+            const auto n_running = static_cast<std::uint16_t>(n_current + start->n_producers);
+            accountProducers(n_running);
+            n_producer_threads_ = n_running;
+            awaitStart(*start);
         }
+        return;
     }
 
-    // Record the new count -- whether threads run already (so a later call starts its
-    // delta from the actual pool size) or are yet to be started lazily
+    // Record the count for the lazy start of the producer threads
     n_producer_threads_ = n_producer_threads_local;
 }
 
@@ -229,33 +309,38 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
 /**
  * @brief Hands out a new container of random numbers.
  *
- * When objects need a new container of raw random words with the current
- * default size, they call this function. The producer threads are started on
- * first access (double-checked locking; see
- * http://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/ for
- * the rationale). A fresh container is popped from the buffer with a bounded
- * wait.
+ * The contract is stated at the declaration. The producer threads are started on first access
+ * (double-checked locking; see http://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/
+ * for the rationale). The call that starts them waits for their start after it has let go of
+ * thread_creation_mutex_: other threads draw from the buffer meanwhile, from the producers that have
+ * finished their start. That does not weaken what the wait is for -- the call that starts the producers
+ * returns only when none of them is still inside the creation of its CUDA resources; a thread that
+ * merely draws starts nothing.
  *
- * @return A packet of new raw random words, or an empty unique_ptr on timeout
+ * @return A container of new raw random words, or an empty unique_ptr (see the declaration)
  */
 std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
     // Start the producer threads upon first access to this function
     if(not threads_started_) {
-        std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
-        if(not threads_started_) { // double checked locking pattern
-            //---------------------------------------------------------
-            // Account the producers in the process-wide thread budget for their lifetime.
-            producer_budget_ = Gem::Common::Concurrency::threadBudget().reserve(
-                "hap:producers",
-                n_producer_threads_.load(),
-                Gem::Common::Concurrency::ThreadElasticity::Elastic
-            );
-            for(std::uint16_t i = 0; i < n_producer_threads_.load(); i++) {
-                producer_threads_.create_thread([this]() { this->producer(this->getSeed()); });
-            }
-            //---------------------------------------------------------
+        std::shared_ptr<GProducerStart> start;
+        {
+            std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
+            if(not threads_started_) { // double checked locking pattern
+                //---------------------------------------------------------
+                // Throws only if no producer at all could be started: the factory is then as if
+                // never started, and a later draw tries again. Otherwise the factory runs with the
+                // producers it got, and the start counts as done.
+                start = startProducers(n_producer_threads_.load());
+                n_producer_threads_ = start->n_producers;
+                // Account the producers in the process-wide thread budget for their lifetime.
+                accountProducers(start->n_producers);
+                //---------------------------------------------------------
 
-            threads_started_.store(true);
+                threads_started_.store(true);
+            }
+        }
+        if(start) {
+            awaitStart(*start);
         }
     }
 
@@ -274,6 +359,117 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
 
 /******************************************************************************/
 /**
+ * @brief Starts producer threads.
+ *
+ * Must be called with thread_creation_mutex_ held. The caller then waits for their start with
+ * awaitStart().
+ *
+ * If the creation of the k-th of n threads fails (0 < k < n), the start goes on with the k
+ * producers that run: the returned state counts k producers, and a warning names both numbers.
+ * Only if not even the first thread can be created does the call throw; nothing is then started.
+ *
+ * @param n_new The number of producer threads to start
+ * @return The state of this start, which awaitStart() waits on; its n_producers is the number of
+ *   producers that were actually started
+ */
+std::shared_ptr<GRandomFactory::GProducerStart>
+GRandomFactory::startProducers(std::uint16_t n_new) {
+    // Shared with every new producer: the latch must outlive the last count_down() (see GCompletionLatchT)
+    auto start = std::make_shared<GProducerStart>(n_new);
+    std::uint16_t n_started = 0;
+    try {
+        for(; n_started < n_new; n_started++) {
+            producerThreadCreationHook();
+            producer_threads_.create_thread([this, start]() {
+                this->producer(this->getSeed(), start);
+            });
+        }
+    }
+    catch(const std::exception &e) {
+        if(0 == n_started) {
+            throw;
+        }
+        glogger << "In GRandomFactory::startProducers(): Warning!" << '\n'
+                << "Only " << n_started << " of " << n_new
+                << " producer thread(s) could be started:" << '\n'
+                << e.what() << '\n'
+                << "Random-number production goes on with " << n_started << " producer thread(s)."
+                << '\n'
+                << GWARNING;
+    }
+
+    // The producers that were never started neither build an engine nor count down the latch
+    const auto n_missing = static_cast<std::size_t>(n_new - n_started);
+    start->n_producers = n_started;
+    start->n_building.fetch_sub(n_missing);
+    for(std::size_t i = 0; i < n_missing; i++) {
+        std::ignore = start->finished.count_down();
+    }
+    return start;
+}
+
+/******************************************************************************/
+/**
+ * @brief Makes the producers' reservation in the process-wide thread budget fit the producers that run.
+ *
+ * Must be called with thread_creation_mutex_ held.
+ *
+ * @param n_running The number of producer threads that run
+ */
+void GRandomFactory::accountProducers(std::uint16_t n_running) {
+    producer_budget_.release();
+    producer_budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+        "hap:producers",
+        n_running,
+        Gem::Common::Concurrency::ThreadElasticity::Elastic
+    );
+}
+
+/******************************************************************************/
+/**
+ * @brief Returns when each producer of a start has finished its start.
+ *
+ * A producer has finished its start when it has built its fill backend -- on the GPU, the CUDA
+ * stream, the cuRAND generator and the device buffer, with the cuRAND kernels loaded -- and has filled
+ * its first container, or when it has ended before. While a source creates CUDA resources, the CUDA
+ * libraries must not be shut down: they are unloaded at process exit before this library's
+ * finalize() joins the producers, and a producer caught inside their start then hangs or aborts the
+ * exit. By returning only after every start has finished, the call that starts producers -- the first
+ * getNewRandomContainer() or a setNProducerThreads() that adds threads -- keeps its caller, and thus
+ * the end of main(), behind every start. The first call therefore waits for the slowest producer's
+ * start instead of the fastest; on the GPU they share the creation of the CUDA context and finish
+ * close together.
+ *
+ * The wait has no time limit: a start that never ends cannot be left behind safely. So that a wedged
+ * device is seen as such, a warning names how many producers are at which stage of their start after
+ * PRODUCERSTARTFIRSTWARNING, and again every PRODUCERSTARTREPEATWARNING while the wait goes on.
+ *
+ * @param start The state of the start, as startProducers() returned it
+ */
+void GRandomFactory::awaitStart(GProducerStart &start) {
+    const auto begin = std::chrono::steady_clock::now();
+    auto period = std::chrono::milliseconds(g_producer_start_first_warning_ms.load());
+    while(not start.finished.wait_for(period)) {
+        const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - begin
+        );
+        glogger
+            << "In GRandomFactory: the start of " << start.finished.remaining() << " of "
+            << start.n_producers << " producer thread(s) has not finished after "
+            << static_cast<double>(waited.count()) / 1000. << " s:" << '\n'
+            << start.n_building.load()
+            << " still building its random-number engine (on a GPU: its CUDA"
+            << " context, stream and cuRAND generator), " << start.n_filling.load()
+            << " still filling its first container." << '\n'
+            << "The call that starts random-number production waits for them; a GPU that does not"
+            << " answer keeps it waiting." << '\n'
+            << GWARNING;
+        period = std::chrono::milliseconds(g_producer_start_repeat_warning_ms.load());
+    }
+}
+
+/******************************************************************************/
+/**
  * @brief The production of raw random words takes place here.
  *
  * Runs as the body of a producer std::thread: it (re)fills containers from the
@@ -287,8 +483,38 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
  * producer threads keep supplying numbers.
  *
  * @param seed A seed for this producer thread's local random number generator
+ * @param start The state of the start this producer belongs to; it reports its stages there
  */
-void GRandomFactory::producer(std::uint32_t seed) {
+void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start) {
+    // Reports the stages of this producer's start: that its engine is built, and -- exactly once --
+    // that the start has finished: after its first fill, or, through the destructor, on any path that
+    // leaves the producer before it (an exception, a closed buffer).
+    struct GStartReport {
+        explicit GStartReport(std::shared_ptr<GProducerStart> s)
+          : start(std::move(s)) { /* nothing */
+        }
+        std::shared_ptr<GProducerStart> start;
+        bool built = false;
+        void engineBuilt() {
+            built = true;
+            start->n_filling.fetch_add(1);
+            start->n_building.fetch_sub(1);
+        }
+        void operator()() {
+            if(start) {
+                (built ? start->n_filling : start->n_building).fetch_sub(1);
+                detail::gpuRandomSourceStartStage(GpuSourceStartStage::START_FINISHED);
+                std::ignore = start->finished.count_down();
+                start.reset();
+            }
+        }
+        GStartReport(const GStartReport &) = delete;
+        GStartReport &operator=(const GStartReport &) = delete;
+        ~GStartReport() {
+            (*this)();
+        }
+    } report_start(std::move(start));
+
     try {
         // The fill backend picks -- once -- the fastest engine available in this
         // build (GPU cuRAND when a device is present, else the SIMD xoshiro256++,
@@ -297,6 +523,7 @@ void GRandomFactory::producer(std::uint32_t seed) {
         // from it. The engine-selection / fall-back policy lives entirely in
         // GFillBackend and is shared with the staged source.
         detail::GFillBackend backend(static_cast<std::uint64_t>(seed));
+        report_start.engineBuilt();
 
         // Fills (fresh=true) or refreshes (fresh=false) a container from the backend.
         auto fill = [&](std::unique_ptr<random_container> &cont, bool fresh) {
@@ -331,6 +558,7 @@ void GRandomFactory::producer(std::uint32_t seed) {
             else { // O.k., so we need to create a new container
                 fill(p, /*fresh=*/true);
             }
+            report_start(); // a no-op after the first fill
 
             // Blocking submit: sleep on the buffer's not-full condition until a
             // consumer frees space, or until finalize() closes the buffer at
@@ -365,6 +593,36 @@ void GRandomFactory::producer(std::uint32_t seed) {
             << GWARNING;
     }
 }
+
+/******************************************************************************/
+/**
+ * The state of the test hook that holds GPU source starts, one entry per GpuSourceStartStage. It is
+ * defined before the lifecycle guard below, so it is destroyed only after the guard has joined the
+ * producer threads, which may wait on it.
+ */
+namespace {
+#ifdef GEM_TESTING
+struct GGpuSourceStartHold {
+    std::atomic<bool> held{false};         ///< Whether starting sources wait at this stage
+    std::atomic<std::size_t> n_reached{0}; ///< How many sources have reached this stage
+    std::atomic<std::size_t> n_free{0};    ///< n_reached below which sources pass a held stage
+    std::atomic<bool> fail{false};         ///< Whether starting sources throw at this stage
+    Gem::Common::Concurrency::GCompletionLatchT gate; ///< Opened on release
+};
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::array<GGpuSourceStartHold, 3> g_gpu_source_start_holds;
+
+/**
+ * @brief The hold entry of a stage.
+ *
+ * @param stage The stage
+ * @return The entry of that stage
+ */
+GGpuSourceStartHold &gpuSourceStartHold(GpuSourceStartStage stage) {
+    return g_gpu_source_start_holds.at(static_cast<std::size_t>(stage));
+}
+#endif /* GEM_TESTING */
+} // namespace
 
 /******************************************************************************/
 /**
@@ -433,6 +691,32 @@ void simulateGpuRandomFailureForTests(bool fail) {
 #endif /* GEM_TESTING */
 }
 
+void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass) {
+#ifdef GEM_TESTING
+    g_producer_creation_fails.store(false);
+    g_producer_creations_to_pass.store(n_pass);
+    g_producer_creation_fails.store(fail);
+#else  /* GEM_TESTING */
+    std::ignore = fail;
+    std::ignore = n_pass;
+    Gem::Common::condnotset("Gem::Hap::failProducerThreadCreationsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+void setProducerStartWarningPeriodsForTests(
+    std::chrono::milliseconds first,
+    std::chrono::milliseconds repeat
+) {
+#ifdef GEM_TESTING
+    g_producer_start_first_warning_ms.store(first.count());
+    g_producer_start_repeat_warning_ms.store(repeat.count());
+#else  /* GEM_TESTING */
+    std::ignore = first;
+    std::ignore = repeat;
+    Gem::Common::condnotset("Gem::Hap::setProducerStartWarningPeriodsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
 namespace detail {
 void countGpuRandomSource(bool engaged) noexcept {
     if(engaged) {
@@ -444,7 +728,88 @@ void countGpuRandomSource(bool engaged) noexcept {
 }
 
 bool gpuRandomFailureSimulated() noexcept { return g_gpu_random_failure_simulated.load(); }
+
+/**
+ * Marks that a bulk source starting on the GPU has reached a stage of its start, and holds it there while
+ * a test asks for it (holdGpuRandomSourceStartsForTests()). A no-op in builds without GEM_TESTING. Only
+ * called while a source starts, never on a refill.
+ *
+ * @param stage The stage the source has reached
+ */
+void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
+#ifdef GEM_TESTING
+    auto &h = gpuSourceStartHold(stage);
+    const std::size_t n_before = h.n_reached.fetch_add(1);
+    if(h.held.load() && n_before >= h.n_free.load()) {
+        // Bounded, so that a test that forgets to release the stage cannot hang the process forever
+        std::ignore = h.gate.wait_for(std::chrono::seconds(60));
+    }
+    if(h.fail.load() && stage != GpuSourceStartStage::START_FINISHED) {
+        throw std::runtime_error("A start of a GPU random-number source failed (test hook)");
+    }
+#endif /* GEM_TESTING */
+}
 } /* namespace detail */
+
+/**
+ * Holds bulk sources that start on the GPU at the given stage, or lets the held ones go.
+ *
+ * @param stage The stage to hold or to release
+ * @param hold Whether starting sources should wait at that stage
+ * @param n_pass How many sources may pass the held stage before the others wait
+ */
+void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold, std::size_t n_pass) {
+#ifdef GEM_TESTING
+    auto &h = gpuSourceStartHold(stage);
+    if(hold) {
+        if(not h.held.load()) {
+            h.gate.arm(1);
+            h.n_free.store(h.n_reached.load() + n_pass);
+            h.held.store(true);
+        }
+    }
+    else if(h.held.exchange(false)) {
+        std::ignore = h.gate.count_down();
+    }
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    std::ignore = hold;
+    std::ignore = n_pass;
+    Gem::Common::condnotset("Gem::Hap::holdGpuRandomSourceStartsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+/**
+ * Makes bulk sources that start on the GPU throw at the given stage, or stops doing so.
+ *
+ * @param stage The stage at which starting sources throw
+ * @param fail Whether they throw there
+ */
+void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail) {
+#ifdef GEM_TESTING
+    gpuSourceStartHold(stage).fail.store(fail);
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    std::ignore = fail;
+    Gem::Common::condnotset("Gem::Hap::failGpuRandomSourceStartsForTests", "GEM_TESTING");
+#endif /* GEM_TESTING */
+}
+
+/**
+ * Reports how many bulk sources have reached the given stage of a GPU start since the process began.
+ *
+ * @param stage The stage asked about
+ * @return The number of sources that have reached the stage
+ */
+std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage) {
+#ifdef GEM_TESTING
+    return gpuSourceStartHold(stage).n_reached.load();
+#else  /* GEM_TESTING */
+    std::ignore = stage;
+    Gem::Common::condnotset("Gem::Hap::nGpuRandomSourceStartsForTests", "GEM_TESTING");
+    return 0;
+#endif /* GEM_TESTING */
+}
 
 /******************************************************************************/
 

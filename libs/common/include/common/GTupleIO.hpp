@@ -87,14 +87,14 @@ std::string g_to_string(const T &t) {
  * them via std::views::join_with — no "separator unless last element" special case. Empty
  * tuples render as "()".
  *
- * @tparam args The element types of the tuple
+ * @tparam args_type The element types of the tuple
  * @param t The tuple to be converted to a string
  * @return The tuple rendered as "(e0, e1, ...)", or "()" for an empty tuple
  */
-template <class... args>
-std::string g_to_string(const std::tuple<args...> &t) {
+template <class... args_type>
+std::string g_to_string(const std::tuple<args_type...> &t) {
     std::vector<std::string> parts;
-    parts.reserve(sizeof...(args));
+    parts.reserve(sizeof...(args_type));
     std::apply(
         [&parts](const auto &...elems) {
             (parts.push_back(g_to_string(elems)), ...);
@@ -110,13 +110,13 @@ std::string g_to_string(const std::tuple<args...> &t) {
 /**
  * @brief Stream insertion operator for std::tuple.
  *
- * @tparam args The element types of the tuple
+ * @tparam args_type The element types of the tuple
  * @param o The output stream to write to
  * @param t The tuple to be streamed (rendered via g_to_string)
  * @return A reference to the output stream @p o, to allow chaining
  */
-template <class... args>
-std::ostream &operator<<(std::ostream &o, const std::tuple<args...> &t) {
+template <class... args_type>
+std::ostream &operator<<(std::ostream &o, const std::tuple<args_type...> &t) {
     o << g_to_string(t);
     return o;
 }

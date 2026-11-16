@@ -85,8 +85,8 @@ namespace Gem::Common::Concurrency {
  * SIMD/cuRAND backend. Reads (@ref claimSpan / @ref copyChunkInto) carry no indirection -- the injected
  * callback runs once per pool refill, never on the per-chunk read path.
  *
- * Let @f$W=@f$ @c ChunkWords (words per chunk), @f$C=@f$ @c ChunksPerPool (chunks per pool) and
- * @f$N=@f$ @c NPools. Each pool holds @f$C\cdot W@f$ 64-bit words; the @f$N@f$ pools form a ring.
+ * Let @f$W=@f$ @c CHUNK_WORDS (words per chunk), @f$C=@f$ @c CHUNKS_PER_POOL (chunks per pool) and
+ * @f$N=@f$ @c N_POOLS. Each pool holds @f$C\cdot W@f$ 64-bit words; the @f$N@f$ pools form a ring.
  *
  * @par Data structure
  * @verbatim
@@ -149,14 +149,17 @@ namespace Gem::Common::Concurrency {
  * It is @e formally still a data race, so the pool storage is marked with @c AnnotateBenignRaceSized
  * (see the file-top note); a ThreadSanitizer build then reports zero races while all assertions pass.
  *
- * @tparam ChunkWords     Words per claimed chunk (@f$W@f$)
- * @tparam ChunksPerPool  Chunks per pool (@f$C@f$; pool size @f$=W\cdot C@f$ words)
- * @tparam NPools         Number of rotating pools (@f$N@f$; must be @f$\ge 3@f$ for the quarantine)
+ * @tparam CHUNK_WORDS     Words per claimed chunk (@f$W@f$)
+ * @tparam CHUNKS_PER_POOL  Chunks per pool (@f$C@f$; pool size @f$=W\cdot C@f$ words)
+ * @tparam N_POOLS         Number of rotating pools (@f$N@f$; must be @f$\ge 3@f$ for the quarantine)
  */
-template <std::size_t ChunkWords, std::size_t ChunksPerPool = 64, int NPools = 4>
+template <std::size_t CHUNK_WORDS, std::size_t CHUNKS_PER_POOL = 64, int N_POOLS = 4>
 class GSPSCStagingRingT {
-    static constexpr std::size_t PoolWords = ChunkWords * ChunksPerPool;
-    static_assert(NPools >= 3, "GSPSCStagingRingT needs >= 3 pools for the quarantine separation.");
+    static constexpr std::size_t PoolWords = CHUNK_WORDS * CHUNKS_PER_POOL;
+    static_assert(
+        N_POOLS >= 3,
+        "GSPSCStagingRingT needs >= 3 pools for the quarantine separation."
+    );
 
     // Aligned 64-bit access must be tear-free for the benign old-or-new read to hold.
     static_assert(std::atomic_ref<std::uint64_t>::is_always_lock_free,
@@ -171,11 +174,11 @@ public:
      *  producer thread, so it need not be thread-safe with respect to itself. */
     using fill_function = std::move_only_function<void(word_type *dst, std::size_t n_words)>;
 
-    /** @brief Builds the ring, fills the initial @c NPools generations and starts the producer thread.
+    /** @brief Builds the ring, fills the initial @c N_POOLS generations and starts the producer thread.
      *  @param fill The bulk-fill callback that populates one pool's worth of words. */
     explicit GSPSCStagingRingT(fill_function fill)
       : fill_(std::move(fill))
-      , pools_(static_cast<std::size_t>(NPools)) {
+      , pools_(static_cast<std::size_t>(N_POOLS)) {
         for(auto &pool : pools_) {
             pool.resize(PoolWords);
             // Mark the pool storage as an intentional benign race (no-op unless built
@@ -183,11 +186,11 @@ public:
             GEM_ANNOTATE_BENIGN_RACE(pool.data(), PoolWords * sizeof(word_type),
                                      "GSPSCStagingRingT: benign refill-vs-stale-reader race (aligned 64-bit)");
         }
-        // Fill the initial NPools generations (pool k holds generation k).
-        for(int k = 0; k < NPools; ++k) {
+        // Fill the initial N_POOLS generations (pool k holds generation k).
+        for(int k = 0; k < N_POOLS; ++k) {
             fillPool(k);
         }
-        filled_seq_.store(static_cast<std::uint64_t>(NPools - 1), std::memory_order_relaxed);
+        filled_seq_.store(static_cast<std::uint64_t>(N_POOLS - 1), std::memory_order_relaxed);
         producer_ = std::thread([this]() { this->produce(); });
     }
 
@@ -205,12 +208,12 @@ public:
 
     /**
      * @brief Claims the next chunk and returns a pointer to its span for in-place reading.
-     * @return Pointer to ChunkWords words inside one of the pools
+     * @return Pointer to CHUNK_WORDS words inside one of the pools
      */
     const word_type *claimSpan() {
         const std::uint64_t s   = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
-        const std::size_t   k   = static_cast<std::size_t>((s / ChunksPerPool) % NPools);
-        const std::size_t   off = (s % ChunksPerPool) * ChunkWords;
+        const std::size_t k = static_cast<std::size_t>((s / CHUNKS_PER_POOL) % N_POOLS);
+        const std::size_t off = (s % CHUNKS_PER_POOL) * CHUNK_WORDS;
         return pools_[k].data() + off;
     }
 
@@ -220,14 +223,14 @@ public:
      * Each word is read with an aligned 64-bit atomic load (old-or-new, never torn), so the resulting
      * private copy is a clean snapshot the caller can serve from without any further pool access.
      *
-     * @param dst Destination buffer (at least ChunkWords words)
+     * @param dst Destination buffer (at least CHUNK_WORDS words)
      */
     void copyChunkInto(word_type *dst) {
         const std::uint64_t s   = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
-        const std::size_t   k   = static_cast<std::size_t>((s / ChunksPerPool) % NPools);
-        const std::size_t   off = (s % ChunksPerPool) * ChunkWords;
+        const std::size_t k = static_cast<std::size_t>((s / CHUNKS_PER_POOL) % N_POOLS);
+        const std::size_t off = (s % CHUNKS_PER_POOL) * CHUNK_WORDS;
         word_type          *src = pools_[k].data() + off;
-        for(std::size_t i = 0; i < ChunkWords; ++i) {
+        for(std::size_t i = 0; i < CHUNK_WORDS; ++i) {
             dst[i] = std::atomic_ref<word_type>(src[i]).load(std::memory_order_relaxed);
         }
     }
@@ -242,12 +245,12 @@ private:
     /** @brief Producer loop: keep pools filled up to (lead + NPools-1) generations ahead. */
     void produce() {
         while(not stop_.load(std::memory_order_relaxed)) {
-            const std::uint64_t lead   = chunk_seq_.load(std::memory_order_relaxed) / ChunksPerPool;
-            const std::uint64_t target = lead + static_cast<std::uint64_t>(NPools - 1);
+            const std::uint64_t lead = chunk_seq_.load(std::memory_order_relaxed) / CHUNKS_PER_POOL;
+            const std::uint64_t target = lead + static_cast<std::uint64_t>(N_POOLS - 1);
             const std::uint64_t fs     = filled_seq_.load(std::memory_order_relaxed);
             if(fs < target) {
                 const std::uint64_t next = fs + 1;
-                fillPool(static_cast<int>(next % NPools));
+                fillPool(static_cast<int>(next % N_POOLS));
                 filled_seq_.store(next, std::memory_order_relaxed);
             }
             else {
@@ -257,7 +260,7 @@ private:
     }
 
     fill_function                           fill_;          ///< injected bulk-fill source (chosen once)
-    std::vector<std::vector<word_type>>     pools_;         ///< NPools rotating pools
+    std::vector<std::vector<word_type>> pools_;             ///< N_POOLS rotating pools
     std::atomic<std::uint64_t>              chunk_seq_{0};  ///< monotonic claim cursor (chunk index)
     std::atomic<std::uint64_t>              filled_seq_{0}; ///< highest pool generation filled
     std::atomic<bool>                       stop_{false};   ///< shutdown flag for the producer thread

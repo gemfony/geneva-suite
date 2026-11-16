@@ -102,7 +102,7 @@ inline std::string to_string(timeoutTreatment t) {
  *
  * This is the SERVER-side transport concern of "when is an unreturned item assumed lost" -- distinct from
  * (and composed with) the algorithm-driven GSubmissionPolicy, which decides what to DO about a missing item
- * (fatal vs clone). It is applied to every networked consumer (ASIO / websocket / MPI, all derived from
+ * (fatal vs clone). It is applied to every networked consumer (websocket / MPI, both derived from
  * GNetworkedConsumerT) via GNetworkedConsumerT::applyTimeoutConfig(). Durations are whole milliseconds.
  *
  * Defaults reproduce GNetworkedConsumerT's built-in adaptive behaviour exactly, so an absent config file
@@ -137,12 +137,6 @@ struct GNetworkedTimeoutConfig {
     std::int64_t fixed_stall_window_ms = GNETWORKEDFIXEDSTALLWINDOW.count();
     std::int64_t fixed_lease_ms =
         GNETWORKEDFIXEDLEASE.count(); ///< reclaim lease when treatment == fixed
-
-    //--- connection-reclaim (ASIO only): the per-EXCHANGE session deadline that closes a client that
-    //    connects but never completes its request. NOT the evaluation timeout (the ASIO client does discrete
-    //    fetch/return exchanges and does not hold the connection while it computes). 0 disables it. ---
-    /// [asio] per-exchange session deadline (0 == disabled)
-    std::int64_t session_timeout_ms = GASIOSESSIONTIMEOUT.count();
 
     /**
      * @brief Reads the configuration from @p configFile, writing scale-free defaults if it is absent.
@@ -184,11 +178,12 @@ struct GNetworkedTimeoutConfig {
             "fixed_stall_window_ms", fixed_stall_window_ms, fixed_stall_window_ms,
             Gem::Common::VAR_IS_ESSENTIAL, "[fixed] give-up window (ms) when treatment == fixed");
         gpb.registerFileParameter<std::int64_t>(
-            "fixed_lease_ms", fixed_lease_ms, fixed_lease_ms, Gem::Common::VAR_IS_ESSENTIAL,
-            "[fixed] reclaim lease (ms) when treatment == fixed");
-        gpb.registerFileParameter<std::int64_t>(
-            "session_timeout_ms", session_timeout_ms, session_timeout_ms, Gem::Common::VAR_IS_ESSENTIAL,
-            "[asio] per-exchange connection deadline (ms); 0 disables it. NOT the evaluation timeout.");
+            "fixed_lease_ms",
+            fixed_lease_ms,
+            fixed_lease_ms,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "[fixed] reclaim lease (ms) when treatment == fixed"
+        );
         gpb.parseConfigFile(configFile);
     }
 

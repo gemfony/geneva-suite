@@ -1,0 +1,569 @@
+/********************************************************************************
+ *
+ * This file is part of the Geneva library collection. The following license
+ * applies to this file:
+ *
+ * ------------------------------------------------------------------------------
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ------------------------------------------------------------------------------
+ *
+ * Note that other files in the Geneva library collection may use a different
+ * license. Please see the licensing information in each file.
+ *
+ ********************************************************************************
+ *
+ * See the NOTICE file in the top-level directory of the Geneva library
+ * collection for a list of contributors and copyright information.
+ *
+ ********************************************************************************/
+
+#pragma once
+
+// Global checks, defines and includes needed for all of Geneva
+#include "common/GGlobalDefines.hpp"
+
+// Standard headers go here
+#include <algorithm>
+#include <atomic>
+#include <cstddef>
+#include <exception>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <tuple>
+#include <utility>
+
+// Boost headers go here
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/io_context.hpp>
+
+// Geneva headers go here
+#include "common/GCommonEnums.hpp"
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
+#include "common/concurrency/GThreadBudget.hpp"
+#include "common/concurrency/GThreadGroup.hpp"
+#include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
+#include "courtier/GWireSerializationContext.hpp" // blob send-once: shared registry
+#include "courtier/consumers/GNetworkedConsumerT.hpp"
+#include "courtier/transport/GPeerI.hpp"        // the listener and its peers
+#include "courtier/transport/GPeerSessionT.hpp" // one session per peer
+
+namespace Gem::Courtier {
+
+/******************************************************************************/
+/**
+ * A networked consumer over any transport that offers a GListenerI: the server's shell. It runs
+ * the sessions (a GPeerSessionT for every peer the listener makes), keeps the peers that have not
+ * ended in a registry, and ends the run: it tells every client that the run is over and waits for
+ * them, bounded (GPeerI.hpp, rule 8).
+ *
+ * Threads. The shell's io context is the session pool: nThreads threads (the hardware concurrency
+ * if 0) that run the sessions' handlers and nothing else; they are accounted in the thread budget
+ * as "<consumer name>:sessions". The listener is handed the executor of that pool; the threads that
+ * move the bytes, if the transport has any, are the listener's own (rule 2).
+ *
+ * The peers. A session enters the registry (keyed by the client's id in the blob registry) when its
+ * peer has been started, and leaves it in its destructor, through its serverSignOn() hook;
+ * getNActiveSessions() is the registry's size. The registry holds the peers weakly: it never keeps a
+ * connection alive. The order is what keeps rule 2 of GPeerI.hpp: stopServer() closes only peers it
+ * finds in the registry, so it never closes a peer before that peer's start(). A session that
+ * enters the registry after stopServer() has looked at it sees the stop itself: the stop is
+ * requested before the registry is read, and the session looks at the stop after it has entered
+ * (startSession_()).
+ *
+ * The end of a run (stopServer()): the consumer is told to stop (parked sessions wake up and close
+ * their connections with GPeerClose::RUN_ENDED); the listener makes no new peers, and its stop()
+ * returns only when the calls of on_peer it had begun have returned (GListenerI::stop()), so every
+ * session on its way has been made and has entered the registry; every peer in the registry is
+ * closed with RUN_ENDED (also a session that waits for nothing, e.g. one whose client
+ * is evaluating); the shell waits until the registry is empty, but not longer than the listener's
+ * stopGrace(), and logs how many peers did not confirm -- those that had not ended by then and
+ * those whose close ended without the client's confirmation (GPeerEnd::CLOSED_HERE_UNCONFIRMED,
+ * GPeerI.hpp rule 6), clientsUnconfirmedAtStop(); the session threads are joined; the
+ * listener ends its own work (endWork(): its threads joined, its I/O context shut down). The
+ * listener lives on until the shell is destroyed, so that questions about the transport (its port,
+ * say) can still be asked of it. A session cut off by the grace lives until the shell is destroyed;
+ * the items it held are put back then, but after stopServer() the consumer serves nothing anyway.
+ *
+ * Lost clients. Whether items of a lost client come back by the time lease is the listener's
+ * answer (detectsLoss()): a transport that notices the loss of a client by itself needs no time
+ * lease. A session's CheckoutLease is used in either case: when a connection ends, by a close or by
+ * a loss, what its client held is put back at once -- only what it holds still: an item that the
+ * time lease has put back and another session has taken stays with that session. If a client hangs,
+ * the time lease may put an item back that the client later still returns when it ends; the item is
+ * then evaluated twice and the late duplicate is dropped and counted (GNetworkedConsumerT).
+ *
+ * Lifetime. The sessions refer to this object through a plain `this`. That is safe because their
+ * handlers run on the session threads only, which are joined in stopServer(), and the destructor
+ * stops the server. Declaration order matters: the sessions that are still alive when the server
+ * has stopped are destroyed with the session pool's context, and their destructors reach the peer
+ * registry and the blob registry, which are declared before it; the listener is declared before the
+ * context too, so that it -- and with it the transport's I/O context, whose sockets the peers may
+ * hold -- is destroyed after it.
+ *
+ * @tparam processable_type The work-item type served to clients and collected back from them.
+ */
+template <typename processable_type>
+class GPeerConsumerT : public GNetworkedConsumerT<processable_type> {
+public:
+    using session_type = Gem::Courtier::Consumers::GPeerSessionT<processable_type>;
+
+    /***************************************************************************/
+    /**
+     * @brief Takes the listener the consumer serves its clients through.
+     *
+     * @param consumer_name The concrete consumer's qualified class name, used in diagnostics and
+     *        in the thread budget
+     * @param listener The server side of the transport; the consumer owns it. Must not be null.
+     * @param n_threads Number of session threads; 0 means one per hardware thread
+     * @param serialization_mode Which serialization format the wire protocol uses
+     * @throws geneva_exception if @p listener is empty
+     */
+    GPeerConsumerT(
+        std::string_view consumer_name,
+        std::unique_ptr<Consumers::GListenerI> listener,
+        std::size_t n_threads,
+        Gem::Common::serializationMode serialization_mode
+    )
+      : consumer_name_(consumer_name)
+      , n_threads_(n_threads == 0 ? defaultThreads_() : n_threads)
+      , serialization_mode_(serialization_mode)
+      , detects_loss_(listener ? listener->detectsLoss() : false)
+      , listener_(std::move(listener)) {
+        if(not listener_) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << consumer_name_ << ": Error!" << '\n'
+                << "The listener must not be empty" << '\n'
+            );
+        }
+    }
+
+    /** @brief The destructor stops the server if that has not been done already. */
+    ~GPeerConsumerT() override {
+        this->stopServerNoThrow_();
+    }
+
+    GPeerConsumerT(const GPeerConsumerT &) = delete;
+    GPeerConsumerT(GPeerConsumerT &&) = delete;
+    GPeerConsumerT &operator=(const GPeerConsumerT &) = delete;
+    GPeerConsumerT &operator=(GPeerConsumerT &&) = delete;
+
+    /***************************************************************************/
+    /** @brief Number of sessions that are alive: the peers in the registry.
+     *  @return The current count of sessions. */
+    [[nodiscard]] std::size_t getNActiveSessions() const {
+        return peers_.size();
+    }
+
+    /** @brief How many clients are connected (GBaseConsumerT): the sessions whose client has
+     *  spoken -- its first message has been read -- and whose connection has not ended. Not
+     *  counted: a connection that has not been opened yet (a websocket handshake under way, or one
+     *  that never completes) and a client that has said nothing so far (a client asks for work as
+     *  soon as its connection is open). Counted: a client that has died without its connection
+     *  ending (its host gone without a reset, its process stopped), until the transport notices
+     *  the loss -- at its idle limit if it has one (GListenerI::detectsLoss()), otherwise not
+     *  before the end of the run. Such a client that connects again is counted twice until then:
+     *  a client carries no identity of its own across connections, so its new session cannot
+     *  know that it replaces another. getNActiveSessions() counts all sessions, the silent ones
+     *  too.
+     *  @return The count */
+    [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
+        return n_connected_.load();
+    }
+
+    /** @brief How many clients did not confirm the end of the run at the last stopServer(): those
+     *  whose peers had not ended within the listener's stopGrace(), and those whose close ended
+     *  without the client's confirmation after the stop began (a crossing close of the client's
+     *  own among them, GPeerI.hpp rule 6) -- each client once. A connection that its session had
+     *  closed with an error itself is not counted among the latter: that close was not the end of
+     *  the run. From any thread; 0 before a stop.
+     *  @return The count */
+    [[nodiscard]] std::size_t clientsUnconfirmedAtStop() const {
+        return n_unconfirmed_at_stop_.load();
+    }
+
+    /** @brief The number of distinct blobs the server has interned for transport (blob
+     *  send-once). One per distinct genome structure across all clients.
+     *  @return The count of interned blobs. */
+    [[nodiscard]] std::size_t getInternedBlobCount() const {
+        return wire_registry_.size();
+    }
+
+    /** @brief Bounds the number of distinct blobs the server caches for transport; 0 (the
+     *  default) keeps them all.
+     *  @param max_blobs The maximum number of cached blobs (0 == unbounded). */
+    void setInternedBlobCapacity(std::size_t max_blobs) {
+        wire_registry_.setCapacity(max_blobs);
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Starts the listener and the session threads. To be called once, after the consumer
+     * has been registered with the GConsumerRegistry and before any batch is submitted. Further
+     * calls do nothing.
+     *
+     * If the listener cannot be started (a port that cannot be bound, say), its exception reaches
+     * the caller and the consumer stays one that was never started: stopServer() and the
+     * destructor have nothing to stop, and the listener is not asked to stop or to end its work
+     * (GListenerI::start()). Such a consumer cannot be started any more; a further call throws.
+     *
+     * startServer() and stopServer() may be called from different threads at the same time: they
+     * take turns. A consumer that has been stopped cannot be started; startServer() then throws.
+     *
+     * @throws whatever the listener's start() throws; geneva_exception if an earlier call failed or
+     *         the consumer has been stopped
+     */
+    void startServer() {
+        const std::scoped_lock lifecycle(lifecycle_mutex_);
+        if(stopped_already_.load()) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                << "The consumer has been stopped; it cannot be started any more" << '\n'
+            );
+        }
+        if(start_called_.exchange(true)) {
+            if(not started_.load()) {
+                throw geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                    << "The listener could not be started before; this consumer cannot be "
+                       "started any more"
+                    << '\n'
+                );
+            }
+            return;
+        }
+
+        // The listener calls back for every client, on a session thread. A session is owned by
+        // its peer from start() on. If start() throws, nothing has been started.
+        listener_->start(
+            io_context_.get_executor(),
+            [this](std::shared_ptr<Consumers::GPeerI> peer, GWirePeerId peer_id) {
+                this->startSession_(peer, peer_id);
+            }
+        );
+        started_.store(true);
+
+        budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+            consumer_name_ + ":sessions",
+            static_cast<unsigned int>(n_threads_),
+            Gem::Common::Concurrency::ThreadElasticity::Elastic
+        );
+        for(std::size_t t = 0; t < n_threads_; ++t) {
+            threads_.create_thread([this] { io_context_.run(); });
+        }
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Ends the run: tells every client, waits for them (at most the listener's
+     * stopGrace()), joins the session threads and ends the transport's own work (see the class
+     * comment). Idempotent. Not on a session thread. A server that was never started has nothing
+     * to stop.
+     *
+     * The session threads are joined and the listener's work is ended also when an earlier step
+     * throws (the listener's stop(), a close); the first exception then reaches the caller. Were
+     * they not, the threads would stay in run() for good, and the destructor of the thread group,
+     * whose std::jthreads join, would wait for them for ever.
+     *
+     * Not at the same time as startServer() from another thread: the two take turns.
+     *
+     * @throws whatever the listener's stop() or endWork(), or a close, throws -- after the threads
+     *         have been joined
+     */
+    void stopServer() {
+        const std::scoped_lock lifecycle(lifecycle_mutex_);
+        if(stopped_already_.exchange(true)) {
+            return;
+        }
+        this->requestStop();
+
+        if(not started_.load()) {
+            return;
+        }
+
+        std::exception_ptr failure;
+        try {
+            this->tellClients_();
+        }
+        catch(...) {
+            failure = std::current_exception();
+        }
+
+        work_guard_.reset();
+        io_context_.stop();
+        threads_.join_all();
+
+        // No session runs any more: the transport's own work can end.
+        try {
+            listener_->endWork();
+        }
+        catch(...) {
+            if(not failure) {
+                failure = std::current_exception();
+            }
+        }
+        budget_.release();
+        if(failure) {
+            std::rethrow_exception(failure);
+        }
+    }
+
+protected:
+    /***************************************************************************/
+    /** @brief Stops the server without letting an exception escape -- for destructors. */
+    void stopServerNoThrow_() noexcept {
+        try {
+            this->stopServer();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- deliberate best-effort teardown
+            // never let an exception escape a destructor
+        }
+    }
+
+private:
+    /***************************************************************************/
+    /** @brief The part of stopServer() that may wait: no new peers, every peer is told that the
+     *  run has ended, and the shell waits for them, at most the listener's stopGrace(). */
+    void tellClients_() {
+        listener_->stop();
+
+        // Every peer that has not ended hears that the run is over. A session made after this
+        // snapshot sees the stop when it starts (startSession_()).
+        for(const auto &weak_peer : peers_.values()) {
+            if(auto peer = weak_peer.lock()) {
+                peer->close(Consumers::GPeerClose::RUN_ENDED);
+            }
+        }
+        std::ignore = peers_.waitUntilEmpty(listener_->stopGrace());
+        // Each client is counted once: a session leaves the registry (in its destructor) only
+        // after its connectionEnded hook has run, so the registry is read first. A session found
+        // there whose connection has ended unconfirmed since is counted with those; one that is in
+        // neither has confirmed.
+        const auto left = peers_.keys();
+        const auto unconfirmed = ended_unconfirmed_.keys();
+        std::size_t n_left = 0;
+        for(const GWirePeerId id : left) {
+            n_left += std::ranges::binary_search(unconfirmed, id) ? 0 : 1;
+        }
+        const std::size_t n_unconfirmed = unconfirmed.size();
+        n_unconfirmed_at_stop_.store(n_left + n_unconfirmed);
+        if(n_left + n_unconfirmed > 0) {
+            glogger << "In " << consumer_name_ << "::stopServer(): " << (n_left + n_unconfirmed)
+                    << " client(s) did not confirm the end of the run: " << n_left
+                    << " had not ended within " << listener_->stopGrace().count() << " ms, "
+                    << n_unconfirmed << " ended without confirming the close" << '\n'
+                    << GLOGGING;
+        }
+    }
+
+protected:
+
+    /***************************************************************************/
+    /** @brief A transport that notices the loss of a client by itself needs no time lease; one
+     *  that does not, reclaims items by it.
+     *  @return true if stuck in-flight items are reclaimed via the time lease */
+    [[nodiscard]] bool usesTimeLease() const override {
+        return not detects_loss_;
+    }
+
+    /***************************************************************************/
+    /** @brief The listener, for a concrete consumer that has questions about its transport (a
+     *  port, say). It lives as long as this object.
+     *  @return The listener */
+    [[nodiscard]] Consumers::GListenerI &listener() const {
+        return *listener_;
+    }
+
+private:
+    /***************************************************************************/
+    /** @brief Default number of session threads when none was requested.
+     *  @return The hardware concurrency, or 1 if it cannot be determined. */
+    static std::size_t defaultThreads_() {
+        const unsigned int hc = std::thread::hardware_concurrency();
+        return hc == 0 ? 1U : hc;
+    }
+
+    /***************************************************************************/
+    /** @brief Starts one session for a peer the listener has made, with a CheckoutLease that puts
+     *  back what the client holds when the session ends. On a session thread.
+     *  @param peer The connection, not started yet
+     *  @param peer_id The client's id in the blob registry */
+    void startSession_(const std::shared_ptr<Consumers::GPeerI> &peer, GWirePeerId peer_id) {
+        using lease_type = GNetworkedConsumerT<processable_type>::CheckoutLease;
+        auto lease = std::make_shared<lease_type>();
+        // The lease and the hooks refer to this consumer through `this` (see the class comment).
+        lease->on_abandon = [this](Gem::Courtier::CORRELATION_ID_TYPE id, std::uint64_t checkout) {
+            this->requeue(id, checkout);
+        };
+
+        const std::weak_ptr<Consumers::GPeerI> weak_peer = peer;
+        // Whether the session's client has spoken; both hooks that use it run on the session's
+        // executor, one at a time
+        auto spoke = std::make_shared<bool>(false);
+        auto session = std::make_shared<session_type>(
+            typename session_type::SessionHooks{
+                .getPayloadItem =
+                    [this, lease](Gem::Courtier::GWakeFn wake) {
+                        auto result = this->checkoutOrPark(std::move(wake));
+                        if(result.item) {
+                            // An item that cannot enter the lease would be in flight with nobody
+                            // to give it back: it goes back at once, and the request is refused.
+                            // (No test: only a failing allocation gets here.)
+                            try {
+                                lease->add(result.item, result.checkout);
+                            }
+                            catch(...) {
+                                this->requeue(result.item->getCorrelationId(), result.checkout);
+                                throw;
+                            }
+                        }
+                        return result;
+                    },
+                // A hook that has taken an item out of the lease gives it back (requeue) if the
+                // consumer's call that follows throws anything: the item would otherwise stay in
+                // flight with nobody to give it back. The exception goes on to the session, which
+                // refuses the request. (The consumer fails a slot whose result or clone throws
+                // itself; what is left is a failure of the consumer's own work. No test: only a
+                // failing allocation gets there.)
+                .putPayloadItem =
+                    [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
+                        // Only a result of this server's item ends the lease's hold: a foreign
+                        // one whose id happens to match an item held here is dropped by
+                        // checkin() and must not free that item from the lease.
+                        const Gem::Courtier::CORRELATION_ID_TYPE id =
+                            frame.outcome().correlation_id;
+                        std::optional<std::uint64_t> checkout;
+                        if(GNetworkedConsumerT<processable_type>::handedOutHere(frame)) {
+                            checkout = lease->remove(id);
+                        }
+                        try {
+                            // A result of an item this session did not hand out (sent again
+                            // after a lost connection) gives no sample of the return time: it
+                            // includes the outage.
+                            this->checkin(std::move(frame), checkout.has_value());
+                        }
+                        catch(...) {
+                            if(checkout) {
+                                this->requeue(id, checkout);
+                            }
+                            throw;
+                        }
+                    },
+                .failPayloadItem =
+                    [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
+                        if(auto checkout = lease->remove(id)) {
+                            try {
+                                this->failInFlight(id, *checkout, what);
+                            }
+                            catch(...) {
+                                this->requeue(id, checkout);
+                                throw;
+                            }
+                        }
+                    },
+                .abandonItems = [lease] { lease->abandonAll(); },
+                .checkServerStopped = [this]() -> bool { return this->stopped(); },
+                .serverSignOn =
+                    [this, peer_id, weak_peer](bool sign_on) {
+                        if(sign_on) {
+                            peers_.set(peer_id, weak_peer);
+                        }
+                        else {
+                            peers_.remove(peer_id);
+                        }
+                    },
+                // A close of the end of the run that the client did not confirm counts with
+                // those that had not ended within the grace (tellClients_()); a close the
+                // session made with ERROR itself was not the end of the run. A client that spoke
+                // is no longer connected (connectedClients()).
+                .connectionEnded =
+                    [this, spoke, peer_id](Consumers::GPeerEnd end, bool closed_with_error) {
+                        if(*spoke) {
+                            n_connected_.fetch_sub(1);
+                        }
+                        if(end == Consumers::GPeerEnd::CLOSED_HERE_UNCONFIRMED &&
+                           this->stopped() && not closed_with_error) {
+                            ended_unconfirmed_.set(peer_id, true);
+                        }
+                    },
+                .clientSpoke =
+                    [this, spoke] {
+                        *spoke = true;
+                        n_connected_.fetch_add(1);
+                    },
+            },
+            serialization_mode_,
+            &wire_registry_,
+            peer_id
+        );
+        session->start(peer);
+
+        // The session has entered the registry in start(), after its peer was started. The stop
+        // may have come after stopServer() took its snapshot of the registry: then it is told here.
+        if(this->stopped()) {
+            peer->close(Consumers::GPeerClose::RUN_ENDED);
+        }
+    }
+
+    /***************************************************************************/
+    // Declaration order matters (see the class comment): what the sessions reach in their
+    // destructors, and the listener, before the context the sessions die with.
+
+    std::string consumer_name_; ///< The concrete consumer's qualified class name (diagnostics)
+    std::size_t n_threads_;     ///< The number of session threads
+    Gem::Common::serializationMode serialization_mode_; ///< The wire format
+    bool detects_loss_; ///< The listener's answer to detectsLoss(), asked once
+
+    /// The blob send-once registry shared by all of this server's sessions
+    Gem::Courtier::GWireBlobRegistry wire_registry_;
+    /// The peers whose sessions are alive, by the client's id; held weakly
+    Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, std::weak_ptr<Consumers::GPeerI>>
+        peers_;
+
+    std::unique_ptr<Consumers::GListenerI> listener_; ///< The transport; lives as long as this
+
+    boost::asio::io_context io_context_; ///< The session pool's context
+    std::optional<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
+        work_guard_{boost::asio::make_work_guard(io_context_)}; ///< Keeps the threads in run()
+
+    /// The session threads' reservation in the process-wide thread budget (held from
+    /// startServer() until the threads are joined in stopServer())
+    Gem::Common::Concurrency::GThreadBudget::Reservation budget_;
+    Gem::Common::Concurrency::GThreadGroup threads_; ///< The session threads
+
+    std::atomic<bool> start_called_{false};    ///< startServer() has been called
+    std::atomic<bool> started_{false};         ///< The listener has been started
+    std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
+    /// The clients whose connection ended without confirming the close of the end of the run
+    /// (keys: their ids; the values mean nothing). keys() is sorted.
+    Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> ended_unconfirmed_;
+    /// What clientsUnconfirmedAtStop() answers
+    std::atomic<std::size_t> n_unconfirmed_at_stop_{0};
+    /// What connectedClients() answers: sessions whose client has spoken and whose connection has
+    /// not ended
+    std::atomic<std::size_t> n_connected_{0};
+    /// startServer() and stopServer() take turns under it
+    std::mutex lifecycle_mutex_;
+};
+
+/******************************************************************************/
+
+} /* namespace Gem::Courtier */

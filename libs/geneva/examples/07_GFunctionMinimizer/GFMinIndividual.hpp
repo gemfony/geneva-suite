@@ -111,8 +111,8 @@ class GFMinIndividual : public gen::GGenomeT<GFMinIndividual> {
 
     /** @brief The single declaration of this class'es local data members, driving the generated
      *  serialize()/load_()/compare_(). */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("targetFunction_", self.targetFunction_),
             Gem::Common::make_member("seed_sigma_", self.seed_sigma_)

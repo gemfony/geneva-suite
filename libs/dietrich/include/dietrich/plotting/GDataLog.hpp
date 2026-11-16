@@ -130,6 +130,13 @@ public:
      */
     void setAddPrintCommand(bool add_print_command);
 
+    /**
+     * @brief Forwards whether the canvas label is shown as the figure's title to the built
+     * GPlotDesigner (only applied when set, so an untouched log emits as before)
+     * @param show_canvas_label Whether to show the canvas label
+     */
+    void setShowCanvasLabel(bool show_canvas_label);
+
     /***************************************************************************/
     /**
      * @brief Realizes the log into a GPlotDesigner: builds each series' plotter from its
@@ -169,6 +176,7 @@ private:
     std::size_t c_y_div_;      ///< number of pad rows
     std::optional<std::tuple<std::uint32_t, std::uint32_t>> dims_; ///< optional canvas pixel dimensions
     std::optional<bool> add_print_command_; ///< forwarded to the designer only when set
+    std::optional<bool> show_canvas_label_; ///< forwarded to the designer only when set
     std::vector<Series> series_; ///< the declared series, in declaration order
 };
 

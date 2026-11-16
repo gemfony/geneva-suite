@@ -28,34 +28,30 @@
  ********************************************************************************/
 
 /**
- * Standalone, multi-PROCESS exerciser for the courtier socket consumers. Unlike the in-process
+ * Standalone, multi-PROCESS exerciser for the courtier websocket consumer. Unlike the in-process
  * loopback unit tests, this runs the server and the clients as separate OS processes (typically
- * launched together by startCourtierJobs.sh), so it validates the real cross-process behaviour.
+ * launched together by startLocalJobs.sh), so it validates the real cross-process behaviour.
  *
- *   server : GCourtierNetworkedExerciser [-c asio|beast] [--asio_port P] [--beast_port P] [--nWorkItems N] [--faultEvery K]
- *   client : GCourtierNetworkedExerciser  --client  -c asio|beast [--asio_ip HOST] [--beast_ip HOST] [--asio_port P] [--beast_port P]
+ *   server : GCourtierNetworkedExerciser [-c beast] [--beast_port P] [--nWorkItems N] [--faultEvery K]
+ *   client : GCourtierNetworkedExerciser  --client [-c beast] [--beast_ip HOST] [--beast_port P]
  *
  * The server submits a batch through the courtier span+policy executor and prints OK/FAIL plus the
  * processed count; with --faultEvery K, every K-th item throws and the clone-on-partial-return
  * policy is used (so every slot must still end up processed).
  */
 
-#include <chrono>
 #include <cstddef>
 #include <iostream>
 #include <memory>
-#include <string>
-#include <thread>
-#include <vector>
 #include <span>
+#include <string>
+#include <vector>
 
 #include "common/GParserBuilder.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
-#include "courtier/transport/GAsioTransportT.hpp"
-#include "courtier/transport/GWebsocketTransportT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GAsioConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
+#include "courtier/transport/GWebsocketTransportT.hpp"
 
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
@@ -66,29 +62,13 @@ namespace {
 
 constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
-int run_server(const std::string &consumer, unsigned short port, std::size_t n, std::size_t fault_every) {
-    // Build the chosen courtier consumer behind the common base type.
-    std::shared_ptr<c2::GBaseConsumerT<GFaultyContainer>> base;
-    std::shared_ptr<c2::GAsioConsumerT<GFaultyContainer>> asio;
-    std::shared_ptr<c2::GWebsocketConsumerT<GFaultyContainer>> beast;
-    if(consumer == "beast") {
-        beast = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(port, 0, BIN);
-        base = beast;
-    }
-    else {
-        asio = std::make_shared<c2::GAsioConsumerT<GFaultyContainer>>(port, 0, BIN);
-        base = asio;
-    }
-
-    if(asio) {
-        asio->startServer();
-        port = asio->getPort();
-    }
-    else {
-        beast->startServer();
-        port = beast->getPort();
-    }
-    std::cout << "[server] courtier " << consumer << " consumer listening on port " << port
+int runServer(unsigned short port, std::size_t n, std::size_t fault_every) {
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(
+        c2::GWebsocketConsumerConfig{.port = port, .serializationMode = BIN}
+    );
+    consumer->startServer();
+    port = consumer->getPort();
+    std::cout << "[server] courtier websocket consumer listening on port " << port
               << "; submitting " << n << " items (faultEvery=" << fault_every << ")\n"
               << std::flush;
 
@@ -105,14 +85,11 @@ int run_server(const std::string &consumer, unsigned short port, std::size_t n, 
         ? c2::GSubmissionPolicy::clone_on_partial_return()
         : c2::GSubmissionPolicy::full_success_or_fatal();
 
-    base->processBatch(std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()), policy);
-
-    if(asio) {
-        asio->stopServer();
-    }
-    else {
-        beast->stopServer();
-    }
+    consumer->processBatch(
+        std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+        policy
+    );
+    consumer->stopServer();
 
     std::size_t processed = 0;
     for(const auto &it : items) {
@@ -129,19 +106,12 @@ int run_server(const std::string &consumer, unsigned short port, std::size_t n, 
     return 1;
 }
 
-int run_client(const std::string &consumer, const std::string &ip, unsigned short port) {
-    std::cout << "[client] connecting to " << ip << ":" << port << " (" << consumer << ")\n"
-              << std::flush;
-    if(consumer == "beast") {
-        auto client =
-            std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(ip, port, BIN, false);
-        client->run();
-    }
-    else {
-        auto client =
-            std::make_shared<ccons::GAsioConsumerClientT<GFaultyContainer>>(ip, port, BIN, 50);
-        client->run();
-    }
+int runClient(const std::string &ip, unsigned short port) {
+    std::cout << "[client] connecting to " << ip << ":" << port << " (beast)\n" << std::flush;
+    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
+        c2::GWebsocketConsumerConfig{.ip = ip, .port = port, .serializationMode = BIN}
+    );
+    client->run();
     return 0;
 }
 
@@ -150,25 +120,28 @@ int run_client(const std::string &consumer, const std::string &ip, unsigned shor
 int main(int argc, char **argv) {
     std::string consumer;
     bool is_client = false;
-    std::string asio_ip;
     std::string beast_ip;
-    unsigned short asio_port = 0;
     unsigned short beast_port = 0;
     std::size_t n = 0;
     std::size_t fault_every = 0;
 
-    // Use Geneva's own command-line parser. The consumer-specific option names (--asio_*/--beast_*)
-    // match what real Geneva programs expose, so this exerciser is drop-in with startLocalJobs.sh.
+    // Use Geneva's own command-line parser. The option names (--consumer, --beast_*) match what
+    // real Geneva programs expose, so this exerciser is drop-in with startLocalJobs.sh.
     Gem::Common::GParserBuilder gpb;
-    gpb.registerCLParameter("consumer,c", consumer, std::string("asio"),
-                            "the consumer to exercise: asio or beast");
-    gpb.registerCLParameter("client", is_client, false,
-                            "run as a client (default: server)",
-                            Gem::Common::GCL_IMPLICIT_ALLOWED, true);
-    gpb.registerCLParameter("asio_ip", asio_ip, std::string("127.0.0.1"),
-                            "server ip/host the asio client connects to");
-    gpb.registerCLParameter("asio_port", asio_port, static_cast<unsigned short>(10000),
-                            "the asio server's TCP port");
+    gpb.registerCLParameter(
+        "consumer,c",
+        consumer,
+        std::string("beast"),
+        "the consumer to exercise: beast (the websocket consumer)"
+    );
+    gpb.registerCLParameter(
+        "client",
+        is_client,
+        false,
+        "run as a client (default: server)",
+        Gem::Common::GCL_IMPLICIT_ALLOWED,
+        true
+    );
     gpb.registerCLParameter("beast_ip", beast_ip, std::string("127.0.0.1"),
                             "server ip/host the beast client connects to");
     gpb.registerCLParameter("beast_port", beast_port, static_cast<unsigned short>(10000),
@@ -182,12 +155,14 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    const bool beast = (consumer == "beast");
-    const unsigned short port = beast ? beast_port : asio_port;
-    const std::string ip = beast ? beast_ip : asio_ip;
+    if(consumer != "beast") {
+        std::cerr << "Unknown consumer \"" << consumer
+                  << "\"; the consumer that exists is: beast\n";
+        return 1;
+    }
 
     if(is_client) {
-        return run_client(consumer, ip, port);
+        return runClient(beast_ip, beast_port);
     }
-    return run_server(consumer, port, n, fault_every);
+    return runServer(beast_port, n, fault_every);
 }

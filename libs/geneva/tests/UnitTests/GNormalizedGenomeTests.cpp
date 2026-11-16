@@ -113,8 +113,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgBoxIndividual>>(ar, "GGenomeT", *this);
     }
 };
@@ -157,8 +157,8 @@ private:
     }
 
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgMixedIndividual>>(ar, "GGenomeT", *this);
     }
 };
@@ -187,8 +187,8 @@ protected:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GGenomeT<NgErgoIndividual>>(ar, "GGenomeT", *this);
     }
 };
@@ -410,7 +410,8 @@ TEST_CASE(
 
 /******************************************************************************/
 TEST_CASE(
-    "normalized-genome: the internal store of a bounded parameter stays in [-0.5, 0.5)",
+    "normalized-genome: the internal store of a bounded parameter stays in the half-open range "
+    "from -0.5 to 0.5",
     "[normalized-genome]"
 ) {
     // After an external write of in-range values, the raw internal store must lie in the canonical
@@ -430,8 +431,8 @@ TEST_CASE(
 
 /******************************************************************************/
 TEST_CASE(
-    "normalized-genome: an internal (OA) write folds an overshoot and never throws, preserving the "
-    "external value",
+    "normalized-genome: an internal (OA) write folds an overshoot without throwing and preserves "
+    "the external value",
     "[normalized-genome]"
 ) {
     // The internal write is external-value-preserving: writing an internal coordinate that overshoots the

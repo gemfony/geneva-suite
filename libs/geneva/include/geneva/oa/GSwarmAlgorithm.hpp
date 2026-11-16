@@ -120,9 +120,9 @@ private:
      * The former conditional reconstruction in load_()/compare_() was an efficiency (load-in-place) and
      * null-guarding optimisation the generic policies already subsume. */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as the (const) class type.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    // overloads are trivial forwarders. self_type is deduced as the (const) class type.
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("default_n_neighborhood_members_", self.default_n_neighborhood_members_),
             Gem::Common::make_member("c_personal_", self.c_personal_),

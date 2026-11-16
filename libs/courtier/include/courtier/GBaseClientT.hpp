@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
 // Boost headers go here
 
@@ -57,7 +58,8 @@ namespace Gem::Courtier {
  * network communication. Their task is to retrieve serialized objects from the server
  * over a given protocol (implemented in derived classes), to instantiate the
  * corresponding object, to process it and to deliver the results to the server.
- * This class assumes that the template parameter implements the "process()" call.
+ * This class assumes that the template parameter implements the "process()" call. A processor
+ * set with setItemProcessor() takes the place of that call for every item that is due.
  *
  * @tparam processable_type The work-item type the client retrieves, processes and returns (must derive GProcessable)
  *
@@ -72,19 +74,6 @@ class GBaseClientT {
     );
 
 public:
-    //---------------------------------------------------------------------------
-    /**
-	  * @brief A constructor that accepts a model of the item to be processed.
-	  *
-	  * This can be used to avoid having to transfer or reload data that doesn't change. Note that
-	  * the model must understand the clone() command.
-	  *
-	  * @param additionalDataTemplate The model of the item to be processed (shared ownership; its constant data is loaded into each new item)
-	  */
-    GBaseClientT(std::shared_ptr<processable_type> additionalDataTemplate)
-      : additional_data_template_(additionalDataTemplate) { /* nothing*/
-    }
-
     //---------------------------------------------------------------------------
     // Defaulted or Deleted constructors and assignment operators
 
@@ -103,6 +92,9 @@ public:
 	  * @brief Allows to set a maximum number of processing steps.
 	  *
 	  * If set to 0 or left unset, there is no processing-count limit (the client runs until another halt condition triggers).
+	  * A client that evaluates several items at a time starts no evaluation once the limit is reached,
+	  * but the evaluations that run then are finished and counted: the count may pass the limit by
+	  * them.
 	  *
 	  * @param processMax Desired value for the process_max_ variable (maximum number of items to process; 0 == unlimited)
 	  */
@@ -236,6 +228,29 @@ public:
         close_requested_.store(true);
     }
 
+    //---------------------------------------------------------------------------
+    /**
+	  * @brief Replaces how this client processes a work item that is due.
+	  *
+	  * Without a processor (the default, and after passing an empty one) the client calls the
+	  * item's process(). With one, it calls the processor for every item that is due
+	  * (processingStatus::DO_PROCESS); an item that is not due and a frame without an item
+	  * never reach it. The processor must leave the item processed or flagged, as process()
+	  * does. If it throws, the item is returned flagged and the client keeps running.
+	  *
+	  * The processor must be safe to call from the thread(s) the client processes on: one for
+	  * the MPI client, as many as its parallel evaluations for a socket client (1 by default).
+	  * Its call operator is const (GItemProcessorT), so several threads may call the one object
+	  * at the same time;
+	  * a processor with unguarded mutable state does not compile. To be set before run(); it
+	  * is not to be changed while the client runs.
+	  *
+	  * @param processor The function that processes a due item (empty: the item's process())
+	  */
+    void setItemProcessor(GItemProcessorT<processable_type> processor) {
+        item_processor_ = std::move(processor);
+    }
+
 protected:
     //---------------------------------------------------------------------------
     /**
@@ -257,18 +272,12 @@ protected:
 
     //---------------------------------------------------------------------------
     /**
-	  * @brief Loads the additional data template into the processable_type target.
+	  * @brief The processor set with setItemProcessor(), for processWorkFrame().
 	  *
-	  * This function needs to be called for each new item by derived classes. A no-op if no template
-	  * was supplied at construction.
-	  *
-	  * @param target The item (shared ownership) into which the template's constant data is loaded
+	  * @return A pointer to the processor, or nullptr if none is set (the item's process())
 	  */
-    void loadDataTemplate(std::shared_ptr<processable_type> target) {
-        // If we have a model for the item to be parallelized, load its data into the target
-        if(additional_data_template_) {
-            target->loadConstantData(additional_data_template_);
-        }
+    [[nodiscard]] GItemProcessorT<processable_type> *itemProcessor() noexcept {
+        return item_processor_ ? &item_processor_ : nullptr;
     }
 
     //---------------------------------------------------------------------------
@@ -378,8 +387,8 @@ private:
     }; ///< Indicates whether a the termination was requested by the server
     bool halt_logged_ = false; ///< Ensures the halt reason is logged only once (halt() is polled)
 
-    std::shared_ptr<processable_type>
-        additional_data_template_; ///< Optionally holds a template of the object to be processed
+    /// Processes a due item in place of its process(); empty: the item's process()
+    GItemProcessorT<processable_type> item_processor_;
 
     //---------------------------------------------------------------------------
 };

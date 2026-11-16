@@ -90,8 +90,8 @@ public:
     }
 
     /** @brief Launches @p task on a background thread; reaps finished ones and caps the in-flight set. */
-    template <typename Fn>
-    void submit(Fn &&task) {
+    template <typename fn_type>
+    void submit(fn_type &&task) {
         std::lock_guard<std::mutex> lock(mutex_);
         reapDone();
         if(pending_.size() >= MAX_IN_FLIGHT) {
@@ -99,7 +99,7 @@ public:
             pending_.front().wait();
             pending_.erase(pending_.begin());
         }
-        pending_.push_back(std::async(std::launch::async, std::forward<Fn>(task)));
+        pending_.push_back(std::async(std::launch::async, std::forward<fn_type>(task)));
     }
 
     /** @brief Blocks until every outstanding write has completed (called at finalization). */
@@ -147,8 +147,8 @@ class GImagePOM final
      * @brief Single declaration of this class'es local data members
      * @return A tuple of named member references driving serialize(), load_() and compare_()
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("resultImageDirectory_", self.resultImageDirectory_),
             Gem::Common::make_member("emitBestOnly_", self.emitBestOnly_)
@@ -157,8 +157,8 @@ class GImagePOM final
 
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         // The member list is derived from the single localMembers() declaration
         // so serialize()/load_()/compare_() stay in sync (no silently-dropped member).
         Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);

@@ -60,13 +60,13 @@ namespace Gem::Geneva::Genome {
 
 /**
  * @brief Serializes a GaussConfig (the static Gauss adaptor configuration) field by field.
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @tparam T The Gauss config's floating-point type.
  * @param ar The archive to read from / write to.
  * @param g The GaussConfig to serialize.
  */
-template <class Archive, typename T>
-void gem_archive_serialize(Archive &ar, GaussConfig<T> &g) {
+template <class archive_type, typename T>
+void gem_archive_serialize(archive_type &ar, GaussConfig<T> &g) {
     using Gem::Common::archive_named;
     archive_named(ar, "sigma_sigma", g.sigma_sigma);
     archive_named(ar, "min_sigma", g.min_sigma);
@@ -81,13 +81,13 @@ void gem_archive_serialize(Archive &ar, GaussConfig<T> &g) {
 
 /**
  * @brief Serializes a BiGaussConfig (the static bi-gaussian adaptor configuration) field by field.
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @tparam T The bi-gaussian config's floating-point type.
  * @param ar The archive to read from / write to.
  * @param g The BiGaussConfig to serialize.
  */
-template <class Archive, typename T>
-void gem_archive_serialize(Archive &ar, BiGaussConfig<T> &g) {
+template <class archive_type, typename T>
+void gem_archive_serialize(archive_type &ar, BiGaussConfig<T> &g) {
     using Gem::Common::archive_named;
     archive_named(ar, "sigma_sigma1", g.sigma_sigma1);
     archive_named(ar, "sigma_sigma2", g.sigma_sigma2);
@@ -109,12 +109,12 @@ void gem_archive_serialize(Archive &ar, BiGaussConfig<T> &g) {
 
 /**
  * @brief Serializes a FlipConfig (the static flip adaptor configuration) field by field.
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @param ar The archive to read from / write to.
  * @param g The FlipConfig to serialize.
  */
-template <class Archive>
-void gem_archive_serialize(Archive &ar, FlipConfig &g) {
+template <class archive_type>
+void gem_archive_serialize(archive_type &ar, FlipConfig &g) {
     using Gem::Common::archive_named;
     archive_named(ar, "min_ad_prob", g.min_ad_prob);
     archive_named(ar, "max_ad_prob", g.max_ad_prob);
@@ -126,13 +126,13 @@ void gem_archive_serialize(Archive &ar, FlipConfig &g) {
 // non-serialized) OA-owned GAdaptionConfig, so only the structure is serialized here.
 /**
  * @brief Serializes a GroupStructure (structure only: start / len / label_id / active).
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @tparam T The group's value type.
  * @param ar The archive to read from / write to.
  * @param g The GroupStructure to serialize.
  */
-template <class Archive, typename T>
-void gem_archive_serialize(Archive &ar, GroupStructure<T> &g) {
+template <class archive_type, typename T>
+void gem_archive_serialize(archive_type &ar, GroupStructure<T> &g) {
     using Gem::Common::archive_named;
     archive_named(ar, "start", g.start);
     archive_named(ar, "len", g.len);
@@ -177,13 +177,13 @@ bool channelGroupsUniform(const ChannelLayout<T> &c) {
 /**
  * @brief Saves a ChannelLayout, using the compact one-value-set-per-group encoding when groups are
  * uniform and falling back to full per-value arrays otherwise (flagged by the `compact` field).
- * @tparam Archive The saving GArchive codec type.
+ * @tparam archive_type The saving GArchive codec type.
  * @tparam T The channel's value type.
  * @param ar The archive to write to.
  * @param c The channel to save.
  */
-template <class Archive, typename T>
-void saveChannelLayout(Archive &ar, const ChannelLayout<T> &c) {
+template <class archive_type, typename T>
+void saveChannelLayout(archive_type &ar, const ChannelLayout<T> &c) {
     using Gem::Common::archive_named;
     bool compact = channelGroupsUniform<T>(c);
     archive_named(ar, "compact", compact);
@@ -224,13 +224,13 @@ void saveChannelLayout(Archive &ar, const ChannelLayout<T> &c) {
 /**
  * @brief Loads a ChannelLayout, rebuilding the per-value arrays from the compact per-group encoding
  * when `compact` is set, or reading the full per-value arrays directly otherwise.
- * @tparam Archive The loading GArchive codec type.
+ * @tparam archive_type The loading GArchive codec type.
  * @tparam T The channel's value type.
  * @param ar The archive to read from.
  * @param c The channel to populate.
  */
-template <class Archive, typename T>
-void loadChannelLayout(Archive &ar, ChannelLayout<T> &c) {
+template <class archive_type, typename T>
+void loadChannelLayout(archive_type &ar, ChannelLayout<T> &c) {
     using Gem::Common::archive_named;
     bool compact = false;
     archive_named(ar, "compact", compact);
@@ -278,16 +278,17 @@ void loadChannelLayout(Archive &ar, ChannelLayout<T> &c) {
 /**
  * @brief Non-intrusive ChannelLayout (de)serializer for a GArchive codec: dispatches the split
  * save/load bodies on the codec's compile-time direction.
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @tparam T The channel's value type.
  * @param ar The archive to read from / write to.
  * @param c The channel to serialize.
  */
-template <class Archive, typename T>
-void gem_archive_serialize(Archive &ar, ChannelLayout<T> &c) {
-    if constexpr (Archive::is_saving) {
+template <class archive_type, typename T>
+void gem_archive_serialize(archive_type &ar, ChannelLayout<T> &c) {
+    if constexpr(archive_type::is_saving) {
         saveChannelLayout(ar, c);
-    } else {
+    }
+    else {
         loadChannelLayout(ar, c);
     }
 }
@@ -299,13 +300,13 @@ void gem_archive_serialize(Archive &ar, ChannelLayout<T> &c) {
  * layout that had already answered layoutId() would otherwise keep reporting the id of the structure it
  * held before the load, and that id is exactly what the transport's send-once machinery keys on.
  *
- * @tparam Archive The GArchive codec type.
+ * @tparam archive_type The GArchive codec type.
  * @param ar The archive to read from / write to.
  * @param l The layout to serialize.
  */
 //! [weft-layout-nonintrusive]
-template <class Archive>
-void gem_archive_serialize(Archive &ar, GGenomeLayout &l) {
+template <class archive_type>
+void gem_archive_serialize(archive_type &ar, GGenomeLayout &l) {
     using Gem::Common::archive_named;
     archive_named(ar, "d", l.d);
     archive_named(ar, "f", l.f);
@@ -313,7 +314,7 @@ void gem_archive_serialize(Archive &ar, GGenomeLayout &l) {
     archive_named(ar, "b", l.b);
     archive_named(ar, "labels", l.labels);
 
-    if constexpr (not Archive::is_saving) {
+    if constexpr(not archive_type::is_saving) {
         l.invalidateId();
     }
 }

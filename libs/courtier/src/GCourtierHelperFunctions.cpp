@@ -29,6 +29,10 @@
 
 #include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GProcessable.hpp" // detail::lineageSalt
+#include <atomic>
+#include <cstdint>
+#include <random>
 #include <string>
 
 
@@ -97,10 +101,66 @@ std::string fkToStr(const GFrameKind &fk) {
 
     case BLOB_REPLY:
         return "BLOB_REPLY";
+
+    case RESULT:
+        return "RESULT";
+
+    case UNREADABLE:
+        return "UNREADABLE";
     }
 
     // Make the compiler happy
     return {};
+}
+
+/******************************************************************************/
+/**
+ * @brief The random salt of this process: the first half of every lineage id minted in it. Drawn
+ * once, on first use, from std::random_device. Defined here rather than in the header so that a
+ * module loaded at run time and its host share one instance.
+ * @return The salt of this process
+ */
+std::uint64_t detail::lineageSalt() noexcept {
+    static const std::uint64_t SALT = [] {
+        std::random_device rd;
+        return (static_cast<std::uint64_t>(rd()) << 32U) ^ static_cast<std::uint64_t>(rd());
+    }();
+    return SALT;
+}
+
+/******************************************************************************/
+
+/**
+ * Says what an exception says: the what() of a std::exception, or that it is not one.
+ *
+ * @param failure The exception; may be null
+ * @return Its description
+ */
+std::string describeException(const std::exception_ptr &failure) {
+    if(not failure) {
+        return "no exception";
+    }
+    try {
+        std::rethrow_exception(failure);
+    }
+    catch(const std::exception &e) {
+        return e.what();
+    }
+    catch(...) {
+        return "an exception that is not a std::exception";
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief A number that tells apart the files a process writes for results that a client could not
+ * deliver: every call in a process returns another one. From any thread.
+ *
+ * @return The next number
+ */
+std::uint64_t nextUndeliveredFileNumber() {
+    static std::atomic<std::uint64_t> next{0};
+    return next.fetch_add(1);
 }
 
 /******************************************************************************/

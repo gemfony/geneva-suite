@@ -69,6 +69,7 @@
 
 #include "common/GGlobalDefines.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/GOptimizationEnums.hpp"
@@ -128,8 +129,8 @@ class GSearchPathMonitor final
 
     /** @brief The monitor's own state is the (non-owning) plot wiring below, which is run state and
      *  not configuration; the *explicit* empty member list is what the CRTP base requires. */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -329,10 +330,7 @@ int main() {
     pop->registerPluggableOM(monitor);
 
     // One consumer per process (Invariant 5); a single thread is plenty for 720 evaluations.
-    ConsumerSpec consumer;
-    consumer.mnemonic = "stc";
-    consumer.n_threads = 1;
-    buildConsumerSetup(consumer);
+    buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
 
     pop->optimize();
 

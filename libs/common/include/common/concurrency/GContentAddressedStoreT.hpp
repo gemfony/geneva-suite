@@ -69,12 +69,16 @@ namespace Gem::Common::Concurrency {
  * demand -- crucially, evicting a blob also drops that id from EVERY peer's ack set, so the source can
  * never keep referencing an id it can no longer answer (which would deadlock the holder).
  *
- * @tparam Id   The content id (the content-derived key). Needs equality and a hash (see @p Hash).
- * @tparam Blob The stored value type (default @c std::string -- an opaque serialized blob).
- * @tparam Peer The peer/session identifier type for ack tracking (default @c std::uint64_t).
- * @tparam Hash The hasher for @p Id (default @c std::hash<Id>; supply a custom one for array-like ids).
+ * @tparam id_type   The content id (the content-derived key). Needs equality and a hash (see @p hash_type).
+ * @tparam blob_type The stored value type (default @c std::string -- an opaque serialized blob).
+ * @tparam peer_type The peer/session identifier type for ack tracking (default @c std::uint64_t).
+ * @tparam hash_type The hasher for @p id_type (default @c std::hash<id_type>; supply a custom one for array-like ids).
  */
-template <typename Id, typename Blob = std::string, typename Peer = std::uint64_t, typename Hash = std::hash<Id>>
+template <
+    typename id_type,
+    typename blob_type = std::string,
+    typename peer_type = std::uint64_t,
+    typename hash_type = std::hash<id_type>>
 class GContentAddressedStoreT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     GContentAddressedStoreT() = default;
@@ -87,7 +91,7 @@ public:
 
     /** @brief Whether a blob for the given id is cached.
      *  @param id The content id to look up. @return true iff the blob is present. */
-    bool has(const Id &id) const {
+    bool has(const id_type &id) const {
         std::scoped_lock const lk(mtx_);
         return blobs_.contains(id);
     }
@@ -96,7 +100,7 @@ public:
      *  @param id The content id to look up.
      *  @param out Receives the blob on a hit (left unchanged on a miss).
      *  @return true on a hit (out written), false on a miss. */
-    bool tryGet(const Id &id, Blob &out) const {
+    bool tryGet(const id_type &id, blob_type &out) const {
         std::scoped_lock const lk(mtx_);
         auto it = blobs_.find(id);
         if(it == blobs_.end()) {
@@ -110,7 +114,7 @@ public:
     /** @brief Caches a blob under its id (idempotent; refreshes recency on a repeat). Enforces the
      *  capacity bound afterwards.
      *  @param id The content id. @param blob The blob to cache. */
-    void put(const Id &id, Blob blob) {
+    void put(const id_type &id, blob_type blob) {
         std::scoped_lock const lk(mtx_);
         auto it = blobs_.find(id);
         if(it != blobs_.end()) {
@@ -129,7 +133,7 @@ public:
     /** @brief Whether a peer is known to already hold a given id.
      *  @param peer The peer (session) to query. @param id The content id.
      *  @return true iff the peer was previously recorded as holding this id. */
-    bool peerHas(const Peer &peer, const Id &id) const {
+    bool peerHas(const peer_type &peer, const id_type &id) const {
         std::scoped_lock const lk(mtx_);
         auto it = peer_acked_.find(peer);
         return it != peer_acked_.end() && it->second.contains(id);
@@ -137,7 +141,7 @@ public:
 
     /** @brief Records that a peer now holds a given id (so it is referenced by id thereafter).
      *  @param peer The peer (session). @param id The content id the peer now holds. */
-    void markPeerHas(const Peer &peer, const Id &id) {
+    void markPeerHas(const peer_type &peer, const id_type &id) {
         std::scoped_lock const lk(mtx_);
         peer_acked_[peer].insert(id);
     }
@@ -145,7 +149,7 @@ public:
     /** @brief Drops all per-peer ack state for a peer (its session ended / it reconnected). The blob
      *  store is left intact (other peers may still need it, and it answers future fetches).
      *  @param peer The peer whose ack state is forgotten. */
-    void forgetPeer(const Peer &peer) {
+    void forgetPeer(const peer_type &peer) {
         std::scoped_lock const lk(mtx_);
         peer_acked_.erase(peer);
     }
@@ -186,13 +190,14 @@ private:
     /** @brief One cached blob plus its position in the LRU recency list. @c lru_pos is mutable because
      *  a read (@c tryGet, a const op) refreshes recency. */
     struct Entry {
-        Blob blob;                                          ///< the cached blob
-        mutable typename std::list<Id>::iterator lru_pos;   ///< this id's node in lru_ (front == most recent)
+        blob_type blob; ///< the cached blob
+        mutable typename std::list<id_type>::iterator
+            lru_pos; ///< this id's node in lru_ (front == most recent)
     };
 
     /** @brief Moves an id to the front of the recency list (most-recently-used). Caller holds mtx_.
      *  @param pos The id's current node in lru_ (updated in place to the new front node). */
-    void touch_locked(typename std::list<Id>::iterator &pos) const {
+    void touch_locked(typename std::list<id_type>::iterator &pos) const {
         lru_.splice(lru_.begin(), lru_, pos);
         pos = lru_.begin();
     }
@@ -207,7 +212,7 @@ private:
             return;
         }
         while(blobs_.size() > capacity_ && not lru_.empty()) {
-            const Id victim = lru_.back();
+            const id_type victim = lru_.back();
             lru_.pop_back();
             blobs_.erase(victim);
             for(auto &kv : peer_acked_) {
@@ -217,9 +222,10 @@ private:
     }
 
     mutable std::mutex mtx_;
-    std::unordered_map<Id, Entry, Hash> blobs_;                          ///< id -> (blob, lru node)
-    mutable std::list<Id> lru_;                                          ///< recency list (front == MRU)
-    std::unordered_map<Peer, std::unordered_set<Id, Hash>> peer_acked_;  ///< per-peer set of ids the peer holds
+    std::unordered_map<id_type, Entry, hash_type> blobs_; ///< id -> (blob, lru node)
+    mutable std::list<id_type> lru_;                      ///< recency list (front == MRU)
+    std::unordered_map<peer_type, std::unordered_set<id_type, hash_type>>
+        peer_acked_; ///< per-peer set of ids the peer holds
     std::size_t capacity_ = 0;                                           ///< max blobs retained (0 == unbounded)
 };
 

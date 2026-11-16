@@ -63,21 +63,23 @@ namespace Gem::Geneva::Genome {
 // Optional static hooks a concrete flat individual may provide. The factory detects each via the
 // concept below and adapts: an individual that omits a hook simply gets the default behaviour.
 
-/** @brief Satisfied if Derived supplies a static finalize(const Config&) teardown hook. */
-template <typename Derived>
-concept HasFinalizeHook = requires(const typename Derived::Config &c) { Derived::finalize(c); };
+/** @brief Satisfied if derived_type supplies a static finalize(const Config&) teardown hook. */
+template <typename derived_type>
+concept HasFinalizeHook =
+    requires(const typename derived_type::Config &c) { derived_type::finalize(c); };
 
-/** @brief Satisfied if Derived supplies a static buildAdaptionConfig(const GGenome&, const Config&) hook. */
-template <typename Derived>
+/** @brief Satisfied if derived_type supplies a static buildAdaptionConfig(const GGenome&, const Config&) hook. */
+template <typename derived_type>
 concept HasBuildAdaptionConfigHook =
-    requires(const GGenome &g, const typename Derived::Config &c) {
-        Derived::buildAdaptionConfig(g, c);
+    requires(const GGenome &g, const typename derived_type::Config &c) {
+        derived_type::buildAdaptionConfig(g, c);
     };
 
-/** @brief Satisfied if Derived supplies a static applyConfig(Derived&, const Config&) per-object hook. */
-template <typename Derived>
-concept HasApplyConfigHook =
-    requires(Derived &d, const typename Derived::Config &c) { Derived::applyConfig(d, c); };
+/** @brief Satisfied if derived_type supplies a static applyConfig(derived_type&, const Config&) per-object hook. */
+template <typename derived_type>
+concept HasApplyConfigHook = requires(derived_type &d, const typename derived_type::Config &c) {
+    derived_type::applyConfig(d, c);
+};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,7 +92,7 @@ concept HasApplyConfigHook =
  * class per individual, a Tier-2 (config-driven) flat individual only supplies two static hooks, and
  * uses this template directly.
  *
- * The Derived individual must provide:
+ * The derived_type individual must provide:
  *  - a nested @c Config type (a plain, copyable struct holding the configurable values, e.g. par_dim,
  *    bounds, sigma);
  *  - @c static void describeConfig(Gem::Common::GParserBuilder&, Config&) -- registers the config-file
@@ -99,7 +101,7 @@ concept HasApplyConfigHook =
  *    GGenomeLayout from the parsed config (typically via a GGenomeBuilder).
  *
  * The shared layout is built exactly once (a structural guarantee, not a hand-managed optimisation):
- * the first produced individual triggers Derived::buildGenome(config_), the result is cached, and every
+ * the first produced individual triggers derived_type::buildGenome(config_), the result is cached, and every
  * subsequent individual is just a cheap value-array copy plus a bind to the same shared layout handle.
  * The user's JSON config files are unchanged; pre/post-processor registration is inherited from
  * GGenomeFactory and is genome-agnostic.
@@ -133,9 +135,9 @@ concept HasApplyConfigHook =
  *   GEM_REGISTER_ARCHIVABLE(Gem::Geneva::MyIndividual)
  * @endcode
  *
- * @tparam Derived The concrete flat individual type, supplying the Config / describeConfig / buildGenome hooks
+ * @tparam derived_type The concrete flat individual type, supplying the Config / describeConfig / buildGenome hooks
  */
-template <class Derived>
+template <class derived_type>
 class GIndividualFactory // NOLINT(cppcoreguidelines-special-member-functions)
   : public GGenomeFactory {
     ///////////////////////////////////////////////////////////////////////
@@ -144,12 +146,12 @@ class GIndividualFactory // NOLINT(cppcoreguidelines-special-member-functions)
     /**
      * @brief Serialises only the factory base; Config and the genome cache are transient.
      *
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The (unused) serialization version number
      */
-    template <class Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         // Only the base is serialised. The Config is transient -- re-read from the (still known)
         // config file on the first get_() after deserialisation -- and the built-genome cache is a
         // transient optimisation that is rebuilt lazily.
@@ -175,23 +177,23 @@ public:
      *
      * @param cp The factory to copy from (base state and parsed Config are copied)
      */
-    GIndividualFactory(const GIndividualFactory<Derived> &cp)
+    GIndividualFactory(const GIndividualFactory<derived_type> &cp)
       : GGenomeFactory(cp)
       , config_(cp.config_) { /* nothing */
     }
 
     /***************************************************************************/
     /**
-     * The destructor. Invokes an optional Derived::finalize(const Config&) teardown hook when a genome
+     * The destructor. Invokes an optional derived_type::finalize(const Config&) teardown hook when a genome
      * was actually produced -- a lifetime-bound teardown (e.g.
      * telling an external evaluator program to finalise). An individual without the hook gets the default
      * (trivial) teardown. A destructor must never propagate an exception, so the hook is shielded.
      */
     ~GIndividualFactory() override {
-        if constexpr (HasFinalizeHook<Derived>) {
+        if constexpr(HasFinalizeHook<derived_type>) {
             if(genome_cell_.loaded()) {
                 try {
-                    Derived::finalize(config_);
+                    derived_type::finalize(config_);
                 }
                 // NOLINTNEXTLINE(bugprone-empty-catch) -- deliberate: a destructor must not propagate
                 catch(...) { /* nothing */
@@ -207,7 +209,7 @@ public:
      * @return A shared pointer to a deep copy of this factory
      */
     std::shared_ptr<Gem::Common::GFactoryT<GGenome>> clone() const override {
-        return std::make_shared<GIndividualFactory<Derived>>(*this);
+        return std::make_shared<GIndividualFactory<derived_type>>(*this);
     }
 
     /***************************************************************************/
@@ -224,8 +226,8 @@ public:
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     getAdaptionConfig(const GGenome &sample) const override {
-        if constexpr (HasBuildAdaptionConfigHook<Derived>) {
-            return Derived::buildAdaptionConfig(sample, config_);
+        if constexpr(HasBuildAdaptionConfigHook<derived_type>) {
+            return derived_type::buildAdaptionConfig(sample, config_);
         }
         else {
             return {};
@@ -235,13 +237,13 @@ public:
 protected:
     /***************************************************************************/
     /**
-     * Describes the local configuration options -- delegated to the Derived static hook, which binds
+     * Describes the local configuration options -- delegated to the derived_type static hook, which binds
      * the options to this factory's Config instance.
      *
      * @param gpb The parser builder the config-file options are registered on
      */
     void describeLocalOptions_(Gem::Common::GParserBuilder &gpb) override {
-        Derived::describeConfig(gpb, config_);
+        derived_type::describeConfig(gpb, config_);
     }
 
     /***************************************************************************/
@@ -256,7 +258,7 @@ protected:
         // Build the shared genome exactly once (the cell serialises the first build; later produces read it
         // lock-free) and reuse it for every produced individual.
         const GenomeData &genome =
-            genome_cell_.getOrCompute([this]() { return Derived::buildGenome(config_); });
+            genome_cell_.getOrCompute([this]() { return derived_type::buildGenome(config_); });
 
         auto *fg = dynamic_cast<GGenome *>(p.get());
         if(fg == nullptr) {
@@ -268,13 +270,12 @@ protected:
         }
         fg->setGenome(genome);
 
-        // Optional per-object configuration hook: lets a Derived individual apply its own non-genome
+        // Optional per-object configuration hook: lets a derived_type individual apply its own non-genome
         // settings parsed into config_ (e.g. a transfer function) beyond building the genome. It is the
         // symmetric companion to buildAdaptionConfig(): an individual without the hook is simply left unconfigured.
-        if constexpr (HasApplyConfigHook<Derived>) {
-            Derived::applyConfig(*static_cast<Derived *>(fg), config_);
+        if constexpr(HasApplyConfigHook<derived_type>) {
+            derived_type::applyConfig(*static_cast<derived_type *>(fg), config_);
         }
-
     }
 
 private:
@@ -291,7 +292,7 @@ private:
      * @return A shared pointer to the freshly produced (empty-genome) individual
      */
     std::shared_ptr<GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
-        auto p = std::make_shared<Derived>();
+        auto p = std::make_shared<derived_type>();
         p->addConfigurationOptions(gpb);
         return p;
     }
@@ -312,7 +313,7 @@ private:
     // Data
 
     /** @brief Holds the configurable values, populated from the config file on each get_() */
-    typename Derived::Config config_{};
+    typename derived_type::Config config_{};
 
     /** @brief The genome (value arrays + shared layout) built once and reused by every individual. The
      *  load-once cell serialises the single build and lets every later produce read it lock-free; a copied

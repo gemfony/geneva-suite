@@ -1,7 +1,8 @@
 This folder contains CMake modules needed for building Geneva or used alongside
 of it. Currently it holds:
 
-- a module for finding the Geneva library in the file system,
+- a module for finding the Geneva library in the file system (FindGeneva.cmake,
+  generated from FindGeneva.cmake.in when Geneva is built, and installed),
 - a module used to try to identify the host system and compiler details,
 - a module containing shared functionality which can be used for the Geneva
   "full tree" build, or for independent builds of the examples and test programs,

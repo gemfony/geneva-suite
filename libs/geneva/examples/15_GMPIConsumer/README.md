@@ -17,6 +17,7 @@ The example is best started with a runner program like `mpirun` like so:
 mpirun -np 4 ./GMPIConsumer
 ```
 
-The above command will run the example in 4 processes. One of the processes will run the master node which distributes
-the work items. The other three processes will function as workers.
+The above command will run the example in 4 processes. Each asks for its role first. One of the
+processes runs the master node which distributes the work items. The other three processes run as
+its clients.
 

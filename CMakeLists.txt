@@ -29,6 +29,13 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
 
+# Relative install destinations: see CMP0177 in CMakeModules/CommonGenevaBuild.cmake, which sets it
+# for the functions it defines (their own policy scope); this sets it for the install() calls of
+# this project's directories.
+IF (POLICY CMP0177)
+	CMAKE_POLICY(SET CMP0177 NEW)
+ENDIF ()
+
 MESSAGE ("")
 
 # C is enabled alongside CXX so the C compiler that the build scripts pass (CMAKE_C_COMPILER) is
@@ -407,8 +414,9 @@ endif()
 #   INSTALL_PREFIX_DATA     -> installation folder for other files like
 #                              examples, tests and other scripts
 # If none of these variables is set, the whole Geneva binary tree is installed
-# (as expected) in "CMAKE_INSTALL_PREFIX". The default value for this last
-# variable is set here, and further handled in the 'CommonGenevaBuild' module.
+# (as expected) in "CMAKE_INSTALL_PREFIX", with destinations relative to it, so
+# that the installation can be moved (see the 'CommonGenevaBuild' module). The
+# default value for this last variable is set here.
 # Generally, this can be provided through a custom genevaConfig.gcfg, in
 # conjunction with the prepareBuild.sh script.
 
@@ -664,6 +672,23 @@ ELSE ()
 	SET(GENEVA_INSTALLED_WITH_TESTING FALSE)
 ENDIF ()
 
+# Record whether this install was built with the MPI consumer: Geneva::courtier-mpi (and the MPI
+# module) then carry MPI::MPI_CXX in their interface, and the config package must find MPI for it.
+IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+	SET(GENEVA_INSTALLED_WITH_MPI TRUE)
+ELSE ()
+	SET(GENEVA_INSTALLED_WITH_MPI FALSE)
+ENDIF ()
+
+# Record whether this install was built with the GPU consumer: its backends are then compiled into
+# Geneva::courtier. The GPU headers are installed in any case (Inv 19), so a program can tell only
+# from this variable whether using them will link.
+IF (GENEVA_GPU_CONSUMER_ENABLED)
+	SET(GENEVA_INSTALLED_WITH_GPU TRUE)
+ELSE ()
+	SET(GENEVA_INSTALLED_WITH_GPU FALSE)
+ENDIF ()
+
 # Generate GenevaConfig.cmake from the template. PATH_VARS / INSTALL_DESTINATION
 # allow the file to be relocatable.
 CONFIGURE_PACKAGE_CONFIG_FILE(
@@ -696,6 +721,81 @@ INSTALL(
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaRunQuiet.cmake
 	DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
 )
+
+################################################################################
+# The installation serves programs outside the tree: the build is installed into a fresh
+# directory, the installation is moved, and the quickstart, the MPI module probe and a project
+# that uses FindGeneva.cmake are built against the moved installation, at the same time, and
+# run, without LD_LIBRARY_PATH (CMakeModules/CheckInstalledPackage.cmake says how). Not registered in a
+# sanitizer build: a program built without -fsanitize cannot run against instrumented libraries.
+IF (GENEVA_BUILD_TESTS)
+	IF (GENEVA_SANITIZER STREQUAL "none")
+		ADD_TEST(
+			NAME GenevaInstalledPackageProbes
+			COMMAND ${CMAKE_COMMAND}
+				-DBUILD_DIR=${CMAKE_BINARY_DIR}
+				-DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+				-DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+				-DCXX_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+				-DBUILD_TYPE=${CMAKE_BUILD_TYPE}
+				-DBOOST_DIR=${Boost_DIR}
+				-DCATCH2_DIR=${Catch2_DIR}
+				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
+				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
+				-DJOBS=4
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
+		)
+		# The timeout guards against a hang only; how long the test may take is said by its size
+		# label. The test takes about 10 s on an idle host (gcc Release and clang Debug alike), up
+		# to 25 s under the load of a full "ctest -j16", and once reached 52 s on a host loaded by
+		# other compilations; 180 s leave room for such load without letting a hang wait long.
+		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install" TIMEOUT 180)
+		GENEVA_TEST_SIZE(GenevaInstalledPackageProbes L)
+	ELSE ()
+		MESSAGE(STATUS "GenevaInstalledPackageProbes not registered: a sanitizer build "
+			"(GENEVA_SANITIZER=${GENEVA_SANITIZER}) cannot serve uninstrumented programs")
+	ENDIF ()
+ENDIF ()
+
+################################################################################
+# Conventions of the tree that a test can check, without building anything.
+IF (GENEVA_BUILD_TESTS)
+	# The header lists of the libraries' IDE targets are sorted and name every header.
+	ADD_TEST(
+		NAME HeaderListsSortedAndComplete
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckHeaderLists.cmake
+	)
+	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
+
+	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
+	ADD_TEST(
+		NAME TestCaseNamesSelectable
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckTestCaseNames.cmake
+	)
+	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
+
+	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
+	# external dependency of the test, not of the build, so it is registered only where configure
+	# finds one. -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the source tree.
+	FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
+	IF (Python3_Interpreter_FOUND)
+		ADD_TEST(
+			NAME ReleaseHarnessUnitTests
+			COMMAND ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
+				${Python3_EXECUTABLE} -B -m unittest discover
+				-s ${PROJECT_SOURCE_DIR}/ReleaseTests/tests
+			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+		)
+		SET_TESTS_PROPERTIES(ReleaseHarnessUnitTests PROPERTIES LABELS "harness")
+		GENEVA_TEST_SIZE(ReleaseHarnessUnitTests S)
+	ELSE ()
+		MESSAGE(STATUS "ReleaseHarnessUnitTests not registered: no Python 3 interpreter found")
+	ENDIF ()
+ENDIF ()
 
 # Tests / examples / benchmarks are gated and dispatched inside each library's
 # own CMakeLists.txt (common/, hap/, courtier/, geneva/) now that the legacy

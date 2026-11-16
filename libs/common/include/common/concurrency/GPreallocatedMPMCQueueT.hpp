@@ -59,8 +59,8 @@ namespace Gem::Common::Concurrency {
  * production (the facade's default backend is the deque-backed GBlockingMPMCQueueT); this one is
  * allowed to mature over time.
  *
- * Storage. The ring holds `Cap` raw slots allocated ONCE on the heap (not an inline std::array, so a
- * large `Cap` does not bloat the queue object or the stack). Each slot manages the lifetime of its
+ * Storage. The ring holds `CAP` raw slots allocated ONCE on the heap (not an inline std::array, so a
+ * large `CAP` does not bloat the queue object or the stack). Each slot manages the lifetime of its
  * `T` by hand (placement-new on push, explicit destruction on pop / teardown), so the element type
  * needs no default constructor and move-only types such as std::unique_ptr are fully supported.
  *
@@ -83,15 +83,18 @@ namespace Gem::Common::Concurrency {
  * idle, blocked thread, and a close() is noticed within one poll interval. A wake-free shutdown
  * (waiter-count broadcast) is a possible future refinement; the public interface would not change.
  *
- * `Cap` is the fixed capacity and must be > 0 (this queue is bounded by construction; use the deque
+ * `CAP` is the fixed capacity and must be > 0 (this queue is bounded by construction; use the deque
  * backend for the unbounded case). Items are pushed at the tail and popped from the head (FIFO).
  *
  * @tparam T The element type stored in the queue (must be move-constructible)
- * @tparam Cap The fixed ring-buffer capacity in slots (must be > 0)
+ * @tparam CAP The fixed ring-buffer capacity in slots (must be > 0)
  */
-template <typename T, std::size_t Cap>
+template <typename T, std::size_t CAP>
 class GPreallocatedMPMCQueueT final {
-    static_assert(Cap > 0, "GPreallocatedMPMCQueueT<T, Cap>: Cap must be > 0 (this queue is bounded)");
+    static_assert(
+        CAP > 0,
+        "GPreallocatedMPMCQueueT<T, CAP>: CAP must be > 0 (this queue is bounded)"
+    );
     static_assert(
         std::is_move_constructible_v<T>,
         "GPreallocatedMPMCQueueT<T>: T must be move-constructible"
@@ -106,9 +109,9 @@ class GPreallocatedMPMCQueueT final {
         ~Slot() noexcept {} // the owning queue destroys live elements explicitly
     };
 
-    /// The semaphores never exceed Cap permits (free_ starts at Cap; items_ tops out at Cap), so Cap
+    /// The semaphores never exceed CAP permits (free_ starts at CAP; items_ tops out at CAP), so CAP
     /// is a sufficient -- and tight -- LeastMaxValue.
-    static constexpr std::ptrdiff_t sem_max_ = static_cast<std::ptrdiff_t>(Cap);
+    static constexpr std::ptrdiff_t sem_max_ = static_cast<std::ptrdiff_t>(CAP);
 
     /// How long a blocked producer/consumer sleeps before waking to re-check close(). Work arrival
     /// wakes it sooner (via a semaphore release); this only bounds how long a *full/empty* wait runs
@@ -121,8 +124,8 @@ public:
     /*************************************************************************/
     /** @brief Default constructor; allocates the Cap-slot ring buffer on the heap. */
     GPreallocatedMPMCQueueT()
-        : ring_(std::make_unique<Slot[]>(Cap))
-    { /* nothing */ }
+      : ring_(std::make_unique<Slot[]>(CAP)) { /* nothing */
+    }
 
     // Owns mutexes, semaphores and the ring: neither copyable nor movable.
     GPreallocatedMPMCQueueT(GPreallocatedMPMCQueueT const &) = delete;
@@ -212,15 +215,16 @@ public:
      * timed out or the queue was closed.
      *
      * @tparam U The forwarded argument type (must be usable to construct a T)
-     * @tparam Rep The std::chrono::duration tick representation of the timeout
-     * @tparam Period The std::chrono::duration period of the timeout
+     * @tparam rep_type The std::chrono::duration tick representation of the timeout
+     * @tparam period_type The std::chrono::duration period of the timeout
      * @param item The item to add (forwarded into a ring slot)
      * @param timeout Maximum time to wait for a free slot
      * @return true if the item was added, false on timeout or close
      */
-    template <typename U, typename Rep, typename Period>
+    template <typename U, typename rep_type, typename period_type>
         requires std::constructible_from<T, U &&>
-    [[nodiscard]] bool push_wait(U &&item, std::chrono::duration<Rep, Period> const &timeout) {
+    [[nodiscard]] bool
+    push_wait(U &&item, std::chrono::duration<rep_type, period_type> const &timeout) {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         for(;;) {
             if(closed_.load(std::memory_order_acquire)) {
@@ -281,13 +285,14 @@ public:
      * Removes an item, blocking until one is available or the timeout elapses. Returns std::nullopt on
      * timeout, or if the queue is closed and empty.
      *
-     * @tparam Rep The std::chrono::duration tick representation of the timeout
-     * @tparam Period The std::chrono::duration period of the timeout
+     * @tparam rep_type The std::chrono::duration tick representation of the timeout
+     * @tparam period_type The std::chrono::duration period of the timeout
      * @param timeout Maximum time to wait for an item
      * @return The head item, or std::nullopt on timeout or closed-and-empty
      */
-    template <typename Rep, typename Period>
-    [[nodiscard]] std::optional<T> pop_wait(std::chrono::duration<Rep, Period> const &timeout) {
+    template <typename rep_type, typename period_type>
+    [[nodiscard]] std::optional<T>
+    pop_wait(std::chrono::duration<rep_type, period_type> const &timeout) {
         const auto deadline = std::chrono::steady_clock::now() + timeout;
         for(;;) {
             if(closed_.load(std::memory_order_acquire)) {
@@ -325,7 +330,7 @@ public:
     /*************************************************************************/
     /** @brief The maximum number of items. Compile-time. */
     [[nodiscard]] static constexpr std::size_t capacity() noexcept {
-        return Cap;
+        return CAP;
     }
 
     /*************************************************************************/
@@ -344,7 +349,7 @@ public:
     /** @brief The remaining space. Only an indication in concurrent use. */
     [[nodiscard]] std::size_t remaining_space() const {
         const std::size_t c = count_.load(std::memory_order_relaxed);
-        return c >= Cap ? 0 : Cap - c;
+        return c >= CAP ? 0 : CAP - c;
     }
 
     /*************************************************************************/
@@ -356,24 +361,24 @@ public:
 private:
     /*************************************************************************/
     /**
-     * @brief The next ring index after @p i (wraps around at Cap).
+     * @brief The next ring index after @p i (wraps around at CAP).
      * @param i The current ring index
-     * @return The successor index modulo Cap
+     * @return The successor index modulo CAP
      */
     [[nodiscard]] static constexpr std::size_t next_index(std::size_t i) noexcept {
-        return (i + 1) % Cap;
+        return (i + 1) % CAP;
     }
 
     /*************************************************************************/
     /**
      * @brief Clamps a remaining-time slice to the poll interval, so a blocking wait still wakes to
      *  re-check close() at least every close_poll_.
-     * @tparam Duration The std::chrono::duration type of the remaining-time argument
+     * @tparam duration_type The std::chrono::duration type of the remaining-time argument
      * @param remaining The time left until the caller's deadline
      * @return The smaller of @p remaining and close_poll_, expressed in nanoseconds
      */
-    template <typename Duration>
-    [[nodiscard]] static std::chrono::nanoseconds poll_slice_(Duration const &remaining) {
+    template <typename duration_type>
+    [[nodiscard]] static std::chrono::nanoseconds poll_slice_(duration_type const &remaining) {
         const auto r = std::chrono::duration_cast<std::chrono::nanoseconds>(remaining);
         const auto p = std::chrono::duration_cast<std::chrono::nanoseconds>(close_poll_);
         return (std::min)(r, p);
@@ -429,14 +434,16 @@ private:
     }
 
     /*************************************************************************/
-    std::unique_ptr<Slot[]> ring_; ///< The preallocated ring storage (Cap slots)
+    std::unique_ptr<Slot[]> ring_; ///< The preallocated ring storage (CAP slots)
 
     std::mutex tail_mtx_;          ///< Serialises producers (guards tail_)
     std::mutex head_mtx_;          ///< Serialises consumers (guards head_)
     std::size_t tail_ = 0;        ///< Index of the next free slot to push into (under tail_mtx_)
     std::size_t head_ = 0;        ///< Index of the next item to pop (under head_mtx_)
 
-    std::counting_semaphore<sem_max_> free_{static_cast<std::ptrdiff_t>(Cap)}; ///< Empty-slot permits
+    std::counting_semaphore<sem_max_> free_{
+        static_cast<std::ptrdiff_t>(CAP)
+    }; ///< Empty-slot permits
     std::counting_semaphore<sem_max_> items_{0};                              ///< Filled-slot permits
 
     std::atomic<std::size_t> count_{0}; ///< Live item count, for observers only (not correctness)

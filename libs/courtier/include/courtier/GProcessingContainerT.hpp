@@ -94,8 +94,8 @@ class GProcessingContainerT : public GProcessable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         // The non-generic lifecycle state (status, errors, routing ids, timing) is serialised by
         // the GProcessable base; this class adds only the result store and the (typed) pre-/post-
@@ -282,21 +282,6 @@ public:
 		std::string getCurrentEvaluationID() const {
 			return evaluation_id_;
 		}*/
-
-    /***************************************************************************/
-    /**
-	  * @brief Loads user-specified data. This function can be overloaded by derived classes. It
-	  * is mainly intended to provide a mechanism to "deposit" an item at a remote site
-	  * that holds otherwise constant data. That data then does not need to be serialized
-	  * but can be loaded whenever a new work item arrives and has been de-serialized. Note
-	  * that, if your individuals do not serialize important parts of an object, you need
-	  * to make sure that constant data is loaded after reloading a checkpoint.
-	  *
-	  * @param cd_ptr A pointer to the object whose data should be loaded
-	  */
-    void loadConstantData(std::shared_ptr<processable_type> cd_ptr) {
-        this->loadConstantData_(cd_ptr);
-    }
 
     /***************************************************************************/
     /**
@@ -492,20 +477,6 @@ private:
         if(const auto *p = dynamic_cast<const GProcessingContainerT *>(&src); p != nullptr) {
             stored_results_cnt_ = p->stored_results_cnt_;
         }
-    }
-
-    /***************************************************************************/
-    /**
-	  * @brief Loads user-specified data. This function can be overloaded by derived classes. It
-	  * is mainly intended to provide a mechanism to "deposit" an item at a remote site
-	  * that holds otherwise constant data. That data then does not need to be serialized
-	  * but can be loaded whenever a new work item arrives and has been de-serialized. Note
-	  * that, if your work items do not serialize important parts of an object, you need
-	  * to make sure that constant data is loaded after reloading a checkpoint.
-	  *
-	  * @param cd_ptr A pointer to the object whose constant data should be loaded (unused in the default no-op)
-	  */
-    virtual void loadConstantData_([[maybe_unused]] std::shared_ptr<processable_type> cd_ptr) { /* nothing */
     }
 
     /***************************************************************************/

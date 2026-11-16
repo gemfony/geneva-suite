@@ -66,7 +66,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GOptimizableEntityConstraint`, …). Checkpoints written before this change do not load:
   the entity slice no longer travels under its own archive tag.
 - **Author a problem by subclassing `GGenome`** (typically via the CRTP helper
-  `GGenomeT<Derived>`). Build a flat, fixed-structure array of double / float / int32 /
+  `GGenomeT<derived_type>`). Build a flat, fixed-structure array of double / float / int32 /
   bool values once in the constructor with `GGenomeBuilder` (`addDoubleGroup`,
   `addDouble`, `addInt32Group`, `addBoolArray`, …) and install it with `setGenome()`.
   Read values by position via `streamline<T>()` / `streamlineFP()`.
@@ -136,20 +136,39 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   its own orchestration pool while their sub-optimizations submit to the one process
   consumer — so the consumer is never re-entered.
 - **The MPI consumer is a module of its own.** `libgemfony-geneva-mpi` carries the `mpi`
-  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`; no other Geneva library
-  links MPI any more, so Geneva programs start on machines without an MPI library. The module
+  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`. The process's one MPI
+  environment lives in courtier's MPI library `libgemfony-courtier-mpi`, which the module links:
+  `Gem::Courtier::mpiEnvironment()`, `mpiEnvironmentOn()` and `mpiProcessRole()` in
+  `courtier/mpi/GMPIEnvironmentAccess.hpp`, next to the environment class
+  (`courtier/mpi/GMPIEnvironment.hpp`, formerly under `courtier/transport/`). No other Geneva
+  library links MPI, so Geneva programs start on machines without an MPI library. The module
   is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
   first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
   names the reason. **Source-breaking for users of the sub-client classes:** a program that
   uses `GMPISubClientOptimizer` or `GMPISubClientIndividual` links `gemfony-geneva-mpi`
-  (out of tree: `Geneva::geneva-mpi`) and MPI itself, in addition to Geneva.
+  (out of tree: `Geneva::geneva-mpi`, which brings `Geneva::courtier-mpi` and MPI with it) in
+  addition to Geneva; a program that names the environment's functions links
+  `gemfony-courtier-mpi` (`Geneva::courtier-mpi`, which carries MPI; `find_package(Geneva)`
+  finds MPI for it).
+- **A program that builds its consumer without Go2 passes the configuration struct of the
+  consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
+  `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
+  the mnemonic (`MNEMONIC`), so struct and consumer cannot be mismatched, and a misspelt member does
+  not compile. The structs are `GStdThreadConsumerConfig`, `GWebsocketConsumerConfig` and
+  `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none includes a network or MPI
+  header). Development snapshots of the redesign had a `ConsumerSpec`
+  with one field per option of every consumer and a function `buildConsumerSetup()` returning a
+  `ConsumerSetup`; `Gem::Courtier::ConsumerSpec` (`courtier/GConsumerSpec.hpp`) is now a mnemonic
+  plus a `std::any config` (empty: the family's defaults), for a mnemonic known only at run time,
+  `buildConsumer()` returns the consumer, and a provider reads the struct with
+  `Gem::Courtier::configOf<config_type>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
-  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / shutdown /
-  blob-request / blob-reply) plus the per-slot `GProcessingOutcome` it reconciles on, and
+  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result / shutdown /
+  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on, and
   nothing else. What a message *means* is Geneva's: a numeric tag (`geneva_command`:
   `evaluate` / `evaluation` / `evaluated_and_modified` / `terminate`) and a per-command
   payload, both relayed by courtier without interpretation. A library plugs its own answers
@@ -172,8 +191,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   is woken per item, the one that has waited longest first. A client thus gets its next item as
   soon as there is one, and idle clients cause no traffic beyond the keep-alive. Measured with
   400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
-  fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `asio`
-  and `mpi` workers still ask again after a random pause of 50 to 200 ms
+  fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `mpi`
+  workers still ask again after a random pause of 50 to 200 ms
   (`GCLIENTNOWORKPAUSE{LOWER,UPPER}BOUNDARYMSEC`), which adds up to about that much to an
   iteration; for evaluations of less than a few seconds the websocket consumer is the better
   choice.
@@ -181,19 +200,75 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   15 s) applies to the server and to the client: after that much silence a ping is sent, and after
   twice as much without any inbound data the connection is closed. The same limit bounds the
   websocket handshake and the close handshake, so a peer that has stopped answering cannot hold
-  a connection or a thread. A client answers pings while it evaluates, so an evaluation may take
-  any length of time. There is no limit on the size of a message.
-- **The number of io threads of a socket server** is set with `--asio_nProcessingThreads` and
-  `--beast_nListenerThreads` (default 4; 0 means one per hardware thread), as in 1.11.
+  a connection or a thread. A client answers pings while it evaluates, and both ends answer them
+  while they encode or decode a message (neither does that on the thread that moves the
+  connection's bytes), so an evaluation, and the encoding of a message, may take any length of
+  time. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
+  lost client is not noticed by the transport, and the server reclaims its items by the time lease.
+- **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
+  (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
+  many threads again.
   Development snapshots of the redesign ignored these options and ran one io thread per hardware
-  thread. In measurements with 400 clients the iteration time did not depend on the number, and
-  four threads used the least server CPU.
+  thread. Measured with 400 websocket clients and evaluations of 10 ms, an iteration took 25.8 ms
+  with 4 threads, 26.8 ms with 2 and 26.5 ms with 8; the server needed 1.4, 1.1 and 2.4 cores.
+- **The asio consumer is removed; the websocket consumer takes its place.** A program started
+  with `--consumer asio` or with an `asio_*` option is refused like one with any unknown consumer
+  or option. Use `--consumer beast` with the same host and port options under their websocket
+  names: `--beast_ip`, `--beast_port`, `--beast_serializationMode`, `--beast_nListenerThreads`
+  and `--beast_prefetchDepth`. Code that built the consumer from `GAsioConsumerConfig` uses
+  `GWebsocketConsumerConfig`, whose members are the same but for `maxReconnects`.
+  `--asio_maxReconnects` (attempts of one exchange, about 7 s by default) has no counterpart; see
+  the next item. The key
+  `session_timeout_ms` of the networked timeout configuration (the asio server's limit on one
+  exchange) is gone; the websocket keep-alive covers a client that falls silent, and
+  `--update-configs` drops the key from an existing file. The classes `GAsioConsumerT`,
+  `GAsioConsumerClientT` and `GTcpAcceptingConsumerT`, the constants `GASIO*` and the frame's
+  announced peer id (`GCommandContainerT::setPeerId()` / `peerId()`) are gone with it.
+- **A websocket client connects again.** It may be started before its server: a failed attempt
+  is followed by another after a pause that grows from 0.25 to 30 s, until
+  `--beast_firstContactLimit` seconds (default 0: no limit) pass without contact (an answer, or a
+  connection open for 60 s). A client whose connection is lost (reset, closed by the server, or cut
+  by the keep-alive) connects again until `--beast_reconnectLimit` seconds (default 600; 0: no
+  limit) pass since the end of the last connection that had contact; a limit that runs out ends it
+  with an error. It sends again what the server may not have read, evaluates what it holds, and
+  delivers the results on the next connection; the server drops a result it already has, or one
+  of another server process. An evaluation is never cut short: a client that has to end without
+  a connection makes one last attempt and saves each finished result it still cannot deliver --
+  the evaluated item, one file each, in `--beast_undeliveredDir` (default: the working
+  directory); the log names the file. Nothing is saved after the server has announced the end of
+  the run. A message whose kind a server cannot read now ends the connection (the client connects
+  again) instead of being answered with NO_WORK.
+- **A websocket client evaluates one item at a time unless told otherwise.** It has two
+  numbers: `--beast_prefetchDepth` n, how many items it holds at once (those evaluated and those
+  fetched ahead, so that the transfer of the next item overlaps the evaluation of the current
+  one), and `--beast_parallelEvaluations` m (`clientParallelEvaluations`), how many of them it
+  evaluates at the same time -- 1 by default, from 1 to n. A client with a depth above 1 used to
+  evaluate as many items side by side as its depth; it now evaluates them one after the other.
+  `--beast_parallelEvaluations` set to the depth gives that back. In `GPeerClientOptions` the
+  member `computeWidth` (0: as many as the depth) is now `parallelEvaluations` (default 1); m
+  above n, or 0, is refused when the client is built.
 - **A socket server lives as long as it is referenced.** Dropping the last reference stops and
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
+- **A websocket server tells its clients that the run has ended.** `stopServer()` closes every
+  connection with the close code 4000 (`GCONSUMERCLOSECODERUNENDED`), also those of clients that
+  evaluate or wait for work, and waits for the clients to confirm, at most a grace
+  (`GWEBSOCKETCONSUMERSTOPGRACE`, 10 s; the second argument of the consumer's constructor). A
+  client that is told so ends. A client that reaches a time or an item limit starts no further
+  evaluation, sends the results of those that run as they finish, and closes when none runs; the
+  server keeps these results (the processed count may pass an item limit by them). A client that
+  is still connecting when a limit is reached gives the attempt up. The other closes of a server
+  carry codes of their own (4001 normal, 4003 error); a client's end closes with 1000, 1011 or
+  4002 (end of the run). The two ends never begin a close with the same code: an end counts the
+  other end's close as the confirmation of its own only when it echoes its code.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
-  handle is answered with NO_WORK, so the client asks again instead of ending. A result that
-  cannot be applied to its item marks the item as failed. In each case the submission policy
+  handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
+  does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
+  A websocket client that cannot read an item tells the server (`unreadable`), which puts back what
+  the client held and sends it its blobs anew; the client stays. A result that
+  cannot be applied to its item marks the item as failed, and so does an item that the server
+  cannot encode for a client, or whose result the client cannot encode or return (the client
+  then sends the outcome alone, marked as failed, and stays). In each case the submission policy
   decides what happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
@@ -252,7 +327,16 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
   the `GENEVA_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
-  supply it.
+  supply it; the stamp also carries the size of a `GenevaContribution`. A contribution has a fourth
+  member, `subject`, last: for a consumer, the item type its provider distributes
+  (`typeid(...).name()`, written by `consumerManifest<>`); a hand-written entry of any other kind
+  leaves it out (null). A consumer contribution without a subject, or for another item type, is
+  refused before anything of the module is called; one whose provider's `getMnemonic()` is not the
+  mnemonic of its manifest entry is refused too. No contribution of a module is taken before all
+  of them have been checked (a factory entry point, a kind this program serves, the item type of a
+  consumer), so a module refused for one of these registers nothing.
+  The loader is `common/GModuleLoader.hpp`, which takes one handler per kind of contribution; Geneva
+  uses it through `Gem::Geneva::loadModule()`.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
   is gone, and a factory registers through one function, `Gem::Geneva::registerOptimizationAlgorithm()`
@@ -393,11 +477,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC`. The other pauses, time limits
   and defaults of the networked consumers are named constants in `courtier/GCourtierEnums.hpp`
   as well.
-- **courtier: the socket consumers/clients gained shared bases** — `GAsioConsumerT` /
-  `GWebsocketConsumerT` now derive from `GTcpAcceptingConsumerT` (the common TCP server
-  shell) and `GAsioConsumerClientT` / `GWebsocketClientT` from `GPrefetchingClientT`
-  (the common prefetch/compute pipeline). Public construction, options and the wire
-  protocol are unchanged; only code naming the old direct base classes is affected.
+- **courtier: the websocket consumer and client gained shared bases** — `GWebsocketConsumerT`
+  derives from `GPeerConsumerT` (the server's shell over any transport) and `GWebsocketClientT`
+  from `GPeerClientT`, which derives from `GPrefetchingClientT` (the prefetch/compute pipeline).
+  Public construction and options are unchanged; only code naming the old direct base classes is
+  affected.
+- **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
+  taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
+  `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.
+  Constant problem data is loaded in every process, before `clientRun()` as before `optimize()`.
 
 ## 8. Checkpointing
 

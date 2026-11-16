@@ -65,7 +65,7 @@ namespace Gem::Hap {
  * produced in different ways. We only define the interface here. The actual
  * implementation can be found in the (partial) specializations of this class.
  */
-template <Gem::Hap::randomSource s = Gem::Hap::randomSource::QUEUE>
+template <Gem::Hap::randomSource S = Gem::Hap::randomSource::QUEUE>
 class GRandomT : public Gem::Hap::GRandomBase {
 public:
     /***************************************************************************/
@@ -261,7 +261,8 @@ private:
 	 *
 	 * Checks (in DEBUG builds) that a valid GRandomFactory still exists, then
 	 * retries getNewRandomContainer() on the factory until a valid container is
-	 * obtained (each factory call has an internal timeout).
+	 * obtained (each factory call waits a bounded time for a container; see
+	 * GRandomFactory::getNewRandomContainer()).
 	 */
     void getNewRandomContainer() {
         // Make sure we get rid of the old container
@@ -281,8 +282,9 @@ private:
         std::uint32_t n_retries = 0;
 #endif /* DEBUG */
 
-        // Try until a valid container has been received. getNewRandomContainer() has a timeout of
-        // DEFAULTFACTORYGETWAIT internally and signals "nothing available yet" with an empty pointer.
+        // Try until a valid container has been received. getNewRandomContainer() waits at most
+        // DEFAULTFACTORYGETWAIT for a container (after the start of the producers, which the first call
+        // waits for) and signals "nothing available yet" with an empty pointer.
         // An empty return is normally TRANSIENT (the producers simply have not refilled the buffer
         // yet), so we retry. Once the factory has been FINALIZED, however, its buffers are closed for
         // good and no container will ever arrive again -- retrying would then busy-spin at 100% CPU

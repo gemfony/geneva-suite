@@ -30,9 +30,13 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <chrono>
+#include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
@@ -46,7 +50,10 @@ using Store = GThreadSafeKeyedStoreT<std::string, int>;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GThreadSafeKeyedStoreT: non-copyable, default-constructible", "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: non-copyable and default-constructible",
+    "[common][keyed-store]"
+) {
     static_assert(std::is_default_constructible_v<Store>);
     static_assert(not std::is_copy_constructible_v<Store>);
     static_assert(not std::is_copy_assignable_v<Store>);
@@ -141,6 +148,75 @@ TEST_CASE("GThreadSafeKeyedStoreT: clear empties the store", "[common][keyed-sto
 }
 
 // ---------------------------------------------------------------------------
+// waitUntilEmpty: at once when empty, on the last remove() (not on an earlier one), on clear(), and
+// false at its limit. The waits that must end early have a long limit and a much shorter bound on
+// the time they took, so a remove() or clear() that does not notify is seen as a bound exceeded.
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty returns at once when the store is empty",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    Store const s;
+    const auto begin = std::chrono::steady_clock::now();
+    CHECK(s.waitUntilEmpty(0ms));
+    CHECK(s.waitUntilEmpty(10s));
+    CHECK(std::chrono::steady_clock::now() - begin < 1s);
+}
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty is false at its limit while an entry stays",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    Store s;
+    s.set("a", 1);
+    const auto begin = std::chrono::steady_clock::now();
+    CHECK_FALSE(s.waitUntilEmpty(50ms));
+    CHECK(std::chrono::steady_clock::now() - begin >= 50ms);
+    CHECK(s.size() == 1);
+}
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: waitUntilEmpty returns on the last remove and on clear",
+    "[common][keyed-store][concurrency]"
+) {
+    using namespace std::chrono_literals;
+    constexpr auto LIMIT = 10s; // what the waits may take at most
+    constexpr auto BOUND = 3s;  // what they take with a notification: about 40 ms
+
+    // Shared with the removing threads, which may still hold the store's mutex when the waiter
+    // returns (the lifetime rule of waitUntilEmpty()).
+    auto s = std::make_shared<Store>();
+
+    SECTION("the last of two removals ends the wait; the first does not") {
+        s->set("a", 1);
+        s->set("b", 2);
+        std::jthread const remover([s] {
+            std::this_thread::sleep_for(20ms);
+            s->remove("a");
+            std::this_thread::sleep_for(20ms);
+            s->remove("b");
+        });
+        const auto begin = std::chrono::steady_clock::now();
+        CHECK(s->waitUntilEmpty(LIMIT));
+        CHECK(std::chrono::steady_clock::now() - begin < BOUND);
+        CHECK(s->empty()); // not woken (or not returning) after the first removal
+    }
+
+    SECTION("clear() ends the wait") {
+        s->set("c", 3);
+        std::jthread const clearer([s] {
+            std::this_thread::sleep_for(20ms);
+            s->clear();
+        });
+        const auto begin = std::chrono::steady_clock::now();
+        CHECK(s->waitUntilEmpty(LIMIT));
+        CHECK(std::chrono::steady_clock::now() - begin < BOUND);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Concurrency: many writers + many readers stay consistent.
 
 // NOLINTNEXTLINE(readability-function-size) -- one coherent concurrency stress-test kernel (spawns writer/reader threads sharing atomics + the store under test, joins, then asserts); splitting would only scatter the tightly-coupled thread lambdas
@@ -189,4 +265,35 @@ TEST_CASE("GThreadSafeKeyedStoreT: concurrent set/get/snapshot remains consisten
 
     CHECK(out_of_range.load() == 0);
     CHECK(s.size() == static_cast<std::size_t>(kWriters * kPerWriter));
+}
+
+/******************************************************************************/
+TEST_CASE("GThreadSafeKeyedStoreT: take hands one value over and wakes a waiter on the last",
+          "[common][keyed-store]") {
+    Store s;
+    s.set("a", 1);
+    s.set("b", 2);
+    CHECK(s.take("a") == std::optional<int>{1});
+    CHECK_FALSE(s.take("a").has_value());
+    CHECK(s.size() == 1);
+    std::jthread taker([&s] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        static_cast<void>(s.take("b"));
+    });
+    CHECK(s.waitUntilEmpty(std::chrono::seconds(5)));
+}
+
+/******************************************************************************/
+TEST_CASE("GThreadSafeKeyedStoreT: drain hands every entry over in key order and empties the store",
+          "[common][keyed-store]") {
+    Store s;
+    s.set("b", 2);
+    s.set("a", 1);
+    const auto drained = s.drain();
+    REQUIRE(drained.size() == 2);
+    CHECK(drained[0] == std::pair<std::string, int>{"a", 1});
+    CHECK(drained[1] == std::pair<std::string, int>{"b", 2});
+    CHECK(s.empty());
+    CHECK(s.waitUntilEmpty(std::chrono::milliseconds(0)));
+    CHECK(s.drain().empty());
 }

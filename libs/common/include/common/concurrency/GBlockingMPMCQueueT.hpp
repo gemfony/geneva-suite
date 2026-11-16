@@ -73,7 +73,7 @@ namespace Gem::Common::Concurrency {
  *  - Bounded vs. unbounded is handled with `if constexpr`, not a duplicated set of
  *    `requires`-constrained overloads on a dummy template parameter.
  *  - `remaining_space()` no longer underflows for the unbounded case (it returns
- *    SIZE_MAX) — the old `t_capacity - size()` wrapped around when `t_capacity==0`.
+ *    SIZE_MAX) — the old `T_CAPACITY - size()` wrapped around when `T_CAPACITY==0`.
  *  - A `close()` operation wakes every blocked waiter and gives clean shutdown
  *    semantics: after `close()` no new items are accepted, blocked producers return
  *    `false`, and consumers drain the remaining items before `pop()` reports the
@@ -81,7 +81,7 @@ namespace Gem::Common::Concurrency {
  *    consumer parked in a no-timeout blocking pop, so teardown could hang.
  *  - All observers are `const`; all value-returning functions are `[[nodiscard]]`.
  *
- * Setting the template argument `t_capacity` to 0 yields an unbounded queue (in
+ * Setting the template argument `T_CAPACITY` to 0 yields an unbounded queue (in
  * which case the producing functions never block on fullness). `std::deque` is used
  * as the backing store deliberately: it serves both the bounded and the unbounded
  * configuration with one type. `T` must be at least move-constructible.
@@ -89,9 +89,9 @@ namespace Gem::Common::Concurrency {
  * Items are pushed at the front and popped from the back, giving FIFO order.
  *
  * @tparam T The element type stored in the queue (must be move-constructible)
- * @tparam t_capacity The maximum number of items; 0 selects an unbounded queue
+ * @tparam T_CAPACITY The maximum number of items; 0 selects an unbounded queue
  */
-template <typename T, std::size_t t_capacity = DEFAULTBUFFERSIZE>
+template <typename T, std::size_t T_CAPACITY = DEFAULTBUFFERSIZE>
 class GBlockingMPMCQueueT final {
     static_assert(
         std::is_move_constructible_v<T>,
@@ -185,15 +185,16 @@ public:
      * queue this never times out on fullness.
      *
      * @tparam U The forwarded argument type (must be usable to construct a T)
-     * @tparam Rep The std::chrono::duration tick representation of the timeout
-     * @tparam Period The std::chrono::duration period of the timeout
+     * @tparam rep_type The std::chrono::duration tick representation of the timeout
+     * @tparam period_type The std::chrono::duration period of the timeout
      * @param item The item to add (forwarded into the queue)
      * @param timeout Maximum time to wait for space
      * @return true if the item was added, false on timeout or close
      */
-    template <typename U, typename Rep, typename Period>
+    template <typename U, typename rep_type, typename period_type>
         requires std::constructible_from<T, U &&>
-    [[nodiscard]] bool push_wait(U &&item, std::chrono::duration<Rep, Period> const &timeout) {
+    [[nodiscard]] bool
+    push_wait(U &&item, std::chrono::duration<rep_type, period_type> const &timeout) {
         {
             std::unique_lock lock(mutex_);
             if(not not_full_.wait_for(
@@ -263,13 +264,14 @@ public:
      * Removes an item, blocking until one is available or the timeout elapses.
      * Returns std::nullopt on timeout, or if the queue is closed and empty.
      *
-     * @tparam Rep The std::chrono::duration tick representation of the timeout
-     * @tparam Period The std::chrono::duration period of the timeout
+     * @tparam rep_type The std::chrono::duration tick representation of the timeout
+     * @tparam period_type The std::chrono::duration period of the timeout
      * @param timeout Maximum time to wait for an item
      * @return The item, or std::nullopt on timeout / closed-and-empty
      */
-    template <typename Rep, typename Period>
-    [[nodiscard]] std::optional<T> pop_wait(std::chrono::duration<Rep, Period> const &timeout) {
+    template <typename rep_type, typename period_type>
+    [[nodiscard]] std::optional<T>
+    pop_wait(std::chrono::duration<rep_type, period_type> const &timeout) {
         std::optional<T> result;
         {
             std::unique_lock lock(mutex_);
@@ -314,13 +316,13 @@ public:
     /*************************************************************************/
     /** @brief The maximum number of items (0 means unbounded). Compile-time. */
     [[nodiscard]] static constexpr std::size_t capacity() noexcept {
-        return t_capacity;
+        return T_CAPACITY;
     }
 
     /*************************************************************************/
     /** @brief Whether this is a bounded queue. Compile-time. */
     [[nodiscard]] static constexpr bool bounded() noexcept {
-        return t_capacity > 0;
+        return T_CAPACITY > 0;
     }
 
     /*************************************************************************/
@@ -339,11 +341,12 @@ public:
      * GBoundedBufferT underflowed here). Only an indication in concurrent use.
      */
     [[nodiscard]] std::size_t remaining_space() const {
-        if constexpr(t_capacity == 0) {
+        if constexpr(T_CAPACITY == 0) {
             return (std::numeric_limits<std::size_t>::max)();
-        } else {
+        }
+        else {
             std::scoped_lock const lock(mutex_);
-            return t_capacity - container_.size();
+            return T_CAPACITY - container_.size();
         }
     }
 
@@ -358,10 +361,11 @@ private:
     /*************************************************************************/
     /** @brief Whether the container is at capacity. Must be called under the lock. */
     [[nodiscard]] bool full_unlocked() const noexcept {
-        if constexpr(t_capacity == 0) {
+        if constexpr(T_CAPACITY == 0) {
             return false; // unbounded: never full
-        } else {
-            return container_.size() >= t_capacity;
+        }
+        else {
+            return container_.size() >= T_CAPACITY;
         }
     }
 

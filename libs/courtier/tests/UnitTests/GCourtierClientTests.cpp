@@ -28,20 +28,28 @@
  ********************************************************************************/
 
 /**
- * Tests of the client pipeline shared by the socket clients (GPrefetchingClientT) that need no
+ * Tests of the client pipeline of the networked clients (GPrefetchingClientT) that need no
  * server: a probe client stands in for a transport and drives the pipeline's timers by hand.
  */
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
 
 #include <boost/asio.hpp>
 
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GProcessingContainerT.hpp"
+#include "courtier/GWireProtocolT.hpp"
 #include "courtier/transport/GPrefetchingClientT.hpp"
 
 using Gem::Courtier::GCommandContainerT;
@@ -52,15 +60,20 @@ using namespace std::chrono_literals;
 namespace {
 
 /** @brief A client without a transport. It supplies the hooks the pipeline calls and lets a test
- *  arrange the order in which the pipeline's timer handlers run. */
-class ProbeClient final
-  : public GPrefetchingClientT<ProbeClient, GFaultyContainer>
-  , public std::enable_shared_from_this<ProbeClient> {
-    friend class GPrefetchingClientT<ProbeClient, GFaultyContainer>;
-    using pipeline_base = GPrefetchingClientT<ProbeClient, GFaultyContainer>;
+ *  arrange the order in which the pipeline's timer handlers run.
+ *  @tparam item_type The work item */
+template <typename item_type>
+class ProbeClientT final
+  : public GPrefetchingClientT<ProbeClientT<item_type>, item_type>
+  , public std::enable_shared_from_this<ProbeClientT<item_type>> {
+    friend class GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
+    using pipeline_base = GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
+    using pipeline_base::computing_;
+    using pipeline_base::io_context_;
+    using pipeline_base::pending_pulls_;
 
 public:
-    ProbeClient()
+    ProbeClientT()
       : pipeline_base("ProbeClient", /*prefetch_depth=*/1) { /* nothing */
     }
 
@@ -82,6 +95,60 @@ public:
         std::this_thread::sleep_for(1100ms);
     }
 
+    /** @brief Counts one request as sent and unanswered, as refill_() would. On the io thread
+     *  (the test's thread, while the io context does not run). */
+    void expectAnswer() {
+        ++pending_pulls_;
+    }
+
+    /** @brief Hands a message from the server to the pipeline, as a transport does.
+     *  @param message The encoded frame */
+    void receive(std::string message) {
+        this->dispatch_message_(std::move(message));
+    }
+
+    /** @brief Runs the io context on this thread until @p condition holds, at most for @p limit.
+     *  The condition is evaluated between two handlers, i.e. as the io thread sees the books.
+     *  @return Whether the condition held in time */
+    template <typename condition_type>
+    [[nodiscard]] bool runUntil(condition_type condition, std::chrono::milliseconds limit) {
+        const auto give_up_at = std::chrono::steady_clock::now() + limit;
+        while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
+            if(io_context_.stopped()) {
+                io_context_.restart();
+            }
+            io_context_.run_one_for(10ms);
+        }
+        return condition();
+    }
+
+    /** @return The items being evaluated, as the io thread counts them */
+    [[nodiscard]] std::size_t computing() const {
+        return computing_;
+    }
+    /** @return The requests sent and not answered yet, as the io thread counts them */
+    [[nodiscard]] std::size_t pendingPulls() const {
+        return pending_pulls_;
+    }
+    /** @brief Decodes the last result handed to the transport @param frame Receives it */
+    void lastResult(Gem::Courtier::GCommandContainerT<item_type> &frame) const {
+        Gem::Courtier::container_from_string(
+            last_result_,
+            frame,
+            Gem::Common::serializationMode::GEM_BINARY
+        );
+    }
+
+    /** @return How many messages could not be read */
+    [[nodiscard]] std::size_t nUnreadable() const {
+        return n_unreadable_;
+    }
+
+    /** @return The encoded results handed to the transport so far */
+    [[nodiscard]] std::size_t nResults() const {
+        return n_results_;
+    }
+
     /** @brief Runs the io context for at most @p limit.
      *  @return Whether it ran out of work, i.e. whether a client's run() would have returned */
     [[nodiscard]] bool runsOutOfWork(std::chrono::milliseconds limit) {
@@ -94,15 +161,146 @@ private:
     }
     void refill_() { /* no transport to pull from */
     }
-    void sendResultAndRefill_(GCommandContainerT<GFaultyContainer> /*container*/) { /* nothing */
+    /** @brief Every result asks for the next item, as a client without look-ahead does
+     *  @return RETURN */
+    [[nodiscard]] Gem::Courtier::GFrameKind resultKindHint_() const {
+        return Gem::Courtier::GFrameKind::RETURN;
+    }
+    /** @brief Keeps the result as the transport would send it; a RETURN is a request again
+     *  @param bytes The encoded result @param error Why it could not be encoded
+     *  @param frame The result's frame */
+    void sendResult_(
+        std::string bytes,
+        const std::string &error,
+        Gem::Courtier::GCommandContainerT<item_type> frame,
+        [[maybe_unused]] std::unique_ptr<item_type> item
+    ) {
+        if(frame.kind() == Gem::Courtier::GFrameKind::RETURN) {
+            ++pending_pulls_;
+        }
+        if(error.empty() && not bytes.empty()) {
+            ++n_results_;
+            last_result_ = std::move(bytes);
+        }
+    }
+    void when_decoded_(Gem::Courtier::GFrameKind /*kind*/) { /* nothing to act on */
+    }
+    void when_unreadable_(const std::string & /*error*/) {
+        ++n_unreadable_;
     }
     void haltShutdown_() { /* no transport to close */
     }
 
     boost::asio::steady_timer stop_timer_{io_context_};
+    std::size_t n_results_ = 0;                   ///< Encoded results handed to the transport
+    std::string last_result_;                     ///< The last result handed to the transport
+    std::size_t n_unreadable_ = 0;                ///< Messages that could not be read (io thread)
+};
+
+using ProbeClient = ProbeClientT<GFaultyContainer>;
+
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> slowDropArmed{false}; ///< The next GSlowDropItem destroyed takes its time
+
+/** @brief A work item whose destruction takes 500 ms once it has been evaluated: the compute
+ *  pool's handler, which holds the evaluated item, is then destroyed long after it has handed the
+ *  result to the io thread. */
+class GSlowDropItem final : public Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>>(
+            ar,
+            "GProcessingContainerT_GSlowDropItem",
+            *this
+        );
+    }
+
+public:
+    GSlowDropItem()
+      : Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>(1) { /* nothing */
+    }
+    GSlowDropItem(const GSlowDropItem &) = default;
+    GSlowDropItem(GSlowDropItem &&) = delete;
+    GSlowDropItem &operator=(const GSlowDropItem &) = delete;
+    GSlowDropItem &operator=(GSlowDropItem &&) = delete;
+    /** @brief Takes its time if it was evaluated with the slow drop armed */
+    ~GSlowDropItem() override {
+        if(slow_) {
+            std::this_thread::sleep_for(500ms);
+        }
+    }
+
+private:
+    /** @brief Marks this item to be dropped slowly */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
+        slow_ = slowDropArmed.exchange(false);
+    }
+
+    bool slow_ = false; ///< Its destruction takes its time
+};
+
+/** @brief A work item whose return seam (GWireProtocolT::buildReturn(), below) throws something
+ *  that is not a std::exception: what follows its evaluation fails on the compute thread. */
+class GReturnThrowsItem final
+  : public Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>>(
+            ar,
+            "GProcessingContainerT_GReturnThrowsItem",
+            *this
+        );
+    }
+
+public:
+    GReturnThrowsItem()
+      : Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Nothing to evaluate */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
 };
 
 } /* anonymous namespace */
+
+namespace Gem::Courtier {
+/** @brief The wire seam of GReturnThrowsItem: the default one, except that building the return
+ *  throws something that is not a std::exception. */
+template <>
+struct GWireProtocolT<GReturnThrowsItem> {
+    using payload_type = GNoLibraryPayload;
+    static std::uint32_t workTag() {
+        return 0;
+    }
+    static std::uint32_t shutdownTag() {
+        return 0;
+    }
+    static bool buildReturn(
+        [[maybe_unused]] const GReturnThrowsItem &item,
+        [[maybe_unused]] std::uint32_t &tag,
+        [[maybe_unused]] payload_type &payload
+    ) {
+        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
+    }
+    static void applyReturn(
+        GReturnThrowsItem &slot,
+        [[maybe_unused]] std::uint32_t tag,
+        [[maybe_unused]] const payload_type *payload,
+        const GReturnThrowsItem *item
+    ) {
+        if(item != nullptr) {
+            slot.absorbResultsFrom(*item);
+        }
+    }
+};
+} /* namespace Gem::Courtier */
 
 TEST_CASE(
     "courtier(client): a timer that had expired when the client stopped does not arm itself again",
@@ -114,4 +312,267 @@ TEST_CASE(
     auto client = std::make_shared<ProbeClient>();
     client->stopWhileHaltPollIsQueued();
     CHECK(client->runsOutOfWork(1500ms));
+}
+
+/******************************************************************************/
+// An item whose processing throws something other than a g_processing_exception -- here the
+// geneva_exception the processing lifecycle throws for an item that is not due -- used to leave
+// processWorkFrame() and end the worker. It is returned flagged instead; only a WORK frame without
+// an item is still an error.
+
+TEST_CASE(
+    "courtier(client): processWorkFrame returns an item that cannot be processed flagged",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    SECTION("an item that was already processed comes back with an error") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        item->process();
+        REQUIRE(item->is_processed());
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(
+            frame.item()->getStoredErrorDescriptions().find("could not be processed") !=
+            std::string::npos
+        );
+    }
+
+    SECTION("an item that already reports an error keeps it") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::THROW_PROCESSING);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        CHECK_THROWS(item->process()); // the user's code fails: EXCEPTION_CAUGHT
+        REQUIRE(item->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+    }
+
+    SECTION("a WORK frame without an item is a protocol error") {
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK};
+        CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "test worker"));
+    }
+}
+
+/******************************************************************************/
+// A client can be given a processor that takes the place of a due item's process()
+// (GBaseClientT::setItemProcessor()). processWorkFrame() applies it; an item that is not due and a
+// frame without an item never reach it, and whatever it throws leaves the item flagged.
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one case, a section per rule
+TEST_CASE(
+    "courtier(client): processWorkFrame applies an item processor to a due item",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::GItemProcessorT;
+    using Gem::Courtier::processingStatus;
+
+    // GFaultyContainer's own process_() stores the result true; the marking processor stores false.
+    int calls = 0;
+    GItemProcessorT<GFaultyContainer> marking{[&calls](GFaultyContainer &item) {
+        ++calls;
+        item.markAsProcessedWith({false});
+    }};
+
+    const auto due_frame = [] {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        return GCommandContainerT<GFaultyContainer>{GFrameKind::WORK, std::move(item)};
+    };
+
+    SECTION("no processor") {
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", nullptr));
+        REQUIRE(frame.item() != nullptr);
+        REQUIRE(frame.item()->is_processed());
+        CHECK(frame.item()->getStoredResult());
+    }
+
+    SECTION("a processor that marks") {
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        REQUIRE(frame.item() != nullptr);
+        REQUIRE(frame.item()->is_processed());
+        CHECK_FALSE(frame.item()->getStoredResult());
+        CHECK(calls == 1);
+    }
+
+    SECTION("a processor that throws a std::exception") {
+        GItemProcessorT<GFaultyContainer> throwing{[](GFaultyContainer & /*item*/) {
+            throw std::runtime_error("injected");
+        }};
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &throwing));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(frame.item()->getStoredErrorDescriptions().contains("injected"));
+    }
+
+    SECTION("a processor that throws something that is not a std::exception") {
+        GItemProcessorT<GFaultyContainer> throwing{[](GFaultyContainer & /*item*/) {
+            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp): the case under test
+        }};
+        auto frame = due_frame();
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &throwing));
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+        CHECK(
+            frame.item()->getStoredErrorDescriptions().contains("not derived from std::exception")
+        );
+    }
+
+    SECTION("an item that is not due does not reach the processor") {
+        auto item = std::make_unique<GFaultyContainer>(0, fault_mode::NONE);
+        item->set_processing_status(processingStatus::DO_PROCESS);
+        item->process();
+        REQUIRE(item->is_processed());
+
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+        CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        CHECK(calls == 0);
+        REQUIRE(frame.item() != nullptr);
+        CHECK(frame.item()->getProcessingStatus() == processingStatus::ERROR_FLAGGED);
+    }
+
+    SECTION("a WORK frame without an item does not reach the processor") {
+        GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK};
+        CHECK_THROWS(Gem::Courtier::processWorkFrame(frame, "w", &marking));
+        CHECK(calls == 0);
+    }
+}
+
+/******************************************************************************/
+// The io thread keeps the books of the pipeline, also while it does no codec work: a WORK frame is
+// decoded on the compute pool, but it reaches the io thread before its item is evaluated. From
+// then until the result the item counts as computing and the request it answers as answered --
+// the state look-ahead, the busy rule and the end of a run are decided on.
+
+TEST_CASE(
+    "courtier(client): the io thread counts an item as computing while it is evaluated",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GFaultyContainer>(0, fault_mode::SLEEP, /*sleep_ms=*/1000);
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClient>();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+
+    // While the item sleeps in its evaluation the io thread knows of it.
+    REQUIRE(client->runUntil([&client] { return client->computing() == 1; }, 800ms));
+    CHECK(client->pendingPulls() == 0);
+    CHECK(client->getNProcessed() == 0); // the evaluation is not over yet
+
+    // Then its result: one encoded RETURN, which is a request again.
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    CHECK(client->computing() == 0);
+    CHECK(client->pendingPulls() == 1);
+    CHECK(client->getNProcessed() == 1);
+}
+
+/******************************************************************************/
+/**
+ * The compute pool's handler gives up its hold on the client as soon as it has handed the result to
+ * the io thread. Were it to keep it until the handler is destroyed (here: until the evaluated item
+ * has been dropped, 500 ms later), the client could see its last other owner go meanwhile -- the
+ * thread whose run() has returned -- and be destroyed on a thread of its own pool, which cannot
+ * join itself (seen once as a crash at the end of a test).
+ */
+TEST_CASE(
+    "courtier(client): the compute pool does not hold the client after the result is handed over",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GSlowDropItem>();
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    const GCommandContainerT<GSlowDropItem> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClientT<GSlowDropItem>>();
+    slowDropArmed.store(true);
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    std::this_thread::sleep_for(100ms); // the pool's handler is still dropping the item
+    CHECK(client.use_count() == 1);
+    std::this_thread::sleep_for(600ms); // whatever the outcome, the pool is done with the client
+}
+
+/******************************************************************************/
+/**
+ * No exception of any type leaves a compute-pool thread: when what follows the evaluation throws
+ * something that is not a std::exception (here the library's return seam, GWireProtocolT::
+ * buildReturn()), the item is returned to the server as failed -- its outcome alone,
+ * ERROR_FLAGGED, with its correlation id -- and the client goes on.
+ */
+TEST_CASE(
+    "courtier(client): a non-std exception after the evaluation returns the item as failed",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    auto item = std::make_unique<GReturnThrowsItem>();
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    item->setCorrelationId(4711);
+    const GCommandContainerT<GReturnThrowsItem> work{GFrameKind::WORK, std::move(item)};
+
+    auto client = std::make_shared<ProbeClientT<GReturnThrowsItem>>();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
+    CHECK(client->computing() == 0);
+    GCommandContainerT<GReturnThrowsItem> returned{GFrameKind::NONE};
+    client->lastResult(returned);
+    CHECK(returned.kind() == GFrameKind::RETURN);
+    CHECK(returned.item() == nullptr);
+    CHECK(returned.outcome().status == processingStatus::ERROR_FLAGGED);
+    CHECK(returned.outcome().correlation_id == 4711);
+}
+
+/******************************************************************************/
+/**
+ * Nothing a server sends can end a client: a WORK frame that decodes but carries no work item is a
+ * message that cannot be read (its kind and payload disagree). It is not counted as WORK, nothing
+ * is evaluated, and the client reports it (UNREADABLE).
+ */
+TEST_CASE(
+    "courtier(client): a WORK frame without a work item cannot be read",
+    "[courtier][client]"
+) {
+    using Gem::Courtier::GFrameKind;
+
+    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK};
+    auto client = std::make_shared<ProbeClient>();
+    client->expectAnswer();
+    client->receive(
+        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
+    );
+    REQUIRE(client->runUntil([&client] { return client->nUnreadable() == 1; }, 2000ms));
+    CHECK(client->runsOutOfWork(200ms));
+    CHECK(client->computing() == 0);
+    CHECK(client->nResults() == 0);
+    CHECK(client->pendingPulls() == 1); // the request whose answer was lost is still owed
 }

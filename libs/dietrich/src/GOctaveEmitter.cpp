@@ -106,6 +106,24 @@ std::string octaveEscape(const std::string &in) {
     return out;
 }
 
+/** @brief The property for a line width that was set (", 'LineWidth', N"), or nothing */
+std::string lineWidthArgument(const GBasePlotter &p) {
+    return p.lineWidth() > 0 ? ", 'LineWidth', " + std::to_string(p.lineWidth()) : std::string{};
+}
+
+/** @brief Octave's name of a legend corner ('southeast', ...); AUTO has none */
+std::string octaveLegendLocation(legendPosition position) {
+    switch(position) {
+        case legendPosition::TOP_LEFT:     return "northwest";
+        case legendPosition::TOP_RIGHT:    return "northeast";
+        case legendPosition::BOTTOM_LEFT:  return "southwest";
+        case legendPosition::BOTTOM_RIGHT: return "southeast";
+        case legendPosition::CENTER_RIGHT: return "east";
+        case legendPosition::AUTO:         break;
+    }
+    return {};
+}
+
 /** @brief Emit the Octave plotting call(s) for ONE plotter into the current subplot (a
  *  `hold on` is already in effect, so secondaries overlay). Data are written as inline
  *  row-vector literals; bin counts come from the plot spec. */
@@ -119,13 +137,14 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
     switch(k) {
         case scriptKind::g2d: {
             call << "plot(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
-                 << ", '-o', 'DisplayName', '" << label << "');" << '\n';
+                 << ", '-o', 'DisplayName', '" << label << "'" << lineWidthArgument(p) << ");" << '\n';
         } break;
         case scriptKind::g2ed: {
             // Y-error bars only: a single errorbar() carrying BOTH x- and y-error is not
             // portable across base Octave and MATLAB, so the x-error column is omitted here.
             call << "errorbar(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[2]) << ", "
-                 << bracketedRowCol(cols[3]) << ", 'o', 'DisplayName', '" << label << "');" << '\n';
+                 << bracketedRowCol(cols[3]) << ", 'o', 'DisplayName', '" << label << "'"
+                 << lineWidthArgument(p) << ");" << '\n';
         } break;
         case scriptKind::g3d: {
             if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
@@ -234,7 +253,8 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
     );
 
     // Preamble: the canvas title as a leading comment (sgtitle is version-fragile, so it is
-    // not emitted as a call), then the figure.
+    // not emitted as a call; a figure that leaves the title out therefore looks the same), then
+    // the figure.
     result << "% Canvas: " << octaveEscape(gpd.getCanvasLabel()) << '\n'
            << "figure();" << '\n' << '\n';
 
@@ -262,7 +282,7 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         if(p->yAxisLogarithmic()) {
             result << "set(gca, 'YScale', 'log');" << '\n';
         }
-        result << "title('" << octaveEscape(p->plotLabel()) << "');" << '\n';
+        result << "title('" << octaveEscape(p->padTitleOrLabel()) << "');" << '\n';
 
         // The primary plotter, then any secondary plotters overlaid in the same pad.
         result << octPlotCall(*p, k);
@@ -274,6 +294,10 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         // Several series in one pad are told apart by a legend (each call above set its name).
         if(not p->secondaryPlotters().empty()) {
             result << "legend('show');" << '\n';
+            const std::string location = octaveLegendLocation(p->getLegendPosition());
+            if(not location.empty()) {
+                result << "legend('location', '" << location << "');" << '\n';
+            }
         }
         result << '\n';
     }

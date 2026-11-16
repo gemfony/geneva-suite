@@ -98,7 +98,7 @@ TEST_CASE("adaptGaussGroup: WITHPROBABILITY honours the ad_prob extremes", "[ker
 }
 
 /******************************************************************************/
-TEST_CASE("adaptGaussGroup: sigma self-adapts and stays within [min,max]", "[kernel]") {
+TEST_CASE("adaptGaussGroup: sigma self-adapts and stays within its min and max", "[kernel]") {
     GaussConfig<double> cfg;
     cfg.mode = adaptionMode::ALWAYS;
     cfg.adaption_threshold = 1;
@@ -123,7 +123,7 @@ TEST_CASE("adaptGaussGroup: sigma self-adapts and stays within [min,max]", "[ker
 }
 
 /******************************************************************************/
-TEST_CASE("adaptGaussGroup: ad_prob self-adapts and stays within [min,max]", "[kernel]") {
+TEST_CASE("adaptGaussGroup: ad_prob self-adapts and stays within its min and max", "[kernel]") {
     GaussConfig<double> cfg;
     cfg.mode = adaptionMode::ALWAYS;
     cfg.adaption_threshold = 1;
@@ -236,7 +236,7 @@ TEST_CASE("adaptFlipBoolGroup: WITHPROBABILITY ad_prob == 0 toggles nothing", "[
 }
 
 /******************************************************************************/
-TEST_CASE("adaptFlip*Group: ad_prob self-adapts and stays within [min,max]", "[kernel]") {
+TEST_CASE("adaptFlip*Group: ad_prob self-adapts and stays within its min and max", "[kernel]") {
     FlipConfig cfg;
     cfg.mode = adaptionMode::ALWAYS;
     cfg.adapt_ad_prob = 0.1;
@@ -401,7 +401,7 @@ TEST_CASE("adaptGaussIntGroup: WITHPROBABILITY honours the ad_prob extremes", "[
 }
 
 /******************************************************************************/
-TEST_CASE("adaptGaussIntGroup: sigma self-adapts and stays within [min,max]", "[kernel]") {
+TEST_CASE("adaptGaussIntGroup: sigma self-adapts and stays within its min and max", "[kernel]") {
     GaussConfig<double> cfg;
     cfg.mode = adaptionMode::ALWAYS;
     cfg.sigma_sigma = 0.3;

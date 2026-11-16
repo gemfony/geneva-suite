@@ -62,12 +62,12 @@ using namespace std::chrono_literals;
 namespace {
 
 struct DequeTag {
-    template <typename T, std::size_t Cap>
-    using queue = GMPMCQueueT<T, Cap, QueueBackend::Deque>;
+    template <typename T, std::size_t CAP>
+    using queue = GMPMCQueueT<T, CAP, QueueBackend::Deque>;
 };
 struct PreallocTag {
-    template <typename T, std::size_t Cap>
-    using queue = GMPMCQueueT<T, Cap, QueueBackend::Preallocated>;
+    template <typename T, std::size_t CAP>
+    using queue = GMPMCQueueT<T, CAP, QueueBackend::Preallocated>;
 };
 
 // An element type that tracks how many instances are currently alive, so leaks or double-frees in

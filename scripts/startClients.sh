@@ -36,13 +36,13 @@
 # Usage:
 #   ./startClients.sh <program> <n_clients> <ip/hostname> <port> [consumer]
 #
-#     consumer   Consumer mnemonic: "asio" (default) or "beast" (websocket).
+#     consumer   Consumer mnemonic: "beast" (websocket, the default).
 ####################################################################
 
 set -u
 
 if [ $# -lt 4 ] || [ $# -gt 5 ]; then
-    echo "Usage: ./startClients.sh <program> <n_clients> <ip/hostname> <port> [consumer: asio|beast]"
+    echo "Usage: ./startClients.sh <program> <n_clients> <ip/hostname> <port> [consumer: beast]"
     exit 1
 fi
 
@@ -50,7 +50,7 @@ PROGNAME=$1
 NCLIENTS=$2
 IP=$3
 PORT=$4
-CONSUMER=${5:-asio}
+CONSUMER=${5:-beast}
 
 if [ ! -x "${PROGNAME}" ] && [ ! -e "${PROGNAME}" ]; then
     echo "Error: program file '${PROGNAME}' does not exist."
@@ -66,12 +66,11 @@ if ! echo "${PORT}" | grep -qE "^[0-9]+$" || [ "${PORT}" -le 1000 ]; then
 fi
 
 # Map the consumer mnemonic to its CLI option names (verified against the current
-# courtier consumers: GAsioConsumerT -> "asio"/--asio_*, GWebsocketConsumerT -> "beast"/--beast_*).
+# courtier consumers: GWebsocketConsumerT -> "beast"/--beast_*).
 case "${CONSUMER}" in
-    asio)  IP_OPT="asio_ip";  PORT_OPT="asio_port"  ;;
     beast) IP_OPT="beast_ip"; PORT_OPT="beast_port" ;;
     *)
-        echo "Error: unknown consumer '${CONSUMER}'. Use 'asio' or 'beast'. Leaving."
+        echo "Error: unknown consumer '${CONSUMER}'. Use 'beast'. Leaving."
         exit 1
         ;;
 esac

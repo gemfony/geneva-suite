@@ -120,43 +120,49 @@ nvp<T> make_nvp(const char *name, T &value) {
 }
 
 /**
- * @brief Wraps a derived object so that only its @p Base slice is serialized in
+ * @brief Wraps a derived object so that only its @p base_type slice is serialized in
  * place (the archive analogue of @c boost::serialization::base_object).
- * @tparam Base The base slice to serialize.
- * @tparam Derived The concrete object providing that slice.
+ * @tparam base_type The base slice to serialize.
+ * @tparam derived_type The concrete object providing that slice.
  */
-template <typename Base, typename Derived>
+template <typename base_type, typename derived_type>
 struct base_object_t {
-    Derived &ref;
+    derived_type &ref;
 };
 
-/** @brief Builds a @ref base_object_t. @param derived The derived object whose Base slice to serialize. */
-template <typename Base, typename Derived>
-base_object_t<Base, Derived> base_object(Derived &derived) {
-    static_assert(std::is_base_of_v<Base, Derived>, "base_object<Base>(d): Base must be a base of decltype(d)");
-    return base_object_t<Base, Derived>{derived};
+/** @brief Builds a @ref base_object_t. @param derived The derived object whose base_type slice to serialize. */
+template <typename base_type, typename derived_type>
+base_object_t<base_type, derived_type> base_object(derived_type &derived) {
+    static_assert(
+        std::is_base_of_v<base_type, derived_type>,
+        "base_object<base_type>(d): base_type must be a base of decltype(d)"
+    );
+    return base_object_t<base_type, derived_type>{derived};
 }
 
 /**
- * @brief Like @ref base_object_t but serializes the @p Base slice as a @b named,
+ * @brief Like @ref base_object_t but serializes the @p base_type slice as a @b named,
  * @b nested member (a sub-object under @c name) rather than inline. This mirrors
- * Boost's @c make_nvp(name, base_object<Base>(d)) nesting -- used for a
+ * Boost's @c make_nvp(name, base_object<base_type>(d)) nesting -- used for a
  * hierarchy's parent slice -- so base and derived members cannot collide on a
  * shared name in the self-describing (JSON) codec.
- * @tparam Base The base slice to serialize.
- * @tparam Derived The concrete object providing that slice.
+ * @tparam base_type The base slice to serialize.
+ * @tparam derived_type The concrete object providing that slice.
  */
-template <typename Base, typename Derived>
+template <typename base_type, typename derived_type>
 struct named_base_object_t {
     const char *name;
-    Derived &ref;
+    derived_type &ref;
 };
 
 /** @brief Builds a @ref named_base_object_t. @param name The member name for the nested base slice. @param derived The derived object. */
-template <typename Base, typename Derived>
-named_base_object_t<Base, Derived> named_base(const char *name, Derived &derived) {
-    static_assert(std::is_base_of_v<Base, Derived>, "named_base<Base>(name, d): Base must be a base of decltype(d)");
-    return named_base_object_t<Base, Derived>{name, derived};
+template <typename base_type, typename derived_type>
+named_base_object_t<base_type, derived_type> named_base(const char *name, derived_type &derived) {
+    static_assert(
+        std::is_base_of_v<base_type, derived_type>,
+        "named_base<base_type>(name, d): base_type must be a base of decltype(d)"
+    );
+    return named_base_object_t<base_type, derived_type>{name, derived};
 }
 
 /**
@@ -166,9 +172,10 @@ named_base_object_t<Base, Derived> named_base(const char *name, Derived &derived
  */
 struct gem_archive_tag {};
 
-/** @brief Whether @p Archive is a @c GArchive codec (derives from @ref gem_archive_tag). */
-template <typename Archive>
-inline constexpr bool is_gem_archive_v = std::is_base_of_v<gem_archive_tag, std::remove_cvref_t<Archive>>;
+/** @brief Whether @p archive_type is a @c GArchive codec (derives from @ref gem_archive_tag). */
+template <typename archive_type>
+inline constexpr bool is_gem_archive_v =
+    std::is_base_of_v<gem_archive_tag, std::remove_cvref_t<archive_type>>;
 
 /******************************************************************************/
 /**
@@ -246,8 +253,8 @@ inline binary_wrapper_t make_binary(void *data, std::size_t bytes) {
  */
 struct access {
     /** @brief Invokes @c obj.serialize(ar, 0). @param ar The archive. @param obj The object to (de)serialize. */
-    template <typename Archive, typename T>
-    static void serialize(Archive &ar, T &obj) {
+    template <typename archive_type, typename T>
+    static void serialize(archive_type &ar, T &obj) {
         obj.serialize(ar, 0u);
     }
 
@@ -256,10 +263,11 @@ struct access {
     // the decltype probe can see a PRIVATE serialize + friend access; a plain
     // external requires-expression could not. A type without the member (or that
     // does not grant access friendship) drops to the varargs overload.
-    template <typename Archive, typename T>
-    static auto has_member_probe(int)
-        -> decltype(std::declval<T &>().serialize(std::declval<Archive &>(), 0u), std::true_type{});
-    template <typename Archive, typename T>
+    template <typename archive_type, typename T>
+    static auto has_member_probe(
+        int
+    ) -> decltype(std::declval<T &>().serialize(std::declval<archive_type &>(), 0u), std::true_type{});
+    template <typename archive_type, typename T>
     static std::false_type has_member_probe(...);
 
     /**
@@ -401,8 +409,8 @@ struct is_atomic<std::atomic<T>> : std::true_type {};
 // be reached by an ADL free gem_archive_serialize, so this is a built-in codec arm.
 template <typename T>
 struct is_chrono_duration : std::false_type {};
-template <typename Rep, typename Period>
-struct is_chrono_duration<std::chrono::duration<Rep, Period>> : std::true_type {};
+template <typename rep_type, typename period_type>
+struct is_chrono_duration<std::chrono::duration<rep_type, period_type>> : std::true_type {};
 
 // Owning smart pointers. Only the shapes Geneva serializes are matched.
 template <typename T>
@@ -416,27 +424,28 @@ struct is_smart_ptr<std::shared_ptr<T>> : std::true_type {};
 // gemfony_common_root_t). Such a pointer is dispatched POLYMORPHICALLY through the
 // registry (GArchivePolymorphic.hpp); a pointer to a concrete non-hierarchy type is
 // instead serialized inline by value (present flag + pointee), needing no registry.
-template <typename Pointee>
-concept has_common_root = requires { typename Pointee::gemfony_common_root_t; };
+template <typename pointee_type>
+concept has_common_root = requires { typename pointee_type::gemfony_common_root_t; };
 
 // A "value class" is anything not covered above that is (de)serializable in one
 // of two ways, mirroring Boost's intrusive/non-intrusive split:
 //   - INTRUSIVE: a serialize member reachable via the access shim (checked
 //     structurally, so a private serialize + friend access still qualifies) --
 //     the reflective-mixin classes;
-//   - NON-INTRUSIVE: a free gem_archive_serialize(Archive&, T&) found by ADL in
+//   - NON-INTRUSIVE: a free gem_archive_serialize(archive_type&, T&) found by ADL in
 //     the type's own namespace -- the analogue of a Boost non-intrusive free
 //     serialize(), for the POD-clean structs kept free of a serialize member.
 // The class dispatch below prefers the member form and otherwise takes the free
 // form; a type offering neither trips the static_assert.
-template <typename Archive, typename T>
-concept has_member_serialize = decltype(access::has_member_probe<Archive, T>(0))::value;
+template <typename archive_type, typename T>
+concept has_member_serialize = decltype(access::has_member_probe<archive_type, T>(0))::value;
 
-template <typename Archive, typename T>
-concept has_free_serialize = requires(Archive &ar, T &t) { gem_archive_serialize(ar, t); };
+template <typename archive_type, typename T>
+concept has_free_serialize = requires(archive_type &ar, T &t) { gem_archive_serialize(ar, t); };
 
-template <typename Archive, typename T>
-concept serializable_class = has_member_serialize<Archive, T> || has_free_serialize<Archive, T>;
+template <typename archive_type, typename T>
+concept serializable_class =
+    has_member_serialize<archive_type, T> || has_free_serialize<archive_type, T>;
 
 // set-family containers grow via insert(), std::vector/deque/list via
 // push_back(); distinguish so the load base picks the right insertion.
@@ -458,16 +467,16 @@ inline constexpr bool is_set_like_v<std::unordered_multiset<T, R...>> = true;
  * @brief CRTP dispatch base for a @b saving (output) archive.
  *
  * Implements @c operator& for @ref nvp, @ref base_object_t, and arbitrary
- * values, decomposing each value into calls on the concrete codec @p Derived.
- * @p Derived must provide the saving hooks:
+ * values, decomposing each value into calls on the concrete codec @p derived_type.
+ * @p derived_type must provide the saving hooks:
  *   - @c put_bool(bool) / @c put_scalar(Integral) / @c put_fp(FloatingPoint)
  *   - @c put_string(std::string_view)
  *   - @c begin_object() / @c end_object() / @c member(const char*)
  *   - @c begin_seq(std::size_t) / @c end_seq() / @c begin_elem() / @c end_elem()
  *
- * @tparam Derived The concrete saving codec (CRTP).
+ * @tparam derived_type The concrete saving codec (CRTP).
  */
-template <typename Derived>
+template <typename derived_type>
 class GOArchiveT : public gem_archive_tag {
 public:
     static constexpr bool is_saving = true;
@@ -475,31 +484,31 @@ public:
 
     /** @brief Serializes a named member. @param n The name/value pair. */
     template <typename T>
-    Derived &operator&(const nvp<T> &n) {
+    derived_type &operator&(const nvp<T> &n) {
         d().member(n.name);
         return process(n.value);
     }
 
-    /** @brief Serializes only the @p Base slice of a derived object, inline. @param b The base-object wrapper. */
-    template <typename Base, typename Der>
-    Derived &operator&(const base_object_t<Base, Der> &b) {
-        access::serialize(d(), base_slice<Base>(b.ref));
+    /** @brief Serializes only the @p base_type slice of a derived object, inline. @param b The base-object wrapper. */
+    template <typename base_type, typename der_type>
+    derived_type &operator&(const base_object_t<base_type, der_type> &b) {
+        access::serialize(d(), base_slice<base_type>(b.ref));
         return d();
     }
 
-    /** @brief Serializes the @p Base slice as a named, nested sub-object. @param b The named base-object wrapper. */
-    template <typename Base, typename Der>
-    Derived &operator&(const named_base_object_t<Base, Der> &b) {
+    /** @brief Serializes the @p base_type slice as a named, nested sub-object. @param b The named base-object wrapper. */
+    template <typename base_type, typename der_type>
+    derived_type &operator&(const named_base_object_t<base_type, der_type> &b) {
         d().member(b.name);
         d().begin_object();
-        access::serialize(d(), base_slice<Base>(b.ref));
+        access::serialize(d(), base_slice<base_type>(b.ref));
         d().end_object();
         return d();
     }
 
     /** @brief Serializes a caller-managed raw element range (no stored count). @param a The array wrapper. */
     template <typename T>
-    Derived &operator&(const array_wrapper_t<T> &a) {
+    derived_type &operator&(const array_wrapper_t<T> &a) {
         d().begin_raw(a.count);
         for (std::size_t i = 0; i < a.count; ++i) {
             d().begin_elem();
@@ -511,38 +520,40 @@ public:
     }
 
     /** @brief Serializes a caller-managed raw byte block. @param b The binary wrapper. */
-    Derived &operator&(const binary_wrapper_t &b) {
+    derived_type &operator&(const binary_wrapper_t &b) {
         d().put_bytes(b.data, b.bytes);
         return d();
     }
 
     /** @brief Serializes an unnamed value. @param v The value to save. */
     template <typename T>
-    Derived &operator&(const T &v) {
+    derived_type &operator&(const T &v) {
         return process(const_cast<T &>(v)); // save never mutates; const_cast lets one serialize() serve both directions
     }
 
     /** @brief Boost-style save alias. @param v The value to save. */
     template <typename T>
-    Derived &operator<<(const T &v) {
+    derived_type &operator<<(const T &v) {
         return *this & v;
     }
 
 private:
-    Derived &d() { return static_cast<Derived &>(*this); }
+    derived_type &d() {
+        return static_cast<derived_type &>(*this);
+    }
 
-    // Yields the @p Base slice as a non-const reference regardless of the derived
+    // Yields the @p base_type slice as a non-const reference regardless of the derived
     // object's constness. A saving archive never mutates what it visits, but a
     // genuinely const derived (e.g. a Boost-style split save(), which is const)
     // must still route its base slice through the one serialize() that serves both
     // directions -- so const is cast away here on the save side only.
-    template <typename Base, typename Der>
-    static Base &base_slice(Der &derived) {
-        return const_cast<Base &>(static_cast<const Base &>(derived));
+    template <typename base_type, typename der_type>
+    static base_type &base_slice(der_type &derived) {
+        return const_cast<base_type &>(static_cast<const base_type &>(derived));
     }
 
     template <typename T>
-    Derived &process(T &v_in) {
+    derived_type &process(T &v_in) {
         using U = std::remove_cv_t<T>;
         // A saving archive never mutates what it visits; normalize away any const
         // on the referent so every arm (and the free/member serializers it calls)
@@ -693,14 +704,19 @@ private:
                 d().end_object();
             }
         } else {
-            static_assert(detail::serializable_class<Derived, U>,
-                          "GOArchiveT: type is neither a supported primitive/container/pointer nor a serializable "
-                          "class (needs a serialize member reachable via Weft::access, or a non-intrusive free "
-                          "gem_archive_serialize(Archive&, T&) in the type's namespace)");
+            static_assert(
+                detail::serializable_class<derived_type, U>,
+                "GOArchiveT: type is neither a supported primitive/container/pointer nor a "
+                "serializable "
+                "class (needs a serialize member reachable via Weft::access, or a non-intrusive "
+                "free "
+                "gem_archive_serialize(archive_type&, T&) in the type's namespace)"
+            );
             d().begin_object();
-            if constexpr (detail::has_member_serialize<Derived, U>) {
+            if constexpr(detail::has_member_serialize<derived_type, U>) {
                 access::serialize(d(), v);
-            } else {
+            }
+            else {
                 gem_archive_serialize(d(), v); // ADL: non-intrusive free serializer in U's namespace
             }
             d().end_object();
@@ -713,15 +729,15 @@ private:
 /**
  * @brief CRTP dispatch base for a @b loading (input) archive.
  *
- * The mirror of @ref GOArchiveT. @p Derived must provide the loading hooks:
+ * The mirror of @ref GOArchiveT. @p derived_type must provide the loading hooks:
  *   - @c get_bool(bool&) / @c get_scalar(Integral&) / @c get_fp(FloatingPoint&)
  *   - @c get_string(std::string&)
  *   - @c enter_object() / @c leave_object() / @c member(const char*)
  *   - @c begin_seq() -> std::size_t / @c end_seq() / @c begin_elem() / @c end_elem()
  *
- * @tparam Derived The concrete loading codec (CRTP).
+ * @tparam derived_type The concrete loading codec (CRTP).
  */
-template <typename Derived>
+template <typename derived_type>
 class GIArchiveT : public gem_archive_tag {
 public:
     static constexpr bool is_saving = false;
@@ -729,31 +745,31 @@ public:
 
     /** @brief Loads a named member. @param n The name/value pair to fill. */
     template <typename T>
-    Derived &operator&(const nvp<T> &n) {
+    derived_type &operator&(const nvp<T> &n) {
         d().member(n.name);
         return process(n.value);
     }
 
-    /** @brief Loads only the @p Base slice of a derived object, inline. @param b The base-object wrapper. */
-    template <typename Base, typename Der>
-    Derived &operator&(const base_object_t<Base, Der> &b) {
-        access::serialize(d(), static_cast<Base &>(b.ref));
+    /** @brief Loads only the @p base_type slice of a derived object, inline. @param b The base-object wrapper. */
+    template <typename base_type, typename der_type>
+    derived_type &operator&(const base_object_t<base_type, der_type> &b) {
+        access::serialize(d(), static_cast<base_type &>(b.ref));
         return d();
     }
 
-    /** @brief Loads the @p Base slice from a named, nested sub-object. @param b The named base-object wrapper. */
-    template <typename Base, typename Der>
-    Derived &operator&(const named_base_object_t<Base, Der> &b) {
+    /** @brief Loads the @p base_type slice from a named, nested sub-object. @param b The named base-object wrapper. */
+    template <typename base_type, typename der_type>
+    derived_type &operator&(const named_base_object_t<base_type, der_type> &b) {
         d().member(b.name);
         d().enter_object();
-        access::serialize(d(), static_cast<Base &>(b.ref));
+        access::serialize(d(), static_cast<base_type &>(b.ref));
         d().leave_object();
         return d();
     }
 
     /** @brief Loads a caller-managed raw element range into a pre-sized buffer. @param a The array wrapper. */
     template <typename T>
-    Derived &operator&(const array_wrapper_t<T> &a) {
+    derived_type &operator&(const array_wrapper_t<T> &a) {
         d().begin_raw();
         for (std::size_t i = 0; i < a.count; ++i) {
             d().begin_elem();
@@ -765,28 +781,30 @@ public:
     }
 
     /** @brief Loads a caller-managed raw byte block into a pre-sized buffer. @param b The binary wrapper. */
-    Derived &operator&(const binary_wrapper_t &b) {
+    derived_type &operator&(const binary_wrapper_t &b) {
         d().get_bytes(b.data, b.bytes);
         return d();
     }
 
     /** @brief Loads an unnamed value. @param v The value to fill. */
     template <typename T>
-    Derived &operator&(T &v) {
+    derived_type &operator&(T &v) {
         return process(v);
     }
 
     /** @brief Boost-style load alias. @param v The value to fill. */
     template <typename T>
-    Derived &operator>>(T &v) {
+    derived_type &operator>>(T &v) {
         return *this & v;
     }
 
 private:
-    Derived &d() { return static_cast<Derived &>(*this); }
+    derived_type &d() {
+        return static_cast<derived_type &>(*this);
+    }
 
     template <typename T>
-    Derived &process(T &v) {
+    derived_type &process(T &v) {
         using U = std::remove_cv_t<T>;
         if constexpr (std::is_same_v<U, bool>) {
             d().get_bool(v);
@@ -853,12 +871,14 @@ private:
             d().member("value");
             // Runtime index -> compile-time alternative: read the alternative that
             // matches the stored index and assign it into the variant.
-            [&]<std::size_t... Is>(std::index_sequence<Is...>) {
-                (((Is == idx) ? (void)([&] {
-                     std::variant_alternative_t<Is, U> alt{};
+            [&]<std::size_t... INDICES>(std::index_sequence<INDICES...>) {
+                (((INDICES == idx) ? (void)([&] {
+                     std::variant_alternative_t<INDICES, U> alt{};
                      process(alt);
                      v = std::move(alt);
-                 }()) : (void)0), ...);
+                 }())
+                                   : (void)0),
+                 ...);
             }(std::make_index_sequence<std::variant_size_v<U>>{});
             d().leave_object();
         } else if constexpr (detail::is_forward_list<U>::value) {
@@ -969,14 +989,19 @@ private:
                 d().leave_object();
             }
         } else {
-            static_assert(detail::serializable_class<Derived, U>,
-                          "GIArchiveT: type is neither a supported primitive/container/pointer nor a serializable "
-                          "class (needs a serialize member reachable via Weft::access, or a non-intrusive free "
-                          "gem_archive_serialize(Archive&, T&) in the type's namespace)");
+            static_assert(
+                detail::serializable_class<derived_type, U>,
+                "GIArchiveT: type is neither a supported primitive/container/pointer nor a "
+                "serializable "
+                "class (needs a serialize member reachable via Weft::access, or a non-intrusive "
+                "free "
+                "gem_archive_serialize(archive_type&, T&) in the type's namespace)"
+            );
             d().enter_object();
-            if constexpr (detail::has_member_serialize<Derived, U>) {
+            if constexpr(detail::has_member_serialize<derived_type, U>) {
                 access::serialize(d(), v);
-            } else {
+            }
+            else {
                 gem_archive_serialize(d(), v); // ADL: non-intrusive free serializer in U's namespace
             }
             d().leave_object();

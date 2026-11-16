@@ -48,8 +48,8 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * Transport-agnostic codec for the networked consumer/worker session protocol. The three networked
- * transports (Asio, websocket, MPI) all (de)serialize a GCommandContainerT and all implement the
+ * Transport-agnostic codec for the networked consumer/worker session protocol. The networked
+ * transports (websocket, MPI) all (de)serialize a GCommandContainerT and all implement the
  * blob send-once cache-miss fetch (BLOB_REQUEST / BLOB_REPLY). Only the raw byte I/O differs
  * between them; the (de)serialization itself -- and in particular the subtle wire-scope discipline
  * around it -- is identical, so it lives here once instead of being copy-pasted into each transport.
@@ -117,21 +117,15 @@ void wireDecode(
  *
  * @tparam processable_type The payload type of the command container
  * @param id The content id of the blob the worker needs
- * @param peer The worker's peer id (echoed so the server can answer the right session)
- * @param serMode The serialization format to use
+ * @param ser_mode The serialization format to use
  * @return The serialized BLOB_REQUEST frame
  */
 template <typename processable_type>
-std::string buildBlobRequest(
-    const GWireBlobId &id,
-    GWirePeerId peer,
-    Gem::Common::serializationMode serMode
-) {
+std::string buildBlobRequest(const GWireBlobId &id, Gem::Common::serializationMode ser_mode) {
     GWireSerializationScope const no_scope(nullptr);
     GCommandContainerT<processable_type> request{GFrameKind::BLOB_REQUEST};
     request.setBlobRequest(id);
-    request.setPeerId(peer);
-    return container_to_string(request, serMode);
+    return container_to_string(request, ser_mode);
 }
 
 /******************************************************************************/

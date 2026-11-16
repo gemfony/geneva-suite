@@ -88,12 +88,12 @@ class GProblemPolicy {
 
     /**
      * @brief Serialises the shared policy: the four scalar rules plus the (polymorphic) constraint.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise with
      * @param version The (unused) serialization version number
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         archive_named(ar, "maxmode_", maxmode_);
         archive_named(ar, "eval_policy_", eval_policy_);

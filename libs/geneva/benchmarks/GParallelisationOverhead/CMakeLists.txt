@@ -69,3 +69,69 @@ SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES
 GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
+
+# Draws the speed-up tables of several runs (for example of two consumers) into one figure. It reads
+# result tables only and needs nothing of Geneva but the plotting library.
+ADD_EXECUTABLE(GSpeedupFigure GSpeedupFigure.cpp)
+TARGET_LINK_LIBRARIES(GSpeedupFigure ${DIETRICH_LIBNAME} ${COMMON_LIBNAME} ${Boost_LIBRARIES})
+INSTALL ( TARGETS GSpeedupFigure DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
+
+# The tools around this benchmark are checked with short runs (they are not measurements): the
+# figure of prepared tables, whose means must be those of compareSpeedups.py; a run of
+# runWithClients.sh with two websocket clients, and one with the MPI consumer that shares its serial
+# reference; and the refusal of a reference too short to give its line an error. A Python 3
+# interpreter and an MPI launcher are dependencies of these tests only, so a test is registered
+# where configure finds what it needs.
+FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
+IF (Python3_Interpreter_FOUND)
+	SET(SPEEDUP_TOOLS_CHECK ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
+		${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/testSpeedupTools.py)
+
+	ADD_TEST(NAME GSpeedupFigureMeans
+		COMMAND ${SPEEDUP_TOOLS_CHECK} figure $<TARGET_FILE:GSpeedupFigure>
+			${CMAKE_CURRENT_BINARY_DIR}/check-figure)
+	SET_TESTS_PROPERTIES(GSpeedupFigureMeans PROPERTIES LABELS "benchmark" TIMEOUT 60)
+	GENEVA_TEST_SIZE(GSpeedupFigureMeans S)
+
+	ADD_TEST(NAME ${EXECUTABLENAME}RunWithClients
+		COMMAND ${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
+			${CMAKE_CURRENT_BINARY_DIR}/check-run-beast beast)
+	SET_TESTS_PROPERTIES(${EXECUTABLENAME}RunWithClients PROPERTIES
+		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
+		FIXTURES_SETUP ${EXECUTABLENAME}SharedReference)
+	GENEVA_TEST_SIZE(${EXECUTABLENAME}RunWithClients M)
+
+	# The server waits for its clients before its first run (--waitForClients): a client started
+	# seconds after the other is waited for, one client too few ends the server at the limit.
+	ADD_TEST(NAME ${EXECUTABLENAME}ClientGate
+		COMMAND ${SPEEDUP_TOOLS_CHECK} gate $<TARGET_FILE:${EXECUTABLENAME}>
+			${CMAKE_CURRENT_BINARY_DIR}/check-gate ${CMAKE_CURRENT_BINARY_DIR}/check-run-beast)
+	SET_TESTS_PROPERTIES(${EXECUTABLENAME}ClientGate PROPERTIES
+		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
+		FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
+	GENEVA_TEST_SIZE(${EXECUTABLENAME}ClientGate L)
+
+	ADD_TEST(NAME ${EXECUTABLENAME}ShortReferenceRefused
+		COMMAND ${SPEEDUP_TOOLS_CHECK} refusal $<TARGET_FILE:${EXECUTABLENAME}>
+			${CMAKE_CURRENT_BINARY_DIR}/check-refusal)
+	SET_TESTS_PROPERTIES(${EXECUTABLENAME}ShortReferenceRefused PROPERTIES
+		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3)
+	GENEVA_TEST_SIZE(${EXECUTABLENAME}ShortReferenceRefused M)
+
+	IF (GENEVA_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE)
+		ADD_TEST(NAME ${EXECUTABLENAME}RunWithMPIClients
+			COMMAND ${CMAKE_COMMAND} -E env
+				"MPIRUN=${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG}"
+				${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
+				${CMAKE_CURRENT_BINARY_DIR}/check-run-mpi mpi
+				${CMAKE_CURRENT_BINARY_DIR}/check-run-beast)
+		SET_TESTS_PROPERTIES(${EXECUTABLENAME}RunWithMPIClients PROPERTIES
+			LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
+			FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
+		GENEVA_TEST_SIZE(${EXECUTABLENAME}RunWithMPIClients M)
+	ELSE ()
+		MESSAGE(STATUS "${EXECUTABLENAME}RunWithMPIClients not registered: no MPI consumer or launcher")
+	ENDIF ()
+ELSE ()
+	MESSAGE(STATUS "The checks of the speed-up tools are not registered: no Python 3 interpreter found")
+ENDIF ()

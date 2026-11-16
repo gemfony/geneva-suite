@@ -45,25 +45,25 @@ using Gem::Weft::GPolymorphicRegistry;
 // Toy hierarchies.
 //
 // The registry is a process-global singleton keyed on the Root type, so a
-// TEST_CASE that inspects counts must own a Root nobody else touches. RootT<Tag>
-// gives each test its own hierarchy via a locally-defined, unique Tag type.
+// TEST_CASE that inspects counts must own a Root nobody else touches. RootT<tag_type>
+// gives each test its own hierarchy via a locally-defined, unique tag type.
 
 namespace {
 
-template <typename Tag>
+template <typename tag_type>
 struct RootT {
     using gemfony_common_root_t = RootT; // lets GEM_REGISTER_TYPE route here
     virtual ~RootT() = default;
     [[nodiscard]] virtual int kind() const = 0;
 };
 
-template <typename Tag>
-struct DerA : RootT<Tag> {
+template <typename tag_type>
+struct DerA : RootT<tag_type> {
     [[nodiscard]] int kind() const override { return 1; }
 };
 
-template <typename Tag>
-struct DerB : RootT<Tag> {
+template <typename tag_type>
+struct DerB : RootT<tag_type> {
     [[nodiscard]] int kind() const override { return 2; }
 };
 
@@ -118,7 +118,10 @@ TEST_CASE("GPolymorphicRegistry: tagOf uses the dynamic type through a base refe
 // ---------------------------------------------------------------------------
 // Idempotency and collision rules.
 
-TEST_CASE("GPolymorphicRegistry: identical (type,tag) re-registration is idempotent", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: identical (type and tag) re-registration is idempotent",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -167,7 +170,10 @@ TEST_CASE("GPolymorphicRegistry: tagOf() on an unregistered dynamic type throws"
 // ---------------------------------------------------------------------------
 // tags() is a sorted enumeration (basis for the boot-time completeness check).
 
-TEST_CASE("GPolymorphicRegistry: tags() returns every tag, sorted", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: tags() returns every tag in sorted order",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;

@@ -45,27 +45,46 @@
 # the config-file package, so downstream code can be agnostic about how Geneva
 # was found):
 #
+# Geneva::weft        - serialization engine
 # Geneva::common      - utilities (logging, threads, serialization helpers)
+# Geneva::dietrich    - plotting library
 # Geneva::hap         - random number generation
 # Geneva::courtier    - consumer-based parallelization framework
-# Geneva::geneva      - core optimization library (links the three above)
+# Geneva::geneva      - core optimization library (links the others above)
 #
-# Linking Geneva::geneva transitively brings in the other three targets and the
-# Geneva include directory.
+# Linking Geneva::geneva transitively brings in the other targets and the
+# Geneva include directory. An installation built with the MPI consumer also has
+#
+# Geneva::courtier-mpi - courtier's MPI library (the process's one MPI
+#                        environment); carries MPI::MPI_CXX
+# Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
+#                        libgemfony-geneva; linked only by a program that uses
+#                        GMPISubClientOptimizer
+#
+# and GENEVA_MPI is TRUE, as with the config-file package.
 #
 # For backward compatibility the following variables are also defined:
 #
 # GENEVA_INCLUDE_DIR          - The directory below which the Geneva includes may be found
 # GENEVA_LIBRARY_DIR          - The directory below which the Geneva libraries may be found
+# GENEVA_WEFT_LIBRARY         - Path to the serialization library
 # GENEVA_COMMON_LIBRARY       - Path to the common library
+# GENEVA_DIETRICH_LIBRARY     - Path to the plotting library
 # GENEVA_HAP_LIBRARY          - Path to the random number generation library
 # GENEVA_COURTIER_LIBRARY     - Path to the parallel/distributed computing library
 # GENEVA_OPTIMIZATION_LIBRARY - Path to the main geneva optimization library
+# GENEVA_COURTIER_MPI_LIBRARY - Path to courtier's MPI library (MPI installations only)
+# GENEVA_GENEVA_MPI_LIBRARY   - Path to Geneva's MPI module (MPI installations only)
 # GENEVA_LIBRARIES            - The Geneva imported targets, in linking order
 # GENEVA_LIBS                 - The bare library names (not paths) that were found
 # GENEVA_VERSION              - The Geneva version found by this module
 # GENEVA_TESTING              - TRUE if the libraries were built with testing support
 #                               (the same build-flavor variable the config package exports)
+# GENEVA_MPI                  - TRUE if the installation has the MPI consumer (both MPI
+#                               libraries were found), as the config package exports it
+# GENEVA_GPU                  - TRUE if the installation has the GPU consumer (its backends
+#                               are compiled into the courtier library), as the config package
+#                               exports it
 # GENEVA_FOUND                - TRUE if all required Geneva components were found
 #
 # Note: the former GENEVA_INDIVIDUAL_LIBRARY is gone -- the geneva-individuals
@@ -144,16 +163,23 @@ FIND_PATH (
 # Note: libraries are listed in order of decreasing dependencies, which
 # allows to use the GENEVA_LIBRARIES variable for linking with all of
 # them as a block without linking order issues (hopefully)
+# The two MPI libraries exist only in an installation built with the MPI consumer; they are
+# searched for like the others, but not required.
 SET ( _GENEVA_LIB_NAMES
+	"geneva-mpi"
 	"geneva"
+	"dietrich"
+	"courtier-mpi"
 	"courtier"
 	"hap"
 	"common"
+	"weft"
 )
 
 UNSET (GENEVA_LIBS)
 FOREACH ( name IN LISTS _GENEVA_LIB_NAMES )
 	STRING (TOUPPER ${name} ucname)
+	STRING (REPLACE "-" "_" ucname ${ucname})
 
 	# Enforce a search order, making sure we first search in the given
 	# location, and only if not found we search the normal system paths
@@ -217,8 +243,8 @@ ENDIF ()
 
 # A Geneva built with testing support embeds Catch2-based scaffolding in the
 # geneva library and references Catch2 symbols. We approximate the test build
-# by probing the installed library for a Catch2 symbol; the consumer is then
-# responsible for linking Catch2 (see the message below).
+# by probing the installed library for a Catch2 symbol; Geneva::geneva then
+# carries Catch2::Catch2, as the config package's target does.
 #
 # This mirrors the GENEVA_TESTING variable the config package records exactly at
 # generate time. Here it can only be inferred, so the probe answers
@@ -246,6 +272,30 @@ IF (GENEVA_GENEVA_LIBRARY)
 	ENDIF ()
 ENDIF ()
 
+# The GPU consumer's backends are compiled into the courtier library when the installation has
+# the GPU consumer; its headers are installed in any case. The config package records this at
+# generate time; here the library is probed for the entry point of the CUDA driver
+# (Gem::Courtier::GPU::cudaDriver(), defined only by the backends), with the same conservative
+# answer as above: a library that cannot be inspected reads FALSE.
+SET (GENEVA_GPU "FALSE")
+IF (GENEVA_COURTIER_LIBRARY)
+	EXECUTE_PROCESS(
+		COMMAND ${CMAKE_NM} -D --defined-only "${GENEVA_COURTIER_LIBRARY}"
+		OUTPUT_VARIABLE _GENEVA_NM_COURTIER
+		ERROR_QUIET
+	)
+	IF (NOT _GENEVA_NM_COURTIER)
+		EXECUTE_PROCESS(
+			COMMAND nm -D --defined-only "${GENEVA_COURTIER_LIBRARY}"
+			OUTPUT_VARIABLE _GENEVA_NM_COURTIER
+			ERROR_QUIET
+		)
+	ENDIF ()
+	IF (_GENEVA_NM_COURTIER MATCHES "_ZN3Gem8Courtier3GPU10cudaDriverEv")
+		SET (GENEVA_GPU "TRUE")
+	ENDIF ()
+ENDIF ()
+
 ###############################################################################
 # Check that all required files and directories were found, and report.
 # To declare Geneva FOUND we need at least the include dir and the 'common'
@@ -256,7 +306,9 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS (
 	REQUIRED_VARS
 		GENEVA_INCLUDE_DIR
 		GENEVA_LIBRARY_DIR
+		GENEVA_WEFT_LIBRARY
 		GENEVA_COMMON_LIBRARY
+		GENEVA_DIETRICH_LIBRARY
 		GENEVA_HAP_LIBRARY
 		GENEVA_COURTIER_LIBRARY
 		GENEVA_GENEVA_LIBRARY
@@ -271,14 +323,22 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS (
 IF (GENEVA_FOUND)
 	# Geneva exposes Boost through its public headers; re-find it so the
 	# imported targets can carry the Boost include dirs and link libraries,
-	# matching the behaviour of the config-file package. The component list
-	# mirrors GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake.
-	FIND_DEPENDENCY (Boost 1.91 COMPONENTS
-		json
-		program_options
-		regex
-		atomic
-	)
+	# matching the behaviour of the config-file package. The version and the
+	# components are those the build was made with (GENEVA_MIN_BOOST_VERSION and
+	# GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake, filled in when this file is
+	# generated from FindGeneva.cmake.in). CONFIG: Boost's own package, as in the
+	# config-file package (CMake's FindBoost module is gone, see CMP0167).
+	FIND_DEPENDENCY (Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST_LIBS@)
+
+	IF (NOT TARGET Geneva::weft)
+		ADD_LIBRARY (Geneva::weft UNKNOWN IMPORTED)
+		SET_TARGET_PROPERTIES (Geneva::weft PROPERTIES
+			IMPORTED_LOCATION "${GENEVA_WEFT_LIBRARY}"
+			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
+			INTERFACE_COMPILE_FEATURES "cxx_std_23"
+			INTERFACE_LINK_LIBRARIES "Boost::json"
+		)
+	ENDIF ()
 
 	IF (NOT TARGET Geneva::common)
 		ADD_LIBRARY (Geneva::common UNKNOWN IMPORTED)
@@ -286,7 +346,17 @@ IF (GENEVA_FOUND)
 			IMPORTED_LOCATION "${GENEVA_COMMON_LIBRARY}"
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
 			INTERFACE_COMPILE_FEATURES "cxx_std_23"
-			INTERFACE_LINK_LIBRARIES "Boost::json;Boost::program_options;Boost::regex;Boost::atomic"
+			INTERFACE_LINK_LIBRARIES
+				"Geneva::weft;Boost::json;Boost::program_options;Boost::regex;Boost::atomic"
+		)
+	ENDIF ()
+
+	IF (NOT TARGET Geneva::dietrich)
+		ADD_LIBRARY (Geneva::dietrich UNKNOWN IMPORTED)
+		SET_TARGET_PROPERTIES (Geneva::dietrich PROPERTIES
+			IMPORTED_LOCATION "${GENEVA_DIETRICH_LIBRARY}"
+			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
+			INTERFACE_LINK_LIBRARIES "Geneva::common"
 		)
 	ENDIF ()
 
@@ -308,13 +378,47 @@ IF (GENEVA_FOUND)
 		)
 	ENDIF ()
 
+	# A testing-enabled libgemfony-geneva references Catch2 symbols (see GENEVA_TESTING above).
+	SET (_GENEVA_GENEVA_LINKS "Geneva::courtier;Geneva::dietrich")
+	IF (GENEVA_TESTING)
+		FIND_DEPENDENCY (Catch2 3)
+		LIST (APPEND _GENEVA_GENEVA_LINKS "Catch2::Catch2")
+	ENDIF ()
+
 	IF (NOT TARGET Geneva::geneva)
 		ADD_LIBRARY (Geneva::geneva UNKNOWN IMPORTED)
 		SET_TARGET_PROPERTIES (Geneva::geneva PROPERTIES
 			IMPORTED_LOCATION "${GENEVA_GENEVA_LIBRARY}"
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
-			INTERFACE_LINK_LIBRARIES "Geneva::courtier"
+			INTERFACE_LINK_LIBRARIES "${_GENEVA_GENEVA_LINKS}"
 		)
+	ENDIF ()
+
+	# The MPI targets, when the installation has both MPI libraries. Like the config package, this
+	# finds MPI itself: Geneva::courtier-mpi names MPI::MPI_CXX (its headers include mpi.h).
+	IF (GENEVA_COURTIER_MPI_LIBRARY AND GENEVA_GENEVA_MPI_LIBRARY)
+		SET (GENEVA_MPI TRUE)
+		FIND_DEPENDENCY (MPI COMPONENTS CXX)
+
+		IF (NOT TARGET Geneva::courtier-mpi)
+			ADD_LIBRARY (Geneva::courtier-mpi UNKNOWN IMPORTED)
+			SET_TARGET_PROPERTIES (Geneva::courtier-mpi PROPERTIES
+				IMPORTED_LOCATION "${GENEVA_COURTIER_MPI_LIBRARY}"
+				INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
+				INTERFACE_LINK_LIBRARIES "Geneva::courtier;MPI::MPI_CXX"
+			)
+		ENDIF ()
+
+		IF (NOT TARGET Geneva::geneva-mpi)
+			ADD_LIBRARY (Geneva::geneva-mpi UNKNOWN IMPORTED)
+			SET_TARGET_PROPERTIES (Geneva::geneva-mpi PROPERTIES
+				IMPORTED_LOCATION "${GENEVA_GENEVA_MPI_LIBRARY}"
+				INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
+				INTERFACE_LINK_LIBRARIES "Geneva::courtier-mpi"
+			)
+		ENDIF ()
+	ELSE ()
+		SET (GENEVA_MPI FALSE)
 	ENDIF ()
 
 	# Backward-compatible aggregate variable, now holding imported targets in
@@ -323,6 +427,7 @@ IF (GENEVA_FOUND)
 		Geneva::geneva
 		Geneva::courtier
 		Geneva::hap
+		Geneva::dietrich
 		Geneva::common
 	)
 ENDIF ()

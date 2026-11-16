@@ -44,12 +44,22 @@
 
 namespace {
 
-const GenevaModuleManifest g_manifest{
-    GENEVA_MODULE_ABI_STAMP, "GNoContributionsModule", GENEVA_VERSION_STRING, nullptr, 0u};
+// GENEVA_MODULE_ABI_STAMP is a positional initializer prefix, so the members cannot be designated.
+// NOLINTNEXTLINE(modernize-use-designated-initializers)
+const GenevaModuleManifest MANIFEST{
+    GENEVA_MODULE_ABI_STAMP,
+    "GNoContributionsModule",
+    GENEVA_VERSION_STRING,
+    nullptr, // the defect: no contributions ...
+    0u       // ... and a count of none
+};
 
 } // anonymous namespace
 
+// The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
-    return &g_manifest;
+    return &MANIFEST;
 }

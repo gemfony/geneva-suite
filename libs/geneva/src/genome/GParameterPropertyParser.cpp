@@ -168,16 +168,16 @@ bool toBool(const std::string &s, const std::string &raw) {
  * is used.
  *
  * @tparam par_type The parameter value type of the spec (double, float or std::int32_t)
- * @tparam ConvFun Callable type used to convert a boundary token into a par_type value
+ * @tparam conv_fun_type Callable type used to convert a boundary token into a par_type value
  * @param tok The comma-split argument tokens of the spec (at least index, lower, upper)
  * @param convertBound Functor converting a boundary token to par_type; invoked as convertBound(token, raw)
  * @param raw The raw fragment content, forwarded to fail() for error reporting
  * @return A fully populated parPropSpec<par_type> describing the parameter scan
  */
-template <typename par_type, typename ConvFun>
+template <typename par_type, typename conv_fun_type>
 parPropSpec<par_type> makeNumericSpec(
     const std::vector<std::string> &tok,
-    ConvFun convertBound,
+    conv_fun_type convertBound,
     const std::string &raw
 ) {
     if(tok.size() < 3) {

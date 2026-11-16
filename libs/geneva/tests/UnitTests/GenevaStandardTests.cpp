@@ -264,10 +264,7 @@ TEMPLATE_TEST_CASE(
 // standard test for clone/copy/load/compare, but that test skips the round-trip block
 // (they do not override modify_GUnitTests_), so the serialize path is validated here.
 // ============================================================================
-TEST_CASE(
-    "GDoubleSumConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -290,10 +287,7 @@ TEST_CASE(
     }
 }
 
-TEST_CASE(
-    "GSphereConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -316,10 +310,7 @@ TEST_CASE(
     }
 }
 
-TEST_CASE(
-    "GDoubleSumGapConstraint round-trips in TEXT, XML and BINARY",
-    "[geneva][serialization]"
-) {
+TEST_CASE("GDoubleSumGapConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for (auto mode :
@@ -345,7 +336,7 @@ TEST_CASE(
 // so it was silently lost on (de)serialization. A non-default run_id_ must survive a
 // round-trip in all three modes.
 TEST_CASE(
-    "GExternalEvaluatorIndividual round-trips run_id_ in TEXT, XML and BINARY",
+    "GExternalEvaluatorIndividual round-trips run_id_ in TEXT/XML/BINARY",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -498,7 +489,7 @@ TEST_CASE(
 // default-value masking that hides a dropped member.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + TEXT/XML/BINARY wire round-trip) for oa::GSwarmAlgorithm's tied members
 TEST_CASE(
-    "oa::GSwarmAlgorithm round-trips its members in TEXT, XML, BINARY and via load()",
+    "oa::GSwarmAlgorithm round-trips its members in TEXT/XML/BINARY and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -575,7 +566,7 @@ TEST_CASE(
 // about-to-be-tied plain members to NON-DEFAULT values and verifies they survive a
 // wire round-trip AND an in-memory load() (clone path).
 TEST_CASE(
-    "oa::GParameterScan round-trips its members in TEXT, XML, BINARY and via load()",
+    "oa::GParameterScan round-trips its members in TEXT/XML/BINARY and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -688,8 +679,8 @@ class GPolicyProbe : public Gem::Common::GReflectiveInterfaceT<GPolicyProbe, Gem
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("plain_", self.plain_),
             Gem::Common::make_load_only_member("loadonly_", self.loadonly_),
@@ -768,8 +759,8 @@ namespace {
 struct GProbeBase {
     int base_val_ = 0;
     /** @brief Serialization of the base slice (public so base_object can reach it). */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named(ar, "base_val_", base_val_);
     }
 };
@@ -780,8 +771,8 @@ class GBaseObjectProbe
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_base_object_member<GProbeBase>("GProbeBase", self),
             Gem::Common::make_member("d_", self.d_)
@@ -789,8 +780,8 @@ class GBaseObjectProbe
     }
 
     // Disambiguating serialize(): both GProbeBase and the mixin declare serialize().
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] const unsigned int version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
 

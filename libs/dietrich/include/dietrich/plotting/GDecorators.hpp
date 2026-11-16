@@ -50,10 +50,10 @@ namespace Gem::Dietrich {
  * dimensions, some code duplication is unavoidable. C++ does not allow to add
  * "just" an additional function to a template specialization, unfortunately.
  *
- * @tparam dim The plot dimension (e.g. dimensions::Dim2, dimensions::Dim3) this decorator caters for
+ * @tparam DIM The plot dimension (e.g. dimensions::Dim2, dimensions::Dim3) this decorator caters for
  * @tparam coordinate_type The arithmetic type used for plot coordinates
  */
-template <dimensions dim, Gem::Common::arithmetic coordinate_type>
+template <dimensions DIM, Gem::Common::arithmetic coordinate_type>
 class GDecorator { /* nothing */
 };
 
@@ -81,8 +81,8 @@ class GDecorator<dimensions::Dim2, coordinate_type>
      * one would inherit a parent's and is rejected at compile time by GReflectiveInterfaceBaseT).
      * @return An empty member tuple
      */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -271,8 +271,8 @@ protected:
      *
      * @return A tuple of named handles to this object's local data members
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("coordinates_", self.coordinates_),
             make_member("marker_", self.marker_),
@@ -337,8 +337,8 @@ class GDecorator<dimensions::Dim3, coordinate_type>
      * one would inherit a parent's and is rejected at compile time by GReflectiveInterfaceBaseT).
      * @return An empty member tuple
      */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -409,14 +409,14 @@ public:
 /**
  * This class acts as a container of decorator objects. In its specializations,
  * it is derived from GPtrContainerT and may thus be treated like a
- * std::vector of std::shared_ptr<GDecorator<dim>> . Note that the actual work
+ * std::vector of std::shared_ptr<GDecorator<DIM>> . Note that the actual work
  * is done in the specializations for different dimensions. Hence some code
  * duplications for the different template specializations cannot be avoided.
  *
- * @tparam dim The plot dimension (e.g. dimensions::Dim2, dimensions::Dim3) of the held decorators
+ * @tparam DIM The plot dimension (e.g. dimensions::Dim2, dimensions::Dim3) of the held decorators
  * @tparam coordinate_type The arithmetic type used for plot coordinates
  */
-template <dimensions dim, Gem::Common::arithmetic coordinate_type>
+template <dimensions DIM, Gem::Common::arithmetic coordinate_type>
 class GDecoratorContainer { /* nothing */
 };
 
@@ -452,8 +452,8 @@ class GDecoratorContainer<dimensions::Dim2, coordinate_type>
      * so the GReflectiveInterfaceBaseT-generated load_()/compare_()/name_()/clone_() handle it uniformly.
      * @return A tuple tying the container's data vector as a cloneable-pointer container member
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("data_cnt_", self.data_cnt_)
         );
@@ -465,12 +465,12 @@ class GDecoratorContainer<dimensions::Dim2, coordinate_type>
      * data_cnt_ rides in localMembers_, so this ties the same single vector the base_object<GPtrContainerT>
      * form used to (no base_object needed; the GCommonInterfaceT root is stateless). load_/compare_/name_/
      * clone_ still fold onto the mixin.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to serialize to / from
      * @param version The (unused) serialization format version
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int const version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int const version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
     ///////////////////////////////////////////////////////////////////////
@@ -577,8 +577,8 @@ class GDecoratorContainer_2D
 	  * time by GReflectiveInterfaceT).
 	  * @return An empty member tuple
 	  */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -643,8 +643,8 @@ class GDecoratorContainer<dimensions::Dim3, coordinate_type>
      * so the GReflectiveInterfaceBaseT-generated load_()/compare_()/name_()/clone_() handle it uniformly.
      * @return A tuple tying the container's data vector as a cloneable-pointer container member
      */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_cloneable_container_member("data_cnt_", self.data_cnt_)
         );
@@ -654,12 +654,12 @@ class GDecoratorContainer<dimensions::Dim3, coordinate_type>
      * @brief One-line serialize(): DISAMBIGUATES the two inherited serialize()s
      * (GReflectiveInterfaceBaseT's and GPtrContainerT's); data_cnt_ rides in localMembers_, so it ties the
      * same single vector base_object<GPtrContainerT> used to. load_/compare_/name_/clone_ fold onto the mixin.
-     * @tparam Archive The GArchive codec type
+     * @tparam archive_type The GArchive codec type
      * @param ar The archive to serialize to / from
      * @param version The (unused) serialization format version
      */
-    template <typename Archive>
-    void serialize(Archive &ar, [[maybe_unused]] unsigned int const version) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int const version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
     ///////////////////////////////////////////////////////////////////////
@@ -767,8 +767,8 @@ class GDecoratorContainer_3D
 	  * time by GReflectiveInterfaceT).
 	  * @return An empty member tuple
 	  */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////

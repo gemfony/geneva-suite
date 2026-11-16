@@ -81,8 +81,8 @@ class GRandomSearch // NOLINT(cppcoreguidelines-special-member-functions)
     /** @brief This algorithm carries no local data of its own; the explicit empty member list lets the
      *  Gem::Common::GReflectiveInterfaceT base generate serialize()/load_()/compare_()/name_()/clone_() (the base
      *  slice carries the population, its size and the halt criteria). */
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         (void)self;
         return std::make_tuple();
     }

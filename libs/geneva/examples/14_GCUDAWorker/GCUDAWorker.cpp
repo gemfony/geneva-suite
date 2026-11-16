@@ -200,9 +200,6 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
     auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
     auto consumer =
         std::make_shared<gpu::GGPUConsumerT<GGenome, gimage_fp_t>>(consumerConfig, marshaller);
-    consumer->setCloneFunction([](const std::unique_ptr<GGenome> &p) {
-        return p->clone();
-    });
     consumer->processBatch(
         std::span<std::unique_ptr<GGenome>>(gpuBatch.data(), gpuBatch.size()),
         Gem::Courtier::GSubmissionPolicy::full_success_or_fatal());
@@ -238,7 +235,7 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
 
 } // anonymous namespace
 
-// NOLINTNEXTLINE(readability-function-size) -- example 14's main(): the launcher's linear setup script (config parsing, --update-configs, client mode, target-image load, parity-check dispatch, monitor + adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
+// NOLINTNEXTLINE(readability-function-size) -- example 14's main(): the launcher's linear setup script (config parsing, --update-configs, target-image load, client mode, parity-check dispatch, monitor + adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
 int main(int argc, char **argv) {
     // ---- example-specific settings, read from a Geneva config file ----------------------------
     // Ordinary config-file parameters parsed through the standard GParserBuilder (which also writes the file
@@ -290,19 +287,22 @@ int main(int argc, char **argv) {
         go.optimize();
     }
 
-    // Client mode (networked consumers): the module is already loaded, so a client can deserialize work.
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
-
     // ---- load the target image (defines the canvas resolution and the fitness reference) -----
     // The target is process-wide state shared (via the single RTLD_GLOBAL symbol namespace) by the loaded
     // individual's evaluate() (CPU), the loaded marshaller (GPU), and the image POM below.
+    // Every process loads it, the client of a networked run as well as the server: it is
+    // constant problem data that travels with the job instead of over the wire.
     Gem::Geneva::MonaLisa::loadTarget(targetFile);
     const auto &tgt = Gem::Geneva::MonaLisa::target();
     glogger << "Example 14 (Mona-Lisa): target " << targetFile << " (" << tgt.width << "x"
             << tgt.height << ")" << '\n'
             << GLOGGING;
+
+    // Client mode (networked consumers): the module is already loaded, so a client can deserialize
+    // work, and the target is loaded, so it can evaluate it.
+    if(go.clientMode()) {
+        return go.clientRun();
+    }
 
     // Pull the loaded problem's factory through the base interface (this launcher never names the concrete
     // individual type). A hard error if no problem was loaded.

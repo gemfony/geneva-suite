@@ -48,15 +48,28 @@ namespace {
 /** A kind number no Geneva has ever defined. */
 constexpr std::uint32_t UNKNOWN_KIND = 99u;
 
-const GenevaContribution g_contribution{
-    UNKNOWN_KIND, "SomethingElse", []() -> void * { return nullptr; }};
+const GenevaContribution CONTRIBUTION{
+    .kind = UNKNOWN_KIND,
+    .name_or_mnemonic = "SomethingElse",
+    .make_factory = []() -> void * { return nullptr; }
+};
 
-const GenevaModuleManifest g_manifest{
-    GENEVA_MODULE_ABI_STAMP, "GUnknownKindModule", GENEVA_VERSION_STRING, &g_contribution, 1u};
+// GENEVA_MODULE_ABI_STAMP is a positional initializer prefix, so the members cannot be designated.
+// NOLINTNEXTLINE(modernize-use-designated-initializers)
+const GenevaModuleManifest MANIFEST{
+    GENEVA_MODULE_ABI_STAMP,
+    "GUnknownKindModule",
+    GENEVA_VERSION_STRING,
+    &CONTRIBUTION,
+    1u
+};
 
 } // anonymous namespace
 
+// The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
-    return &g_manifest;
+    return &MANIFEST;
 }

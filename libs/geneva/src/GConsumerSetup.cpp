@@ -31,14 +31,14 @@
 
 // Standard headers
 #include <algorithm>
+#include <any>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <filesystem>
-#include <mutex>
-#include <cstdint>
 #include <format>
-#include <functional>
 #include <memory>
+#include <mutex>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -50,24 +50,22 @@
 // Default values for the consumer command-line options.
 #include "courtier/GCourtierEnums.hpp"
 
+#include "GModuleLoaderInternal.hpp" // loadModuleWithGenevaHandlers() -- the optional modules
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp" // glogger -- a provider whose configuration files cannot be written
 #include "common/GParserBuilder.hpp" // GParserBuilder::updateInPlace() -- materialize the networked config too
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
-#include "geneva/GModuleLoader.hpp" // loadModule() -- the optional consumer modules
 
 // The concrete courtier consumers -- known ONLY here.
-#include "courtier/consumers/GAsioConsumerT.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 
-// The networked clients are wire-compatible with the courtier socket servers and are reused as-is;
-// like the consumers, the concrete client types are known ONLY here.
-#include "courtier/transport/GAsioTransportT.hpp"     // GAsioConsumerClientT
+// Like the consumers, the concrete client types are known ONLY here.
 #include "courtier/transport/GWebsocketTransportT.hpp" // GWebsocketClientT
 
 // The GPU consumer + the marshaller store it is built from -- known ONLY here (folded into
@@ -85,22 +83,6 @@ namespace po = boost::program_options;
 
 namespace {
 
-} /* anonymous namespace */
-
-/**
- * @brief Builds the polymorphic clone functor for GGenome.
- *
- * Copy-construction would slice the held individual, so a virtual clone() is used instead.
- *
- * @return A functor that deep-copies a GGenome via its virtual clone()
- */
-std::function<std::unique_ptr<gen::GGenome>(const std::unique_ptr<gen::GGenome> &)>
-individualCloneFunction() {
-    return [](const std::unique_ptr<gen::GGenome> &p) { return p->clone(); };
-}
-
-namespace {
-
 /******************************************************************************/
 // The concrete consumer providers. Each moves the construction / option / client logic that the old
 // hard-coded table + switch held for one mnemonic into its own provider; they register into
@@ -115,102 +97,32 @@ public:
     [[nodiscard]] std::string getName() const override { return "GStdThreadConsumerT"; }
     [[nodiscard]] bool needsClient() const override { return false; }
 
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(spec.n_threads);
-        consumer->setCloneFunction(individualCloneFunction());
-        ConsumerSetup setup;
-        setup.consumer = consumer;
-        return setup;
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
+        return std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(
+            c2::configOf<c2::GStdThreadConsumerConfig>(spec)
+        );
     }
 
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
+        c2::GStdThreadConsumerConfig config;
         if(vm.contains("nWorkerThreads")) {
-            spec.n_threads = static_cast<unsigned int>(vm["nWorkerThreads"].as<std::size_t>());
+            config.nThreads = static_cast<unsigned int>(vm["nWorkerThreads"].as<std::size_t>());
         }
-        return spec;
+        return config;
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
+    buildClient(const c2::ConsumerSpec & /*spec*/) const override {
         return nullptr; // local-only
     }
 
     void addCLOptions(po::options_description & /*visible*/, po::options_description &hidden) override {
         // 0 means "the consumer's own default" (hardware concurrency).
         hidden.add_options()(
-            "nWorkerThreads", po::value<std::size_t>()->default_value(0),
-            "\t[stc] The number of worker threads (0 == hardware concurrency)")(
-            "stcCapableOfFullReturn", po::value<bool>()->default_value(true),
-            "\t[stc] A debugging option toggling timeouts in the executor");
-    }
-};
-
-/** @brief Provider for the Asio (raw socket) networked consumer. */
-class GAsioConsumerProvider final : public GConsumerProviderT {
-public:
-    [[nodiscard]] std::string getMnemonic() const override { return "asio"; }
-    [[nodiscard]] std::string getName() const override { return "GAsioConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return true; }
-    [[nodiscard]] bool bindsListeningPort() const override { return true; }
-
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
-        auto consumer = std::make_shared<c2::GAsioConsumerT<gen::GGenome>>(
-            spec.port, spec.n_threads, spec.serialization_mode);
-        consumer->setCloneFunction(individualCloneFunction());
-        consumer->startServer();
-        ConsumerSetup setup;
-        setup.consumer = consumer;
-        return setup;
-    }
-
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
-        if(vm.contains("asio_port")) { spec.port = vm["asio_port"].as<unsigned short>(); }
-        if(vm.contains("asio_serializationMode")) {
-            spec.serialization_mode = vm["asio_serializationMode"].as<Gem::Common::serializationMode>();
-        }
-        if(vm.contains("asio_ip")) { spec.ip = vm["asio_ip"].as<std::string>(); }
-        if(vm.contains("asio_maxReconnects")) {
-            spec.max_reconnects = vm["asio_maxReconnects"].as<std::size_t>();
-        }
-        if(vm.contains("asio_prefetchDepth")) {
-            spec.client_prefetch_depth = vm["asio_prefetchDepth"].as<std::size_t>();
-        }
-        if(vm.contains("asio_nProcessingThreads")) {
-            spec.n_threads =
-                static_cast<unsigned int>(vm["asio_nProcessingThreads"].as<std::size_t>());
-        }
-        return spec;
-    }
-
-    [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const override {
-        return std::make_shared<c2::Consumers::GAsioConsumerClientT<gen::GGenome>>(
-            spec.ip, spec.port, spec.serialization_mode, spec.max_reconnects, spec.client_prefetch_depth);
-    }
-
-    void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
-        using Gem::Common::serializationMode;
-        visible.add_options()(
-            "asio_ip", po::value<std::string>()->default_value(c2::GCONSUMERDEFAULTSERVER),
-            "\t[asio] The name or ip of the server")(
-            "asio_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
-            "\t[asio] The port of the server");
-        hidden.add_options()(
-            "asio_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
-            "\t[asio] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
-            "asio_nProcessingThreads",
-            po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
-            "\t[asio] The number of io threads of the server (0 == as many as the machine has "
-            "hardware threads)")(
-            "asio_maxReconnects",
-            po::value<std::size_t>()->default_value(c2::GASIOCONSUMERMAXCONNECTIONATTEMPTS),
-            "\t[asio] The maximum number of client reconnection attempts")(
-            "asio_prefetchDepth",
-            po::value<std::size_t>()->default_value(1),
-            "\t[asio] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
+            "nWorkerThreads",
+            po::value<std::size_t>()->default_value(0),
+            "\t[stc] The number of worker threads (0 == hardware concurrency)"
+        );
     }
 };
 
@@ -222,82 +134,107 @@ public:
     [[nodiscard]] bool needsClient() const override { return true; }
     [[nodiscard]] bool bindsListeningPort() const override { return true; }
 
-    ConsumerSetup setup(const ConsumerSpec &spec) override {
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(
-            spec.port,
-            spec.n_threads,
-            spec.serialization_mode,
-            spec.ping_interval,
-            spec.verbose_control_frames
+            c2::configOf<c2::GWebsocketConsumerConfig>(spec)
         );
-        consumer->setCloneFunction(individualCloneFunction());
         consumer->startServer();
-        ConsumerSetup setup;
-        setup.consumer = consumer;
-        return setup;
+        return consumer;
     }
 
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map &vm) const override {
-        ConsumerSpec spec;
-        if(vm.contains("beast_port")) { spec.port = vm["beast_port"].as<unsigned short>(); }
-        if(vm.contains("beast_serializationMode")) {
-            spec.serialization_mode = vm["beast_serializationMode"].as<Gem::Common::serializationMode>();
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
+        c2::GWebsocketConsumerConfig config;
+        if(vm.contains("beast_port")) {
+            config.port = vm["beast_port"].as<unsigned short>();
         }
-        if(vm.contains("beast_ip")) { spec.ip = vm["beast_ip"].as<std::string>(); }
+        if(vm.contains("beast_serializationMode")) {
+            config.serializationMode =
+                vm["beast_serializationMode"].as<Gem::Common::serializationMode>();
+        }
+        if(vm.contains("beast_ip")) {
+            config.ip = vm["beast_ip"].as<std::string>();
+        }
         if(vm.contains("beast_verboseControlFrames")) {
-            spec.verbose_control_frames = vm["beast_verboseControlFrames"].as<bool>();
+            config.verboseControlFrames = vm["beast_verboseControlFrames"].as<bool>();
         }
         if(vm.contains("beast_pingInterval")) {
-            spec.ping_interval = vm["beast_pingInterval"].as<std::size_t>();
+            config.pingInterval = vm["beast_pingInterval"].as<std::size_t>();
         }
         if(vm.contains("beast_prefetchDepth")) {
-            spec.client_prefetch_depth = vm["beast_prefetchDepth"].as<std::size_t>();
+            config.clientPrefetchDepth = vm["beast_prefetchDepth"].as<std::size_t>();
+        }
+        if(vm.contains("beast_parallelEvaluations")) {
+            config.clientParallelEvaluations = vm["beast_parallelEvaluations"].as<std::size_t>();
         }
         if(vm.contains("beast_nListenerThreads")) {
-            spec.n_threads =
-                static_cast<unsigned int>(vm["beast_nListenerThreads"].as<std::size_t>());
+            config.nThreads = vm["beast_nListenerThreads"].as<std::size_t>();
         }
-        return spec;
+        if(vm.contains("beast_firstContactLimit")) {
+            config.clientFirstContactLimit = vm["beast_firstContactLimit"].as<std::size_t>();
+        }
+        if(vm.contains("beast_reconnectLimit")) {
+            config.clientReconnectLimit = vm["beast_reconnectLimit"].as<std::size_t>();
+        }
+        if(vm.contains("beast_undeliveredDir")) {
+            config.clientUndeliveredDir = vm["beast_undeliveredDir"].as<std::string>();
+        }
+        return config;
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec &spec) const override {
+    buildClient(const c2::ConsumerSpec &spec) const override {
         return std::make_shared<c2::Consumers::GWebsocketClientT<gen::GGenome>>(
-            spec.ip,
-            spec.port,
-            spec.serialization_mode,
-            spec.verbose_control_frames,
-            spec.client_prefetch_depth,
-            spec.ping_interval
+            c2::configOf<c2::GWebsocketConsumerConfig>(spec)
         );
     }
 
     void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
         using Gem::Common::serializationMode;
+        // The defaults are the configuration's (one place for them), the port excepted: on the
+        // command line server and client are two processes, which meet on GCONSUMERDEFAULTPORT.
+        const c2::GWebsocketConsumerConfig defaults;
         visible.add_options()(
-            "beast_ip", po::value<std::string>()->default_value(c2::GCONSUMERDEFAULTSERVER),
+            "beast_ip", po::value<std::string>()->default_value(defaults.ip),
             "\t[beast] The name or ip of the server")(
             "beast_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
             "\t[beast] The port of the server");
         hidden.add_options()(
             "beast_serializationMode",
-            po::value<serializationMode>()->default_value(c2::GCONSUMERSERIALIZATIONMODE),
-            "\t[beast] Serialization in TEXTMODE (0), XMLMODE (1), BINARYMODE (2), GEM_BINARYMODE (3) or GEM_JSONMODE (4)")(
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
+            ("\t[beast] Serialization in " + Gem::Common::serializationModeChoices()).c_str())(
             "beast_nListenerThreads",
-            po::value<std::size_t>()->default_value(c2::GCONSUMERLISTENERTHREADS),
-            "\t[beast] The number of io threads of the server (0 == as many as the machine has "
-            "hardware threads)")(
+            po::value<std::size_t>()->default_value(defaults.nThreads),
+            "\t[beast] The number of io threads of the server, and of the threads its sessions run "
+            "on (0 == as many as the machine has hardware threads)")(
             "beast_pingInterval",
-            po::value<std::size_t>()->default_value(c2::GBEASTCONSUMERPINGINTERVAL),
+            po::value<std::size_t>()->default_value(defaults.pingInterval),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "
             "sent; the connection is closed after twice that time without any inbound data "
             "(0 == off)")(
             "beast_verboseControlFrames",
-            po::value<bool>()->default_value(false)->implicit_value(true),
+            po::value<bool>()->default_value(defaults.verboseControlFrames)->implicit_value(true),
             "\t[beast] Announce ping/pong/close frames")(
             "beast_prefetchDepth",
-            po::value<std::size_t>()->default_value(1),
-            "\t[beast] Max work items a client holds at once (1 == serial; >1 overlaps fetch/compute/return)");
+            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
+            "\t[beast] n: how many work items a client holds at once -- the one(s) being evaluated "
+            "and those fetched ahead, so that the transfer of the next item overlaps the evaluation "
+            "of the current one (how many it evaluates at once: --beast_parallelEvaluations)")(
+            "beast_parallelEvaluations",
+            po::value<std::size_t>()->default_value(defaults.clientParallelEvaluations),
+            "\t[beast] m: how many of the items a client holds (--beast_prefetchDepth) it "
+            "evaluates at the same time; from 1 to the prefetch depth")(
+            "beast_firstContactLimit",
+            po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),
+            "\t[beast] Seconds a client tries to reach its server before it gives up (0 == for as "
+            "long as it runs)")(
+            "beast_reconnectLimit",
+            po::value<std::size_t>()->default_value(defaults.clientReconnectLimit),
+            "\t[beast] Seconds a client that has lost its connection tries to reach its server "
+            "again (0 == for as long as it runs)")(
+            "beast_undeliveredDir",
+            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
+            "\t[beast] Where a client saves a finished result it can no longer deliver (the "
+            "evaluated item, one file each)");
     }
 };
 
@@ -306,7 +243,7 @@ public:
 /**
  * @brief Provider for the (local, device-only) GPU consumer.
  *
- * The GPU consumer is a normal mnemonic ("gpu") built through buildConsumerSetup() like every other
+ * The GPU consumer is a normal mnemonic ("gpu") built through buildConsumer() like every other
  * consumer. The one GPU-specific piece -- the problem's device marshaller (flatten / scatter + kernel) --
  * is contributed into marshallerProviderStore() by the problem; setup() looks it up under its device
  * target ("cuda"), reads its scalar kind and builds the matching GGPUConsumerT<..,scalar_type> around it.
@@ -323,7 +260,11 @@ public:
     [[nodiscard]] std::string getName() const override { return "GGPUConsumerT"; }
     [[nodiscard]] bool needsClient() const override { return false; }
 
-    ConsumerSetup setup(const ConsumerSpec & /*spec*/) override {
+    /** @brief Builds the GPU consumer around the registered marshaller. A spec's configuration is
+     *  not read: the GPU consumer's configuration is the file the marshaller was registered
+     *  with. */
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>>
+    setup(const c2::ConsumerSpec & /*spec*/) override {
         // The problem contributes its GPU marshaller into marshallerProviderStore() (compiled-in: before
         // constructing Go2; a loaded individual module: at module load). Its absence means "--consumer gpu"
         // was selected for a problem that never registered a device marshaller.
@@ -341,24 +282,25 @@ public:
         auto handle             = provider->provide();
         const std::string &cfg  = provider->gpuConfigFile();
 
-        ConsumerSetup setup;
+        std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> consumer;
         switch(handle->scalarKind()) {
             case GPUScalarKind::Double:
-                setup.consumer = buildGPUConsumer<double>(handle, cfg);
+                consumer = buildGPUConsumer<double>(handle, cfg);
                 break;
             case GPUScalarKind::Float:
-                setup.consumer = buildGPUConsumer<float>(handle, cfg);
+                consumer = buildGPUConsumer<float>(handle, cfg);
                 break;
         }
-        return setup;
+        return consumer;
     }
 
-    [[nodiscard]] ConsumerSpec specFromCommandLine(const po::variables_map & /*vm*/) const override {
-        return ConsumerSpec{};
+    /** @brief The GPU consumer has no command-line options. @return An empty configuration */
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map & /*vm*/) const override {
+        return {};
     }
 
     [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
-    buildClient(const ConsumerSpec & /*spec*/) const override {
+    buildClient(const c2::ConsumerSpec & /*spec*/) const override {
         return nullptr;
     }
 
@@ -372,7 +314,7 @@ private:
      * @tparam scalar_type The device scalar the marshaller was built for (matched to its scalarKind())
      * @param handle The scalar-agnostic marshaller handle from the store
      * @param configFile The GPU-consumer config file (backend + kernel selection)
-     * @return The ready GPU consumer (clone function set)
+     * @return The ready GPU consumer
      */
     template <typename scalar_type>
     static std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>>
@@ -386,9 +328,11 @@ private:
                 << "The registered GPU marshaller does not match its own declared scalar kind." << '\n'
             );
         }
-        auto consumer = std::make_shared<
-            Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome, scalar_type>>(configFile, marshaller);
-        consumer->setCloneFunction(individualCloneFunction());
+        auto consumer =
+            std::make_shared<Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome, scalar_type>>(
+                configFile,
+                marshaller
+            );
         return consumer;
     }
 };
@@ -405,8 +349,10 @@ private:
 struct ConsumerProviderRegistrar {
     ConsumerProviderRegistrar() {
         auto store = consumerProviderStore();
-        store->setOnce(GDEFAULTCONSUMERMNEMONIC, std::make_shared<GStdThreadConsumerProvider>());
-        store->setOnce("asio", std::make_shared<GAsioConsumerProvider>());
+        store->setOnce(
+            std::string(c2::GDEFAULTCONSUMERMNEMONIC),
+            std::make_shared<GStdThreadConsumerProvider>()
+        );
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
@@ -432,12 +378,16 @@ std::vector<std::string> &optionalConsumerFailures() {
     return failures;
 }
 
+} /* anonymous namespace */
+
 /**
  * @brief Loads the optional consumer modules once, before the consumer catalog is first consulted.
  *
  * A module that is absent, or whose own dependencies are missing on this machine (no MPI library, say),
  * is skipped without a word: its consumer is then simply not available. The reason is kept, and reported
- * if that consumer is asked for (optionalConsumerNotes()).
+ * if that consumer is asked for (optionalConsumerNotes()). It is also called by
+ * Gem::Geneva::loadModule(), before that loads a module of its own, so that no module can take the
+ * mnemonic of an optional one.
  */
 void loadOptionalConsumerModules() {
     static std::once_flag once;
@@ -455,7 +405,7 @@ void loadOptionalConsumerModules() {
                 continue;
             }
             try {
-                (void)loadModule(module_path);
+                (void)loadModuleWithGenevaHandlers(module_path);
             } catch(const std::exception &e) {
                 optionalConsumerFailures().push_back(module_path.string() + ": " + e.what());
             }
@@ -463,6 +413,8 @@ void loadOptionalConsumerModules() {
 #endif
     });
 }
+
+namespace {
 
 /******************************************************************************/
 /**
@@ -501,22 +453,21 @@ std::vector<std::shared_ptr<GConsumerProviderT>> allConsumerProviders() {
 
 /******************************************************************************/
 /**
- * @brief Builds a consumer (and, for MPI workers, a worker loop) from a consumer specification.
+ * @brief Builds the consumer of a submitter from a consumer specification.
  *
  * Resolves the mnemonic against the consumer-provider store and invokes the matching provider's setup().
  * A socket consumer whose process already holds a consumer reuses it rather than binding the port again;
- * the freshly-built consumer (if any) is registered as the process's single consumer. An MPI worker rank
- * yields a run_worker callable instead of a consumer.
+ * the freshly-built consumer is registered as the process's single consumer.
  *
- * @param spec The consumer specification (mnemonic plus port/threads/serialization settings)
- * @return A ConsumerSetup holding the consumer and/or worker loop; empty for an unknown mnemonic
+ * @param spec The consumer specification (mnemonic plus the configuration of its family)
+ * @return The consumer; null for an unknown mnemonic
  */
-ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
+std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::ConsumerSpec &spec) {
     auto &registry = c2::GConsumerRegistryT<gen::GGenome>::instance();
 
     auto provider = lookupConsumerProvider(spec.mnemonic);
     if(not provider) {
-        return {}; // unknown mnemonic -> empty setup
+        return nullptr; // unknown mnemonic
     }
 
     // Idempotent networked build: a socket server binds a port, so if the process already has a consumer,
@@ -524,21 +475,18 @@ ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
     // not report bindsListeningPort(), so it is constructed normally and self-determines master/worker.)
     if(provider->bindsListeningPort()) {
         if(auto existing = registry.consumer()) {
-            ConsumerSetup setup;
-            setup.consumer = existing;
-            return setup;
+            return existing;
         }
     }
 
-    ConsumerSetup setup = provider->setup(spec);
+    auto consumer = provider->setup(spec);
 
-    // Networked consumers (ASIO / websocket / MPI, all GNetworkedConsumerT) read their SERVER-side timeout /
+    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read their SERVER-side timeout /
     // death-detection treatment from a config file (created with scale-free adaptive defaults if absent), so
     // a user can select "fixed" / "wait_indefinitely" or tune the adaptive lease purely via the config --
     // no command line. Applied once here for whichever networked consumer was built; local / GPU consumers
     // (not GNetworkedConsumerT) are unaffected.
-    if(auto *networked =
-           dynamic_cast<c2::GNetworkedConsumerT<gen::GGenome> *>(setup.consumer.get())) {
+    if(auto *networked = dynamic_cast<c2::GNetworkedConsumerT<gen::GGenome> *>(consumer.get())) {
         c2::GNetworkedTimeoutConfig timeout_cfg;
         timeout_cfg.load("./config/GNetworkedConsumer.json");
         networked->applyTimeoutConfig(timeout_cfg);
@@ -553,12 +501,12 @@ ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
     }
 
     // Register the freshly-built consumer as the process's single consumer so every algorithm submits
-    // through it. An MPI worker rank has no consumer (run_worker only), so nothing is registered there.
-    if(setup.consumer) {
-        registry.setConsumer(setup.consumer);
+    // through it.
+    if(consumer) {
+        registry.setConsumer(consumer);
     }
 
-    return setup;
+    return consumer;
 }
 
 /******************************************************************************/
@@ -575,58 +523,78 @@ ConsumerSetup buildConsumerSetup(const ConsumerSpec &spec) {
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsumer() {
     return c2::GConsumerRegistryT<gen::GGenome>::instance().ensureConsumer(
         []() -> std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> {
-            auto provider = lookupConsumerProvider(GDEFAULTCONSUMERMNEMONIC);
+            auto provider = lookupConsumerProvider(std::string(c2::GDEFAULTCONSUMERMNEMONIC));
             if(not provider) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In Gem::Geneva::ensureProcessConsumer(): Error!" << '\n'
-                    << "The default consumer \"" << GDEFAULTCONSUMERMNEMONIC << "\" is not registered"
-                    << '\n'
+                    << "The default consumer \"" << c2::GDEFAULTCONSUMERMNEMONIC
+                    << "\" is not registered" << '\n'
                     << "in the consumer-provider store." << '\n'
                 );
             }
-            return provider->setup(ConsumerSpec{.mnemonic = GDEFAULTCONSUMERMNEMONIC}).consumer;
-        });
+            return provider->setup(
+                c2::ConsumerSpec{.mnemonic = std::string(c2::GDEFAULTCONSUMERMNEMONIC)}
+            );
+        }
+    );
 }
 
 /******************************************************************************/
 /**
  * @brief Reads a consumer specification out of the parsed command-line options.
  *
- * Delegates the per-consumer option reading to the matching provider; the mnemonic is filled in here.
- * An unknown mnemonic yields a spec carrying only the mnemonic.
+ * Fills both fields: the mnemonic, and the configuration the matching provider reads from the
+ * command line. An unknown mnemonic yields a spec carrying only the mnemonic.
  *
- * @param mnemonic The selected consumer mnemonic (e.g. "asio", "beast", "stc")
+ * @param mnemonic The selected consumer mnemonic (e.g. "beast", "stc")
  * @param vm The parsed program-options map produced during command-line parsing
  * @return A ConsumerSpec populated from vm for the given mnemonic
  */
-ConsumerSpec specFromCommandLine(
-    const std::string &mnemonic, const boost::program_options::variables_map &vm) {
+c2::ConsumerSpec
+specFromCommandLine(const std::string &mnemonic, const boost::program_options::variables_map &vm) {
     auto provider = lookupConsumerProvider(mnemonic);
     if(not provider) {
-        ConsumerSpec spec;
-        spec.mnemonic = mnemonic;
-        return spec;
+        return c2::ConsumerSpec{.mnemonic = mnemonic};
     }
-    ConsumerSpec spec = provider->specFromCommandLine(vm);
-    spec.mnemonic = mnemonic;
-    return spec;
+    return c2::ConsumerSpec{.mnemonic = mnemonic, .config = provider->configFromCommandLine(vm)};
 }
 
 /******************************************************************************/
 /**
  * @brief Builds the networked client matching a consumer specification.
  *
- * Delegates to the matching provider's buildClient(); the local consumer (stc) and MPI (whose worker
- * loop comes from buildConsumerSetup().run_worker) return nullptr.
+ * Delegates to the matching provider's buildClient(); the local consumer (stc) returns nullptr.
  *
  * @param spec The consumer specification (mnemonic plus connection/serialization settings)
- * @return A client for asio/beast; nullptr for local-only or non-client consumers
+ * @return A client for beast/mpi; nullptr for local-only or non-client consumers
  */
 std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
-buildConsumerClient(const ConsumerSpec &spec) {
+buildConsumerClient(const c2::ConsumerSpec &spec) {
     auto provider = lookupConsumerProvider(spec.mnemonic);
     return provider ? provider->buildClient(spec) : nullptr;
+}
+
+/******************************************************************************/
+/**
+ * @brief Writes the configuration files that consumer providers own alone.
+ *
+ * Every registered provider is asked, the providers of loaded modules included; one that throws is
+ * reported as a warning, so that the files of the others are still written (as Go2 does for the
+ * algorithms' configuration files under --update-configs).
+ */
+void materializeConsumerConfigFiles() {
+    for(const auto &provider : allConsumerProviders()) {
+        try {
+            provider->materializeConfigFiles();
+        }
+        catch(const std::exception &e) {
+            glogger << "In Gem::Geneva::materializeConsumerConfigFiles(): could not write the"
+                    << " configuration files of the consumer \"" << provider->getMnemonic()
+                    << "\": " << e.what() << '\n'
+                    << GWARNING;
+        }
+    }
 }
 
 /******************************************************************************/
@@ -682,6 +650,27 @@ bool consumerNeedsClient(const std::string &mnemonic) {
 bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic) {
     auto provider = lookupConsumerProvider(mnemonic);
     return provider != nullptr && provider->determinesRoleAtRuntime();
+}
+
+/******************************************************************************/
+/**
+ * @brief The role of this process for the consumer of a specification, as its provider states it.
+ *
+ * @param spec The consumer specification
+ * @param client_requested Whether the program was started as a client (--client)
+ * @return The role of this process
+ * @throws geneva_exception for a mnemonic no provider is registered for
+ */
+Gem::Courtier::processRole consumerRole(const c2::ConsumerSpec &spec, bool client_requested) {
+    auto provider = lookupConsumerProvider(spec.mnemonic);
+    if(not provider) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In Gem::Geneva::consumerRole(): Error!" << '\n'
+            << "No consumer is registered under the mnemonic \"" << spec.mnemonic << "\"" << '\n'
+        );
+    }
+    return provider->role(spec, client_requested);
 }
 
 /******************************************************************************/

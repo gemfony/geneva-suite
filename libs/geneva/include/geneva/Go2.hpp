@@ -50,17 +50,18 @@
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
-#include "courtier/GConsumerRegistry.hpp"
-#include "geneva/GConsumerSetup.hpp"
-#include "geneva/GOptimizationEnums.hpp"
-#include "geneva/GFaultInjector.hpp"
 #include "common/GSigHupHandler.hpp"
-#include "geneva/genome/GGenome.hpp"
-#include "geneva/Interface/GOptimizerIT.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GFactoryStore.hpp"
+#include "courtier/GConsumerRegistry.hpp"
+#include "courtier/GCourtierEnums.hpp" // processRole
+#include "courtier/GCourtierHelperFunctions.hpp"
+#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GFaultInjector.hpp"
+#include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaInitializer.hpp"
+#include "geneva/Interface/GOptimizerIT.hpp"
+#include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
 
@@ -72,9 +73,9 @@ const std::string GO2_DEF_DEFAULTCONFIGFILE{"config/Go2.json"}; // NOLINT
 constexpr bool GO2_DEF_CLIENTMODE = false;
 constexpr std::uint16_t GO2_DEF_NPRODUCERTHREADS = 0;
 const std::string GO2_DEF_NOCONSUMER{"none"}; // NOLINT
-// The default consumer mnemonic is the setup layer's (GConsumerSetup.hpp), stated once there: the
+// The default consumer mnemonic is courtier's (courtier/GConsumerSpec.hpp), stated once there: the
 // command line and a standalone algorithm must fall back to the same consumer.
-const std::string GO2_DEF_CONSUMER{GDEFAULTCONSUMERMNEMONIC}; // NOLINT
+const std::string GO2_DEF_CONSUMER{Gem::Courtier::GDEFAULTCONSUMERMNEMONIC}; // NOLINT
 constexpr bool GO2_DEF_COPYBESTINDIVIDUALSONLY = true;
 
 /******************************************************************************/
@@ -124,13 +125,15 @@ public:
     ~Go2() override;
 
     /**
-     * @brief Triggers execution of the client loop.
+     * @brief Runs this process as a client of the chosen consumer (or, for a process that takes no
+     * part in the consumer's protocol, returns at once).
      * @return An integer return value (suitable for the main function) indicating the execution status
      */
     int clientRun();
     /**
-     * @brief Checks whether this object is running in client mode.
-     * @return True if this object represents a network client, false otherwise
+     * @brief Checks whether this process is not the submitter, i.e. whether the caller must call
+     * clientRun() instead of optimize().
+     * @return True if the role of this process is client or bystander, false for the submitter
      */
     //! [coding-naming-example#1]
     bool clientMode() const;
@@ -170,8 +173,8 @@ public:
      */
     Go2 &operator&(std::string const &mn);
 
-    /** @brief Supplies a custom, ready-to-use courtier consumer (clone function set, and -- for
-     *  networked consumers -- server started) for this run, OVERRIDING the mnemonic-based consumer
+    /** @brief Supplies a custom, ready-to-use courtier consumer (for networked consumers: with its
+     *  server started) for this run, OVERRIDING the mnemonic-based consumer
      *  selection. Used to plug in a custom consumer (e.g. a GPU consumer) that Go2 does not know how to
      *  build itself; it becomes the process's single consumer that every algorithm submits through. Call
      *  after construction and before optimize().
@@ -179,7 +182,19 @@ public:
     void registerConsumer(
         std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
 
-    /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "asio", "beast",
+    /** @brief The consumer this run submits through, on the submitting process: the one given to
+     *  registerConsumer(), or the one of the chosen mnemonic, which is built here if the run has
+     *  not been configured yet (as optimize() would). A caller may ask it, for example, how many
+     *  clients are connected (connectedClients()) before the first optimize().
+     *
+     *  The consumer belongs to the run: it goes when this Go2 is destroyed (or releases it), and
+     *  with it a networked consumer's server and its threads -- in an MPI program before MPI is
+     *  finalized. So the pointer is weak: a caller locks it for a question and lets the locked
+     *  pointer go when the question is answered, never keeping it beyond this Go2.
+     *  @return The consumer, weakly; empty (expired) in a client or bystander process */
+    std::weak_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer();
+
+    /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "beast",
      *  "mpi", "gpu") -- the programmatic equivalent of the --consumer command-line option / the "consumer"
      *  config key. It takes effect when the run is configured (at the first of optimize() / clientRun() /
      *  clientMode()); a --consumer value on the command line overrides this. For a fully custom consumer
@@ -233,7 +248,8 @@ public:
     /***************************************************************************/
     // The following is a trivial list of getters and setters
     /**
-     * @brief Sets whether this object runs in client mode.
+     * @brief Asks for client mode, as --client does. A consumer that determines the role at runtime
+     * (see GConsumerProviderT::determinesRoleAtRuntime()) ignores the request.
      * @param client_mode If true, this object represents a network client
      */
     //! [coding-naming-example#2]
@@ -373,7 +389,8 @@ protected:
     void releaseConsumer_();
 
     /**
-     * @brief Triggers execution of the client loop.
+     * @brief Runs this process according to its role: a client builds and runs the client of the
+     * consumer, a bystander returns at once.
      * @return An integer return value (suitable for the main function) indicating the execution status
      */
     virtual int clientRun_();
@@ -468,7 +485,8 @@ private:
     /** @brief --update-configs pass: with GParserBuilder in update-in-place mode, produce one object from
      *  each registered algorithm factory and one individual from the content creator, so every algorithm
      *  config and the individual config is parsed and rewritten in canonical form (Go2.json was already
-     *  refreshed by the constructor's parse). Runs no optimization. */
+     *  refreshed by the constructor's parse), and let every consumer provider write the
+     *  configuration files it owns. Runs no optimization. */
     void refreshAllConfigs_();
 
     // --- optimize_ sub-steps (decomposition) ---
@@ -565,25 +583,24 @@ private:
 
     //---------------------------------------------------------------------------
     // courtier routing (the DEFAULT submission path). setupChosenConsumer() builds the consumer for the
-    // chosen mnemonic through the shared factory buildConsumerSetup(), which registers it as the
+    // chosen mnemonic through the shared factory buildConsumer(), which registers it as the
     // process's single consumer (GConsumerRegistry); every algorithm reads it from there -- no per-OA
     // injection. A fully custom consumer can be supplied directly via registerConsumer(); the GPU
-    // consumer is selected by the "gpu" mnemonic and built by buildConsumerSetup() from the problem's
+    // consumer is selected by the "gpu" mnemonic and built by buildConsumer() from the problem's
     // marshaller (registered into marshallerProviderStore()) like every other consumer.
     /** @brief The single server-backed/local courtier consumer, shared across all algorithms. Held here
      *  so it (and any listening server) outlives the run and is torn down by RAII at Go2 destruction.
-     *  Null when this process is not a submitter (a role-at-runtime consumer placed it in the worker role). */
+     *  Null when this process is not the submitter. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer_;
-    /** @brief Set when a role-at-runtime consumer (see GConsumerProviderT::determinesRoleAtRuntime, e.g.
-     *  the MPI worker rank) placed this process in the worker role: the worker loop clientRun_ runs instead
-     *  of building a networked client. Type-erased so Go2.hpp needs no transport headers; the captured
-     *  consumer shared_ptr keeps the worker node alive. Empty on a submitter / role-from-flag path. */
-    std::move_only_function<void()> run_worker_;
+    /** @brief The role of this process for the chosen consumer, asked for in setupChosenConsumer()
+     *  (consumerRole()). The submitter builds the consumer; a client runs the consumer's client in
+     *  clientRun_(); a bystander takes no part. client_mode_ is derived from it. */
+    Gem::Courtier::processRole role_ = Gem::Courtier::processRole::SUBMITTER;
     /** @brief The transport-agnostic spec for the chosen consumer, assembled from the command line in
      *  setupChosenConsumer(). Held so clientRun_() can build the matching networked client through the
      *  courtier setup layer (buildConsumerClient) without re-touching the command line or the
      *  concrete consumer types. */
-    ConsumerSpec consumer_spec_;
+    Gem::Courtier::ConsumerSpec consumer_spec_;
 
     //---------------------------------------------------------------------------
     // Parameters for the random number generator

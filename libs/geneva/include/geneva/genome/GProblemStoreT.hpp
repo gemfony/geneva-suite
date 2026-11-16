@@ -57,10 +57,10 @@ namespace Gem::Geneva::Genome {
  * The single-writer / many-lock-free-readers mechanism lives once in @c common/concurrency/ (Inv 2); this is
  * only an alias so existing call sites and the problem-store terminology are preserved.
  *
- * @tparam DataType The (default-constructible) payload type holding the problem constants
+ * @tparam data_type The (default-constructible) payload type holding the problem constants
  */
-template <typename DataType>
-using GProblemStoreT = Gem::Common::Concurrency::GLoadOnceCellT<DataType>;
+template <typename data_type>
+using GProblemStoreT = Gem::Common::Concurrency::GLoadOnceCellT<data_type>;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

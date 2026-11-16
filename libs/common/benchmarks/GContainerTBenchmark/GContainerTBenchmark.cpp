@@ -76,9 +76,9 @@ struct BenchObj : Gem::Common::gemfony_common_interface_indicator {
       : data(v) {}
     virtual ~BenchObj() = default;
 
-    template <typename TargetType = BenchObj>
-    [[nodiscard]] std::shared_ptr<TargetType> clone() const {
-        return std::make_shared<TargetType>(*this);
+    template <typename target_type = BenchObj>
+    [[nodiscard]] std::shared_ptr<target_type> clone() const {
+        return std::make_shared<target_type>(*this);
     }
 
     void load(const std::shared_ptr<BenchObj>& cp) {

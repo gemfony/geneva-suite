@@ -24,7 +24,8 @@ contract), and the config-key-stability rule below.
 > 2. Run `clang-format` and `clang-tidy` on every file you touch before submitting — what they enforce is not
 >    optional.
 > 3. Identifiers follow a fixed scheme: `CamelCase` types, `camelBack` functions/methods, `snake_case` locals
->    and parameters, and `snake_case` private/protected members with a trailing underscore.
+>    and parameters, `snake_case` private/protected members with a trailing underscore, and template
+>    parameters in `snake_case` ending in `_type` (a single capital letter allowed) or, for values, `UPPER_CASE`.
 > 4. The code targets **C++23**: `std` sized integers, `noexcept`, `static_cast`, `#pragma once` and
 >    `inline constexpr` replace their older Boost and preprocessor equivalents.
 > 5. Documentation is written in Doxygen format; a few rules remain a matter of review rather than tooling.
@@ -177,7 +178,10 @@ Each kind of identifier has a fixed case:
 | Entity | Case | Example |
 |---|---|---|
 | Class, struct, enum, union | `CamelCase` | `GParserBuilder` |
-| Namespace, concept, template parameter | `CamelCase` | `Gem::Geneva`, `T` |
+| Namespace, concept | `CamelCase` | `Gem::Geneva`, `MPMCQueue` |
+| Type or template template parameter | `snake_case` ending in `_type` | `archive_type`, `derived_type` |
+| Type parameter without a specific role | a single capital letter, `s` for a pack | `T`, `U`, `F`, `Ts` |
+| Non-type template parameter | `UPPER_CASE` | `N`, `N_DIM`, `CAP` |
 | Function, method | `camelBack` | `setAdaptionsActive` |
 | Parameter, local variable | `snake_case` | `work_item` |
 | Private / protected member | `snake_case_` (trailing underscore) | `adaptions_active_` |
@@ -185,6 +189,28 @@ Each kind of identifier has a fixed case:
 | Enum constant | `UPPER_CASE` | `GEM_BINARY` |
 | Macro, global / static / class constant, `constexpr` variable | `UPPER_CASE` | `DO_LOG` |
 | Type alias, typedef | unconstrained | `value_type` |
+
+Template parameters follow their own rule (maintainer decision of 2026-11-15). A type parameter -- also a
+constrained one, `template <std::integral int_type>`, and a template template parameter -- is `snake_case`
+and ends in `_type`, so a reader sees at once that the name stands for a type: `archive_type`,
+`processable_type`, `args_type` for a pack. A trailing `T` or `Type` of the old form is not kept
+(`ConfigT` became `config_type`, not `config_t_type`). A parameter without a specific role may stay a single
+capital letter, with an `s` for a pack (`T`, `U`, `R`, `F`, `Ts`); nothing else is exempt (`Args` is
+`args_type`, `URBG` is `urbg_type`). A non-type parameter is `UPPER_CASE`, as the other constants: `N`,
+`N_DIM`, `CAP`, `N_POOLS`. Where the natural name is already a member alias of the template
+(`using key_type = ...`), the parameter takes a more specific name (`ordered_key_type`), because the alias
+is public API and stays.
+
+```cpp
+template <typename archive_type>
+void serialize(archive_type &ar, unsigned int version);
+
+template <typename T, std::size_t CAP>
+class GPreallocatedMPMCQueueT;
+
+template <typename... args_type>
+void emplace_back(args_type &&...args);
+```
 
 Two points deserve emphasis, because they changed when the conventions were modernized. First, **local
 variables and function parameters are `snake_case`**, not the camel case the older manual used. Second,
@@ -219,7 +245,7 @@ violation:
    `emplace_back`, `shrink_to_fit`, `max_size`, `begin`/`end`, and so on. Forcing these to `camelBack` would
    break the drop-in-replacement contract.
 3. **`snake_case` internal helpers** — e.g. `compare_base`, and helpers in the newer
-   transport / concurrency layers that mirror an STL/Asio idiom (`async_start_run`).
+   transport / concurrency layers that mirror an STL/Boost.Asio idiom (`async_schedule`).
 
 New code that is **not** one of these cases uses `camelBack`. When a name could go either way, prefer
 `camelBack`.

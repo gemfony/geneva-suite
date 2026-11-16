@@ -260,6 +260,9 @@ GGraph2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     if(is_secondary || not this->secondaryPlotters().empty()) {
         emitRootSeriesColour(footer_data, indent, graph_name, is_secondary ? own_id + 1 : 0);
     }
+    if(line_width_ > 0) {
+        footer_data << indent << graph_name << "->SetLineWidth(" << line_width_ << ");" << '\n';
+    }
 
     footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n' << '\n';
 
@@ -510,6 +513,9 @@ GGraph2ED::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, 
     // In a pad that holds several graphs each one gets a colour of its own.
     if(is_secondary || not this->secondaryPlotters().empty()) {
         emitRootSeriesColour(footer_data, indent, graph_name, is_secondary ? own_id + 1 : 0);
+    }
+    if(line_width_ > 0) {
+        footer_data << indent << graph_name << "->SetLineWidth(" << line_width_ << ");" << '\n';
     }
 
     footer_data << indent << graph_name << "->Draw(\"" << d_a << "\");" << '\n' << '\n';

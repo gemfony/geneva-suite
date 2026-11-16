@@ -54,11 +54,13 @@
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
 #include "common/GParserBuilder.hpp"
-#include "courtier/GCourtierEnums.hpp"
 #include "courtier/GBaseClientT.hpp"
+#include "courtier/GCourtierEnums.hpp"
+#include "courtier/consumers/GStdThreadConsumerConfig.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
-#include "geneva/oa/GSwarmAlgorithm.hpp"
 #include "geneva/GenevaInitializer.hpp"
+#include "geneva/oa/GSwarmAlgorithm.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -89,7 +91,6 @@ const double DEFAULTCNEIGHBORHOODAP = 2.;
 const double DEFAULTCGLOBALAP = 1.;
 const double DEFAULTCVELOCITYAP = 0.4;
 const bool DEFAULTALLRANDOMINIT = true;
-const std::size_t DEFAULTMAXRECONNECTS = 10;
 
 /******************************************************************************/
 /**
@@ -116,8 +117,7 @@ bool parseCommandLine(
     std::uint16_t &nEvaluationThreads,
     std::uint32_t &maxIterations,
     long &maxMinutes,
-    std::uint32_t &reportIteration,
-    std::size_t &maxReconnects
+    std::uint32_t &reportIteration
 ) {
     // Create the parser builder
     Gem::Common::GParserBuilder gpb;
@@ -148,8 +148,7 @@ bool parseCommandLine(
         "serializationMode",
         serMode,
         DEFAULTSERMODE,
-        "Specifies whether serialization shall be done in TEXTMODE (0), XMLMODE (1) or BINARYMODE "
-        "(2)"
+        "Specifies the serialization: " + Gem::Common::serializationModeChoices()
     );
 
     gpb.registerCLParameter<std::size_t>(
@@ -247,13 +246,6 @@ bool parseCommandLine(
         "The maximum number of minutes the optimization of the population should run"
     );
 
-    gpb.registerCLParameter<std::size_t>(
-        "maxReconnects",
-        maxReconnects,
-        DEFAULTMAXRECONNECTS,
-        "The number of times a client will try to reconnect when it couldn't reach the server"
-    );
-
     // Parse the command line and leave if the help flag was given. The parser
     // will emit an appropriate help message by itself
     if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {
@@ -287,7 +279,6 @@ int main(int argc, char **argv) {
     double cVelocity = NAN;
     updateRule ur;
     bool allRandomInit = false;
-    std::size_t maxReconnects = 0;
 
     /****************************************************************************/
     // Initialization of Geneva
@@ -327,8 +318,7 @@ int main(int argc, char **argv) {
            nEvaluationThreads,
            maxIterations,
            maxMinutes,
-           reportIteration,
-           maxReconnects
+           reportIteration
        )) {
         exit(1);
     }
@@ -341,17 +331,15 @@ int main(int argc, char **argv) {
     // If this is a client in networked mode, we can just start the listener and
     // return when it has finished
     if(clientMode && cType == consumerType::NETWORKED) {
-        // Build the networked client through the courtier setup layer. The single mnemonic below
-        // drives both this client and the server below -- change it (e.g. to "beast") in both places to
-        // switch transport, with no other code change.
-        ConsumerSpec spec;
-        spec.mnemonic           = "asio";
-        spec.ip                 = ip;
-        spec.port               = port;
-        spec.serialization_mode = serMode;
-        spec.max_reconnects     = maxReconnects;
-
-        auto client = buildConsumerClient(spec);
+        // Build the networked client through the courtier setup layer. The configuration struct
+        // names the consumer and drives both this client and the server below.
+        auto client = buildConsumerClient(
+            GWebsocketConsumerConfig{
+                .ip = ip,
+                .port = port,
+                .serializationMode = serMode,
+            }
+        );
 
         // Start the actual processing loop
         client->run();
@@ -371,32 +359,27 @@ int main(int argc, char **argv) {
 
     // Build and register the ONE process-wide consumer, depending on the requested consumer type.
     // The algorithm submits through it automatically.
-    {
-        ConsumerSpec spec;
-        switch(cType) {
+    switch(cType) {
+    //---------------------------------------------------------------------------
+    case consumerType::SERIAL: // Serial (single-threaded) execution
+        buildConsumer(GStdThreadConsumerConfig{.nThreads = 1});
+        break;
+
         //---------------------------------------------------------------------------
-        case consumerType::SERIAL: // Serial (single-threaded) execution
-            spec.mnemonic  = "stc";
-            spec.n_threads = 1;
-            break;
+    case consumerType::MULTITHREADED: // Multi-threaded local execution
+        buildConsumer(
+            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+        );
+        break;
 
-            //---------------------------------------------------------------------------
-        case consumerType::MULTITHREADED: // Multi-threaded local execution
-            spec.mnemonic  = "stc";
-            spec.n_threads = static_cast<unsigned int>(nEvaluationThreads);
-            break;
+        //---------------------------------------------------------------------------
+    case consumerType::NETWORKED: // Networked execution (server-side)
+        // Build a courtier websocket server via the shared factory; the clients started above
+        // connect.
+        buildConsumer(GWebsocketConsumerConfig{.port = port, .serializationMode = serMode});
+        break;
 
-            //---------------------------------------------------------------------------
-        case consumerType::NETWORKED: // Networked execution (server-side)
-            // Build a courtier ASIO server via the shared factory; the clients started above connect to it.
-            spec.mnemonic           = "asio";
-            spec.port               = port;
-            spec.serialization_mode = serMode;
-            break;
-
-            //----------------------------------------------------------------------------
-        }
-        buildConsumerSetup(spec); // registers the process consumer
+        //----------------------------------------------------------------------------
     }
 
     /****************************************************************************/

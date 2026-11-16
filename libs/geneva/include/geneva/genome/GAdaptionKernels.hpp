@@ -106,16 +106,16 @@ struct GaussState {
  * @note Shared implementation behind the public adaptGaussGroup() function. @p vsDelta supplies
  *       the per-value gaussian step, drawn inline from the shared @c normal object; self-adaption
  *       and the gates also draw inline from @p gr.
- * @tparam ValueDelta A callable (g_normal_distribution<T>&, GRandomBase&, T sigma) -> T.
+ * @tparam value_delta_type A callable (g_normal_distribution<T>&, GRandomBase&, T sigma) -> T.
  */
-template <typename T, typename ValueDelta>
+template <typename T, typename value_delta_type>
 // NOLINTNEXTLINE(readability-function-size) -- one coherent numeric kernel: ad_prob self-adaption, sigma self-adaption + trigger, and the value step share the same GaussState via closures, mirroring GAdaptorT::adapt()'s stages; splitting would scatter tightly coupled mutation math
 std::size_t adaptGaussGroupImpl(
     const GaussConfig<T> &cfg,
     GaussState<T> &st,
     std::span<T> values,
     Gem::Hap::GRandomBase &gr,
-    ValueDelta vsDelta
+    value_delta_type vsDelta
 ) {
     // Distribution objects hoisted out of the per-value loop (creating them per value is measurably slower).
     Gem::Hap::g_normal_distribution<T> normal;

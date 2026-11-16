@@ -77,8 +77,8 @@ public:
 private:
     // Encapsulated serialize, reached only through the befriended access shim.
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned /*version*/) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned /*version*/) {
         ar &Gem::Weft::make_nvp("radius", radius_);
     }
     double radius_ = 0.0;
@@ -92,8 +92,8 @@ public:
 
 private:
     friend struct Gem::Weft::access;
-    template <typename Archive>
-    void serialize(Archive &ar, unsigned /*version*/) {
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned /*version*/) {
         ar &Gem::Weft::make_nvp("w", w_);
         ar &Gem::Weft::make_nvp("h", h_);
     }
@@ -109,19 +109,19 @@ GEM_REGISTER_ARCHIVABLE(shapes::Rectangle)
 
 namespace {
 
-// Serialize a base pointer through OArchive and read it back through IArchive.
-template <typename OArchive, typename IArchive>
+// Serialize a base pointer through oarchive_type and read it back through iarchive_type.
+template <typename oarchive_type, typename iarchive_type>
 std::shared_ptr<shapes::Shape> roundtrip(const std::shared_ptr<shapes::Shape> &p) {
     std::string blob;
     {
-        OArchive oa;
+        oarchive_type oa;
         auto q = p; // operator& takes a non-const lvalue
         oa &q;
         blob = oa.str();
     }
     std::shared_ptr<shapes::Shape> loaded;
     {
-        IArchive ia(blob);
+        iarchive_type ia(blob);
         ia &loaded;
     }
     return loaded;

@@ -42,7 +42,7 @@
 # Geneva is located via find_package(Geneva). The preferred mechanism is the
 # installed CMake config package (find_package(Geneva CONFIG)). If that is not
 # available (an older install without the config package) the build falls back
-# to the bundled FindGeneva.cmake module. In both cases the install prefix is
+# to the FindGeneva.cmake module of the installation. In both cases the install prefix is
 # supplied through CMAKE_PREFIX_PATH or the GENEVA_ROOT variable, e.g.
 #
 #   cmake -DGENEVA_ROOT=<geneva-install-prefix> ..
@@ -59,9 +59,11 @@ IF (DEFINED GENEVA_ROOT)
 	LIST(APPEND CMAKE_PREFIX_PATH "${GENEVA_ROOT}")
 ENDIF ()
 
-# Locate the bundled FindGeneva.cmake (in the repo-root CMakeModules) so the
-# MODULE-mode fallback below can find it.
-LIST(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/../../../CMakeModules")
+# The installation carries FindGeneva.cmake in its CMakeModules directory, for
+# the MODULE-mode fallback below.
+FOREACH (_geneva_prefix IN LISTS CMAKE_PREFIX_PATH)
+	LIST(APPEND CMAKE_MODULE_PATH "${_geneva_prefix}/CMakeModules")
+ENDFOREACH ()
 
 # Prefer the installed CMake config package (Geneva::* imported targets). Fall
 # back to the FindGeneva.cmake module if no config package is present.

@@ -93,9 +93,9 @@ inline std::ostream &operator<<(std::ostream &stream, const ACOSolution &sol) {
 }
 
 /** @brief Non-intrusive GArchive (de)serializer for a solution record.
- *  @tparam Archive The GArchive codec type. @param ar The archive. @param sol The record. */
-template <class Archive>
-void gem_archive_serialize(Archive &ar, ACOSolution &sol) {
+ *  @tparam archive_type The GArchive codec type. @param ar The archive. @param sol The record. */
+template <class archive_type>
+void gem_archive_serialize(archive_type &ar, ACOSolution &sol) {
     Gem::Common::archive_named(ar, "parms", sol.parms);
     Gem::Common::archive_named(ar, "fitness", sol.fitness);
 }
@@ -121,8 +121,8 @@ class GACOSolutionArchive // NOLINT(cppcoreguidelines-special-member-functions)
 
     /** @brief This class adds no own members; the explicit empty declaration is required
      *  (the mixin's deleted fallback rejects a missing one). */
-    template <typename Self>
-    auto localMembers_(this Self &) {
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
         return std::make_tuple();
     }
     ///////////////////////////////////////////////////////////////////////
@@ -300,9 +300,9 @@ private:
      *  (parameter vectors, fitnesses, bounds, selection probabilities) is transient and rebuilt in
      *  init(). */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
-    // overloads are trivial forwarders. Self is deduced as the (const) class type.
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    // overloads are trivial forwarders. self_type is deduced as the (const) class type.
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("archive_size_", self.archive_size_),
             Gem::Common::make_member("n_ants_", self.n_ants_),

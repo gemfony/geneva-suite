@@ -56,8 +56,8 @@ namespace {
 class PRoot : public GReflectiveInterfaceT<PRoot, GCommonInterfaceT<PRoot>> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(make_member("root_i_", self.root_i_), make_member("root_s_", self.root_s_));
     }
 
@@ -76,8 +76,8 @@ protected:
 class PDerived : public GReflectiveInterfaceT<PDerived, PRoot> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    template <typename Self>
-    auto localMembers_(this Self &self) {
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
         return std::make_tuple(
             make_member("d_d_", self.d_d_),
             make_member("d_v_", self.d_v_),
@@ -96,13 +96,13 @@ public:
 protected:
 };
 
-template <typename OArchive, typename IArchive, typename T>
+template <typename oarchive_type, typename iarchive_type, typename T>
 T gem_roundtrip(const T &in) {
-    OArchive oa;
+    oarchive_type oa;
     oa &in;
     std::string encoded = oa.str();
 
-    IArchive ia(encoded);
+    iarchive_type ia(encoded);
     T out;
     ia &out;
     return out;
