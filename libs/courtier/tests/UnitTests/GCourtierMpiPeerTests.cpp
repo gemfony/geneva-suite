@@ -44,6 +44,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -92,9 +93,12 @@ bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 
-/** @brief @param grace The close grace @return The options of the tests' ends */
+/** @brief @param grace The close grace @return The options of the tests' ends: the drain at the
+ *  end of the work is short too (some tests have ranks that never receive) */
 GMPIPeerOptions optionsWith(std::chrono::milliseconds grace = CLOSE_GRACE) {
-    return GMPIPeerOptions{.name = "test", .closeGrace = grace};
+    GMPIPeerOptions options{.name = "test", .closeGrace = grace};
+    options.poll.drainGrace = 300ms;
+    return options;
 }
 
 /** @brief Waits, at most PATIENCE, until every handler posted to @p executor before this call has
@@ -423,12 +427,18 @@ TEST_CASE("MPI transport: a message longer than the limit", "[courtier][mpi]") {
 }
 
 /******************************************************************************/
-/** A poll that fails ends every end of the process as FAILED, also one not started yet. */
+/**
+ * A poll that fails ends every end of the process as FAILED, also one not started yet -- and every
+ * client rank is told (a close that says ERROR): MPI has no keep-alive, and a client that is not
+ * told waits for ever.
+ */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a failed poll ends every end", "[courtier][mpi]") {
     const bool before_start = GENERATE(true, false);
     auto world = std::make_shared<GMPIFakeWorld>(3);
     Master master(world);
+    Client client_one(world, 1);
+    Client client_two(world, 2);
     if(before_start) {
         world->throwOnce(0, GMPIFakeWorld::GFault::PROBE);
     }
@@ -439,12 +449,68 @@ TEST_CASE("MPI transport: a failed poll ends every end", "[courtier][mpi]") {
     REQUIRE(one != nullptr);
     REQUIRE(two != nullptr);
     if(not before_start) {
-        REQUIRE(eventually([&] { return one->events().size() == 1 && two->events().size() == 1; }));
+        REQUIRE(eventually([&] {
+            return one->events().size() == 1 && two->events().size() == 1 &&
+                   client_one.role().events().size() == 1 && client_two.role().events().size() == 1;
+        }));
         world->throwOnce(0, GMPIFakeWorld::GFault::PROBE);
     }
     REQUIRE(eventually([&] { return one->nClosed() == 1 && two->nClosed() == 1; }));
     CHECK(one->events().back() == "closed:FAILED:NORMAL");
     CHECK(two->events().back() == "closed:FAILED:NORMAL");
+    REQUIRE(eventually([&] {
+        return client_one.role().nClosed() == 1 && client_two.role().nClosed() == 1;
+    }));
+    CHECK(client_one.role().events().back() == "closed:CLOSED_THERE:ERROR");
+    CHECK(client_two.role().events().back() == "closed:CLOSED_THERE:ERROR");
+}
+
+/******************************************************************************/
+/**
+ * The listener's endWork() lets go of the ends that have not ended (the shell's threads were stuck
+ * past the grace, say): each tells its client rank that the run has ended, before the poll ends.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: the end of the listener's work tells the clients", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    Master master(world);
+    Client client_one(world, 1);
+    Client client_two(world, 2);
+    master.start();
+    REQUIRE(eventually([&] {
+        return client_one.role().events().size() == 1 && client_two.role().events().size() == 1;
+    }));
+    master.pool().join(); // no session runs: nobody closes the ends
+    master.listener().endWork();
+    REQUIRE(eventually([&] {
+        return client_one.role().nClosed() == 1 && client_two.role().nClosed() == 1;
+    }));
+    CHECK(client_one.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+    CHECK(client_two.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+    CHECK(master.rolesLetGo());
+}
+
+/******************************************************************************/
+/**
+ * A rank whose session cannot be made (an exception in on_peer) is closed with an error at once,
+ * also before its end was started; the other ranks are served.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: a rank whose session cannot be made is told", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    Master master(world);
+    Client client_one(world, 1);
+    Client client_two(world, 2);
+    master.start([](Role &, GWirePeerId rank) {
+        if(rank == 1) {
+            throw std::runtime_error("the test cannot make this session");
+        }
+    });
+    REQUIRE(eventually([&] { return client_one.role().nClosed() == 1; }));
+    CHECK(client_one.role().events().back() == "closed:CLOSED_THERE:ERROR");
+    REQUIRE(eventually([&] { return client_two.role().events().size() == 1; }));
+    CHECK(client_two.role().events().front() == "open");
+    CHECK(client_two.role().nClosed() == 0);
 }
 
 /******************************************************************************/

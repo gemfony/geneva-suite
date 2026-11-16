@@ -628,6 +628,11 @@ public:
         return options_.detectsLoss;
     }
 
+    /** @brief Counts the call: this transport has no clients that wait for a server */
+    void announceEndWithoutStart() override {
+        n_announced_.fetch_add(1);
+    }
+
     /***************************************************************************/
     /**
      * @brief Makes a connection for a connector: the server end goes to on_peer (posted to the
@@ -694,6 +699,10 @@ public:
     [[nodiscard]] std::size_t nStops() const {
         return n_stops_.load();
     }
+    /** @brief @return How often announceEndWithoutStart() has been called */
+    [[nodiscard]] std::size_t nAnnounced() const {
+        return n_announced_.load();
+    }
     /** @brief @return How often stop() gave up waiting for the calls of on_peer */
     [[nodiscard]] std::size_t nStopBoundsHit() const {
         return n_stop_bounds_hit_.load();
@@ -713,6 +722,7 @@ private:
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
     std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called
     std::atomic<std::size_t> n_stop_bounds_hit_{0}; ///< How often stop() gave up waiting
+    std::atomic<std::size_t> n_announced_{0}; ///< How often announceEndWithoutStart() was called
     /// The calls of on_peer posted and not returned, by connection id (stop() waits for them)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::GWirePeerId, bool>
         on_peer_calls_;
@@ -751,6 +761,10 @@ public:
     /** @brief Forwards @return What the listener says */
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
+    }
+    /** @brief Forwards */
+    void announceEndWithoutStart() override {
+        listener_->announceEndWithoutStart();
     }
 
 private:

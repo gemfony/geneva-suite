@@ -196,6 +196,9 @@ public:
     [[nodiscard]] bool ownerBusy() const noexcept;
     /** @brief Whether the end has ended. Any thread. @return Whether it has */
     [[nodiscard]] bool ended() const noexcept;
+    /** @brief The work of the transport ends: an end that has not ended tells the other rank, if
+     *  that rank does not know (see there). When no handler of the end runs. */
+    void endOfWork(GPeerClose);
 
 private:
     /***************************************************************************/
@@ -229,6 +232,7 @@ private:
     void handle_(int, std::string &&);
     void beginClose_(GPeerClose);
     void failSend_(std::size_t);
+    void tellOther_(GPeerClose);
     void sendControl_(int, std::string);
     void finish_(GPeerEnd, GPeerClose, std::string_view);
 
@@ -246,6 +250,9 @@ private:
     GPeerHandlers handlers_;       ///< On the strand; dropped at the end
     GState state_ = GState::NEW;   ///< On the strand
     bool role_open_ = false;       ///< On the strand: the role was told of the open
+    /// On the strand: the other rank knows that the connection is over -- it was sent this end's
+    /// close or an answer to its own, or it closed itself (tellOther_())
+    bool other_told_ = false;
     std::deque<GArrival> waiting_; ///< On the strand: what arrived before it could be handled
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
     /// The end found before start()'s work ran (abort(), a failed poll), reported when it runs
@@ -319,6 +326,7 @@ private:
     makePeers_(const std::shared_ptr<GMPIPollCore> &, const boost::asio::any_io_executor &) const;
     void startPoll_(const std::shared_ptr<GMPIPollCore> &);
     void handOver_(std::vector<std::shared_ptr<GMPIPeer>>);
+    void tellEnds_();
     void joinPoll_();
 
     std::shared_ptr<GMPICallsI> calls_; ///< The MPI calls on courtier's communicator
@@ -335,6 +343,8 @@ private:
     /// The calls of on_peer that have been posted and have not returned, by rank (stop() waits)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> on_peer_calls_;
     std::atomic<std::size_t> n_peers_{0}; ///< The peers made by start()
+    /// The peers made by start(), to be told the end of the work (tellEnds_()); start() and endWork()
+    std::vector<std::weak_ptr<GMPIPeer>> peers_;
 
     /// The poll thread's reservation in the process-wide thread budget
     Gem::Common::Concurrency::GThreadBudget::Reservation budget_;
@@ -380,6 +390,7 @@ private:
     GMPIPeerOptions options_;            ///< How the peer and the poll are set up
     mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
     std::shared_ptr<GMPIPollCore> core_; ///< Made by the first connect()
+    std::weak_ptr<GMPIPeer> peer_;       ///< The end made by connect(); told at the end of the work
     /// Set by cancel() and by the destructor; shared with the handler that reports the peer
     std::shared_ptr<std::atomic<bool>> cancelled_ = std::make_shared<std::atomic<bool>>(false);
 };

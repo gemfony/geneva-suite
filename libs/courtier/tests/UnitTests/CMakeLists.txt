@@ -123,7 +123,7 @@ ADD_DEPENDENCIES(GCourtierForeignResultTests GCourtierHelperServer)
 geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp)
 # The MPI transport's ends, listener and connector on the same stand-in
-geneva_courtier_test(GCourtierMpiPeerTests     S  GCourtierMpiPeerTests.cpp GMPIFakeCalls.hpp
+geneva_courtier_test(GCourtierMpiPeerTests     M  GCourtierMpiPeerTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp GPeerTestRole.hpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp
 	GTcpRelay.hpp)
@@ -240,6 +240,24 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					--never-received)
 	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 20)
 	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
+
+	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
+	# ends without a close of its role (the end of the listener's work, a session that cannot be
+	# made). A client that is not told waits for ever: the time limit ends the entry then.
+	ADD_EXECUTABLE(GCourtierMpiPeerExerciser GCourtierMpiPeerExerciser.cpp GPeerTestRole.hpp
+			GInProcessTestSupport.hpp)
+	TARGET_LINK_LIBRARIES(GCourtierMpiPeerExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME} MPI::MPI_CXX)
+	INSTALL(TARGETS GCourtierMpiPeerExerciser
+			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
+	FOREACH(scenario end-of-work session-fails)
+		ADD_TEST(NAME GCourtierMpiPeer_${scenario}
+				COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
+						${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiPeerExerciser> --scenario=${scenario}
+						${MPIEXEC_POSTFLAGS})
+		SET_TESTS_PROPERTIES(GCourtierMpiPeer_${scenario} PROPERTIES
+				LABELS "courtier" PROCESSORS 3 TIMEOUT 60)
+		GENEVA_TEST_SIZE(GCourtierMpiPeer_${scenario} M)
+	ENDFOREACH()
 
 	# Large-payload variant: each work item far exceeds the former fixed 20 KB MPI message cap,
 	# so this covers the dynamically-sized (MPI_Iprobe + MPI_Get_count) receive path.

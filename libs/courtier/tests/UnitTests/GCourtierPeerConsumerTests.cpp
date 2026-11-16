@@ -537,7 +537,8 @@ TEST_CASE(
 /**
  * A listener whose start() throws (a port that cannot be bound) leaves the shell one that was never
  * started: the exception reaches the caller, and neither stopServer() nor the destructor asks the
- * listener to stop or to end its work, or gives back threads that were never reserved. A second
+ * listener to stop or to end its work, or gives back threads that were never reserved; the stop
+ * announces the end of the run to the clients that may wait for the server, once. A second
  * startServer() is refused.
  */
 TEST_CASE(
@@ -556,8 +557,10 @@ TEST_CASE(
         shell.stopServer();
         CHECK(listener->nStops() == 0);
         CHECK_FALSE(listener->workEnded());
+        CHECK(listener->nAnnounced() == 1);
         CHECK(budget.reserved() == reserved_before);
     }
+    CHECK(listener->nAnnounced() == 1);
     CHECK(listener->nStops() == 0);
     CHECK_FALSE(listener->workEnded());
     CHECK(budget.reserved() == reserved_before);

@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <exception>
 #include <mutex>
+#include <thread>
 #include <tuple>
 #include <utility>
 
@@ -231,6 +232,44 @@ void GMPIPollCore::receiverEnded(int rank) {
         return;
     }
     boost::asio::post(strand_, [self = this->shared_from_this(), rank] { self->ended_(rank); });
+}
+
+/******************************************************************************/
+/**
+ * Waits, at most @p limit, for the sends under way to complete: takes them over and frees those that
+ * have completed, with pauses between the looks that grow as the chain's do. An owner calls it
+ * when no handler of the poll's executor or of the receivers' executors runs any more -- the chain
+ * no longer runs then -- and before shutdown(), so that the last messages of the ends (a close that
+ * tells the other rank of the end) are not given up while their ranks still receive. A failed chain
+ * is no hindrance: only the probe or receive failed. A look that fails ends the wait.
+ *
+ * @param limit The longest wait
+ * @return The number of sends still under way
+ */
+std::size_t GMPIPollCore::drainSends(std::chrono::milliseconds limit) {
+    if(shut_down_.load()) {
+        return 0;
+    }
+    const auto give_up_at = std::chrono::steady_clock::now() + limit;
+    auto pause = timing_.pauseMin;
+    try {
+        while(true) {
+            this->takeStarted_();
+            this->reap_();
+            if(requests_.empty() || std::chrono::steady_clock::now() >= give_up_at) {
+                break;
+            }
+            std::this_thread::sleep_for(pause);
+            pause = std::min(2 * pause, timing_.pauseMax);
+        }
+    }
+    catch(...) {
+        glogger << "GMPIPollCore (rank " << calls_->rank()
+                << "): a look at the sends under way failed: "
+                << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                << GWARNING;
+    }
+    return requests_.size();
 }
 
 /******************************************************************************/

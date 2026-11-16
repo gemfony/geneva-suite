@@ -299,11 +299,9 @@ public:
         this->requestStop();
 
         if(not started_.load()) {
-            // A server that was never started tells the clients that wait for it (a start that
-            // threw has left the listener as if never started, and it is not asked again)
-            if(not start_called_.load()) {
-                listener_->announceEndWithoutStart();
-            }
+            // A server that was never started -- or whose start threw, which leaves the listener
+            // as if it had not been started -- tells the clients that wait for it
+            listener_->announceEndWithoutStart();
             return;
         }
 

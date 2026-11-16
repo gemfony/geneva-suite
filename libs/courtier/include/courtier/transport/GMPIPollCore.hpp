@@ -207,6 +207,11 @@ public:
     void receiverBusy(bool);
 
     /***************************************************************************/
+    /** @brief Waits, at most the given time, for the sends under way to complete -- the last closes
+     *  of the ends, say, which shutdown() would otherwise give up at once. When no handler of the
+     *  executors runs any more, before shutdown(). @return The sends still under way */
+    std::size_t drainSends(std::chrono::milliseconds);
+
     /** @brief Ends the poll's work and gives up the sends that have not completed. When no handler
      *  of the executors runs any more; idempotent. */
     std::size_t shutdown();
