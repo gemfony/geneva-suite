@@ -236,6 +236,15 @@ holdStrand(const boost::asio::any_io_executor &executor) {
     return release;
 }
 
+/** @brief Waits, at most PATIENCE, until every handler posted to @p executor before this call has
+ *  run (a strand runs its handlers in the order they were posted)
+ *  @param executor A strand @return Whether they ran in time */
+bool flushed(const boost::asio::any_io_executor &executor) {
+    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(executor, [done] { done->count_down(); });
+    return done->wait_for(PATIENCE);
+}
+
 } /* anonymous namespace */
 
 /******************************************************************************/
@@ -265,7 +274,7 @@ TEMPLATE_TEST_CASE(
         role_a->start(a);
         REQUIRE(eventually([&] { return role_a->events().size() == 1; }));
         REQUIRE(eventually([&] { return transport.arrived(3); }));
-        std::this_thread::sleep_for(50ms); // what arrived is on b's strand
+        REQUIRE(flushed(b->executor())); // what arrived has been handled by b
         CHECK(role_b->events().empty());
 
         role_b->start(b);
@@ -372,8 +381,14 @@ TEMPLATE_TEST_CASE(
             std::jthread const closer_b([&] { role_b->close(GPeerClose::RUN_ENDED); });
         }
 
+        // An end reports its end after it has ended: wait for the reports. Once both ends have
+        // ended nothing is on its way between them any more (each end ends on the other's last
+        // message), so a second report could only come from a handler already on one of the two
+        // strands: when those have run, the count is final.
+        REQUIRE(eventually([&] { return role_a->nClosed() >= 1 && role_b->nClosed() >= 1; }));
         REQUIRE(eventually([&] { return a->ended() && b->ended(); }));
-        std::this_thread::sleep_for(1ms);
+        REQUIRE(flushed(a->executor()));
+        REQUIRE(flushed(b->executor()));
         CHECK(role_a->nClosed() == 1);
         CHECK(role_b->nClosed() == 1);
     }
@@ -649,7 +664,10 @@ TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
         const Stopper stopper{ctx};
 
         CHECK(eventually([&] { return role_b->events().size() == 1; }));
-        std::this_thread::sleep_for(50ms);
+        // The context still runs handlers after both ends have opened: it has not run out of work
+        const auto ran = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        boost::asio::post(ctx, [ran] { ran->count_down(); });
+        CHECK(ran->wait_for(PATIENCE));
         CHECK_FALSE(returned.load());
 
         role_a->close(GPeerClose::NORMAL);
@@ -818,7 +836,7 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
         issued->count_down();
     });
     issued->wait();
-    std::this_thread::sleep_for(50ms);
+    REQUIRE(flushed(strand)); // done would have been posted to the strand before this
     CHECK_FALSE(called.load());
 
     // After stop() there are no new connections.
@@ -1001,7 +1019,8 @@ TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[
         cut->count_down();
     });
     REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
-    std::this_thread::sleep_for(50ms);
+    REQUIRE(flushed(a->executor())); // what was on its way has been handled
+    REQUIRE(flushed(b->executor()));
     CHECK(role_a->events().back() == "closed:FAILED:NORMAL");
     CHECK(role_b->events().back() == "closed:FAILED:NORMAL");
     CHECK(role_b->nMessages() == 1);

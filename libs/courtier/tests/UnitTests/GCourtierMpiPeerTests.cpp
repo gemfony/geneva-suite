@@ -97,6 +97,15 @@ GMPIPeerOptions optionsWith(std::chrono::milliseconds grace = CLOSE_GRACE) {
     return GMPIPeerOptions{.name = "test", .closeGrace = grace};
 }
 
+/** @brief Waits, at most PATIENCE, until every handler posted to @p executor before this call has
+ *  run (an executor with one thread, or a strand, runs them in the order they were posted)
+ *  @param executor The executor @return Whether they ran in time */
+bool flushed(const boost::asio::any_io_executor &executor) {
+    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(executor, [done] { done->count_down(); });
+    return done->wait_for(PATIENCE);
+}
+
 /******************************************************************************/
 /** @brief An io context with threads of its own, which can be stopped, joined and shut down */
 class Pool {
@@ -269,6 +278,10 @@ public:
     GMPIConnector &connector() {
         return *connector_;
     }
+    /** @brief @return The client's io thread (its end and its poll run there) */
+    boost::asio::any_io_executor executor() {
+        return pool_.executor();
+    }
 
 private:
     std::shared_ptr<Role> role_ = makeRole();  ///< The role of the end
@@ -294,8 +307,12 @@ TEST_CASE(
     Client two(world, 2);
     Client three(world, 3);
 
-    std::this_thread::sleep_for(200ms);
-    CHECK(one.role().events().empty()); // no master: nothing is opened
+    // The clients' polls have looked a number of times and found no greeting: nothing is opened
+    REQUIRE(eventually([&] {
+        return world->counts(1).probes > 20 && world->counts(3).probes > 20;
+    }));
+    REQUIRE(flushed(one.executor()));
+    CHECK(one.role().events().empty());
 
     master.start();
     CHECK(master.listener().nPeers() == 3);
@@ -497,7 +514,7 @@ TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
         });
         connector->cancel();
         held->count_down();
-        std::this_thread::sleep_for(100ms);
+        REQUIRE(flushed(pool.executor())); // the report would have been posted before this
         CHECK_FALSE(called.load());
     }
 
