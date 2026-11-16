@@ -38,11 +38,13 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <future>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -105,6 +107,70 @@ template <typename condition_type>
 bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
+
+/******************************************************************************/
+/**
+ * @brief The teardown of a test world: waits, at most PATIENCE, until @p done is set (its client
+ * threads have returned from run()). A client that does not end is the sign of a failure the test
+ * has already reported (a REQUIRE that failed, say); joining it would hang the process until
+ * ctest's timeout, and Catch2's report of the failure would be lost. So the process ends here,
+ * after the report has been flushed, with a failure.
+ * @param done Whether the clients have ended @param world Which world, for the message
+ */
+template <typename done_type>
+void endsOrExits(const done_type &done, std::string_view world) {
+    if(eventually([&done] { return done(); })) {
+        return;
+    }
+    std::cout.flush();
+    std::cerr << world << ": a client did not end within " << PATIENCE.count()
+              << " s of the teardown; the test process ends here (see the failure above)"
+              << std::endl;
+    std::_Exit(EXIT_FAILURE);
+}
+
+/******************************************************************************/
+/**
+ * A batch that runs in a thread of its own while a test drives its clients. If the test leaves
+ * before the batch is done (a REQUIRE that failed), the batch would wait for its items for ever,
+ * and its future, destroyed first, with it: so the server is stopped first, which ends the batch.
+ */
+class BatchRun {
+public:
+    /** @brief @param run The batch, running @param stop Stops its server (idempotent) */
+    BatchRun(std::future<void> run, std::function<void()> stop)
+      : run_(std::move(run))
+      , stop_(std::move(stop)) { /* nothing */
+    }
+    /** @brief Stops the server if the batch is not done; the future then waits for it */
+    ~BatchRun() {
+        if(run_.valid() && run_.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+            try {
+                stop_();
+            }
+            catch(...) { // NOLINT(bugprone-empty-catch) -- a test's teardown goes on
+            }
+        }
+    }
+    BatchRun(const BatchRun &) = delete;
+    BatchRun(BatchRun &&) = default;
+    BatchRun &operator=(const BatchRun &) = delete;
+    BatchRun &operator=(BatchRun &&) = delete;
+
+    /** @brief Waits for the batch and rethrows what it threw */
+    void get() {
+        run_.get();
+    }
+    /** @brief @param patience How long @return The state of the batch after waiting so long */
+    template <typename duration_type>
+    std::future_status wait_for(duration_type patience) const {
+        return run_.wait_for(patience);
+    }
+
+private:
+    std::future<void> run_;
+    std::function<void()> stop_;
+};
 
 /******************************************************************************/
 /**
@@ -335,6 +401,7 @@ public:
     /** @brief Stops the server and joins the clients */
     ~World() {
         shell_.stopServer();
+        endsOrExits([this] { return this->clientsDone(); }, "World");
         threads_.clear();
     }
     World(const World &) = delete;
@@ -2403,6 +2470,7 @@ public:
         catch(...) { // NOLINT(bugprone-empty-catch) -- a test's teardown goes on
         }
         client_->flagCloseRequested();
+        endsOrExits([this] { return done_->load(); }, "HeldWorld");
         runner_ = std::jthread{};
     }
     HeldWorld(const HeldWorld &) = delete;
@@ -2411,8 +2479,8 @@ public:
     HeldWorld &operator=(HeldWorld &&) = delete;
 
     /** @brief @param items A batch @return It, running; not fatal if it cannot be completed */
-    std::future<void> batch(std::vector<std::unique_ptr<GHeldDecodeItem>> &items) {
-        return std::async(std::launch::async, [this, &items] {
+    BatchRun batch(std::vector<std::unique_ptr<GHeldDecodeItem>> &items) {
+        return {std::async(std::launch::async, [this, &items] {
             auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
             policy.fatal_on_none_returned = false;
             auto clone_template = std::make_unique<GHeldDecodeItem>();
@@ -2422,7 +2490,7 @@ public:
                 policy,
                 std::move(clone_template)
             );
-        });
+        }), [this] { shell_.stopServer(); }};
     }
 
     [[nodiscard]] held_client_type &client() {
@@ -2942,15 +3010,15 @@ std::shared_ptr<GFaultyContainer> loadSaved(const std::filesystem::path &file) {
 
 /** @brief A batch that may end without its results: its slots are then filled with clones of a
  *  template (not fatal) @param world Where it runs @param items Its items @return It, running */
-std::future<void> openBatch(World &world, std::vector<std::unique_ptr<GFaultyContainer>> &items) {
-    return std::async(std::launch::async, [&world, &items] {
+BatchRun openBatch(World &world, std::vector<std::unique_ptr<GFaultyContainer>> &items) {
+    return {std::async(std::launch::async, [&world, &items] {
         auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
         policy.fatal_on_none_returned = false;
         auto clone_template = std::make_unique<GFaultyContainer>(99);
         clone_template->markAsProcessedWith({true});
         world.shell()
             .processBatch(std::span(items.data(), items.size()), policy, std::move(clone_template));
-    });
+    }), [&world] { world.shell().stopServer(); }};
 }
 
 } /* anonymous namespace */

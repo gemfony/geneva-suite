@@ -46,12 +46,17 @@ SET(LIBRARIES_TO_LINK
 #
 # An optional "SPEC <test spec>" before the sources makes the entry run only the Catch2 test cases
 # the spec selects (see geneva_courtier_test_entry() for a second entry of the same executable).
+# Every entry ends after this many seconds at most, as the tree's other tests do with their TIMEOUT
+# (ctest's default is 1500 s): a test that hangs instead of failing is ended in reasonable time.
+# Generous, for the sanitizer builds and a loaded host.
+SET(GENEVA_COURTIER_TEST_TIMEOUT 600)
+
 FUNCTION(geneva_courtier_test name size)
 	CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 2 arg "" "SPEC" "")
 	ADD_EXECUTABLE(${name} ${arg_UNPARSED_ARGUMENTS})
 	TARGET_LINK_LIBRARIES(${name} ${LIBRARIES_TO_LINK})
 	ADD_TEST(${name} ${name} ${arg_SPEC})
-	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "courtier")
+	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "courtier" TIMEOUT ${GENEVA_COURTIER_TEST_TIMEOUT})
 	GENEVA_TEST_SIZE(${name} ${size})
 	INSTALL(TARGETS ${name} DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 ENDFUNCTION()
@@ -62,7 +67,7 @@ ENDFUNCTION()
 #     geneva_courtier_test_entry(<entry-name> <exe-name> <size> <spec>)
 FUNCTION(geneva_courtier_test_entry entry exe size spec)
 	ADD_TEST(${entry} ${exe} ${spec})
-	SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier")
+	SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" TIMEOUT ${GENEVA_COURTIER_TEST_TIMEOUT})
 	GENEVA_TEST_SIZE(${entry} ${size})
 ENDFUNCTION()
 
