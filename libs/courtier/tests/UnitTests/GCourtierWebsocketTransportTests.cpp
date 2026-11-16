@@ -454,8 +454,8 @@ TEST_CASE(
  * An accept that fails for want of a descriptor is retried after a pause, not at once and not
  * never. In a child process the client's socket is made, and then every descriptor up to a low
  * limit is taken, so that the listener's accept has none for the connection: the listener must
- * neither spin (it warns once per failed accept; at most 30 in one second, the pause being 100 ms)
- * nor stop accepting (once descriptors are free again, the waiting connection reaches on_peer). The
+ * retry (a second failure comes), neither spin (it warns once per failed accept; at most 30 in a
+ * second, the pause being 100 ms) nor stop accepting (once descriptors are free again, the waiting connection reaches on_peer). The
  * parent waits for the child, at most twenty seconds; the child's exit code says what went wrong.
  */
 TEST_CASE(
@@ -522,14 +522,21 @@ TEST_CASE(
             ::_exit(4);
         }
 
-        std::this_thread::sleep_for(1s);
-        const int n_failed = failures->n.load();
+        // The accept is retried: a second failure comes (at most within the five seconds of
+        // eventually(), which only keep a failing child from hanging). Then the failures of one
+        // second are counted: a pause of 100 ms allows about ten, a retry without a pause
+        // thousands. A slow host only lowers the count, so neither check depends on how busy the
+        // host is.
         int code = 0;
-        if(n_failed < 2) {
+        if(not eventually([&failures] { return failures->n.load() >= 2; })) {
             code = 5; // the accept was not retried
         }
-        else if(n_failed > 30) {
-            code = 6; // the accept was retried without a pause
+        else {
+            const int n_before = failures->n.load();
+            std::this_thread::sleep_for(1s);
+            if(failures->n.load() - n_before > 30) {
+                code = 6; // the accept was retried without a pause
+            }
         }
 
         for(const int fd : fillers) {
