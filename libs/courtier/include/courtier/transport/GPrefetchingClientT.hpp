@@ -61,8 +61,8 @@ namespace Gem::Courtier::Consumers {
 /******************************************************************************/
 /**
  * The prefetch/compute pipeline of the networked clients (GPeerClientT). A client keeps up to
- * prefetch_depth_ work items in flight (requested-but-unanswered pulls + items computing on the
- * compute pool), overlap network transfer with evaluation, back off on NO_WORK and poll halt() on a
+ * prefetch_depth_ work items in flight (pulls without an answer + items held for the compute pool +
+ * items being evaluated on it), overlap network transfer with evaluation, back off on NO_WORK and poll halt() on a
  * timer. That whole pipeline -- the in-flight bookkeeping, the compute-pool dispatch with its
  * work-guard discipline, the shared result prologue, the jittered NO_WORK refill timer and the
  * halt-poll timer -- lives here ONCE, as a CRTP base between GBaseClientT and the concrete client.
@@ -570,14 +570,15 @@ protected:
 
     std::string client_name_; ///< The concrete client's name (diagnostics)
 
-    /// Maximum number of work items the client keeps in flight at once (requested-but-not-yet-answered
-    /// pulls + currently computing). 1 == serial (one item at a time, the classic behaviour); a larger
-    /// depth overlaps network transfer with computation.
+    /// n: the most work items the client keeps in flight at once (pulls without an answer + items
+    /// held + items being evaluated, in_flight_()). 1 == serial (one item at a time, the classic
+    /// behaviour); a larger depth overlaps network transfer with computation.
     std::size_t prefetch_depth_ = 1;
 
     /// In-flight bookkeeping, touched on the io thread only (no locking needed): pulls (PULL/RETURN)
-    /// sent but not yet answered, and items currently being evaluated on the compute pool. The client
-    /// keeps pending_pulls_ + computing_ == prefetch_depth_ whenever work is available.
+    /// sent but not yet answered, and items currently being evaluated on the compute pool (at most
+    /// m). Together with the items held (held_) they make up the items in flight (in_flight_()),
+    /// which the client keeps at prefetch_depth_ whenever work is available.
     std::size_t pending_pulls_ = 0;
     std::size_t computing_ = 0;
     /// Messages handed to the decode strand whose books are not done yet (io thread)
