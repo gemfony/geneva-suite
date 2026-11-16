@@ -43,6 +43,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
@@ -730,6 +731,48 @@ std::chrono::milliseconds GMPIListener::stopGrace() const {
 /** @return false: the loss of a rank is not noticed (see the class comment) */
 bool GMPIListener::detectsLoss() const {
     return false;
+}
+
+/******************************************************************************/
+/**
+ * For a submitter whose consumer was never started (GListenerI::announceEndWithoutStart()): makes an
+ * end for every client rank on the poll's own context, closes each with GPeerClose::RUN_ENDED -- no
+ * greeting goes out, and a client's end that waits for one answers the close and ends -- and waits
+ * for the ends, at most stopGrace(). Then the poll's thread is joined and the poll ended. A rank that
+ * does not answer (it has ended, or never receives) is logged. Not after start().
+ */
+void GMPIListener::announceEndWithoutStart() {
+    {
+        const std::scoped_lock lock(core_mutex_);
+        if(core_) {
+            return; // started: the shell ends the run
+        }
+    }
+    auto core = std::make_shared<GMPIPollCore>(calls_, poll_context_.get_executor(), options_.poll);
+    auto peers = this->makePeers_(core, poll_context_.get_executor());
+    if(peers.empty()) {
+        std::ignore = core->shutdown();
+        return;
+    }
+    this->startPoll_(core);
+    core->start();
+
+    auto ended = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(peers.size());
+    for(const auto &peer : peers) {
+        peer->start(GPeerHandlers{.onClosed = [ended](GPeerEnd, GPeerClose, std::string_view) {
+            ended->count_down();
+        }});
+        peer->close(GPeerClose::RUN_ENDED);
+    }
+    if(not ended->wait_for(this->stopGrace())) {
+        glogger << "In " << options_.name << ": " << ended->remaining() << " of " << peers.size()
+                << " client rank(s) did not answer the end of a run that never started within "
+                << this->stopGrace().count() << " ms" << '\n'
+                << GWARNING;
+    }
+    this->joinPoll_();
+    std::ignore = core->shutdown();
+    poll_context_.shutdown();
 }
 
 /******************************************************************************/

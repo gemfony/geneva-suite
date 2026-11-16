@@ -288,6 +288,16 @@ public:
      *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
      *  time lease. */
     [[nodiscard]] virtual bool detectsLoss() const = 0;
+
+    /** @brief Tells the clients that are waiting for a server which will never start that the run
+     *  has ended (GPeerClose::RUN_ENDED), and waits for them, at most stopGrace(). Called once, by
+     *  the stop of a shell that was never started, in place of start(); the listener is neither
+     *  started nor asked to stop or to end its work afterwards, and holds nothing running when this
+     *  returns. For a transport whose clients wait for their server without a limit (MPI: they wait
+     *  for the greeting). The default does nothing: a client of a transport that connects finds no
+     *  server and gives up by its own limits. */
+    virtual void announceEndWithoutStart() { /* nothing */
+    }
 };
 
 /******************************************************************************/

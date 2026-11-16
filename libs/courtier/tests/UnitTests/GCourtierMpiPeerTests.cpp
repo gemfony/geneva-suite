@@ -629,3 +629,38 @@ TEST_CASE("MPI transport: a busy owner makes its poll look less often", "[courti
     REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
     CHECK(client.role().events().back() == "closed:CLOSED_HERE:NORMAL");
 }
+
+/******************************************************************************/
+/**
+ * A submitter that never starts tells the clients that wait for its greeting that the run has ended;
+ * they end without having been opened. A rank that does not answer is waited for at most the stop
+ * grace.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: a listener that never starts announces the end", "[courtier][mpi]") {
+    const bool all_there = GENERATE(true, false);
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    auto listener = std::make_unique<GMPIListener>(world->calls(0), optionsWith());
+    Client one(world, 1);
+    std::unique_ptr<Client> two;
+    if(all_there) {
+        two = std::make_unique<Client>(world, 2);
+    }
+    REQUIRE(eventually([&] { return world->counts(1).probes > 0; })); // waits for the greeting
+
+    const auto begin = std::chrono::steady_clock::now();
+    listener->announceEndWithoutStart();
+    const auto took = std::chrono::steady_clock::now() - begin;
+    REQUIRE(eventually([&] { return one.role().nClosed() == 1; }));
+    CHECK(one.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
+    if(all_there) {
+        REQUIRE(eventually([&] { return two->role().nClosed() == 1; }));
+        CHECK(two->role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
+        CHECK(took < listener->stopGrace());
+    }
+    else {
+        // rank 2 never receives: its answer does not come; its end gives up at the close grace
+        CHECK(took >= CLOSE_GRACE);
+        CHECK(took < listener->stopGrace() + 2s);
+    }
+}

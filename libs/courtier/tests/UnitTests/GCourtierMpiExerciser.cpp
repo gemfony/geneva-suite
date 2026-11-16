@@ -41,8 +41,9 @@
  *                     when every client has asked for work (connectedClients()).
  *   throwing       -- every fifth item throws from its evaluation. The workers must survive, and
  *                     the clone-on-partial-return policy must leave every slot processed.
- *   never-started  -- the master builds its consumer and destroys it without starting the server
- *                     (run with a single rank). The process must end normally.
+ *   never-started  -- the master builds its consumer and destroys it without starting the server.
+ *                     Its clients, which wait for its greeting, are told that the run has ended
+ *                     and end at once; so does the master.
  *   low-thread-level -- the program initializes MPI itself, below MPI_THREAD_MULTIPLE (single
  *                     rank). The consumer must refuse to be built.
  *   undecodable    -- each worker fails to load the first such item it is sent. The workers must
@@ -424,7 +425,7 @@ int runClient(
         client->setItemProcessor([](GFaultyContainer &item) { item.markAsProcessedWith({false}); });
     }
     client->run();
-    if(scenario.starts_with("stop-") || scenario == "soak") {
+    if(scenario.starts_with("stop-") || scenario == "soak" || scenario == "never-started") {
         // Every client of these is told the end of the run, and confirms it
         return verdict(
             client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_THERE,
@@ -503,10 +504,15 @@ int main(int argc, char **argv) {
     auto consumer = std::make_shared<consumer_type>(environment);
 
     if(scenario == "never-started") {
-        // The consumer's destructor stops the server. With a server that never ran there is nothing
-        // to join, and the destructor must not try.
+        // The consumer's destructor stops the server, which never ran: it tells the clients that
+        // wait for it, at once, and they confirm
+        const auto t0 = clock_type::now();
         consumer.reset();
-        return verdict(true, "a master that was never started was destroyed");
+        const double took = secondsSince(t0);
+        return verdict(
+            took < 5.0,
+            std::format("a master that was never started was destroyed after {:.2f} s", took)
+        );
     }
     if(scenario == "soak") {
         return soak(*consumer, workers);

@@ -86,6 +86,9 @@ namespace Gem::Courtier {
  * requested before the registry is read, and the session looks at the stop after it has entered
  * (startSession_()).
  *
+ * A server that is stopped without having been started tells the clients that wait for it that the
+ * run has ended, if its transport has such clients (GListenerI::announceEndWithoutStart()).
+ *
  * The end of a run (stopServer()): the consumer is told to stop (parked sessions wake up and close
  * their connections with GPeerClose::RUN_ENDED); the listener makes no new peers, and its stop()
  * returns only when the calls of on_peer it had begun have returned (GListenerI::stop()), so every
@@ -296,6 +299,11 @@ public:
         this->requestStop();
 
         if(not started_.load()) {
+            // A server that was never started tells the clients that wait for it (a start that
+            // threw has left the listener as if never started, and it is not asked again)
+            if(not start_called_.load()) {
+                listener_->announceEndWithoutStart();
+            }
             return;
         }
 

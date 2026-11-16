@@ -273,6 +273,11 @@ private:
  *
  * Loss of a client: not noticed (detectsLoss() is false): a rank that dies ends the whole job, and
  * the items of a rank that hangs come back by the consumer's time lease.
+ *
+ * A submitter whose consumer is stopped without having been started has never greeted its clients,
+ * which wait for that without a limit by default: announceEndWithoutStart() closes every client
+ * rank with GPeerClose::RUN_ENDED instead (an end waiting for the greeting answers such a close), on
+ * the poll's own thread, and waits for the answers, at most the stop grace.
  */
 class GMPIListener final : public GListenerI {
 public:
@@ -299,6 +304,9 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override;
     /** @brief false: the time lease reclaims the items of a rank that hangs */
     [[nodiscard]] bool detectsLoss() const override;
+    /** @brief For a submitter that never started: tells every client rank that the run has ended,
+     *  and waits for their answers, at most stopGrace() */
+    void announceEndWithoutStart() override;
 
     /** @brief The number of client ranks (the peers made by start()). Any thread.
      *  @return The count; 0 before start() */

@@ -206,7 +206,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and a
   second). A result a client can no longer deliver is saved (`--mpi_undeliveredDir`). The
   consumer answers `connectedClients()` (the clients that have asked for work), so the speed-up
-  benchmarks' `--waitForClients` works for MPI. While a client evaluates, its poll looks for
+  benchmarks' `--waitForClients` works for MPI. A submitter whose consumer is destroyed without
+  having been started tells its clients that the run has ended, and they end at once. While a
+  client evaluates, its poll looks for
   messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1 ms); what it
   sends goes out at once, so this costs no time per item, and a stop that reaches a client during an
   evaluation may take that much longer. Options: `--mpi_asyncReq` is removed --

@@ -189,8 +189,10 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# An evaluation that throws must not end the worker rank: the item comes back flagged and the
 	# submission policy deals with it.
 	geneva_courtier_mpi_scenario(GCourtierMpiThrowingItemTest 3 throwing)
-	# A master consumer that is destroyed without ever starting its server (a single rank suffices).
-	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 1 never-started)
+	# A master consumer that is destroyed without ever starting its server tells its clients, which
+	# wait for its greeting without a limit: everyone ends at once.
+	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 3 never-started)
+	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES TIMEOUT 30)
 	# A program that initialized MPI itself, below MPI_THREAD_MULTIPLE, is refused. An MPI library
 	# that grants the full level whatever is asked for cannot be checked; the entry is then skipped.
 	geneva_courtier_mpi_scenario(GCourtierMpiThreadLevelTest 1 low-thread-level)
