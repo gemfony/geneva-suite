@@ -301,6 +301,9 @@ public:
     /** @brief Records what the owner said, for the test to read. @param busy Whether it is busy */
     void setOwnerBusy(bool busy) override {
         owner_busy_.store(busy);
+        if(busy) {
+            n_told_busy_.fetch_add(1);
+        }
     }
 
     /***************************************************************************/
@@ -309,6 +312,10 @@ public:
     /** @brief @return What the owner said last through setOwnerBusy() */
     [[nodiscard]] bool ownerBusy() const {
         return owner_busy_.load();
+    }
+    /** @brief @return How often the owner said that it is busy */
+    [[nodiscard]] std::size_t nToldBusy() const {
+        return n_told_busy_.load();
     }
     /** @brief @return How many messages have been delivered to the role */
     [[nodiscard]] std::size_t nDelivered() const {
@@ -545,6 +552,7 @@ private:
     GPeerEnd aborted_end_ = GPeerEnd::CLOSED_HERE;
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
     std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
+    std::atomic<std::size_t> n_told_busy_{0};  ///< For the test: setOwnerBusy(true) calls
     std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role
 };
 

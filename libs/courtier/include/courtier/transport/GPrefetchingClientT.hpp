@@ -91,8 +91,9 @@ namespace Gem::Courtier::Consumers {
  *                                              item is the evaluated work item if the frame does
  *                                              not carry it (a library payload replaces it)
  *  - when_work_()                           -- optional: a WORK item has been counted (io thread)
- *  - when_busy_(busy)                       -- optional: computing_ has become, or stopped being,
- *                                              0 (io thread)
+ *  - when_busy_(busy)                       -- optional: every evaluation slot has become taken
+ *                                              (computing_ reached m), or one is free again (io
+ *                                              thread)
  *  - when_answered_(kind, connection)       -- optional: a message has been decoded (io thread),
  *                                              before the books are done; NONE if it could not be
  *                                              read; connection is what dispatch_message_() was
@@ -682,10 +683,12 @@ private:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Tells the concrete client (when_busy_(), if it has one) when computing_ has become,
-     *  or stopped being, 0. On the io thread. */
+    /** @brief Tells the concrete client (when_busy_(), if it has one) when the client has become
+     *  busy -- every evaluation slot is taken (computing_ has reached the parallel evaluations) --
+     *  or stopped being so. A client with a free slot is not busy: it waits for its next item. On
+     *  the io thread. */
     void busy_changed_() {
-        const bool busy = computing_ > 0;
+        const bool busy = computing_ >= parallel_evaluations_;
         if(busy == busy_told_) {
             return;
         }

@@ -228,9 +228,10 @@ public:
     /** @brief The executor all handlers of this peer run on. From any thread. */
     [[nodiscard]] virtual boost::asio::any_io_executor executor() = 0;
 
-    /** @brief Tells the transport whether the owner of this peer (a client) is busy evaluating. On
-     *  the executor. A polling transport may look less often while its owner is busy; the
-     *  default ignores it. */
+    /** @brief Tells the transport whether the owner of this peer (a client) is busy: every one of
+     *  its evaluation slots is taken, so that nothing that may arrive is needed before an
+     *  evaluation ends. On the executor. A polling transport may look less often while its owner is
+     *  busy; the default ignores it. */
     virtual void setOwnerBusy(bool) { /* nothing */
     }
 };

@@ -699,6 +699,48 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+/** A client with an evaluation slot free is not busy: it waits for its next item, and a polling
+ *  transport must not look less often for it. Only with every slot taken is it busy. */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
+TEST_CASE(
+    "GPeerClientT: a client is busy only while every evaluation slot is taken",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world;
+    world.client(
+        GPeerClientOptions{
+            .name = "two slots",
+            .mode = BIN,
+            .prefetchDepth = 2,
+            .parallelEvaluations = 2
+        },
+        evaluations,
+        200ms,
+        watch,
+        AS_IS
+    );
+    // The client's end is looked at only briefly: it must not outlive the client's io context.
+    const auto told_busy = [&watch] {
+        const auto end = watch->last();
+        return end == nullptr ? std::size_t{0} : end->nToldBusy();
+    };
+    REQUIRE(eventually([&] { return watch->last() != nullptr; }));
+
+    // One item: one slot is taken, one is free -- never busy
+    auto one = makeBatch(1);
+    REQUIRE(world.runBatch(one));
+    CHECK(told_busy() == 0);
+
+    // Two items: both slots taken -- busy
+    auto two = makeBatch(2);
+    REQUIRE(world.runBatch(two));
+    CHECK(evaluations->mostAtOnce() == 2);
+    CHECK(told_busy() >= 1);
+}
+
+/******************************************************************************/
 /** Scarce work: two items, four look-ahead clients, each waiting with one request. Each client has
  *  at most one request unanswered, so a woken session hands its client one item, and each item is
  *  evaluated once. Which clients get the items is not fixed: a wake-up does not hand an item over,
