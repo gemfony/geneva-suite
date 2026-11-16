@@ -542,9 +542,10 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
 /**
  * The place of a 2-d pad's legend that covers the least of its data: of the boxes legendBox() gives
  * the lower right, the middle of the right side, the top left, the lower left and the top right
- * (in this order of preference), the one that covers the least of the data: a point counts one, a
- * straight segment of a curve one in all, by the share of it that lies inside (it is sampled along
- * its length); the data are placed in the pad
+ * (in this order of preference), the one that covers the least of the data: every point of a cloud
+ * and every vertex of a curve counts one, and a straight segment of a curve that crosses the box
+ * without a vertex inside counts one too (it is sampled along its length), so that a curve is
+ * never cheaper to cover than a cloud; the data are placed in the pad
  * as ROOT frames them (the range of the data widened by a twentieth on each side, by a factor of
  * 1.1 on a logarithmic axis, inside margins of a tenth). It is the freest corner, not a free one:
  * where every corner covers data, the legend covers the fewest. A box narrower than @p width is
@@ -591,32 +592,40 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
         return 0.1 + (0.8 * (v - (lo - widen)) / (width + (2. * widen)));
     };
     constexpr int SAMPLES = 200;
-    // A sample and its weight: a point weighs one, a straight segment of a curve one in all (its
-    // samples share it), so that a short piece of line does not outweigh the markers of a cloud.
-    std::vector<std::tuple<double, double, double>> samples;
-    double weight = 1.;
-    const auto place = [&](double x, double y) {
-        if((x_log and x <= 0.) or (y_log and y <= 0.)) {
-            return;
-        }
-        samples.emplace_back(
-            to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log), weight
-        );
+    // Every point of a cloud and every vertex of a curve counts one; a straight segment of a curve
+    // that crosses a box without a vertex inside counts one as well (it is sampled along its length),
+    // so that a curve is never cheaper to cover than a cloud of as many points.
+    std::vector<std::pair<double, double>> vertices;
+    std::vector<std::vector<std::pair<double, double>>> segments; // a segment's samples between its vertices
+    const auto shown = [&](double x, double y) { return not((x_log and x <= 0.) or (y_log and y <= 0.)); };
+    const auto in_pad = [&](double x, double y) {
+        return std::pair{to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log)};
     };
-    weight = 1. / (SAMPLES + 1);
-    for(const auto &curve : curves) {
-        for(std::size_t i = 0; i + 1 < curve.size(); i++) {
-            for(int k = 0; k <= SAMPLES; k++) {
-                const double t = static_cast<double>(k) / SAMPLES;
-                place(curve[i].first + (t * (curve[i + 1].first - curve[i].first)),
-                      curve[i].second + (t * (curve[i + 1].second - curve[i].second)));
+    for(const auto *set : {&curves, &points}) {
+        for(const auto &series : *set) {
+            for(const auto &[x, y] : series) {
+                if(shown(x, y)) {
+                    vertices.push_back(in_pad(x, y));
+                }
             }
         }
     }
-    weight = 1.;
-    for(const auto &cloud : points) {
-        for(const auto &[x, y] : cloud) {
-            place(x, y);
+    for(const auto &curve : curves) {
+        for(std::size_t i = 0; i + 1 < curve.size(); i++) {
+            std::vector<std::pair<double, double>> segment;
+            for(int k = 1; k < SAMPLES; k++) {
+                const double t = static_cast<double>(k) / SAMPLES;
+                const double x = curve[i].first + (t * (curve[i + 1].first - curve[i].first));
+                const double y = curve[i].second + (t * (curve[i + 1].second - curve[i].second));
+                if(shown(x, y)) {
+                    segment.push_back(in_pad(x, y));
+                }
+            }
+            if(shown(curve[i].first, curve[i].second) and shown(curve[i + 1].first, curve[i + 1].second)) {
+                segment.push_back(in_pad(curve[i].first, curve[i].second));     // the ends, to tell a
+                segment.push_back(in_pad(curve[i + 1].first, curve[i + 1].second)); // crossing segment
+            }
+            segments.push_back(std::move(segment));
         }
     }
     legendPosition best = legendPosition::BOTTOM_RIGHT;
@@ -637,10 +646,15 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
                 x2 = std::min(0.9, x1 + width);
             }
         }
-        double covered = 0.;
-        for(const auto &[x, y, w] : samples) {
-            if(x >= x1 and x <= x2 and y >= y1 and y <= y2) {
-                covered += w;
+        const auto inside = [&](const std::pair<double, double> &p) {
+            return p.first >= x1 and p.first <= x2 and p.second >= y1 and p.second <= y2;
+        };
+        double covered = static_cast<double>(std::ranges::count_if(vertices, inside));
+        for(const auto &segment : segments) {
+            const bool ends_inside = segment.size() >= 2
+                and (inside(segment[segment.size() - 1]) or inside(segment[segment.size() - 2]));
+            if(not ends_inside and std::ranges::any_of(segment, inside)) {
+                covered += 1.; // crosses the box without a vertex inside
             }
         }
         if(covered < fewest - 1e-12) {

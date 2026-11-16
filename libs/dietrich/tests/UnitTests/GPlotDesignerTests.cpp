@@ -1976,8 +1976,8 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
         const std::vector<std::vector<std::pair<double, double>>> bottom_curve{{{0., 0.}, {40., 0.}}};
         CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2) == legendPosition::CENTER_RIGHT);
         CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2, false, false, 0.75) != legendPosition::CENTER_RIGHT);
-        // A point weighs as much as a whole straight segment of a curve: a box over a piece of
-        // line is freer than one over ten markers.
+        // A vertex of a curve weighs as much as a marker: a box over a piece of line with two
+        // vertices is freer than one over ten markers.
         std::vector<std::pair<double, double>> right_cloud{{0., 0.}, {40., 10.}};
         for(int i = 0; i < 10; ++i) {
             right_cloud.emplace_back(35. + 0.3 * i, 1.);   // the lower right
@@ -1987,6 +1987,15 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
         }
         const std::vector<std::vector<std::pair<double, double>>> low_left{{{0., 0.5}, {8., 0.5}}};
         CHECK(freestLegendCorner(low_left, {right_cloud}, 2) == legendPosition::BOTTOM_LEFT);
+        // A segment that crosses a box without a vertex inside counts like a marker: a box it
+        // crosses is no freer than one over a single marker (the first of them in the order of
+        // preference is taken), however little of the segment lies inside.
+        const std::vector<std::vector<std::pair<double, double>>> crossing{{{30., 3.6}, {30., 6.4}}};
+        const std::vector<std::vector<std::pair<double, double>>> markers{
+            {{0., 0.}, {40., 10.}, {38., 1.},                 // the range; one marker in the lower right
+             {2., 9.}, {3., 9.}, {4., 9.}, {2., 1.}, {3., 1.}, // three in the top left and lower left,
+             {4., 1.}, {36., 9.}, {37., 9.}, {38., 9.}}};     // and in the top right
+        CHECK(freestLegendCorner(crossing, markers, 2) == legendPosition::BOTTOM_RIGHT);
     }
 
     SECTION("every backend places a FREEST legend in that corner; a 3-d pad keeps its band") {
