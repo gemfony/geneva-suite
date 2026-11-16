@@ -539,6 +539,15 @@ TEST_CASE(
             }
         }
 
+        if(code != 0) { // what the child saw, for the parent's log
+            std::fprintf(
+                stderr,
+                "accept-retry child: code %d, failed accepts %d, peers %d\n",
+                code,
+                failures->n.load(),
+                n_peers.load()
+            );
+        }
         for(const int fd : fillers) {
             ::close(fd);
         }
