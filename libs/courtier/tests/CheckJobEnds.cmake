@@ -75,7 +75,8 @@ execute_process(
     ERROR_VARIABLE _out)
 message("${_out}")
 
-if(NOT _rc MATCHES "^-?[0-9]+$" OR (_timeout_program AND _rc EQUAL 124))
+# Did the job end within the bound? timeout's own code 124, or the backstop's text, say no.
+if((_timeout_program AND _rc STREQUAL "124") OR _rc MATCHES "timeout")
     # Processes of this test program that are still there (of this entry or of another one that
     # runs at the same time): a hint for whoever looks at the failure.
     execute_process(COMMAND pgrep -xc GCourtierMpiCas OUTPUT_VARIABLE _left ERROR_QUIET
@@ -83,7 +84,17 @@ if(NOT _rc MATCHES "^-?[0-9]+$" OR (_timeout_program AND _rc EQUAL 124))
     message(FATAL_ERROR "FAIL: the job did not end within ${LIMIT} s (${_rc}); "
         "processes named GCourtierMpiCas still running: ${_left}")
 endif()
-if(EXPECT_EXIT STREQUAL "zero")
+# The job ended, but the launcher by a signal (a text instead of a number): Open MPI 5.0.10's
+# prterun was seen to crash in PMIx_server_finalize while it tore a job down after MPI_Abort. That is
+# a non-zero end of the job -- all a job that must end otherwise asks for; one that must end with 0
+# fails.
+if(NOT _rc MATCHES "^-?[0-9]+$")
+    if(EXPECT_EXIT STREQUAL "zero")
+        message(FATAL_ERROR "FAIL: the launcher ended by a signal (${_rc}), not with 0")
+    endif()
+    message(STATUS "the launcher ended by a signal (${_rc}): a non-zero end")
+    set(_rc "a signal (${_rc})")
+elseif(EXPECT_EXIT STREQUAL "zero")
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "FAIL: the job ended with the exit code ${_rc}, not 0")
     endif()
