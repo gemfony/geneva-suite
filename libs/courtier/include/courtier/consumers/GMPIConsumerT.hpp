@@ -71,7 +71,9 @@ namespace Gem::Courtier {
  *
  * The start of a run (startServer()): every client rank is greeted, and its client then asks for
  * work. A client that has nothing to do waits at the server; its request is answered when an item
- * becomes available.
+ * becomes available. A communicator without a client rank (a program started as one process) is
+ * refused there, with a text that says how the program is started: an MPI job keeps the ranks it
+ * was started with, so its work would wait for ever.
  *
  * The end of a run (stopServer()): every client is told that the run has ended and the server
  * waits for the clients to confirm, at most the stop grace (GMPICONSUMERSHUTDOWNGRACE and a

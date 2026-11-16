@@ -329,7 +329,7 @@ public:
     GMPIListener &operator=(GMPIListener &&) = delete;
 
     /** @brief Makes the poll and a peer for every client rank, greets the ranks and hands the
-     *  peers to the shell */
+     *  peers to the shell; refuses a communicator without a client rank */
     void start(boost::asio::any_io_executor, on_peer_type) override;
     /** @brief Waits for the calls of on_peer under way; bounded, idempotent */
     void stop() override;

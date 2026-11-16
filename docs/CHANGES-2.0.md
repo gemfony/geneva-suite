@@ -200,7 +200,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   iteration, are gone) and fetches the next item while it evaluates the current one, with at most
   one request unanswered. A client opens when the submitter's consumer has started: the consumer
   greets every client rank, and `--mpi_firstContactLimit` (seconds, default 0: as long as it runs)
-  bounds the wait for it. A client honours its time and item limits and a close request, which had
+  bounds the wait for it. A submitter without a client rank (a program started as one process,
+  with or without the launcher) refuses to start, says how the program is started, and ends with a
+  non-zero code; it used to wait for ever. A client honours its time and item limits and a close request, which had
   no effect on an MPI client before: it sends the results of the evaluations that run and leaves;
   the submitter goes on with the others and hands out again what it held. At the end of a run
   every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and a

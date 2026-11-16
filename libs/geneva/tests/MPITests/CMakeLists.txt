@@ -110,4 +110,20 @@ IF ( GENEVA_BUILD_EXAMPLES )
 			LABELS "geneva" TIMEOUT 60 PROCESSORS 2 )
 		GENEVA_TEST_SIZE ( GMPINoMpiOn${_case} S )
 	ENDFOREACH ()
+
+	# A program started with the MPI consumer as one rank (under the launcher with one process, or
+	# without it) has no client rank to evaluate its work, and an MPI job keeps its ranks: it must
+	# say so and end with a non-zero code within seconds, not wait for ever.
+	SET ( ONERANK_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/one-rank )
+	FILE ( MAKE_DIRECTORY ${ONERANK_WORKDIR} )
+	ADD_TEST ( NAME GMPIOneRankRefused
+		COMMAND ${CMAKE_COMMAND}
+			"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};1;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GSimpleOptimizer>;${MPIEXEC_POSTFLAGS};--consumer;mpi"
+			-DEXPECT_EXIT=nonzero
+			"-DEXPECT=The MPI consumer has no client rank;at least two processes"
+			-DLIMIT=20
+			-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckJobEnds.cmake
+		WORKING_DIRECTORY ${ONERANK_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPIOneRankRefused PROPERTIES LABELS "geneva" TIMEOUT 60 )
+	GENEVA_TEST_SIZE ( GMPIOneRankRefused S )
 ENDIF ()

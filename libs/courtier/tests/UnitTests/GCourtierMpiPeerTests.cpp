@@ -872,3 +872,51 @@ TEST_CASE(
         CHECK_FALSE(client->terminalErrorFlagged());
     }
 }
+
+/******************************************************************************/
+/**
+ * A communicator of the submitter's rank alone has no client rank, and an MPI job keeps its ranks:
+ * the listener refuses to start, with a text that says what is missing and how the program is
+ * started, instead of waiting for ever; the shell's startServer() passes the refusal on, and the
+ * shell stops without anything to tell.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: a communicator of one rank is refused at the start", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(1);
+    const auto refusal = [](const std::function<void()> &start) {
+        try {
+            start();
+        }
+        catch(const std::exception &e) {
+            return std::string{e.what()};
+        }
+        return std::string{};
+    };
+
+    SECTION("the listener") {
+        GMPIListener listener(world->calls(0), optionsWith());
+        Pool pool(1);
+        const std::string what = refusal([&] {
+            listener.start(pool.executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {});
+        });
+        CHECK(what.find("has no client rank") != std::string::npos);
+        CHECK(what.find("at least two processes") != std::string::npos);
+        CHECK(listener.nPeers() == 0);
+        CHECK_FALSE(listener.pollCounts().has_value()); // no poll was made
+        pool.join();
+    }
+
+    SECTION("the shell") {
+        Gem::Courtier::GPeerConsumerT<Gem::Courtier::GFaultyContainer> shell(
+            "one-rank shell",
+            std::make_unique<GMPIListener>(world->calls(0), optionsWith()),
+            1,
+            Gem::Common::serializationMode::GEM_BINARY
+        );
+        const auto begin = std::chrono::steady_clock::now();
+        const std::string what = refusal([&] { shell.startServer(); });
+        CHECK(what.find("has no client rank") != std::string::npos);
+        shell.stopServer();
+        CHECK(std::chrono::steady_clock::now() - begin < PATIENCE);
+    }
+}

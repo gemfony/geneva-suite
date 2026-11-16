@@ -584,10 +584,13 @@ GMPIListener::~GMPIListener() {
  * on_peer is posted, once per rank, to a strand of @p executor, with the rank as the client's id.
  * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer.
  *
+ * A communicator of this rank alone is refused: there is no client rank, and an MPI job keeps the
+ * ranks it was started with, so the work would wait for ever.
+ *
  * @param executor Where on_peer and the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every client rank
- * @throws geneva_exception if the listener was started before, or if the poll or its thread cannot
- *         be made
+ * @throws geneva_exception if the listener was started before, if the communicator has no rank
+ *         besides this one, or if the poll or its thread cannot be made
  */
 void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     {
@@ -599,6 +602,19 @@ void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_
                 << "The listener has been started before" << '\n'
             );
         }
+    }
+    if(calls_->size() < 2) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In " << options_.name << ": Error!" << '\n'
+            << "The MPI consumer has no client rank: its communicator holds this rank only, "
+               "which submits the work. The work is evaluated on the other ranks of the job, and "
+               "an MPI job keeps the ranks it was started with, so nothing would ever be "
+               "evaluated. Start the program under the MPI launcher with at least two "
+               "processes, e.g. \"mpirun -np 4 <program> --consumer mpi\" (one submitter and "
+               "three clients)."
+            << '\n'
+        );
     }
 
     auto core = std::make_shared<GMPIPollCore>(calls_, poll_context_.get_executor(), options_.poll);
