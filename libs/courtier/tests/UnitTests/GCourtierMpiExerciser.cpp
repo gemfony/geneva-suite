@@ -393,14 +393,16 @@ int runClient(
     if(scenario == "client-time-limit" && rank == 1) {
         const auto client = std::make_shared<client_type>(environment, config);
         client->setMaxTime(std::chrono::seconds(1));
-        const auto t0 = clock_type::now();
         client->run();
-        const double took = secondsSince(t0);
+        // It closed the connection itself (CLOSED_HERE, answered by the master), and was not told
+        // the end of the run (CLOSED_THERE): an event, not a duration
         return verdict(
-            took < 3.0 && client->getNProcessed() > 0 && client->resultsSaved() == 0,
+            client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE &&
+                client->getNProcessed() > 0 && client->resultsSaved() == 0,
             std::format(
-                "rank 1 ended by its time limit of 1 s after {:.2f} s, having processed {} items",
-                took,
+                "rank 1 ended by its time limit (its own confirmed close: {}), having processed {} "
+                "items",
+                client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE,
                 client->getNProcessed()
             )
         );

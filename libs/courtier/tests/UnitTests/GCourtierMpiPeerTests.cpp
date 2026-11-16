@@ -164,11 +164,11 @@ public:
     /** @brief @param world The communicator @param options How the ends are set up */
     explicit Master(
         const std::shared_ptr<GMPIFakeWorld> &world,
-        GMPIPeerOptions options = optionsWith()
+        GMPIPeerOptions options = optionsWith(),
+        std::size_t n_threads = 4
     )
-      : listener_(
-            std::make_unique<GMPIListener>(world->calls(0), std::move(options))
-        ) { /* nothing */
+      : listener_(std::make_unique<GMPIListener>(world->calls(0), std::move(options)))
+      , pool_(n_threads) { /* nothing */
     }
     ~Master() {
         pool_.join();
@@ -239,7 +239,7 @@ public:
 
 private:
     std::unique_ptr<GMPIListener> listener_; ///< Destroyed after the pool's context
-    Pool pool_{4};                           ///< Where the peers' handlers run
+    Pool pool_;                              ///< Where the peers' handlers run
     bool started_ = false;                   ///< start() was called
     mutable std::mutex mutex_;               ///< Guards roles_
     /// The roles made (their peers hold them too, until they let go)
@@ -606,22 +606,36 @@ TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a slow session does not hold up the poll", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(2);
+    // One session thread, held by rank 1's session while it handles a message: the poll has a
+    // thread of its own, so rank 2's message is received meanwhile, and rank 1's close is answered.
+    auto world = std::make_shared<GMPIFakeWorld>(3);
     GMPIPeerOptions options = optionsWith(5s);
-    options.poll.drainGrace = 100ms;
-    Master master(world, options);
-    Client client(world, 1, options);
-    // The client's role sends and closes when it is opened (on its executor)
-    client.role().whenOpen = [](Role &role) {
+    Master master(world, options, 1);
+    Client one(world, 1, options);
+    Client two(world, 2, options);
+    one.role().whenOpen = [](Role &role) {
         role.send("M");
         role.close(GPeerClose::NORMAL);
     };
-    master.start([](Role &role, GWirePeerId) {
-        role.whenMessage = [](Role &, const std::string &) { std::this_thread::sleep_for(600ms); };
+    std::atomic<bool> holding{false};
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    master.start([&holding, release](Role &role, GWirePeerId rank) {
+        if(rank == 1) {
+            role.whenMessage = [&holding, release](Role &, const std::string &) {
+                holding.store(true);
+                std::ignore = release->wait_for(3 * PATIENCE); // longer than the check waits
+            };
+        }
     });
-    REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-    CHECK(client.role().events().back() == "closed:CLOSED_HERE:NORMAL");
-    REQUIRE(eventually([&] { return master.role(1) != nullptr; }));
+    REQUIRE(eventually([&] { return holding.load(); }));
+    REQUIRE(eventually([&] { return two.role().events().size() == 1; })); // open
+    const auto received = world->counts(0).receives;
+    boost::asio::post(two.executor(), [&two] { two.role().send("N"); });
+    CHECK(eventually([&] { return world->counts(0).receives > received; }));
+    release->count_down();
+
+    REQUIRE(eventually([&] { return one.role().nClosed() == 1; }));
+    CHECK(one.role().events().back() == "closed:CLOSED_HERE:NORMAL");
     const auto role = master.role(1);
     REQUIRE(role != nullptr);
     REQUIRE(eventually([&] { return role->nClosed() == 1; }));
@@ -796,4 +810,65 @@ TEST_CASE(
     CHECK(limited->resultsSaved() == 0);
     CHECK_FALSE(limited->terminalErrorFlagged());
     CHECK(unlimited->getNProcessed() > 0);
+}
+
+/******************************************************************************/
+/**
+ * A client's end waits for the greeting: without a submitter it never opens, and the client gives
+ * up at its first-contact limit (--mpi_firstContactLimit); once greeted it is open, and the limit
+ * no longer applies, however long the submitter has no work for it.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: a client waits for the greeting up to its first-contact limit",
+    "[courtier][mpi]"
+) {
+    using client_type = Gem::Courtier::Consumers::GPeerClientT<Gem::Courtier::GFaultyContainer>;
+    using Gem::Courtier::Consumers::GPeerClientOptions;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    const auto make_client = [&world] {
+        return std::make_shared<client_type>(
+            std::make_unique<GMPIConnector>(world->calls(1), optionsWith()),
+            GPeerClientOptions{.name = "greeting test", .firstContactLimit = 1s}
+        );
+    };
+
+    SECTION("no submitter: the client gives up at the limit") {
+        auto client = make_client();
+        std::atomic<bool> returned{false};
+        std::jthread runner([&] {
+            client->run();
+            returned.store(true);
+        });
+        CHECK(eventually([&] { return returned.load(); }));
+        runner.join();
+        CHECK(client->connections() == 0);
+        CHECK(client->terminalErrorFlagged());
+    }
+
+    SECTION("greeted: the limit no longer applies") {
+        Gem::Courtier::GPeerConsumerT<Gem::Courtier::GFaultyContainer> shell(
+            "greeting shell",
+            std::make_unique<GMPIListener>(world->calls(0), optionsWith()),
+            1,
+            Gem::Common::serializationMode::GEM_BINARY
+        );
+        shell.startServer();
+        auto client = make_client();
+        std::atomic<bool> returned{false};
+        std::jthread runner([&] {
+            client->run();
+            returned.store(true);
+        });
+        REQUIRE(eventually([&] { return client->connections() == 1; }));
+        // Past the limit, and past the halt poll that looks at it, the client still waits
+        const auto polls = client->haltPolls();
+        REQUIRE(eventually([&] { return client->haltPolls() >= polls + 2; }));
+        CHECK_FALSE(returned.load());
+        shell.stopServer();
+        CHECK(eventually([&] { return returned.load(); }));
+        runner.join();
+        CHECK(client->connectionEnd() == Gem::Courtier::Consumers::GPeerEnd::CLOSED_THERE);
+        CHECK_FALSE(client->terminalErrorFlagged());
+    }
 }
