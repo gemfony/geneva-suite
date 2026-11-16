@@ -463,6 +463,12 @@ void GWebsocketPeer::closeWhenSent_() {
     close_timer_.cancel();
     auto self = this->shared_from_this();
     ws_.async_close(codeFor(close_how_, host_.empty()), [self](const error_code &ec) {
+        // Beast's close operation reads the other end's close frame without the control callback:
+        // a close handshake that completed has read it, and one that ended with an error may have
+        // (its code is then known). What it said is reported either way (finish_()).
+        if(not ec || self->ws_.reason().code != close_code::none) {
+            self->close_received_ = true;
+        }
         if(not ec && self->answersOurClose_()) {
             self->close_confirmed_ = true;
         }

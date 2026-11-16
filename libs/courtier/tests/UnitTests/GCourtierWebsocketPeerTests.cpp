@@ -367,7 +367,10 @@ TEST_CASE(
 /******************************************************************************/
 // What arrives after close() was called (GPeerI.hpp, rule 6). The other end is a plain Beast stream
 // on a thread of its own, so that the test decides the order of the frames; it is a client, and
-// begins its close with the code a client's end uses (1000). The end under test is a server's end.
+// begins its close with a code a client's end uses (1011, an error). The end under test is a
+// server's end. Whatever read the other end's close -- the peer's own read, or Beast's close
+// operation, which does not call the control callback -- the end under test reports what it said.
+// (The in-process pair of the tests has no second reader of a close and cannot show the latter.)
 //  - The other end's message and close arrive before this end's close has gone out (its queue
 //    cannot be written: the other end reads nothing until it closes): the message is handed to
 //    the role, and the other end's close is answered; this end's close was not confirmed.
@@ -428,7 +431,7 @@ TEST_CASE(
                 return;
             }
             ws.write(boost::asio::buffer(late));
-            ws.close(boost::beast::websocket::close_code::normal); // reads until the other's close
+            ws.close(boost::beast::websocket::close_code::internal_error); // reads until the other's
             their_view.set_value(ws.reason().code);
         }
         catch(...) {
@@ -478,16 +481,19 @@ TEST_CASE(
     case Order::THEIRS_FIRST:
         CHECK(server_seen.messages == std::vector<std::string>{late});
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // its own close came first
-        CHECK(their_code == boost::beast::websocket::close_code::normal); // answered: echoed
+        CHECK(server_seen.how == GPeerClose::ERROR); // read by the peer's own read
+        CHECK(their_code == boost::beast::websocket::close_code::internal_error); // answered
         break;
     case Order::OURS_FIRST:
         CHECK(server_seen.messages.empty()); // discarded by Beast after our close went out
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // the closes crossed
+        CHECK(server_seen.how == GPeerClose::ERROR); // read by Beast's close operation
         CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL); // not an answer
         break;
     case Order::ANSWERED:
         CHECK(server_seen.messages.empty());
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
+        CHECK(server_seen.how == GPeerClose::NORMAL); // the echo of its own close
         CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
         break;
     }
