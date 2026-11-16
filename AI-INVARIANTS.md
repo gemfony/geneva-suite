@@ -75,6 +75,28 @@ appropriate to the change) on the actual trees. The false-green discipline of th
 (separate configure/make/ctest exit codes; a stale tree proves nothing) applies to this verification
 exactly as to the original run.
 
+## AI-6. One full review per package; a fix does not earn another
+
+Review has a stopping rule, because a fresh reader always finds something:
+
+- A package of work gets **one** full review by a reader without the drafting context (a frozen
+  checkout, verbatim quotes — AI-2). The round that fixes its findings is followed by a **targeted
+  check of the changed lines** — does each fix close its finding, did it disturb its surroundings —
+  and not by another full review.
+- Findings are sorted by what they cost a user. What loses or duplicates results, hangs, crashes or
+  produces wrong output is fixed before the series is merged. Documentation, test weaknesses and
+  older defects outside the package are fixed as well (Invariants 9 and 15: fixed, not listed), in
+  the same series or in a small package of their own, but they start no further round of review.
+- The supervisor's verification from scratch (AI-5) is run for a state that is about to be pushed,
+  not for intermediate states; between pushes the executing agent's gates carry the work.
+- This composes with Invariant 29: a thin slice gets a review of its design before depth is added,
+  and its one full review when the depth is in.
+
+*Why:* without a stopping rule the cycle of review and fix runs on with falling yield and rising
+cost. In the courtier rework of November 2026 the main branch went through four such rounds, a
+side branch through three; the first rounds found a lost result and several hangs, the later ones
+rare, cosmetic or older defects, at the same price per round.
+
 ---
 
 *Add new AI invariants below as the maintainer establishes them. Keep each rule short, mandatory, and
