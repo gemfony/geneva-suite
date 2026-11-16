@@ -53,6 +53,8 @@
 #              (adaptive | fixed | wait_indefinitely); a test of "nothing is
 #              lost" wants wait_indefinitely, or a lost item is resubmitted
 #              after the give-up window and the loss stays hidden
+#   NVARIABLES the number of double parameters of an individual (the item's size: 8 bytes
+#              each; the configuration's 100 if unset)
 #   SRVOPTS    further options for the server (for MPI: for every rank)
 #   MPISTART   seconds to wait after mpirun before rank 0 is looked up (8)
 #
@@ -105,7 +107,10 @@ f = 'config/GEvolutionaryAlgorithm.json'; d = json.load(open(f))
 d['population']['size']['value'] = int(sys.argv[1]); d['max_iteration']['value'] = 100000
 d['max_stall_iteration']['value'] = 0; json.dump(d, open(f, 'w'), indent=1)
 f = 'config/GDelayIndividual.json'; d = json.load(open(f))
-d['delays']['value'] = sys.argv[2]; json.dump(d, open(f, 'w'), indent=1)
+d['delays']['value'] = sys.argv[2]
+if 'NVARIABLES' in os.environ:
+    d['n_variables']['value'] = int(os.environ['NVARIABLES'])
+json.dump(d, open(f, 'w'), indent=1)
 if 'TREATMENT' in os.environ:
     f = 'config/GNetworkedConsumer.json'; d = json.load(open(f))
     d['treatment']['value'] = os.environ['TREATMENT']; json.dump(d, open(f, 'w'), indent=1)
