@@ -1675,3 +1675,43 @@ TEST_CASE(
         CHECK_FALSE(oct.contains("DisplayName")); // a named object would enter the key twice
     }
 }
+
+/******************************************************************************/
+// gnuplot and the data export (for an external renderer) follow the same legend description as
+// ROOT, matplotlib and Octave: no key for a single series or none labelled, the listed series
+// alone, and how each is drawn.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per backend; the count comes from the assertion macros
+TEST_CASE(
+    "gnuplot and the data export follow the legend description",
+    "[plotting][overlay][legend]"
+) {
+    const auto pad = [] {
+        auto first = decadesGraph(false, false);
+        first->setPlotMode(graphPlotMode::SCATTER);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false); // no label
+        first->registerSecondaryPlotter(second);
+        return first;
+    };
+
+    SECTION("gnuplot names the listed series alone and shows no key where there is no legend") {
+        const std::string gp = render(pad(), plotBackend::GNUPLOT);
+        CHECK(gp.contains("with points pointtype 7 title \"first\""));
+        CHECK(gp.contains("with linespoints notitle"));
+        CHECK_FALSE(gp.contains("unset key"));
+        auto single = decadesGraph(false, false);
+        single->setPlotLabel("alone");
+        const std::string one = render(single, plotBackend::GNUPLOT);
+        CHECK(one.contains("unset key"));
+        CHECK(one.contains("set key default"));
+    }
+
+    SECTION("the data export says which series the legend lists, with which sample") {
+        GPlotDesigner gpd("data csv", 1, 1);
+        gpd.setDataFormat(dataFormat::CSV);
+        gpd.registerPlotter(pad());
+        const std::string csv = gpd.plot();
+        CHECK(csv.contains("secondary=0 plot_mode=scatter legend_sample=marker\n"));
+        CHECK(csv.contains("secondary=1 plot_mode=curve\n"));
+    }
+}

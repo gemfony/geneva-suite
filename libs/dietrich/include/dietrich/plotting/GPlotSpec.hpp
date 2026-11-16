@@ -314,8 +314,7 @@ enum class legendSample {
 }
 
 /**
- * One entry of a pad's legend, as the ROOT, matplotlib and Octave writers draw it
- * (GBasePlotter::legendEntries()).
+ * One entry of a pad's legend, as every backend draws it (GBasePlotter::legendEntries()).
  */
 struct GLegendEntry {
     std::size_t series = 0; ///< the series it names: 0 the pad's primary plotter, k its k-th secondary plotter

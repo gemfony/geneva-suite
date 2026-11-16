@@ -258,8 +258,8 @@ public:
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
 
     /**
-     * @brief The legend of this (primary) plotter's pad, as the ROOT, matplotlib and Octave writers
-     * draw it: which series it
+     * @brief The legend of this (primary) plotter's pad, as every backend draws it (gnuplot with
+     * the limitation its writer states): which series it
      * names, in which order, with which text and which sample. A legend names series: a pad that
      * holds several series lists those that carry a label (a plot label with more than white
      * space), the primary first, then the secondary plotters in their order; each entry's sample

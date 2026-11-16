@@ -131,6 +131,8 @@ def _load_csv(path):
                     "name": stripped.split('"', 2)[1] if '"' in stripped else "",
                     "pad": _kv(stripped, "pad", int, 0),
                     "secondary": bool(_kv(stripped, "secondary", int, 0)),
+                    "plot_mode": _kv(stripped, "plot_mode", str, None),
+                    "legend_sample": _kv(stripped, "legend_sample", str, None),
                     "columns": None,   # filled from the next (column-name) row
                     "data": None,
                 }
@@ -169,30 +171,50 @@ def load(path):
 _THREE_D = {"graph_3d", "graph_4d"}
 
 
+def _legend_sample(colour, sample):
+    """A legend sample as the manifest describes it: a line, markers, both, or a filled box."""
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    if sample in ("fill", "colour_map"):
+        return Patch(facecolor=colour)
+    line = sample in ("line", "line_and_marker")
+    marker = sample in ("marker", "line_and_marker")
+    return Line2D([], [], color=colour, linestyle="-" if line else "none",
+                  marker="o" if marker else "none")
+
+
 def _draw_series(ax, fig, s):
-    """Draw one series into Axes ax according to its kind."""
+    """Draw one series into Axes ax according to its kind; return the colour it is drawn in."""
+    import matplotlib
     kind = s["kind"]
     data = s["data"] or []
     label = s.get("name", "")
+    colour_map = matplotlib.colormaps["viridis"](0.5)
     if kind == "graph_2d":
-        ax.plot(data[0], data[1], marker="o", label=label)
+        # A scatter plot is markers alone, a curve a line through them.
+        style = {"linestyle": "none"} if s.get("plot_mode") == "scatter" else {}
+        return ax.plot(data[0], data[1], marker="o", label=label, **style)[0].get_color()
     elif kind == "graph_2d_err":
         # stored (x, ex, y, ey) -> errorbar wants x, y, xerr, yerr.
-        ax.errorbar(data[0], data[2], xerr=data[1], yerr=data[3], fmt="o", label=label)
+        return ax.errorbar(data[0], data[2], xerr=data[1], yerr=data[3], fmt="o", label=label)[0].get_color()
     elif kind == "graph_3d":
-        ax.plot(data[0], data[1], data[2], label=label)
+        # Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
+        style = {} if s.get("plot_mode") == "curve" else {"linestyle": "none"}
+        return ax.plot(data[0], data[1], data[2], marker="o", markersize=3, label=label, **style)[0].get_color()
     elif kind == "graph_4d":
         sc = ax.scatter(data[0], data[1], data[2], c=data[3], cmap="viridis", label=label)
         fig.colorbar(sc, ax=ax)
+        return colour_map
     elif kind in ("hist_1d", "hist_1i"):
         # 1-d histogram of the raw samples (hist_1i carries true int32 values).
         nb = s.get("n_bins_x") or 10
-        ax.hist(data[0], bins=nb, label=label)
+        return ax.hist(data[0], bins=nb, label=label)[2][0].get_facecolor()
     elif kind == "hist_2d":
         nbx = s.get("n_bins_x") or 10
         nby = s.get("n_bins_y") or 10
         h = ax.hist2d(data[0], data[1], bins=[nbx, nby])
         fig.colorbar(h[3], ax=ax)
+        return colour_map
     else:
         # function_1d / function_2d carry no exported sample data and are never present
         # in a DATA export; ignore defensively.
@@ -224,8 +246,7 @@ def build_figure(canvas, series):
         # A pad is 3-d if its primary (first member) is a 3-d kind.
         three_d = members[0]["kind"] in _THREE_D
         ax = fig.add_subplot(rows, cols, pad + 1, projection="3d" if three_d else None)
-        for s in members:
-            _draw_series(ax, fig, s)
+        colours = [_draw_series(ax, fig, s) for s in members]
         # Labels/title from the pad's primary.
         prim = members[0]
         ax.set_xlabel(prim.get("x_label", "x"))
@@ -239,9 +260,13 @@ def build_figure(canvas, series):
             ax.set_xscale("log")
         if not three_d and prim.get("y_log", False):
             ax.set_yscale("log")
-        # Several series in one pad are told apart by a legend.
-        if len(members) > 1:
-            ax.legend()
+        # The pad's legend as the manifest describes it (GBasePlotter::legendEntries() in the
+        # library): the series it lists, in their order, with their names and samples; none if
+        # it lists none.
+        listed = [(s, c) for s, c in zip(members, colours) if s.get("legend_sample")]
+        if listed:
+            ax.legend(handles=[_legend_sample(c, s["legend_sample"]) for s, c in listed],
+                      labels=[s.get("name", "") for s, _ in listed])
 
     fig.tight_layout()
     return fig

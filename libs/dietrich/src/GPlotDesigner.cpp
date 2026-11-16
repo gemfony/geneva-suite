@@ -657,8 +657,8 @@ const std::vector<std::shared_ptr<GBasePlotter>> &GBasePlotter::secondaryPlotter
 
 /******************************************************************************/
 /**
- * The legend of this (primary) plotter's pad, in the one form the ROOT, matplotlib and Octave
- * writers draw it. A legend
+ * The legend of this (primary) plotter's pad, in the one form every backend draws it (ROOT,
+ * matplotlib, Octave, gnuplot, and the data export for an external renderer). A legend
  * names series, so it lists the series of the pad that carry a label, the primary first and then
  * the secondary plotters in their order; a label of white space only names nothing. Each entry's
  * sample shows how its series is drawn (legendSampleOf()). A pad with a single series shows its
