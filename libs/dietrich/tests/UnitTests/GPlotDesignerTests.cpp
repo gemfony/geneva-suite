@@ -2079,3 +2079,25 @@ TEST_CASE("A pad can leave its legend a band of its own", "[plotting][overlay][l
     CHECK(first->plotSpec().toJson().contains("\"legend_room\": true"));
     CHECK(makePlotter(first->plotSpec())->legendRoom());
 }
+
+/******************************************************************************/
+// A 2-d histogram rebuilt from its plot spec keeps its set2DOpt() choice as a choice: as an overlay
+// it is still drawn into the pad of its primary.
+TEST_CASE("A 2-d histogram rebuilt from its spec keeps its option and its place as an overlay", "[plotting][overlay]") {
+    auto primary = std::make_shared<GHistogram2D>(10, 10);
+    primary->set2DOpt(tddropt::BOX);
+    (*primary) & std::tuple<double, double>(0., 0.);
+    (*primary) & std::tuple<double, double>(1., 1.);
+    auto original = std::make_shared<GHistogram2D>(10, 10);
+    original->set2DOpt(tddropt::BOX);
+    auto rebuilt = makePlotter(original->plotSpec());
+    auto *h2 = dynamic_cast<GHistogram2D *>(rebuilt.get());
+    REQUIRE(h2 != nullptr);
+    (*h2) & std::tuple<double, double>(0.5, 0.5);
+    (*h2) & std::tuple<double, double>(0.2, 0.8);
+    CHECK(h2->get2DOpt() == tddropt::BOX);
+    CHECK(h2->plotSpec().drawing_args == "BOX");
+    primary->registerSecondaryPlotter(std::shared_ptr<GBasePlotter>(std::move(rebuilt)));
+    const std::string root = render(primary, plotBackend::ROOT);
+    CHECK(root.contains("->Draw(\"BOX,same\");"));
+}

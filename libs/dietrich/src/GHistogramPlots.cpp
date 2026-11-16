@@ -827,6 +827,28 @@ std::string GHistogram2D::rootLegendObject_(bool is_secondary, std::size_t p_id,
 
 /******************************************************************************/
 /**
+ * The 2-d drawing option whose ROOT draw option is @p name: the inverse of the option's part of
+ * drawingArguments(), for a plot spec that reports a set2DOpt() choice as its drawing arguments.
+ *
+ * @param name A ROOT draw option
+ * @return The option, or nothing if no option draws as @p name (the empty option included)
+ */
+std::optional<tddropt> GHistogram2D::drawingOptionNamed(const std::string &name) {
+    if(name.empty()) {
+        return std::nullopt;
+    }
+    GHistogram2D probe(1, 1);
+    for(auto v = static_cast<ENUMBASETYPE>(tddropt::TDEMPTY); v <= static_cast<ENUMBASETYPE>(tddropt::SURFONECYL); ++v) {
+        probe.set2DOpt(static_cast<tddropt>(v));
+        if(probe.drawingArguments(false) == name) {
+            return static_cast<tddropt>(v);
+        }
+    }
+    return std::nullopt;
+}
+
+/******************************************************************************/
+/**
  * Allows to specify 2d-drawing options
  *
  * @param dropt The 2D drawing option (e.g. surface, contour, lego, ...) to be used when drawing the histogram

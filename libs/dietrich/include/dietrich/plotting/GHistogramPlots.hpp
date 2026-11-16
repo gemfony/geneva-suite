@@ -29,6 +29,9 @@
 
 #pragma once
 
+#include <optional>
+#include <string>
+
 #include "common/GReflectiveInterfaceT.hpp"
 #include "dietrich/plotting/GDataCollectors.hpp"
 #include "common/GSelfTestable.hpp"
@@ -495,6 +498,13 @@ public:
 	 * @return The currently set 2-d drawing option
 	 */
     [[nodiscard]] tddropt get2DOpt() const;
+    /**
+     * @brief The 2-d drawing option whose ROOT draw option is @p name ("BOX", "SURF1", ...), as a
+     * plot spec reports a histogram's set2DOpt() choice
+     * @param name A ROOT draw option
+     * @return The option, or nothing if no option draws as @p name
+     */
+    [[nodiscard]] static std::optional<tddropt> drawingOptionNamed(const std::string &name);
 
 protected:
     /**

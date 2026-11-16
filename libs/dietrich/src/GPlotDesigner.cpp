@@ -571,6 +571,14 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     p->setXAxisLogarithmic(spec.x_log);
     p->setYAxisLogarithmic(spec.y_log);
     p->setDrawingArguments(spec.drawing_args);
+    // A 2-d histogram's spec reports its set2DOpt() choice as its drawing arguments; it is the
+    // choice again, not arguments of its own, so that an overlay keeps adding ",same".
+    if(auto *h2 = dynamic_cast<GHistogram2D *>(p.get())) {
+        if(const auto option = GHistogram2D::drawingOptionNamed(spec.drawing_args)) {
+            h2->setDrawingArguments("");
+            h2->set2DOpt(*option);
+        }
+    }
     p->setPadTitle(spec.pad_title);
     p->setLegendPosition(spec.legend.value_or(legendPosition::AUTO));
     p->setLineWidth(spec.line_width.value_or(0));
