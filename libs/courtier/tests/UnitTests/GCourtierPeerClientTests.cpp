@@ -2569,13 +2569,12 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A confirmed close proves only what was sent on the connection it closed.
+// A halt while a connection is being opened is a halt without a connection.
 
 namespace {
 
 /** @brief A peer that never opens, and whose close is confirmed at once (CLOSED_HERE): a
- *  connection that a client closes while it is being opened, which the other end still confirms.
- *  It counts what is sent on it. */
+ *  connection that a client gives up while it is being opened. It counts what is sent on it. */
 class NeverOpenPeer final
   : public GPeerI
   , public std::enable_shared_from_this<NeverOpenPeer> {
@@ -2638,18 +2637,18 @@ private:
     std::shared_ptr<std::atomic<int>> n_sent_ = std::make_shared<std::atomic<int>>(0);
 };
 
-/** @brief The first connection goes to the in-process server, every later one is a NeverOpenPeer
- *  (the connector keeps it, as a transport keeps its peers) */
+/** @brief The second connection is a NeverOpenPeer (the connector keeps it, as a transport keeps
+ *  its peers); every other one goes to the in-process server */
 class SecondNeverOpens final : public Gem::Courtier::Consumers::GConnectorI {
 public:
-    /** @brief @param first The connector of the first connection */
-    explicit SecondNeverOpens(std::unique_ptr<GInProcessConnector> first)
-      : first_(std::move(first)) { /* nothing */
+    /** @brief @param inner The connector of the other connections */
+    explicit SecondNeverOpens(std::unique_ptr<GInProcessConnector> inner)
+      : inner_(std::move(inner)) { /* nothing */
     }
     /** @brief @param executor Where it runs @param done What is told the outcome */
     void connect(boost::asio::any_io_executor executor, done_type done) override {
-        if(n_connects_++ == 0) {
-            first_->connect(std::move(executor), std::move(done));
+        if(n_connects_++ != 1) {
+            inner_->connect(std::move(executor), std::move(done));
             return;
         }
         peer_ = std::make_shared<NeverOpenPeer>(executor);
@@ -2658,9 +2657,9 @@ public:
             done(peer, {});
         });
     }
-    /** @brief Gives up the first connector's attempt */
+    /** @brief Gives up the inner connector's attempt */
     void cancel() override {
-        first_->cancel();
+        inner_->cancel();
     }
     /** @brief @return true */
     [[nodiscard]] bool reconnectable() const override {
@@ -2672,7 +2671,7 @@ public:
     }
 
 private:
-    std::unique_ptr<GInProcessConnector> first_;
+    std::unique_ptr<GInProcessConnector> inner_;
     std::size_t n_connects_ = 0;
     std::shared_ptr<NeverOpenPeer> peer_;
     std::shared_ptr<std::atomic<std::shared_ptr<NeverOpenPeer>>> made_ =
@@ -2682,21 +2681,35 @@ private:
 } /* anonymous namespace */
 
 /**
- * A result is sent on a connection that is then lost before anything proves it. The client halts
- * while its next connection is being opened; it closes that connection, on which it has sent
- * nothing, and the other end confirms the close. The confirmation proves nothing about the
- * result, which was sent on the lost connection: it is saved. (The client took "sent at least
- * once" for "sent on the connection that closed", and dropped it.)
+ * A result is sent on a connection whose server end loses it, and the connection is then lost.
+ * The client halts while its next connection is being opened: that is a halt without a
+ * connection. The client gives the opening connection up (nothing is sent on it) and winds up --
+ * its evaluations have ended -- with one last attempt, which delivers the result. (The client
+ * used to close the opening connection and end with its close: the result was saved although a
+ * connection to deliver it on could be made, and a halt while opening was a second way to end
+ * without a connection.)
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
 TEST_CASE(
-    "GPeerClientT: a confirmed close proves only what was sent on its connection",
+    "GPeerClientT: a halt while a connection is being opened winds up with a last attempt",
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
     auto evaluations = std::make_shared<Evaluations>();
-    World world;
+    // A server's end loses what comes after its first message: on the first connection the
+    // result (after the request), on the last attempt nothing (the result comes first)
+    World world(GInProcessListener::Options{
+        .serverFaults = Gem::Courtier::Tests::GInProcessFaults{.deliverAtMost = 1}
+    });
     auto watch = std::make_shared<GInProcessPeerWatch>();
+    auto returned = std::make_shared<std::atomic<bool>>(false);
+    watch->setOnMade([returned](GInProcessPeer &end) {
+        end.setTransmitHook([returned](std::string_view bytes) {
+            if(isReturn(bytes)) {
+                returned->store(true);
+            }
+        });
+    });
     auto connector = std::make_unique<SecondNeverOpens>(std::make_unique<GInProcessConnector>(
         std::make_shared<GInProcessRoute>(world.listener()),
         true,
@@ -2715,7 +2728,8 @@ TEST_CASE(
             done->store(true);
         });
         auto items = makeBatch(1);
-        REQUIRE(world.runBatch(items)); // its RETURN has arrived; nothing has answered it
+        auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
+        REQUIRE(eventually([&] { return returned->load(); })); // sent, and lost there
         watch->last()->sever();
         REQUIRE(eventually([&] {
             const auto peer = made->load();
@@ -2724,9 +2738,11 @@ TEST_CASE(
         client->flagCloseRequested(); // while the second connection is being opened
         REQUIRE(eventually([&] { return done->load(); }));
         CHECK(made->load()->nSent()->load() == 0);
+        CHECK(batch.get()); // the last attempt delivered the result
     }
-    CHECK(client->connectionEnd() == GPeerEnd::CLOSED_HERE);
-    CHECK(dir.files().size() == 1);
+    CHECK(evaluations->of(0) == 1);
+    CHECK(client->connections() == 2); // the first, and the last attempt
+    CHECK(dir.files().empty());
 }
 
 /******************************************************************************/

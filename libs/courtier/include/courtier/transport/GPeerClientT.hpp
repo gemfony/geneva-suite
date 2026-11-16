@@ -180,8 +180,9 @@ struct GPeerClientOptions {
  * dropped there as a duplicate. The new peer is told whether the client is busy.
  *
  * Results that cannot be delivered. An evaluation is never cut short (it may be an external
- * process). A client that reaches a halt while it has no connection -- a halt condition, a limit
- * without a server, a lost connection of a connector that cannot connect again -- tries no more:
+ * process). A client that reaches a halt while it has no connection (one that is being opened is
+ * none yet: it is given up) -- a halt condition, a limit without a server, a lost connection of a
+ * connector that cannot connect again -- tries no more:
  * it lets its evaluations end (LinkState::FINISHING), then makes one last attempt (bounded by the
  * transport's own limits) to deliver what it has finished. Whatever it still cannot deliver --
  * also a result given up at the resend limit, a result sent before a close of its own that the
@@ -309,7 +310,7 @@ private:
     /** @brief Where the client is with its connection (io thread) */
     enum class LinkState : std::uint8_t {
         ATTEMPT, ///< The connector is making a connection
-        OPENING, ///< A peer was made and started; it has not opened yet
+        OPENING, ///< A peer was made and started; it has not opened yet (or is being given up)
         OPEN,    ///< The connection is usable
         CLOSING, ///< This client closes the connection (a halt, an error)
         DRAINING, ///< The connection was lost; its messages are still being decoded
@@ -629,6 +630,14 @@ private:
             this->endClient_();
             return;
         }
+        if(was == LinkState::OPENING && opening_given_up_ && not last_attempt_) {
+            // The client gave up the connection while it was being opened (a halt, an error): a
+            // client without a connection, which winds up (windUp_())
+            opening_given_up_ = false;
+            this->windUp_();
+            return;
+        }
+        opening_given_up_ = false;
         if(was == LinkState::OPENING && (last_attempt_ || not this->halt())) {
             this->attemptFailed_(detail); // the connection never opened (a failed handshake)
             return;
@@ -1029,11 +1038,19 @@ private:
             close_pending_ = true;
             return;
         }
-        // A connection exists while it is open or being opened; a peer that has ended (a loss)
-        // may still exist, but closing it would wait for an end that has come already.
+        // A connection exists while it is open; a peer that has ended (a loss) may still exist,
+        // but closing it would wait for an end that has come already. A connection that is being
+        // opened is no connection yet: the peer is given up (closed), and once it has ended the
+        // client winds up as one without a connection (when_closed_(), windUp_()) -- the one way
+        // to end without a connection.
         auto peer = peer_.lock();
-        if(peer && (state_ == LinkState::OPEN || state_ == LinkState::OPENING)) {
+        if(peer && state_ == LinkState::OPEN) {
             state_ = LinkState::CLOSING;
+            peer->close(how);
+            return;
+        }
+        if(peer && state_ == LinkState::OPENING) {
+            opening_given_up_ = true;
             peer->close(how);
             return;
         }
@@ -1226,15 +1243,16 @@ private:
 
     /** @brief Halt hook (the halt timer, a limit, the retry timer): closes the connection in the
      *  regular way when a halt condition is reached, after the evaluations that run (see the class
-     *  comment). A client that is still connecting gives up the connector's attempt, or closes the
-     *  peer that has not opened yet; one that pauses ends. So run() returns. */
+     *  comment). A client that is still connecting gives up the connector's attempt, or the peer
+     *  that has not opened yet, and winds up as a client without a connection (windUp_()), as one
+     *  that pauses does. So run() returns. */
     void haltShutdown_() {
         switch(state_) {
         case LinkState::OPEN:
             this->closeWhenIdle_();
             break;
         case LinkState::OPENING:
-            this->do_close_(GPeerClose::NORMAL); // a close during a handshake reports FAILED
+            this->do_close_(GPeerClose::NORMAL); // gives the peer up; then windUp_()
             break;
         case LinkState::ATTEMPT: // windUp_() gives the connector's attempt up
         case LinkState::PAUSE:
@@ -1308,6 +1326,8 @@ private:
     /// Messages that could not be read and are still to be reported with UNREADABLE (io thread)
     std::size_t n_unreadable_owed_ = 0;
     bool close_pending_ = false;   ///< A close waits for them (io thread)
+    /// The peer being opened was given up (do_close_()); its end winds the client up (io thread)
+    bool opening_given_up_ = false;
     GPeerClose close_after_reencoding_ = GPeerClose::NORMAL; ///< What that close says
 
     //-------------------------------------------------------------------------
