@@ -435,11 +435,8 @@ void emitMultiplot(
  *
  * The key follows the pad's legend description (GBasePlotter::legendEntries()): the datasets of
  * the series it lists carry their label as title, every other dataset `notitle`, and a pad whose
- * legend is empty -- a single series, or none labelled -- has no key. Limitation: gnuplot draws a
- * key entry's sample from its dataset's own style, not from a sample of its own, so the sample is
- * the description's only as far as the dataset is drawn as the description says (points for a
- * scatter plot, a line through points for a curve); a pm3d surface or map shows gnuplot's own
- * pm3d sample.
+ * legend is empty -- a single series, or none labelled -- has no key. Its limitation is stated
+ * with the class (GPlotEmitter.hpp).
  *
  * @param gpd The designer holding the graph plotters and canvas configuration
  * @return The complete gnuplot script as a string

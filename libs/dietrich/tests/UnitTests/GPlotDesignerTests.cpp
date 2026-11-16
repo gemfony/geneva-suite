@@ -1193,6 +1193,25 @@ std::shared_ptr<GGraph2D> decadesGraph(bool log_x, bool log_y) {
     return g;
 }
 
+/** @brief Whether everything of a ROOT script is drawn before its (one) legend is built: after
+ *  `new TLegend(` the only drawing is the legend's own. */
+bool drawnBeforeLegend(const std::string &s) {
+    const auto at = s.find("new TLegend(");
+    if(at == std::string::npos) {
+        return false;
+    }
+    const std::string tail = s.substr(at);
+    std::size_t draws = 0;
+    for(auto p = tail.find("Draw("); p != std::string::npos; p = tail.find("Draw(", p + 1)) {
+        ++draws;
+    }
+    std::size_t legend_draws = 0;
+    for(auto p = tail.find("legend->Draw("); p != std::string::npos; p = tail.find("legend->Draw(", p + 1)) {
+        ++legend_draws;
+    }
+    return draws == legend_draws and legend_draws == 1;
+}
+
 /** @brief The script of @p backend for the given plotters, one pad each. */
 std::string scriptFor(plotBackend backend, const std::vector<std::shared_ptr<GGraph2D>> &graphs) {
     GPlotDesigner gpd("axes", 1, graphs.size());
@@ -1336,7 +1355,7 @@ TEST_CASE(
         CHECK(s.contains("g->GetErrorXlow(i)"));
         CHECK(s.contains("g->GetErrorXhigh(i)"));
         // The frame and the legend come after the last graph is drawn.
-        CHECK(s.rfind("Draw(\"") < s.find("new TLegend("));
+        CHECK(drawnBeforeLegend(s));
     }
 
     SECTION("matplotlib and Octave show the legend their plot calls prepared") {
@@ -1538,7 +1557,7 @@ TEST_CASE(
         CHECK(s.contains("legend entries: 2"));
         CHECK_FALSE(s.contains("BuildLegend"));
         // The legend comes after everything of the pad is drawn.
-        CHECK(s.rfind("Draw(\"") < s.find("new TLegend("));
+        CHECK(drawnBeforeLegend(s));
         CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"lower right\")"));
         CHECK(render(map, plotBackend::OCTAVE).contains("legend(s_, {'the landscape', 'evaluated candidates'});"));
     }

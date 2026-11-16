@@ -63,6 +63,7 @@ set(_legend_probe [=[
                else if(!e->GetObject()) {} // a note without a sample (a crowded band's last row)
                else if(seen.FindObject(e->GetObject())) printf("GPD-LEGEND-BAD %s repeats an object\n", e->GetLabel());
                else seen.Add(e->GetObject());
+               if(e->GetObject()) printf("GPD-ENTRY %s %s\n", e->GetOption(), e->GetObject()->GetName());
             }
             // A legend that grew for a long label stays within the frame's width, left of a palette.
             if(l->GetX2NDC() > 1. - p2->GetRightMargin() + 1e-9) printf("GPD-LEGEND-OUTSIDE %g\n", l->GetX2NDC());
@@ -140,6 +141,22 @@ foreach(_i RANGE 0 ${_n_drawn})
 endforeach()
 if(_n_legends EQUAL 0)
 	message(FATAL_ERROR "No pad of the generator has a legend; the check proves nothing.\nstdout:\n${_out}")
+endif()
+# Every entry has the option that draws the sample the description gives it (a line "l", markers
+# "p", both "lp", a fill or a colour map "f"), and the object it names, in order.
+string(REGEX MATCHALL "// legend entry: [a-z_]+ [A-Za-z0-9_]+" _entries_wanted "${_macro}")
+string(REGEX REPLACE "// legend entry: " "" _entries_wanted "${_entries_wanted}")
+string(REGEX REPLACE "(^|;)line_and_marker " "\\1lp " _entries_wanted "${_entries_wanted}")
+string(REGEX REPLACE "(^|;)line " "\\1l " _entries_wanted "${_entries_wanted}")
+string(REGEX REPLACE "(^|;)marker " "\\1p " _entries_wanted "${_entries_wanted}")
+string(REGEX REPLACE "(^|;)(fill|colour_map) " "\\1f " _entries_wanted "${_entries_wanted}")
+string(REGEX MATCHALL "GPD-ENTRY [a-z]+ [A-Za-z0-9_]+" _entries_drawn "${_out}")
+string(REGEX REPLACE "GPD-ENTRY " "" _entries_drawn "${_entries_drawn}")
+if(NOT _entries_wanted)
+	message(FATAL_ERROR "The macro states no legend entry; the check proves nothing.")
+endif()
+if(NOT _entries_wanted STREQUAL _entries_drawn)
+	message(FATAL_ERROR "The legend entries ROOT drew are not the described ones.\ndescribed: ${_entries_wanted}\ndrawn:     ${_entries_drawn}")
 endif()
 if(_out MATCHES "GPD-LEGEND-OUTSIDE")
 	message(FATAL_ERROR "A legend reaches beyond the pad's frame (over a palette).\nstdout:\n${_out}")

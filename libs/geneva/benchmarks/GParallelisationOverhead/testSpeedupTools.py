@@ -105,7 +105,8 @@ def check_figure(program, workdir):
     # The series are named by their labels alone, each label once as its graph's title and once
     # as its legend entry; each pad has a title of its own and a legend at the lower right.
     for text, count in (('TGraphErrors(', 6), ('new TLegend(', 2), ('Divide(1,2)', 1),
-                        ('"fast"', 4), ('"slow"', 4), ('"ideal (4)"', 4),
+                        ('SetTitle("fast")', 2), ('SetTitle("slow")', 2), ('SetTitle("ideal (4)")', 2),
+                        ('"fast", "lp");', 2), ('"slow", "lp");', 2), ('"ideal (4)", "lp");', 2),
                         ('"All evaluation times"', 1), ('"Up to 0.1 s"', 1), ('fast:', 0),
                         ('new TLegend(0.3, 0.21)', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
         if figure.count(text) != count:

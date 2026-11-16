@@ -119,6 +119,13 @@ public:
  * clear geneva_exception directing the caller to the ROOT backend. The emitted
  * script is terminal-agnostic (a validity harness prepends its own `set terminal`
  * / `set output`), laid out as a `set multiplot` grid of per-pad plots.
+ *
+ * Each series is drawn as its draw style says (GBasePlotter::drawStyle()), and the key names the
+ * series the pad's legend lists (GBasePlotter::legendEntries()); a pad without a legend has no key.
+ * Limitation: gnuplot draws a key sample from its dataset's own style, not from a sample of its
+ * own -- so it shows the draw style as far as gnuplot draws it: a 3-d graph with ROOT's colour-map
+ * arguments is drawn as points (gnuplot's pm3d needs gridded data, which a projection gives), and a
+ * projected surface or map shows gnuplot's own pm3d sample.
  */
 class GnuplotEmitter : public IPlotEmitter {
 public:
@@ -146,6 +153,10 @@ public:
  * backend, builds a `fig` with one Axes per pad and plots into it, but deliberately
  * ends WITHOUT `fig.savefig(...)` so it stays terminal-agnostic -- a validity
  * harness (or the caller) appends its own `fig.savefig('out.png')`.
+ *
+ * Each series is drawn, and its legend sample made, from its draw style as far as matplotlib draws
+ * it (scriptStyle()): a 1-d histogram always as bars and a 2-d histogram always as a colour map,
+ * whatever ROOT draw option it carries.
  */
 class MatplotlibEmitter : public IPlotEmitter {
 public:
@@ -174,6 +185,11 @@ public:
  * `subplot` per pad. It deliberately ends WITHOUT a `print` / `saveas`, so it stays
  * terminal-agnostic -- a validity harness (or the caller) appends its own
  * `print('-dpng', 'out.png')`.
+ *
+ * Each series is drawn, and its legend sample made, from its draw style as far as Octave draws it
+ * (scriptStyle()): a 1-d histogram always as bars and a 2-d histogram always as a colour map. The
+ * legend's samples are line objects without data, which the gnuplot toolkit keys (a patch without
+ * data it does not; other toolkits were not tried); the plotted objects carry no name.
  */
 class OctaveEmitter : public IPlotEmitter {
 public:

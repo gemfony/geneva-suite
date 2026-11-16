@@ -274,9 +274,16 @@ inline void emitRootLegend(
             s << indent << "      legend->AddEntry(sample, " << label << ", \"" << rootLegendOption(e.sample) << "\");" << '\n'
               << indent << "   }" << '\n';
         } else {
-            s << indent << "   legend->AddEntry(" << e.object << ", " << label << ", \""
+            // The object is named after its variable, so that a reader of the drawn canvas can tell it.
+            s << indent << "   " << e.object << "->SetName(\"" << e.object << "\");" << '\n'
+              << indent << "   legend->AddEntry(" << e.object << ", " << label << ", \""
               << rootLegendOption(e.sample) << "\");" << '\n';
         }
+        // What the description gives the entry, for a reader of the script that checks what ROOT
+        // drew (the validity test of the plotting library).
+        s << indent << "   // legend entry: " << to_string(e.sample) << " "
+          << ((e.sample == legendSample::COLOUR_MAP or e.object.empty()) ? std::string("sample") : e.object)
+          << '\n';
     }
     if(listed < entries.size()) {
         s << indent << "   legend->AddEntry((TObject *)nullptr, \"and " << (entries.size() - listed)
