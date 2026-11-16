@@ -326,6 +326,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 
 	# The roles, groups and rounds of the two layouts; a member's second serve() returns at once
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutA 7 M zero layout-a)
+	# A last group with fewer processes than the group size (1 + 3 + 2)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutAShortGroup 6 M zero layout-a)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutB 3 M zero layout-b)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLayoutBTwoGroups 6 M zero layout-b)
 	# A group of one is a group: its lead announces every round
@@ -394,6 +396,9 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "round() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
 	# A rank with an MPI environment of its own refuses, and so do the others instead of waiting
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 3 M zero environment-exists)
+	# A submitter that never confirms its role ends the job in its destructor
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
+		EXPECT "the role of the submitter was never confirmed" "The job is ended (MPI_Abort)")
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged

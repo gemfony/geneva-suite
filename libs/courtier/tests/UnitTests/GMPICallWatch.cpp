@@ -40,17 +40,15 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <print>
+#include <set>
 #include <tuple>
 #include <vector>
 
 #include <mpi.h>
 
-#include "common/concurrency/GThreadSafeSetT.hpp"
-
 namespace {
-
-using handle_set_type = Gem::Common::Concurrency::GThreadSafeSetT<std::uintptr_t>;
 
 /** @brief The bytes of an MPI handle as a number (an int in MPICH, a pointer in Open MPI)
  *  @param handle The handle @return Its bytes */
@@ -71,8 +69,12 @@ struct Watch {
     std::atomic<std::size_t> communicatorsMade{0};
     std::atomic<bool> failIbcastStart{false}; ///< The next MPI_Ibcast fails at its start
     std::atomic<bool> failTestall{false};     ///< The next MPI_Testall fails
-    handle_set_type pendingCollectives; ///< Started non-blocking collectives not seen to complete
-    handle_set_type aliveCommunicators; ///< Communicators made and not freed
+    /// Guards the two sets, and is held from an MPI call to the bookkeeping of its handles: MPI may
+    /// give a handle that another thread's call has just freed to a new request, and its insertion
+    /// must not come between that call and the erasure of the old one (a data guard of the watch)
+    std::mutex mutex;
+    std::set<std::uintptr_t> pendingCollectives; ///< Started non-blocking collectives not completed
+    std::set<std::uintptr_t> aliveCommunicators; ///< Communicators made and not freed
 };
 
 /** @brief The one watch of the process @return It */
@@ -81,7 +83,7 @@ Watch &watch() {
     return the_watch;
 }
 
-/** @brief Notes a started non-blocking collective
+/** @brief Notes a started non-blocking collective; the caller holds the watch's mutex
  *  @param result What the start returned @param request Its request @return @p result */
 int started(int result, const MPI_Request *request) {
     if(result == MPI_SUCCESS && *request != MPI_REQUEST_NULL) {
@@ -96,6 +98,7 @@ int started(int result, const MPI_Request *request) {
 int made(int result, const MPI_Comm *communicator) {
     if(result == MPI_SUCCESS && *communicator != MPI_COMM_NULL) {
         ++watch().communicatorsMade;
+        const std::scoped_lock lock(watch().mutex);
         watch().aliveCommunicators.insert(keyOf(*communicator));
     }
     return result;
@@ -115,12 +118,14 @@ std::size_t watchedCollectivesStarted() {
     return watch().collectivesStarted.load();
 }
 std::size_t watchedCollectivesPending() {
+    const std::scoped_lock lock(watch().mutex);
     return watch().pendingCollectives.size();
 }
 std::size_t watchedSplits() {
     return watch().splits.load();
 }
 std::size_t watchedCommunicatorsAlive() {
+    const std::scoped_lock lock(watch().mutex);
     return watch().aliveCommunicators.size();
 }
 
@@ -154,6 +159,7 @@ int MPI_Ibcast(
     if(watch().failIbcastStart.exchange(false)) {
         return MPI_ERR_OTHER;
     }
+    const std::scoped_lock lock(watch().mutex); // from the start to the bookkeeping
     return started(PMPI_Ibcast(buffer, count, datatype, root, comm, request), request);
 }
 
@@ -168,6 +174,7 @@ int MPI_Iscatter( // NOLINT(readability-function-size): MPI's parameters
     MPI_Comm comm,
     MPI_Request *request
 ) {
+    const std::scoped_lock lock(watch().mutex); // from the start to the bookkeeping
     return started(
         PMPI_Iscatter(
             sendbuf,
@@ -195,6 +202,7 @@ int MPI_Igather( // NOLINT(readability-function-size): MPI's parameters
     MPI_Comm comm,
     MPI_Request *request
 ) {
+    const std::scoped_lock lock(watch().mutex); // from the start to the bookkeeping
     return started(
         PMPI_Igather(
             sendbuf,
@@ -220,10 +228,12 @@ int MPI_Iallreduce(
     MPI_Comm comm,
     MPI_Request *request
 ) {
+    const std::scoped_lock lock(watch().mutex); // from the start to the bookkeeping
     return started(PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request), request);
 }
 
 int MPI_Ibarrier(MPI_Comm comm, MPI_Request *request) {
+    const std::scoped_lock lock(watch().mutex); // from the start to the bookkeeping
     return started(PMPI_Ibarrier(comm, request), request);
 }
 
@@ -244,6 +254,7 @@ int MPI_Testall(
             before.push_back(keyOf(array_of_requests[i]));
         }
     }
+    const std::scoped_lock lock(watch().mutex); // from the test to the bookkeeping
     const int result = PMPI_Testall(count, array_of_requests, flag, array_of_statuses);
     if(result == MPI_SUCCESS && *flag != 0) {
         for(const auto key : before) {
@@ -266,6 +277,7 @@ int MPI_Comm_free(MPI_Comm *comm) {
     const auto key = keyOf(*comm);
     const int result = PMPI_Comm_free(comm);
     if(result == MPI_SUCCESS) {
+        const std::scoped_lock lock(watch().mutex);
         watch().aliveCommunicators.erase(key);
     }
     return result;
@@ -274,8 +286,13 @@ int MPI_Comm_free(MPI_Comm *comm) {
 int MPI_Finalize() {
     int rank = -1;
     PMPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    const std::size_t pending = watch().pendingCollectives.size();
-    const std::size_t alive = watch().aliveCommunicators.size();
+    std::size_t pending = 0;
+    std::size_t alive = 0;
+    {
+        const std::scoped_lock lock(watch().mutex);
+        pending = watch().pendingCollectives.size();
+        alive = watch().aliveCommunicators.size();
+    }
     const bool ok = pending == 0 && alive == 0;
     if(ok) {
         std::println(

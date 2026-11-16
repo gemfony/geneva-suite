@@ -570,10 +570,10 @@ bool GMPICascade::agree_(packed_config_type &packed, bool refuse) noexcept {
         GMPIPEERPOLLPAUSEMAX,
         "GMPICascade(), the agreement of the ranks"
     );
-    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
     agreed_ = true;
     return refused_anywhere != 0;
 }
+// NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 
 /******************************************************************************/
 /**
@@ -664,8 +664,8 @@ void GMPICascade::broadcast_(
         pause_max,
         what
     );
-    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 }
+// NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 
 /******************************************************************************/
 /**

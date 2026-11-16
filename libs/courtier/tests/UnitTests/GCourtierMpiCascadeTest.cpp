@@ -1392,6 +1392,25 @@ int environmentExistsScenario(Report &report) {
 }
 
 /**
+ * The submitter's safeguard (entry ...SubmitterNeverConfirms): in SUBMITTER_AND_GROUPS rank 0
+ * never confirms its role; the leads and members serve as usual. The submitter's destructor ends
+ * the job.
+ */
+int submitterNeverConfirmsScenario(Report &report) {
+    SquareMember member(report);
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    if(cascade.role() == processRole::SUBMITTER) {
+        std::println("the submitter leaves without confirming its role");
+        std::ignore = std::fflush(stdout);
+        return report.failures(); // the cascade's destructor ends the job
+    }
+    runGroups(report, cascade, member, 2);
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1445,7 +1464,6 @@ int configFileScenario(Report &report) {
 struct WebsocketRun {
     std::ptrdiff_t processed = 0; ///< The items that came back processed
     bool clientThrew = false;     ///< Whether the client's run() threw
-    int ledAtRelease = 0;         ///< The rounds led when the group was released
 };
 
 /**
@@ -1514,16 +1532,11 @@ WebsocketRun runOverWebsocket(
         client->flagCloseRequested();
         threads.join_all();
     }
-    const int led_at_release = led.load();
     cascade.release();
     consumer->stopServer();
     const auto processed =
         std::ranges::count_if(items, [](const auto &item) { return item && item->is_processed(); });
-    return WebsocketRun{
-        .processed = processed,
-        .clientThrew = client_threw.load(),
-        .ledAtRelease = led_at_release
-    };
+    return WebsocketRun{.processed = processed, .clientThrew = client_threw.load()};
 }
 
 /**
@@ -1580,7 +1593,11 @@ int websocketScenario(Report &report, bool confirm) {
         led.load() == static_cast<int>(ITEMS),
         std::format("the lead led {} rounds", led.load())
     );
-    report.check(led.load() == run.ledAtRelease, "a round ran after release()");
+    const int led_at_release = led.load();
+    report.expectThrow("round() after release()", "release()", [&] {
+        std::ignore = cascade.round(NOTHING);
+    });
+    report.check(led.load() == led_at_release, "a round ran after release()");
     report.check(not run.clientThrew, "the client's run threw");
     std::println("lead led {} rounds", led.load());
     return report.failures();
@@ -1651,6 +1668,7 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"submitter-never-confirms", submitterNeverConfirmsScenario},
         {"environment-exists", environmentExistsScenario},
         {"release-inside-round", [](Report &r) { return insideRoundScenario(r, true); }},
         {"round-inside-round", [](Report &r) { return insideRoundScenario(r, false); }},
