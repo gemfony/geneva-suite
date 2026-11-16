@@ -542,17 +542,21 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
 /**
  * The place of a 2-d pad's legend that covers the least of its data: of the boxes legendBox() gives
  * the lower right, the middle of the right side, the top left, the lower left and the top right
- * (in this order of preference), the one with the fewest samples of the data inside. A curve is
- * sampled along its straight segments, a point cloud by its points; the data are placed in the pad
+ * (in this order of preference), the one that covers the least of the data: a point counts one, a
+ * straight segment of a curve one in all, by the share of it that lies inside (it is sampled along
+ * its length); the data are placed in the pad
  * as ROOT frames them (the range of the data widened by a twentieth on each side, by a factor of
  * 1.1 on a logarithmic axis, inside margins of a tenth). It is the freest corner, not a free one:
- * where every corner covers data, the legend covers the fewest.
+ * where every corner covers data, the legend covers the fewest. A box narrower than @p width is
+ * judged at that width, grown away from its side of the pad as a legend grows for long labels
+ * (at most to the frame).
  *
  * @param curves Series drawn with a line, each its points in drawing order
  * @param points Series drawn as markers alone, each its points
  * @param n_series The number of entries of the legend
  * @param x_log Whether the x axis is logarithmic
  * @param y_log Whether the y axis is logarithmic
+ * @param width The width the box will take at least (0: legendBox()'s own)
  * @return The freest of the five places
  */
 [[nodiscard]] inline legendPosition freestLegendCorner(
@@ -560,7 +564,8 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
     const std::vector<std::vector<std::pair<double, double>>> &points,
     std::size_t n_series,
     bool x_log = false,
-    bool y_log = false
+    bool y_log = false,
+    double width = 0.
 ) {
     const auto axis = [](double v, bool log) { return log ? std::log10(v) : v; };
     double x_lo = std::numeric_limits<double>::max();
@@ -586,15 +591,19 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
         return 0.1 + (0.8 * (v - (lo - widen)) / (width + (2. * widen)));
     };
     constexpr int SAMPLES = 200;
-    std::vector<std::pair<double, double>> samples;
+    // A sample and its weight: a point weighs one, a straight segment of a curve one in all (its
+    // samples share it), so that a short piece of line does not outweigh the markers of a cloud.
+    std::vector<std::tuple<double, double, double>> samples;
+    double weight = 1.;
     const auto place = [&](double x, double y) {
         if((x_log and x <= 0.) or (y_log and y <= 0.)) {
             return;
         }
         samples.emplace_back(
-            to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log)
+            to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log), weight
         );
     };
+    weight = 1. / (SAMPLES + 1);
     for(const auto &curve : curves) {
         for(std::size_t i = 0; i + 1 < curve.size(); i++) {
             for(int k = 0; k <= SAMPLES; k++) {
@@ -604,24 +613,37 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
             }
         }
     }
+    weight = 1.;
     for(const auto &cloud : points) {
         for(const auto &[x, y] : cloud) {
             place(x, y);
         }
     }
     legendPosition best = legendPosition::BOTTOM_RIGHT;
-    std::size_t fewest = std::numeric_limits<std::size_t>::max();
+    double fewest = std::numeric_limits<double>::max();
     for(const auto corner :
         {legendPosition::BOTTOM_RIGHT,
          legendPosition::CENTER_RIGHT,
          legendPosition::TOP_LEFT,
          legendPosition::BOTTOM_LEFT,
          legendPosition::TOP_RIGHT}) {
-        const auto [x1, y1, x2, y2] = legendBox(corner, n_series);
-        const auto covered = static_cast<std::size_t>(std::ranges::count_if(samples, [&](const auto &p) {
-            return p.first >= x1 and p.first <= x2 and p.second >= y1 and p.second <= y2;
-        }));
-        if(covered < fewest) {
+        auto [x1, y1, x2, y2] = legendBox(corner, n_series);
+        if(x2 - x1 < width) { // the box a long label grows, away from its side, at most to the frame
+            const bool right = corner == legendPosition::TOP_RIGHT or corner == legendPosition::BOTTOM_RIGHT
+                or corner == legendPosition::CENTER_RIGHT;
+            if(right) {
+                x1 = std::max(0.1, x2 - width);
+            } else {
+                x2 = std::min(0.9, x1 + width);
+            }
+        }
+        double covered = 0.;
+        for(const auto &[x, y, w] : samples) {
+            if(x >= x1 and x <= x2 and y >= y1 and y <= y2) {
+                covered += w;
+            }
+        }
+        if(covered < fewest - 1e-12) {
             fewest = covered;
             best = corner;
         }

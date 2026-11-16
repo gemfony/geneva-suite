@@ -374,8 +374,18 @@ legendPosition GBasePlotter::legendPlace() const {
     for(const auto &sp : secondary_plotter_) {
         add(*sp);
     }
+    // The width the legend's box will take: a label too long for the box at the smallest text size
+    // widens it (see setLegendPosition()). Estimated from the longest label, at an average width of
+    // a character of 0.55 of the text's height and a pad four parts wide to three high, plus the
+    // samples; a little more than ROOT measures, so that the estimate errs to the free side.
+    const auto entries = legendEntries();
+    std::size_t longest = 0;
+    for(const auto &e : entries) {
+        longest = std::max(longest, e.label.size());
+    }
+    const double width = (static_cast<double>(longest) * 0.55 * LEGENDMINTEXTSIZE * 0.75 / 0.95) + 0.08;
     return freestLegendCorner(
-        curves, points, std::max<std::size_t>(1, legendEntries().size()), x_axis_logarithmic_, y_axis_logarithmic_
+        curves, points, std::max<std::size_t>(1, entries.size()), x_axis_logarithmic_, y_axis_logarithmic_, width
     );
 }
 

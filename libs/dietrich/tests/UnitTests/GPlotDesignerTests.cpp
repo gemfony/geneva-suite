@@ -1967,6 +1967,26 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
             }
         }
         CHECK(freestLegendCorner({}, {everywhere}, 2) == legendPosition::TOP_RIGHT);
+        // A box that grows for a long label is judged at its grown width: points at the left of the
+        // middle of the right side leave it free for a narrow box only.
+        std::vector<std::pair<double, double>> left_of_middle{{0., 0.}, {40., 10.}};
+        for(int i = 10; i <= 20; ++i) {
+            left_of_middle.emplace_back(i, 5.);
+        }
+        const std::vector<std::vector<std::pair<double, double>>> bottom_curve{{{0., 0.}, {40., 0.}}};
+        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2) == legendPosition::CENTER_RIGHT);
+        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2, false, false, 0.75) != legendPosition::CENTER_RIGHT);
+        // A point weighs as much as a whole straight segment of a curve: a box over a piece of
+        // line is freer than one over ten markers.
+        std::vector<std::pair<double, double>> right_cloud{{0., 0.}, {40., 10.}};
+        for(int i = 0; i < 10; ++i) {
+            right_cloud.emplace_back(35. + 0.3 * i, 1.);   // the lower right
+            right_cloud.emplace_back(35. + 0.3 * i, 5.);   // the middle of the right side
+            right_cloud.emplace_back(2. + 0.3 * i, 9.);    // the top left
+            right_cloud.emplace_back(35. + 0.3 * i, 9.);   // the top right
+        }
+        const std::vector<std::vector<std::pair<double, double>>> low_left{{{0., 0.5}, {8., 0.5}}};
+        CHECK(freestLegendCorner(low_left, {right_cloud}, 2) == legendPosition::BOTTOM_LEFT);
     }
 
     SECTION("every backend places a FREEST legend in that corner; a 3-d pad keeps its band") {
