@@ -114,7 +114,8 @@ P
     # measure is looked up instead of taken from $!.
     if [ "$C" = mpi ]; then
         # shellcheck disable=SC2086
-        mpirun --oversubscribe -np $((N + 1)) stdbuf -oL "$X" -c mpi ${SRVOPTS:-} > >(stamp) 2>&1 &
+        mpirun --oversubscribe -np $((N + 1)) stdbuf -oL "$X" -c mpi --waitForClients "$N" \
+            ${SRVOPTS:-} > >(stamp) 2>&1 &
         WRAP=$!
         sleep "${MPISTART:-8}"
         S=$(for p in $(pgrep -x "$NAME"); do
