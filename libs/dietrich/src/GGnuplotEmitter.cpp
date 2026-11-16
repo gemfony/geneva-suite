@@ -114,19 +114,20 @@ const std::vector<double> &asDoubleColumn(const GPlotColumn &c) {
  *  `notitle` for any other (see keyClause()). */
 std::string datasetSpec(const GBasePlotter &p, scriptKind k, const std::string &title) {
     EmitStream spec; // NOLINT(cppcoreguidelines-init-variables)
+    // How the series is drawn (GBasePlotter::drawStyle()); gnuplot's key draws its sample from it.
+    const GDrawStyle style = p.drawStyle();
+    const std::string lines_points = style.line ? (style.markers ? "linespoints" : "lines") : "points pointtype 7";
     switch(k) {
         case scriptKind::g2d:
-            // A scatter plot is drawn as points alone, a curve as a line through them.
-            spec << (legendSampleOf(p.plotSpec()) == legendSample::MARKER ? "with points pointtype 7"
-                                                                           : "with linespoints")
-                 << " " << title;
+            spec << "with " << (style.fill ? "filledcurves y1=0" : lines_points) << " " << title;
             break;
         case scriptKind::g2ed:
-            spec << "with xyerrorbars " << title;
+            spec << "with " << (style.line ? "xyerrorlines" : "xyerrorbars") << " " << title;
             break;
         case scriptKind::g3d:
-            // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
-            spec << (isCurve3D(p) ? "with linespoints" : "with points pointtype 7") << " " << title;
+            // A colour map of the graph's own drawing arguments is drawn as its points: gnuplot's
+            // pm3d needs gridded data (a projection gives it).
+            spec << "with " << (style.colour_map ? "points pointtype 7" : lines_points) << " " << title;
             break;
         case scriptKind::g4d:
             spec << "using 1:2:3:4 with points palette pointtype 7 " << title;

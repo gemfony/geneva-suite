@@ -93,6 +93,23 @@ std::string lineWidthArgument(const GBasePlotter &p) {
     return p.lineWidth() > 0 ? ", linewidth=" + std::to_string(p.lineWidth()) : std::string{};
 }
 
+/** @brief The keyword arguments of a line plot drawn as a style says: a line, markers, or both */
+std::string mplLineAndMarker(const GDrawStyle &style) {
+    return std::string(", marker=\"") + (style.markers ? "o" : "none") + "\""
+        + (style.line ? "" : ", linestyle=\"none\"");
+}
+
+/** @brief matplotlib's format string of a style: "-o", "o", "-", or "none" */
+std::string mplFormat(const GDrawStyle &style) {
+    if(style.line and style.markers) {
+        return "-o";
+    }
+    if(style.line or style.markers) {
+        return style.line ? "-" : "o";
+    }
+    return "none";
+}
+
 /** @brief matplotlib's name of a legend corner ("lower right", ...); AUTO has none */
 std::string matplotlibLegendLocation(legendPosition position) {
     switch(position) {
@@ -123,20 +140,26 @@ std::string mplPlotCall(
     // x, y with xerr/yerr.
     const auto cols = p.dataColumns();
     const GPlotSpec spec = p.plotSpec();
+    // How the series is drawn: the one description its legend sample comes from as well.
+    const GDrawStyle style = scriptStyle(p);
     switch(k) {
         case scriptKind::g2d: {
-            // A scatter plot is drawn as markers alone, a curve as a line through them.
-            const bool scatter = legendSampleOf(spec) == legendSample::MARKER;
-            call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[1]) << ", marker=\"o\"" << (scatter ? ", linestyle=\"none\"" : "")
-                 << ", label=\"" << label << "\"" << lineWidthArgument(p) << ")" << '\n'
-                 << "_c = _a[0].get_color()" << '\n';
+            if(style.fill) {
+                call << "_a = " << ax << ".fill_between(" << bracketedRowCol(cols[0]) << ", "
+                     << bracketedRowCol(cols[1]) << ", label=\"" << label << "\")" << '\n'
+                     << "_c = _a.get_facecolor()[0]" << '\n';
+            } else {
+                call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                     << bracketedRowCol(cols[1]) << mplLineAndMarker(style) << ", label=\"" << label
+                     << "\"" << lineWidthArgument(p) << ")" << '\n'
+                     << "_c = _a[0].get_color()" << '\n';
+            }
         } break;
         case scriptKind::g2ed: {
             call << "_a = " << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
                  << bracketedRowCol(cols[2]) << ", xerr=" << bracketedRowCol(cols[1])
-                 << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"o\", label=\"" << label << "\""
-                 << lineWidthArgument(p) << ")" << '\n'
+                 << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"" << mplFormat(style)
+                 << "\", label=\"" << label << "\"" << lineWidthArgument(p) << ")" << '\n'
                  << "_c = _a[0].get_color()" << '\n';
         } break;
         case scriptKind::g3d: {
@@ -169,17 +192,25 @@ std::string mplPlotCall(
                 }
                 call << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
             }
+            else if(style.colour_map) {
+                // A colour-mapped surface of its own drawing arguments (ROOT's SURF, COL, ...).
+                call << "_surf = " << ax << ".plot_trisurf(" << bracketedRowCol(cols[0]) << ", "
+                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
+                     << ", cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1)" << '\n'
+                     << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n'
+                     << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+            }
             else {
                 if(castsFloorShadow(p)) {
                     // The points' shadows on the floor, small and grey, drawn before the points.
                     call << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
                          << ", zs=" << ax << ".get_zlim()[0], s=2, c=\"0.6\", zorder=1)" << '\n';
                 }
-                // Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
+                // Points (red, as ROOT draws them), a line through them, or a line alone.
                 call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                     << (isCurve3D(p) ? ", marker=\"o\", markersize=3" : ", linestyle=\"none\", marker=\"o\", markersize=3, color=\"red\"")
-                     << ", label=\"" << label << "\", zorder=2)" << '\n'
+                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2]) << mplLineAndMarker(style)
+                     << (style.markers ? ", markersize=3" : "") << (style.line ? "" : ", color=\"red\"")
+                     << lineWidthArgument(p) << ", label=\"" << label << "\", zorder=2)" << '\n'
                      << "_c = _a[0].get_color()" << '\n';
             }
         } break;
@@ -261,13 +292,14 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
            << '\n' << '\n'
            // A legend sample made from the pad's legend description: a line, markers, both, or a
            // filled box, in the colour its series is drawn in.
-           << "def _legend_sample(colour, sample):" << '\n'
+           << "def _legend_sample(colour, sample, width):" << '\n'
            << "    if sample in (\"fill\", \"colour_map\"):" << '\n'
            << "        return Patch(facecolor=colour)" << '\n'
            << "    line = sample in (\"line\", \"line_and_marker\")" << '\n'
            << "    marker = sample in (\"marker\", \"line_and_marker\")" << '\n'
+           << "    extra = {\"linewidth\": width} if width > 0 else {}" << '\n'
            << "    return Line2D([], [], color=colour, linestyle=\"-\" if line else \"none\","
-           << " marker=\"o\" if marker else \"none\")" << '\n'
+           << " marker=\"o\" if marker else \"none\", **extra)" << '\n'
            << '\n'
            << "fig = plt.figure(figsize=(" << (cols == 0 ? 1 : cols) * 5 << ", "
            << (rows == 0 ? 1 : rows) * 4 << "))" << '\n';
@@ -319,11 +351,11 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
         // The legend the description lists (GBasePlotter::legendEntries()), with samples made from
         // it: no artist that is not listed can enter, and a series whose artist cannot carry a
         // legend entry (a filled contour map) is listed all the same.
-        if(const auto entries = p->legendEntries(); not entries.empty()) {
+        if(const auto entries = scriptLegendEntries(*p); not entries.empty()) {
             result << "ax.legend(handles=[";
             for(const auto &[i, e] : entries | std::views::enumerate) {
                 result << (i == 0 ? "" : ", ") << "_legend_sample(_colours[" << e.series << "], \""
-                       << to_string(e.sample) << "\")";
+                       << to_string(e.sample) << "\", " << e.line_width << ")";
             }
             result << "], labels=[";
             for(const auto &[i, e] : entries | std::views::enumerate) {

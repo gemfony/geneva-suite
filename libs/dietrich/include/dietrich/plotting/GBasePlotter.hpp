@@ -274,6 +274,14 @@ public:
     [[nodiscard]] std::vector<GLegendEntry> legendEntries() const;
 
     /**
+     * @brief How this plotter's series is drawn, as every backend draws it and as its legend
+     * sample shows it. The default resolves it from plotSpec() (drawStyleOf()); a plotter of its
+     * own that draws otherwise overrides it.
+     * @return How the series is drawn
+     */
+    [[nodiscard]] virtual GDrawStyle drawStyle() const;
+
+    /**
      * @brief Allows to retrieve the id of this object
      * @return The id currently assigned to this plotter
      */
@@ -412,15 +420,17 @@ protected:
     [[nodiscard]] virtual std::string drawingArguments(bool is_secondary) const = 0;
 
     /**
-     * @brief The name of the object in the ROOT script that stands for this plotter's series: the
-     * graph, histogram or function its header and footer create under this name (a 4-d graph: one
-     * of its markers). The pad's legend copies its look (line, marker, fill) into the sample.
+     * @brief The name of the object in the ROOT script whose look (line, marker, fill) the legend
+     * sample of this plotter's series copies: the graph, histogram or function its footer draws (a
+     * 4-d graph: one of its markers; a 3-d curve: a sample object of its own, never drawn). The
+     * default, an empty name, gives the series a sample object made from drawStyle() in the
+     * pad's colour of the series -- the choice for a plotter of one's own.
      * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
      * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
      * @param own_id This plotter's own emit index, as footerData_() gets it
-     * @return The name of the object
+     * @return The name of the object, or empty
      */
-    [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const = 0;
+    [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
 
     /**
      * @brief Check that a given plotter is compatible with us

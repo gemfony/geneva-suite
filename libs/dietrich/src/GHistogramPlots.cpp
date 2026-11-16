@@ -936,6 +936,9 @@ GPlotSpec GHistogram2D::plotSpec() const {
     if(min_y_ != max_y_) {
         spec.range_y = std::make_tuple(min_y_, max_y_);
     }
+    // How ROOT draws the histogram (its own drawing arguments, or the set2DOpt() choice), so that
+    // the draw style, the legend sample and whether the pad is a 3-d box follow it.
+    spec.drawing_args = drawingArguments(false);
     return spec;
 }
 

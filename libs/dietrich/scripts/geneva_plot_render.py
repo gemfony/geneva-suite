@@ -131,7 +131,8 @@ def _load_csv(path):
                     "name": stripped.split('"', 2)[1] if '"' in stripped else "",
                     "pad": _kv(stripped, "pad", int, 0),
                     "secondary": bool(_kv(stripped, "secondary", int, 0)),
-                    "plot_mode": _kv(stripped, "plot_mode", str, None),
+                    "draw_style": _kv(stripped, "draw_style", str, "markers"),
+                    "line_width": _kv(stripped, "line_width", int, 0),
                     "legend_sample": _kv(stripped, "legend_sample", str, None),
                     "columns": None,   # filled from the next (column-name) row
                     "data": None,
@@ -171,7 +172,7 @@ def load(path):
 _THREE_D = {"graph_3d", "graph_4d"}
 
 
-def _legend_sample(colour, sample):
+def _legend_sample(colour, sample, width=0):
     """A legend sample as the manifest describes it: a line, markers, both, or a filled box."""
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
@@ -179,28 +180,57 @@ def _legend_sample(colour, sample):
         return Patch(facecolor=colour)
     line = sample in ("line", "line_and_marker")
     marker = sample in ("marker", "line_and_marker")
+    extra = {"linewidth": width} if width else {}
     return Line2D([], [], color=colour, linestyle="-" if line else "none",
-                  marker="o" if marker else "none")
+                  marker="o" if marker else "none", **extra)
+
+
+def _style(s):
+    """How the series is drawn, as the export says (draw_style: line, markers, error_bars, fill,
+    colour_map joined by '+'); the library resolves it, the renderer does not derive it again."""
+    return set(str(s.get("draw_style", "markers")).split("+"))
+
+
+def _line_and_marker(style, s):
+    """The keyword arguments of a line plot drawn as the style says."""
+    kw = {"marker": "o" if "markers" in style else "none"}
+    if "line" not in style:
+        kw["linestyle"] = "none"
+    if s.get("line_width"):
+        kw["linewidth"] = s["line_width"]
+    return kw
 
 
 def _draw_series(ax, fig, s):
-    """Draw one series into Axes ax according to its kind; return the colour it is drawn in."""
+    """Draw one series into Axes ax as its draw style says; return the colour it is drawn in."""
     import matplotlib
     kind = s["kind"]
     data = s["data"] or []
     label = s.get("name", "")
+    style = _style(s)
     colour_map = matplotlib.colormaps["viridis"](0.5)
     if kind == "graph_2d":
-        # A scatter plot is markers alone, a curve a line through them.
-        style = {"linestyle": "none"} if s.get("plot_mode") == "scatter" else {}
-        return ax.plot(data[0], data[1], marker="o", label=label, **style)[0].get_color()
+        if "fill" in style:
+            return ax.fill_between(data[0], data[1], label=label).get_facecolor()[0]
+        return ax.plot(data[0], data[1], label=label, **_line_and_marker(style, s))[0].get_color()
     elif kind == "graph_2d_err":
         # stored (x, ex, y, ey) -> errorbar wants x, y, xerr, yerr.
-        return ax.errorbar(data[0], data[2], xerr=data[1], yerr=data[3], fmt="o", label=label)[0].get_color()
+        fmt = ("-" if "line" in style else "") + ("o" if "markers" in style else "")
+        extra = {"linewidth": s["line_width"]} if s.get("line_width") else {}
+        return ax.errorbar(data[0], data[2], xerr=data[1], yerr=data[3], fmt=fmt or "none",
+                           label=label, **extra)[0].get_color()
     elif kind == "graph_3d":
-        # Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
-        style = {} if s.get("plot_mode") == "curve" else {"linestyle": "none"}
-        return ax.plot(data[0], data[1], data[2], marker="o", markersize=3, label=label, **style)[0].get_color()
+        if "colour_map" in style:
+            surf = ax.plot_trisurf(data[0], data[1], data[2], cmap="viridis", linewidth=0, alpha=0.85)
+            fig.colorbar(surf, ax=ax, shrink=0.6)
+            return colour_map
+        # Points (red, as ROOT draws them), a line through them, or a line alone.
+        kw = _line_and_marker(style, s)
+        if "markers" in style:
+            kw["markersize"] = 3
+        if "line" not in style:
+            kw["color"] = "red"
+        return ax.plot(data[0], data[1], data[2], label=label, **kw)[0].get_color()
     elif kind == "graph_4d":
         sc = ax.scatter(data[0], data[1], data[2], c=data[3], cmap="viridis", label=label)
         fig.colorbar(sc, ax=ax)
@@ -267,7 +297,8 @@ def build_figure(canvas, series):
         if listed:
             # On a 3-d Axes the legend lies at the upper left, as in the C++ backends.
             extra = {"loc": "upper left"} if three_d else {}
-            ax.legend(handles=[_legend_sample(c, s["legend_sample"]) for s, c in listed],
+            ax.legend(handles=[_legend_sample(c, s["legend_sample"], s.get("line_width") or 0)
+                               for s, c in listed],
                       labels=[s.get("name", "") for s, _ in listed], **extra)
 
     fig.tight_layout()

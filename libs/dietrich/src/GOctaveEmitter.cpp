@@ -124,6 +124,15 @@ std::string octaveLegendLocation(legendPosition position) {
     return {};
 }
 
+/** @brief Octave's line specification of a style: "-o", "-", or "o" (also for a style of
+ *  neither, which no plotter reports) */
+std::string octaveFormat(const GDrawStyle &style) {
+    if(style.line) {
+        return style.markers ? "-o" : "-";
+    }
+    return "o";
+}
+
 /** @brief Emit the Octave plotting call(s) for ONE plotter into the current subplot (a
  *  `hold on` is already in effect, so secondaries overlay). Data are written as inline
  *  row-vector literals; bin counts come from the plot spec. The calls end with `c_`, the colour
@@ -136,20 +145,25 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
     // (x, ex, y, ey).
     const auto cols = p.dataColumns();
     const GPlotSpec spec = p.plotSpec();
+    // How the series is drawn: the one description its legend sample comes from as well.
+    const GDrawStyle style = scriptStyle(p);
     switch(k) {
         case scriptKind::g2d: {
-            // A scatter plot is drawn as markers alone, a curve as a line through them.
-            const bool scatter = legendSampleOf(spec) == legendSample::MARKER;
-            call << "h_ = plot(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
-                 << ", '" << (scatter ? "o" : "-o") << "'"
-                 << lineWidthArgument(p) << ");" << '\n'
-                 << "c_ = get(h_, 'Color');" << '\n';
+            if(style.fill) {
+                call << "h_ = area(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ");" << '\n'
+                     << "c_ = get(h_, 'FaceColor');" << '\n'
+                     << "if ischar(c_), co_ = get(gca, 'ColorOrder'); c_ = co_(1, :); end" << '\n';
+            } else {
+                call << "h_ = plot(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
+                     << ", '" << octaveFormat(style) << "'" << lineWidthArgument(p) << ");" << '\n'
+                     << "c_ = get(h_, 'Color');" << '\n';
+            }
         } break;
         case scriptKind::g2ed: {
             // Y-error bars only: a single errorbar() carrying BOTH x- and y-error is not
             // portable across base Octave and MATLAB, so the x-error column is omitted here.
             call << "h_ = errorbar(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[2]) << ", "
-                 << bracketedRowCol(cols[3]) << ", 'o'"
+                 << bracketedRowCol(cols[3]) << ", '" << octaveFormat(style) << "'"
                  << lineWidthArgument(p) << ");" << '\n'
                  << "c_ = get(h_, 'Color');" << '\n';
         } break;
@@ -178,6 +192,16 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                 call << "view(3);" << '\n'
                      << "cm_ = colormap(); c_ = cm_(round(end / 2), :);" << '\n';
             }
+            else if(style.colour_map) {
+                // A colour-mapped surface of its own drawing arguments (ROOT's SURF, COL, ...).
+                call << "x_ = " << bracketedRowCol(cols[0]) << ";" << '\n'
+                     << "y_ = " << bracketedRowCol(cols[1]) << ";" << '\n'
+                     << "z_ = " << bracketedRowCol(cols[2]) << ";" << '\n'
+                     << "trisurf(delaunay(x_, y_), x_, y_, z_, 'EdgeColor', 'none');" << '\n'
+                     << "colorbar;" << '\n'
+                     << "view(3);" << '\n'
+                     << "cm_ = colormap(); c_ = cm_(round(end / 2), :);" << '\n';
+            }
             else {
                 if(castsFloorShadow(p)) {
                     // The points' shadows on the floor, small and grey, drawn before the points.
@@ -187,10 +211,11 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                          << "plot3(xs_, ys_, zl_(1) * ones(size(xs_)), '.', 'Color', [0.6 0.6 0.6], 'MarkerSize', 4);"
                          << '\n';
                 }
-                // Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
+                // Points (red, as ROOT draws them), a line through them, or a line alone.
                 call << "h_ = plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
-                     << bracketedRowCol(cols[2]) << (isCurve3D(p) ? ", '-o', 'MarkerSize', 3" : ", 'o', 'Color', 'r', 'MarkerSize', 3")
-                     << ");" << '\n'
+                     << bracketedRowCol(cols[2]) << ", '" << octaveFormat(style) << "'"
+                     << (style.line ? "" : ", 'Color', 'r'") << (style.markers ? ", 'MarkerSize', 3" : "")
+                     << lineWidthArgument(p) << ");" << '\n'
                      << "c_ = get(h_, 'Color');" << '\n'
                      // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d
                      // curve would be drawn as its x-y shadow; the 3-d view is requested explicitly.
@@ -310,7 +335,7 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         // says -- a line, markers, both, or a filled patch -- and handed to legend() with the
         // texts, so that no object that is not listed can enter and a series whose own object
         // carries no name (a map, a histogram) is listed all the same.
-        if(const auto entries = p->legendEntries(); not entries.empty()) {
+        if(const auto entries = scriptLegendEntries(*p); not entries.empty()) {
             result << "s_ = [];" << '\n';
             for(const auto &e : entries) {
                 const std::string colour = "cs_{" + std::to_string(e.series + 1) + "}";
@@ -323,7 +348,9 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
                     const bool marker = e.sample != legendSample::LINE;
                     result << "s_(end + 1) = " << (three_d ? "plot3(NaN, NaN, NaN" : "plot(NaN, NaN")
                            << ", 'LineStyle', '" << (line ? "-" : "none") << "', 'Marker', '"
-                           << (marker ? "o" : "none") << "', 'Color', " << colour << ");" << '\n';
+                           << (marker ? "o" : "none") << "', 'Color', " << colour
+                           << (e.line_width > 0 ? ", 'LineWidth', " + std::to_string(e.line_width) : std::string{})
+                           << ");" << '\n';
                 }
             }
             result << "legend(s_, {";

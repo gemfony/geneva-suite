@@ -506,6 +506,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     if(spec.plot_mode.has_value()) {
         if(auto *g2d = dynamic_cast<GGraph2D *>(p.get())) {
             g2d->setPlotMode(*spec.plot_mode);
+            g2d->setDrawArrows(spec.arrows.value_or(false));
         }
         else if(auto *g2ed = dynamic_cast<GGraph2ED *>(p.get())) {
             g2ed->setPlotMode(*spec.plot_mode);
@@ -674,7 +675,8 @@ std::vector<GLegendEntry> GBasePlotter::legendEntries() const {
     }
     const auto add = [&entries](GBasePlotter const &p, std::size_t series) {
         if(isLegendLabel(p.plot_label_)) {
-            entries.push_back({series, p.plot_label_, legendSampleOf(p.plotSpec())});
+            const GDrawStyle style = p.drawStyle();
+            entries.push_back({series, p.plot_label_, legendSampleOf(style), style.line_width});
         }
     };
     add(*this, 0);
@@ -682,6 +684,31 @@ std::vector<GLegendEntry> GBasePlotter::legendEntries() const {
         add(*sp, static_cast<std::size_t>(pos) + 1);
     }
     return entries;
+}
+
+/******************************************************************************/
+/**
+ * How this plotter's series is drawn, resolved from its plot spec (drawStyleOf()).
+ *
+ * @return How the series is drawn
+ */
+GDrawStyle GBasePlotter::drawStyle() const {
+    return drawStyleOf(this->plotSpec());
+}
+
+/******************************************************************************/
+/**
+ * The base names no object: the legend gives the series a sample object of its own, made from
+ * drawStyle().
+ *
+ * @return An empty name
+ */
+std::string GBasePlotter::rootLegendObject_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id
+) const {
+    return {};
 }
 
 /******************************************************************************/
@@ -791,7 +818,7 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
             const std::string object = e.series == 0
                 ? this->rootLegendObject_(false, 0, this->id())
                 : secondary_plotter_[e.series - 1]->rootLegendObject_(true, this->id(), e.series - 1);
-            root_entries.push_back({object, e.label, e.sample});
+            root_entries.push_back({object, e.label, e.sample, e.series, e.line_width});
         }
         emitRootOverlayFrameAndLegend(
             footer_data, indent, legend_position_, root_entries, isThreeDimensional(this->plotSpec())

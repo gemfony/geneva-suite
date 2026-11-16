@@ -136,6 +136,9 @@ GPlotSpec GGraph2D::plotSpec() const {
     spec.role = defaultRole(spec.kind);
     spec.columns = {"x", "y"};
     spec.plot_mode = getPlotMode();
+    if(draw_arrows_) {
+        spec.arrows = true;
+    }
     return spec;
 }
 
@@ -307,12 +310,9 @@ std::string GGraph2D::drawingArguments(bool is_secondary) const {
         d_a = this->drawing_arguments_;
     }
     else {
-        if(graphPlotMode::SCATTER == p_m_ || draw_arrows_) {
-            d_a = "P";
-        }
-        else {
-            d_a = "PL";
-        }
+        // Markers, and a line through them for a curve, as the series' draw style says.
+        const GDrawStyle style = this->drawStyle();
+        d_a = std::string(style.markers ? "P" : "") + (style.line ? "L" : "");
 
         if(is_secondary) {
             d_a = d_a + ",same";
@@ -550,12 +550,9 @@ std::string GGraph2ED::drawingArguments(bool is_secondary) const {
         d_a = this->drawing_arguments_;
     }
     else {
-        if(graphPlotMode::SCATTER == p_m_) {
-            d_a = "P";
-        }
-        else {
-            d_a = "PL";
-        }
+        // Markers, and a line through them for a curve, as the series' draw style says.
+        const GDrawStyle style = this->drawStyle();
+        d_a = std::string(style.markers ? "P" : "") + (style.line ? "L" : "");
 
         if(is_secondary) {
             d_a = d_a + ",same";
@@ -807,7 +804,7 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     std::string const y_array_name = "y_" + array_base_name;
     std::string const z_array_name = "z_" + array_base_name;
 
-    std::string const graph_name = rootLegendObject_(is_secondary, p_id, own_id);
+    std::string const graph_name = std::string("graph_") + base_name;
 
     std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
     if(!ds_marker_.empty()) {
@@ -825,12 +822,6 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
                 << indent << graph_name << "->SetMarkerStyle(20);" << '\n'
                 << indent << graph_name << "->SetMarkerSize(1);" << '\n'
                 << indent << graph_name << "->SetMarkerColor(2);" << '\n';
-    if(draw_lines_) {
-        // The curve is the poly-line below; the graph's own line, which the legend's sample shows,
-        // gets its width.
-        footer_data << indent << graph_name << "->SetLineWidth(3);" << '\n';
-    }
-
     emitRootTitle(footer_data, indent, graph_name, plot_label_);
 
     // The draw, then a pad update, then the axis titles -- and that order is load-bearing. A
@@ -894,6 +885,14 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
         footer_data << '\n'
                     << indent << "lines_" << graph_name << "->SetLineWidth(3);" << '\n'
                     << indent << "lines_" << graph_name << "->Draw();" << '\n'
+                    // The legend's sample of a curve: the graph's markers and the poly-line's line, in
+                    // an object of its own that is never drawn, so that the drawn objects stay as they are.
+                    << indent << "TGraph *" << rootLegendObject_(is_secondary, p_id, own_id) << " = new TGraph();" << '\n'
+                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerStyle(" << graph_name << "->GetMarkerStyle());" << '\n'
+                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerSize(" << graph_name << "->GetMarkerSize());" << '\n'
+                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerColor(" << graph_name << "->GetMarkerColor());" << '\n'
+                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineColor(lines_" << graph_name << "->GetLineColor());" << '\n'
+                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineWidth(lines_" << graph_name << "->GetLineWidth());" << '\n'
                     << '\n';
     }
 
@@ -1070,7 +1069,8 @@ std::string GGraph3D::drawingArguments(bool is_secondary) const {
 
 /******************************************************************************/
 /**
- * The TGraph2D footerData_() draws; for a curve its line takes the width of the poly-line through the points, so the sample shows both.
+ * The TGraph2D footerData_() draws; for a curve, the sample object the footer makes from the graph's
+ * markers and the poly-line's line.
  *
  * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
  * @param p_id The id of the parent plotter
@@ -1078,7 +1078,9 @@ std::string GGraph3D::drawingArguments(bool is_secondary) const {
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
 std::string GGraph3D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
-    return std::string("graph_") + suffix(is_secondary, p_id, own_id);
+    // A curve through the points has a sample object of its own (see footerData_()).
+    const bool curve = draw_lines_ && this->currentSize() >= 2;
+    return std::string(curve ? "legend_graph_" : "graph_") + suffix(is_secondary, p_id, own_id);
 }
 
 // clone_() and load_() for GGraph3D are generated by Gem::Common::GReflectiveInterfaceT

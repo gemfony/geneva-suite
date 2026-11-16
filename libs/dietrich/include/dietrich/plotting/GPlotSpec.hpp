@@ -162,6 +162,8 @@ struct GPlotSpec {
 
     std::optional<std::uint32_t> line_width; ///< 2-d graphs: the width of the line (absent: default)
 
+    std::optional<bool> arrows; ///< 2-d graphs: true joins consecutive points by arrows (ROOT alone draws them)
+
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
     GPlotSpec() : role(defaultRole(kind)) { /* nothing */ }
@@ -259,6 +261,9 @@ struct GPlotSpec {
         if(line_width.has_value()) {
             out += ", \"line_width\": " + std::to_string(*line_width);
         }
+        if(arrows.value_or(false)) {
+            out += ", \"arrows\": true";
+        }
         out += "}";
         return out;
     }
@@ -320,6 +325,7 @@ struct GLegendEntry {
     std::size_t series = 0; ///< the series it names: 0 the pad's primary plotter, k its k-th secondary plotter
     std::string label;      ///< the text: the series' plot label
     legendSample sample = legendSample::LINE; ///< what the sample shows (legendSampleOf())
+    std::uint32_t line_width = 0; ///< the width of the series' line, which a line sample takes (0: the backend's default)
 };
 
 /**
@@ -332,24 +338,43 @@ struct GLegendEntry {
 }
 
 /**
- * The one decision of what a series' legend sample shows, for every plotter type, from how the
- * series is drawn: its kind, its plot mode (scatter or curve), its projection, and its drawing
- * arguments where it has its own (they are ROOT's draw options; "L"/"C" draw a line, "P"/"*"
- * markers, "B"/"F" a fill, "SURF", "COL", "CONT", "LEGO", "TRI" a colour map, "SCAT" points).
+ * How a series is drawn, resolved once from its plot spec (drawStyleOf()). Every backend takes both
+ * its drawing of the series and the series' legend sample from it, so that a sample cannot show
+ * what is not drawn; ROOT's draw option of a 2-d graph is made from it as well.
+ */
+struct GDrawStyle {
+    bool line = false;            ///< a line through the points (a curve, a function)
+    bool markers = false;         ///< a marker at every point
+    bool error_bars = false;      ///< error bars at the points (a 2-d graph with errors)
+    bool fill = false;            ///< bars or boxes in the series' own colours (a 1-d histogram, ROOT's BOX)
+    bool colour_map = false;      ///< a surface or map coloured by the palette
+    bool arrows = false;          ///< arrows between consecutive points (ROOT alone draws them)
+    std::uint32_t line_width = 0; ///< the width of the line (0: the backend's default)
+};
+
+/**
+ * The one decision of how a series is drawn, for every plotter type, from its kind, its plot mode
+ * (scatter or curve), its arrows, its projection, its line width, and its drawing arguments where
+ * it has its own -- ROOT's draw options, which the plotters report in their spec also where they
+ * choose them themselves (a 2-d histogram's set2DOpt()): "L"/"C" draw a line, "P"/"*" markers,
+ * "B"/"F" a fill, "E" error bars, "SURF", "COL", "CONT", "LEGO", "TRI" a colour map, "BOX" boxes,
+ * "SCAT" points, "LINE" a 3-d line.
  *
- * - a 2-d graph (with or without error bars): markers for a scatter plot, a line through markers
- *   for a curve;
+ * - a 2-d graph: markers for a scatter plot (and where arrows join the points), a line through
+ *   markers for a curve; a graph with errors adds its error bars;
  * - a 3-d graph: the colour map for a projected surface, markers for points, a line through
  *   markers for a curve;
  * - a 4-d graph: markers;
- * - a 1-d histogram: its bars (FILL); a 2-d histogram and a 2-d function: the colour map, or
- *   markers for a scatter plot;
+ * - a 1-d histogram: its bars, or markers with error bars for "P" / "E";
+ * - a 2-d histogram: the colour map (ROOT's default, COL), boxes for "BOX", points for "SCAT",
+ *   "ARR" and "TEXT";
+ *   a 2-d function: the colour map;
  * - a 1-d function: a line.
  *
  * @param spec The series' plot spec (GBasePlotter::plotSpec())
- * @return What the series' legend sample shows
+ * @return How the series is drawn
  */
-[[nodiscard]] inline legendSample legendSampleOf(const GPlotSpec &spec) {
+[[nodiscard]] inline GDrawStyle drawStyleOf(const GPlotSpec &spec) {
     std::string args;
     for(char const c : spec.drawing_args) {
         args += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
@@ -360,46 +385,88 @@ struct GLegendEntry {
     const auto has = [&args](std::string_view token) { return args.find(token) != std::string::npos; };
     const bool colour_map = has("SURF") or has("COL") or has("CONT") or has("LEGO") or has("TRI");
     const bool own_args = args.find_first_not_of(", ") != std::string::npos;
-    const bool curve = spec.plot_mode == graphPlotMode::CURVE;
+    const bool curve = spec.plot_mode.value_or(graphPlotMode::CURVE) == graphPlotMode::CURVE;
 
+    GDrawStyle style;
+    style.line_width = spec.line_width.value_or(0);
     switch(spec.kind) {
         case plotKind::graph_2d:
         case plotKind::graph_2d_err: {
-            if(not own_args) {
-                return curve or not spec.plot_mode.has_value() ? legendSample::LINE_AND_MARKER
-                                                               : legendSample::MARKER;
+            style.error_bars = spec.kind == plotKind::graph_2d_err;
+            if(own_args) {
+                style.fill = has("B") or has("F");
+                style.line = has("L") or has("C");
+                style.markers = has("P") or has("*");
+                if(not(style.fill or style.line or style.markers)) {
+                    style.line = true; // ROOT joins the points of a graph without an option by a line
+                }
+            } else {
+                style.arrows = spec.arrows.value_or(false);
+                style.markers = true;
+                style.line = curve and not style.arrows; // arrows join the points instead
             }
-            if(has("B") or has("F")) {
-                return legendSample::FILL;
-            }
-            const bool line = has("L") or has("C");
-            const bool marker = has("P") or has("*");
-            if(line and marker) {
-                return legendSample::LINE_AND_MARKER;
-            }
-            return marker ? legendSample::MARKER : legendSample::LINE;
-        }
+        } break;
         case plotKind::graph_3d: {
             if(spec.projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE or colour_map) {
-                return legendSample::COLOUR_MAP;
+                style.colour_map = true;
+            } else if(own_args) {
+                style.line = has("LINE");
+                style.markers = has("P") or not style.line;
+            } else {
+                style.markers = true;
+                style.line = spec.plot_mode == graphPlotMode::CURVE;
             }
-            if(own_args and has("LINE")) {
-                return has("P") ? legendSample::LINE_AND_MARKER : legendSample::LINE;
-            }
-            return curve ? legendSample::LINE_AND_MARKER : legendSample::MARKER;
-        }
+        } break;
         case plotKind::graph_4d:
-            return legendSample::MARKER;
+            style.markers = true;
+            break;
         case plotKind::hist_1d:
         case plotKind::hist_1i:
-            return legendSample::FILL;
+            if(has("P") or has("E")) {
+                style.markers = true;
+                style.error_bars = has("E");
+            } else {
+                style.fill = true;
+            }
+            break;
         case plotKind::hist_2d:
+            if(has("BOX")) {
+                style.fill = true;
+            } else if(has("SCAT") or has("ARR") or has("TEXT")) {
+                style.markers = true; // points (or arrows, numbers) where the entries lie
+            } else {
+                style.colour_map = true; // ROOT's default for a 2-d histogram is COL
+            }
+            break;
         case plotKind::function_2d:
-            return has("SCAT") ? legendSample::MARKER : legendSample::COLOUR_MAP;
+            style.colour_map = true;
+            break;
         case plotKind::function_1d:
-            return has("P") ? legendSample::MARKER : legendSample::LINE;
+            style.markers = has("P");
+            style.line = not style.markers;
+            break;
     }
-    return legendSample::LINE;
+    return style;
+}
+
+/**
+ * What a series' legend sample shows, from how the series is drawn (drawStyleOf()): the colour map,
+ * the fill, a line through markers, a line, or markers (also for error bars alone).
+ *
+ * @param style How the series is drawn
+ * @return What its legend sample shows
+ */
+[[nodiscard]] inline legendSample legendSampleOf(const GDrawStyle &style) {
+    if(style.colour_map) {
+        return legendSample::COLOUR_MAP;
+    }
+    if(style.fill) {
+        return legendSample::FILL;
+    }
+    if(style.line and style.markers) {
+        return legendSample::LINE_AND_MARKER;
+    }
+    return style.line ? legendSample::LINE : legendSample::MARKER;
 }
 
 /******************************************************************************/

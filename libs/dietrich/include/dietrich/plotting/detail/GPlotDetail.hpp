@@ -156,9 +156,11 @@ inline void emitRootSeriesColour(
  * name of the object in the script whose look its sample copies.
  */
 struct rootLegendEntry {
-    std::string object;  ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_())
+    std::string object;  ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_()); empty: none
     std::string label;   ///< the text of the entry
     legendSample sample; ///< what the sample shows
+    std::size_t series = 0;       ///< the series' place in its pad (0 the primary), for the colour of a sample object
+    std::uint32_t line_width = 0; ///< the width of a sample object's line (0: ROOT's default)
 };
 
 /**
@@ -182,7 +184,8 @@ inline std::string rootLegendOption(legendSample sample) {
  * (GBasePlotter::legendEntries()): one AddEntry() per entry, in its order, with its text, and a
  * sample drawn from the series' own object as the description says -- a line, markers, both, the
  * series' fill, or, for a series drawn with a colour map, a box in the middle colour of the
- * palette (a small TBox that is not drawn, for the sample alone). TPad::BuildLegend() is not used:
+ * palette (a small TGraph that is not drawn, for the sample alone; so too for a series that names no
+ * object of its own, in its colour). TPad::BuildLegend() is not used:
  * it makes an entry of every object with line, marker or fill attributes (a projected map alone
  * gave it hundreds of cells) and shows line, marker and fill for each.
  *
@@ -238,12 +241,28 @@ inline void emitRootLegend(
     for(const auto &e : entries) {
         const std::string label = "\"" + rootEscape(e.label) + "\"";
         if(e.sample == legendSample::COLOUR_MAP) {
-            s << indent << "   { // a colour map: a box in the middle colour of the palette" << '\n'
-              << indent << "      TBox *sample = new TBox();" << '\n'
+            s << indent << "   { // a colour map: a box in the middle colour of the palette, a sample object never drawn" << '\n'
+              << indent << "      TGraph *sample = new TGraph();" << '\n'
+              << indent << "      sample->SetName(\"sample\");" << '\n'
               << indent << "      sample->SetFillColor(gStyle->GetColorPalette(gStyle->GetNumberOfColors() / 2));" << '\n'
               << indent << "      sample->SetFillStyle(1001);" << '\n'
               << indent << "      sample->SetLineColor(0);" << '\n'
               << indent << "      legend->AddEntry(sample, " << label << ", \"f\");" << '\n'
+              << indent << "   }" << '\n';
+        } else if(e.object.empty()) {
+            // A series without an object of its own to copy: a sample object in the series' colour,
+            // drawn as the description says, never drawn itself.
+            s << indent << "   { // a sample object for a series that names no object of its own" << '\n'
+              << indent << "      TGraph *sample = new TGraph();" << '\n'
+              << indent << "      sample->SetName(\"sample\");" << '\n'
+              << indent << "      sample->SetLineColor(" << rootSeriesColour(e.series) << ");" << '\n'
+              << indent << "      sample->SetMarkerColor(" << rootSeriesColour(e.series) << ");" << '\n'
+              << indent << "      sample->SetFillColor(" << rootSeriesColour(e.series) << ");" << '\n'
+              << indent << "      sample->SetMarkerStyle(20);" << '\n';
+            if(e.line_width > 0) {
+                s << indent << "      sample->SetLineWidth(" << e.line_width << ");" << '\n';
+            }
+            s << indent << "      legend->AddEntry(sample, " << label << ", \"" << rootLegendOption(e.sample) << "\");" << '\n'
               << indent << "   }" << '\n';
         } else {
             s << indent << "   legend->AddEntry(" << e.object << ", " << label << ", \""
@@ -684,12 +703,39 @@ inline bool castsFloorShadow(const GBasePlotter &p) {
 }
 
 /**
- * @brief Whether a 3-d graph is drawn as a curve through its points rather than as the points.
+ * @brief How the script backends (matplotlib, Octave, and the external renderer of the data
+ * export) draw a series: its draw style (GBasePlotter::drawStyle()), as far as they can draw it.
+ * They draw a 1-d histogram always as bars and a 2-d histogram always as a colour map, whatever
+ * ROOT draw option it carries; everything else as the draw style says. Their drawing and their
+ * legend samples both come from this.
  * @param p The plotter
- * @return true for a curve
+ * @return How the script backends draw the series
  */
-inline bool isCurve3D(const GBasePlotter &p) {
-    return p.plotSpec().plot_mode.value_or(graphPlotMode::SCATTER) == graphPlotMode::CURVE;
+inline GDrawStyle scriptStyle(const GBasePlotter &p) {
+    GDrawStyle style = p.drawStyle();
+    const plotKind kind = p.plotSpec().kind;
+    if(kind == plotKind::hist_1d or kind == plotKind::hist_1i) {
+        style = GDrawStyle{.fill = true, .line_width = style.line_width};
+    } else if(kind == plotKind::hist_2d) {
+        style = GDrawStyle{.colour_map = true, .line_width = style.line_width};
+    }
+    return style;
+}
+
+/**
+ * @brief The legend of a pad as the script backends draw it: the pad's description
+ * (GBasePlotter::legendEntries()) with each sample taken from scriptStyle(), so that it shows
+ * what these backends draw.
+ * @param primary The pad's primary plotter
+ * @return The entries; empty: the pad has no legend
+ */
+inline std::vector<GLegendEntry> scriptLegendEntries(const GBasePlotter &primary) {
+    auto entries = primary.legendEntries();
+    for(auto &e : entries) {
+        const GBasePlotter &series = e.series == 0 ? primary : *primary.secondaryPlotters()[e.series - 1];
+        e.sample = legendSampleOf(scriptStyle(series));
+    }
+    return entries;
 }
 
 /******************************************************************************/

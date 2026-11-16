@@ -502,6 +502,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   own API uses are still imported per-name; a consumer that relied on the blanket
   re-export for its *own* unqualified use of common names must now qualify or import
   them itself.
+- **dietrich: one description of how a series is drawn and what its legend shows.**
+  `GBasePlotter` has `drawStyle()` (virtual; by default resolved from `plotSpec()`),
+  `legendEntries()` (the legend of a pad, in every backend) and `rootLegendObject_()`
+  (virtual; by default the ROOT legend gives the series a sample object of its own). A plotter
+  of one's own overrides `drawStyle()` where it draws otherwise. The matplotlib, Octave and
+  gnuplot writers and the external renderer now draw a series as that description says, as
+  ROOT does: a 2-d scatter plot as markers alone, an error-bar curve with its line, a 3-d
+  curve as a line through markers.
 - **A process-wide thread budget now accounts every pool** (`GThreadBudget` in
   `common/concurrency/`). The budget does accounting only — every reservation is granted in
   full; its single behavioral effect is a warning (at most three per process) when the

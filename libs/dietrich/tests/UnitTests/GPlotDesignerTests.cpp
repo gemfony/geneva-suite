@@ -43,11 +43,13 @@
 #include <array>
 #include <cmath>
 #include <span>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
 
 #include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp" // emitRootLegend(), tested directly
 
 #include "Dietrich_tests.hpp" // the local standard-tests driver (mirrors Geneva_tests.hpp)
 
@@ -1585,26 +1587,31 @@ TEST_CASE(
     SECTION("the sample follows the draw mode of every kind of series") {
         GPlotSpec g2(plotKind::graph_2d);
         g2.plot_mode = graphPlotMode::SCATTER;
-        CHECK(legendSampleOf(g2) == legendSample::MARKER);
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::MARKER);
         g2.plot_mode = graphPlotMode::CURVE;
-        CHECK(legendSampleOf(g2) == legendSample::LINE_AND_MARKER);
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::LINE_AND_MARKER);
         g2.drawing_args = "L,same";
-        CHECK(legendSampleOf(g2) == legendSample::LINE);
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::LINE);
         g2.drawing_args = "A*";
-        CHECK(legendSampleOf(g2) == legendSample::MARKER);
+        CHECK(legendSampleOf(drawStyleOf(g2)) == legendSample::MARKER);
         GPlotSpec g3(plotKind::graph_3d);
-        CHECK(legendSampleOf(g3) == legendSample::MARKER);
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::MARKER);
         g3.plot_mode = graphPlotMode::CURVE;
-        CHECK(legendSampleOf(g3) == legendSample::LINE_AND_MARKER);
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::LINE_AND_MARKER);
         g3.projection = surfaceProjection::FLOOR;
-        CHECK(legendSampleOf(g3) == legendSample::COLOUR_MAP);
+        CHECK(legendSampleOf(drawStyleOf(g3)) == legendSample::COLOUR_MAP);
         GPlotSpec surface(plotKind::graph_3d);
         surface.drawing_args = "SURF2Z";
-        CHECK(legendSampleOf(surface) == legendSample::COLOUR_MAP);
-        CHECK(legendSampleOf(GPlotSpec(plotKind::graph_4d)) == legendSample::MARKER);
-        CHECK(legendSampleOf(GPlotSpec(plotKind::hist_1d)) == legendSample::FILL);
-        CHECK(legendSampleOf(GPlotSpec(plotKind::hist_2d)) == legendSample::COLOUR_MAP);
-        CHECK(legendSampleOf(GPlotSpec(plotKind::function_1d)) == legendSample::LINE);
+        CHECK(legendSampleOf(drawStyleOf(surface)) == legendSample::COLOUR_MAP);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::graph_4d))) == legendSample::MARKER);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::hist_1d))) == legendSample::FILL);
+        GPlotSpec h2(plotKind::hist_2d);
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::COLOUR_MAP); // no option: ROOT's COL
+        h2.drawing_args = "COLZ";
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::COLOUR_MAP);
+        h2.drawing_args = "BOX";
+        CHECK(legendSampleOf(drawStyleOf(h2)) == legendSample::FILL);
+        CHECK(legendSampleOf(drawStyleOf(GPlotSpec(plotKind::function_1d))) == legendSample::LINE);
     }
 
     SECTION("ROOT draws each sample from its series' object as the description says") {
@@ -1653,7 +1660,7 @@ TEST_CASE(
         CHECK(map->legendEntries()[0].sample == legendSample::COLOUR_MAP);
         const std::string mpl = render(map, plotBackend::MATPLOTLIB);
         CHECK(mpl.contains(
-            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\")], labels=[\"the landscape\"], loc=\"upper left\")"
+            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\", 0)], labels=[\"the landscape\"], loc=\"upper left\")"
         ));
         CHECK_FALSE(mpl.contains("ax.legend()"));
         const std::string oct = render(map, plotBackend::OCTAVE);
@@ -1673,7 +1680,7 @@ TEST_CASE(
         scatter->registerSecondaryPlotter(curve);
         const std::string mpl = render(scatter, plotBackend::MATPLOTLIB);
         CHECK(mpl.contains("marker=\"o\", linestyle=\"none\", label=\"points\""));
-        CHECK(mpl.contains("_legend_sample(_colours[0], \"marker\"), _legend_sample(_colours[1], \"line_and_marker\")"));
+        CHECK(mpl.contains("_legend_sample(_colours[0], \"marker\", 0), _legend_sample(_colours[1], \"line_and_marker\", 0)"));
         const std::string oct = render(scatter, plotBackend::OCTAVE);
         CHECK(oct.contains("], 'o');"));
         CHECK(oct.contains("], '-o');"));
@@ -1716,8 +1723,8 @@ TEST_CASE(
         gpd.setDataFormat(dataFormat::CSV);
         gpd.registerPlotter(pad());
         const std::string csv = gpd.plot();
-        CHECK(csv.contains("secondary=0 plot_mode=scatter legend_sample=marker\n"));
-        CHECK(csv.contains("secondary=1 plot_mode=curve\n"));
+        CHECK(csv.contains("secondary=0 draw_style=markers legend_sample=marker\n"));
+        CHECK(csv.contains("secondary=1 draw_style=line+markers\n"));
     }
 }
 
@@ -1785,5 +1792,98 @@ TEST_CASE(
         const std::string right = render(map, plotBackend::ROOT);
         CHECK(right.contains("legend->SetX1(TMath::Max(0.01, x2 - width));"));
         CHECK(LEGENDMINTEXTSIZE < LEGENDTEXTSIZE);
+    }
+}
+
+/******************************************************************************/
+// One resolved description per series, GBasePlotter::drawStyle(): every backend takes both its
+// drawing of a series and the series' legend sample from it, the data export carries it for the
+// external renderer, and ROOT's draw option of a 2-d graph is made from it.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "Every backend draws a series and its legend sample from one draw style",
+    "[plotting][overlay][legend][style]"
+) {
+    const auto errors = [](const std::string &label) {
+        auto g = std::make_shared<GGraph2ED>();
+        (*g) & std::tuple<double, double, double, double>(1., 0.1, 2., 0.2);
+        (*g) & std::tuple<double, double, double, double>(2., 0.1, 3., 0.2);
+        g->setPlotLabel(label);
+        return g;
+    };
+
+    SECTION("an error-bar curve is drawn with its line and listed with it, in every backend") {
+        auto first = errors("first");
+        first->registerSecondaryPlotter(errors("second"));
+        CHECK(first->drawStyle().line);
+        CHECK(first->drawStyle().error_bars);
+        const std::string mpl = render(first, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains("fmt=\"-o\""));
+        CHECK(mpl.contains("_legend_sample(_colours[0], \"line_and_marker\", 0)"));
+        const std::string oct = render(first, plotBackend::OCTAVE);
+        CHECK(oct.contains("], '-o');"));
+        CHECK(render(first, plotBackend::GNUPLOT).contains("with xyerrorlines title \"first\""));
+        CHECK(render(first, plotBackend::ROOT).contains("->Draw(\"APL\");"));
+        GPlotDesigner gpd("data", 1, 1);
+        gpd.setDataFormat(dataFormat::CSV);
+        gpd.registerPlotter(first);
+        CHECK(gpd.plot().contains("draw_style=line+markers+error_bars legend_sample=line_and_marker"));
+    }
+
+    SECTION("a line sample takes the series' line width in matplotlib and Octave") {
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        first->setLineWidth(2);
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        second->setLineWidth(2);
+        first->registerSecondaryPlotter(second);
+        CHECK(render(first, plotBackend::MATPLOTLIB).contains("_legend_sample(_colours[0], \"line_and_marker\", 2)"));
+        CHECK(render(first, plotBackend::OCTAVE).contains("'Color', cs_{1}, 'LineWidth', 2);"));
+    }
+
+    SECTION("a 2-d histogram's own option and a graph's arrows reach the draw style") {
+        GHistogram2D boxes(10, 10);
+        CHECK(boxes.drawStyle().colour_map); // no option: ROOT draws COL
+        boxes.set2DOpt(tddropt::BOX);
+        CHECK(boxes.drawStyle().fill); // boxes in the histogram's colours
+        CHECK_FALSE(isThreeDimensional(boxes.plotSpec()));
+        GHistogram2D surface(10, 10);
+        surface.set2DOpt(tddropt::SURFONE);
+        CHECK(surface.drawStyle().colour_map);
+        CHECK(isThreeDimensional(surface.plotSpec()));
+        auto arrows = decadesGraph(false, false);
+        arrows->setDrawArrows(true);
+        CHECK(arrows->plotSpec().toJson().contains("\"arrows\": true"));
+        CHECK_FALSE(arrows->drawStyle().line); // the arrows join the points, ROOT draws them alone
+        CHECK(legendSampleOf(arrows->drawStyle()) == legendSample::MARKER);
+        CHECK(makePlotter(arrows->plotSpec())->drawStyle().arrows);
+    }
+
+    SECTION("a 3-d curve's sample is an object of its own; the drawn graph keeps its line") {
+        auto map = smallSurface(surfaceProjection::NONE);
+        map->setPlotLabel("points");
+        auto curve = std::make_shared<GGraph3D>();
+        (*curve) & std::tuple<double, double, double>(0., 0., 1.);
+        (*curve) & std::tuple<double, double, double>(1., 1., 2.);
+        curve->setDrawLines(true);
+        curve->setPlotLabel("a curve");
+        map->registerSecondaryPlotter(curve);
+        const std::string root = render(map, plotBackend::ROOT);
+        // Only the poly-line has width 3, not the drawn graph.
+        CHECK(root.contains("lines_graph__0_0->SetLineWidth(3);"));
+        CHECK_FALSE(root.contains("\ngraph__0_0->SetLineWidth(3);"));
+        CHECK_FALSE(root.contains(" graph__0_0->SetLineWidth(3);"));
+        CHECK(root.contains("TGraph *legend_graph__0_0 = new TGraph();"));
+        CHECK(root.contains("legend->AddEntry(legend_graph__0_0, \"a curve\", \"lp\");"));
+    }
+
+    SECTION("a series that names no ROOT object gets a sample object in its colour") {
+        std::ostringstream out;
+        emitRootLegend(out, "", legendPosition::TOP_LEFT, {{"", "mine", legendSample::LINE, 1, 3}}, false);
+        const std::string s = out.str();
+        CHECK(s.contains("sample->SetLineColor(2);"));
+        CHECK(s.contains("sample->SetLineWidth(3);"));
+        CHECK(s.contains("legend->AddEntry(sample, \"mine\", \"l\");"));
     }
 }
