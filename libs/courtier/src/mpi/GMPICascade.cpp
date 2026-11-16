@@ -175,8 +175,8 @@ GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI
  * @brief The destructor, on every rank. In this order: nothing without MPI or once MPI is
  * finalized; a member that has neither served nor received the stop ends the job (its lead would
  * wait for ever); a lead releases its group; a lead or the submitter whose role was never
- * confirmed with requireRole() and that never used the cascade (a lead that used it was refused
- * at the first use) ends the job, unless an exception is unwinding; then the
+ * confirmed with requireRole() ends the job, unless an exception is unwinding (a lead that used
+ * the cascade has ended it at the first use already); then the
  * communicators are freed and the environment is let go of, which finalizes MPI if it initialized
  * it and this was its last holder.
  */
@@ -199,8 +199,7 @@ GMPICascade::~GMPICascade() {
     if(role_ == processRole::CLIENT) {
         this->release();
     }
-    if(role_ != processRole::BYSTANDER && not role_confirmed_ && not used_ &&
-       std::uncaught_exceptions() == 0) {
+    if(role_ != processRole::BYSTANDER && not role_confirmed_ && std::uncaught_exceptions() == 0) {
         this->endJob_(
             "~GMPICascade()",
             std::string("the role of ") + std::string(roleName(role_)) + " was never confirmed. " +
@@ -277,15 +276,14 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
  * tearDown(). An exception out of setUp() ends the MPI job.
  *
  * @param lifecycle The lead's lifecycle; outlives the cascade
- * @throws geneva_exception without MPI, on a process that is not a lead, after release(), on a
- *         second call, or before requireRole() -- then after the lifecycle was set up and the group
- *         released (setUp() and tearDown() run in step with the members')
+ * @throws geneva_exception without MPI, on a process that is not a lead, after release() or on a
+ *         second call. Before requireRole() the MPI job is ended instead, after the lifecycle was
+ *         set up and the group released (setUp() and tearDown() run in step with the members')
  */
 void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     this->requireMpi_("lead()");
     this->requireCascadeRole_(processRole::CLIENT, "lead()");
     const std::scoped_lock lock(round_mutex_);
-    used_ = true;
     if(released_) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -338,24 +336,24 @@ void GMPICascade::releaseLocked_() noexcept {
 
 /******************************************************************************/
 /**
- * @brief Refuses the first use of a lead whose role requireRole() has not confirmed: releases the
- * group first, so that every member's serve() returns and no process is left waiting, then throws.
- * Called with the round lock held.
+ * @brief Ends the MPI job at the first use of a lead whose role requireRole() has not confirmed:
+ * releases the group first, so that every member's serve() returns and no process is left waiting,
+ * then logs what the program has to add and ends the job as after a failed half (endJob_()). A
+ * thrown exception would not do: inside a client's item processor it only flags the item, and the
+ * job would run on and end with 0. Called with the round lock held.
  *
  * @param where The function that was called
- * @throws geneva_exception unless the role was confirmed; the text says what the program has to add
  */
 void GMPICascade::requireConfirmedRole_(std::string_view where) {
     if(role_confirmed_) {
         return;
     }
     this->releaseLocked_();
-    throw geneva_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GMPICascade::" << where << ": Error!" << '\n'
-        << "The role of this process (base rank " << base_rank_ << ", " << roleName(role_)
-        << ") was not confirmed with requireRole(). " << confirmationAdvice() << '\n'
-        << "The group was released: its members have left serve()." << '\n'
+    this->endJob_(
+        where,
+        std::string("the role of ") + std::string(roleName(role_)) +
+            " was not confirmed with requireRole(). " + std::string(confirmationAdvice()) +
+            "\nThe group was released: its members have left serve()."
     );
 }
 
@@ -503,13 +501,12 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
  * @brief Checks that a round may be announced and announces it. Called by round() with the round
  * lock held; throws before anything is announced, so the group stays in step.
  *
- * @throws geneva_exception without MPI, on a process that is not a lead, before requireRole()
- *         (the group is then released), or after release()
+ * @throws geneva_exception without MPI, on a process that is not a lead, or after release();
+ *         before requireRole() the group is released and the MPI job ended instead
  */
 void GMPICascade::announceRound_() {
     this->requireMpi_("round()");
     this->requireCascadeRole_(processRole::CLIENT, "round()");
-    used_ = true;
     this->requireConfirmedRole_("round()");
     if(released_) {
         throw geneva_exception(

@@ -152,17 +152,19 @@ public:
  * role their consumer gave them; a wrong consumer (for example a lead without --client) is then
  * refused instead of running nothing while its members idle. A program without a consumer, which
  * calls round() itself, confirms with requireRole(processRole::CLIENT). A lead that has not
- * confirmed its role is refused at its first lead() or round(): the cascade releases its group
- * (the members' serve() returns) and throws, so that no process is left waiting. A lead or the
- * submitter that never confirmed its role and never used the cascade ends the MPI job in the
- * destructor (unless an exception is unwinding), the last safeguard.
+ * confirmed its role ends the MPI job at its first lead() or round(), wherever that is called --
+ * also inside a client's item processor, where an exception would only flag the item: the cascade
+ * releases its group (the members' serve() returns, so no process is left waiting), logs what the
+ * program has to add and calls MPI_Abort. A lead or the submitter that never confirmed its role
+ * ends the MPI job in the destructor (unless an exception is unwinding), the last safeguard for a
+ * process that never uses the cascade.
  *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with
  * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole optimization, in
  * GROUPS_ONLY one client job. A member that leaves without serve() ends the job the same way (its
- * lead would wait for ever). A call made by the wrong role, before requireRole() or after
- * release(), throws a geneva_exception before anything is announced, so the group stays in step.
+ * lead would wait for ever). A call made by the wrong role or after release() throws a
+ * geneva_exception before anything is announced, so the group stays in step.
  *
  * One per process; not copyable, not movable.
  */
@@ -204,7 +206,7 @@ private:
     void announceRound_();
     /** @brief Announces the stop and tears the lead's lifecycle down (round lock held) */
     void releaseLocked_() noexcept;
-    /** @brief Releases the group and throws unless requireRole() confirmed the role (round lock held) */
+    /** @brief Releases the group and ends the job unless requireRole() confirmed the role (round lock held) */
     void requireConfirmedRole_(std::string_view);
     /** @brief Broadcasts a command to the members on the status communicator */
     void announce_(int);
@@ -238,7 +240,6 @@ private:
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
-    std::atomic<bool> used_{false};           ///< A lead: lead() or round() was called
     /// A lead: the lifecycle passed to lead(), torn down by release(); not owned (it outlives the
     /// cascade), null if lead() was not called
     GMPIGroupLifecycleI *lifecycle_ = nullptr;
@@ -253,7 +254,7 @@ private:
  * @param lead_half Callable with the group's communicator (MPI_Comm); the lead's half of the round
  * @return What @p lead_half returns
  * @throws geneva_exception before anything is announced: on a process that is not a lead, without
- *         MPI, before requireRole() (the group is then released) or after release()
+ *         MPI or after release(); before requireRole() the MPI job is ended instead
  */
 template <typename F>
 decltype(auto) GMPICascade::round(F &&lead_half) {

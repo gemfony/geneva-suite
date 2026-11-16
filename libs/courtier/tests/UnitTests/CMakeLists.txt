@@ -358,9 +358,14 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeConfigThrows 3 M zero config-throws)
 	# The group size and the poll pauses from the cascade's configuration file reach every rank
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeConfigFile 3 M zero config-file)
-	# A lead whose role was not confirmed is refused at its first round() or lead(); its members end
-	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmed 3 M zero role-not-confirmed)
-	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmedLead 3 M zero role-not-confirmed-lead)
+	# A lead whose role was not confirmed ends the job at its first round() or lead(), also when the
+	# round runs in a client's item processor, after it has released its members
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmed 3 M nonzero role-not-confirmed
+		EXPECT "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmedLead 3 M nonzero role-not-confirmed-lead
+		EXPECT "lead(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocketNotConfirmed 3 M nonzero websocket-not-confirmed
+		EXPECT "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
 	# A lead that never confirms its role and never uses the cascade ends the job in the destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeNeverUsed 3 M nonzero never-used
 		EXPECT "requireRole()" "The job is ended (MPI_Abort)")

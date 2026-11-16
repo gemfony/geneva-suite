@@ -1158,10 +1158,9 @@ int refusedConfigScenario(Report &report, Refusal refusal) {
 }
 
 /**
- * A lead that has not confirmed its role is refused at its first use (entries ...RoleNotConfirmed
- * for round(), ...RoleNotConfirmedLead for lead()): the call throws with a text that names
- * requireRole(), the group is released first, so every member's serve() returns with no round
- * served, and the job ends in order.
+ * A lead that has not confirmed its role ends the job at its first use (entries ...RoleNotConfirmed
+ * for round(), ...RoleNotConfirmedLead for lead()): the group is released first, so every
+ * member's serve() returns, and the message names requireRole().
  *
  * @param by_lead Whether the first use is lead() (with a collective lifecycle) rather than round()
  */
@@ -1171,38 +1170,18 @@ int roleNotConfirmedScenario(Report &report, bool by_lead) {
     Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
     if(cascade.role() == processRole::BYSTANDER) {
         report.check(cascade.serve(member) == 0, "serve() did not return 0");
-        report.check(
-            member.rounds() == 0,
-            std::format("the member served {} rounds", member.rounds())
-        );
-        if(by_lead) {
-            report.check(
-                member.setUps() == 1 && member.tearDowns() == 1,
-                "the member's lifecycle did not run once"
-            );
-        }
         std::println("member {} served {} rounds", report.rank(), member.rounds());
         return report.failures();
     }
     if(by_lead) {
-        report.expectThrow("lead() before requireRole()", "requireRole()", [&] {
-            cascade.lead(lifecycle);
-        });
-        report.check(
-            lifecycle.setUps() == 1 && lifecycle.tearDowns() == 1,
-            "the lead's lifecycle did not run once"
-        );
+        cascade.lead(lifecycle);
+        report.fail("lead() before requireRole() did not end the job");
     }
     else {
-        report.expectThrow("round() before requireRole()", "requireRole()", [&] {
-            std::ignore =
-                cascade.round([&](MPI_Comm group) { return squareRound(group, cascade, 1.); });
-        });
+        std::ignore =
+            cascade.round([&](MPI_Comm group) { return squareRound(group, cascade, 1.); });
+        report.fail("round() before requireRole() did not end the job");
     }
-    report.expectThrow("a further round()", "requireRole()", [&] {
-        std::ignore = cascade.round(NOTHING);
-    });
-    std::println("lead led 0 rounds: its role was not confirmed");
     return report.failures();
 }
 
@@ -1344,14 +1323,22 @@ WebsocketRun runOverWebsocket(
 /**
  * The cascade behind a websocket client (entry ...Websocket): rank 0 runs a websocket server and a
  * client of it with two evaluations at a time, whose item processor evaluates every item in a
- * round of the group; afterwards the client ends and the lead releases its members.
+ * round of the group; afterwards the client ends and the lead releases its members. Without
+ * @p confirm (entry ...WebsocketNotConfirmed) the lead never calls requireRole(): its first round,
+ * inside the client's item processor, must end the job instead of flagging every item.
+ *
+ * @param confirm Whether the lead confirms its role
  */
-int websocketScenario(Report &report) {
+int websocketScenario(Report &report, bool confirm) {
     constexpr std::size_t ITEMS = 30;
     ProbingMember member;
     Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
     if(cascade.role() == processRole::BYSTANDER) {
         std::ignore = cascade.serve(member);
+        if(not confirm) {
+            std::println("member {} served {} rounds", report.rank(), member.rounds());
+            return report.failures();
+        }
         report.check(
             member.rounds() == static_cast<int>(ITEMS),
             std::format("the member served {} rounds", member.rounds())
@@ -1359,13 +1346,24 @@ int websocketScenario(Report &report) {
         std::println("member {} served {} rounds", report.rank(), member.rounds());
         return report.failures();
     }
-    cascade.requireRole(processRole::CLIENT);
+    if(confirm) {
+        cascade.requireRole(processRole::CLIENT);
+    }
     const std::int64_t size = sizeOf(cascade.group());
     const std::int64_t factor = size * (size + 1) / 2; // every process adds its share
     std::atomic<int> led{0};
     std::atomic<int> wrong{0};
 
     const WebsocketRun run = runOverWebsocket(cascade, ITEMS, factor, led, wrong);
+    if(not confirm) {
+        report.fail(
+            "the client ran to its end ({} of {} items processed) although the lead never "
+            "confirmed its role",
+            run.processed,
+            ITEMS
+        );
+        return report.failures();
+    }
 
     report.check(
         std::cmp_equal(run.processed, ITEMS),
@@ -1447,7 +1445,8 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
-        {"websocket", websocketScenario},
+        {"websocket", [](Report &r) { return websocketScenario(r, true); }},
+        {"websocket-not-confirmed", [](Report &r) { return websocketScenario(r, false); }},
         {"empty-round", emptyRoundScenario},
     };
     for(const auto &[scenario_name, scenario] : scenarios) {
