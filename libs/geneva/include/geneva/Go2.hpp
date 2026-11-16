@@ -186,8 +186,13 @@ public:
      *  registerConsumer(), or the one of the chosen mnemonic, which is built here if the run has
      *  not been configured yet (as optimize() would). A caller may ask it, for example, how many
      *  clients are connected (connectedClients()) before the first optimize().
-     *  @return The consumer; empty in a client or bystander process */
-    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer();
+     *
+     *  The consumer belongs to the run: it goes when this Go2 is destroyed (or releases it), and
+     *  with it a networked consumer's server and its threads -- in an MPI program before MPI is
+     *  finalized. So the pointer is weak: a caller locks it for a question and lets the locked
+     *  pointer go when the question is answered, never keeping it beyond this Go2.
+     *  @return The consumer, weakly; empty (expired) in a client or bystander process */
+    std::weak_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer();
 
     /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "beast",
      *  "mpi", "gpu") -- the programmatic equivalent of the --consumer command-line option / the "consumer"

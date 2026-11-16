@@ -46,6 +46,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -505,6 +506,45 @@ TEST_CASE("a consumer given to Go2::registerConsumer() is used", "[consumer][sha
         CHECK(reg.consumer() == registered);
         CHECK(StcConsumer::instances_constructed().load() == 0);
     }
+    reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Go2::consumer() hands out the consumer of the run -- the one every algorithm submits through --
+// without owning it: what a caller keeps of it does not keep the consumer (and a networked
+// consumer's server) alive beyond the Go2.
+TEST_CASE("Go2::consumer() does not keep the consumer beyond its Go2", "[consumer][sharing][go2]") {
+    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
+    const std::filesystem::path base =
+        std::filesystem::temp_directory_path() / "geneva_go2consumer_tests";
+    std::filesystem::create_directories(base);
+    auto &reg = Registry::instance();
+    reg.clear();
+
+    // Whether what a caller kept still holds a consumer, whatever the type it was handed
+    const auto holds = [](const auto &kept) {
+        if constexpr(requires { kept.expired(); }) {
+            return not kept.expired();
+        }
+        else {
+            return kept != nullptr;
+        }
+    };
+
+    int const argc = 3;
+    char arg0[] = "unit-test";
+    char arg1[] = "--consumer";
+    char arg2[] = "stc";
+    char *argv[] = {arg0, arg1, arg2, nullptr};
+    std::optional<decltype(std::declval<Gem::Geneva::Go2 &>().consumer())> kept;
+    {
+        Gem::Geneva::Go2 go(argc, argv, base / "Go2.json");
+        kept = go.consumer(); // configures the run: the consumer of "stc" is built
+        REQUIRE(holds(*kept));
+        CHECK(reg.consumer() != nullptr);
+    }
+    CHECK_FALSE(holds(*kept)); // it went with the Go2
+    CHECK(reg.consumer() == nullptr);
     reg.clear();
 }
 

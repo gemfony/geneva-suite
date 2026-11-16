@@ -147,12 +147,17 @@ inline void waitForClients(Go2 &go, const ClientGate &gate) {
     if(gate.clients == 0) {
         return;
     }
+    // The consumer belongs to the run: it is locked for each question only (Go2::consumer())
     const auto consumer = go.consumer();
-    if(not consumer) {
-        throw std::runtime_error("waitForClients: this process has no consumer to ask");
-    }
+    const auto ask = [&consumer]() -> std::optional<std::size_t> {
+        const auto locked = consumer.lock();
+        if(not locked) {
+            throw std::runtime_error("waitForClients: this process has no consumer to ask");
+        }
+        return locked->connectedClients();
+    };
     const auto start = std::chrono::steady_clock::now();
-    std::optional<std::size_t> connected = consumer->connectedClients();
+    std::optional<std::size_t> connected = ask();
     if(not connected) {
         std::cout << "Waiting for clients: the consumer " << go.getConsumerName()
                   << " cannot tell how many clients are connected; the measurement starts without "
@@ -170,7 +175,7 @@ inline void waitForClients(Go2 &go, const ClientGate &gate) {
             );
         }
         std::this_thread::sleep_for(CLIENTGATEPOLL);
-        connected = consumer->connectedClients().value_or(0);
+        connected = ask().value_or(0);
     }
     const std::chrono::duration<double> waited = std::chrono::steady_clock::now() - start;
     std::cout << "Waiting for clients: " << *connected << " of " << gate.clients

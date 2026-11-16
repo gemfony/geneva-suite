@@ -1444,11 +1444,12 @@ void Go2::registerConsumer(
 /**
  * @brief The consumer this run submits through, on the submitting process. Configures the run
  * first (idempotent; optimize() and clientRun() do the same), which builds the consumer of the
- * chosen mnemonic unless one was registered.
+ * chosen mnemonic unless one was registered. Weak: the consumer goes with this Go2 (see the
+ * declaration).
  *
- * @return The consumer; empty in a client or bystander process
+ * @return The consumer, weakly; empty in a client or bystander process
  */
-std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> Go2::consumer() {
+std::weak_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> Go2::consumer() {
     this->ensureConfigured_();
     return consumer_;
 }
