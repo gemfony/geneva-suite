@@ -81,6 +81,45 @@ std::weak_ptr<environment_type>
 std::shared_ptr<environment_type>
     anchor; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+/// Whether this thread is building the environment (obtainLocked()), and so runs make_base with
+/// environmentMutex held: a call of the three functions from there would lock it again, which
+/// std::mutex does not allow (a deadlock).
+thread_local bool building = false; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/** @brief Refuses a call of the three functions from the callable of mpiEnvironmentOn() (or from
+ *  anything it calls), which runs while the environment is being built.
+ *  @param where The function that was called
+ *  @throws geneva_exception on the thread that builds the environment */
+void refuseWhileBuilding(const char *where) {
+    if(building) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In " << where << ": Error!" << '\n'
+            << where << " was called while the MPI environment is being built on this thread, "
+            << "from the callable of mpiEnvironmentOn() (for a cascade: its configuration "
+            << "callable). That callable must not ask for the MPI environment or the process's "
+            << "role, nor build anything that does (an MPI consumer or client)." << '\n'
+        );
+    }
+}
+
+/** Marks this thread as building the environment, for its lifetime. */
+class Building {
+public:
+    /** @brief Marks this thread */
+    Building() {
+        building = true;
+    }
+    /** @brief Removes the mark */
+    ~Building() {
+        building = false;
+    }
+    Building(const Building &) = delete;
+    Building(Building &&) = delete;
+    Building &operator=(const Building &) = delete;
+    Building &operator=(Building &&) = delete;
+};
+
 /** @brief The living environment, or a new one on @p make_base (anchored). Call with
  *  environmentMutex held.
  *  @param make_base Returns the base communicator once MPI is initialized
@@ -88,6 +127,7 @@ std::shared_ptr<environment_type>
 std::shared_ptr<environment_type> obtainLocked(const std::function<MPI_Comm()> &make_base) {
     auto current = environment.lock();
     if(not current) {
+        const Building marked;
         current = std::make_shared<environment_type>(nullptr, nullptr, make_base);
         environment = current;
         anchor = current;
@@ -108,6 +148,7 @@ MPI_Comm worldCommunicator() {
  * @return The environment; the caller keeps it for as long as it uses MPI
  */
 std::shared_ptr<Consumers::GMPIEnvironment> mpiEnvironment() {
+    refuseWhileBuilding("mpiEnvironment()");
     const std::scoped_lock lock(environmentMutex);
     auto result = obtainLocked(worldCommunicator);
     anchor.reset(); // a holder has it now
@@ -119,10 +160,12 @@ std::shared_ptr<Consumers::GMPIEnvironment> mpiEnvironment() {
  * @brief Builds the process's MPI environment on the communicator @p make_base returns.
  * @param make_base Called once MPI is initialized; returns the base communicator
  * @return The environment; the caller keeps it for as long as it uses MPI
- * @throws geneva_exception if an environment exists already
+ * @throws geneva_exception if an environment exists already, or if called from the callable of
+ *         another mpiEnvironmentOn() on this thread
  */
 std::shared_ptr<Consumers::GMPIEnvironment>
 mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
+    refuseWhileBuilding("mpiEnvironmentOn()");
     const std::scoped_lock lock(environmentMutex);
     if(not environment.expired()) {
         throw geneva_exception(
@@ -143,6 +186,7 @@ mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
  * @return The role on courtier's communicator
  */
 processRole mpiProcessRole() {
+    refuseWhileBuilding("mpiProcessRole()");
     const std::scoped_lock lock(environmentMutex);
     return obtainLocked(worldCommunicator)->role();
 }

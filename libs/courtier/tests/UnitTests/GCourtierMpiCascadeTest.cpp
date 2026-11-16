@@ -1491,6 +1491,36 @@ int insideCallbackScenario(Report &report, Reentry reentry) {
 }
 
 /**
+ * A configuration callable that asks for the process's MPI role (entry ...CallableAsksRole): the
+ * call throws on rank 0 instead of locking the environment's mutex a second time; rank 0 rethrows
+ * it, the others refuse because rank 0 could not provide the configuration; none waits.
+ */
+int callableAsksRoleScenario(Report &report) {
+    std::string text;
+    try {
+        const Courtier::GMPICascade cascade([] {
+            std::ignore = Courtier::mpiProcessRole();
+            return configOf(3, GMPICascadeLayout::GROUPS_ONLY);
+        });
+        report.fail("the constructor did not throw");
+    }
+    catch(const std::exception &e) {
+        text = e.what();
+    }
+    const std::string_view expected = report.rank() == 0
+                                        ? "was called while the MPI environment is being built"
+                                        : "could not provide the cascade's configuration";
+    report.check(
+        text.contains(expected),
+        std::format("the text '{}' does not contain '{}'", text, expected)
+    );
+    int finalized = 0;
+    MPI_Finalized(&finalized);
+    report.check(finalized == 1, "MPI is not finalized");
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1748,6 +1778,7 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"callable-asks-role", callableAsksRoleScenario},
         {"round-inside-set-up",
          [](Report &r) { return insideCallbackScenario(r, Reentry::ROUND_IN_SET_UP); }},
         {"release-inside-tear-down",

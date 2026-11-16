@@ -132,7 +132,10 @@ public:
  * build their environment on MPI_COMM_WORLD with a collective duplicate: called on some ranks only,
  * they wait there already, before any cascade.) The cascade builds the environment itself
  * (mpiEnvironmentOn()), which initializes MPI with MPI_THREAD_MULTIPLE unless the program has done
- * so. Only rank 0 of the base communicator calls the configuration callable; its values are
+ * so. Only rank 0 of the base communicator calls the configuration callable, while the environment
+ * is being built: it must not ask for the environment or the process's role (mpiEnvironment(),
+ * mpiProcessRole()) nor build anything that does -- such a call throws, and every rank refuses
+ * the cascade. Its values are
  * broadcast and checked on every rank alike, so that a bad configuration is refused by every rank
  * with the same text. The communicators the cascade makes get MPI_ERRORS_ARE_FATAL.
  *

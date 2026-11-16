@@ -164,7 +164,10 @@ bool mpiUsable() noexcept {
  * MPI_THREAD_MULTIPLE unless the program has done so.
  *
  * @param config_on_rank0 Called on rank 0 of @p base only (and without MPI under configuration
- *                        emission); provides the configuration of every rank
+ *                        emission); provides the configuration of every rank. It runs while the
+ *                        MPI environment is being built and must not ask for it or for the
+ *                        process's role (mpiEnvironment(), mpiProcessRole()), nor build anything
+ *                        that does; such a call throws, and every rank refuses the cascade
  * @param base The communicator whose processes form the cascade; the caller's, never freed. A
  *             communicator other than MPI_COMM_WORLD implies that the program initialized MPI.
  * @throws geneva_exception if an MPI environment exists already, if MPI has been finalized or

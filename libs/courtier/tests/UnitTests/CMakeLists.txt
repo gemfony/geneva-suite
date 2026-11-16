@@ -410,6 +410,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "release() was called from inside tearDown()" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeServeInsideServeRound 3 M nonzero serve-inside-serve-round
 		EXPECT "serve() was called from inside serveRound()" "The job is ended (MPI_Abort)")
+	# A configuration callable that asks for the MPI role is refused on every rank, not a deadlock
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeCallableAsksRole 3 M zero callable-asks-role)
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged
