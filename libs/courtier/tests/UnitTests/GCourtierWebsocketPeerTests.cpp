@@ -389,19 +389,32 @@ TEST_CASE(
 
     boost::asio::io_context ctx;
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
-    std::promise<void> closed_here;
+    GSeen server_seen;
+    std::weak_ptr<GWebsocketPeer> server_weak;
+    std::promise<void> opened;      // the end under test is open (and has queued its messages)
+    std::promise<void> closed_here; // close() has been called on it
     std::promise<std::uint16_t> their_view; // the code of the close frame the other end read
+    boost::asio::io_context own;
+    boost::beast::websocket::stream<tcp::socket> ws(own);
     const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
-                            ours_out = closed_here.get_future()]() mutable {
+                                  open = opened.get_future(),
+                                  ours_called = closed_here.get_future()]() mutable {
         try {
-            boost::asio::io_context own;
-            boost::beast::websocket::stream<tcp::socket> ws(own);
             ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
             ws.handshake("localhost", "/");
-            ours_out.wait_for(10s); // close() has been called on the end under test
-            if(which != Order::THEIRS_FIRST) {
-                // Waits until the close frame of the end under test has arrived (it went out
-                // at once: nothing was queued before it)
+            // The end under test is closed only now, so that its close frame does not arrive
+            // together with the answer to the handshake (Beast would read it with the answer)
+            open.wait_for(10s);
+            boost::asio::post(ctx, [&server_weak, &closed_here] {
+                if(auto peer = server_weak.lock()) {
+                    peer->close(GPeerClose::NORMAL);
+                }
+                closed_here.set_value();
+            });
+            ours_called.wait_for(10s);
+            if(which == Order::OURS_FIRST) {
+                // Waits until the close frame of the end under test has arrived (it goes out at
+                // once: nothing was queued before it); nothing reads it before the message below
                 const auto until = std::chrono::steady_clock::now() + 10s;
                 while(ws.next_layer().available() == 0 && std::chrono::steady_clock::now() < until) {
                     std::this_thread::sleep_for(1ms);
@@ -423,8 +436,6 @@ TEST_CASE(
         }
     });
 
-    GSeen server_seen;
-    std::weak_ptr<GWebsocketPeer> server_weak;
     auto server = serverEnd(acceptor.accept());
     server_weak = server;
     startRecording(server, server_seen, [&] {
@@ -434,15 +445,32 @@ TEST_CASE(
                     peer->send(makeMessage(std::string(LARGE_MESSAGE_BYTES, 'x')));
                 }
             }
-            peer->close(GPeerClose::NORMAL);
         }
-        closed_here.set_value();
+        opened.set_value();
     });
     server.reset();
 
-    REQUIRE(runsDry(ctx));
+    // The context runs until the end under test has ended and the other end is done, which
+    // depend on each other; should they not, the other end's socket is shut, so that its thread
+    // ends and the test fails instead of hanging.
     auto view = their_view.get_future();
-    REQUIRE(view.wait_for(10s) == std::future_status::ready);
+    const auto deadline = std::chrono::steady_clock::now() + 30s;
+    while(not(ctx.stopped() && view.wait_for(0s) == std::future_status::ready) &&
+          std::chrono::steady_clock::now() < deadline) {
+        if(ctx.stopped()) {
+            std::ignore = view.wait_for(20ms);
+        }
+        else {
+            ctx.run_for(20ms);
+        }
+    }
+    const bool done = ctx.stopped() && view.wait_for(0s) == std::future_status::ready;
+    if(not done) {
+        boost::system::error_code ignored;
+        std::ignore = ws.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
+    }
+    INFO("order " << static_cast<int>(which));
+    REQUIRE(done);
     const std::uint16_t their_code = view.get();
 
     CHECK(server_seen.nClosed == 1);
