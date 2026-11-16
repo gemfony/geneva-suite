@@ -379,6 +379,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "an exception left setUp(): injected exception in setUp()" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeTearDownThrows 3 M nonzero tear-down-throws
 		EXPECT "an exception left tearDown(): injected exception in tearDown()" "The job is ended (MPI_Abort)")
+	# An MPI error of a started collective cannot be survived: it ends the job
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeIbcastStartFails 3 M nonzero ibcast-start-fails
+		EXPECT "the broadcast of the configuration failed with the MPI error code" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeTestallFails 3 M nonzero testall-fails
+		EXPECT "the broadcast of the configuration failed with the MPI error code" "The job is ended (MPI_Abort)")
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged

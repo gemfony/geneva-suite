@@ -35,6 +35,7 @@
 
 // Standard headers go here
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
@@ -44,6 +45,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 
 // MPI headers go here
 #include <mpi.h>
@@ -185,7 +187,8 @@ GMPICascade::~GMPICascade() {
         return; // no MPI was used
     }
     int finalized = 0;
-    MPI_Finalized(&finalized);
+    // MPI_Finalized may be called at any time and reports nothing but the flag: no error to look at
+    std::ignore = MPI_Finalized(&finalized);
     if(finalized != 0) {
         return; // the program finalized MPI while the cascade lived: nothing can be done
     }
@@ -208,7 +211,7 @@ GMPICascade::~GMPICascade() {
     }
     for(MPI_Comm *communicator : {&courtier_, &group_, &status_}) {
         if(*communicator != MPI_COMM_NULL) {
-            MPI_Comm_free(communicator);
+            this->mpiChecked_(MPI_Comm_free(communicator), "MPI_Comm_free");
         }
     }
     environment_.reset();
@@ -409,7 +412,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
  *         its callable threw), or if GMPICascadeConfig::check() refuses it
  */
 MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on_rank0) {
-    MPI_Comm_rank(base_, &base_rank_);
+    this->mpiChecked_(MPI_Comm_rank(base_, &base_rank_), "MPI_Comm_rank");
 
     // Rank 0's configuration, or a marker that it has none, for every rank.
     packed_config_type packed{};
@@ -430,22 +433,15 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
             failure = std::current_exception();
         }
     }
-    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
-    // checker does not know it
-    MPI_Request request = MPI_REQUEST_NULL;
-    MPI_Ibcast(packed.data(), CONFIGFIELDS, MPI_INT64_T, 0, base_, &request);
-    if(waitPolled(
-           std::span<MPI_Request>(&request, 1),
-           GMPIPEERPOLLPAUSEMIN,
-           GMPIPEERPOLLPAUSEMAX
-       ) != MPI_SUCCESS) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::GMPICascade(): Error!" << '\n'
-            << "The broadcast of the cascade's configuration failed" << '\n'
-        );
-    }
-    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+    this->broadcast_(
+        packed.data(),
+        CONFIGFIELDS,
+        MPI_INT64_T,
+        base_,
+        GMPIPEERPOLLPAUSEMIN,
+        GMPIPEERPOLLPAUSEMAX,
+        "GMPICascade(), the broadcast of the configuration"
+    );
     if(packed[0] != CONFIGPROVIDED) {
         if(failure) {
             std::rethrow_exception(failure);
@@ -476,10 +472,13 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
     const bool lead = not submitter && (base_rank_ - first) % g == 0;
     const int colour = submitter ? MPI_UNDEFINED : (base_rank_ - first) / g;
     const int key = lead ? 0 : base_rank_; // the lead is rank 0 of its group
-    MPI_Comm_split(base_, colour, key, &group_);
+    this->mpiChecked_(MPI_Comm_split(base_, colour, key, &group_), "MPI_Comm_split");
     const bool in_courtier =
         config_.layout == GMPICascadeLayout::SUBMITTER_AND_GROUPS && (submitter || lead);
-    MPI_Comm_split(base_, in_courtier ? 0 : MPI_UNDEFINED, base_rank_, &courtier_);
+    this->mpiChecked_(
+        MPI_Comm_split(base_, in_courtier ? 0 : MPI_UNDEFINED, base_rank_, &courtier_),
+        "MPI_Comm_split"
+    );
     if(submitter) {
         role_ = processRole::SUBMITTER;
     }
@@ -489,9 +488,15 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
 
     if(group_ != MPI_COMM_NULL) {
         // The announcements travel on a communicator of their own, apart from the halves' traffic.
-        MPI_Comm_set_errhandler(group_, MPI_ERRORS_ARE_FATAL);
-        MPI_Comm_dup(group_, &status_);
-        MPI_Comm_set_errhandler(status_, MPI_ERRORS_ARE_FATAL);
+        this->mpiChecked_(
+            MPI_Comm_set_errhandler(group_, MPI_ERRORS_ARE_FATAL),
+            "MPI_Comm_set_errhandler"
+        );
+        this->mpiChecked_(MPI_Comm_dup(group_, &status_), "MPI_Comm_dup");
+        this->mpiChecked_(
+            MPI_Comm_set_errhandler(status_, MPI_ERRORS_ARE_FATAL),
+            "MPI_Comm_set_errhandler"
+        );
     }
     return courtier_;
 }
@@ -521,48 +526,102 @@ void GMPICascade::announceRound_() {
 /******************************************************************************/
 /**
  * @brief Broadcasts @p command from the lead to its members on the status communicator and waits
- * for the broadcast to complete, polled.
+ * for the broadcast to complete, polled. An MPI error ends the job (broadcast_()).
  *
  * @param command ROUNDGO or ROUNDSTOP
- * @throws geneva_exception if the broadcast fails (not on a communicator with MPI_ERRORS_ARE_FATAL)
  */
 void GMPICascade::announce_(int command) {
+    this->broadcast_(
+        &command,
+        1,
+        MPI_INT,
+        status_,
+        config_.pauseMin,
+        config_.pauseMax,
+        "the announcement of a command to the group"
+    );
+}
+
+/******************************************************************************/
+/**
+ * @brief Broadcasts @p count elements of @p type from rank 0 of @p comm with MPI_Ibcast and waits
+ * for the completion, polled. The one broadcast of the cascade. An error of the start or of the
+ * wait cannot be survived: a started collective cannot be cancelled, and a throw would leave it
+ * active over a buffer that goes; and a rank that has not started it leaves the others waiting in
+ * it. So any error ends the MPI job (endJob_()).
+ *
+ * @param buffer The elements (sent on rank 0, received elsewhere); valid until the return
+ * @param count The number of elements
+ * @param type Their MPI datatype
+ * @param comm The communicator
+ * @param pause_min The first pause of the wait
+ * @param pause_max The longest pause of the wait
+ * @param what What is broadcast, for the message
+ */
+void GMPICascade::broadcast_(
+    void *buffer,
+    int count,
+    MPI_Datatype type,
+    MPI_Comm comm,
+    std::chrono::microseconds pause_min,
+    std::chrono::microseconds pause_max,
+    std::string_view what
+) noexcept {
     // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
     // checker does not know it
     MPI_Request request = MPI_REQUEST_NULL;
-    MPI_Ibcast(&command, 1, MPI_INT, 0, status_, &request);
-    if(waitPolled(std::span<MPI_Request>(&request, 1), config_.pauseMin, config_.pauseMax) !=
-       MPI_SUCCESS) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::announce_(): Error!" << '\n'
-            << "The broadcast of a command to the group failed" << '\n'
-        );
+    this->mpiChecked_(MPI_Ibcast(buffer, count, type, 0, comm, &request), what);
+    int completed = MPI_ERR_OTHER;
+    try {
+        completed = waitPolled(std::span<MPI_Request>(&request, 1), pause_min, pause_max);
     }
+    catch(...) {
+        // only checkPollPauses() throws, and the pauses were checked at construction
+        this->endJob_(what, std::current_exception());
+    }
+    this->mpiChecked_(completed, what);
     // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 }
 
 /******************************************************************************/
 /**
- * @brief On a member: waits, polled, for the lead's next command.
+ * @brief Ends the MPI job if an MPI call of the cascade failed (possible only on a communicator
+ * whose error handler returns, such as a base communicator with MPI_ERRORS_RETURN): an error of
+ * the MPI library leaves the group, or a collective, in a state that cannot be repaired.
+ *
+ * @param result What the call returned
+ * @param call The call, for the message
+ */
+void GMPICascade::mpiChecked_(int result, std::string_view call) const noexcept {
+    if(result == MPI_SUCCESS) {
+        return;
+    }
+    std::string reason;
+    try {
+        reason = std::string(call) + " failed with the MPI error code " + std::to_string(result);
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
+    }
+    this->endJob_(call, reason);
+}
+
+/******************************************************************************/
+/**
+ * @brief On a member: waits, polled, for the lead's next command. An MPI error ends the job
+ * (broadcast_()).
  * @return true for a round, false for the stop (which is latched)
- * @throws geneva_exception if the broadcast fails (not on a communicator with MPI_ERRORS_ARE_FATAL)
  */
 bool GMPICascade::waitForRound_() {
     int command = ROUNDSTOP;
-    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
-    // checker does not know it
-    MPI_Request request = MPI_REQUEST_NULL;
-    MPI_Ibcast(&command, 1, MPI_INT, 0, status_, &request);
-    if(waitPolled(std::span<MPI_Request>(&request, 1), config_.pauseMin, config_.pauseMax) !=
-       MPI_SUCCESS) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::serve(): Error!" << '\n'
-            << "The broadcast of a command from the lead failed" << '\n'
-        );
-    }
-    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+    this->broadcast_(
+        &command,
+        1,
+        MPI_INT,
+        status_,
+        config_.pauseMin,
+        config_.pauseMax,
+        "the wait for a command of the lead"
+    );
     stop_received_ = (command != ROUNDGO);
     return not stop_received_;
 }
@@ -645,7 +704,7 @@ void GMPICascade::endJob_(std::string_view where, std::string_view reason) const
     }
     std::cout.flush();
     std::cerr.flush();
-    MPI_Abort(base_, EXIT_FAILURE);
+    std::ignore = MPI_Abort(base_, EXIT_FAILURE); // does not return; nothing to do if it did
     std::abort(); // not reached: MPI_Abort does not return
 }
 

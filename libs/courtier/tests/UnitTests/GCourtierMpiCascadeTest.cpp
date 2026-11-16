@@ -1266,6 +1266,27 @@ int failureScenario(Report &report, Injected injected) {
 }
 
 /**
+ * An MPI error in the cascade ends the job (entries ...IbcastStartFails, ...TestallFails): the
+ * watch makes the start of rank 0's broadcast of the configuration fail, or rank 1's wait for it.
+ * Neither the rank with the error nor the others may be left waiting.
+ *
+ * @param at_start Whether the start fails (rank 0) rather than the wait (rank 1)
+ */
+int mpiErrorScenario(Report &report, bool at_start) {
+    if(at_start && report.rank() == 0) {
+        CallWatch::failNextIbcastStart();
+    }
+    if(not at_start && report.rank() == 1) {
+        CallWatch::failNextTestall();
+    }
+    SquareMember member(report);
+    Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
+    runGroups(report, cascade, member, 1);
+    report.fail("the MPI error did not end the job");
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1525,6 +1546,8 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"ibcast-start-fails", [](Report &r) { return mpiErrorScenario(r, true); }},
+        {"testall-fails", [](Report &r) { return mpiErrorScenario(r, false); }},
         {"serve-round-throws", [](Report &r) { return failureScenario(r, Injected::SERVE_ROUND); }},
         {"lead-half-throws", [](Report &r) { return failureScenario(r, Injected::LEAD_HALF); }},
         {"set-up-throws", [](Report &r) { return failureScenario(r, Injected::SET_UP); }},

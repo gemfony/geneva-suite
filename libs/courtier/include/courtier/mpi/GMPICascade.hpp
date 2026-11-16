@@ -42,6 +42,7 @@
 
 // Standard headers go here
 #include <atomic>
+#include <chrono>
 #include <exception>
 #include <functional>
 #include <memory>
@@ -210,6 +211,18 @@ private:
     void requireConfirmedRole_(std::string_view);
     /** @brief Broadcasts a command to the members on the status communicator */
     void announce_(int);
+    /** @brief MPI_Ibcast from rank 0, completed polled; an MPI error ends the job */
+    void broadcast_(
+        void *,
+        int,
+        MPI_Datatype,
+        MPI_Comm,
+        std::chrono::microseconds,
+        std::chrono::microseconds,
+        std::string_view
+    ) noexcept;
+    /** @brief Ends the job unless an MPI call returned MPI_SUCCESS */
+    void mpiChecked_(int, std::string_view) const noexcept;
     /** @brief On a member: waits for the next command; false for the stop */
     bool waitForRound_();
     /** @brief Throws unless MPI is in use */

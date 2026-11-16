@@ -56,4 +56,10 @@ namespace Gem::Tests::CallWatch {
 /** @brief How many communicators made by MPI_Comm_split or MPI_Comm_dup have not been freed */
 [[nodiscard]] std::size_t watchedCommunicatorsAlive();
 
+/** @brief The next MPI_Ibcast of this process fails at its start (MPI_ERR_OTHER, nothing started):
+ *  a seam for the tests of the cascade's handling of MPI errors */
+void failNextIbcastStart();
+/** @brief The next MPI_Testall of this process fails (MPI_ERR_OTHER; its requests stay active) */
+void failNextTestall();
+
 } /* namespace Gem::Tests::CallWatch */

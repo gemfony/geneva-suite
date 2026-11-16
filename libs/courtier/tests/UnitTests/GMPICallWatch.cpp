@@ -69,6 +69,8 @@ struct Watch {
     std::atomic<std::size_t> collectivesStarted{0};
     std::atomic<std::size_t> splits{0};
     std::atomic<std::size_t> communicatorsMade{0};
+    std::atomic<bool> failIbcastStart{false}; ///< The next MPI_Ibcast fails at its start
+    std::atomic<bool> failTestall{false};     ///< The next MPI_Testall fails
     handle_set_type pendingCollectives; ///< Started non-blocking collectives not seen to complete
     handle_set_type aliveCommunicators; ///< Communicators made and not freed
 };
@@ -122,6 +124,13 @@ std::size_t watchedCommunicatorsAlive() {
     return watch().aliveCommunicators.size();
 }
 
+void failNextIbcastStart() {
+    watch().failIbcastStart = true;
+}
+void failNextTestall() {
+    watch().failTestall = true;
+}
+
 } /* namespace Gem::Tests::CallWatch */
 
 // NOLINTBEGIN(readability-identifier-naming,readability-inconsistent-declaration-parameter-name)
@@ -142,6 +151,9 @@ int MPI_Ibcast(
     MPI_Request *request
 ) {
     ++watch().ibcasts;
+    if(watch().failIbcastStart.exchange(false)) {
+        return MPI_ERR_OTHER;
+    }
     return started(PMPI_Ibcast(buffer, count, datatype, root, comm, request), request);
 }
 
@@ -209,6 +221,9 @@ int MPI_Testall(
     int *flag,
     MPI_Status array_of_statuses[]
 ) {
+    if(watch().failTestall.exchange(false)) {
+        return MPI_ERR_OTHER;
+    }
     // MPI sets a completed request to MPI_REQUEST_NULL: note the handles before the call
     std::vector<std::uintptr_t> before;
     before.reserve(static_cast<std::size_t>(count));

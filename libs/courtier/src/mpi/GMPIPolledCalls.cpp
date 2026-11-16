@@ -88,7 +88,9 @@ void pollUntil(
  * @param pause_min The first pause between two looks
  * @param pause_max The longest pause between two looks
  * @return What the last MPI_Testall returned: MPI_SUCCESS, or an error code on a communicator
- *         whose error handler returns (the wait ends then)
+ *         whose error handler returns. The wait ends then, and a request may still be active: its
+ *         buffers must stay valid, and a started collective cannot be cancelled -- the caller can
+ *         only end the job (MPI_Abort)
  * @throws geneva_exception if the pauses break checkPollPauses()'s rule
  */
 int waitPolled(
@@ -168,7 +170,9 @@ MPI_Status probePolled(
  * @param comm The communicator
  * @param pause_min The first pause between two looks
  * @param pause_max The longest pause between two looks
- * @return MPI_SUCCESS, or the error code of MPI_Iscatter (nothing was started then) or of the wait
+ * @return MPI_SUCCESS, or the error code of MPI_Iscatter (nothing was started then; the other
+ *         processes may wait in it) or of the wait (see waitPolled(): the collective may still be
+ *         active over the buffers) -- after an error the caller can only end the job (MPI_Abort)
  * @throws geneva_exception if the pauses break checkPollPauses()'s rule
  */
 int mpiScatter(
@@ -207,7 +211,9 @@ int mpiScatter(
  * @param comm The communicator
  * @param pause_min The first pause between two looks
  * @param pause_max The longest pause between two looks
- * @return MPI_SUCCESS, or the error code of MPI_Igather (nothing was started then) or of the wait
+ * @return MPI_SUCCESS, or the error code of MPI_Igather (nothing was started then; the other
+ *         processes may wait in it) or of the wait (see waitPolled(): the collective may still be
+ *         active over the buffers) -- after an error the caller can only end the job (MPI_Abort)
  * @throws geneva_exception if the pauses break checkPollPauses()'s rule
  */
 int mpiGather(
