@@ -330,7 +330,12 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
                 result << (i == 0 ? "" : ", ") << "\"" << backslashEscape(e.label) << "\"";
             }
             result << "]";
-            const std::string location = matplotlibLegendLocation(p->getLegendPosition());
+            // AUTO on a 3-d Axes is the upper left: matplotlib's "best" place is computed in the
+            // flat projection and put the legend over the box and the axis labels.
+            std::string location = matplotlibLegendLocation(p->getLegendPosition());
+            if(location.empty() and three_d) {
+                location = "upper left";
+            }
             if(not location.empty()) {
                 result << ", loc=\"" << location << "\"";
             }

@@ -213,9 +213,13 @@ public:
      */
     [[nodiscard]] std::string padTitleOrLabel() const;
     /**
-     * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad holds
-     * several series
-     * @param position A corner, or AUTO (the default: the backend's own choice)
+     * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad has one
+     * (legendEntries()). In ROOT a corner gets the box of legendBox() and a fixed text size
+     * (LEGENDTEXTSIZE); labels too long for the box are drawn smaller, down to LEGENDMINTEXTSIZE,
+     * and where the widest still does not fit, the box grows away from its side of the pad.
+     * AUTO is ROOT's own placement on a 2-d pad and the band at the top left on a 3-d pad
+     * (legendBox3D()); the other backends name the corner, and on a 3-d pad AUTO is the upper left.
+     * @param position A corner, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);
     /**

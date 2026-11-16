@@ -167,10 +167,12 @@ enum class surfaceProjection : ENUMBASETYPE {
 
 /******************************************************************************/
 /**
- * Where the legend of a pad with several series lies. AUTO leaves it to the backend (ROOT places
- * it by itself and sizes its text to the box, gnuplot and matplotlib choose a corner, Octave
- * takes its default); a corner, or the middle of the right side, puts it there, with the same text
- * size in every pad.
+ * Where the legend of a pad with several series lies. AUTO leaves it to the backend on a 2-d pad
+ * (ROOT places it by itself and sizes its text to the box, gnuplot and matplotlib choose a corner,
+ * Octave takes its default) and puts it at the upper left of a 3-d pad, where the default views
+ * leave room (in ROOT the band above the box, see legendBox3D()). A corner, or the middle of the
+ * right side, puts it there; in ROOT with the same text size in every pad unless a label is too
+ * long for the box (see GBasePlotter::setLegendPosition()).
  */
 enum class legendPosition : ENUMBASETYPE {
     AUTO = 0,

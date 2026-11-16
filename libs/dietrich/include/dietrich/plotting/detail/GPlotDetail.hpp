@@ -186,39 +186,53 @@ inline std::string rootLegendOption(legendSample sample) {
  * it makes an entry of every object with line, marker or fill attributes (a projected map alone
  * gave it hundreds of cells) and shows line, marker and fill for each.
  *
- * AUTO is ROOT's own placement, as BuildLegend() makes it: a box of 0.3 x 0.21 of the pad, put
- * where it covers the least at painting time, with its text sized to the box. A corner puts the box
- * of legendBox() there, with a fixed text size relative to the pad's height, so that pads of one
- * size show their legends alike. A label too long for that box at that size would run out of it
- * over the pad; then the whole legend is drawn just small enough for its widest label (ROOT
- * measures the labels), and the box stays where legendBox() says.
+ * AUTO is ROOT's own placement on a 2-d pad, as BuildLegend() makes it: a box of 0.3 x 0.21 of the
+ * pad, put where it covers the least at painting time, with its text sized to the box. On a 3-d
+ * pad ROOT's placement sees only the pad's 2-d grid and put the box over the front-left axis;
+ * there AUTO is the band at the top left (legendBox3D()). A corner puts the box of legendBox()
+ * there.
+ *
+ * Every box but ROOT's own has a fixed text size, so that pads of one size show their legends
+ * alike: LEGENDTEXTSIZE in a corner, LEGENDMINTEXTSIZE in the 3-d band, which is low. A label too
+ * long for the box at that size would run out of it over the pad; then the legend is drawn
+ * smaller, just small enough for its widest label (ROOT measures the labels), but never smaller
+ * than LEGENDMINTEXTSIZE, ROOT's default size of axis labels. Where the widest label does not fit
+ * even at that size, the box grows instead, away from the side of the pad it is placed at (a box
+ * at the left grows to the right, one at the right to the left) and not beyond the pad; the
+ * samples keep their width.
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
  * @param position Where the legend lies
  * @param entries The entries (not empty)
+ * @param three_d Whether the pad is a 3-d box (isThreeDimensional())
  */
 inline void emitRootLegend(
     std::ostream &s,
     const std::string &indent,
     legendPosition position,
-    const std::vector<rootLegendEntry> &entries
+    const std::vector<rootLegendEntry> &entries,
+    bool three_d
 ) {
     s << indent << "{ // the legend: one entry per series of the pad that carries a label" << '\n';
-    double box_width = 0.; // of a placed legend, in coordinates of the pad (0 to 1)
-    if(position == legendPosition::AUTO) {
+    const bool roots_own = position == legendPosition::AUTO and not three_d;
+    double box_x1 = 0.;
+    double box_x2 = 0.;
+    if(roots_own) {
         s << indent << "   TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT" << '\n';
     } else {
-        constexpr double TEXT_SIZE = 0.045;
-        const auto [x1, y1, x2, y2] = legendBox(position, entries.size());
-        box_width = x2 - x1;
+        const bool band = position == legendPosition::AUTO;
+        const auto [x1, y1, x2, y2] = band ? legendBox3D(entries.size()) : legendBox(position, entries.size());
+        box_x1 = x1;
+        box_x2 = x2;
         std::ostringstream box;
         box.imbue(std::locale::classic());
         box << "new TLegend(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ");";
         std::ostringstream text_size;
         text_size.imbue(std::locale::classic());
-        text_size << TEXT_SIZE;
-        s << indent << "   TLegend *legend = " << box.str() << '\n'
+        text_size << (band ? LEGENDMINTEXTSIZE : LEGENDTEXTSIZE);
+        s << indent << "   TLegend *legend = " << box.str()
+          << (band ? " // a 3-d pad: the band at the top left" : "") << '\n'
           << indent << "   legend->SetTextSize(" << text_size.str() << ");" << '\n';
     }
     for(const auto &e : entries) {
@@ -236,16 +250,19 @@ inline void emitRootLegend(
               << rootLegendOption(e.sample) << "\");" << '\n';
         }
     }
-    if(position != legendPosition::AUTO) {
+    if(not roots_own) {
         // The room of a label is the box less the margin of the samples, and a little air. The
-        // width is written out: the legend knows its coordinates in the pad only once it is painted.
-        std::ostringstream width;
-        width.imbue(std::locale::classic());
-        width << box_width;
-        s << indent << "   { // labels too long for the box are drawn smaller, so that they stay inside it" << '\n'
-          << indent << "      const double room = 0.95 * (1. - legend->GetMargin()) * " << width.str() << ";" << '\n'
-          << indent << "      double size = legend->GetTextSize();" << '\n'
-          << indent << "      for(int pass = 0; pass < 8; ++pass) { // a font's width is not quite proportional to its size" << '\n'
+        // box is written out: the legend knows its coordinates in the pad only once it is painted.
+        const bool grows_left = position == legendPosition::TOP_RIGHT or position == legendPosition::BOTTOM_RIGHT
+            or position == legendPosition::CENTER_RIGHT;
+        std::ostringstream box;
+        box.imbue(std::locale::classic());
+        box << "const double x1 = " << box_x1 << ", x2 = " << box_x2 << ", floor_size = " << LEGENDMINTEXTSIZE << ";";
+        s << indent << "   { // labels too long for the box are drawn smaller, down to a readable size; then the box grows" << '\n'
+          << indent << "      " << box.str() << '\n'
+          << indent << "      const double sample_width = legend->GetMargin() * (x2 - x1);" << '\n'
+          << indent << "      const double room = 0.95 * ((x2 - x1) - sample_width);" << '\n'
+          << indent << "      const auto widest_at = [&](double size) {" << '\n'
           << indent << "         double widest = 0.;" << '\n'
           << indent << "         TIter next_label(legend->GetListOfPrimitives());" << '\n'
           << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_label())) {" << '\n'
@@ -254,10 +271,25 @@ inline void emitRootLegend(
           << indent << "            label.SetTextSize(size);" << '\n'
           << indent << "            widest = TMath::Max(widest, label.GetXsize() / (gPad->GetX2() - gPad->GetX1()));" << '\n'
           << indent << "         }" << '\n'
-          << indent << "         if(widest <= room) break;" << '\n'
-          << indent << "         size *= room / widest;" << '\n'
+          << indent << "         return widest;" << '\n'
+          << indent << "      };" << '\n'
+          << indent << "      double size = legend->GetTextSize();" << '\n'
+          << indent << "      double widest = widest_at(size);" << '\n'
+          << indent << "      for(int pass = 0; pass < 8 && widest > room && size > floor_size; ++pass) { // a font's width is not quite proportional to its size" << '\n'
+          << indent << "         size = TMath::Max(floor_size, size * room / widest);" << '\n'
+          << indent << "         widest = widest_at(size);" << '\n'
           << indent << "      }" << '\n'
           << indent << "      legend->SetTextSize(size);" << '\n'
+          << indent << "      if(widest > room) { // too wide even at the smallest size: the box grows, the samples keep their width" << '\n'
+          << indent << "         const double width = (widest / 0.95) + sample_width;" << '\n';
+        if(grows_left) {
+            s << indent << "         legend->SetX1(TMath::Max(0.01, x2 - width));" << '\n'
+              << indent << "         legend->SetMargin(sample_width / (x2 - legend->GetX1()));" << '\n';
+        } else {
+            s << indent << "         legend->SetX2(TMath::Min(0.99, x1 + width));" << '\n'
+              << indent << "         legend->SetMargin(sample_width / (legend->GetX2() - x1));" << '\n';
+        }
+        s << indent << "      }" << '\n'
           << indent << "   }" << '\n';
     }
     s << indent << "   legend->Draw();" << '\n'
@@ -303,12 +335,14 @@ inline void emitRootPadTitle(std::ostream &s, const std::string &indent, const s
  * @param position Where the legend lies (AUTO: where ROOT puts it)
  * @param entries The entries of the pad's legend (GBasePlotter::legendEntries()); none: the pad
  *        gets no legend
+ * @param three_d Whether the pad is a 3-d box (isThreeDimensional()), for where AUTO puts the legend
  */
 inline void emitRootOverlayFrameAndLegend(
     std::ostream &s,
     const std::string &indent,
     legendPosition position,
-    const std::vector<rootLegendEntry> &entries
+    const std::vector<rootLegendEntry> &entries,
+    bool three_d
 ) {
     s << indent << "{ // one frame for all graphs of this pad" << (entries.empty() ? "" : ", and a legend")
       << '\n'
@@ -357,7 +391,7 @@ inline void emitRootOverlayFrameAndLegend(
       << '\n'
       << indent << "   }" << '\n';
     if(not entries.empty()) {
-        emitRootLegend(s, indent + "   ", position, entries);
+        emitRootLegend(s, indent + "   ", position, entries, three_d);
     }
     s << indent << "   gPad->Modified();" << '\n'
       << indent << "}" << '\n';

@@ -1553,10 +1553,15 @@ TEST_CASE(
         map->setLegendPosition(legendPosition::TOP_LEFT);
         const std::string placed = render(map, plotBackend::ROOT);
         CHECK(placed.contains("GetXsize()"));
-        CHECK(placed.contains("size *= room / widest;"));
+        CHECK(placed.contains("size = TMath::Max(floor_size, size * room / widest);"));
         CHECK(placed.contains("legend->SetTextSize(size);"));
-        map->setLegendPosition(legendPosition::AUTO);
-        CHECK_FALSE(render(map, plotBackend::ROOT).contains("GetXsize()"));
+        // ROOT's own placement on a 2-d pad sizes the text to its box itself.
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        first->registerSecondaryPlotter(second);
+        CHECK_FALSE(render(first, plotBackend::ROOT).contains("GetXsize()"));
     }
 
     SECTION("a single series gets no legend, labelled or not") {
@@ -1648,7 +1653,7 @@ TEST_CASE(
         CHECK(map->legendEntries()[0].sample == legendSample::COLOUR_MAP);
         const std::string mpl = render(map, plotBackend::MATPLOTLIB);
         CHECK(mpl.contains(
-            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\")], labels=[\"the landscape\"])"
+            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\")], labels=[\"the landscape\"], loc=\"upper left\")"
         ));
         CHECK_FALSE(mpl.contains("ax.legend()"));
         const std::string oct = render(map, plotBackend::OCTAVE);
@@ -1713,5 +1718,72 @@ TEST_CASE(
         const std::string csv = gpd.plot();
         CHECK(csv.contains("secondary=0 plot_mode=scatter legend_sample=marker\n"));
         CHECK(csv.contains("secondary=1 plot_mode=curve\n"));
+    }
+}
+
+/******************************************************************************/
+// Where a legend lies and how small its text may get. On a 3-d pad ROOT's own placement sees only
+// the pad's 2-d grid and put the legend over the front-left axis; AUTO there is the band at the top
+// left, in every backend the upper left. A label too long for its box is drawn smaller down to a
+// readable size, and then the box grows away from its side of the pad.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A 3-d pad's legend lies at the upper left and a long label widens its box",
+    "[plotting][overlay][legend]"
+) {
+    const auto map_under_points = [](const std::string &points_label) {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel("the landscape");
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel(points_label);
+        map->registerSecondaryPlotter(points);
+        return map;
+    };
+
+    SECTION("AUTO on a 3-d pad is the band at the top left, on a 2-d pad ROOT's own placement") {
+        const auto map = map_under_points("evaluated candidates");
+        const auto [x1, y1, x2, y2] = legendBox3D(2);
+        CHECK(std::abs(y2 - 0.92) < 1e-12);
+        CHECK(std::abs(y1 - 0.82) < 1e-12);
+        CHECK(std::abs(x1 - 0.01) < 1e-12);
+        const std::string root = render(map, plotBackend::ROOT);
+        CHECK(root.contains("TLegend *legend = new TLegend(0.01, 0.82, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+        CHECK(root.contains("legend->SetTextSize(0.035);"));
+        CHECK_FALSE(root.contains("new TLegend(0.3, 0.21)"));
+        CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"upper left\")"));
+        CHECK(render(map, plotBackend::OCTAVE).contains("legend('location', 'northwest');"));
+        auto first = decadesGraph(false, false);
+        first->setPlotLabel("first");
+        auto second = decadesGraph(false, false);
+        second->setPlotLabel("second");
+        first->registerSecondaryPlotter(second);
+        CHECK(render(first, plotBackend::ROOT).contains("TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT"));
+        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("loc="));
+    }
+
+    SECTION("gnuplot puts the key of a 3-d pad at the top left") {
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel("points");
+        auto more = std::make_shared<GGraph3D>();
+        (*more) & std::tuple<double, double, double>(0.2, 0.1, 1.0);
+        more->setPlotLabel("more points");
+        points->registerSecondaryPlotter(more);
+        CHECK(render(points, plotBackend::GNUPLOT).contains("set key top left"));
+    }
+
+    SECTION("a label too long for its box: no smaller than the floor, and the box grows") {
+        const std::string long_label(120, 'x');
+        auto map = map_under_points(long_label);
+        map->setLegendPosition(legendPosition::TOP_LEFT);
+        const std::string left = render(map, plotBackend::ROOT);
+        CHECK(left.contains("floor_size = 0.035;"));
+        CHECK(left.contains("legend->SetX2(TMath::Min(0.99, x1 + width));"));
+        map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        const std::string right = render(map, plotBackend::ROOT);
+        CHECK(right.contains("legend->SetX1(TMath::Max(0.01, x2 - width));"));
+        CHECK(LEGENDMINTEXTSIZE < LEGENDTEXTSIZE);
     }
 }

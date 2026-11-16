@@ -793,7 +793,9 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
                 : secondary_plotter_[e.series - 1]->rootLegendObject_(true, this->id(), e.series - 1);
             root_entries.push_back({object, e.label, e.sample});
         }
-        emitRootOverlayFrameAndLegend(footer_data, indent, legend_position_, root_entries);
+        emitRootOverlayFrameAndLegend(
+            footer_data, indent, legend_position_, root_entries, isThreeDimensional(this->plotSpec())
+        );
     }
     // The number of entries the description gives this pad's legend, for a reader of the script
     // that checks what ROOT drew (the validity test of the plotting library).

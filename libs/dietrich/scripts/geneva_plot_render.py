@@ -265,8 +265,10 @@ def build_figure(canvas, series):
         # it lists none.
         listed = [(s, c) for s, c in zip(members, colours) if s.get("legend_sample")]
         if listed:
+            # On a 3-d Axes the legend lies at the upper left, as in the C++ backends.
+            extra = {"loc": "upper left"} if three_d else {}
             ax.legend(handles=[_legend_sample(c, s["legend_sample"]) for s, c in listed],
-                      labels=[s.get("name", "") for s, _ in listed])
+                      labels=[s.get("name", "") for s, _ in listed], **extra)
 
     fig.tight_layout()
     return fig

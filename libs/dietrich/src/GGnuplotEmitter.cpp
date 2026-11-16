@@ -324,7 +324,11 @@ void emitMultiplot(
         // a single series), or in a chosen corner. The default is restored after the pad's plot
         // command.
         const auto entries = p->legendEntries();
-        const std::string key_position = gnuplotKeyPosition(p->getLegendPosition());
+        // AUTO on a 3-d pad is the upper left, as in the other backends.
+        std::string key_position = gnuplotKeyPosition(p->getLegendPosition());
+        if(key_position.empty() and three_d) {
+            key_position = "top left";
+        }
         if(entries.empty()) {
             result << indent << "unset key" << '\n';
         }

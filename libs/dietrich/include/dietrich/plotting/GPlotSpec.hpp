@@ -430,5 +430,57 @@ legendBox(legendPosition position, std::size_t n_series) {
 }
 
 /******************************************************************************/
+/** The text size of a legend placed in a corner, relative to the pad's height (ROOT) */
+constexpr double LEGENDTEXTSIZE = 0.045;
+/**
+ * The smallest text size of a legend with a box of its own (ROOT): ROOT's default size of axis
+ * labels, relative to the pad's height. A legend whose widest label does not fit its box at this
+ * size gets a wider box rather than smaller text.
+ */
+constexpr double LEGENDMINTEXTSIZE = 0.035;
+
+/******************************************************************************/
+/**
+ * The box of the legend of a 3-d pad whose legend position is AUTO, in ROOT: the band at the top
+ * left of the pad, left of and below the pad's title and above the back-left top edge of the 3-d
+ * box and the top of the z axis, where ROOT's default 3-d view draws neither data nor an axis nor
+ * the colour palette. ROOT's own placement (TPad::PlaceBox) knows only the pad's 2-d grid and put
+ * the legend over the front-left axis and its labels. The box reaches from the top of that band
+ * downwards, one entry height per entry, and a few entries fill it.
+ *
+ * @param n_series The number of entries
+ * @return x1, y1, x2, y2 in coordinates of the pad (0 to 1)
+ */
+[[nodiscard]] inline std::tuple<double, double, double, double> legendBox3D(std::size_t n_series) {
+    constexpr double X1 = 0.01;
+    constexpr double X2 = 0.35;
+    constexpr double TOP = 0.92;
+    constexpr double ENTRY_HEIGHT = 0.04;
+    constexpr double PADDING = 0.02;
+    const double height = (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
+    return {X1, TOP - height, X2, TOP};
+}
+
+/**
+ * @param spec The plot spec of a pad's primary plotter
+ * @return true if the pad is drawn as a 3-d box: a 3-d or 4-d graph, or a 2-d histogram or
+ *         function drawn as a surface or lego plot
+ */
+[[nodiscard]] inline bool isThreeDimensional(const GPlotSpec &spec) {
+    if(spec.kind == plotKind::graph_3d or spec.kind == plotKind::graph_4d) {
+        return true;
+    }
+    if(spec.kind == plotKind::hist_2d or spec.kind == plotKind::function_2d) {
+        std::string args;
+        for(char const c : spec.drawing_args) {
+            args += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+        return args.find("SURF") != std::string::npos or args.find("LEGO") != std::string::npos
+            or args.find("TRI") != std::string::npos;
+    }
+    return false;
+}
+
+/******************************************************************************/
 
 } /* namespace Gem::Dietrich */

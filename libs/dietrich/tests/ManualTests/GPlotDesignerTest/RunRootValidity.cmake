@@ -64,6 +64,7 @@ set(_legend_probe [=[
                else seen.Add(e->GetObject());
             }
             if(l->GetTextSize() <= 0.) continue; // ROOT sizes the text to the box itself
+            if(l->GetTextSize() < 0.035 - 1e-9) printf("GPD-PLACED-SMALL %g\n", l->GetTextSize());
             p2->cd();
             const double room = (l->GetX2NDC() - l->GetX1NDC()) * (1. - l->GetMargin());
             TIter l5(l->GetListOfPrimitives());
@@ -148,6 +149,11 @@ if(NOT _placed)
 endif()
 if("GPD-PLACED-LABEL overflows" IN_LIST _placed)
 	message(FATAL_ERROR "A label of a placed legend runs out of its box.\nstdout:\n${_out}")
+endif()
+# ... but no smaller than ROOT's default size of axis labels (LEGENDMINTEXTSIZE): a label that
+# does not fit at that size widens the box.
+if(_out MATCHES "GPD-PLACED-SMALL")
+	message(FATAL_ERROR "A placed legend's text is smaller than the readable floor.\nstdout:\n${_out}")
 endif()
 message(STATUS "GPlotDesignerRootValidity: ROOT rendered a ${_sz}-byte PDF from the generated macro; "
 	"${_n_legends} legends, each as its description states.")

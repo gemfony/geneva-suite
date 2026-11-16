@@ -331,7 +331,12 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
                 result << (i == 0 ? "" : ", ") << "'" << octaveEscape(e.label) << "'";
             }
             result << "});" << '\n';
-            const std::string location = octaveLegendLocation(p->getLegendPosition());
+            // AUTO on a 3-d pad is the upper left, as in the other backends (Octave's default, the
+            // upper right, lies over the box).
+            std::string location = octaveLegendLocation(p->getLegendPosition());
+            if(location.empty() and three_d) {
+                location = "northwest";
+            }
             if(not location.empty()) {
                 result << "legend('location', '" << location << "');" << '\n';
             }
