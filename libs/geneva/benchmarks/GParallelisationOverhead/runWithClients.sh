@@ -76,7 +76,7 @@
 #   CLIENT_WAIT_LIMIT  seconds the server waits for them (--clientWaitLimit,
 #            default 600); with fewer clients by then the server ends with an error
 #   LAST_CLIENT_DELAY  seconds the last networked client is started after the
-#            others (default 0)
+#            server has begun to wait for its clients (default 0: with the others)
 #   TIMEOUT_TREATMENT  the networked consumer's timeout treatment (the key
 #            "treatment" of config/GNetworkedConsumer.json: adaptive, fixed or
 #            wait_indefinitely; unset: the configuration's). A check that every
@@ -164,6 +164,12 @@ else
     PIDS=()
     for i in $(seq 1 "$N"); do
         if [ "$i" = "$N" ] && [ "${LAST_CLIENT_DELAY:-0}" != 0 ]; then
+            # The delay counts from the moment the server begins to wait (its log says so), not
+            # from its start, which may take a while on a busy host
+            for _ in $(seq 1 600); do
+                grep -q '^Waiting for [0-9]* clients' server.log 2>/dev/null && break
+                sleep 0.1
+            done
             sleep "$LAST_CLIENT_DELAY"
         fi
         "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" >> clients.log 2>&1 &

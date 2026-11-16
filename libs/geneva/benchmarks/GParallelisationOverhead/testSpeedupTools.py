@@ -269,7 +269,7 @@ def check_gate(program, workdir, reference_dir):
     if len(waited) != 1 or not waited[0].startswith('Waiting for clients: 2 of 2 clients'):
         fail(f'the server did not wait for both clients: {waited}')
     seconds = float(waited[0].split()[-2])
-    # The server starts 2 s before the clients (runWithClients.sh); the late one comes later still.
+    # The late client is started DELAY s after the server has begun to wait (runWithClients.sh).
     if seconds < delay:
         fail(f'the server waited {seconds} s, less than the {delay} s the last client came later')
     if log.find('Waiting for clients: ') > log.find('Warm-up run'):

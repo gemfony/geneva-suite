@@ -165,6 +165,8 @@ inline void waitForClients(Go2 &go, const ClientGate &gate) {
                   << gate.clients << " clients" << std::endl;
         return;
     }
+    std::cout << "Waiting for " << gate.clients << " clients (at most " << gate.limitSeconds << " s)"
+              << std::endl;
     while(*connected < gate.clients) {
         const auto waited = std::chrono::steady_clock::now() - start;
         if(waited >= std::chrono::seconds(gate.limitSeconds)) {
