@@ -246,9 +246,10 @@ int main() {
 
     //! [dietrich-scan-overlay#1]
     // ---------------------------------------------------------------------------------------
-    // One pad, two series: the scanned landscape, and the search drawn on top of it. Both are
-    // 3-d graphs -- only same-kind series may share a pad -- so the overlay's markers sit at the
-    // very fitness values the surface shows.
+    // One pad, two series: the scanned landscape, and the search drawn on
+    // top of it. Both are 3-d graphs -- only same-kind series may share a
+    // pad -- so the overlay's markers sit at the very fitness values the
+    // surface shows.
     GDataLog scan_log("A landscape scanned exhaustively, and searched", 1, 1);
 
     GPlotSpec landscape(plotKind::graph_3d);
@@ -257,8 +258,8 @@ int main() {
     landscape.y_label = "x_{1}";
     landscape.z_label = "fitness";
     landscape.columns = {"x", "y", "z"};
-    landscape.drawing_args = "SURF2Z"; // a colour-mapped surface with a fitness scale
-    landscape.legend = legendPosition::TOP_LEFT; // over the empty back of the box
+    // a colour-mapped surface with a fitness scale
+    landscape.drawing_args = "SURF2Z";
     const auto landscape_id = scan_log.declareSeries(landscape);
 
     GPlotSpec search(plotKind::graph_3d);
