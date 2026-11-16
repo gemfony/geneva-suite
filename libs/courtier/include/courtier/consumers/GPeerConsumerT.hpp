@@ -169,10 +169,17 @@ public:
         return peers_.size();
     }
 
-    /** @brief The connected clients are the sessions that are alive (GBaseConsumerT).
-     *  @return getNActiveSessions() */
+    /** @brief How many clients are connected (GBaseConsumerT): the sessions whose client has
+     *  spoken -- its first message has been read -- and whose connection has not ended. Not
+     *  counted: a connection that has not been opened yet (a websocket handshake under way, or one
+     *  that never completes) and a client that has said nothing so far (a client asks for work as
+     *  soon as its connection is open). Counted: a client that has died without its connection
+     *  ending (its host gone without a reset, its process stopped), until the transport notices
+     *  the loss -- at its idle limit if it has one (GListenerI::detectsLoss()), otherwise not
+     *  before the end of the run. getNActiveSessions() counts all sessions, the silent ones too.
+     *  @return The count */
     [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
-        return this->getNActiveSessions();
+        return n_connected_.load();
     }
 
     /** @brief How many clients did not confirm the end of the run at the last stopServer(): those
@@ -391,6 +398,9 @@ private:
         };
 
         const std::weak_ptr<Consumers::GPeerI> weak_peer = peer;
+        // Whether the session's client has spoken; both hooks that use it run on the session's
+        // executor, one at a time
+        auto spoke = std::make_shared<bool>(false);
         auto session = std::make_shared<session_type>(
             typename session_type::SessionHooks{
                 .getPayloadItem =
@@ -464,13 +474,22 @@ private:
                         }
                     },
                 // A close of the end of the run that the client did not confirm counts with
-                // those that had not ended within the grace (tellClients_()).
+                // those that had not ended within the grace (tellClients_()). A client that
+                // spoke is no longer connected (connectedClients()).
                 .connectionEnded =
-                    [this](Consumers::GPeerEnd end) {
+                    [this, spoke](Consumers::GPeerEnd end) {
+                        if(*spoke) {
+                            n_connected_.fetch_sub(1);
+                        }
                         if(end == Consumers::GPeerEnd::CLOSED_HERE_UNCONFIRMED &&
                            this->stopped()) {
                             n_closed_unconfirmed_.fetch_add(1);
                         }
+                    },
+                .clientSpoke =
+                    [this, spoke] {
+                        *spoke = true;
+                        n_connected_.fetch_add(1);
                     },
             },
             serialization_mode_,
@@ -519,6 +538,9 @@ private:
     std::atomic<std::size_t> n_closed_unconfirmed_{0};
     /// What clientsUnconfirmedAtStop() answers
     std::atomic<std::size_t> n_unconfirmed_at_stop_{0};
+    /// What connectedClients() answers: sessions whose client has spoken and whose connection has
+    /// not ended
+    std::atomic<std::size_t> n_connected_{0};
     /// startServer() and stopServer() take turns under it
     std::mutex lifecycle_mutex_;
 };

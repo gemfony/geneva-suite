@@ -313,6 +313,71 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+/**
+ * The connected clients (connectedClients(), what a benchmark waits for) are the sessions whose
+ * client has spoken and whose connection has not ended. A client that has said nothing is not
+ * counted; one whose connection has ended is no longer counted. A client that dies without its
+ * connection ending, on a transport that does not notice the loss, is counted on (as the
+ * query's documentation says) -- here until the end of the run.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- two linear scenarios; Catch2's macros count
+TEST_CASE(
+    "GPeerConsumerT: the connected clients are those that have spoken and are still connected",
+    "[courtier][peer][shell]"
+) {
+    SECTION("a client that has said nothing is not counted; one that has ended is no longer") {
+        auto listener = std::make_shared<GInProcessListener>(
+            GInProcessListener::Options{.stopGrace = 300ms}
+        );
+        GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
+        IoThreads clients;
+        auto silent = std::make_shared<ScriptedClient>(0, true);
+        auto speaking = std::make_shared<ScriptedClient>(1, true);
+        {
+            Shell shell{listener, 2};
+            shell.startServer();
+            silent->connect(connector, clients.executor());
+            REQUIRE(eventually([&] { return silent->open() && shell.getNActiveSessions() == 1; }));
+            CHECK(shell.connectedClients() == std::optional<std::size_t>{0});
+
+            speaking->connect(connector, clients.executor());
+            REQUIRE(eventually([&] { return shell.connectedClients() == 1U; }));
+            CHECK(shell.getNActiveSessions() == 2);
+
+            speaking->abort(); // its connection ends; the server's end hears its close
+            REQUIRE(eventually([&] { return shell.connectedClients() == 0U; }));
+            shell.stopServer();
+        }
+    }
+
+    SECTION("a client that dies unnoticed is counted until the transport notices") {
+        // The server's ends ignore a close (the client's close never arrives, as from a host
+        // that is gone), and the listener does not detect a loss
+        auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
+            .serverFaults = GInProcessFaults{.acknowledgeClose = false},
+            .stopGrace = 300ms,
+            .detectsLoss = false
+        });
+        GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
+        IoThreads clients;
+        auto dying = std::make_shared<ScriptedClient>(1, true);
+        auto living = std::make_shared<ScriptedClient>(1, true);
+        {
+            Shell shell{listener, 2};
+            shell.startServer();
+            dying->connect(connector, clients.executor());
+            REQUIRE(eventually([&] { return shell.connectedClients() == 1U; }));
+            dying->abort();
+            REQUIRE(eventually([&] { return not dying->open(); }));
+            living->connect(connector, clients.executor());
+            REQUIRE(eventually([&] { return shell.connectedClients() == 2U; }));
+            CHECK(shell.getNActiveSessions() == 2);
+            shell.stopServer();
+        }
+    }
+}
+
+/******************************************************************************/
 /** A client that never confirms the end keeps the shell no longer than the listener's grace. */
 TEST_CASE(
     "GPeerConsumerT: a client that never confirms the end costs the stop one grace",
@@ -333,8 +398,6 @@ TEST_CASE(
         shell.startServer();
         role->connect(connector, clients.executor());
         REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
-        // The consumer's answer to how many clients are connected (GBaseConsumerT)
-        CHECK(shell.connectedClients() == std::optional<std::size_t>{1});
 
         const auto stop_began = std::chrono::steady_clock::now();
         shell.stopServer();

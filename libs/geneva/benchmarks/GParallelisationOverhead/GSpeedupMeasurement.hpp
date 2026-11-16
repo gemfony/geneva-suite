@@ -120,9 +120,11 @@ addClientGateOptions(boost::program_options::options_description &options, Clien
     options.add_options()(
         "waitForClients",
         boost::program_options::value<std::size_t>(&gate.clients)->default_value(gate.clients),
-        "The server waits, before its first (unmeasured) run, until its consumer reports this many "
-        "connected clients (0: it does not wait). A consumer that cannot tell how many clients it "
-        "has is not waited for; the log says so"
+        "The server waits, before the measurement starts, until its consumer reports this many "
+        "connected clients (0: it does not wait). A client counts once it has asked for work on "
+        "an open connection; one that has died without its connection ending counts until the "
+        "transport notices the loss. A consumer that cannot tell how many clients it has (MPI) "
+        "is not waited for; the log says so"
     )(
         "clientWaitLimit",
         boost::program_options::value<std::size_t>(&gate.limitSeconds)

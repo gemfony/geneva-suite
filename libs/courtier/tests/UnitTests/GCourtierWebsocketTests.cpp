@@ -42,8 +42,10 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "courtier/GDemoProcessingContainers.hpp"
@@ -326,6 +328,46 @@ TEST_CASE(
         // FAILS instead of deadlocking the suite.
         client->flagCloseRequested();
     }
+}
+
+/******************************************************************************/
+// A TCP connection whose websocket handshake has not completed is a session of the server, but not
+// a connected client (connectedClients(), what a benchmark waits for): only a client that has
+// spoken is.
+TEST_CASE(
+    "courtier(websocket): a connection without a handshake is not a connected client",
+    "[courtier][websocket][net]"
+) {
+    using boost::asio::ip::tcp;
+    c2::GWebsocketConsumerConfig config{.ip = "127.0.0.1", .serializationMode = BIN, .nThreads = 2};
+    auto consumer = std::make_shared<c2::GWebsocketConsumerT<GFaultyContainer>>(config);
+    consumer->startServer();
+    config.port = consumer->getPort();
+
+    boost::asio::io_context own;
+    tcp::socket raw(own);
+    raw.connect({boost::asio::ip::address_v4::loopback(), config.port});
+    const auto patience = std::chrono::seconds(10);
+    const auto until = [&](auto condition) {
+        const auto deadline = std::chrono::steady_clock::now() + patience;
+        while(not condition() && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        return condition();
+    };
+    REQUIRE(until([&] { return consumer->getNActiveSessions() == 1; }));
+    CHECK(consumer->connectedClients() == std::optional<std::size_t>{0});
+
+    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(config);
+    std::jthread client_thread([client] { client->run(); });
+    REQUIRE(until([&] { return consumer->connectedClients() == 1U; }));
+    CHECK(consumer->getNActiveSessions() == 2);
+
+    client->flagCloseRequested();
+    client_thread.join();
+    boost::system::error_code ignored;
+    std::ignore = raw.close(ignored);
+    consumer->stopServer();
 }
 
 /******************************************************************************/

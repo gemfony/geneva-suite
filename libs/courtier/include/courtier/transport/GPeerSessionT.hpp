@@ -144,6 +144,10 @@ public:
         /// Called once, in onClosed, with how the connection ended (may be empty): the shell
         /// counts the clients that did not confirm the end of the run
         std::move_only_function<void(GPeerEnd)> connectionEnded;
+        /// Called once, when the first message of the client has been read (may be empty): the
+        /// shell counts the clients that are connected (on the session's executor, before
+        /// connectionEnded)
+        std::move_only_function<void()> clientSpoke;
     };
 
     //-------------------------------------------------------------------------
@@ -168,6 +172,7 @@ public:
       , check_server_stopped_(std::move(hooks.checkServerStopped))
       , server_sign_on_(std::move(hooks.serverSignOn))
       , connection_ended_(std::move(hooks.connectionEnded))
+      , client_spoke_(std::move(hooks.clientSpoke))
       , serialization_mode_(serialization_mode)
       , wire_registry_(wire_registry)
       , peer_id_(peer_id) {
@@ -244,6 +249,12 @@ private:
         auto peer = peer_.lock();
         if(not peer) {
             return;
+        }
+        if(not spoke_) {
+            spoke_ = true;
+            if(client_spoke_) {
+                client_spoke_();
+            }
         }
         auto absorbed = this->absorb_(message);
         if(stopping_) {
@@ -590,6 +601,7 @@ private:
     std::move_only_function<bool()> check_server_stopped_;
     std::move_only_function<void(bool)> server_sign_on_;
     std::move_only_function<void(GPeerEnd)> connection_ended_;
+    std::move_only_function<void()> client_spoke_;
 
     Gem::Common::serializationMode serialization_mode_ = Gem::Common::serializationMode::GEM_BINARY;
 
@@ -603,6 +615,7 @@ private:
     /// stopping): nothing is answered or served any more
     bool stopping_ = false;
     bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
+    bool spoke_ = false;     ///< A message of the client has been read (clientSpoke was called)
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
     /// installed around (de)serialisation so a work item's blob is sent to this peer only once
