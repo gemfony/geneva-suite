@@ -330,19 +330,21 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
             result << octPlotCall(*sp, classifyForScript(*sp, true, "OctaveEmitter::emitDocument()", "Octave"))
                    << "cs_{end + 1} = c_;" << '\n';
         }
-        // The legend the description lists (GBasePlotter::legendEntries()). Its samples are
-        // objects of their own, drawn at no point (NaN) in the series' colour as the description
-        // says -- a line, markers, both, or a filled patch -- and handed to legend() with the
-        // texts, so that no object that is not listed can enter and a series whose own object
+        // The legend the description lists (scriptLegendEntries()). Its samples are line objects
+        // of their own, drawn at no point (NaN) in the series' colour as the description says --
+        // a line, markers, both, or a filled square for a fill or a colour map -- and handed to
+        // legend() with the texts, so that no object that is not listed can enter and a series whose own object
         // carries no name (a map, a histogram) is listed all the same.
         if(const auto entries = scriptLegendEntries(*p); not entries.empty()) {
             result << "s_ = [];" << '\n';
             for(const auto &e : entries) {
                 const std::string colour = "cs_{" + std::to_string(e.series + 1) + "}";
                 if(e.sample == legendSample::FILL or e.sample == legendSample::COLOUR_MAP) {
-                    result << "s_(end + 1) = patch('XData', NaN, 'YData', NaN"
-                           << (three_d ? ", 'ZData', NaN" : "") << ", 'FaceColor', " << colour
-                           << ", 'EdgeColor', 'none');" << '\n';
+                    // A filled square marker: with the gnuplot toolkit (the suite's and the manual's
+                    // renderer) a patch without data never reaches the key, a line object does.
+                    result << "s_(end + 1) = " << (three_d ? "plot3(NaN, NaN, NaN" : "plot(NaN, NaN")
+                           << ", 'LineStyle', 'none', 'Marker', 's', 'MarkerSize', 10, 'MarkerFaceColor', "
+                           << colour << ", 'MarkerEdgeColor', " << colour << ");" << '\n';
                 } else {
                     const bool line = e.sample != legendSample::MARKER;
                     const bool marker = e.sample != legendSample::LINE;

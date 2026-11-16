@@ -1664,7 +1664,10 @@ TEST_CASE(
         ));
         CHECK_FALSE(mpl.contains("ax.legend()"));
         const std::string oct = render(map, plotBackend::OCTAVE);
-        CHECK(oct.contains("s_(end + 1) = patch('XData', NaN, 'YData', NaN, 'ZData', NaN, 'FaceColor', cs_{1}"));
+        // A filled sample is a square marker: a patch without data never reaches the gnuplot
+        // toolkit's key.
+        CHECK(oct.contains("s_(end + 1) = plot3(NaN, NaN, NaN, 'LineStyle', 'none', 'Marker', 's', 'MarkerSize', 10, 'MarkerFaceColor', cs_{1}"));
+        CHECK_FALSE(oct.contains("patch("));
         CHECK(oct.contains("legend(s_, {'the landscape'});"));
         const std::string root = render(map, plotBackend::ROOT);
         CHECK(root.contains("legend->AddEntry(sample, \"the landscape\", \"f\");"));

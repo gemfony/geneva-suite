@@ -397,6 +397,14 @@ int main(int argc, char **argv) {
     gpd_oct.registerPlotter(oct_hist1i_ptr);
     gpd_oct.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave"));
     gpd_oct.registerPlotter(decadesGraph("a power law with logarithmic axes, Octave"));
+    // A labelled map without its surface under unlabelled points: the map is the legend's only
+    // entry, a filled sample, which must reach Octave's key.
+    {
+        auto map = projectedSurface(surfaceProjection::FLOOR, "a map, Octave");
+        map->setDrawSurface(false);
+        map->secondaryPlotters().front()->setPlotLabel("");
+        gpd_oct.registerPlotter(map);
+    }
     gpd_oct.writeToFile("result.m");
 
     // -------------------------------------------------------------------------
