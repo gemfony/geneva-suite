@@ -128,16 +128,15 @@ public:
  * would not do there: MPI_Finalize, which the environment calls on the way out where it initialized
  * MPI, waits for every process of the job, also for the refusing one. If every rank refuses (MPI
  * initialized by the program below MPI_THREAD_MULTIPLE), every rank throws. (mpiEnvironment() and
- * mpiProcessRole()
- * build their environment on MPI_COMM_WORLD with a collective duplicate: called on some ranks only,
- * they wait there already, before any cascade.) The cascade builds the environment itself
- * (mpiEnvironmentOn()), which initializes MPI with MPI_THREAD_MULTIPLE unless the program has done
- * so. Only rank 0 of the base communicator calls the configuration callable, while the environment
- * is being built: it must not ask for the environment or the process's role (mpiEnvironment(),
- * mpiProcessRole()) nor build anything that does -- such a call throws, and every rank refuses
- * the cascade. Its values are
- * broadcast and checked on every rank alike, so that a bad configuration is refused by every rank
- * with the same text. The communicators the cascade makes get MPI_ERRORS_ARE_FATAL.
+ * mpiProcessRole() build their environment on MPI_COMM_WORLD with a collective duplicate: called on
+ * some ranks only, they wait there already, before any cascade.) The cascade builds the environment
+ * itself (mpiEnvironmentOn()), which initializes MPI with MPI_THREAD_MULTIPLE unless the program
+ * has done so. Only rank 0 of the base communicator calls the configuration callable, while the
+ * environment is being built: it must not ask for the environment or the process's role
+ * (mpiEnvironment(), mpiProcessRole()) nor build anything that does -- such a call throws, and
+ * every rank refuses the cascade. Its values are broadcast and checked on every rank alike, so that
+ * a bad configuration is refused by every rank with the same text. The communicators the cascade
+ * makes get MPI_ERRORS_ARE_FATAL.
  *
  * <b>No MPI.</b> If the program has entered configuration emission (--update-configs,
  * Gem::Common::beginConfigEmission()), the cascade makes no MPI call: it calls the configuration
@@ -148,9 +147,9 @@ public:
  * of the group's own) and calls the lead's half; every member's serve() waits for the
  * announcement, polled without waiting busily, and calls GMPIGroupMemberI::serveRound(). release()
  * announces the stop; lead and members tear down, and release() returns once every member has
- * left serve() (a barrier), so that nothing of the group runs any more. A lead that serves a client of courtier calls
- * round() from the client's item processor (setItemProcessor() of the client classes), once per
- * item.
+ * left serve() (a barrier), so that nothing of the group runs any more. A lead that serves a client
+ * of courtier calls round() from the client's item processor (setItemProcessor() of the client
+ * classes), once per item.
  *
  * <b>Threads.</b> The constructor, serve(), lead(), requireRole() and the destructor are called by
  * the program's main thread. round() may be called by any thread; rounds run one after the other

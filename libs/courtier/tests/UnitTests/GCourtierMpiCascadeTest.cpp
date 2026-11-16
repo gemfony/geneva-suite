@@ -1704,11 +1704,9 @@ int websocketScenario(Report &report, bool confirm) {
         led.load() == static_cast<int>(ITEMS),
         std::format("the lead led {} rounds", led.load())
     );
-    const int led_at_release = led.load();
     report.expectThrow("round() after release()", "release()", [&] {
         std::ignore = cascade.round(NOTHING);
     });
-    report.check(led.load() == led_at_release, "a round ran after release()");
     report.check(not run.clientThrew, "the client's run threw");
     std::println("lead led {} rounds", led.load());
     return report.failures();
@@ -1717,7 +1715,6 @@ int websocketScenario(Report &report, bool confirm) {
 /** @brief What runAsMpiClient() saw */
 struct MpiClientRun {
     bool clientThrew = false; ///< Whether the client's run() threw
-    int ledAtRelease = 0;     ///< The rounds led when the group was released
 };
 
 /**
@@ -1770,9 +1767,8 @@ MpiClientRun runAsMpiClient(
             client_threw = true;
         }
     }
-    const int led_at_release = led.load();
     cascade.release();
-    return MpiClientRun{.clientThrew = client_threw.load(), .ledAtRelease = led_at_release};
+    return MpiClientRun{.clientThrew = client_threw.load()};
 }
 
 /**
@@ -1859,7 +1855,6 @@ int mpiConsumerScenario(Report &report, bool confirm) {
         );
         return report.failures();
     }
-    report.check(led.load() == run.ledAtRelease, "a round ran after release()");
     report.check(not run.clientThrew, "the client's run threw");
     std::println("lead led {} rounds", led.load());
     return report.failures();

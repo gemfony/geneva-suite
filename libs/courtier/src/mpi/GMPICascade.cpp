@@ -277,8 +277,10 @@ const GMPICascadeConfig &GMPICascade::config() const noexcept {
 /******************************************************************************/
 /**
  * @brief On a member: calls @p member's setUp(), its serveRound() for every round its lead
- * announces, and its tearDown() after the stop. The stop is latched: a further call returns 0 at
- * once and calls nothing. An exception out of @p member's functions ends the MPI job.
+ * announces, and its tearDown() after the stop; then waits in a barrier with the lead and the other
+ * members (leaveTogether_()), so that it returns only when every member of the group has torn down
+ * and the lead's release() returns with it. The stop is latched: a further call returns 0 at once
+ * and calls nothing. An exception out of @p member's functions ends the MPI job.
  *
  * @param member The member's half; outlives the cascade
  * @return 0, the exit code of the process
@@ -351,8 +353,10 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
 /******************************************************************************/
 /**
  * @brief On a lead: announces the stop to the members, then calls the tearDown() of the lifecycle
- * passed to lead(). Waits for a round that runs; latched; a later round() or lead() throws. Does
- * nothing on another process and without MPI. An exception out of tearDown() ends the MPI job.
+ * passed to lead(), then waits in a barrier until every member has torn down and left serve()
+ * (leaveTogether_()): when it returns, nothing of the group runs any more. Waits for a round that
+ * runs; latched; a later round() or lead() throws. Does nothing on another process and without
+ * MPI. An exception out of tearDown() ends the MPI job.
  */
 void GMPICascade::release() noexcept {
     if(not environment_ || role_ != processRole::CLIENT) {
@@ -365,9 +369,9 @@ void GMPICascade::release() noexcept {
 
 /******************************************************************************/
 /**
- * @brief Announces the stop to the members and tears down the lifecycle passed to lead(), once.
- * Called with the round lock held, on a lead with MPI. An exception out of tearDown() ends the MPI
- * job.
+ * @brief Announces the stop to the members, tears down the lifecycle passed to lead() and waits in
+ * the barrier until every member has left serve() (leaveTogether_()), once. Called with the round
+ * lock held, on a lead with MPI. An exception out of tearDown() ends the MPI job.
  */
 void GMPICascade::releaseLocked_() noexcept {
     if(released_) {
