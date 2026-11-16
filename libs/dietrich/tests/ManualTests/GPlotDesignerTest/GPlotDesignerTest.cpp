@@ -252,6 +252,21 @@ int main(int argc, char **argv) {
         everywhere->setLegendPosition(legendPosition::BOTTOM_RIGHT);
         everywhere->setLegendRoom(true);
         gpd.registerPlotter(everywhere);
+        // A 3-d pad of nine labelled series: the band shows six at its second, smaller text size
+        // and sums up the other three in its last row.
+        auto crowd = std::make_shared<GGraph3D>();
+        crowd->setPlotLabel("series 1");
+        for(int i = 0; i < 9; ++i) {
+            auto member = i == 0 ? crowd : std::make_shared<GGraph3D>();
+            for(int k = 0; k < 5; ++k) {
+                (*member) & std::tuple<double, double, double>(0.1 * k, 0.1 * i, 0.05 * (i + k));
+            }
+            if(i > 0) {
+                member->setPlotLabel("series " + std::to_string(i + 1));
+                crowd->registerSecondaryPlotter(member);
+            }
+        }
+        gpd.registerPlotter(crowd);
     }
 
     gpd.writeToFile("result.C");
