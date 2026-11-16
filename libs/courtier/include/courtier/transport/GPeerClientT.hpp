@@ -826,7 +826,9 @@ private:
         lost_at_ = clock::now();
         // The end of a connection with contact is noted when it ends, not when its loss is booked
         // after the drain; bookLoss_() notes it once more if an answer decoded in the drain was
-        // the contact.
+        // the contact. A cheap guard, redundant today: the limits are not looked at during the
+        // drain (when_polled_()), and bookLoss_() notes the end before any state in which they
+        // are; it would matter if the limits were looked at while the drain lasts.
         if(contact_on_connection_) {
             last_contact_end_ = lost_at_;
         }
