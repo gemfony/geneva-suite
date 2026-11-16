@@ -281,9 +281,9 @@ static_assert(Gem::Courtier::ConsumerConfig<MPIConsumerConfig>);
 static_assert(not Gem::Courtier::ConsumerConfig<int>);
 
 /******************************************************************************/
-// The configuration of the MPI cascade (courtier/mpi/GMPICascadeConfig.hpp): its one key, the
-// group size, is read from a file that is written with its default if it is absent; a file that
-// cannot be parsed is refused, never replaced by the default.
+// The configuration of the MPI cascade (courtier/mpi/GMPICascadeConfig.hpp): its three keys, the
+// group size and the two poll pauses, are read from a file that is written with their defaults if
+// it is absent; a file that cannot be parsed is refused, never replaced by the defaults.
 
 namespace {
 

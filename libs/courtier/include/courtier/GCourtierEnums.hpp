@@ -136,7 +136,8 @@ enum class consumerType : Gem::Common::ENUMBASETYPE {
 enum class processRole : Gem::Common::ENUMBASETYPE {
     SUBMITTER = 0, ///< Builds the consumer and submits work through it
     CLIENT = 1,    ///< Serves work
-    BYSTANDER = 2  ///< Takes no part in the consumer's protocol (in an MPI cascade: a member)
+    BYSTANDER = 2  ///< Takes no part in the consumer's protocol (in an MPI cascade: a member; in a
+                   ///< cascade laid out GROUPS_ONLY, every process)
 };
 
 /******************************************************************************/
