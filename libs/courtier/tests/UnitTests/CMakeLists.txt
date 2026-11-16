@@ -369,6 +369,16 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# A lead that never confirms its role and never uses the cascade ends the job in the destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeNeverUsed 3 M nonzero never-used
 		EXPECT "requireRole()" "The job is ended (MPI_Abort)")
+	# An exception out of a member's half, the lead's half or a lifecycle function ends the job
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeServeRoundThrows 3 M nonzero serve-round-throws
+		EXPECT "an exception left serveRound(): injected exception in serveRound()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadHalfThrows 3 M nonzero lead-half-throws
+		EXPECT "an exception left the lead's half of a round: injected exception in the lead's half"
+		"The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSetUpThrows 3 M nonzero set-up-throws
+		EXPECT "an exception left setUp(): injected exception in setUp()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeTearDownThrows 3 M nonzero tear-down-throws
+		EXPECT "an exception left tearDown(): injected exception in tearDown()" "The job is ended (MPI_Abort)")
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged

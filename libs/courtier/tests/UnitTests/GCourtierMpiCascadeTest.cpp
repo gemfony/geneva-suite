@@ -1185,6 +1185,86 @@ int roleNotConfirmedScenario(Report &report, bool by_lead) {
     return report.failures();
 }
 
+/** Where failureScenario() injects an exception */
+enum class Injected {
+    SERVE_ROUND, ///< a member's serveRound(), in its second round
+    LEAD_HALF,   ///< the lead's half of the second round, before any collective
+    SET_UP,      ///< a member's setUp()
+    TEAR_DOWN    ///< the lead's tearDown(), called by release()
+};
+
+/** A member that throws where it is told to, and squares its number otherwise. */
+class InjectingMember final : public Courtier::GMPIGroupMemberI {
+public:
+    /** @brief A member @param report Where failures go @param injected Where it throws */
+    InjectingMember(Report &report, Injected injected)
+      : square_(report)
+      , injected_(injected) { /* nothing */
+    }
+    /** @brief Throws if told to, in setUp() */
+    void setUp(MPI_Comm group) override {
+        if(injected_ == Injected::SET_UP) {
+            throw std::runtime_error("injected exception in setUp()");
+        }
+        square_.setUp(group);
+    }
+    /** @brief Throws in the second round if told to, squares otherwise */
+    void serveRound(MPI_Comm group) override {
+        if(injected_ == Injected::SERVE_ROUND && square_.rounds() == 1) {
+            throw std::runtime_error("injected exception in serveRound()");
+        }
+        square_.serveRound(group);
+    }
+    /** @brief The rounds served */
+    [[nodiscard]] int rounds() const {
+        return square_.rounds();
+    }
+
+private:
+    SquareMember square_; ///< What it does when it does not throw
+    Injected injected_;   ///< Where it throws
+};
+
+/**
+ * An exception out of a half or a lifecycle function ends the job (entries ...ServeRoundThrows,
+ * ...LeadHalfThrows, ...SetUpThrows, ...TearDownThrows): the cascade logs where and what, and
+ * calls MPI_Abort; no rank is left waiting. Every rank that comes back from its part prints a FAIL.
+ *
+ * @param injected Where the exception comes from
+ */
+int failureScenario(Report &report, Injected injected) {
+    constexpr int ROUNDS = 5;
+    InjectingMember member(report, injected);
+    LeadLifecycle lifecycle(false, [injected] {
+        if(injected == Injected::TEAR_DOWN) {
+            throw std::runtime_error("injected exception in tearDown()");
+        }
+    });
+    Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
+    if(cascade.role() == processRole::BYSTANDER) {
+        std::ignore = cascade.serve(member);
+        report.fail(
+            "member {} came back from serve() after {} rounds",
+            report.rank(),
+            member.rounds()
+        );
+        return report.failures();
+    }
+    cascade.requireRole(processRole::CLIENT);
+    cascade.lead(lifecycle);
+    for(int r = 0; r < ROUNDS; ++r) {
+        std::ignore = cascade.round([&](MPI_Comm group) {
+            if(injected == Injected::LEAD_HALF && r == 1) {
+                throw std::runtime_error("injected exception in the lead's half");
+            }
+            return squareRound(group, cascade, r);
+        });
+    }
+    cascade.release();
+    report.fail("the lead came back from its rounds and release()");
+    return report.failures();
+}
+
 /**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
@@ -1445,6 +1525,10 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"serve-round-throws", [](Report &r) { return failureScenario(r, Injected::SERVE_ROUND); }},
+        {"lead-half-throws", [](Report &r) { return failureScenario(r, Injected::LEAD_HALF); }},
+        {"set-up-throws", [](Report &r) { return failureScenario(r, Injected::SET_UP); }},
+        {"tear-down-throws", [](Report &r) { return failureScenario(r, Injected::TEAR_DOWN); }},
         {"websocket", [](Report &r) { return websocketScenario(r, true); }},
         {"websocket-not-confirmed", [](Report &r) { return websocketScenario(r, false); }},
         {"empty-round", emptyRoundScenario},
