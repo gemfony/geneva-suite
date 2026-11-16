@@ -81,6 +81,7 @@ class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter,
             Gem::Common::make_member("ds_marker_", self.ds_marker_),
             Gem::Common::make_member("pad_title_", self.pad_title_),
             Gem::Common::make_member("legend_position_", self.legend_position_),
+            Gem::Common::make_member("legend_room_", self.legend_room_),
             Gem::Common::make_member("line_width_", self.line_width_),
             Gem::Common::make_cloneable_container_member(
                 "secondary_plotter_",
@@ -246,6 +247,22 @@ public:
      * @return The legend position, never FREEST
      */
     [[nodiscard]] legendPosition legendPlace() const;
+    /**
+     * @brief Makes room for the legend of this (primary) plotter's 2-d pad: the frame is extended
+     * below the data (a legend at the lower left or right) or above them (at the top left or
+     * right) by the height of the legend's box, so that the legend lies over no data by
+     * construction, whatever the data are -- for a figure whose data leave no corner free. It
+     * takes effect where the legend lies in a corner (set, or chosen by FREEST; not AUTO or the
+     * middle of the right side), in ROOT; the other backends place the legend in the corner
+     * without the room.
+     * @param legend_room true: leave the legend a band of its own
+     */
+    void setLegendRoom(bool legend_room);
+    /**
+     * @brief Whether the frame of this plotter's pad leaves the legend a band of its own
+     * @return true if it does
+     */
+    [[nodiscard]] bool legendRoom() const;
     /**
      * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
      * follows it
@@ -479,6 +496,7 @@ protected:
         plot_label_ += "_m";
         ds_marker_ += "_m";
         pad_title_ += "_m";
+        legend_room_ = not legend_room_;
         line_width_ += 1;
         ++id_;
         return true;
@@ -501,6 +519,7 @@ protected:
     ); ///< A marker to make the origin of data structures clear in the output file
     std::string pad_title_; ///< The title of the pad, apart from the plot label (empty: the label)
     legendPosition legend_position_ = legendPosition::AUTO; ///< Where the pad's legend lies
+    bool legend_room_ = false; ///< Whether the pad's frame leaves the legend a band of its own
     std::uint32_t line_width_ = 0; ///< The width of the drawn line (0: the backend's default)
 
 private:

@@ -67,6 +67,28 @@ set(_legend_probe [=[
             }
             // A legend that grew for a long label stays within the frame's width, left of a palette.
             if(l->GetX2NDC() > 1. - p2->GetRightMargin() + 1e-9) printf("GPD-LEGEND-OUTSIDE %g\n", l->GetX2NDC());
+            { // the points of the pad's graphs under the legend's box (and along their lines)
+               p2->cd();
+               const double ux1 = p2->GetX1() + l->GetX1NDC() * (p2->GetX2() - p2->GetX1());
+               const double ux2 = p2->GetX1() + l->GetX2NDC() * (p2->GetX2() - p2->GetX1());
+               const double uy1 = p2->GetY1() + l->GetY1NDC() * (p2->GetY2() - p2->GetY1());
+               const double uy2 = p2->GetY1() + l->GetY2NDC() * (p2->GetY2() - p2->GetY1());
+               int covered = 0;
+               TIter l6(p2->GetListOfPrimitives());
+               while(TObject *o6 = l6()) {
+                  TGraph *g = dynamic_cast<TGraph *>(o6); if(!g || p2->GetView()) continue;
+                  for(int i = 0; i < g->GetN(); ++i) {
+                     for(int k = 0; k <= (i + 1 < g->GetN() ? 20 : 0); ++k) { // the point, and along to the next
+                        double x = g->GetX()[i], y = g->GetY()[i];
+                        if(k > 0) { const double t = k / 20.; x += t * (g->GetX()[i + 1] - x); y += t * (g->GetY()[i + 1] - y); }
+                        if(p2->GetLogx()) x = TMath::Log10(x);
+                        if(p2->GetLogy()) y = TMath::Log10(y);
+                        if(x >= ux1 && x <= ux2 && y >= uy1 && y <= uy2) ++covered;
+                     }
+                  }
+               }
+               printf("GPD-PAD-COVERED %d\n", covered);
+            }
             if(l->GetTextSize() <= 0.) continue; // ROOT sizes the text to the box itself
             if(l->GetTextSize() < 0.035 - 1e-9) printf("GPD-PLACED-SMALL %g\n", l->GetTextSize());
             p2->cd();
@@ -163,6 +185,37 @@ if(_out MATCHES "GPD-LEGEND-OUTSIDE")
 endif()
 if(_out MATCHES "GPD-LEGEND-BAD")
 	message(FATAL_ERROR "A legend has a bad entry.\nstdout:\n${_out}")
+endif()
+# A pad whose frame leaves its legend a band of its own ("// legend room: 1") has no data under the
+# legend: no point and no stretch of a line (the probe reports one count per legend, in the order
+# of the pads; the room comment stands in every pad).
+string(REGEX MATCHALL "// legend room: [01]" _rooms "${_macro}")
+string(REGEX MATCHALL "// legend entries: [0-9]+" _entry_counts "${_macro}")
+string(REGEX MATCHALL "GPD-PAD-COVERED [0-9]+" _covered "${_out}")
+set(_legend_index 0)
+set(_checked_rooms 0)
+list(LENGTH _rooms _n_rooms)
+if(_n_rooms GREATER 0)
+	math(EXPR _last_room "${_n_rooms} - 1")
+	foreach(_i RANGE 0 ${_last_room})
+		list(GET _entry_counts ${_i} _count)
+		string(REGEX REPLACE "// legend entries: " "" _count "${_count}")
+		if(_count EQUAL 0)
+			continue()
+		endif()
+		list(GET _rooms ${_i} _room)
+		list(GET _covered ${_legend_index} _cov)
+		math(EXPR _legend_index "${_legend_index} + 1")
+		if(_room STREQUAL "// legend room: 1")
+			math(EXPR _checked_rooms "${_checked_rooms} + 1")
+			if(NOT _cov STREQUAL "GPD-PAD-COVERED 0")
+				message(FATAL_ERROR "Pad ${_i} leaves its legend a band of its own, yet ${_cov} samples of its data lie under the legend.\nstdout:\n${_out}")
+			endif()
+		endif()
+	endforeach()
+endif()
+if(_checked_rooms EQUAL 0)
+	message(FATAL_ERROR "No pad leaves its legend a band of its own; the check proves nothing.")
 endif()
 # A placed legend has a fixed text size; a label too long for its box at that size must be drawn
 # smaller rather than run out of the box over the pad.

@@ -297,7 +297,10 @@ int main() {
     spread.plot_mode = graphPlotMode::SCATTER; // the backend-independent intent ...
     spread.drawing_args = "A*";                // ... and ROOT's own refinement of it: star markers
     spread.name = "every individual the run evaluated";
-    spread.legend = legendPosition::FREEST; // where the run's points leave room
+    // The run leaves no corner free: the cloud decays towards a plateau. The legend gets a band of
+    // its own below the plateau, free by construction.
+    spread.legend = legendPosition::BOTTOM_RIGHT;
+    spread.legend_room = true;
     spread.x_label = "iteration";
     spread.y_label = "log_{10}(fitness)";
     spread.columns = {"x", "y"};

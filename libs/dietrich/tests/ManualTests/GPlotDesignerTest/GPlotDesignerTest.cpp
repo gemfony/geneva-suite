@@ -194,9 +194,9 @@ int main(int argc, char **argv) {
     noisyParabola_plotter_2D_ptr->setYAxisLabel("Noisy parabola");
     noisyParabola_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 4);
+    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 5);
 
-    gpd.setCanvasDimensions(1200, 1800);
+    gpd.setCanvasDimensions(1200, 2200);
     gpd.registerPlotter(gsin_ptr);
     gpd.registerPlotter(gcos_ptr);
     gpd.registerPlotter(gsin_plotter_1D_ptr);
@@ -235,6 +235,23 @@ int main(int argc, char **argv) {
         other->setPlotLabel("another cloud, further out");
         cloud->registerSecondaryPlotter(other);
         gpd.registerPlotter(cloud);
+        // Points that fill the whole frame and a curve along their bottom: no corner is free, so
+        // the legend gets a band of its own below them.
+        auto everywhere = std::make_shared<GGraph2D>();
+        everywhere->setPlotMode(graphPlotMode::SCATTER);
+        everywhere->setPlotLabel("points everywhere");
+        auto bottom = std::make_shared<GGraph2D>();
+        bottom->setPlotLabel("a curve along the bottom");
+        for(int i = 0; i <= 20; ++i) {
+            for(int j = 0; j <= 10; ++j) {
+                (*everywhere) & std::tuple<double, double>(i, 1. + j);
+            }
+            (*bottom) & std::tuple<double, double>(i, 1.);
+        }
+        everywhere->registerSecondaryPlotter(bottom);
+        everywhere->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+        everywhere->setLegendRoom(true);
+        gpd.registerPlotter(everywhere);
     }
 
     gpd.writeToFile("result.C");

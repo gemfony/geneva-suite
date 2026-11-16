@@ -2048,3 +2048,34 @@ TEST_CASE("Overlaid 4-d graphs share one frame that holds all their points", "[p
     CHECK(root.contains("pm3d__0_0_1->SetPoint(0, "));
     CHECK_FALSE(root.contains("->SetPoint(1, "));
 }
+
+/******************************************************************************/
+// A figure whose data leave no corner free makes room for its legend: the frame leaves the legend a
+// band of its own below (or above) the data.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("A pad can leave its legend a band of its own", "[plotting][overlay][legend]") {
+    auto first = decadesGraph(false, false);
+    first->setPlotLabel("first");
+    auto second = decadesGraph(false, false);
+    second->setPlotLabel("second");
+    first->registerSecondaryPlotter(second);
+    first->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+    CHECK_FALSE(render(first, plotBackend::ROOT).contains("the legend's band"));
+    first->setLegendRoom(true);
+    const std::string below = render(first, plotBackend::ROOT);
+    CHECK(below.contains("the legend's band: no data under the legend, by construction"));
+    CHECK(below.contains("const double edge = 0.31; // of the pad"));
+    CHECK(below.contains("if(new_lo < lo) first->SetMinimum(g(new_lo));"));
+    CHECK(below.contains("// legend room: 1"));
+    first->setLegendPosition(legendPosition::TOP_LEFT);
+    const std::string above = render(first, plotBackend::ROOT);
+    CHECK(above.contains("const double edge = 0.7; // of the pad"));
+    CHECK(above.contains("if(new_hi > hi) first->SetMaximum(g(new_hi));"));
+    // No band where the legend lies in no corner.
+    first->setLegendPosition(legendPosition::CENTER_RIGHT);
+    CHECK_FALSE(render(first, plotBackend::ROOT).contains("the legend's band"));
+    // It travels through the spec.
+    first->setLegendPosition(legendPosition::BOTTOM_RIGHT);
+    CHECK(first->plotSpec().toJson().contains("\"legend_room\": true"));
+    CHECK(makePlotter(first->plotSpec())->legendRoom());
+}

@@ -125,6 +125,7 @@ GBasePlotter::GBasePlotter(const GBasePlotter &cp)
   , ds_marker_(cp.ds_marker_)
   , pad_title_(cp.pad_title_)
   , legend_position_(cp.legend_position_)
+  , legend_room_(cp.legend_room_)
   , line_width_(cp.line_width_)
   , id_(cp.id_) {
     // Note: Explicit scope needed for name resolution of clone -- compare
@@ -159,6 +160,7 @@ GBasePlotter &GBasePlotter::operator=(GBasePlotter const &cp) {
     ds_marker_ = cp.ds_marker_;
     pad_title_ = cp.pad_title_;
     legend_position_ = cp.legend_position_;
+    legend_room_ = cp.legend_room_;
     line_width_ = cp.line_width_;
     id_ = cp.id_;
 
@@ -390,6 +392,23 @@ legendPosition GBasePlotter::legendPlace() const {
 }
 
 /**
+ * Makes room for the legend of this pad: the frame leaves it a band of its own below or above the
+ * data (see the declaration).
+ *
+ * @param legend_room true: leave the legend a band of its own
+ */
+void GBasePlotter::setLegendRoom(bool legend_room) {
+    legend_room_ = legend_room;
+}
+
+/**
+ * @return Whether the frame of this plotter's pad leaves the legend a band of its own
+ */
+bool GBasePlotter::legendRoom() const {
+    return legend_room_;
+}
+
+/**
  * Sets the width of the line this plotter draws (2-d graphs); its legend sample follows it.
  *
  * @param line_width The width in the backend's units (0: the backend's default)
@@ -429,6 +448,9 @@ GPlotSpec GBasePlotter::plotSpec() const {
     }
     if(line_width_ > 0) {
         spec.line_width = line_width_;
+    }
+    if(legend_room_) {
+        spec.legend_room = true;
     }
     return spec;
 }
@@ -552,6 +574,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     p->setPadTitle(spec.pad_title);
     p->setLegendPosition(spec.legend.value_or(legendPosition::AUTO));
     p->setLineWidth(spec.line_width.value_or(0));
+    p->setLegendRoom(spec.legend_room.value_or(false));
 
     // The plot mode (scatter vs. curve) is a GGraph2D / GGraph2ED render choice; apply it
     // when the spec carries one and the built plotter supports it.
@@ -873,9 +896,11 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
             root_entries.push_back({object, e.label, e.sample, e.series, e.line_width});
         }
         emitRootOverlayFrameAndLegend(
-            footer_data, indent, legendPlace(), root_entries, isThreeDimensional(this->plotSpec())
+            footer_data, indent, legendPlace(), root_entries, isThreeDimensional(this->plotSpec()), legend_room_
         );
     }
+    // Whether the frame leaves the legend a band of its own, for the same reader.
+    footer_data << indent << "// legend room: " << (legend_room_ ? 1 : 0) << '\n';
     // The number of rows ROOT draws of the description (the band of a 3-d pad shows at most
     // LEGEND3DMAXROWS), for a reader of the script that checks what ROOT drew (the validity test
     // of the plotting library).

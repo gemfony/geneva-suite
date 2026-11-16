@@ -167,6 +167,8 @@ struct GPlotSpec {
 
     std::optional<bool> arrows; ///< 2-d graphs: true joins consecutive points by arrows (ROOT alone draws them)
 
+    std::optional<bool> legend_room; ///< true: the frame leaves the legend a band of its own (GBasePlotter::setLegendRoom())
+
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
     GPlotSpec() : role(defaultRole(kind)) { /* nothing */ }
@@ -267,6 +269,9 @@ struct GPlotSpec {
         }
         if(arrows.value_or(false)) {
             out += ", \"arrows\": true";
+        }
+        if(legend_room.value_or(false)) {
+            out += ", \"legend_room\": true";
         }
         out += "}";
         return out;

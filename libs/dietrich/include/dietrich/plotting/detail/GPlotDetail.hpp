@@ -390,13 +390,16 @@ inline void emitRootPadTitle(std::ostream &s, const std::string &indent, const s
  * @param entries The entries of the pad's legend (GBasePlotter::legendEntries()); none: the pad
  *        gets no legend
  * @param three_d Whether the pad is a 3-d box (isThreeDimensional()), for where AUTO puts the legend
+ * @param room Whether the frame leaves a legend in a corner a band of its own below or above the
+ *        data (GBasePlotter::setLegendRoom())
  */
 inline void emitRootOverlayFrameAndLegend(
     std::ostream &s,
     const std::string &indent,
     legendPosition position,
     const std::vector<rootLegendEntry> &entries,
-    bool three_d
+    bool three_d,
+    bool room = false
 ) {
     s << indent << "{ // one frame for all graphs of this pad" << (entries.empty() ? "" : ", and a legend")
       << '\n'
@@ -442,8 +445,33 @@ inline void emitRootOverlayFrameAndLegend(
       << indent
       << "      else { first->SetMinimum(ylo - 0.05 * (yhi - ylo)); first->SetMaximum(yhi + 0.05 * "
          "(yhi - ylo)); }"
-      << '\n'
-      << indent << "   }" << '\n';
+      << '\n';
+    const bool bottom = position == legendPosition::BOTTOM_LEFT or position == legendPosition::BOTTOM_RIGHT;
+    const bool top = position == legendPosition::TOP_LEFT or position == legendPosition::TOP_RIGHT;
+    if(room and not entries.empty() and not three_d and (bottom or top)) {
+        // A band of the legend's own: the frame is extended so that the data lie above (or below)
+        // the legend's box and a little air, whatever the data are.
+        const auto [x1, y1, x2, y2] = legendBox(position, entries.size());
+        std::ostringstream edge;
+        edge.imbue(std::locale::classic());
+        edge << (bottom ? y2 + 0.02 : y1 - 0.02);
+        s << indent << "      { // the legend's band: no data under the legend, by construction" << '\n'
+          << indent << "         const double edge = " << edge.str() << "; // of the pad" << '\n'
+          << indent << "         const double r = (edge - gPad->GetBottomMargin()) / (1. - gPad->GetBottomMargin() - gPad->GetTopMargin());" << '\n'
+          << indent << "         const bool log_y = gPad->GetLogy();" << '\n'
+          << indent << "         const auto f = [&](double v) { return log_y ? TMath::Log10(v) : v; };" << '\n'
+          << indent << "         const auto g = [&](double v) { return log_y ? TMath::Power(10., v) : v; };" << '\n'
+          << indent << "         const double lo = f(first->GetMinimum()), hi = f(first->GetMaximum());" << '\n';
+        if(bottom) {
+            s << indent << "         const double new_lo = (f(ylo) - r * hi) / (1. - r); // the lowest datum at the band's top" << '\n'
+              << indent << "         if(new_lo < lo) first->SetMinimum(g(new_lo));" << '\n';
+        } else {
+            s << indent << "         const double new_hi = lo + ((f(yhi) - lo) / r); // the highest datum at the band's bottom" << '\n'
+              << indent << "         if(new_hi > hi) first->SetMaximum(g(new_hi));" << '\n';
+        }
+        s << indent << "      }" << '\n';
+    }
+    s << indent << "   }" << '\n';
     if(not entries.empty()) {
         emitRootLegend(s, indent + "   ", position, entries, three_d);
     }
