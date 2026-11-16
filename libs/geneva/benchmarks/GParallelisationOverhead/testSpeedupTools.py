@@ -102,10 +102,10 @@ def check_figure(program, workdir):
 
     figure = open('figure.C', encoding='utf-8').read()
     # Two pads (all times, and those up to 0.1 s), each with both labels and the ideal line
-    # The series are named by their labels alone; each pad has a title of its own and a legend
-    # at the lower right.
+    # The series are named by their labels alone, each label once as its graph's title and once
+    # as its legend entry; each pad has a title of its own and a legend at the lower right.
     for text, count in (('TGraphErrors(', 6), ('new TLegend(', 2), ('Divide(1,2)', 1),
-                        ('"fast"', 2), ('"slow"', 2), ('"ideal (4)"', 2),
+                        ('"fast"', 4), ('"slow"', 4), ('"ideal (4)"', 4),
                         ('"All evaluation times"', 1), ('"Up to 0.1 s"', 1), ('fast:', 0),
                         ('new TLegend(0.3, 0.21)', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
         if figure.count(text) != count:

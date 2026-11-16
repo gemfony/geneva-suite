@@ -126,25 +126,32 @@ std::string octaveLegendLocation(legendPosition position) {
 
 /** @brief Emit the Octave plotting call(s) for ONE plotter into the current subplot (a
  *  `hold on` is already in effect, so secondaries overlay). Data are written as inline
- *  row-vector literals; bin counts come from the plot spec. */
+ *  row-vector literals; bin counts come from the plot spec. The calls end with `c_`, the colour
+ *  the series is drawn in, for its legend sample. The plotted objects carry no name: the legend
+ *  is built from samples of its own (with the gnuplot toolkit a named object would enter the
+ *  key a second time). */
 std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
     EmitStream call; // NOLINT(cppcoreguidelines-init-variables)
-    const std::string label = octaveEscape(p.plotLabel());
     // Columns in storage order (see plotSpec().columns). GGraph2ED's stored order is
     // (x, ex, y, ey).
     const auto cols = p.dataColumns();
     const GPlotSpec spec = p.plotSpec();
     switch(k) {
         case scriptKind::g2d: {
-            call << "plot(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
-                 << ", '-o', 'DisplayName', '" << label << "'" << lineWidthArgument(p) << ");" << '\n';
+            // A scatter plot is drawn as markers alone, a curve as a line through them.
+            const bool scatter = legendSampleOf(spec) == legendSample::MARKER;
+            call << "h_ = plot(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
+                 << ", '" << (scatter ? "o" : "-o") << "'"
+                 << lineWidthArgument(p) << ");" << '\n'
+                 << "c_ = get(h_, 'Color');" << '\n';
         } break;
         case scriptKind::g2ed: {
             // Y-error bars only: a single errorbar() carrying BOTH x- and y-error is not
             // portable across base Octave and MATLAB, so the x-error column is omitted here.
-            call << "errorbar(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[2]) << ", "
-                 << bracketedRowCol(cols[3]) << ", 'o', 'DisplayName', '" << label << "'"
-                 << lineWidthArgument(p) << ");" << '\n';
+            call << "h_ = errorbar(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[2]) << ", "
+                 << bracketedRowCol(cols[3]) << ", 'o'"
+                 << lineWidthArgument(p) << ");" << '\n'
+                 << "c_ = get(h_, 'Color');" << '\n';
         } break;
         case scriptKind::g3d: {
             if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
@@ -161,14 +168,15 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                      << "z_ = " << bracketedRowCol(cols[2]) << ";" << '\n'
                      << "t_ = delaunay(x_, y_);" << '\n';
                 if(drawsSurface(p)) {
-                    call << "trisurf(t_, x_, y_, z_, 'EdgeColor', 'none', 'DisplayName', '" << label << "');" << '\n';
+                    call << "trisurf(t_, x_, y_, z_, 'EdgeColor', 'none');" << '\n';
                 }
                 call << "trisurf(t_, x_, y_, " << plane << " * ones(size(z_)), z_, 'EdgeColor', 'none');" << '\n'
                      << "zlim([" << z_lo << " " << z_hi << "]);" << '\n';
                 if(drawsSurface(p)) {
                     call << "colorbar;" << '\n';
                 }
-                call << "view(3);" << '\n';
+                call << "view(3);" << '\n'
+                     << "cm_ = colormap(); c_ = cm_(round(end / 2), :);" << '\n';
             }
             else {
                 if(castsFloorShadow(p)) {
@@ -179,10 +187,11 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                          << "plot3(xs_, ys_, zl_(1) * ones(size(xs_)), '.', 'Color', [0.6 0.6 0.6], 'MarkerSize', 4);"
                          << '\n';
                 }
-                // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
-                call << "plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
-                     << bracketedRowCol(cols[2]) << (isCurve3D(p) ? ", '-'" : ", 'o', 'Color', 'r', 'MarkerSize', 3")
-                     << ", 'DisplayName', '" << label << "');" << '\n'
+                // Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
+                call << "h_ = plot3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
+                     << bracketedRowCol(cols[2]) << (isCurve3D(p) ? ", '-o', 'MarkerSize', 3" : ", 'o', 'Color', 'r', 'MarkerSize', 3")
+                     << ");" << '\n'
+                     << "c_ = get(h_, 'Color');" << '\n'
                      // With `hold on` already in effect Octave keeps the flat 2-d view, so a 3-d
                      // curve would be drawn as its x-y shadow; the 3-d view is requested explicitly.
                      << "view(3);" << '\n';
@@ -192,14 +201,18 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
             // 3-d scatter coloured by the w-component, with a colourbar.
             call << "scatter3(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1]) << ", "
                  << bracketedRowCol(cols[2]) << ", 36, " << bracketedRowCol(cols[3]) << ", 'filled');" << '\n'
-                 << "colorbar;" << '\n';
+                 << "colorbar;" << '\n'
+                 << "cm_ = colormap(); c_ = cm_(round(end / 2), :);" << '\n';
         } break;
         case scriptKind::hist1d:
         case scriptKind::hist1i: {
             // A 1-d histogram of the raw samples (float64 or int32); same base call.
             // A histogram spec always carries its bin counts; the fallback is unreachable
             call << "hist(" << bracketedRowCol(cols[0]) << ", "
-                 << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ");" << '\n';
+                 << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ");" << '\n'
+                 << "b_ = findobj(gca, 'Type', 'patch'); c_ = get(b_(1), 'FaceColor');" << '\n'
+                 // bars coloured from the colour map name no colour of their own
+                 << "if ischar(c_), cm_ = colormap(); c_ = cm_(round(end / 2), :); end" << '\n';
         } break;
         case scriptKind::hist2d: {
             // A base-only 2-d histogram: bin x and y with histc over linspace edges, sum
@@ -215,7 +228,8 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
                  << "_bx = min(max(_bx, 1), _nbx); _by = min(max(_by, 1), _nby);" << '\n'
                  << "_H = accumarray([_bx(:), _by(:)], 1, [_nbx, _nby]);" << '\n'
                  << "imagesc([min(_x) max(_x)], [min(_y) max(_y)], _H'); axis xy; colorbar;"
-                 << '\n';
+                 << '\n'
+                 << "cm_ = colormap(); c_ = cm_(round(end / 2), :);" << '\n';
         } break;
     }
     return call.str();
@@ -284,17 +298,39 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
         }
         result << "title('" << octaveEscape(p->padTitleOrLabel()) << "');" << '\n';
 
-        // The primary plotter, then any secondary plotters overlaid in the same pad.
-        result << octPlotCall(*p, k);
+        // The primary plotter, then any secondary plotters overlaid in the same pad; the colour
+        // each series is drawn in is kept for its legend sample.
+        result << "cs_ = {};" << '\n' << octPlotCall(*p, k) << "cs_{end + 1} = c_;" << '\n';
         for(const auto &sp : p->secondaryPlotters()) {
-            result << octPlotCall(
-                *sp, classifyForScript(*sp, true, "OctaveEmitter::emitDocument()", "Octave")
-            );
+            result << octPlotCall(*sp, classifyForScript(*sp, true, "OctaveEmitter::emitDocument()", "Octave"))
+                   << "cs_{end + 1} = c_;" << '\n';
         }
-        // Several series in one pad are told apart by a legend of those the calls above named
-        // (GBasePlotter::nLegendEntries(): none named, no legend).
-        if(p->nLegendEntries() > 0) {
-            result << "legend('show');" << '\n';
+        // The legend the description lists (GBasePlotter::legendEntries()). Its samples are
+        // objects of their own, drawn at no point (NaN) in the series' colour as the description
+        // says -- a line, markers, both, or a filled patch -- and handed to legend() with the
+        // texts, so that no object that is not listed can enter and a series whose own object
+        // carries no name (a map, a histogram) is listed all the same.
+        if(const auto entries = p->legendEntries(); not entries.empty()) {
+            result << "s_ = [];" << '\n';
+            for(const auto &e : entries) {
+                const std::string colour = "cs_{" + std::to_string(e.series + 1) + "}";
+                if(e.sample == legendSample::FILL or e.sample == legendSample::COLOUR_MAP) {
+                    result << "s_(end + 1) = patch('XData', NaN, 'YData', NaN"
+                           << (three_d ? ", 'ZData', NaN" : "") << ", 'FaceColor', " << colour
+                           << ", 'EdgeColor', 'none');" << '\n';
+                } else {
+                    const bool line = e.sample != legendSample::MARKER;
+                    const bool marker = e.sample != legendSample::LINE;
+                    result << "s_(end + 1) = " << (three_d ? "plot3(NaN, NaN, NaN" : "plot(NaN, NaN")
+                           << ", 'LineStyle', '" << (line ? "-" : "none") << "', 'Marker', '"
+                           << (marker ? "o" : "none") << "', 'Color', " << colour << ");" << '\n';
+                }
+            }
+            result << "legend(s_, {";
+            for(const auto &[i, e] : entries | std::views::enumerate) {
+                result << (i == 0 ? "" : ", ") << "'" << octaveEscape(e.label) << "'";
+            }
+            result << "});" << '\n';
             const std::string location = octaveLegendLocation(p->getLegendPosition());
             if(not location.empty()) {
                 result << "legend('location', '" << location << "');" << '\n';

@@ -29,9 +29,13 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -278,6 +282,126 @@ struct GPlotSpec {
         return out;
     }
 };
+
+/******************************************************************************/
+/**
+ * What the sample of a legend entry shows, so that it looks like its series: a line, markers,
+ * both, a box filled (or outlined) as the series' bars are, or a box in the middle colour of the
+ * colour map a surface, a map or a 2-d histogram is drawn with.
+ */
+enum class legendSample {
+    LINE,            ///< a line (a curve, a function)
+    MARKER,          ///< markers alone (points, a scatter plot)
+    LINE_AND_MARKER, ///< a line through markers
+    FILL,            ///< a box with the series' own fill and outline (the bars of a histogram)
+    COLOUR_MAP       ///< a box in the middle colour of the colour map (a surface, a map)
+};
+
+/**
+ * @param sample A legend sample
+ * @return Its stable name ("line", "marker", "line_and_marker", "fill", "colour_map"), as the data
+ *         export's manifest carries it
+ */
+[[nodiscard]] inline std::string to_string(legendSample sample) {
+    switch(sample) {
+        case legendSample::LINE:            return "line";
+        case legendSample::MARKER:          return "marker";
+        case legendSample::LINE_AND_MARKER: return "line_and_marker";
+        case legendSample::FILL:            return "fill";
+        case legendSample::COLOUR_MAP:      return "colour_map";
+    }
+    return "line";
+}
+
+/**
+ * One entry of a pad's legend, as the ROOT, matplotlib and Octave writers draw it
+ * (GBasePlotter::legendEntries()).
+ */
+struct GLegendEntry {
+    std::size_t series = 0; ///< the series it names: 0 the pad's primary plotter, k its k-th secondary plotter
+    std::string label;      ///< the text: the series' plot label
+    legendSample sample = legendSample::LINE; ///< what the sample shows (legendSampleOf())
+};
+
+/**
+ * @param label A plot label
+ * @return true if the label names something: it has a character other than white space. A label
+ *         of white space only is no label.
+ */
+[[nodiscard]] inline bool isLegendLabel(std::string_view label) {
+    return std::ranges::any_of(label, [](unsigned char c) { return std::isspace(c) == 0; });
+}
+
+/**
+ * The one decision of what a series' legend sample shows, for every plotter type, from how the
+ * series is drawn: its kind, its plot mode (scatter or curve), its projection, and its drawing
+ * arguments where it has its own (they are ROOT's draw options; "L"/"C" draw a line, "P"/"*"
+ * markers, "B"/"F" a fill, "SURF", "COL", "CONT", "LEGO", "TRI" a colour map, "SCAT" points).
+ *
+ * - a 2-d graph (with or without error bars): markers for a scatter plot, a line through markers
+ *   for a curve;
+ * - a 3-d graph: the colour map for a projected surface, markers for points, a line through
+ *   markers for a curve;
+ * - a 4-d graph: markers;
+ * - a 1-d histogram: its bars (FILL); a 2-d histogram and a 2-d function: the colour map, or
+ *   markers for a scatter plot;
+ * - a 1-d function: a line.
+ *
+ * @param spec The series' plot spec (GBasePlotter::plotSpec())
+ * @return What the series' legend sample shows
+ */
+[[nodiscard]] inline legendSample legendSampleOf(const GPlotSpec &spec) {
+    std::string args;
+    for(char const c : spec.drawing_args) {
+        args += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    }
+    for(auto at = args.find("SAME"); at != std::string::npos; at = args.find("SAME")) {
+        args.erase(at, 4); // "same" places a series in a pad; it does not say how it is drawn
+    }
+    const auto has = [&args](std::string_view token) { return args.find(token) != std::string::npos; };
+    const bool colour_map = has("SURF") or has("COL") or has("CONT") or has("LEGO") or has("TRI");
+    const bool own_args = args.find_first_not_of(", ") != std::string::npos;
+    const bool curve = spec.plot_mode == graphPlotMode::CURVE;
+
+    switch(spec.kind) {
+        case plotKind::graph_2d:
+        case plotKind::graph_2d_err: {
+            if(not own_args) {
+                return curve or not spec.plot_mode.has_value() ? legendSample::LINE_AND_MARKER
+                                                               : legendSample::MARKER;
+            }
+            if(has("B") or has("F")) {
+                return legendSample::FILL;
+            }
+            const bool line = has("L") or has("C");
+            const bool marker = has("P") or has("*");
+            if(line and marker) {
+                return legendSample::LINE_AND_MARKER;
+            }
+            return marker ? legendSample::MARKER : legendSample::LINE;
+        }
+        case plotKind::graph_3d: {
+            if(spec.projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE or colour_map) {
+                return legendSample::COLOUR_MAP;
+            }
+            if(own_args and has("LINE")) {
+                return has("P") ? legendSample::LINE_AND_MARKER : legendSample::LINE;
+            }
+            return curve ? legendSample::LINE_AND_MARKER : legendSample::MARKER;
+        }
+        case plotKind::graph_4d:
+            return legendSample::MARKER;
+        case plotKind::hist_1d:
+        case plotKind::hist_1i:
+            return legendSample::FILL;
+        case plotKind::hist_2d:
+        case plotKind::function_2d:
+            return has("SCAT") ? legendSample::MARKER : legendSample::COLOUR_MAP;
+        case plotKind::function_1d:
+            return has("P") ? legendSample::MARKER : legendSample::LINE;
+    }
+    return legendSample::LINE;
+}
 
 /******************************************************************************/
 /**

@@ -40,7 +40,6 @@
 #include "common/GLogger.hpp"
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -658,26 +657,31 @@ const std::vector<std::shared_ptr<GBasePlotter>> &GBasePlotter::secondaryPlotter
 
 /******************************************************************************/
 /**
- * The number of entries the legend of this (primary) plotter's pad gets. A legend names series,
- * so it lists the series of the pad that carry a label; a label of white space only names nothing
- * (the ROOT script draws it as a blank title, which its legend passes over too). A pad with a
- * single series shows its label as the pad's title and gets no legend, and so does a pad none of
- * whose series is labelled -- in 2-d and 3-d alike. Every backend asks this function, so they
- * agree on whether a pad has a legend.
+ * The legend of this (primary) plotter's pad, in the one form the ROOT, matplotlib and Octave
+ * writers draw it. A legend
+ * names series, so it lists the series of the pad that carry a label, the primary first and then
+ * the secondary plotters in their order; a label of white space only names nothing. Each entry's
+ * sample shows how its series is drawn (legendSampleOf()). A pad with a single series shows its
+ * label as the pad's title and gets no legend, and so does a pad none of whose series is labelled
+ * -- in 2-d and 3-d alike.
  *
- * @return The number of labelled series of a pad with several series, otherwise 0 (no legend)
+ * @return The entries; empty: the pad has no legend
  */
-std::size_t GBasePlotter::nLegendEntries() const {
+std::vector<GLegendEntry> GBasePlotter::legendEntries() const {
+    std::vector<GLegendEntry> entries;
     if(secondary_plotter_.empty()) {
-        return 0;
+        return entries;
     }
-    const auto labelled = [](std::string const &label) {
-        return std::ranges::any_of(label, [](unsigned char c) { return std::isspace(c) == 0; });
+    const auto add = [&entries](GBasePlotter const &p, std::size_t series) {
+        if(isLegendLabel(p.plot_label_)) {
+            entries.push_back({series, p.plot_label_, legendSampleOf(p.plotSpec())});
+        }
     };
-    const auto n_secondary = std::ranges::count_if(
-        secondary_plotter_, [&labelled](auto const &sp) { return labelled(sp->plotLabel()); }
-    );
-    return (labelled(plot_label_) ? 1 : 0) + static_cast<std::size_t>(n_secondary);
+    add(*this, 0);
+    for(const auto &[pos, sp] : secondary_plotter_ | std::views::enumerate) {
+        add(*sp, static_cast<std::size_t>(pos) + 1);
+    }
+    return entries;
 }
 
 /******************************************************************************/
@@ -778,10 +782,22 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
         pos++;
     }
 
-    // Several plotters share this pad: give them one frame, and a legend of their labelled series.
+    // Several plotters share this pad: give them one frame, and the legend the description lists,
+    // each sample drawn from its series' object.
+    const auto entries = legendEntries();
     if(not secondary_plotter_.empty()) {
-        emitRootOverlayFrameAndLegend(footer_data, indent, legend_position_, nLegendEntries());
+        std::vector<rootLegendEntry> root_entries;
+        for(const auto &e : entries) {
+            const std::string object = e.series == 0
+                ? this->rootLegendObject_(false, 0, this->id())
+                : secondary_plotter_[e.series - 1]->rootLegendObject_(true, this->id(), e.series - 1);
+            root_entries.push_back({object, e.label, e.sample});
+        }
+        emitRootOverlayFrameAndLegend(footer_data, indent, legend_position_, root_entries);
     }
+    // The number of entries the description gives this pad's legend, for a reader of the script
+    // that checks what ROOT drew (the validity test of the plotting library).
+    footer_data << indent << "// legend entries: " << entries.size() << '\n';
     // A pad title set apart from the first series' label replaces that label as the title, once
     // the legend has taken the label.
     if(not pad_title_.empty()) {

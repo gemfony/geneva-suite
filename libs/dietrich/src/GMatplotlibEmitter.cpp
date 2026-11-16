@@ -125,15 +125,19 @@ std::string mplPlotCall(
     const GPlotSpec spec = p.plotSpec();
     switch(k) {
         case scriptKind::g2d: {
-            call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[1]) << ", marker=\"o\", label=\"" << label << "\""
-                 << lineWidthArgument(p) << ")" << '\n';
+            // A scatter plot is drawn as markers alone, a curve as a line through them.
+            const bool scatter = legendSampleOf(spec) == legendSample::MARKER;
+            call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                 << bracketedRowCol(cols[1]) << ", marker=\"o\"" << (scatter ? ", linestyle=\"none\"" : "")
+                 << ", label=\"" << label << "\"" << lineWidthArgument(p) << ")" << '\n'
+                 << "_c = _a[0].get_color()" << '\n';
         } break;
         case scriptKind::g2ed: {
-            call << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
+            call << "_a = " << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
                  << bracketedRowCol(cols[2]) << ", xerr=" << bracketedRowCol(cols[1])
                  << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"o\", label=\"" << label << "\""
-                 << lineWidthArgument(p) << ")" << '\n';
+                 << lineWidthArgument(p) << ")" << '\n'
+                 << "_c = _a[0].get_color()" << '\n';
         } break;
         case scriptKind::g3d: {
             if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
@@ -163,6 +167,7 @@ std::string mplPlotCall(
                 if(drawsSurface(p)) {
                     call << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
                 }
+                call << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
             }
             else {
                 if(castsFloorShadow(p)) {
@@ -170,11 +175,12 @@ std::string mplPlotCall(
                     call << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
                          << ", zs=" << ax << ".get_zlim()[0], s=2, c=\"0.6\", zorder=1)" << '\n';
                 }
-                // Points, as ROOT draws a 3-d graph, unless a curve through them is asked for.
-                call << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                // Points, as ROOT draws a 3-d graph, or, for a curve, a line through them.
+                call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
                      << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                     << (isCurve3D(p) ? "" : ", linestyle=\"none\", marker=\"o\", markersize=3, color=\"red\"")
-                     << ", label=\"" << label << "\", zorder=2)" << '\n';
+                     << (isCurve3D(p) ? ", marker=\"o\", markersize=3" : ", linestyle=\"none\", marker=\"o\", markersize=3, color=\"red\"")
+                     << ", label=\"" << label << "\", zorder=2)" << '\n'
+                     << "_c = _a[0].get_color()" << '\n';
             }
         } break;
         case scriptKind::g4d: {
@@ -183,15 +189,17 @@ std::string mplPlotCall(
                  << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
                  << ", c=" << bracketedRowCol(cols[3]) << ", cmap=\"viridis\", label=\"" << label
                  << "\")" << '\n'
-                 << fig << ".colorbar(_sc, ax=" << ax << ")" << '\n';
+                 << fig << ".colorbar(_sc, ax=" << ax << ")" << '\n'
+                 << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
         } break;
         case scriptKind::hist1d:
         case scriptKind::hist1i: {
             // A 1-d histogram of the raw samples (float64 or int32); same matplotlib call.
             // A histogram spec always carries its bin counts; the fallback is unreachable
-            call << ax << ".hist(" << bracketedRowCol(cols[0]) << ", bins="
+            call << "_a = " << ax << ".hist(" << bracketedRowCol(cols[0]) << ", bins="
                  << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", label=\"" << label
-                 << "\")" << '\n';
+                 << "\")" << '\n'
+                 << "_c = _a[2][0].get_facecolor()" << '\n';
         } break;
         case scriptKind::hist2d: {
             // A histogram spec always carries its bin counts; the fallbacks are unreachable
@@ -199,7 +207,8 @@ std::string mplPlotCall(
                  << bracketedRowCol(cols[1]) << ", bins=["
                  << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", "
                  << spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD) << "])" << '\n'
-                 << fig << ".colorbar(_h[3], ax=" << ax << ")" << '\n';
+                 << fig << ".colorbar(_h[3], ax=" << ax << ")" << '\n'
+                 << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
         } break;
     }
     return call.str();
@@ -246,8 +255,20 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
     result << "import matplotlib" << '\n'
            << "matplotlib.use(\"Agg\")" << '\n'
            << "import matplotlib.pyplot as plt" << '\n'
+           << "from matplotlib.lines import Line2D" << '\n'
+           << "from matplotlib.patches import Patch" << '\n'
            << "from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 (registers the 3d projection)"
            << '\n' << '\n'
+           // A legend sample made from the pad's legend description: a line, markers, both, or a
+           // filled box, in the colour its series is drawn in.
+           << "def _legend_sample(colour, sample):" << '\n'
+           << "    if sample in (\"fill\", \"colour_map\"):" << '\n'
+           << "        return Patch(facecolor=colour)" << '\n'
+           << "    line = sample in (\"line\", \"line_and_marker\")" << '\n'
+           << "    marker = sample in (\"marker\", \"line_and_marker\")" << '\n'
+           << "    return Line2D([], [], color=colour, linestyle=\"-\" if line else \"none\","
+           << " marker=\"o\" if marker else \"none\")" << '\n'
+           << '\n'
            << "fig = plt.figure(figsize=(" << (cols == 0 ? 1 : cols) * 5 << ", "
            << (rows == 0 ? 1 : rows) * 4 << "))" << '\n';
     if(gpd.getShowCanvasLabel()) {
@@ -283,26 +304,37 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
         }
         result << "ax.set_title(\"" << backslashEscape(p->padTitleOrLabel()) << "\")" << '\n';
 
-        // The primary plotter, then any secondary plotters overlaid on the same Axes.
-        result << mplPlotCall(*p, k, "ax", "fig");
+        // The primary plotter, then any secondary plotters overlaid on the same Axes; the colour
+        // each series is drawn in is kept for its legend sample.
+        result << "_colours = []" << '\n' << mplPlotCall(*p, k, "ax", "fig") << "_colours.append(_c)" << '\n';
         for(const auto &sp : p->secondaryPlotters()) {
             result << mplPlotCall(
-                *sp,
-                classifyForScript(*sp, true, "MatplotlibEmitter::emitDocument()", "matplotlib"),
-                "ax",
-                "fig"
-            );
+                          *sp,
+                          classifyForScript(*sp, true, "MatplotlibEmitter::emitDocument()", "matplotlib"),
+                          "ax",
+                          "fig"
+                      )
+                   << "_colours.append(_c)" << '\n';
         }
-        // Several series in one pad are told apart by a legend of those the calls above labelled
-        // (GBasePlotter::nLegendEntries(): none labelled, no legend).
-        if(p->nLegendEntries() > 0) {
+        // The legend the description lists (GBasePlotter::legendEntries()), with samples made from
+        // it: no artist that is not listed can enter, and a series whose artist cannot carry a
+        // legend entry (a filled contour map) is listed all the same.
+        if(const auto entries = p->legendEntries(); not entries.empty()) {
+            result << "ax.legend(handles=[";
+            for(const auto &[i, e] : entries | std::views::enumerate) {
+                result << (i == 0 ? "" : ", ") << "_legend_sample(_colours[" << e.series << "], \""
+                       << to_string(e.sample) << "\")";
+            }
+            result << "], labels=[";
+            for(const auto &[i, e] : entries | std::views::enumerate) {
+                result << (i == 0 ? "" : ", ") << "\"" << backslashEscape(e.label) << "\"";
+            }
+            result << "]";
             const std::string location = matplotlibLegendLocation(p->getLegendPosition());
-            if(location.empty()) {
-                result << "ax.legend()" << '\n';
+            if(not location.empty()) {
+                result << ", loc=\"" << location << "\"";
             }
-            else {
-                result << "ax.legend(loc=\"" << location << "\")" << '\n';
-            }
+            result << ")" << '\n';
         }
         result << '\n';
     }

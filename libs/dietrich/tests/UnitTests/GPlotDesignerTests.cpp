@@ -1338,8 +1338,8 @@ TEST_CASE(
     }
 
     SECTION("matplotlib and Octave show the legend their plot calls prepared") {
-        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend()"));
-        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend('show');"));
+        CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend(handles=["));
+        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend(s_, {'first', 'second', 'third'});"));
     }
 
     SECTION("a pad with a single graph gets none of this") {
@@ -1348,7 +1348,7 @@ TEST_CASE(
         CHECK_FALSE(root.contains("SetLineColor"));
         CHECK_FALSE(root.contains("BuildLegend"));
         CHECK_FALSE(root.contains("SetMinimum"));
-        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("legend"));
+        CHECK_FALSE(scriptFor(plotBackend::MATPLOTLIB, {single}).contains("ax.legend("));
         CHECK_FALSE(scriptFor(plotBackend::OCTAVE, {single}).contains("legend"));
     }
 }
@@ -1410,12 +1410,13 @@ TEST_CASE(
         const std::string py = script(plotBackend::MATPLOTLIB, true);
         CHECK(py.contains("ax.set_title(\"Up to 1 s\")"));
         CHECK(py.contains("label=\"websocket\""));
-        CHECK(py.contains("ax.legend(loc=\"lower right\")"));
+        CHECK(py.contains("], loc=\"lower right\")"));
         CHECK(py.contains("linewidth=2"));
         CHECK_FALSE(py.contains("suptitle"));
         const std::string m = script(plotBackend::OCTAVE, true);
         CHECK(m.contains("title('Up to 1 s');"));
-        CHECK(m.contains("'DisplayName', 'websocket', 'LineWidth', 2"));
+        CHECK(m.contains("'-o', 'LineWidth', 2"));
+        CHECK(m.contains("legend(s_, {'websocket', 'MPI'});"));
         CHECK(m.contains("legend('location', 'southeast');"));
     }
 
@@ -1427,7 +1428,7 @@ TEST_CASE(
         CHECK_FALSE(root.contains("the title of the pad"));
         CHECK(script(plotBackend::GNUPLOT, false).contains("title \"The figure\""));
         CHECK_FALSE(script(plotBackend::GNUPLOT, false).contains("set key"));
-        CHECK(script(plotBackend::MATPLOTLIB, false).contains("ax.legend()\n"));
+        CHECK(script(plotBackend::MATPLOTLIB, false).contains("labels=[\"websocket\", \"MPI\"])\n"));
         CHECK(script(plotBackend::MATPLOTLIB, false).contains("fig.suptitle(\"The figure\")"));
         CHECK_FALSE(script(plotBackend::OCTAVE, false).contains("'location'"));
         CHECK_FALSE(GPlotSpec(plotKind::graph_2d).toJson().contains("pad_title"));
@@ -1444,7 +1445,7 @@ TEST_CASE(
         gpd.setPlotBackend(plotBackend::GNUPLOT);
         CHECK(gpd.plot().contains("set key right center"));
         gpd.setPlotBackend(plotBackend::MATPLOTLIB);
-        CHECK(gpd.plot().contains("ax.legend(loc=\"center right\")"));
+        CHECK(gpd.plot().contains("], loc=\"center right\")"));
         gpd.setPlotBackend(plotBackend::OCTAVE);
         CHECK(gpd.plot().contains("legend('location', 'east');"));
     }
@@ -1506,43 +1507,44 @@ TEST_CASE(
 
     SECTION("a 3-d pad with an overlay and no labels has no legend in any backend") {
         const auto map = map_under_points("", "");
-        CHECK(map->nLegendEntries() == 0);
+        CHECK(map->legendEntries().size() == 0);
         CHECK_FALSE(render(map, plotBackend::ROOT).contains("Legend"));
-        CHECK_FALSE(render(map, plotBackend::MATPLOTLIB).contains("legend"));
+        CHECK_FALSE(render(map, plotBackend::MATPLOTLIB).contains("ax.legend("));
         CHECK_FALSE(render(map, plotBackend::OCTAVE).contains("legend"));
     }
 
     SECTION("a 2-d pad with an overlay and no labels has none either") {
         auto first = decadesGraph(false, false);
         first->registerSecondaryPlotter(decadesGraph(false, false));
-        CHECK(first->nLegendEntries() == 0);
+        CHECK(first->legendEntries().size() == 0);
         CHECK_FALSE(render(first, plotBackend::ROOT).contains("Legend"));
-        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("legend"));
+        CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("ax.legend("));
         CHECK_FALSE(render(first, plotBackend::OCTAVE).contains("legend"));
     }
 
     SECTION("a labelled 3-d pad gets its legend where it was asked for, built from its series") {
         const auto map = map_under_points("the landscape", "evaluated candidates");
         map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
-        CHECK(map->nLegendEntries() == 2);
+        CHECK(map->legendEntries().size() == 2);
         const std::string s = render(map, plotBackend::ROOT);
         CHECK(s.contains("new TLegend(0.56, 0.13, 0.88, 0.29);"));
         CHECK(s.contains("->SetTextSize(0.045);"));
-        // Only the series enter: the objects that carry a label as their title. The map's cells,
-        // the shadows and the frame are not named objects; a series drawn twice is listed once.
-        CHECK(s.contains("dynamic_cast<TNamed *>"));
-        CHECK(s.contains("->GetObject() == o"));
+        // Only the series enter, each once, named in the script: not the map's cells, the shadows
+        // or the frame, which TPad::BuildLegend() would have listed.
+        CHECK(s.contains("legend->AddEntry(graph__0_0, \"evaluated candidates\", \"p\");"));
+        CHECK(s.contains("legend->AddEntry(sample, \"the landscape\", \"f\");"));
+        CHECK(s.contains("legend entries: 2"));
         CHECK_FALSE(s.contains("BuildLegend"));
         // The legend comes after everything of the pad is drawn.
         CHECK(s.rfind("Draw(\"") < s.find("new TLegend("));
-        CHECK(render(map, plotBackend::MATPLOTLIB).contains("ax.legend(loc=\"lower right\")"));
-        CHECK(render(map, plotBackend::OCTAVE).contains("legend('show');"));
+        CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"lower right\")"));
+        CHECK(render(map, plotBackend::OCTAVE).contains("legend(s_, {'the landscape', 'evaluated candidates'});"));
     }
 
     SECTION("a placed legend is sized for the labelled series only") {
         const auto map = map_under_points("", "evaluated candidates");
         map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
-        CHECK(map->nLegendEntries() == 1);
+        CHECK(map->legendEntries().size() == 1);
         CHECK(render(map, plotBackend::ROOT).contains("new TLegend(0.56, 0.13, 0.88, 0.225);"));
     }
 
@@ -1560,7 +1562,116 @@ TEST_CASE(
     SECTION("a single series gets no legend, labelled or not") {
         auto single = smallSurface(surfaceProjection::NONE);
         single->setPlotLabel("a surface");
-        CHECK(single->nLegendEntries() == 0);
+        CHECK(single->legendEntries().size() == 0);
         CHECK_FALSE(render(single, plotBackend::ROOT).contains("Legend"));
+    }
+}
+
+/******************************************************************************/
+// The legend of a pad is one description -- which series, in which order, with which text and
+// which sample -- that every backend draws. A sample shows how its series is drawn: a line for a
+// line, markers for points, both for a curve through points, the bars of a histogram, the middle
+// colour of a colour map.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE(
+    "A legend entry's sample shows how its series is drawn in every backend",
+    "[plotting][overlay][legend]"
+) {
+    SECTION("the sample follows the draw mode of every kind of series") {
+        GPlotSpec g2(plotKind::graph_2d);
+        g2.plot_mode = graphPlotMode::SCATTER;
+        CHECK(legendSampleOf(g2) == legendSample::MARKER);
+        g2.plot_mode = graphPlotMode::CURVE;
+        CHECK(legendSampleOf(g2) == legendSample::LINE_AND_MARKER);
+        g2.drawing_args = "L,same";
+        CHECK(legendSampleOf(g2) == legendSample::LINE);
+        g2.drawing_args = "A*";
+        CHECK(legendSampleOf(g2) == legendSample::MARKER);
+        GPlotSpec g3(plotKind::graph_3d);
+        CHECK(legendSampleOf(g3) == legendSample::MARKER);
+        g3.plot_mode = graphPlotMode::CURVE;
+        CHECK(legendSampleOf(g3) == legendSample::LINE_AND_MARKER);
+        g3.projection = surfaceProjection::FLOOR;
+        CHECK(legendSampleOf(g3) == legendSample::COLOUR_MAP);
+        GPlotSpec surface(plotKind::graph_3d);
+        surface.drawing_args = "SURF2Z";
+        CHECK(legendSampleOf(surface) == legendSample::COLOUR_MAP);
+        CHECK(legendSampleOf(GPlotSpec(plotKind::graph_4d)) == legendSample::MARKER);
+        CHECK(legendSampleOf(GPlotSpec(plotKind::hist_1d)) == legendSample::FILL);
+        CHECK(legendSampleOf(GPlotSpec(plotKind::hist_2d)) == legendSample::COLOUR_MAP);
+        CHECK(legendSampleOf(GPlotSpec(plotKind::function_1d)) == legendSample::LINE);
+    }
+
+    SECTION("ROOT draws each sample from its series' object as the description says") {
+        auto scatter = decadesGraph(false, false);
+        scatter->setPlotMode(graphPlotMode::SCATTER);
+        scatter->setPlotLabel("points");
+        auto curve = decadesGraph(false, false);
+        curve->setPlotMode(graphPlotMode::CURVE);
+        curve->setPlotLabel("a curve");
+        scatter->registerSecondaryPlotter(curve);
+        const std::string s = render(scatter, plotBackend::ROOT);
+        CHECK(s.contains("legend->AddEntry(graph_0, \"points\", \"p\");"));
+        CHECK(s.contains("legend->AddEntry(graph_0_0, \"a curve\", \"lp\");"));
+        CHECK_FALSE(s.contains("InheritsFrom"));
+    }
+
+    SECTION("a labelled 4-d graph laid over another is listed, in ROOT and in Octave") {
+        const auto cloud = [](const std::string &label) {
+            auto g = std::make_shared<GGraph4D>();
+            (*g) & std::tuple<double, double, double, double>(0., 0., 0., 1.);
+            (*g) & std::tuple<double, double, double, double>(1., 1., 1., 2.);
+            (*g) & std::tuple<double, double, double, double>(2., 0., 1., 3.);
+            g->setPlotLabel(label);
+            return g;
+        };
+        auto first = cloud("first");
+        first->registerSecondaryPlotter(cloud("second"));
+        const std::string root = render(first, plotBackend::ROOT);
+        CHECK(root.contains("legend->AddEntry(pm3d__0_1, \"first\", \"p\");"));
+        CHECK(root.contains("legend->AddEntry(pm3d__0_0_1, \"second\", \"p\");"));
+        CHECK(root.contains("fr__0_0->Draw(\"same\");")); // the overlay's frame keeps the pad
+        const std::string oct = render(first, plotBackend::OCTAVE);
+        CHECK(oct.contains("legend(s_, {'first', 'second'});"));
+        CHECK_FALSE(oct.contains("legend('show')"));
+    }
+
+    SECTION("a labelled map without its surface is listed in matplotlib and Octave too") {
+        auto map = smallSurface(surfaceProjection::FLOOR);
+        map->setDrawSurface(false);
+        map->setPlotLabel("the landscape");
+        auto points = std::make_shared<GGraph3D>();
+        (*points) & std::tuple<double, double, double>(0.5, 0.5, 3.0);
+        points->setPlotLabel(" "); // white space names nothing
+        map->registerSecondaryPlotter(points);
+        REQUIRE(map->legendEntries().size() == 1);
+        CHECK(map->legendEntries()[0].sample == legendSample::COLOUR_MAP);
+        const std::string mpl = render(map, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains(
+            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\")], labels=[\"the landscape\"])"
+        ));
+        CHECK_FALSE(mpl.contains("ax.legend()"));
+        const std::string oct = render(map, plotBackend::OCTAVE);
+        CHECK(oct.contains("s_(end + 1) = patch('XData', NaN, 'YData', NaN, 'ZData', NaN, 'FaceColor', cs_{1}"));
+        CHECK(oct.contains("legend(s_, {'the landscape'});"));
+        const std::string root = render(map, plotBackend::ROOT);
+        CHECK(root.contains("legend->AddEntry(sample, \"the landscape\", \"f\");"));
+        CHECK(root.contains("legend entries: 1"));
+    }
+
+    SECTION("matplotlib and Octave draw a scatter plot as markers alone, as its sample shows") {
+        auto scatter = decadesGraph(false, false);
+        scatter->setPlotMode(graphPlotMode::SCATTER);
+        scatter->setPlotLabel("points");
+        auto curve = decadesGraph(false, false);
+        curve->setPlotLabel("a curve");
+        scatter->registerSecondaryPlotter(curve);
+        const std::string mpl = render(scatter, plotBackend::MATPLOTLIB);
+        CHECK(mpl.contains("marker=\"o\", linestyle=\"none\", label=\"points\""));
+        CHECK(mpl.contains("_legend_sample(_colours[0], \"marker\"), _legend_sample(_colours[1], \"line_and_marker\")"));
+        const std::string oct = render(scatter, plotBackend::OCTAVE);
+        CHECK(oct.contains("], 'o');"));
+        CHECK(oct.contains("], '-o');"));
+        CHECK_FALSE(oct.contains("DisplayName")); // a named object would enter the key twice
     }
 }

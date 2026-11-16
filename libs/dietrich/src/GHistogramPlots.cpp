@@ -126,7 +126,7 @@ GHistogram1D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "histD" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     if(min_x_ != max_x_) {
         header_data << indent << "TH1D *" << hist_name << " = new TH1D(\"" << hist_name << "\", \""
@@ -161,7 +161,7 @@ GHistogram1D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "histD" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     const auto &x_col = this->column<0>();
     const std::size_t n = this->currentSize();
@@ -188,7 +188,7 @@ std::string
 GHistogram1D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
-    std::string const hist_name = "histD" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
@@ -235,6 +235,19 @@ std::string GHistogram1D::drawingArguments(bool is_secondary) const {
     }
 
     return d_a;
+}
+
+/******************************************************************************/
+/**
+ * The TH1D footerData_() draws.
+ *
+ * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
+ * @param p_id The id of the parent plotter
+ * @param own_id This plotter's own emit index
+ * @return The name of the object in the ROOT script whose look the legend sample copies
+ */
+std::string GHistogram1D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+    return std::string("histD") + suffix(is_secondary, p_id, own_id);
 }
 
 /******************************************************************************/
@@ -346,7 +359,7 @@ GHistogram1I::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "histI" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     header_data << indent << "TH1I *" << hist_name << " = new TH1I(\"" << hist_name << "\", \""
                 << hist_name << "\"," << n_bins_x_ << ", " << min_x_ << ", " << max_x_ << ");"
@@ -372,7 +385,7 @@ GHistogram1I::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "histI" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     const auto &x_col = this->column<0>();
     const std::size_t n = this->currentSize();
@@ -400,7 +413,7 @@ std::string
 GHistogram1I::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
-    std::string const hist_name = "histI" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
@@ -447,6 +460,19 @@ std::string GHistogram1I::drawingArguments(bool is_secondary) const {
     }
 
     return d_a;
+}
+
+/******************************************************************************/
+/**
+ * The TH1I footerData_() draws.
+ *
+ * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
+ * @param p_id The id of the parent plotter
+ * @param own_id This plotter's own emit index
+ * @return The name of the object in the ROOT script whose look the legend sample copies
+ */
+std::string GHistogram1I::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+    return std::string("histI") + suffix(is_secondary, p_id, own_id);
 }
 
 /******************************************************************************/
@@ -599,7 +625,7 @@ GHistogram2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "hist2D" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     if(min_x_ != max_x_ && min_y_ != max_y_) {
         header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
@@ -637,7 +663,7 @@ GHistogram2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    std::string const hist_name = "hist2D" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     const auto &x_col = this->column<0>();
     const auto &y_col = this->column<1>();
@@ -666,7 +692,7 @@ std::string
 GHistogram2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
-    std::string const hist_name = "hist2D" + suffix(is_secondary, p_id, own_id);
+    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
@@ -784,6 +810,19 @@ std::string GHistogram2D::drawingArguments(bool is_secondary) const {
     }
 
     return d_a;
+}
+
+/******************************************************************************/
+/**
+ * The TH2D footerData_() draws.
+ *
+ * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
+ * @param p_id The id of the parent plotter
+ * @param own_id This plotter's own emit index
+ * @return The name of the object in the ROOT script whose look the legend sample copies
+ */
+std::string GHistogram2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+    return std::string("hist2D") + suffix(is_secondary, p_id, own_id);
 }
 
 /******************************************************************************/

@@ -152,14 +152,39 @@ inline void emitRootSeriesColour(
 
 /******************************************************************************/
 /**
- * Emits the ROOT block that builds the legend of the current pad from its series. A series is a
- * named object (TGraph, TGraph2D, TH1, TF1, ...) whose title is its label; emitRootTitle() gives an
- * unlabelled series a blank title. Everything else a pad holds -- the cells of a colour map drawn
- * one by one, the shadows of points, a poly-line through them, the frame -- is no named object and
- * gets no entry, and a series drawn twice (a surface painted again over its map) is listed once.
- * TPad::BuildLegend() is not used: it makes an entry of every object with line, marker or fill
- * attributes, and a projected map alone gave it hundreds of cells, an unreadable box over the pad.
- * Each entry shows what its object draws (line, marker, fill), as BuildLegend() chooses it.
+ * One entry of a ROOT legend: the entry of the description (GLegendEntry) together with the
+ * name of the object in the script whose look its sample copies.
+ */
+struct rootLegendEntry {
+    std::string object;  ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_())
+    std::string label;   ///< the text of the entry
+    legendSample sample; ///< what the sample shows
+};
+
+/**
+ * @param sample A legend sample
+ * @return ROOT's TLegend::AddEntry() option that draws it from the series' object
+ */
+inline std::string rootLegendOption(legendSample sample) {
+    switch(sample) {
+        case legendSample::LINE:            return "l";
+        case legendSample::MARKER:          return "p";
+        case legendSample::LINE_AND_MARKER: return "lp";
+        case legendSample::FILL:            return "f";
+        case legendSample::COLOUR_MAP:      return "f";
+    }
+    return "l";
+}
+
+/******************************************************************************/
+/**
+ * Emits the ROOT block that builds the legend of the current pad from its description
+ * (GBasePlotter::legendEntries()): one AddEntry() per entry, in its order, with its text, and a
+ * sample drawn from the series' own object as the description says -- a line, markers, both, the
+ * series' fill, or, for a series drawn with a colour map, a box in the middle colour of the
+ * palette (a small TBox that is not drawn, for the sample alone). TPad::BuildLegend() is not used:
+ * it makes an entry of every object with line, marker or fill attributes (a projected map alone
+ * gave it hundreds of cells) and shows line, marker and fill for each.
  *
  * AUTO is ROOT's own placement, as BuildLegend() makes it: a box of 0.3 x 0.21 of the pad, put
  * where it covers the least at painting time, with its text sized to the box. A corner puts the box
@@ -171,14 +196,13 @@ inline void emitRootSeriesColour(
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
  * @param position Where the legend lies
- * @param n_entries The number of labelled series (GBasePlotter::nLegendEntries()), for the size of
- *        a placed legend
+ * @param entries The entries (not empty)
  */
 inline void emitRootLegend(
     std::ostream &s,
     const std::string &indent,
     legendPosition position,
-    std::size_t n_entries
+    const std::vector<rootLegendEntry> &entries
 ) {
     s << indent << "{ // the legend: one entry per series of the pad that carries a label" << '\n';
     double box_width = 0.; // of a placed legend, in coordinates of the pad (0 to 1)
@@ -186,7 +210,7 @@ inline void emitRootLegend(
         s << indent << "   TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT" << '\n';
     } else {
         constexpr double TEXT_SIZE = 0.045;
-        const auto [x1, y1, x2, y2] = legendBox(position, n_entries);
+        const auto [x1, y1, x2, y2] = legendBox(position, entries.size());
         box_width = x2 - x1;
         std::ostringstream box;
         box.imbue(std::locale::classic());
@@ -197,22 +221,21 @@ inline void emitRootLegend(
         s << indent << "   TLegend *legend = " << box.str() << '\n'
           << indent << "   legend->SetTextSize(" << text_size.str() << ");" << '\n';
     }
-    s << indent << "   TIter next_object(gPad->GetListOfPrimitives());" << '\n'
-      << indent << "   while(TObject *o = next_object()) {" << '\n'
-      << indent << "      TNamed *n = dynamic_cast<TNamed *>(o); // a series; no helper is named" << '\n'
-      << indent << "      if(!n || TString(n->GetTitle()).Strip(TString::kBoth).IsNull()) continue;" << '\n'
-      << indent << "      bool listed = false; // a series drawn twice is listed once" << '\n'
-      << indent << "      TIter next_entry(legend->GetListOfPrimitives());" << '\n'
-      << indent << "      while(TLegendEntry *e = static_cast<TLegendEntry *>(next_entry())) {" << '\n'
-      << indent << "         listed = listed || e->GetObject() == o;" << '\n'
-      << indent << "      }" << '\n'
-      << indent << "      if(listed) continue;" << '\n'
-      << indent << "      TString option;" << '\n'
-      << indent << "      if(o->InheritsFrom(TAttLine::Class())) option += \"l\";" << '\n'
-      << indent << "      if(o->InheritsFrom(TAttMarker::Class())) option += \"p\";" << '\n'
-      << indent << "      if(o->InheritsFrom(TAttFill::Class())) option += \"f\";" << '\n'
-      << indent << "      legend->AddEntry(o, n->GetTitle(), option);" << '\n'
-      << indent << "   }" << '\n';
+    for(const auto &e : entries) {
+        const std::string label = "\"" + rootEscape(e.label) + "\"";
+        if(e.sample == legendSample::COLOUR_MAP) {
+            s << indent << "   { // a colour map: a box in the middle colour of the palette" << '\n'
+              << indent << "      TBox *sample = new TBox();" << '\n'
+              << indent << "      sample->SetFillColor(gStyle->GetColorPalette(gStyle->GetNumberOfColors() / 2));" << '\n'
+              << indent << "      sample->SetFillStyle(1001);" << '\n'
+              << indent << "      sample->SetLineColor(0);" << '\n'
+              << indent << "      legend->AddEntry(sample, " << label << ", \"f\");" << '\n'
+              << indent << "   }" << '\n';
+        } else {
+            s << indent << "   legend->AddEntry(" << e.object << ", " << label << ", \""
+              << rootLegendOption(e.sample) << "\");" << '\n';
+        }
+    }
     if(position != legendPosition::AUTO) {
         // The room of a label is the box less the margin of the samples, and a little air. The
         // width is written out: the legend knows its coordinates in the pad only once it is painted.
@@ -272,22 +295,22 @@ inline void emitRootPadTitle(std::ostream &s, const std::string &indent, const s
  * holds every graph, and a legend. ROOT takes the frame from the first graph alone, so a graph
  * drawn "same" that reaches beyond it would be cut off. The emitted block looks at the graphs of
  * the current pad (it needs no names), takes in their points and their error bars, widens the
- * first one's frame by a twentieth -- by a factor on a logarithmic axis -- and, if any series of
- * the pad carries a label, builds the legend of the labelled series (see emitRootLegend()).
+ * first one's frame by a twentieth -- by a factor on a logarithmic axis -- and, if the pad's
+ * legend has entries, builds it (see emitRootLegend()).
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
  * @param position Where the legend lies (AUTO: where ROOT puts it)
- * @param n_entries The number of labelled series of the pad (GBasePlotter::nLegendEntries());
- *        0: the pad gets no legend
+ * @param entries The entries of the pad's legend (GBasePlotter::legendEntries()); none: the pad
+ *        gets no legend
  */
 inline void emitRootOverlayFrameAndLegend(
     std::ostream &s,
     const std::string &indent,
     legendPosition position,
-    std::size_t n_entries
+    const std::vector<rootLegendEntry> &entries
 ) {
-    s << indent << "{ // one frame for all graphs of this pad" << (n_entries > 0 ? ", and a legend" : "")
+    s << indent << "{ // one frame for all graphs of this pad" << (entries.empty() ? "" : ", and a legend")
       << '\n'
       << indent << "   TGraph *first = nullptr;" << '\n'
       << indent << "   double xlo = 0., xhi = 0., ylo = 0., yhi = 0.;" << '\n'
@@ -333,8 +356,8 @@ inline void emitRootOverlayFrameAndLegend(
          "(yhi - ylo)); }"
       << '\n'
       << indent << "   }" << '\n';
-    if(n_entries > 0) {
-        emitRootLegend(s, indent + "   ", position, n_entries);
+    if(not entries.empty()) {
+        emitRootLegend(s, indent + "   ", position, entries);
     }
     s << indent << "   gPad->Modified();" << '\n'
       << indent << "}" << '\n';

@@ -258,13 +258,16 @@ public:
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
 
     /**
-     * @brief The number of entries the legend of this (primary) plotter's pad gets, in every
-     * backend. A legend names series: a pad that holds several series lists those that carry a
-     * label (a plot label with more than white space); a pad with a single series, or with none
+     * @brief The legend of this (primary) plotter's pad, as the ROOT, matplotlib and Octave writers
+     * draw it: which series it
+     * names, in which order, with which text and which sample. A legend names series: a pad that
+     * holds several series lists those that carry a label (a plot label with more than white
+     * space), the primary first, then the secondary plotters in their order; each entry's sample
+     * shows how its series is drawn (legendSampleOf()). A pad with a single series, or with none
      * labelled, gets no legend at all, whatever its dimension.
-     * @return The number of labelled series of a pad with several series, otherwise 0 (no legend)
+     * @return The entries; empty: the pad has no legend
      */
-    [[nodiscard]] std::size_t nLegendEntries() const;
+    [[nodiscard]] std::vector<GLegendEntry> legendEntries() const;
 
     /**
      * @brief Allows to retrieve the id of this object
@@ -403,6 +406,17 @@ protected:
      * @return The drawing arguments to be passed to the plotting backend
      */
     [[nodiscard]] virtual std::string drawingArguments(bool is_secondary) const = 0;
+
+    /**
+     * @brief The name of the object in the ROOT script that stands for this plotter's series: the
+     * graph, histogram or function its header and footer create under this name (a 4-d graph: one
+     * of its markers). The pad's legend copies its look (line, marker, fill) into the sample.
+     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
+     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
+     * @param own_id This plotter's own emit index, as footerData_() gets it
+     * @return The name of the object
+     */
+    [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const = 0;
 
     /**
      * @brief Check that a given plotter is compatible with us
