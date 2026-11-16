@@ -169,8 +169,11 @@ public:
             "\t[mpi] n: how many work items a client holds at once -- the one(s) being evaluated "
             "and the next one, fetched while the current one is evaluated (1: none is fetched "
             "ahead; how many it evaluates at once: --mpi_parallelEvaluations). 2 by default, unlike "
-            "--beast_prefetchDepth: an MPI client has at most one request unanswered, so fetching "
-            "ahead takes no item from a client that waits"
+            "--beast_prefetchDepth: an MPI client has at most one request unanswered, so an idle "
+            "client never asks for two items. Waiting requests are served oldest first, whether "
+            "their client evaluates or not: when fewer items become available than requests wait "
+            "(between iterations, say), one sent while evaluating may get an item before a newer "
+            "one of an idle client"
         );
         hidden.add_options()(
             "mpi_serializationMode",

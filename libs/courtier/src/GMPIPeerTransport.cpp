@@ -211,8 +211,8 @@ boost::asio::any_io_executor GMPIPeer::executor() {
 }
 
 /******************************************************************************/
-/** @param busy Whether the owner evaluates: the poll is told of a change, while this end has not
- *  ended (GMPIPollCore::receiverBusy()) */
+/** @param busy Whether the owner is busy (a client: every evaluation slot taken): the poll is
+ *  told of a change, while this end has not ended (GMPIPollCore::receiverBusy()) */
 void GMPIPeer::setOwnerBusy(bool busy) {
     owner_busy_.store(busy);
     if(busy == busy_told_ || state_ == GState::ENDED) {

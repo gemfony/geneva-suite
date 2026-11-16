@@ -195,41 +195,46 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   400 clients on one host, an iteration took 1 to 8 ms longer than its evaluations, where the
   fixed pause used to add 70 to 200 ms; 360 idle clients cost the server 0.4 % of a core. `mpi`
   clients now do the same (next item).
-- **The MPI consumer works as the websocket consumer does.** Its client waits at the submitter
-  when there is no work (the pause of 50 to 200 ms after NO_WORK, and the cost it added to every
+- **The MPI consumer works as the websocket consumer does.** Its client waits at the submitter when
+  there is no work (the pause of 50 to 200 ms after NO_WORK, and the cost it added to every
   iteration, are gone) and fetches the next item while it evaluates the current one, with at most
   one request unanswered. A client opens when the submitter's consumer has started: the consumer
   greets every client rank, and `--mpi_firstContactLimit` (seconds, default 0: as long as it runs)
-  bounds the wait for it. A submitter without a client rank (a program started as one process,
-  with or without the launcher) refuses to start, says how the program is started, and ends with a
-  non-zero code; it used to wait for ever. A client honours its time and item limits and a close request, which had
-  no effect on an MPI client before: it sends the results of the evaluations that run and leaves;
-  the submitter goes on with the others and hands out again what it held. At the end of a run
-  every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and a
-  second). A result a client can no longer deliver is saved (`--mpi_undeliveredDir`). The
-  consumer answers `connectedClients()` (the clients that have asked for work), so the speed-up
-  benchmarks' `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket:
-  an MPI client has at most one request unanswered, so the item it fetches ahead is never one
-  that another idle client could have had first; a websocket client without that rule would
-  hold two items while others wait. A submitter whose consumer is destroyed without
-  having been started tells its clients that the run has ended, and they end at once; so does a
-  submitter whose side of a client fails (a failed MPI poll, a session that cannot be made, the end
-  of its work before a close went out): no client is left waiting for a submitter that has gone.
-  There is no keep-alive and no limit on a client's wait once it has been greeted: a client whose
-  submitter hangs, or whose submitter ends without starting its consumer and without telling it
-  (a program that exits before it builds its consumer), waits until the job is ended. Before
-  1.99, a worker ended after 120 s without word from its master. A message is limited to INT_MAX
-  bytes (about 2 GiB): an item that would be longer fails where it is handed out, a result that
-  would be longer comes back flagged; the connection, and the run, go on. While a
-  client evaluates, its poll looks for
-  messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1 ms); what it
-  sends goes out at once, so this costs no time per item, and a stop that reaches a client during an
-  evaluation may take that much longer. Options: `--mpi_asyncReq` is removed --
+  bounds the wait for it. A submitter without a client rank (a program started as one process, with
+  or without the launcher) refuses to start, says how the program is started, and ends with a
+  non-zero code; it used to wait for ever. A client honours its time and item limits and a close
+  request, which had no effect on an MPI client before: it sends the results of the evaluations that
+  run and leaves; the submitter goes on with the others and hands out again what it held. At the end
+  of a run every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and
+  a second); a send that is still under way when the work ends (a large item for a rank that has
+  left, say) is waited for up to 2 s more (`GMPIPEERDRAINGRACE`) and then given up. A result a
+  client can no longer deliver is saved (`--mpi_undeliveredDir`). The consumer answers
+  `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
+  `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket: an MPI
+  client has at most one request unanswered, so an idle client never has two items asked for while
+  others wait, as a websocket client at depth 2 would. The submitter serves waiting requests oldest
+  first and does not ask whether their client is evaluating. While items are pending no request
+  waits, and one sent ahead takes an item nobody waits for; but when fewer items become available
+  than requests wait (between iterations, or when items are put back), or a new request comes while
+  waiting ones are being woken, a request sent during an evaluation can take an item while an idle
+  client waits for the next one. A submitter whose consumer is destroyed without having been started
+  tells its clients that the run has ended, and they end at once; so does a submitter whose side of
+  a client fails (a failed MPI poll, a session that cannot be made, the end of its work before a
+  close went out): no client is left waiting for a submitter that has gone. There is no keep-alive
+  and no limit on a client's wait once it has been greeted: a client whose submitter hangs, or whose
+  submitter ends without starting its consumer and without telling it (a program that exits before
+  it builds its consumer), waits until the job is ended. Before 1.99, a worker ended after 120 s
+  without word from its master. A message is limited to INT_MAX bytes (about 2 GiB): an item that
+  would be longer fails where it is handed out, a result that would be longer comes back flagged;
+  the connection, and the run, go on. While every evaluation slot of a client is taken, its poll
+  looks for messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1
+  ms); what it sends goes out at once, so this costs no time per item, and a stop that reaches a
+  client during an evaluation may take that much longer. Options: `--mpi_asyncReq` is removed --
   `true` is now `--mpi_prefetchDepth 2` (the default), `false` is `--mpi_prefetchDepth 1`;
   `--mpi_parallelEvaluations` (default 1) says how many of the items held are evaluated at once;
-  `--mpi_nHandlerThreads` is the number of threads the submitter's sessions run on, default 2
-  (it was one per hardware thread; 0 still means that), and one more thread polls MPI for every
-  client; `--mpi_cleanSessInterval` is removed. In `MPIConsumerConfig`, `useAsyncReq`,
+  `--mpi_nHandlerThreads` is the number of threads the submitter's sessions run on, default 2 (it
+  was one per hardware thread; 0 still means that), and one more thread polls MPI for every client;
+  `--mpi_cleanSessInterval` is removed. In `MPIConsumerConfig`, `useAsyncReq`,
   `masterCleanSessIntervalMSec` and `nHandlerThreadsRecommendation()` are replaced by
   `clientPrefetchDepth`, `clientParallelEvaluations`, `clientFirstContactLimit` and
   `clientUndeliveredDir`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a

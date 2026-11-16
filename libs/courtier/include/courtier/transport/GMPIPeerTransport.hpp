@@ -109,8 +109,8 @@
  *    everything sent before it" and "nothing arrived since" true; a message sent another way could
  *    overtake or fall behind.
  *  - The greeting goes out before anything an end on the submitter sends (start() greets before it
- *    hands the ends to the shell); a client's end treats a message of the role before it as a
- *    protocol error.
+ *    hands the ends to the shell); a client's end drops a message of the role that comes before it,
+ *    with a warning, and stays open (GPeerI.hpp, rule 1: nothing reaches the role before onOpen).
  *  - Every way an end ends tells the other rank once (tellOther_()), unless it knows: a client
  *    has no keep-alive and would otherwise wait for ever. A new way to end must go through
  *    finish_() after tellOther_(), or through endOfWork() before the poll's shutdown(). After
@@ -204,8 +204,8 @@ public:
     [[nodiscard]] std::size_t maxMessageBytes() const override;
     /** @brief The strand every handler of this end runs on (also the poll's receiver executor) */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
-    /** @brief Tells the poll whether the owner evaluates: while every end it receives for has a
-     *  busy owner, it looks less often. On the strand. */
+    /** @brief Tells the poll whether the owner is busy (a client: every evaluation slot taken):
+     *  while every end it receives for has a busy owner, it looks less often. On the strand. */
     void setOwnerBusy(bool) override;
 
     /***************************************************************************/

@@ -140,8 +140,9 @@ struct GPeerClientOptions {
  * being decoded or arrive, are dropped (the server puts them back when the connection ends). The
  * results of the evaluations that run are sent as RESULT as they finish, and the client closes when
  * none runs any more. So the number of items processed may pass an item limit by the evaluations
- * that were running when it was reached. While its compute pool evaluates an item the client tells
- * its peer that it is busy (GPeerI::setOwnerBusy()). A client that closes with an error (a frame it
+ * that were running when it was reached. While every one of its evaluation slots is taken (as many
+ * items are evaluated as parallelEvaluations allows) the client tells its peer that it is busy
+ * (GPeerI::setOwnerBusy()). A client that closes with an error (a frame it
  * cannot accept, a message it cannot encode) likewise starts nothing new; the result of an
  * evaluation that runs then is saved.
  *
@@ -1286,8 +1287,8 @@ private:
         }
     }
 
-    /** @brief Busy hook: tells the peer whether the compute pool evaluates an item.
-     *  @param busy Whether it does */
+    /** @brief Busy hook: tells the peer whether every evaluation slot is taken.
+     *  @param busy Whether they are */
     void when_busy_(bool busy) {
         busy_ = busy;
         if(auto peer = peer_.lock()) {

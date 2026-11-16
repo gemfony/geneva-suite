@@ -77,7 +77,10 @@ namespace Gem::Courtier {
  *
  * The end of a run (stopServer()): every client is told that the run has ended and the server
  * waits for the clients to confirm, at most the stop grace (GMPICONSUMERSHUTDOWNGRACE and a
- * second); see GPeerConsumerT. A client that leaves by its own limits during the run is let go;
+ * second); see GPeerConsumerT. A send that is still under way when the work ends (a large item for
+ * a rank that has left without receiving it, say) is waited for up to the drain grace more
+ * (GMPIPEERDRAINGRACE, 2 s) and then given up, so stopServer() may take that much longer than the
+ * stop grace. A client that leaves by its own limits during the run is let go;
  * what it held is handed out again.
  *
  * Lost clients: a rank that dies ends the job -- the launcher (mpirun) aborts every rank when one
