@@ -78,8 +78,16 @@ namespace Gem::Courtier {
  * second); see GPeerConsumerT. A client that leaves by its own limits during the run is let go;
  * what it held is handed out again.
  *
- * Lost clients: a rank that dies ends the job (MPI's errors are fatal on courtier's communicator);
- * the items of a rank that hangs come back by the time lease.
+ * Lost clients: a rank that dies ends the job -- the launcher (mpirun) aborts every rank when one
+ * exits abnormally; MPI's errors being fatal on courtier's communicator only ends a rank whose own
+ * MPI call fails. The items of a rank that hangs come back by the time lease.
+ *
+ * Silence: there is no keep-alive between the ranks, and no limit on how long a client waits for
+ * its submitter once it has been greeted. A client whose submitter hangs, or ends without having
+ * started its consumer and without telling it, waits until the job is ended (by the batch system
+ * or the user); --mpi_firstContactLimit bounds only the wait for the greeting. Every way in which
+ * the submitter's side of a client ends tells that client (a close of the run's end, or of an
+ * error), so a client is not left waiting by a submitter that ends in any regular or failing way.
  *
  * @tparam processable_type The work-item type distributed to the client ranks and collected back
  */

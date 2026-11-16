@@ -209,7 +209,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   benchmarks' `--waitForClients` works for MPI. A submitter whose consumer is destroyed without
   having been started tells its clients that the run has ended, and they end at once; so does a
   submitter whose side of a client fails (a failed MPI poll, a session that cannot be made, the end
-  of its work before a close went out): no client is left waiting for a submitter that has gone. While a
+  of its work before a close went out): no client is left waiting for a submitter that has gone.
+  There is no keep-alive and no limit on a client's wait once it has been greeted: a client whose
+  submitter hangs, or whose submitter ends without starting its consumer and without telling it
+  (a program that exits before it builds its consumer), waits until the job is ended. Before
+  1.99, a worker ended after 120 s without word from its master. While a
   client evaluates, its poll looks for
   messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1 ms); what it
   sends goes out at once, so this costs no time per item, and a stop that reaches a client during an
