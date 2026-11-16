@@ -258,6 +258,7 @@ int main() {
     landscape.z_label = "fitness";
     landscape.columns = {"x", "y", "z"};
     landscape.drawing_args = "SURF2Z"; // a colour-mapped surface with a fitness scale
+    landscape.legend = legendPosition::TOP_LEFT; // over the empty back of the box
     const auto landscape_id = scan_log.declareSeries(landscape);
 
     GPlotSpec search(plotKind::graph_3d);
