@@ -3383,3 +3383,194 @@ TEST_CASE(
     world.shell().stopServer();
     batch.get();
 }
+
+/******************************************************************************/
+// WORK that arrives after the client's own close (and before the end of the connection: GPeerI.hpp,
+// rule 6 lets it through) starts nothing, and the server hands its item out again.
+
+namespace {
+
+/** @brief What a LateWorkPeer shares with the test */
+struct LateWork {
+    std::atomic<std::size_t> nWork{0};      ///< WORK frames that reached the end
+    std::atomic<bool> held{false};          ///< The second WORK frame is held back
+    std::atomic<bool> delivered{false};     ///< ... and was handed to the client after its close()
+};
+
+/** @brief A client's end that holds the second WORK frame back and hands it to the client right
+ *  after the client's close(), on the end's executor -- as a transport hands on what arrives after
+ *  close() until its own close has gone out. It is owned by the handlers it installs on the end it
+ *  wraps, as a role is (rule 4). */
+class LateWorkPeer final
+  : public GPeerI
+  , public std::enable_shared_from_this<LateWorkPeer> {
+public:
+    /** @brief @param inner The end it wraps @param late Shared with the test */
+    LateWorkPeer(const std::shared_ptr<GPeerI> &inner, std::shared_ptr<LateWork> late)
+      : inner_(inner)
+      , executor_(inner->executor())
+      , late_(std::move(late)) { /* nothing */
+    }
+    /** @brief Wraps the client's onMessage @param handlers See GPeerI */
+    void start(GPeerHandlers handlers) override {
+        auto inner = inner_.lock();
+        if(not inner) {
+            return;
+        }
+        on_message_ =
+            std::make_shared<std::move_only_function<void(std::string &&)>>(std::move(handlers.onMessage));
+        inner->start(
+            GPeerHandlers{
+                .onOpen = std::move(handlers.onOpen),
+                .onMessage =
+                    [self = this->shared_from_this()](std::string &&message) {
+                        if(kindOf(message) == GFrameKind::WORK &&
+                           self->late_->nWork.fetch_add(1) == 1) {
+                            self->held_ = std::move(message);
+                            self->late_->held.store(true);
+                            return;
+                        }
+                        (*self->on_message_)(std::move(message));
+                    },
+                .onClosed = std::move(handlers.onClosed),
+            }
+        );
+    }
+    /** @brief Forwards @param message See GPeerI */
+    void send(Gem::Courtier::Consumers::GMessage message) override {
+        if(auto inner = inner_.lock()) {
+            inner->send(std::move(message));
+        }
+    }
+    /** @brief Forwards, then hands the held WORK to the client (on the client's thread)
+     *  @param how See GPeerI */
+    void close(GPeerClose how) override {
+        if(auto inner = inner_.lock()) {
+            inner->close(how);
+        }
+        if(held_) {
+            boost::asio::post(
+                executor_,
+                [on_message = on_message_, late = late_, message = std::move(*held_)]() mutable {
+                    (*on_message)(std::move(message));
+                    late->delivered.store(true);
+                }
+            );
+            held_.reset();
+        }
+    }
+    /** @brief Forwards */
+    void abort() override {
+        if(auto inner = inner_.lock()) {
+            inner->abort();
+        }
+    }
+    /** @brief @return The wrapped end's executor */
+    [[nodiscard]] boost::asio::any_io_executor executor() override {
+        return executor_;
+    }
+
+private:
+    std::weak_ptr<GPeerI> inner_;
+    boost::asio::any_io_executor executor_;
+    std::shared_ptr<LateWork> late_;
+    std::shared_ptr<std::move_only_function<void(std::string &&)>> on_message_;
+    std::optional<std::string> held_; ///< On the client's thread
+};
+
+/** @brief An in-process connector whose ends are LateWorkPeers */
+class LateWorkConnector final : public Gem::Courtier::Consumers::GConnectorI {
+public:
+    /** @brief @param inner The in-process connector @param late Shared with the ends */
+    LateWorkConnector(std::unique_ptr<GInProcessConnector> inner, std::shared_ptr<LateWork> late)
+      : inner_(std::move(inner))
+      , late_(std::move(late)) { /* nothing */
+    }
+    /** @brief @param executor Where it runs @param done What is told the outcome */
+    void connect(boost::asio::any_io_executor executor, done_type done) override {
+        inner_->connect(
+            std::move(executor),
+            [late = late_, done = std::move(done)](
+                const std::shared_ptr<GPeerI> &peer,
+                std::string_view error
+            ) mutable {
+                done(peer ? std::make_shared<LateWorkPeer>(peer, late) : nullptr, error);
+            }
+        );
+    }
+    /** @brief Forwards */
+    void cancel() override {
+        inner_->cancel();
+    }
+    /** @brief @return true */
+    [[nodiscard]] bool reconnectable() const override {
+        return true;
+    }
+
+private:
+    std::unique_ptr<GInProcessConnector> inner_;
+    std::shared_ptr<LateWork> late_;
+};
+
+} /* anonymous namespace */
+
+/**
+ * Depth 2, one evaluation at a time: the client evaluates item A; the WORK of item B is held back
+ * by its end. The client halts: A's result goes out, then the close, and B's WORK reaches the
+ * client after its close(). The client starts nothing; the server puts B back when the connection
+ * ends, and a second client evaluates it.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: work that arrives after the client's close is not evaluated and goes elsewhere",
+    "[courtier][peer][client]"
+) {
+    auto first = std::make_shared<Evaluations>();
+    auto second = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto late = std::make_shared<LateWork>();
+    std::vector<std::unique_ptr<GFaultyContainer>> items = makeBatch(2);
+    bool batch_done = false;
+    {
+        World world;
+        auto client = std::make_shared<client_type>(
+            std::make_unique<LateWorkConnector>(
+                std::make_unique<GInProcessConnector>(
+                    std::make_shared<GInProcessRoute>(world.listener()),
+                    true,
+                    nullptr
+                ),
+                late
+            ),
+            GPeerClientOptions{
+                .name = "halting client",
+                .mode = BIN,
+                .prefetchDepth = 2,
+                .parallelEvaluations = 1
+            }
+        );
+        client->setItemProcessor(gatedProcessor(first, gate));
+        auto done = std::make_shared<std::atomic<bool>>(false);
+        std::jthread runner([client, done] {
+            client->run();
+            done->store(true);
+        });
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1 && late->held.load(); }));
+        client->flagCloseRequested(); // A's result, then the close
+        gate->open();
+        REQUIRE(eventually([&] { return late->delivered.load(); })); // B, after the close()
+        REQUIRE(eventually([&] { return done->load(); }));
+        world.client(GPeerClientOptions{.name = "second client", .mode = BIN}, second, 0ms, nullptr, AS_IS);
+        batch_done = batch.wait_for(PATIENCE) == std::future_status::ready;
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(batch_done);
+    CHECK(first->total.load() == 1);  // A only
+    CHECK(second->total.load() == 1); // B, given out again
+    for(std::size_t i = 0; i < items.size(); ++i) {
+        INFO("item " << i);
+        CHECK(first->of(i) + second->of(i) == 1);
+    }
+}
