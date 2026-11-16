@@ -95,8 +95,10 @@
  *     has been called is still delivered to the role until this end's close has gone out: the
  *     other end sent it before it knew of the close, and the role decides what it means (a
  *     session checks a late result in and answers nothing, a client starts no evaluation). What
- *     arrives after this end's close has gone out may be dropped. abort() is the exception: it
- *     ends at once and may cut what has not been sent.
+ *     arrives after this end's close has gone out may be dropped. A role that asks for the close
+ *     before it has been told of the open is told nothing (rule 1); its end reads nothing before
+ *     its close has gone out, so that what arrived for it can never be confirmed to the other
+ *     end. abort() is the exception: it ends at once and may cut what has not been sent.
  *     **Confirmed** means: the other end answered this end's close -- it sent its own close only
  *     after this end's close had arrived there, and so after its role had been handed everything
  *     that arrived before. For the websocket transport that is a close frame, read after ours was

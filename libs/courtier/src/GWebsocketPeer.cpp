@@ -212,10 +212,11 @@ void GWebsocketPeer::start(GPeerHandlers handlers) {
 
 /******************************************************************************/
 /**
- * Called when either handshake has completed. On success the read that stays outstanding for the
- * rest of the connection is started, and the role is told that it may send -- unless it has asked
- * for the close meanwhile (then neither onOpen nor any message is delivered: rule 1); the close
- * then follows.
+ * Called when either handshake has completed. On success the role is told that it may send, and
+ * then the read that stays outstanding for the rest of the connection is started -- unless the role
+ * has asked for the close meanwhile: then neither onOpen nor any message is delivered (rule 1), no
+ * read is started, and the close goes out first (Beast's close operation reads what follows; rule
+ * 6).
  *
  * @param ec The outcome of the handshake
  */
@@ -229,20 +230,34 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
     }
     open_ = true;
     last_inbound_ = std::chrono::steady_clock::now();
-    this->read_();
-    boost::asio::post(handler_strand_, [self = this->shared_from_this()] {
-        // After close() onOpen is not delivered, and then no message either (rule 1: onOpen
-        // precedes any onMessage)
-        if(not self->close_requested_.load()) {
-            self->role_open_ = true;
-            if(self->handlers_.onOpen) {
-                self->handlers_.onOpen();
-            }
-        }
-    });
     if(closing_) {
-        this->closeWhenSent_(); // a close requested while the handshake was under way
+        // A close requested while the handshake was under way: the role is told nothing (rule 1),
+        // and the close goes out before anything is read (rule 6); Beast's close reads from here
+        this->closeWhenSent_();
+        return;
     }
+    // Until the read is started, nothing of this peer is pending on the socket's executor: it is
+    // kept busy meanwhile, so that its context does not run dry in between
+    auto io_work =
+        boost::asio::prefer(io_executor_, boost::asio::execution::outstanding_work_t::tracked);
+    boost::asio::post(handler_strand_, [self = this->shared_from_this(), io_work]() mutable {
+        // A role that asked for the close before it was told of the open is told nothing (rule 1:
+        // onOpen precedes any onMessage), and nothing is read before this end's close (which
+        // close() has posted) has gone out: an answer to the other end's close would otherwise
+        // prove what no role has received (rule 6). Reading starts once the role knows.
+        if(self->close_requested_.load()) {
+            return;
+        }
+        self->role_open_ = true;
+        if(self->handlers_.onOpen) {
+            self->handlers_.onOpen();
+        }
+        boost::asio::post(self->io_executor_, [self, io_work = std::move(io_work)] {
+            if(not self->finished_ && not self->close_sent_) {
+                self->read_();
+            }
+        });
+    });
 }
 
 /******************************************************************************/

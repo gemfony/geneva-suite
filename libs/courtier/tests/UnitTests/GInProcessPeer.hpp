@@ -95,7 +95,9 @@ struct GInProcessFaults {
  * after its grace if none comes. As the websocket peer, an end delivers what arrives after close()
  * until its own close has gone out (then it drops what arrives), and two ends whose closes cross
  * both report CLOSED_HERE_UNCONFIRMED: the other end's own close is no acknowledgement. Messages
- * that arrive before start() has opened the end are kept and delivered after onOpen.
+ * that arrive before start() has opened the end are kept and delivered after onOpen; an end whose
+ * role asked for the close before it was told of the open handles nothing that arrived before its
+ * own close has gone out (GPeerI.hpp, rule 6).
  *
  * While it is open, an end has a wait pending on its strand (a timer that never expires on its
  * own); that pending work owns the end and keeps the executor's context running (rule 4). It is
@@ -391,6 +393,13 @@ private:
                 handlers_.onOpen();
             }
         }
+        else {
+            // The role asked for the close before it was told of the open: it is told nothing,
+            // and what has arrived waits until this end's close has gone out (beginClose_()), as
+            // with the websocket peer: an acknowledgement now would prove what no role received
+            // (GPeerI.hpp, rule 6)
+            return;
+        }
         while(not early_.empty() && state_ != state::ENDED) {
             Arrival arrival = std::move(early_.front());
             early_.pop_front();
@@ -404,10 +413,14 @@ private:
         if(link_->severed.load()) {
             return; // cut: what was on its way is lost (sever() ends this end)
         }
-        switch(state_) {
-        case state::NEW:
+        if(state_ == state::NEW || (state_ == state::OPEN && not role_open_)) {
+            // Not opened yet, or opened for a role that asked for the close before (see opened_())
             early_.push_back(Arrival{.kind = kind, .payload = std::move(payload)});
             return;
+        }
+        switch(state_) {
+        case state::NEW:
+            return; // kept in early_ above
         case state::ENDED:
             return;
         case state::OPEN:
@@ -474,6 +487,13 @@ private:
                 }
             }
         );
+        // What arrived for a role that closed before it was told of the open meets this end's close
+        // now: a message is dropped, a close of the other end has crossed this one
+        while(not early_.empty() && state_ == state::CLOSING) {
+            Arrival arrival = std::move(early_.front());
+            early_.pop_front();
+            this->received_(arrival.kind, std::move(arrival.payload));
+        }
     }
 
     /** @brief The end, whatever led to it; runs its body once. Tells the role and drops the

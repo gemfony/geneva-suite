@@ -68,8 +68,10 @@ namespace Gem::Courtier::Consumers {
  *  - performs its side of the websocket handshake when it is started: the server's end waits for
  *    the client's handshake, the client's end (constructed with the server's host name) performs
  *    it. onOpen follows the handshake; a handshake that fails is reported as FAILED;
- *  - keeps one read outstanding from the handshake to the end of the connection, so pings are
- *    answered and the idle limit is watched while the role does something else;
+ *  - keeps one read outstanding from the moment the role has been told of the open to the end of
+ *    the connection, so pings are answered and the idle limit is watched while the role does
+ *    something else (a role that asked for the close before it was told of the open is told
+ *    nothing, and nothing is read before this end's close has gone out: rule 6);
  *  - sends through a queue, because Beast allows one write at a time;
  *  - closes in the regular way after what was handed to send() before (rule 6): the close frame
  *    goes out when the write queue is empty, so a message of several frames is never cut. The

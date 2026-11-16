@@ -500,6 +500,90 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+// An end whose role asks for the close after the handshake has completed but before it has been
+// told of the open (here: its handler strand, on a context of its own, does not run yet) is told
+// nothing -- and it must not answer the other end's close either, which would confirm a message
+// no role received (GPeerI.hpp, rule 6). The other end sends D and closes in that window; the end
+// under test reads nothing before its own close has gone out, so the two closes cross. (While the
+// strand is held the test gives a peer that would read at once a second to answer: an end that
+// answers in that time is caught; one that is slower than that on a loaded host is not.)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "GWebsocketPeer does not answer a close for a role that closed before it was told of the open",
+    "[courtier][websocket][peer]"
+) {
+    using namespace std::chrono_literals;
+    boost::asio::io_context ctx;     // the socket's executor
+    boost::asio::io_context handler; // the handler strand's context: held until the role closes
+    tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    GSeen server_seen;
+    std::atomic<bool> shaken{false};
+    std::promise<void> go;
+    std::promise<std::uint16_t> their_view;
+    boost::asio::io_context own;
+    boost::beast::websocket::stream<tcp::socket> ws(own);
+    const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
+                                  sent = go.get_future()]() mutable {
+        try {
+            ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
+            ws.handshake("localhost", "/");
+            shaken.store(true);
+            sent.wait_for(10s);
+            ws.write(boost::asio::buffer(std::string("D")));
+            ws.close(boost::beast::websocket::close_code::internal_error);
+            their_view.set_value(ws.reason().code);
+        }
+        catch(...) {
+            their_view.set_exception(std::current_exception());
+        }
+    });
+
+    auto server = std::make_shared<GWebsocketPeer>(
+        acceptor.accept(),
+        GWebsocketPeer::GOptions{.name = "server end"},
+        handler.get_executor()
+    );
+    startRecording(server, server_seen);
+    // Runs a context for a moment, also one that had run out of work before
+    const auto run = [](boost::asio::io_context &context) {
+        if(context.stopped()) {
+            context.restart();
+        }
+        context.run_for(10ms);
+    };
+    const auto deadline = std::chrono::steady_clock::now() + 30s;
+    while(not shaken.load() && std::chrono::steady_clock::now() < deadline) {
+        run(ctx); // the handshake; the role is not told (its strand does not run)
+    }
+    REQUIRE(shaken.load());
+    go.set_value(); // D and the other end's close are on their way
+    auto view = their_view.get_future();
+    const auto window = std::chrono::steady_clock::now() + 1s;
+    while(view.wait_for(0s) != std::future_status::ready && std::chrono::steady_clock::now() < window) {
+        run(ctx); // a peer that reads before its role knows would answer now
+    }
+    server->close(GPeerClose::NORMAL); // the role closes before it was told of the open
+    server.reset();
+    while(not(server_seen.nClosed == 1 && view.wait_for(0s) == std::future_status::ready) &&
+          std::chrono::steady_clock::now() < deadline) {
+        run(ctx);
+        run(handler);
+    }
+    const bool done = view.wait_for(0s) == std::future_status::ready;
+    if(not done) {
+        boost::system::error_code ignored;
+        std::ignore = ws.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
+    }
+    REQUIRE(done);
+    // The other end's close was not answered: it read this end's own close (the server's code)
+    CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+    CHECK(server_seen.nOpen == 0);
+    CHECK(server_seen.messages.empty());
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+}
+
+/******************************************************************************/
 // An end that never gets its handshake is told so, without being told that it was open (rule 1).
 TEST_CASE("GWebsocketPeer reports a handshake that fails", "[courtier][websocket][peer]") {
     boost::asio::io_context ctx;

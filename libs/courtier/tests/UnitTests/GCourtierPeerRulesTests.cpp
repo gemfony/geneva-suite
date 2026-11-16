@@ -364,7 +364,8 @@ TEST_CASE("Peer rules (in-process): rule 5 -- onClosed exactly once", "[courtier
  * Rule 6: a close sends what was handed to send() before it, and what the close says reaches the
  * other end; a send() after close() is dropped; what arrives after close() is delivered until this
  * end's close has gone out, and not after; only an acknowledgement confirms a close, the other
- * end's own close crossing it does not.
+ * end's own close crossing it does not; an end whose role closed before it was told of the open
+ * confirms nothing.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE(
@@ -450,6 +451,40 @@ TEST_CASE(
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->events() ==
               std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
+    }
+
+    SECTION("an end whose role closed before it was told of the open confirms nothing") {
+        // a sends D and closes before b is started: both wait at b. b's role then asks for the
+        // close before it is told of the open. b's role never sees D, so a's close must not be
+        // confirmed: b's close goes out before b reads what has arrived, and the two cross.
+        auto [a, b] = pairOn(io.executor());
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        std::atomic<bool> a_closed_out{false};
+        a->setTransmitHook([&a_closed_out](std::string_view payload) {
+            if(payload.size() == 1) {
+                a_closed_out.store(true); // a close's word
+            }
+        });
+        role_a->whenOpen = [](Role &role) {
+            role.send("D");
+            role.close(GPeerClose::NORMAL);
+        };
+        role_a->start(a);
+        REQUIRE(eventually([&] { return a_closed_out.load(); }));
+        std::promise<void> arrived; // what a sent has reached b (b's strand has run it)
+        boost::asio::post(b->executor(), [&arrived] { arrived.set_value(); });
+        REQUIRE(arrived.get_future().wait_for(PATIENCE) == std::future_status::ready);
+
+        std::promise<void> release;
+        boost::asio::post(b->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        role_b->start(b);
+        role_b->close(GPeerClose::NORMAL); // before start()'s work has run
+        release.set_value();
+        REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
+        CHECK(role_b->events() ==
+              std::vector<std::string>{"closed:CLOSED_HERE_UNCONFIRMED:NORMAL"});
     }
 
     SECTION("two closes that cross confirm neither") {
