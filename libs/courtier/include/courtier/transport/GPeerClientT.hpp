@@ -217,6 +217,8 @@ class GPeerClientT
     using pipeline_base::io_context_;
     using pipeline_base::n_decoding_;
     using pipeline_base::n_nodata_;
+    using pipeline_base::n_halt_polls_;
+    using pipeline_base::n_messages_booked_;
     using pipeline_base::pending_pulls_;
     using pipeline_base::prefetch_depth_;
     using pipeline_base::schedule_refill_;
@@ -303,6 +305,18 @@ public:
      *  @return The count */
     [[nodiscard]] std::uint64_t noWorkCount() const noexcept {
         return n_nodata_.load();
+    }
+    /** @brief How often the halt poll has run (every GCLIENTHALTPOLLINTERVAL while the client is
+     *  connected or connecting; it stops once the client winds up or closes). A poll counted here
+     *  has done all it does: a caller that sees the count grow after a halt condition was set
+     *  knows that the poll has seen it. From any thread. @return The count */
+    [[nodiscard]] std::uint64_t haltPolls() const noexcept {
+        return n_halt_polls_.load();
+    }
+    /** @brief How many messages from the server have been decoded and booked (their effect on
+     *  the client's state is done). From any thread. @return The count */
+    [[nodiscard]] std::uint64_t messagesBooked() const noexcept {
+        return n_messages_booked_.load();
     }
 
 private:

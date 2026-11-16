@@ -228,6 +228,7 @@ protected:
         if constexpr(requires(derived_type &d) { d.after_decoded_(); }) {
             derived().after_decoded_();
         }
+        n_messages_booked_.fetch_add(1);
     }
 
     //-------------------------------------------------------------------------
@@ -537,11 +538,13 @@ protected:
         }
         if(this->halt()) {
             derived().haltShutdown_();
+            n_halt_polls_.fetch_add(1);
             return;
         }
         if constexpr(requires(derived_type &d) { d.when_polled_(); }) {
             derived().when_polled_();
         }
+        n_halt_polls_.fetch_add(1);
         start_halt_timer(); // keep polling (unless when_polled_() has ended the client)
     }
 
@@ -595,6 +598,12 @@ protected:
     /// How often a NO_WORK reply was received (reported at shutdown). Written on the io thread; an
     /// atomic, so that it may be read from any thread (noWorkCount()).
     std::atomic<std::uint64_t> n_nodata_{0};
+    /// How often the halt poll has run to its end (whatever it found); counted on the io thread,
+    /// read from any thread (haltPolls())
+    std::atomic<std::uint64_t> n_halt_polls_{0};
+    /// Messages from the server whose books are done (decoded_()); counted on the io thread, read
+    /// from any thread (messagesBooked())
+    std::atomic<std::uint64_t> n_messages_booked_{0};
 
     bool pipeline_stopped_ = false; ///< Set by stopPipelineTimers_(): no timer is armed any more
 

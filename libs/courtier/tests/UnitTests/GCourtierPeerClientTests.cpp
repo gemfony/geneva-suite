@@ -2048,8 +2048,10 @@ TEST_CASE(
         watch->last()->sever();
         REQUIRE(eventually([&] { return client->losses() == 1; }));
         // The loss waits for the decode: no new attempt is made meanwhile (the first pause would
-        // be over long before this), and the halt poll (every second) finds no limit run out.
-        std::this_thread::sleep_for(1600ms);
+        // be over long before the halt poll runs), and the halt poll, which runs during the
+        // drain, finds no limit run out.
+        const auto polls = client->haltPolls();
+        REQUIRE(eventually([&] { return client->haltPolls() > polls; }));
         CHECK(client->connections() == 1);
         CHECK_FALSE(client->terminalErrorFlagged());
         decodeHeld.store(false);
@@ -2128,7 +2130,8 @@ TEST_CASE(
         REQUIRE(eventually([] { return decodeWaits.load(); }));
         watch->last()->sever(); // the second loss, while an answer of it is decoded
         REQUIRE(eventually([&] { return client->losses() == 2; }));
-        std::this_thread::sleep_for(1600ms); // the halt poll runs during the drain
+        const auto polls = client->haltPolls();
+        REQUIRE(eventually([&] { return client->haltPolls() > polls; })); // during the drain
         CHECK_FALSE(client->terminalErrorFlagged());
         decodeHeld.store(false);
 
@@ -2203,6 +2206,11 @@ public:
     static void hold(const std::shared_ptr<State> &state) {
         const std::scoped_lock lock(state->mutex);
         state->held = true;
+    }
+    /** @brief @param state The gate @return Whether an attempt waits at it */
+    [[nodiscard]] static bool waiting(const std::shared_ptr<State> &state) {
+        const std::scoped_lock lock(state->mutex);
+        return state->waiting;
     }
     /** @brief Lets a waiting attempt go on; it is refused (reported on the client's executor)
      *  @param state The gate */
@@ -2429,6 +2437,10 @@ public:
     [[nodiscard]] GInProcessPeerWatch &watch() {
         return *watch_;
     }
+    /** @brief @return The server end of the last connection, if it still exists */
+    [[nodiscard]] std::shared_ptr<GInProcessPeer> serverEnd() {
+        return listener_->lastServerEnd();
+    }
     [[nodiscard]] const std::shared_ptr<GatedConnector::State> &gate() const {
         return gate_;
     }
@@ -2502,9 +2514,13 @@ TEST_CASE(
         world.watch().last()->sever();
         REQUIRE(eventually([&] { return world.client().losses() == 1; }));
         world.client().flagCloseRequested();
-        std::this_thread::sleep_for(1500ms); // the halt poll has run during the drain
+        const auto polls = world.client().haltPolls();
+        // The halt poll has run during the drain
+        REQUIRE(eventually([&] { return world.client().haltPolls() > polls; }));
+        const auto booked = world.client().messagesBooked();
         decodeHeld.store(false);
-        std::this_thread::sleep_for(300ms); // B's decode is booked
+        REQUIRE(eventually([&] { return world.client().messagesBooked() > booked; })); // B
+        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); })); // the last attempt
         GatedConnector::release(world.gate());
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
@@ -2550,16 +2566,22 @@ TEST_CASE(
         auto batch = world.batch(items);
         REQUIRE(eventually([&] { return started->load() == 2 && decodeWaits.load(); }));
         world.client().flagCloseRequested();
+        const auto server_end = world.serverEnd();
+        REQUIRE(server_end);
+        const std::size_t delivered = server_end->nDelivered();
         permits->release(); // the first result: a RESULT behind P
-        std::this_thread::sleep_for(300ms);
+        REQUIRE(eventually([&] { return server_end->nDelivered() > delivered; }));
         GatedConnector::hold(world.gate());
         world.route().clear();
-        world.watch().last()->sever(); // halted: the client winds up without a connection
-        std::this_thread::sleep_for(300ms);
+        const auto client_end = world.watch().last();
+        REQUIRE(client_end);
+        client_end->sever(); // halted: the client winds up without a connection
+        REQUIRE(eventually([&] { return client_end->ended(); }));
+        const auto booked = world.client().messagesBooked();
         decodeHeld.store(false);
-        std::this_thread::sleep_for(300ms); // B's decode is booked
+        REQUIRE(eventually([&] { return world.client().messagesBooked() > booked; })); // B
         permits->release(); // the second result
-        std::this_thread::sleep_for(300ms);
+        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
         GatedConnector::release(world.gate());
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
@@ -2785,12 +2807,17 @@ TEST_CASE(
         world.client().flagCloseRequested(); // the compute thread still encodes a RETURN
         permits->release();
         REQUIRE(eventually([] { return saveWaits.load(); }));
-        std::this_thread::sleep_for(1500ms); // the halt poll: the close waits for the result
+        const auto polls = world.client().haltPolls();
+        // The halt poll has seen the halt: the close waits for the result
+        REQUIRE(eventually([&] { return world.client().haltPolls() > polls; }));
         GatedConnector::hold(world.gate());
-        world.watch().last()->sever();
-        std::this_thread::sleep_for(300ms);
+        const auto client_end = world.watch().last();
+        REQUIRE(client_end);
+        client_end->sever();
+        REQUIRE(eventually([&] { return client_end->ended(); }));
         saveHeld.store(false);
-        std::this_thread::sleep_for(300ms);
+        // The result has come: the client, without a connection, makes its last attempt
+        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
         GatedConnector::release(world.gate());
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
@@ -2834,12 +2861,16 @@ TEST_CASE(
         auto batch = world.batch(items);
         REQUIRE(eventually([] { return decodeWaits.load(); }));
         REQUIRE(eventually([&] { return world.corrupted(); }));
-        std::this_thread::sleep_for(200ms); // the bad frame waits behind B
+        // The bad frame (the server's third message) waits behind B
+        const auto client_end = world.watch().last();
+        REQUIRE(client_end);
+        REQUIRE(eventually([&] { return client_end->nDelivered() == 3; }));
         GatedConnector::hold(world.gate());
-        world.watch().last()->sever();
+        client_end->sever();
         REQUIRE(eventually([&] { return world.client().losses() == 1; }));
         decodeHeld.store(false);
-        std::this_thread::sleep_for(500ms);
+        // The protocol error is found in the drain: the client makes its last attempt
+        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
         GatedConnector::release(world.gate());
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
@@ -2883,7 +2914,8 @@ TEST_CASE(
         auto items = heldItems(3);
         auto batch = world.batch(items);
         REQUIRE(eventually([&] { return started->load() == 1 && world.corrupted(); }));
-        std::this_thread::sleep_for(300ms); // the bad frame is decoded: the client closes
+        // The bad frame (the server's third message) is decoded: the client closes
+        REQUIRE(eventually([&] { return world.client().messagesBooked() >= 3; }));
         permits->release(3);
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
