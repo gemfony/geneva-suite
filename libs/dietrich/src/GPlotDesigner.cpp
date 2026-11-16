@@ -824,9 +824,12 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
             footer_data, indent, legend_position_, root_entries, isThreeDimensional(this->plotSpec())
         );
     }
-    // The number of entries the description gives this pad's legend, for a reader of the script
-    // that checks what ROOT drew (the validity test of the plotting library).
-    footer_data << indent << "// legend entries: " << entries.size() << '\n';
+    // The number of rows ROOT draws of the description (the band of a 3-d pad shows at most
+    // LEGEND3DMAXROWS), for a reader of the script that checks what ROOT drew (the validity test
+    // of the plotting library).
+    const bool band = legend_position_ == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
+    footer_data << indent << "// legend entries: "
+                << (band ? std::min(entries.size(), LEGEND3DMAXROWS) : entries.size()) << '\n';
     // A pad title set apart from the first series' label replaces that label as the title, once
     // the legend has taken the label.
     if(not pad_title_.empty()) {

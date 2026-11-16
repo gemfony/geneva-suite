@@ -194,9 +194,9 @@ int main(int argc, char **argv) {
     noisyParabola_plotter_2D_ptr->setYAxisLabel("Noisy parabola");
     noisyParabola_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 3);
+    GPlotDesigner gpd("Sine and cosine and 2D-functions", 3, 4);
 
-    gpd.setCanvasDimensions(1200, 1400);
+    gpd.setCanvasDimensions(1200, 1800);
     gpd.registerPlotter(gsin_ptr);
     gpd.registerPlotter(gcos_ptr);
     gpd.registerPlotter(gsin_plotter_1D_ptr);
@@ -210,6 +210,19 @@ int main(int argc, char **argv) {
     gpd.registerPlotter(floor_projection);
     gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
     gpd.registerPlotter(decadesGraph("a power law with logarithmic axes"));
+    // Labels too long for a legend: on a 3-d pad with a palette, where the band may grow only to
+    // the palette, and in a 2-d corner, where even the grown box is too narrow for the label.
+    {
+        auto surface = projectedSurface(surfaceProjection::FLOOR, "a surface");
+        surface->secondaryPlotters().front()->setPlotLabel(
+            "a path whose label is far too long for the band at the top left of the pad");
+        gpd.registerPlotter(surface);
+        auto power = decadesGraph(
+            "a power law whose label is longer than any legend box can be, so that it has to be "
+            "shortened at its end, marked with three dots");
+        power->setLegendPosition(legendPosition::TOP_LEFT);
+        gpd.registerPlotter(power);
+    }
 
     gpd.writeToFile("result.C");
 

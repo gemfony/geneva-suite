@@ -185,7 +185,10 @@ public:
     [[nodiscard]] bool yAxisLogarithmic() const;
 
     /**
-     * @brief Allows to assign a label to the entire plot
+     * @brief Allows to assign a label to the entire plot. In a pad with several series the label
+     * names this series in the legend. In ROOT a label longer than the legend's box at the smallest
+     * text size widens the box up to the pad's frame; beyond that it is shortened at its end and
+     * marked with "..." (see setLegendPosition()).
      * @param plot_label The label for the entire plot
      */
     void setPlotLabel(std::string p_l);
@@ -216,9 +219,13 @@ public:
      * @brief Sets where the legend of this (primary) plotter's pad lies, if the pad has one
      * (legendEntries()). In ROOT a corner gets the box of legendBox() and a fixed text size
      * (LEGENDTEXTSIZE); labels too long for the box are drawn smaller, down to LEGENDMINTEXTSIZE,
-     * and where the widest still does not fit, the box grows away from its side of the pad.
-     * AUTO is ROOT's own placement on a 2-d pad and the band at the top left on a 3-d pad
-     * (legendBox3D()); the other backends name the corner, and on a 3-d pad AUTO is the upper left.
+     * and where the widest still does not fit, the box grows away from its side of the pad, at
+     * most to the pad's frame (on a 3-d pad: left of the palette); a label longer still is
+     * shortened at its end and marked with "...". AUTO is ROOT's own placement on a 2-d pad and
+     * the band at the top left on a 3-d pad (legendBox3D()): it reaches down to 0.70 of the pad
+     * for five entries, six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of
+     * LEGEND3DMAXROWS rows says how many series are not shown. The other backends name the
+     * corner, and on a 3-d pad AUTO is the upper left.
      * @param position A corner, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);

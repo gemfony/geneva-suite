@@ -1790,10 +1790,11 @@ TEST_CASE(
         map->setLegendPosition(legendPosition::TOP_LEFT);
         const std::string left = render(map, plotBackend::ROOT);
         CHECK(left.contains("floor_size = 0.035;"));
-        CHECK(left.contains("legend->SetX2(TMath::Min(0.99, x1 + width));"));
+        CHECK(left.contains("legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + width));"));
+        CHECK(left.contains("e->SetLabel((text + \"...\").Data());"));
         map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
         const std::string right = render(map, plotBackend::ROOT);
-        CHECK(right.contains("legend->SetX1(TMath::Max(0.01, x2 - width));"));
+        CHECK(right.contains("legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));"));
         CHECK(LEGENDMINTEXTSIZE < LEGENDTEXTSIZE);
     }
 }
@@ -1889,4 +1890,32 @@ TEST_CASE(
         CHECK(s.contains("sample->SetLineWidth(3);"));
         CHECK(s.contains("legend->AddEntry(sample, \"mine\", \"l\");"));
     }
+}
+
+/******************************************************************************/
+// The band of a 3-d pad has a bottom: five entries reach it, six or seven share it at a second,
+// lower text size, and more are summed up in a last row.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[plotting][overlay][legend]") {
+    CHECK(std::abs(std::get<1>(legendBox3D(5)) - 0.70) < 1e-12);
+    CHECK(std::abs(std::get<1>(legendBox3D(9)) - 0.70) < 1e-12);
+    CHECK(legendTextSize3D(5) == LEGENDMINTEXTSIZE);
+    CHECK(legendTextSize3D(6) == LEGENDCROWDEDTEXTSIZE);
+
+    auto primary = smallSurface(surfaceProjection::NONE);
+    primary->setPlotLabel("series 0");
+    for(int i = 1; i < 9; ++i) {
+        auto more = std::make_shared<GGraph3D>();
+        (*more) & std::tuple<double, double, double>(0.1 * i, 0.2, 1.);
+        more->setPlotLabel("series " + std::to_string(i));
+        primary->registerSecondaryPlotter(more);
+    }
+    REQUIRE(primary->legendEntries().size() == 9);
+    const std::string root = render(primary, plotBackend::ROOT);
+    CHECK(root.contains("new TLegend(0.01, 0.7, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+    CHECK(root.contains("legend->SetTextSize(0.025);"));
+    CHECK(root.contains("\"series 5\""));
+    CHECK_FALSE(root.contains("\"series 6\", "));
+    CHECK(root.contains("legend->AddEntry((TObject *)nullptr, \"and 3 more series\", \"\");"));
+    CHECK(root.contains("legend entries: 7"));
 }

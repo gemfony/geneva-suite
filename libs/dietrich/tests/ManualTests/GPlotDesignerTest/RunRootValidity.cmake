@@ -59,10 +59,13 @@ set(_legend_probe [=[
             while(TObject *o4 = l4()) {
                TLegendEntry *e = static_cast<TLegendEntry *>(o4);
                if(TString(e->GetLabel()).Strip(TString::kBoth).IsNull()) printf("GPD-LEGEND-BAD blank text\n");
-               if(!e->GetObject()) printf("GPD-LEGEND-BAD no object for %s\n", e->GetLabel());
+               if(!e->GetObject() && TString(e->GetOption()).Length() > 0) printf("GPD-LEGEND-BAD no object for %s\n", e->GetLabel());
+               else if(!e->GetObject()) {} // a note without a sample (a crowded band's last row)
                else if(seen.FindObject(e->GetObject())) printf("GPD-LEGEND-BAD %s repeats an object\n", e->GetLabel());
                else seen.Add(e->GetObject());
             }
+            // A legend that grew for a long label stays within the frame's width, left of a palette.
+            if(l->GetX2NDC() > 1. - p2->GetRightMargin() + 1e-9) printf("GPD-LEGEND-OUTSIDE %g\n", l->GetX2NDC());
             if(l->GetTextSize() <= 0.) continue; // ROOT sizes the text to the box itself
             if(l->GetTextSize() < 0.035 - 1e-9) printf("GPD-PLACED-SMALL %g\n", l->GetTextSize());
             p2->cd();
@@ -137,6 +140,9 @@ foreach(_i RANGE 0 ${_n_drawn})
 endforeach()
 if(_n_legends EQUAL 0)
 	message(FATAL_ERROR "No pad of the generator has a legend; the check proves nothing.\nstdout:\n${_out}")
+endif()
+if(_out MATCHES "GPD-LEGEND-OUTSIDE")
+	message(FATAL_ERROR "A legend reaches beyond the pad's frame (over a palette).\nstdout:\n${_out}")
 endif()
 if(_out MATCHES "GPD-LEGEND-BAD")
 	message(FATAL_ERROR "A legend has a bad entry.\nstdout:\n${_out}")

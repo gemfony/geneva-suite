@@ -505,6 +505,12 @@ constexpr double LEGENDTEXTSIZE = 0.045;
  * size gets a wider box rather than smaller text.
  */
 constexpr double LEGENDMINTEXTSIZE = 0.035;
+/**
+ * The second, lower floor of a legend's text size (ROOT): the rows of a crowded band of a 3-d pad
+ * (six or seven entries, see legendBox3D()) share its height at this size, and no legend's text
+ * gets smaller.
+ */
+constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
 
 /******************************************************************************/
 /**
@@ -524,8 +530,23 @@ constexpr double LEGENDMINTEXTSIZE = 0.035;
     constexpr double TOP = 0.92;
     constexpr double ENTRY_HEIGHT = 0.04;
     constexpr double PADDING = 0.02;
+    constexpr double BOTTOM = 0.70; // the lowest the band reaches: five entries
     const double height = (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
-    return {X1, TOP - height, X2, TOP};
+    return {X1, std::max(BOTTOM, TOP - height), X2, TOP};
+}
+
+/** The most rows the band of a 3-d pad shows (legendBox3D()); more series are summed up in the last */
+constexpr std::size_t LEGEND3DMAXROWS = 7;
+
+/**
+ * The text size of the band of a 3-d pad for its number of rows: LEGENDMINTEXTSIZE for up to five,
+ * which fill the band to its bottom, and LEGENDCROWDEDTEXTSIZE for six or seven, which share it.
+ *
+ * @param n_rows The number of rows (at most LEGEND3DMAXROWS)
+ * @return The text size, relative to the pad's height
+ */
+[[nodiscard]] inline double legendTextSize3D(std::size_t n_rows) {
+    return n_rows <= 5 ? LEGENDMINTEXTSIZE : LEGENDCROWDEDTEXTSIZE;
 }
 
 /**

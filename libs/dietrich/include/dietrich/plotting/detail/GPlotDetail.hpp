@@ -54,6 +54,7 @@
 #include <limits>
 #include <locale>
 #include <memory>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -196,13 +197,16 @@ inline std::string rootLegendOption(legendSample sample) {
  * there.
  *
  * Every box but ROOT's own has a fixed text size, so that pads of one size show their legends
- * alike: LEGENDTEXTSIZE in a corner, LEGENDMINTEXTSIZE in the 3-d band, which is low. A label too
- * long for the box at that size would run out of it over the pad; then the legend is drawn
- * smaller, just small enough for its widest label (ROOT measures the labels), but never smaller
- * than LEGENDMINTEXTSIZE, ROOT's default size of axis labels. Where the widest label does not fit
- * even at that size, the box grows instead, away from the side of the pad it is placed at (a box
- * at the left grows to the right, one at the right to the left) and not beyond the pad; the
- * samples keep their width.
+ * alike: LEGENDTEXTSIZE in a corner, legendTextSize3D() in the 3-d band. A label too long for the
+ * box at that size would run out of it over the pad; then the legend is drawn smaller, just small
+ * enough for its widest label (ROOT measures the labels), but never smaller than
+ * LEGENDMINTEXTSIZE, ROOT's default size of axis labels (in a crowded band, its own size). Where
+ * the widest label does not fit even at that size, the box grows instead, away from the side of
+ * the pad it is placed at (a box at the left grows to the right, one at the right to the left),
+ * at most to the pad's frame -- on a 3-d pad that keeps it left of the palette -- and the samples
+ * keep their width. A label that does not fit even the grown box is shortened at its end and
+ * marked with "...". The band of a 3-d pad shows at most LEGEND3DMAXROWS rows: with more series
+ * the last row says how many more there are, without a sample.
  *
  * @param s The stream the ROOT macro lines are written to
  * @param indent The indentation prefix of the emitted lines
@@ -219,13 +223,16 @@ inline void emitRootLegend(
 ) {
     s << indent << "{ // the legend: one entry per series of the pad that carries a label" << '\n';
     const bool roots_own = position == legendPosition::AUTO and not three_d;
+    const bool band = position == legendPosition::AUTO and three_d;
+    // A crowded band: its first rows, and a last one that sums up the rest.
+    const std::size_t shown = band ? std::min(entries.size(), LEGEND3DMAXROWS) : entries.size();
+    const std::size_t listed = shown < entries.size() ? shown - 1 : shown;
     double box_x1 = 0.;
     double box_x2 = 0.;
     if(roots_own) {
         s << indent << "   TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT" << '\n';
     } else {
-        const bool band = position == legendPosition::AUTO;
-        const auto [x1, y1, x2, y2] = band ? legendBox3D(entries.size()) : legendBox(position, entries.size());
+        const auto [x1, y1, x2, y2] = band ? legendBox3D(shown) : legendBox(position, entries.size());
         box_x1 = x1;
         box_x2 = x2;
         std::ostringstream box;
@@ -233,12 +240,12 @@ inline void emitRootLegend(
         box << "new TLegend(" << x1 << ", " << y1 << ", " << x2 << ", " << y2 << ");";
         std::ostringstream text_size;
         text_size.imbue(std::locale::classic());
-        text_size << (band ? LEGENDMINTEXTSIZE : LEGENDTEXTSIZE);
+        text_size << (band ? legendTextSize3D(shown) : LEGENDTEXTSIZE);
         s << indent << "   TLegend *legend = " << box.str()
           << (band ? " // a 3-d pad: the band at the top left" : "") << '\n'
           << indent << "   legend->SetTextSize(" << text_size.str() << ");" << '\n';
     }
-    for(const auto &e : entries) {
+    for(const auto &e : entries | std::views::take(listed)) {
         const std::string label = "\"" + rootEscape(e.label) + "\"";
         if(e.sample == legendSample::COLOUR_MAP) {
             s << indent << "   { // a colour map: a box in the middle colour of the palette, a sample object never drawn" << '\n'
@@ -269,6 +276,10 @@ inline void emitRootLegend(
               << rootLegendOption(e.sample) << "\");" << '\n';
         }
     }
+    if(listed < entries.size()) {
+        s << indent << "   legend->AddEntry((TObject *)nullptr, \"and " << (entries.size() - listed)
+          << " more series\", \"\"); // a note: no sample" << '\n';
+    }
     if(not roots_own) {
         // The room of a label is the box less the margin of the samples, and a little air. The
         // box is written out: the legend knows its coordinates in the pad only once it is painted.
@@ -276,19 +287,23 @@ inline void emitRootLegend(
             or position == legendPosition::CENTER_RIGHT;
         std::ostringstream box;
         box.imbue(std::locale::classic());
-        box << "const double x1 = " << box_x1 << ", x2 = " << box_x2 << ", floor_size = " << LEGENDMINTEXTSIZE << ";";
+        box << "const double x1 = " << box_x1 << ", x2 = " << box_x2
+            << ", floor_size = " << (band ? legendTextSize3D(shown) : LEGENDMINTEXTSIZE) << ";";
         s << indent << "   { // labels too long for the box are drawn smaller, down to a readable size; then the box grows" << '\n'
           << indent << "      " << box.str() << '\n'
           << indent << "      const double sample_width = legend->GetMargin() * (x2 - x1);" << '\n'
           << indent << "      const double room = 0.95 * ((x2 - x1) - sample_width);" << '\n'
+          << indent << "      const auto width_of = [&](const char *text, double size) {" << '\n'
+          << indent << "         TLatex label(0., 0., text);" << '\n'
+          << indent << "         label.SetTextFont(legend->GetTextFont());" << '\n'
+          << indent << "         label.SetTextSize(size);" << '\n'
+          << indent << "         return label.GetXsize() / (gPad->GetX2() - gPad->GetX1());" << '\n'
+          << indent << "      };" << '\n'
           << indent << "      const auto widest_at = [&](double size) {" << '\n'
           << indent << "         double widest = 0.;" << '\n'
           << indent << "         TIter next_label(legend->GetListOfPrimitives());" << '\n'
           << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_label())) {" << '\n'
-          << indent << "            TLatex label(0., 0., e->GetLabel());" << '\n'
-          << indent << "            label.SetTextFont(legend->GetTextFont());" << '\n'
-          << indent << "            label.SetTextSize(size);" << '\n'
-          << indent << "            widest = TMath::Max(widest, label.GetXsize() / (gPad->GetX2() - gPad->GetX1()));" << '\n'
+          << indent << "            widest = TMath::Max(widest, width_of(e->GetLabel(), size));" << '\n'
           << indent << "         }" << '\n'
           << indent << "         return widest;" << '\n'
           << indent << "      };" << '\n'
@@ -302,13 +317,24 @@ inline void emitRootLegend(
           << indent << "      if(widest > room) { // too wide even at the smallest size: the box grows, the samples keep their width" << '\n'
           << indent << "         const double width = (widest / 0.95) + sample_width;" << '\n';
         if(grows_left) {
-            s << indent << "         legend->SetX1(TMath::Max(0.01, x2 - width));" << '\n'
+            s << indent << "         // at most to the frame's left edge" << '\n'
+              << indent << "         legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));" << '\n'
               << indent << "         legend->SetMargin(sample_width / (x2 - legend->GetX1()));" << '\n';
         } else {
-            s << indent << "         legend->SetX2(TMath::Min(0.99, x1 + width));" << '\n'
+            s << indent << "         // at most to the frame's right edge, left of a palette" << '\n'
+              << indent << "         legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + width));" << '\n'
               << indent << "         legend->SetMargin(sample_width / (legend->GetX2() - x1));" << '\n';
         }
-        s << indent << "      }" << '\n'
+        s << indent << "         // a label that does not fit even the grown box: shortened at its end, marked with \"...\"" << '\n'
+          << indent << "         const double grown_room = 0.95 * ((legend->GetX2() - legend->GetX1()) - sample_width);" << '\n'
+          << indent << "         TIter next_long(legend->GetListOfPrimitives());" << '\n'
+          << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_long())) {" << '\n'
+          << indent << "            TString text = e->GetLabel();" << '\n'
+          << indent << "            if(width_of(text.Data(), size) <= grown_room) continue;" << '\n'
+          << indent << "            while(text.Length() > 1 && width_of((text + \"...\").Data(), size) > grown_room) text.Remove(text.Length() - 1);" << '\n'
+          << indent << "            e->SetLabel((text + \"...\").Data());" << '\n'
+          << indent << "         }" << '\n'
+          << indent << "      }" << '\n'
           << indent << "   }" << '\n';
     }
     s << indent << "   legend->Draw();" << '\n'
