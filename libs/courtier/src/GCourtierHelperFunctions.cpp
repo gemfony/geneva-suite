@@ -93,9 +93,6 @@ std::string fkToStr(const GFrameKind &fk) {
     case RETURN:
         return "RETURN";
 
-    case SHUTDOWN:
-        return "SHUTDOWN";
-
     case BLOB_REQUEST:
         return "BLOB_REQUEST";
 

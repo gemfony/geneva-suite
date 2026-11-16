@@ -167,11 +167,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
-  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result / shutdown /
+  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result /
   blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on, and
-  nothing else. What a message *means* is Geneva's: a numeric tag (`geneva_command`:
-  `evaluate` / `evaluation` / `evaluated_and_modified` / `terminate`) and a per-command
-  payload, both relayed by courtier without interpretation. A library plugs its own answers
+  nothing else. The end of a run is said by the transport's close, not by a frame: the `shutdown`
+  frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What a message
+  *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
+  `evaluated_and_modified`) and a per-command payload, both relayed by courtier without
+  interpretation. A library plugs its own answers
   in by specializing `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no
   Geneva code and knows no Geneva vocabulary.
 - **A processed item returns its RESULTS, not a hollowed-out copy of itself.** The ordinary

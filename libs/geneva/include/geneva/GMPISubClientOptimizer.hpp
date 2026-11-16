@@ -127,7 +127,7 @@ private:
          */
     MPI_Request startAsyncBarrier() const;
     /**
-         * MPI communicator used for communication between the geneva GMPIConsumerMasterNodeT and GMPIConsumerWorkerNodeT.
+         * MPI communicator used for communication between the geneva GMPIConsumerT and its clients (GMPIConsumerWorkerNodeT).
          */
     MPI_Comm genevaComm_{};
     /**

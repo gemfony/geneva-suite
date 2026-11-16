@@ -271,7 +271,7 @@ TEST_CASE("Receivers are added before the start and one per rank of the communic
     CHECK_THROWS(core->addReceiver(1, std::make_shared<Receiver>(threads.executor())));
     core->start();
     CHECK_THROWS(core->addReceiver(2, std::make_shared<Receiver>(threads.executor())));
-    CHECK_THROWS(core->startSend(3, Gem::Courtier::TAG_SEND_WORK_ITEM, "x"));
+    CHECK_THROWS(core->startSend(3, Gem::Courtier::TAG_PEER_MESSAGE, "x"));
 
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());

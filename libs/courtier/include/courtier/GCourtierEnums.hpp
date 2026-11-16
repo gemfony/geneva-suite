@@ -61,7 +61,7 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * message courtier itself acts on.
  *
  * A frame says what the message does to the *transport*: pull for work, hand work out, check a result
- * back in, shut a worker down, fetch a blob. What the message MEANS to the using library (evaluate this,
+ * back in, fetch a blob. What the message MEANS to the using library (evaluate this,
  * here are the results, …) is not expressed here: it rides the frame as an opaque library tag plus a
  * library-defined payload that courtier relays without interpreting (see GCommandContainerT).
  *
@@ -83,7 +83,9 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * carried a blob the client now lacks, the server sends the client its blobs afresh, and it puts
  * back what the client held (what identifies the item travels inside the item).
  *
- * NONE is the cleared/default state of a frame container, never a transmitted frame.
+ * NONE is the cleared/default state of a frame container, never a transmitted frame. The values are
+ * part of the wire format and stay as they are; 5 is not used. The end of a run is not a frame: the
+ * transport's close says it (GPeerClose::RUN_ENDED).
  */
 //! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
@@ -92,13 +94,30 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     NO_WORK = 2,      ///< server -> worker: "nothing available right now"
     WORK = 3,         ///< server -> worker: a work item to process
     RETURN = 4,       ///< worker -> server: an outcome that asks for more
-    SHUTDOWN = 5,     ///< server -> worker: stop working and terminate
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob
     RESULT = 8,       ///< worker -> server: an outcome asking for nothing
     UNREADABLE = 9    ///< worker -> server: "I could not read your answer"
 };
 //! [courtier-frame-kind]
+
+/** @brief Whether @p kind is one of the values of GFrameKind (a message from the network may carry
+ *  any number) @param kind A frame kind, as read @return Whether GFrameKind has it */
+[[nodiscard]] constexpr bool isFrameKind(GFrameKind kind) noexcept {
+    switch(kind) {
+    case GFrameKind::NONE:
+    case GFrameKind::PULL:
+    case GFrameKind::NO_WORK:
+    case GFrameKind::WORK:
+    case GFrameKind::RETURN:
+    case GFrameKind::BLOB_REQUEST:
+    case GFrameKind::BLOB_REPLY:
+    case GFrameKind::RESULT:
+    case GFrameKind::UNREADABLE:
+        return true;
+    }
+    return false;
+}
 
 /******************************************************************************/
 /**
@@ -240,16 +259,7 @@ constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
 /******************************************************************************
  * Constants specifically for the GMPIConsumerT:
  */
-/// The message tags that the master and the worker nodes use.
-constexpr int TAG_REQUEST_WORK_ITEM = 42;
-constexpr int TAG_SEND_WORK_ITEM = 43;
-/// blob send-once cache-miss fetch (worker <-> master). A worker that receives an id-only
-/// work item whose blob it does not hold sends a BLOB_REQUEST frame on TAG_REQUEST_BLOB; the
-/// master's receiver loop picks it up (it matches any tag) and answers with the serialized blob on
-/// TAG_SEND_BLOB. A distinct send tag keeps the reply from being mistaken for an ordinary work-item
-/// response by the worker's (double-buffered) MPI_ANY_TAG receive.
-constexpr int TAG_REQUEST_BLOB = 44;
-constexpr int TAG_SEND_BLOB = 45;
+/// The rank of the submitter in courtier's communicator
 constexpr int RANK_MASTER_NODE = 0;
 /// The message tags of the MPI transport's ends (GMPIPeer): the greeting of the submitter's
 /// listener, a message of the role, a close (with what it says), and the answer to a close.
@@ -262,16 +272,6 @@ constexpr std::uint32_t GMPICONSUMERSESSIONTHREADS = 2;
 /// How long a closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its
 /// close; the MPI consumer's stop grace is this and a second (GMPIListener::stopGrace()).
 constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
-/// How long a worker waits for the master to complete a send/receive before giving up. The master
-/// always answers a request promptly (work or NO_WORK), so this only trips when the master has died
-/// or gone silent -- it is generous to avoid ever false-killing a worker while a live master is busy.
-constexpr std::chrono::seconds GMPICONSUMERWORKERMPITIMEOUT{120};
-/// How long the master blocks for a pending item before it answers a worker with NO_WORK.
-constexpr std::chrono::milliseconds GMPICONSUMERCHECKOUTWAIT{50};
-/// The pause between two looks at an MPI operation that is polled for completion.
-constexpr std::chrono::milliseconds GMPICONSUMERPOLLPAUSE{1};
-/// The default time in ms between two checks whether the send of a work item has completed.
-constexpr std::uint32_t GMPICONSUMERMASTERCLEANSESSINTERVALMSEC = 1'000;
 
 /******************************************************************************
  * Constants of the MPI poll core (transport/GMPIPollCore.hpp), the defaults of GMPIPollTiming:

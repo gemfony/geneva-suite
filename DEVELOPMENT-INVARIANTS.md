@@ -40,8 +40,8 @@ own. If a primitive does not meet a requirement, **improve it or add a variant t
 tests — and a distinct, named dependency makes Invariant 1 unforgettable. The original cleanups owed to this
 rule are discharged (the consumer's `late_returns_` buffer + retained-original map → `GAgingStoreT`, the
 in-flight borrow set → `GThreadSafeSetT`, Hap's `GRotatingPool` → `GSPSCStagingRingT`, the global option
-stores → `GThreadSafeKeyedStoreT`). *Remaining (deferred, MPI-transport-local):* the MPI transport's raw
-`receiverThread_`/`cleanUpThread_` → `GThreadGroup` and its `openSessions_` vector reaping → a library store.
+stores → `GThreadSafeKeyedStoreT`, and the MPI transport's raw `receiverThread_`/`cleanUpThread_` and
+`openSessions_` reaping, which left with that transport when MPI moved onto the shared peer classes).
 
 ## 3. Build out-of-source only
 

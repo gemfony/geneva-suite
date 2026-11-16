@@ -58,8 +58,8 @@ namespace Gem::Geneva::Genome {
 enum class geneva_command : std::uint32_t {
     evaluate = 0,               ///< server -> worker: evaluate this individual
     evaluation = 1,             ///< worker -> server: the computed results of an unmodified individual
-    evaluated_and_modified = 2, ///< worker -> server: the whole individual, whose genome the worker changed
-    terminate = 3               ///< server -> worker: stop working
+    evaluated_and_modified =
+        2 ///< worker -> server: the whole individual, whose genome the worker changed
 };
 //! [courtier-geneva-commands#1]
 
@@ -120,11 +120,6 @@ struct GWireProtocolT<Gem::Geneva::Genome::GGenome> {
     /** @brief @return The tag on a dispatched work item: evaluate it. */
     static std::uint32_t workTag() {
         return static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::evaluate);
-    }
-
-    /** @brief @return The tag on a shutdown frame: stop working. */
-    static std::uint32_t shutdownTag() {
-        return static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::terminate);
     }
 
     /**

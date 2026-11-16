@@ -279,9 +279,6 @@ struct GWireProtocolT<GReturnThrowsItem> {
     static std::uint32_t workTag() {
         return 0;
     }
-    static std::uint32_t shutdownTag() {
-        return 0;
-    }
     static bool buildReturn(
         [[maybe_unused]] const GReturnThrowsItem &item,
         [[maybe_unused]] std::uint32_t &tag,

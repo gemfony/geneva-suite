@@ -61,8 +61,8 @@ SET ( CONSUMER_INCLUDES
 )
 
 # Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
-# interface, the websocket transport and the MPI master/worker nodes that the networked
-# consumers reuse. Named under transport/ so they no
+# interface, and the websocket and MPI transports (ends, listeners, connectors, the MPI poll)
+# that the networked consumers stand on. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
     transport/GIoContext.hpp

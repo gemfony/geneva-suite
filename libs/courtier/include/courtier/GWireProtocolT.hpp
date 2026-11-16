@@ -96,10 +96,6 @@ struct GWireProtocolT {
      *  should be done with this item?"). Courtier only relays it. */
     static std::uint32_t workTag() { return 0; }
 
-    /** @brief @return The library tag a server puts on a SHUTDOWN frame.
-     *  Courtier only relays it. */
-    static std::uint32_t shutdownTag() { return 0; }
-
     /**
      * @brief Worker side: decides how a just-processed work item is
      * returned to the server.

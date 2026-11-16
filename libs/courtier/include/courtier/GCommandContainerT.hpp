@@ -110,7 +110,7 @@ class GCommandContainerT {
         if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
             // A message from the network may be anything: a kind that GFrameKind does not have
             // means that it is not a frame, however the rest of it would decode.
-            if(std::to_underlying(kind_) > std::to_underlying(GFrameKind::UNREADABLE)) {
+            if(not isFrameKind(kind_)) {
                 throw geneva_exception(
                     g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                     << "In GCommandContainerT<processable_type>::serialize():" << '\n'
@@ -139,7 +139,7 @@ public:
 
     /** @brief The payload of a frame: one alternative per frame purpose. */
     using payload_variant = std::variant<
-        std::monostate,                    // PULL / NO_WORK / SHUTDOWN: nothing to carry
+        std::monostate,                    // PULL / NO_WORK / UNREADABLE: nothing to carry
         std::unique_ptr<processable_type>, // WORK, and a RETURN that ships the whole item
         GBlobRequest,                      // BLOB_REQUEST
         GBlobReply,                        // BLOB_REPLY
