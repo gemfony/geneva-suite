@@ -211,6 +211,18 @@ int MPI_Igather( // NOLINT(readability-function-size): MPI's parameters
     );
 }
 
+int MPI_Iallreduce(
+    const void *sendbuf,
+    void *recvbuf,
+    int count,
+    MPI_Datatype datatype,
+    MPI_Op op,
+    MPI_Comm comm,
+    MPI_Request *request
+) {
+    return started(PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request), request);
+}
+
 int MPI_Ibarrier(MPI_Comm comm, MPI_Request *request) {
     return started(PMPI_Ibarrier(comm, request), request);
 }

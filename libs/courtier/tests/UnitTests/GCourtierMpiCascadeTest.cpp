@@ -1359,6 +1359,39 @@ int insideRoundScenario(Report &report, bool release) {
 }
 
 /**
+ * A rank on which an MPI environment exists already (entry ...EnvironmentExists): rank 1 builds a
+ * bystander's environment of its own before the cascade. It refuses ("exists already"), and the
+ * other ranks refuse too instead of waiting for it; every rank ends with MPI finalized.
+ */
+int environmentExistsScenario(Report &report) {
+    std::shared_ptr<Courtier::Consumers::GMPIEnvironment> own;
+    if(report.rank() == 1) {
+        own = Courtier::mpiEnvironmentOn([] { return MPI_COMM_NULL; });
+    }
+    std::string text;
+    try {
+        const Courtier::GMPICascade cascade([] {
+            return configOf(3, GMPICascadeLayout::GROUPS_ONLY);
+        });
+        report.fail("the constructor did not throw");
+    }
+    catch(const std::exception &e) {
+        text = e.what();
+    }
+    const std::string_view expected = report.rank() == 1 ? "An MPI environment exists already"
+                                                         : "could not take part in the cascade";
+    report.check(
+        text.contains(expected),
+        std::format("the text '{}' does not contain '{}'", text, expected)
+    );
+    own.reset(); // rank 1: finalizes MPI, which its environment initialized
+    int finalized = 0;
+    MPI_Finalized(&finalized);
+    report.check(finalized == 1, "MPI is not finalized");
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1618,6 +1651,7 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"environment-exists", environmentExistsScenario},
         {"release-inside-round", [](Report &r) { return insideRoundScenario(r, true); }},
         {"round-inside-round", [](Report &r) { return insideRoundScenario(r, false); }},
         {"lead-after-round", [](Report &r) { return leadOrderScenario(r, false); }},

@@ -46,8 +46,8 @@ namespace Gem::Tests::CallWatch {
 [[nodiscard]] std::size_t watchedInitThreads();
 /** @brief How often MPI_Ibcast was called in this process */
 [[nodiscard]] std::size_t watchedIbcasts();
-/** @brief How many non-blocking collectives (MPI_Ibcast, MPI_Iscatter, MPI_Igather, MPI_Ibarrier)
- *  were started in this process */
+/** @brief How many non-blocking collectives (MPI_Ibcast, MPI_Iscatter, MPI_Igather, MPI_Iallreduce,
+ *  MPI_Ibarrier) were started in this process */
 [[nodiscard]] std::size_t watchedCollectivesStarted();
 /** @brief How many started non-blocking collectives have not been seen to complete */
 [[nodiscard]] std::size_t watchedCollectivesPending();

@@ -41,8 +41,10 @@
 // No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
 
 // Standard headers go here
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <exception>
 #include <functional>
 #include <memory>
@@ -119,8 +121,12 @@ public:
  * <b>Construction.</b> Every process of the base communicator constructs the cascade at the same
  * point (the splits are collective; a process that does not, keeps the others waiting), and before
  * the process's MPI environment exists: before the first call of mpiEnvironment() or
- * mpiProcessRole(), and so before any MPI consumer or client is built. Otherwise every rank throws
- * "An MPI environment exists already". The cascade builds the environment itself
+ * mpiProcessRole(), and so before any MPI consumer or client is built. A rank on which an
+ * environment exists already throws "An MPI environment exists already"; it still takes part in
+ * the cascade's first two collectives, so that every other rank of the base communicator throws as
+ * well ("could not take part") instead of waiting for it. (mpiEnvironment() and mpiProcessRole()
+ * build their environment on MPI_COMM_WORLD with a collective duplicate: called on some ranks only,
+ * they wait there already, before any cascade.) The cascade builds the environment itself
  * (mpiEnvironmentOn()), which initializes MPI with MPI_THREAD_MULTIPLE unless the program has done
  * so. Only rank 0 of the base communicator calls the configuration callable; its values are
  * broadcast and checked on every rank alike, so that a bad configuration is refused by every rank
@@ -205,6 +211,10 @@ public:
     void requireRole(processRole);
 
 private:
+    /// Rank 0's configuration as it travels: whether rank 0 could provide it, then the fields of
+    /// GMPICascadeConfig in their order
+    using packed_config_type = std::array<std::int64_t, 5>;
+
     /** @brief The callable of the environment: broadcasts rank 0's configuration, makes the splits */
     MPI_Comm split_(const std::function<GMPICascadeConfig()> &);
     /** @brief Checks that a round may be announced, then announces it (round lock held) */
@@ -213,6 +223,18 @@ private:
     void releaseLocked_() noexcept;
     /** @brief Releases the group and ends the job unless requireRole() confirmed the role (round lock held) */
     void requireConfirmedRole_(std::string_view);
+    /** @brief The broadcast of the configuration and the agreement whether any rank refuses */
+    bool agree_(packed_config_type &, bool) noexcept;
+    /** @brief Takes part in agree_() with a refusal, on a rank that has no environment */
+    void refuseWithOthers_() noexcept;
+    /** @brief Waits for a started collective; an MPI error ends the job */
+    void waitStarted_(
+        int,
+        MPI_Request &,
+        std::chrono::microseconds,
+        std::chrono::microseconds,
+        std::string_view
+    ) noexcept;
     /** @brief Broadcasts a command to the members on the status communicator */
     void announce_(int);
     /** @brief MPI_Ibcast from rank 0, completed polled; an MPI error ends the job */
@@ -255,6 +277,7 @@ private:
     processRole role_ = processRole::SUBMITTER; ///< The cascade's role of this process
 
     std::mutex round_mutex_; ///< Held by a round from its announcement to its end; guards released_
+    bool agreed_ = false;    ///< The construction's collectives were made (agree_())
     bool released_ = false;  ///< A lead: the stop was announced
     bool announced_ = false; ///< A lead: a round was announced (guarded by round_mutex_)
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
@@ -262,7 +285,7 @@ private:
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
     /// The thread that runs a round, from the announcement to the end of the lead's half; empty
     /// between rounds
-    std::atomic<std::thread::id> round_thread_{};
+    std::atomic<std::thread::id> round_thread_;
 
     /** Marks the calling thread as the one that runs a round, for the time of the round. */
     class RoundMark {

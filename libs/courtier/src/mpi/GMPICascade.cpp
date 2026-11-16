@@ -70,12 +70,9 @@ namespace {
 constexpr int ROUNDSTOP = 0;
 constexpr int ROUNDGO = 1;
 
-/// Rank 0's configuration travels as these numbers: whether rank 0 could provide it, then its
-/// fields in the order of GMPICascadeConfig
+/// The first number of rank 0's packed configuration (GMPICascade::packed_config_type)
 constexpr std::int64_t CONFIGFAILED = 0;
 constexpr std::int64_t CONFIGPROVIDED = 1;
-constexpr int CONFIGFIELDS = 5;
-using packed_config_type = std::array<std::int64_t, CONFIGFIELDS>;
 
 /******************************************************************************/
 /**
@@ -142,6 +139,20 @@ std::string_view confirmationAdvice() {
            "members idle.";
 }
 
+/******************************************************************************/
+/**
+ * @brief Whether MPI can be used in this process now.
+ * @return Whether MPI is initialized and not finalized
+ */
+bool mpiUsable() noexcept {
+    int initialized = 0;
+    int finalized = 0;
+    // both may be called at any time and report nothing but their flag
+    std::ignore = MPI_Initialized(&initialized);
+    std::ignore = MPI_Finalized(&finalized);
+    return initialized != 0 && finalized == 0;
+}
+
 } // namespace
 
 /******************************************************************************/
@@ -158,8 +169,9 @@ std::string_view confirmationAdvice() {
  * @throws geneva_exception if an MPI environment exists already, if MPI has been finalized or
  *         cannot provide MPI_THREAD_MULTIPLE, if rank 0 could not provide the configuration (rank
  *         0 rethrows what its callable threw), or if the configuration is refused by
- *         GMPICascadeConfig::check() -- on every rank alike; MPI is then finalized again if the
- *         environment initialized it
+ *         GMPICascadeConfig::check() -- on every rank alike (a rank with an environment of its own
+ *         throws that, the others that another rank could not take part); MPI is then finalized
+ *         again if the environment initialized it
  */
 GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI_Comm base)
   : base_(base) {
@@ -169,8 +181,20 @@ GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI
         config_.check();
         return;
     }
-    environment_ =
-        mpiEnvironmentOn([this, &config_on_rank0] { return this->split_(config_on_rank0); });
+    try {
+        environment_ =
+            mpiEnvironmentOn([this, &config_on_rank0] { return this->split_(config_on_rank0); });
+    }
+    catch(...) {
+        // This rank could not build its environment (one exists already, or the thread level is
+        // too low) and so never reached split_(). While MPI can still be used, it takes part in
+        // the agreement of split_() with a refusal, so that every other rank refuses too instead
+        // of waiting in it.
+        if(not agreed_ && mpiUsable()) {
+            this->refuseWithOthers_();
+        }
+        throw;
+    }
 }
 
 /******************************************************************************/
@@ -446,15 +470,15 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
             failure = std::current_exception();
         }
     }
-    this->broadcast_(
-        packed.data(),
-        CONFIGFIELDS,
-        MPI_INT64_T,
-        base_,
-        GMPIPEERPOLLPAUSEMIN,
-        GMPIPEERPOLLPAUSEMAX,
-        "GMPICascade(), the broadcast of the configuration"
-    );
+    if(this->agree_(packed, false)) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::GMPICascade(): Error!" << '\n'
+            << "Another rank of the base communicator could not take part in the cascade (an MPI "
+            << "environment existed there already, or MPI's thread level is too low); every rank "
+            << "refuses" << '\n'
+        );
+    }
     if(packed[0] != CONFIGPROVIDED) {
         if(failure) {
             std::rethrow_exception(failure);
@@ -512,6 +536,55 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
         );
     }
     return courtier_;
+}
+
+/******************************************************************************/
+/**
+ * @brief The first two collectives of the construction, on every rank of the base communicator:
+ * the broadcast of rank 0's configuration, then the agreement whether any rank refuses (a
+ * maximum over all ranks), so that a rank that cannot take part ends the construction everywhere.
+ *
+ * @param packed Rank 0's packed configuration (sent on rank 0, received elsewhere)
+ * @param refuse Whether this rank refuses
+ * @return Whether any rank refused
+ */
+bool GMPICascade::agree_(packed_config_type &packed, bool refuse) noexcept {
+    this->broadcast_(
+        packed.data(),
+        static_cast<int>(packed.size()),
+        MPI_INT64_T,
+        base_,
+        GMPIPEERPOLLPAUSEMIN,
+        GMPIPEERPOLLPAUSEMAX,
+        "GMPICascade(), the broadcast of the configuration"
+    );
+    int refused_here = refuse ? 1 : 0;
+    int refused_anywhere = 0;
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitStarted_() completes the request; the
+    // checker does not know it
+    MPI_Request request = MPI_REQUEST_NULL;
+    this->waitStarted_(
+        MPI_Iallreduce(&refused_here, &refused_anywhere, 1, MPI_INT, MPI_MAX, base_, &request),
+        request,
+        GMPIPEERPOLLPAUSEMIN,
+        GMPIPEERPOLLPAUSEMAX,
+        "GMPICascade(), the agreement of the ranks"
+    );
+    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+    agreed_ = true;
+    return refused_anywhere != 0;
+}
+
+/******************************************************************************/
+/**
+ * @brief On a rank that could not build its environment: takes part in agree_() with a refusal
+ * (rank 0 with a failure marker instead of a configuration), so that no other rank waits for it.
+ */
+void GMPICascade::refuseWithOthers_() noexcept {
+    this->mpiChecked_(MPI_Comm_rank(base_, &base_rank_), "MPI_Comm_rank");
+    packed_config_type packed{};
+    packed[0] = CONFIGFAILED;
+    std::ignore = this->agree_(packed, true);
 }
 
 /******************************************************************************/
@@ -581,10 +654,38 @@ void GMPICascade::broadcast_(
     std::chrono::microseconds pause_max,
     std::string_view what
 ) noexcept {
-    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitPolled() completes the request; the
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitStarted_() completes the request; the
     // checker does not know it
     MPI_Request request = MPI_REQUEST_NULL;
-    this->mpiChecked_(MPI_Ibcast(buffer, count, type, 0, comm, &request), what);
+    this->waitStarted_(
+        MPI_Ibcast(buffer, count, type, 0, comm, &request),
+        request,
+        pause_min,
+        pause_max,
+        what
+    );
+    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
+}
+
+/******************************************************************************/
+/**
+ * @brief Waits, polled, for a collective whose start returned @p started. An error of the start or
+ * of the wait ends the job (see broadcast_()).
+ *
+ * @param started What the start of the collective returned
+ * @param request Its request
+ * @param pause_min The first pause of the wait
+ * @param pause_max The longest pause of the wait
+ * @param what The collective, for the message
+ */
+void GMPICascade::waitStarted_(
+    int started,
+    MPI_Request &request,
+    std::chrono::microseconds pause_min,
+    std::chrono::microseconds pause_max,
+    std::string_view what
+) noexcept {
+    this->mpiChecked_(started, what);
     int completed = MPI_ERR_OTHER;
     try {
         completed = waitPolled(std::span<MPI_Request>(&request, 1), pause_min, pause_max);
@@ -594,7 +695,6 @@ void GMPICascade::broadcast_(
         this->endJob_(what, std::current_exception());
     }
     this->mpiChecked_(completed, what);
-    // NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 }
 
 /******************************************************************************/

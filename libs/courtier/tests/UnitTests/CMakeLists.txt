@@ -392,6 +392,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "release() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideRound 3 M nonzero round-inside-round
 		EXPECT "round() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
+	# A rank with an MPI environment of its own refuses, and so do the others instead of waiting
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 3 M zero environment-exists)
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged
