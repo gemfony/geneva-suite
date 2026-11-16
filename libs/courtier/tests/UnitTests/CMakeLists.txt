@@ -414,6 +414,12 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeCallableAsksRole 3 M zero callable-asks-role)
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
+	# The cascade behind courtier's MPI consumer (SUBMITTER_AND_GROUPS end to end): the leads are MPI
+	# clients of base rank 0 with the consumer's defaults, two groups of three
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeMpiConsumer 7 M zero mpi-consumer)
+	# ... and a lead that never confirms its role ends the whole job at its first round
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeMpiConsumerNotConfirmed 4 M nonzero mpi-consumer-not-confirmed
+		EXPECT "member 2 left its rounds" "member 3 left its rounds" "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
 	# The time of an empty round: printed for a caption, not judged
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEmptyRound 3 M zero empty-round
 		EXPECT "empty round: median")

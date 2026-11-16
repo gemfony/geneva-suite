@@ -74,6 +74,7 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
@@ -1713,6 +1714,157 @@ int websocketScenario(Report &report, bool confirm) {
     return report.failures();
 }
 
+/** @brief What runAsMpiClient() saw */
+struct MpiClientRun {
+    bool clientThrew = false; ///< Whether the client's run() threw
+    int ledAtRelease = 0;     ///< The rounds led when the group was released
+};
+
+/**
+ * @brief A lead of mpiConsumerScenario(): an MPI client of base rank 0 with the defaults of
+ * courtier's MPI consumer, whose item processor evaluates every item in a round of the group. When
+ * the submitter has ended the run, the client ends and the lead releases its members.
+ * @param cascade The lead's cascade @param factor What the group multiplies an item's number with
+ * @param led Counts the rounds @param report For the client's configuration
+ * @return What happened
+ */
+MpiClientRun runAsMpiClient(
+    Courtier::GMPICascade &cascade,
+    std::int64_t factor,
+    std::atomic<int> &led,
+    Report &report
+) {
+    const Courtier::Consumers::MPIConsumerConfig config{};
+    // The defaults a program gets: the next item is fetched while one is evaluated, and one item is
+    // evaluated at a time
+    report.check(
+        config.clientPrefetchDepth == 2 && config.clientParallelEvaluations == 1,
+        std::format(
+            "the MPI client's defaults are a prefetch depth of {} and {} evaluation(s) at a time, "
+            "not 2 and 1",
+            config.clientPrefetchDepth,
+            config.clientParallelEvaluations
+        )
+    );
+    std::atomic<bool> client_threw{false};
+    {
+        // Declared after the cascade: it goes before the cascade frees its communicators
+        const auto client = std::make_shared<
+            Courtier::Consumers::GMPIConsumerWorkerNodeT<Courtier::GFaultyContainer>>(
+            Courtier::mpiEnvironment(),
+            config
+        );
+        client->setItemProcessor([&cascade, &led, factor](Courtier::GFaultyContainer &item) {
+            const auto number = static_cast<std::int64_t>(item.get_stored_number()) + 1;
+            const std::int64_t value =
+                cascade.round([number](MPI_Comm group) { return probingRound(group, number); });
+            ++led;
+            // The item's own processing stores true: false says that the group evaluated it, and
+            // that the value was right
+            item.markAsProcessedWith({value != number * factor});
+        });
+        try {
+            client->run(); // returns when the submitter has ended the run
+        }
+        catch(...) {
+            client_threw = true;
+        }
+    }
+    const int led_at_release = led.load();
+    cascade.release();
+    return MpiClientRun{.clientThrew = client_threw.load(), .ledAtRelease = led_at_release};
+}
+
+/**
+ * @brief The submitter of mpiConsumerScenario(): courtier's MPI consumer on base rank 0, one batch
+ * of @p n_items items. @param n_items How many items @param report The report
+ */
+void submitOverMpi(std::size_t n_items, Report &report) {
+    std::vector<std::unique_ptr<Courtier::GFaultyContainer>> items;
+    items.reserve(n_items);
+    for(std::size_t i = 0; i < n_items; ++i) {
+        items.push_back(std::make_unique<Courtier::GFaultyContainer>(i));
+    }
+    {
+        // Declared after the cascade: it goes before the cascade frees its communicators
+        const auto consumer = std::make_shared<Courtier::GMPIConsumerT<Courtier::GFaultyContainer>>(
+            Courtier::mpiEnvironment()
+        );
+        // Every item is evaluated once: none is given up on time and evaluated again
+        consumer->setTimeoutTreatment(Courtier::timeoutTreatment::wait_indefinitely);
+        consumer->startServer();
+        consumer->processBatch(
+            std::span<std::unique_ptr<Courtier::GFaultyContainer>>(items.data(), items.size()),
+            Courtier::GSubmissionPolicy::full_success_or_fatal()
+        );
+        consumer->stopServer();
+    }
+    const auto processed =
+        std::ranges::count_if(items, [](const auto &item) { return item && item->is_processed(); });
+    const auto right = std::ranges::count_if(items, [](const auto &item) {
+        return item && item->is_processed() && not item->getStoredResult();
+    });
+    report.check(
+        std::cmp_equal(processed, n_items),
+        std::format("{} of {} items processed", processed, n_items)
+    );
+    report.check(
+        processed == right,
+        std::format(
+            "{} of {} processed items were not evaluated by a group with the right value",
+            processed - right,
+            processed
+        )
+    );
+}
+
+/**
+ * The cascade behind courtier's MPI consumer (entry ...MpiConsumer), the layout
+ * SUBMITTER_AND_GROUPS end to end: base rank 0 submits a batch through the MPI consumer, every lead
+ * is an MPI client of it whose item processor evaluates every item in a round of its group. The
+ * submitter and the leads take the role to confirm from the MPI environment, as a program's
+ * consumer does (mpiProcessRole()). Without @p confirm (entry ...MpiConsumerNotConfirmed) the lead
+ * never calls requireRole(): its first round, inside the client's item processor, must end the
+ * whole job, the submitter included, instead of flagging every item.
+ *
+ * @param confirm Whether the leads confirm their role
+ */
+int mpiConsumerScenario(Report &report, bool confirm) {
+    constexpr std::size_t ITEMS = 40;
+    ProbingMember member;
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    if(cascade.role() == processRole::BYSTANDER) {
+        std::ignore = cascade.serve(member);
+        std::println("member {} served {} rounds", report.rank(), member.rounds());
+        return report.failures();
+    }
+    if(cascade.role() == processRole::SUBMITTER) {
+        cascade.requireRole(Courtier::mpiProcessRole());
+        submitOverMpi(ITEMS, report);
+        return report.failures();
+    }
+    if(confirm) {
+        cascade.requireRole(Courtier::mpiProcessRole());
+    }
+    const std::int64_t size = sizeOf(cascade.group());
+    const std::int64_t factor = size * (size + 1) / 2; // every process adds its share
+    std::atomic<int> led{0};
+    const MpiClientRun run = runAsMpiClient(cascade, factor, led, report);
+    if(not confirm) {
+        report.fail(
+            "the client ran to its end ({} rounds led) although the lead never confirmed its role",
+            led.load()
+        );
+        return report.failures();
+    }
+    report.check(led.load() == run.ledAtRelease, "a round ran after release()");
+    report.check(not run.clientThrew, "the client's run threw");
+    std::println("lead led {} rounds", led.load());
+    return report.failures();
+}
+
 /** The time of an empty round (entry ...EmptyRound): a number for a caption, not a gate. */
 int emptyRoundScenario(Report &report) {
     constexpr std::size_t ROUNDS = 1'000;
@@ -1799,6 +1951,8 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"tear-down-throws", [](Report &r) { return failureScenario(r, Injected::TEAR_DOWN); }},
         {"websocket", [](Report &r) { return websocketScenario(r, true); }},
         {"websocket-not-confirmed", [](Report &r) { return websocketScenario(r, false); }},
+        {"mpi-consumer", [](Report &r) { return mpiConsumerScenario(r, true); }},
+        {"mpi-consumer-not-confirmed", [](Report &r) { return mpiConsumerScenario(r, false); }},
         {"empty-round", emptyRoundScenario},
     };
     for(const auto &[scenario_name, scenario] : scenarios) {
