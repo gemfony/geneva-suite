@@ -53,13 +53,18 @@ namespace Gem::Geneva::Genome {
  * opaque number and hands it back to the seam below. Geneva alone decides what each one implies.
  *
  * The values are part of the wire format and are therefore stable.
+ *
+ * - `evaluate`: server -> worker, evaluate this individual.
+ * - `evaluation`: worker -> server, the computed results of an individual whose genome the worker
+ *   did not change (a GEvaluationResults).
+ * - `evaluated_and_modified`: worker -> server, the whole individual, whose genome the worker
+ *   changed.
  */
 //! [courtier-geneva-commands#1]
 enum class geneva_command : std::uint32_t {
-    evaluate = 0,               ///< server -> worker: evaluate this individual
-    evaluation = 1,             ///< worker -> server: the computed results of an unmodified individual
-    evaluated_and_modified =
-        2 ///< worker -> server: the whole individual, whose genome the worker changed
+    evaluate = 0,              ///< server -> worker: evaluate this
+    evaluation = 1,            ///< worker -> server: the results only
+    evaluated_and_modified = 2 ///< worker -> server: the whole individual
 };
 //! [courtier-geneva-commands#1]
 
@@ -76,6 +81,9 @@ enum class geneva_command : std::uint32_t {
  * to carry.
  *
  * Courtier never reads this: it is the library payload of a RETURN frame, relayed as opaque content.
+ *
+ * `results` holds one {raw, transformed, set} entry per criterion; `validity_level` is the computed
+ * feasibility level (<= 1 means feasible).
  */
 //! [courtier-geneva-commands#2]
 struct GEvaluationResults {
@@ -87,14 +95,14 @@ struct GEvaluationResults {
      *  @param ar The archive to read from / write to
      *  @param version The (unused) serialization version number */
     template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned version) {
         Gem::Common::archive_named(ar, "results", results);
         Gem::Common::archive_named(ar, "validity_level", validity_level);
     }
     ///////////////////////////////////////////////////////////////////////
 
-    std::vector<individual_processing_result> results; ///< one {raw, transformed, set} per criterion
-    double validity_level = 0.;                        ///< the computed feasibility level (<= 1 == feasible)
+    std::vector<individual_processing_result> results; ///< per criterion
+    double validity_level = 0.;                        ///< feasibility
 };
 //! [courtier-geneva-commands#2]
 
