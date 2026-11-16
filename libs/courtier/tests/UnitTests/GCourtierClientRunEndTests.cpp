@@ -28,29 +28,30 @@
  ********************************************************************************/
 
 // The end of a client's run and the evaluations it has started: run() returns only once no
-// evaluation of the client runs any more, also when the client is asked to close while one runs.
-// A program that uses something in its item processor that it ends after run() (an MPI cascade
-// releases its group then) relies on it.
+// evaluation of the client runs any more, also when the client halts while one runs. A program
+// that uses something in its item processor that it ends after run() (an MPI cascade releases its
+// group then) relies on it.
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
 #include <chrono>
-#include <future>
+#include <cstddef>
 #include <memory>
 #include <span>
-#include <thread>
 #include <vector>
 
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
-#include "courtier/GCourtierEnums.hpp"
 #include "courtier/GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
-#include "courtier/transport/GWebsocketTransportT.hpp"
+#include "courtier/transport/GPeerClientT.hpp"
+#include "courtier/transport/GWebsocketPeerTransport.hpp"
 
 #include "GInProcessTestSupport.hpp"
 
+using Gem::Common::Concurrency::GCompletionLatchT;
 using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::Tests::eventually;
 using namespace std::chrono_literals;
@@ -60,18 +61,60 @@ namespace {
 /** @brief How long a test waits for something that must happen */
 constexpr auto PATIENCE = 30s;
 
-/** @brief A gate an item processor waits at until the test opens it */
-struct Gate {
-    std::promise<void> opened;                                     ///< Set to open it
-    std::shared_future<void> waited = opened.get_future().share(); ///< Where processors wait
-    std::atomic<bool> arrived{false};                              ///< An evaluation waits
+/**
+ * A websocket client (as GWebsocketClientT, which is final) that halts when the test says so,
+ * through its custom halt condition, and counts how often it has been told to halt since: a count
+ * of 1 says that the client has seen the halt and has begun to wind up (its halt timer then stops).
+ */
+class HaltingClient final : public Gem::Courtier::Consumers::GPeerClientT<GFaultyContainer> {
+public:
+    /** @brief A client of the server @p config names @param config The server's configuration */
+    explicit HaltingClient(const Gem::Courtier::GWebsocketConsumerConfig &config)
+      : Gem::Courtier::Consumers::GPeerClientT<GFaultyContainer>(
+            std::make_unique<Gem::Courtier::Consumers::GWebsocketConnector>(
+                config.ip,
+                config.port,
+                Gem::Courtier::Consumers::GWebsocketPeer::GOptions{
+                    .name = "halting client",
+                    .mode = config.serializationMode
+                }
+            ),
+            Gem::Courtier::Consumers::GPeerClientOptions{
+                .name = "halting client",
+                .mode = config.serializationMode
+            }
+        ) { /* nothing */
+    }
+
+    /** @brief From now on the client halts */
+    void haltNow() {
+        halt_ = true;
+    }
+    /** @brief How often the client has been told to halt since haltNow() */
+    [[nodiscard]] std::size_t haltsSeen() const {
+        return halts_seen_.load();
+    }
+
+protected:
+    /** @brief Halts after haltNow(), and counts it */
+    bool customHalt() override {
+        if(not halt_) {
+            return false;
+        }
+        ++halts_seen_;
+        return true;
+    }
+
+private:
+    std::atomic<bool> halt_{false};          ///< Whether to halt
+    std::atomic<std::size_t> halts_seen_{0}; ///< How often the client was told to halt
 };
 
 } /* anonymous namespace */
 
 /******************************************************************************/
 TEST_CASE(
-    "GPeerClientT: a client asked to close returns from run() only after its running evaluation",
+    "GPeerClientT: a client that halts returns from run() only after its running evaluation",
     "[courtier][peer][client]"
 ) {
     Gem::Courtier::GWebsocketConsumerConfig config{
@@ -82,12 +125,13 @@ TEST_CASE(
     auto consumer = std::make_shared<Gem::Courtier::GWebsocketConsumerT<GFaultyContainer>>(config);
     consumer->startServer();
     config.port = consumer->getPort();
-    auto client =
-        std::make_shared<Gem::Courtier::Consumers::GWebsocketClientT<GFaultyContainer>>(config);
-    auto gate = std::make_shared<Gate>();
-    client->setItemProcessor([gate](GFaultyContainer &item) {
-        gate->arrived = true;
-        gate->waited.wait_for(PATIENCE);
+    auto client = std::make_shared<HaltingClient>(config);
+    // Shared with the processor, which may run after this test has left (see GCompletionLatchT)
+    auto arrived = std::make_shared<GCompletionLatchT>(1); // the evaluation has begun
+    auto gate = std::make_shared<GCompletionLatchT>(1);    // the test lets it end
+    client->setItemProcessor([arrived, gate](GFaultyContainer &item) {
+        arrived->count_down();
+        gate->wait_for(PATIENCE);
         item.markAsProcessedWith({true});
     });
 
@@ -113,15 +157,15 @@ TEST_CASE(
             batch_done = true;
         });
 
-        const bool arrived = eventually([&] { return gate->arrived.load(); }, PATIENCE);
-        CHECK(arrived);
-        client->flagCloseRequested();
-        // The client looks for a halt every GCLIENTHALTPOLLINTERVAL: after that and a margin it has
-        // seen the request and would have ended, were it not for the evaluation at the gate
-        std::this_thread::sleep_for(Gem::Courtier::GCLIENTHALTPOLLINTERVAL + 500ms);
-        CHECK_FALSE(returned.load());
+        CHECK(arrived->wait_for(PATIENCE));
+        client->haltNow();
+        // The client has seen the halt and wound up as far as it may while the evaluation runs.
+        // run() must not return now: a wrong client would within a few io turns, so the bad
+        // event is given a second to happen (a negative cannot be waited for otherwise)
+        CHECK(eventually([&] { return client->haltsSeen() >= 1; }, PATIENCE));
+        CHECK_FALSE(eventually([&] { return returned.load(); }, 1s));
 
-        gate->opened.set_value();
+        gate->count_down();
         CHECK(eventually([&] { return returned.load(); }, PATIENCE));
         CHECK(eventually([&] { return batch_done.load(); }, PATIENCE));
         consumer->stopServer(); // ends a batch that would wait for ever
