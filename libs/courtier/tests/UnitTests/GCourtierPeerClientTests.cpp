@@ -124,8 +124,8 @@ void endsOrExits(const done_type &done, std::string_view world) {
     }
     std::cout.flush();
     std::cerr << world << ": a client did not end within " << PATIENCE.count()
-              << " s of the teardown; the test process ends here (see the failure above)"
-              << std::endl;
+              << " s of the teardown; the test process ends here (see the failure above)\n";
+    std::cerr.flush();
     std::_Exit(EXIT_FAILURE);
 }
 
@@ -163,7 +163,7 @@ public:
     }
     /** @brief @param patience How long @return The state of the batch after waiting so long */
     template <typename duration_type>
-    std::future_status wait_for(duration_type patience) const {
+    [[nodiscard]] std::future_status wait_for(duration_type patience) const {
         return run_.wait_for(patience);
     }
 
@@ -3551,7 +3551,7 @@ TEST_CASE(
         );
         client->setItemProcessor(gatedProcessor(first, gate));
         auto done = std::make_shared<std::atomic<bool>>(false);
-        std::jthread runner([client, done] {
+        const std::jthread runner([client, done] {
             client->run();
             done->store(true);
         });

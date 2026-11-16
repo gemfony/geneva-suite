@@ -564,7 +564,7 @@ TEST_CASE(
     }
     server->close(GPeerClose::NORMAL); // the role closes before it was told of the open
     server.reset();
-    while(not(server_seen.nClosed == 1 && view.wait_for(0s) == std::future_status::ready) &&
+    while((server_seen.nClosed != 1 || view.wait_for(0s) != std::future_status::ready) &&
           std::chrono::steady_clock::now() < deadline) {
         run(ctx);
         run(handler);

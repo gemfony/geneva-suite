@@ -419,9 +419,8 @@ private:
             return;
         }
         switch(state_) {
-        case state::NEW:
-            return; // kept in early_ above
-        case state::ENDED:
+        case state::NEW:   // kept in early_ above
+        case state::ENDED: // nothing is handled any more
             return;
         case state::OPEN:
         case state::CLOSING:

@@ -344,11 +344,11 @@ TEST_CASE(
 // the run and save nothing (it used to report a plain close and save the result). The server is
 // written by hand from the handshake on, so that the test decides when its close goes out. (The
 // in-process pair has no second reader of a close and cannot show this.)
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario with a hand-written server; Catch2's macros count
 TEST_CASE(
     "courtier(websocket): a halting client whose close crosses the end of the run saves nothing",
     "[courtier][websocket][net]"
 ) {
-    namespace bws = boost::beast::websocket;
     using boost::asio::ip::tcp;
     const std::filesystem::path dir =
         std::filesystem::temp_directory_path() /
@@ -366,7 +366,7 @@ TEST_CASE(
         if(ec) {
             return;
         }
-        bws::stream<tcp::socket> ws(std::move(sock));
+        boost::beast::websocket::stream<tcp::socket> ws(std::move(sock));
         ws.binary(true);
         ws.accept(ec);
         if(ec) {
@@ -377,7 +377,7 @@ TEST_CASE(
         const auto read_frame = [&raw, &ec]() -> int {
             std::array<unsigned char, 8> head{};
             boost::asio::read(raw, boost::asio::buffer(head.data(), 2), ec);
-            const int opcode = head[0] & 0x0F;
+            const auto opcode = static_cast<int>(head[0] & 0x0FU);
             std::uint64_t length = head[1] & 0x7FU;
             if(length == 126) {
                 boost::asio::read(raw, boost::asio::buffer(head.data(), 2), ec);
@@ -430,11 +430,11 @@ TEST_CASE(
         item.markAsProcessedWith({true});
     });
     std::atomic<bool> returned{false};
-    std::jthread client_thread([client, &returned] {
+    const std::jthread client_thread([client, &returned] {
         try {
             client->run();
         }
-        catch(...) { /* a throw still counts as returning */
+        catch(...) { // NOLINT(bugprone-empty-catch) -- a throw still counts as returning
         }
         returned.store(true);
     });
