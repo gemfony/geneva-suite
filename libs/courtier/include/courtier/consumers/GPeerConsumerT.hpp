@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <exception>
@@ -42,6 +43,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 
 // Boost headers go here
@@ -184,7 +186,10 @@ public:
 
     /** @brief How many clients did not confirm the end of the run at the last stopServer(): those
      *  whose peers had not ended within the listener's stopGrace(), and those whose close ended
-     *  without the client's confirmation. From any thread; 0 before a stop.
+     *  without the client's confirmation after the stop began (a crossing close of the client's
+     *  own among them, GPeerI.hpp rule 6) -- each client once. A connection that its session had
+     *  closed with an error itself is not counted among the latter: that close was not the end of
+     *  the run. From any thread; 0 before a stop.
      *  @return The count */
     [[nodiscard]] std::size_t clientsUnconfirmedAtStop() const {
         return n_unconfirmed_at_stop_.load();
@@ -344,9 +349,18 @@ private:
                 peer->close(Consumers::GPeerClose::RUN_ENDED);
             }
         }
-        const std::size_t n_left =
-            peers_.waitUntilEmpty(listener_->stopGrace()) ? 0 : peers_.size();
-        const std::size_t n_unconfirmed = n_closed_unconfirmed_.load();
+        std::ignore = peers_.waitUntilEmpty(listener_->stopGrace());
+        // Each client is counted once: a session leaves the registry (in its destructor) only
+        // after its connectionEnded hook has run, so the registry is read first. A session found
+        // there whose connection has ended unconfirmed since is counted with those; one that is in
+        // neither has confirmed.
+        const auto left = peers_.keys();
+        const auto unconfirmed = ended_unconfirmed_.keys();
+        std::size_t n_left = 0;
+        for(const GWirePeerId id : left) {
+            n_left += std::ranges::binary_search(unconfirmed, id) ? 0 : 1;
+        }
+        const std::size_t n_unconfirmed = unconfirmed.size();
         n_unconfirmed_at_stop_.store(n_left + n_unconfirmed);
         if(n_left + n_unconfirmed > 0) {
             glogger << "In " << consumer_name_ << "::stopServer(): " << (n_left + n_unconfirmed)
@@ -474,16 +488,17 @@ private:
                         }
                     },
                 // A close of the end of the run that the client did not confirm counts with
-                // those that had not ended within the grace (tellClients_()). A client that
-                // spoke is no longer connected (connectedClients()).
+                // those that had not ended within the grace (tellClients_()); a close the
+                // session made with ERROR itself was not the end of the run. A client that spoke
+                // is no longer connected (connectedClients()).
                 .connectionEnded =
-                    [this, spoke](Consumers::GPeerEnd end) {
+                    [this, spoke, peer_id](Consumers::GPeerEnd end, bool closed_with_error) {
                         if(*spoke) {
                             n_connected_.fetch_sub(1);
                         }
                         if(end == Consumers::GPeerEnd::CLOSED_HERE_UNCONFIRMED &&
-                           this->stopped()) {
-                            n_closed_unconfirmed_.fetch_add(1);
+                           this->stopped() && not closed_with_error) {
+                            ended_unconfirmed_.set(peer_id, true);
                         }
                     },
                 .clientSpoke =
@@ -534,8 +549,9 @@ private:
     std::atomic<bool> start_called_{false};    ///< startServer() has been called
     std::atomic<bool> started_{false};         ///< The listener has been started
     std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
-    /// Sessions whose close ended without the client's confirmation after the stop began
-    std::atomic<std::size_t> n_closed_unconfirmed_{0};
+    /// The clients whose connection ended without confirming the close of the end of the run
+    /// (keys: their ids; the values mean nothing). keys() is sorted.
+    Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> ended_unconfirmed_;
     /// What clientsUnconfirmedAtStop() answers
     std::atomic<std::size_t> n_unconfirmed_at_stop_{0};
     /// What connectedClients() answers: sessions whose client has spoken and whose connection has

@@ -141,9 +141,10 @@ public:
         /// Called with true by start(), after the peer has been started, and with false by the
         /// destructor of a session that signed on
         std::move_only_function<void(bool)> serverSignOn;
-        /// Called once, in onClosed, with how the connection ended (may be empty): the shell
-        /// counts the clients that did not confirm the end of the run
-        std::move_only_function<void(GPeerEnd)> connectionEnded;
+        /// Called once, in onClosed, with how the connection ended and whether the session itself
+        /// had closed it with GPeerClose::ERROR (may be empty): the shell counts the clients that
+        /// did not confirm the end of the run
+        std::move_only_function<void(GPeerEnd, bool)> connectionEnded;
         /// Called once, when the first message of the client has been read (may be empty): the
         /// shell counts the clients that are connected (on the session's executor, before
         /// connectionEnded)
@@ -358,7 +359,7 @@ private:
      */
     void when_closed_(GPeerEnd end, [[maybe_unused]] GPeerClose how, std::string_view detail) {
         if(connection_ended_) {
-            connection_ended_(end);
+            connection_ended_(end, closed_with_error_);
         }
         if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
            not this->check_server_stopped_()) {
@@ -466,6 +467,7 @@ private:
             if(auto peer = peer_.lock()) {
                 peer->close(GPeerClose::ERROR);
             }
+            closed_with_error_ = true;
             stopping_ = true; // nothing more is served on this connection
             return Gem::Courtier::GNothingDue{};
         }
@@ -490,6 +492,7 @@ private:
             if(auto peer = peer_.lock()) {
                 peer->close(GPeerClose::ERROR);
             }
+            closed_with_error_ = true;
             stopping_ = true; // nothing more is served on this connection
             return Gem::Courtier::GNothingDue{};
         }
@@ -600,7 +603,7 @@ private:
     std::move_only_function<void()> abandon_items_;
     std::move_only_function<bool()> check_server_stopped_;
     std::move_only_function<void(bool)> server_sign_on_;
-    std::move_only_function<void(GPeerEnd)> connection_ended_;
+    std::move_only_function<void(GPeerEnd, bool)> connection_ended_;
     std::move_only_function<void()> client_spoke_;
 
     Gem::Common::serializationMode serialization_mode_ = Gem::Common::serializationMode::GEM_BINARY;
@@ -616,6 +619,7 @@ private:
     bool stopping_ = false;
     bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
     bool spoke_ = false;     ///< A message of the client has been read (clientSpoke was called)
+    bool closed_with_error_ = false; ///< The session has closed its connection with ERROR
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
     /// installed around (de)serialisation so a work item's blob is sent to this peer only once
