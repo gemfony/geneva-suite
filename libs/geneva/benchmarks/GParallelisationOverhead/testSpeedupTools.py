@@ -54,6 +54,7 @@ import importlib.util
 import math
 import os
 import shutil
+import socket
 import subprocess
 import sys
 
@@ -154,11 +155,14 @@ def check_figure(program, workdir):
     print('figure and means as expected')
 
 
-def run_script(program, workdir, consumer, rows, reference_delays):
-    """Runs runWithClients.sh with two clients and returns its exit code."""
-    return subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                           consumer, '2', '4', '2', rows, reference_delays, '1'],
-                          check=False, timeout=240).returncode
+def run_script(program, workdir, consumer, rows, reference_delays, env=None):
+    """Runs runWithClients.sh with two clients and returns its exit code and its output."""
+    run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                          consumer, '2', '4', '2', rows, reference_delays, '1'],
+                         env=dict(os.environ, **(env or {})), capture_output=True, text=True,
+                         check=False, timeout=240)
+    sys.stdout.write(run.stdout)
+    return run.returncode, run.stdout
 
 
 def check_run(program, workdir, consumer, reference_dir):
@@ -169,9 +173,24 @@ def check_run(program, workdir, consumer, reference_dir):
             os.remove(os.path.join(workdir, name))
     if reference_dir:
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
-    status = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)')
+    # A websocket server's first port is held by another process: the script must try another one
+    holder = None
+    env = None
+    if consumer != 'mpi':
+        holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        holder.bind(('0.0.0.0', 0))
+        holder.listen(1)
+        env = {'SERVER_PORT': str(holder.getsockname()[1])}
+    try:
+        status, out = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)',
+                                 env)
+    finally:
+        if holder is not None:
+            holder.close()
     if status != 0:
         fail(f'runWithClients.sh exited with {status}; see {workdir}/server.log')
+    if holder is not None and 'is taken; the server is started on another one' not in out:
+        fail('the script did not move to another port when the first one was taken')
     if reference_dir and os.path.exists(os.path.join(workdir, 'reference.log')):
         fail('the shared reference was measured again')
     rows = [l.split() for l in open(os.path.join(workdir, 'shortDelayResults.txt'),
@@ -233,7 +252,7 @@ def check_refusal(program, workdir):
     for name in ('referenceLine.txt', 'reference.log'):
         if os.path.exists(os.path.join(workdir, name)):
             os.remove(os.path.join(workdir, name))
-    status = run_script(program, workdir, 'beast', '(0,10)', '(0,10), (0,20)')
+    status, _ = run_script(program, workdir, 'beast', '(0,10)', '(0,10), (0,20)')
     log = open(os.path.join(workdir, 'reference.log'), encoding='utf-8').read()
     if status == 0 or 'it needs at least 3' not in log:
         fail(f'a reference of two measurements was not refused (exit {status}): {log[-300:]}')
