@@ -80,26 +80,37 @@ const char *frameName(boost::beast::websocket::frame_type kind) {
     return "control";
 }
 
-/** @brief @param how What a close says @return The websocket close code that says it */
-close_code codeFor(GPeerClose how) {
+/** @brief The websocket close code with which one end begins a close. The two ends of a
+ *  connection never begin a close with the same code (see GCONSUMERCLOSECODESERVERNORMAL): an
+ *  answer to a close echoes its code, so a close read after this end's own is an answer exactly
+ *  when it carries this end's code.
+ *  @param how What the close says @param server_end Whether it is the server's end that closes
+ *  @return The code that says it */
+close_code codeFor(GPeerClose how, bool server_end) {
     switch(how) {
     case GPeerClose::NORMAL:
-        return close_code::normal;
+        return server_end ? static_cast<close_code>(GCONSUMERCLOSECODESERVERNORMAL)
+                          : close_code::normal;
     case GPeerClose::ERROR:
-        return close_code::internal_error;
+        return server_end ? static_cast<close_code>(GCONSUMERCLOSECODESERVERERROR)
+                          : close_code::internal_error;
     case GPeerClose::RUN_ENDED:
-        return static_cast<close_code>(GCONSUMERCLOSECODERUNENDED);
+        return static_cast<close_code>(
+            server_end ? GCONSUMERCLOSECODERUNENDED : GCONSUMERCLOSECODECLIENTRUNENDED
+        );
     }
     return close_code::normal;
 }
 
-/** @brief @param code A received websocket close code @return What it says; no code at all, or
- *  a regular one, says NORMAL */
+/** @brief @param code A received websocket close code @return What it says, whichever end began
+ *  the close; no code at all, or a regular one, says NORMAL, a code of a failure (Beast's own
+ *  closes among them) ERROR */
 GPeerClose closeFor(std::uint16_t code) {
-    if(code == GCONSUMERCLOSECODERUNENDED) {
+    if(code == GCONSUMERCLOSECODERUNENDED || code == GCONSUMERCLOSECODECLIENTRUNENDED) {
         return GPeerClose::RUN_ENDED;
     }
-    if(code == close_code::normal || code == close_code::none) {
+    if(code == close_code::normal || code == close_code::none ||
+       code == GCONSUMERCLOSECODESERVERNORMAL) {
         return GPeerClose::NORMAL;
     }
     return GPeerClose::ERROR;
@@ -160,7 +171,8 @@ void GWebsocketPeer::configure_() {
         last_inbound_ = std::chrono::steady_clock::now();
         if(kind == boost::beast::websocket::frame_type::close) {
             close_received_ = true;
-            close_confirmed_ = close_sent_; // after ours: it confirms it (GPeerI.hpp, rule 6)
+            // After ours, and an answer to it: it confirms it (GPeerI.hpp, rule 6)
+            close_confirmed_ = close_sent_ && this->answersOurClose_();
         }
         if(options_.verboseControlFrames) {
             glogger << options_.name << " has received a " << frameName(kind) << " frame" << '\n'
@@ -202,7 +214,8 @@ void GWebsocketPeer::start(GPeerHandlers handlers) {
 /**
  * Called when either handshake has completed. On success the read that stays outstanding for the
  * rest of the connection is started, and the role is told that it may send -- unless it has asked
- * for the close meanwhile (rule 6: nothing is delivered after close()); the close then follows.
+ * for the close meanwhile (then neither onOpen nor any message is delivered: rule 1); the close
+ * then follows.
  *
  * @param ec The outcome of the handshake
  */
@@ -218,9 +231,13 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
     last_inbound_ = std::chrono::steady_clock::now();
     this->read_();
     boost::asio::post(handler_strand_, [self = this->shared_from_this()] {
-        // After close() nothing is delivered to the role (rule 6), onOpen included.
-        if(self->handlers_.onOpen && not self->close_requested_.load()) {
-            self->handlers_.onOpen();
+        // After close() onOpen is not delivered, and then no message either (rule 1: onOpen
+        // precedes any onMessage)
+        if(not self->close_requested_.load()) {
+            self->role_open_ = true;
+            if(self->handlers_.onOpen) {
+                self->handlers_.onOpen();
+            }
         }
     });
     if(closing_) {
@@ -244,8 +261,9 @@ void GWebsocketPeer::read_() {
  * role has GWEBSOCKETMAXUNHANDLEDMESSAGES messages still to handle, and ends once the close frame
  * has been sent (Beast reads the answer to it itself). An error ends the connection; this is also
  * where an expired idle limit and the other end's close arrive. A message that arrives after
- * close() was called is not handed on: the role has said that it is done, and a client would
- * otherwise start an evaluation it can no longer return.
+ * close() was called is handed on as well (GPeerI.hpp, rule 6): the other end sent it before it
+ * knew of the close, and a close that it answers proves to it that its role has been handed what
+ * it sent before. The role decides what a late message means.
  *
  * @param ec The outcome of the read
  */
@@ -258,17 +276,15 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
     last_inbound_ = std::chrono::steady_clock::now();
     std::string message = boost::beast::buffers_to_string(incoming_.data());
     incoming_.consume(incoming_.size());
-    if(not close_requested_.load()) {
-        if(unhandled_.fetch_add(1) + 1 >= GWEBSOCKETMAXUNHANDLEDMESSAGES) {
-            read_paused_ = true;
-        }
-        boost::asio::post(
-            handler_strand_,
-            [self = this->shared_from_this(), message = std::move(message)]() mutable {
-                self->deliver_(message);
-            }
-        );
+    if(unhandled_.fetch_add(1) + 1 >= GWEBSOCKETMAXUNHANDLEDMESSAGES) {
+        read_paused_ = true;
     }
+    boost::asio::post(
+        handler_strand_,
+        [self = this->shared_from_this(), message = std::move(message)]() mutable {
+            self->deliver_(message);
+        }
+    );
 
     if(not finished_ && not close_sent_ && not read_paused_) {
         this->read_();
@@ -277,13 +293,13 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
 
 /******************************************************************************/
 /**
- * On the handler strand: hands one message to the role (unless close() has been called since), and
- * lets reading go on if it waited for the role.
+ * On the handler strand: hands one message to the role (also after close(), see readDone_(); but
+ * not to a role that was not told of the open), and lets reading go on if it waited for the role.
  *
  * @param message The message, as it arrived
  */
 void GWebsocketPeer::deliver_(std::string &message) {
-    if(handlers_.onMessage && not close_requested_.load()) {
+    if(handlers_.onMessage && role_open_) {
         handlers_.onMessage(std::move(message));
     }
     if(unhandled_.fetch_sub(1) == GWEBSOCKETMAXUNHANDLEDMESSAGES) {
@@ -371,7 +387,8 @@ void GWebsocketPeer::writeDone_(const error_code &ec) {
 /**
  * Closes the connection in the regular way. The work is posted to the socket's executor after the
  * messages handed to send() before, so this may be called from any thread, and from inside one of
- * the peer's handlers. From this call on no message is delivered or accepted any more.
+ * the peer's handlers. From this call on no message is accepted any more; what the peer reads until
+ * its close frame has gone out is still delivered (readDone_()).
  *
  * @param how What the other end is told
  */
@@ -430,10 +447,14 @@ void GWebsocketPeer::beginClose_(GPeerClose how) {
 
 /******************************************************************************/
 /** Sends the close frame: the write queue is empty and no write is outstanding. Beast bounds the
- *  close handshake by the handshake limit. A close handshake that completes without an error has
- *  read the other end's close frame after ours (Beast reads until it arrives): the close is
- *  confirmed. One that ends with an error (the time limit, a connection that broke) is not,
- *  unless the peer's own read saw the other end's close frame after ours. */
+ *  close handshake by the handshake limit. From here on Beast reads the connection itself, and
+ *  discards the messages that arrive before the other end's close frame: the peer cannot hand
+ *  them on. A close handshake that completes without an error has read the other end's close
+ *  frame after ours (Beast reads until it arrives); the close is confirmed if that frame answers
+ *  ours (answersOurClose_()) -- the other end then read our close frame before it sent its own,
+ *  and so had not sent anything that Beast could discard here. The other end's own close, crossing
+ *  ours, does not confirm it, nor does a close handshake that ends with an error (the time limit, a
+ *  connection that broke), unless the peer's own read saw the answer. */
 void GWebsocketPeer::closeWhenSent_() {
     if(close_sent_ || finished_ || writing_ || not write_queue_.empty()) {
         return;
@@ -441,13 +462,22 @@ void GWebsocketPeer::closeWhenSent_() {
     close_sent_ = true;
     close_timer_.cancel();
     auto self = this->shared_from_this();
-    ws_.async_close(codeFor(close_how_), [self](const error_code &ec) {
-        if(not ec) {
+    ws_.async_close(codeFor(close_how_, host_.empty()), [self](const error_code &ec) {
+        if(not ec && self->answersOurClose_()) {
             self->close_confirmed_ = true;
         }
         self->close_error_ = ec;
         self->finish_({});
     });
+}
+
+/******************************************************************************/
+/** @brief Whether the other end's close frame, as Beast has read it, answers this end's close: it
+ *  carries the code this end's close was sent with, which the other end's own closes never carry
+ *  (codeFor()). On the socket's executor, once a close frame has been read.
+ *  @return true if it is an answer */
+bool GWebsocketPeer::answersOurClose_() const {
+    return ws_.reason().code == codeFor(close_how_, host_.empty());
 }
 
 /******************************************************************************/
@@ -478,13 +508,14 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
  * which it may still handle. abort() has the role told at once instead: no handler runs then.
  *
  * Why it ended: if this end began the close (and the connection had opened, or nothing failed),
- * CLOSED_HERE when the other end confirmed it -- its close frame arrived after ours (GPeerI.hpp,
- * rule 6) -- and CLOSED_HERE_UNCONFIRMED when it did not: what was queued could not be written
- * within the handshake limit, the close handshake ended with an error or ran out of time, or the
- * other end's close came before ours had gone out (abort() of a peer that had not been closed
- * reports CLOSED_HERE, see GPeerI::abort()); CLOSED_THERE if the other end's close frame
- * arrived, whatever became of the TCP connection after it; SILENT if a time limit expired on a connection that was open; FAILED for any
- * other error -- a handshake that failed or ran out of time among them, also when a close had been
+ * CLOSED_HERE when the other end confirmed it -- its close frame arrived after ours and answers it
+ * (GPeerI.hpp, rule 6) -- and CLOSED_HERE_UNCONFIRMED when it did not: what was queued could not be
+ * written within the handshake limit, the close handshake ended with an error or ran out of time,
+ * the other end's close came before ours had gone out, or it was the other end's own close and
+ * crossed ours (abort() of a peer that had not been closed reports CLOSED_HERE, see
+ * GPeerI::abort()); CLOSED_THERE if the other end's close frame arrived, whatever became of the
+ * TCP connection after it; SILENT if a time limit expired on a connection that was open; FAILED
+ * for any other error -- a handshake that failed or ran out of time among them, also when a close had been
  * asked for while it was under way (rule 1: a peer that cannot be opened reports FAILED).
  *
  * @param cause The error that ended it; none if this end began the close
@@ -560,6 +591,9 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
         else if(not close_sent_ && open_) {
             detail += close_received_ ? " (its own close came first)"
                                       : " (what was queued could not be written in time)";
+        }
+        else if(close_received_) {
+            detail += " (its own close crossed ours)";
         }
     }
     else if(end == GPeerEnd::CLOSED_THERE) {

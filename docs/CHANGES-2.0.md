@@ -256,7 +256,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   client that is told so ends. A client that reaches a time or an item limit starts no further
   evaluation, sends the results of those that run as they finish, and closes when none runs; the
   server keeps these results (the processed count may pass an item limit by them). A client that
-  is still connecting when a limit is reached gives the attempt up.
+  is still connecting when a limit is reached gives the attempt up. The other closes of a server
+  carry codes of their own (4001 normal, 4003 error); a client's end closes with 1000, 1011 or
+  4002 (end of the run). The two ends never begin a close with the same code: an end counts the
+  other end's close as the confirmation of its own only when it echoes its code.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server

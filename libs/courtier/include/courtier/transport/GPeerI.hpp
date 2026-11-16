@@ -87,20 +87,28 @@
  *     in its destructor, never in onClosed. A peer that this end closed reports
  *     GPeerEnd::CLOSED_HERE only if the other end confirmed the close (rule 6), and
  *     GPeerEnd::CLOSED_HERE_UNCONFIRMED otherwise -- when its grace or time limit passed, when what
- *     was queued could not be written, when the close ended with an error, or when the other end's
- *     close came before this end's had gone out.
+ *     was queued could not be written, when the close ended with an error, when the other end's
+ *     close came before this end's had gone out, or when it crossed this end's close.
  *  6. **A close sends what was handed over before it.** Messages handed to send() before close()
  *     reach the other end, in order, before the close does; what the close says (GPeerClose)
- *     reaches the other end too. After close() a send() is dropped and nothing more is delivered
- *     to the role. abort() is the exception: it ends at once and may cut what has not been sent.
- *     **Confirmed** means: the other end's close arrived at this end after this end's close had
- *     been sent -- for the websocket transport a close frame read after ours was written, for the
- *     in-process pair of the tests its acknowledgement (or its own close, crossing ours). Only a
+ *     reaches the other end too. After close() a send() is dropped. What arrives after close()
+ *     has been called is still delivered to the role until this end's close has gone out: the
+ *     other end sent it before it knew of the close, and the role decides what it means (a
+ *     session checks a late result in and answers nothing, a client starts no evaluation). What
+ *     arrives after this end's close has gone out may be dropped. abort() is the exception: it
+ *     ends at once and may cut what has not been sent.
+ *     **Confirmed** means: the other end answered this end's close -- it sent its own close only
+ *     after this end's close had arrived there, and so after its role had been handed everything
+ *     that arrived before. For the websocket transport that is a close frame, read after ours was
+ *     written, that echoes our close code (the two ends begin their closes with codes of their
+ *     own, GWebsocketPeer); for the in-process pair of the tests its acknowledgement. Only a
  *     confirmed close (CLOSED_HERE) proves that everything handed to send() before close() has
- *     reached the other end; an unconfirmed one (CLOSED_HERE_UNCONFIRMED) proves nothing about it.
- *     A close that crosses the other end's own close counts as confirmed: a transport cannot tell
- *     it from an answer. A transport whose close carries no answer of the other end (a message
- *     passing library, say) confirms a close only by an answer it sends for that purpose.
+ *     been handed to the other end's role; an unconfirmed one (CLOSED_HERE_UNCONFIRMED) proves
+ *     nothing about it. The other end's own close is no answer, also when it arrives after this
+ *     end's close had been sent (the two crossed): what this end sent may have arrived there after
+ *     the other end's close had gone out, and been dropped. A transport whose close carries no
+ *     answer of the other end (a message passing library, say) confirms a close only by an answer
+ *     it sends for that purpose, after its role has been handed what arrived before the close.
  *     "Before" is the order of the calls: a send() that has returned before close() is called
  *     (on the same thread, or ordered by the role). A send() on the executor and a close() from
  *     another thread at the same moment are not ordered; the message may be dropped. Nothing is

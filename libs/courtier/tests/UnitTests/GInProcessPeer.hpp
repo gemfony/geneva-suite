@@ -92,9 +92,10 @@ struct GInProcessFaults {
  * the end's strand. The close protocol is the one a real transport has: a close is a message to
  * the other end, which reports CLOSED_THERE and acknowledges; the closing end reports CLOSED_HERE
  * on the acknowledgement (the close is confirmed, GPeerI.hpp rule 6), or CLOSED_HERE_UNCONFIRMED
- * after its grace if none comes. Two ends that close at once take each other's close as the
- * acknowledgement. Messages that arrive before start() has opened the end
- * are kept and delivered after onOpen.
+ * after its grace if none comes. As the websocket peer, an end delivers what arrives after close()
+ * until its own close has gone out (then it drops what arrives), and two ends whose closes cross
+ * both report CLOSED_HERE_UNCONFIRMED: the other end's own close is no acknowledgement. Messages
+ * that arrive before start() has opened the end are kept and delivered after onOpen.
  *
  * While it is open, an end has a wait pending on its strand (a timer that never expires on its
  * own); that pending work owns the end and keeps the executor's context running (rule 4). It is
@@ -375,17 +376,20 @@ private:
     }
 
     /** @brief Runs on the strand after start(): the end is open. The pending wait that owns it
-     *  is armed, the role is told (unless it has closed meanwhile: after close() nothing is
-     *  delivered, onOpen included -- GPeerI.hpp rule 6, as the websocket peer), and what arrived
-     *  before is delivered (or, after close(), dropped). */
+     *  is armed, the role is told (unless it has closed meanwhile: after close() onOpen is not
+     *  delivered, as by the websocket peer), and what arrived before is delivered (also after
+     *  close(): this end's close has not gone out yet, GPeerI.hpp rule 6). */
     void opened_() {
         state_ = state::OPEN;
         pending_.expires_at(boost::asio::steady_timer::time_point::max());
         pending_.async_wait([self = this->shared_from_this()](const boost::system::error_code &) {
             // Only holds the end; it is cancelled when the end has ended.
         });
-        if(handlers_.onOpen && not close_requested_.load()) {
-            handlers_.onOpen();
+        if(not close_requested_.load()) {
+            role_open_ = true;
+            if(handlers_.onOpen) {
+                handlers_.onOpen();
+            }
         }
         while(not early_.empty() && state_ != state::ENDED) {
             Arrival arrival = std::move(early_.front());
@@ -413,9 +417,10 @@ private:
 
         switch(kind) {
         case wire::MESSAGE:
-            // After close() nothing is delivered (rule 6).
-            if(state_ == state::OPEN && not close_requested_.load() &&
-               n_delivered_.load() < faults_.deliverAtMost && handlers_.onMessage) {
+            // Delivered until this end's close has gone out (CLOSING), also after close() (rule 6)
+            // -- but never to a role that was not told of the open (rule 1)
+            if(state_ == state::OPEN && role_open_ && n_delivered_.load() < faults_.deliverAtMost &&
+               handlers_.onMessage) {
                 n_delivered_.fetch_add(1);
                 handlers_.onMessage(std::move(payload));
             }
@@ -426,8 +431,13 @@ private:
                 break;
             }
             if(state_ == state::CLOSING) {
-                // Both ends closed at once: the other's close confirms ours.
-                this->finish_(GPeerEnd::CLOSED_HERE, decode_(payload), "both ends closed");
+                // The two closes crossed: the other end's own close is no acknowledgement of ours
+                // (what this end sent may have arrived there after its close went out)
+                this->finish_(
+                    GPeerEnd::CLOSED_HERE_UNCONFIRMED,
+                    decode_(payload),
+                    "the other end's own close crossed ours"
+                );
             }
             else {
                 this->transmit_(wire::CLOSE_ACK, payload); // echoes what the close said
@@ -507,6 +517,7 @@ private:
 
     Gem::Courtier::Consumers::GPeerHandlers handlers_; ///< On the strand; dropped at the end
     state state_ = state::NEW;                         ///< On the strand
+    bool role_open_ = false; ///< On the strand: the role was told of the open (or had no onOpen)
     std::deque<Arrival> early_;                        ///< On the strand: what came before onOpen
 
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
@@ -620,6 +631,7 @@ public:
             options_.closeGrace
         );
         const Gem::Courtier::GWirePeerId id = next_id_.fetch_add(1);
+        last_server_end_ = server_end;
         // Counted under the lock that stop() takes first: a call posted before it is waited for.
         on_peer_calls_.set(id, true);
         boost::asio::post(*accept_strand_, [this, server_end, id] {
@@ -645,6 +657,12 @@ public:
         boost::asio::post(*accept_strand_, std::move(hold));
     }
 
+    /** @brief @return The server end of the last connection made, if it still exists (a test
+     *  may hold its strand, or close it as its session would) */
+    [[nodiscard]] std::shared_ptr<GInProcessPeer> lastServerEnd() {
+        const std::scoped_lock lock(mutex_);
+        return last_server_end_.lock();
+    }
     /** @brief @return How many connections have been made */
     [[nodiscard]] std::size_t nConnections() const {
         return next_id_.load() - 1;
@@ -671,6 +689,7 @@ private:
     /// Serializes the calls of on_peer; set by start(), dropped by endWork()
     std::optional<boost::asio::strand<boost::asio::any_io_executor>> accept_strand_;
     on_peer_type on_peer_;                               ///< Set by start(), dropped by endWork()
+    std::weak_ptr<GInProcessPeer> last_server_end_;      ///< See lastServerEnd()
     bool accepting_ = false;                             ///< Between start() and stop()
     std::atomic<bool> work_ended_{false};                ///< endWork() has been called
     std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called

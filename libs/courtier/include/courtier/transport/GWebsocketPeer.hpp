@@ -76,13 +76,20 @@ namespace Gem::Courtier::Consumers {
  *    wait for the queue and the close handshake are bounded by the handshake limit, so a peer that
  *    no longer reads cannot hold the connection. A close during the handshake waits for it on
  *    the server's end (the client still hears what it says) and ends the client's end at once,
- *    as FAILED. Nothing that arrives after close() is delivered.
+ *    as FAILED. What the peer reads after close() has been called is still delivered, until its
+ *    own close frame has gone out; from then on Beast reads the connection itself and discards
+ *    the messages that arrive before the other end's close frame (GPeerI.hpp, rule 6).
  *    Once the connection is over Beast's limits are switched off (Beast leaves its timer armed
  *    after a failed read, which would keep an io context busy). abort() ends at once and may cut.
  *
- * What a close says (GPeerClose) travels as the websocket close code: NORMAL as 1000, ERROR as
- * 1011, RUN_ENDED as GCONSUMERCLOSECODERUNENDED (4000); onClosed reports the code received from
- * the other end the same way (an acknowledgement echoes this end's own code).
+ * What a close says (GPeerClose) travels as the websocket close code. The client's end begins
+ * its closes with NORMAL as 1000, ERROR as 1011 and RUN_ENDED as GCONSUMERCLOSECODECLIENTRUNENDED;
+ * the server's end with codes of its own (GCONSUMERCLOSECODESERVERNORMAL,
+ * GCONSUMERCLOSECODESERVERERROR, and RUN_ENDED as GCONSUMERCLOSECODERUNENDED). onClosed reports
+ * the code received from the other end as what it says (an acknowledgement echoes this end's own
+ * code). Since the two ends never begin a close with the same code, a close frame read after this
+ * end's own is an answer to it exactly when it carries this end's code; the other end's own close,
+ * crossing ours, does not confirm it (GPeerI.hpp, rule 6).
  *
  * Threads. The peer works on two executors. The stream lives on the socket's executor, which must
  * serialize the handlers it runs (a strand, or a context with one thread): reading, writing, the
@@ -163,12 +170,16 @@ private:
     void writeDone_(const boost::system::error_code &);
     void beginClose_(GPeerClose);
     void closeWhenSent_();
+    [[nodiscard]] bool answersOurClose_() const;
     void finish_(const boost::system::error_code &, bool = false);
 
     boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws_; ///< The connection
     GOptions options_;
     std::string host_; ///< The server's name for the client's handshake; empty on the server's end
     GPeerHandlers handlers_; ///< Set by start(); on the handler strand; dropped once it is over
+    /// The role was told of the open (a close() before it suppresses it, and every message after
+    /// it); on the handler strand
+    bool role_open_ = false;
 
     boost::asio::any_io_executor io_executor_;    ///< The socket's executor (where the bytes move)
     boost::asio::any_io_executor handler_strand_; ///< Where the role's handlers run
@@ -192,7 +203,8 @@ private:
     bool close_sent_ = false; ///< async_close has been issued
     bool local_close_ = false;                 ///< This end began the close
     bool close_received_ = false;              ///< The other end's close frame has arrived
-    /// The other end's close frame arrived after ours was written: the close is confirmed
+    /// The other end's close frame arrived after ours was written and answers it: the close is
+    /// confirmed
     bool close_confirmed_ = false;
     bool abort_unclosed_ = false; ///< abort() ended a peer whose close() had not been called
     boost::system::error_code close_error_; ///< How the close handshake ended, for the log

@@ -253,14 +253,22 @@ TEST_CASE("Peer rules (in-process): rule 1 -- two phases", "[courtier][peer]") {
         CHECK(role_b->nNested() == 0);
     }
 
-    SECTION("after close() onOpen is not delivered (rule 6), also when close() precedes the open") {
+    SECTION("after close() onOpen is not delivered, also when close() precedes the open; nor is "
+            "any message then") {
         auto [a, b] = pairOn(io.executor());
         auto role_a = makeRole();
         auto role_b = makeRole();
-        role_b->start(b);
-        // The strand of a is held, so that start()'s work runs only after close() was called.
+        std::atomic<bool> sent{false};
+        role_b->whenOpen = [&sent](Role &role) {
+            role.send("early");
+            sent.store(true);
+        };
+        // The strand of a is held, so that the message of b arrives at a before a is opened, and
+        // start()'s work runs only after close() was called.
         std::promise<void> release;
         boost::asio::post(a->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        role_b->start(b);
+        REQUIRE(eventually([&] { return sent.load(); }));
         role_a->start(a);
         a->close(GPeerClose::NORMAL);
         release.set_value();
@@ -354,7 +362,9 @@ TEST_CASE("Peer rules (in-process): rule 5 -- onClosed exactly once", "[courtier
 /******************************************************************************/
 /**
  * Rule 6: a close sends what was handed to send() before it, and what the close says reaches the
- * other end; a send() after close() is dropped; after close() nothing is delivered to the role.
+ * other end; a send() after close() is dropped; what arrives after close() is delivered until this
+ * end's close has gone out, and not after; only an acknowledgement confirms a close, the other
+ * end's own close crossing it does not.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE(
@@ -389,16 +399,18 @@ TEST_CASE(
         CHECK(role_a->events().back() == "closed:CLOSED_HERE:RUN_ENDED");
     }
 
-    SECTION("after close() nothing is delivered, although the other end goes on sending") {
+    SECTION("what arrives after close() and before this end's close has gone out is delivered") {
         constexpr std::size_t N_MESSAGES = 100;
         constexpr std::size_t CLOSE_AT = 10;
         auto [a, b] = pairOn(io.executor());
         auto role_a = makeRole();
         auto role_b = makeRole();
-        role_a->whenOpen = [](Role &role) {
+        std::atomic<bool> all_sent{false};
+        role_a->whenOpen = [&all_sent](Role &role) {
             for(std::size_t i = 0; i < N_MESSAGES; ++i) {
                 role.send(std::to_string(i));
             }
+            all_sent.store(true);
         };
         role_b->whenMessage = [](Role &role, const std::string &) {
             if(role.nMessages() == CLOSE_AT) {
@@ -406,10 +418,62 @@ TEST_CASE(
             }
         };
         role_b->start(b);
+        // The strand of b is held until a has sent everything: all of it arrives at b before b's
+        // close goes out, which b's role asks for at the tenth message.
+        std::promise<void> release;
+        boost::asio::post(b->executor(), [held = release.get_future()]() mutable { held.wait(); });
         role_a->start(a);
+        REQUIRE(eventually([&] { return all_sent.load(); }));
+        release.set_value();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
-        CHECK(role_b->nMessages() == CLOSE_AT);
-        CHECK(b->nDelivered() == CLOSE_AT);
+        CHECK(role_b->nMessages() == N_MESSAGES);
+        CHECK(role_b->events().back() == "closed:CLOSED_HERE:NORMAL");
+        CHECK(role_a->events().back() == "closed:CLOSED_THERE:NORMAL");
+    }
+
+    SECTION("what arrives after this end's close has gone out is not delivered") {
+        auto [a, b] = pairOn(io.executor());
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] {
+            return role_a->events().size() == 1 && role_b->events().size() == 1;
+        }));
+        // The strand of a is held; a sends one more message before it hears of b's close, which
+        // has gone out by then.
+        std::promise<void> release;
+        boost::asio::post(a->executor(), [held = release.get_future()]() mutable { held.wait(); });
+        boost::asio::post(a->executor(), [&role_a] { role_a->send("late"); });
+        role_b->close(GPeerClose::NORMAL);
+        release.set_value();
+        REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
+        CHECK(role_b->events() ==
+              std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
+    }
+
+    SECTION("two closes that cross confirm neither") {
+        auto [a, b] = pairOn(io.executor());
+        auto role_a = makeRole();
+        auto role_b = makeRole();
+        role_a->start(a);
+        role_b->start(b);
+        REQUIRE(eventually([&] {
+            return role_a->events().size() == 1 && role_b->events().size() == 1;
+        }));
+        // Both strands are held, so that each end's close has gone out before the other's
+        // arrives.
+        std::promise<void> release_a;
+        std::promise<void> release_b;
+        boost::asio::post(a->executor(), [held = release_a.get_future()]() mutable { held.wait(); });
+        boost::asio::post(b->executor(), [held = release_b.get_future()]() mutable { held.wait(); });
+        role_a->close(GPeerClose::NORMAL);
+        role_b->close(GPeerClose::ERROR);
+        release_a.set_value();
+        release_b.set_value();
+        REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:ERROR");
+        CHECK(role_b->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
 }
 

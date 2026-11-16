@@ -233,7 +233,10 @@ private:
     //-------------------------------------------------------------------------
     /**
      * @brief Called for every message from the client: checks a returned result in and answers,
-     * or notes that the client is owed a work item and serves what can be served.
+     * or notes that the client is owed a work item and serves what can be served. A message that
+     * arrives after the session has closed its connection (the client sent it before it knew of
+     * the close; GPeerI.hpp, rule 6) is still read -- a result in it is checked in -- but nothing
+     * is answered or served any more.
      *
      * @param message One complete message from the client
      */
@@ -243,6 +246,9 @@ private:
             return;
         }
         auto absorbed = this->absorb_(message);
+        if(stopping_) {
+            return; // the session has closed the connection
+        }
         if(auto *answer = std::get_if<std::string>(&absorbed)) {
             peer->send(makeMessage(std::move(*answer)));
         }
@@ -265,6 +271,7 @@ private:
     void serve_(GPeerI &peer) {
         if(this->check_server_stopped_()) {
             peer.close(GPeerClose::RUN_ENDED);
+            stopping_ = true; // nothing more is served on this connection
             return;
         }
 
@@ -280,6 +287,7 @@ private:
         // for it.
         if(stopping_ || this->check_server_stopped_()) {
             peer.close(GPeerClose::RUN_ENDED);
+            stopping_ = true;
         }
     }
 
@@ -591,7 +599,9 @@ private:
 
     std::size_t owed_replies_ = 0; ///< Requests of the client that have no answer yet
     bool parked_ = false; ///< The consumer holds this session's wake function; nothing is served
-    bool stopping_ = false; ///< The consumer said it is stopping: nothing is served any more
+    /// The session closes its connection (an error, or the end of the run: the consumer said it is
+    /// stopping): nothing is answered or served any more
+    bool stopping_ = false;
     bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope

@@ -36,6 +36,7 @@
 #include <chrono>
 #include <cstddef>
 #include <deque>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -712,5 +713,49 @@ TEST_CASE(
         CHECK(connection.client->nFrames() == 1); // no answer
         CHECK(consumer.nPending() == 1);          // what the client held is back
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * Messages that arrive after the session has closed its connection, but before its close has gone
+ * out, are still handed to it (GPeerI.hpp, rule 6): the client sent them before it knew of the
+ * close. A result among them is checked in; nothing is answered, and nothing is checked out.
+ */
+TEST_CASE(
+    "GPeerSessionT: after its own close a session checks a result in and answers nothing",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        consumer.offer({1, 2});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        auto server_end = connection.serverPeer.lock();
+        REQUIRE(server_end);
+
+        // The strand of the session's end is held while the client sends a message whose kind
+        // cannot be read (the session closes with ERROR on it), a RESULT and a PULL: all three
+        // have arrived before the session's close goes out.
+        std::promise<void> release;
+        boost::asio::post(server_end->executor(), [held = release.get_future()]() mutable {
+            held.wait_for(PATIENCE);
+        });
+        connection.client->sendBytes("x");
+        connection.client->send(GFrameKind::RESULT);
+        connection.client->send(GFrameKind::PULL);
+        std::promise<void> sent;
+        boost::asio::post(connection.clientPeer->executor(), [&sent] { sent.set_value(); });
+        REQUIRE(sent.get_future().wait_for(PATIENCE) == std::future_status::ready);
+        release.set_value();
+
+        REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
+        CHECK(consumer.nCheckedIn() == 1);        // the RESULT
+        CHECK(connection.client->nFrames() == 1); // the first WORK; the PULL is not answered
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+        CHECK(consumer.nPending() == 2); // what the client held is back, and nothing is out
     }
 }

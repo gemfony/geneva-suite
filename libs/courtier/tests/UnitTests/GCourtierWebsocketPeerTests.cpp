@@ -40,6 +40,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <memory>
@@ -54,6 +55,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include "courtier/GCourtierEnums.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeer.hpp"
 
@@ -363,41 +365,104 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// And nothing that arrives after close() was called is handed on: the role has said it is done. A
-// client would otherwise start an evaluation whose result it can no longer return.
+// What arrives after close() was called (GPeerI.hpp, rule 6). The other end is a plain Beast stream
+// on a thread of its own, so that the test decides the order of the frames; it is a client, and
+// begins its close with the code a client's end uses (1000). The end under test is a server's end.
+//  - The other end's message and close arrive before this end's close has gone out (its queue
+//    cannot be written: the other end reads nothing until it closes): the message is handed to
+//    the role, and the other end's close is answered; this end's close was not confirmed.
+//  - This end's close has gone out before the other end sends its message and its own close: Beast
+//    discards the message, which the role never sees -- and the other end's close is no answer
+//    to this end's, so this end's close is not confirmed either (the other end cannot count it as
+//    an answer to its own close: it carries the server's code).
+//  - The other end answers this end's close: it is confirmed.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- three linear scenarios; the count comes from the assertion macros
 TEST_CASE(
-    "GWebsocketPeer delivers nothing after close() was called",
+    "GWebsocketPeer delivers what arrives after close() until its own close has gone out",
     "[courtier][websocket][peer]"
 ) {
-    boost::asio::io_context ctx;
-    auto [accepted, connecting] = connectedPair(ctx);
-    GSeen server_seen;
-    GSeen client_seen;
+    using namespace std::chrono_literals;
+    constexpr std::size_t N_LARGE = 8; // 24 MiB: far more than the buffers of a loopback socket
+    const std::string late = "sent before the other end knew of the close";
+    enum class Order : std::uint8_t { THEIRS_FIRST, OURS_FIRST, ANSWERED };
+    const auto which = GENERATE(Order::THEIRS_FIRST, Order::OURS_FIRST, Order::ANSWERED);
 
+    boost::asio::io_context ctx;
+    tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
+    std::promise<void> closed_here;
+    std::promise<std::uint16_t> their_view; // the code of the close frame the other end read
+    const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
+                            ours_out = closed_here.get_future()]() mutable {
+        try {
+            boost::asio::io_context own;
+            boost::beast::websocket::stream<tcp::socket> ws(own);
+            ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
+            ws.handshake("localhost", "/");
+            ours_out.wait_for(10s); // close() has been called on the end under test
+            if(which != Order::THEIRS_FIRST) {
+                // Waits until the close frame of the end under test has arrived (it went out
+                // at once: nothing was queued before it)
+                const auto until = std::chrono::steady_clock::now() + 10s;
+                while(ws.next_layer().available() == 0 && std::chrono::steady_clock::now() < until) {
+                    std::this_thread::sleep_for(1ms);
+                }
+            }
+            if(which == Order::ANSWERED) {
+                boost::beast::flat_buffer buffer;
+                boost::system::error_code ec;
+                std::ignore = ws.read(buffer, ec); // reads the close and answers it (Beast)
+                their_view.set_value(ws.reason().code);
+                return;
+            }
+            ws.write(boost::asio::buffer(late));
+            ws.close(boost::beast::websocket::close_code::normal); // reads until the other's close
+            their_view.set_value(ws.reason().code);
+        }
+        catch(...) {
+            their_view.set_exception(std::current_exception());
+        }
+    });
+
+    GSeen server_seen;
     std::weak_ptr<GWebsocketPeer> server_weak;
-    std::weak_ptr<GWebsocketPeer> client_weak;
-    auto server = serverEnd(std::move(accepted));
-    auto client = clientEnd(std::move(connecting));
+    auto server = serverEnd(acceptor.accept());
     server_weak = server;
-    client_weak = client;
     startRecording(server, server_seen, [&] {
         if(auto peer = server_weak.lock()) {
-            peer->send(makeMessage("crosses the close"));
-        }
-    });
-    startRecording(client, client_seen, [&] {
-        if(auto peer = client_weak.lock()) {
+            if(which == Order::THEIRS_FIRST) {
+                for(std::size_t i = 0; i < N_LARGE; ++i) {
+                    peer->send(makeMessage(std::string(LARGE_MESSAGE_BYTES, 'x')));
+                }
+            }
             peer->close(GPeerClose::NORMAL);
         }
+        closed_here.set_value();
     });
     server.reset();
-    client.reset();
 
     REQUIRE(runsDry(ctx));
+    auto view = their_view.get_future();
+    REQUIRE(view.wait_for(10s) == std::future_status::ready);
+    const std::uint16_t their_code = view.get();
 
-    CHECK(client_seen.messages.empty());
-    CHECK(client_seen.nClosed == 1);
     CHECK(server_seen.nClosed == 1);
+    switch(which) {
+    case Order::THEIRS_FIRST:
+        CHECK(server_seen.messages == std::vector<std::string>{late});
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // its own close came first
+        CHECK(their_code == boost::beast::websocket::close_code::normal); // answered: echoed
+        break;
+    case Order::OURS_FIRST:
+        CHECK(server_seen.messages.empty()); // discarded by Beast after our close went out
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // the closes crossed
+        CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL); // not an answer
+        break;
+    case Order::ANSWERED:
+        CHECK(server_seen.messages.empty());
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
+        CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+        break;
+    }
 }
 
 /******************************************************************************/
@@ -702,8 +767,8 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// Nothing is delivered to the role after its close() (rule 6), onOpen included: a close asked for
-// while the handshake is under way, and a handshake that then succeeds.
+// onOpen is not delivered after close() (and so no message either, rule 1): a close asked for while
+// the handshake is under way, and a handshake that then succeeds.
 TEST_CASE(
     "GWebsocketPeer does not report onOpen after close()",
     "[courtier][websocket][peer]"

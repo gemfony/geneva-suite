@@ -138,6 +138,16 @@ constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
 /// The websocket close code that tells a client that the run has ended and it need not come back
 /// (GPeerClose::RUN_ENDED): the first code free for applications.
 constexpr std::uint16_t GCONSUMERCLOSECODERUNENDED = 4000;
+/// The websocket close codes of the closes a server's end begins with GPeerClose::NORMAL and
+/// GPeerClose::ERROR. A client's end begins them with the standard codes (1000, 1011) and
+/// GPeerClose::RUN_ENDED with GCONSUMERCLOSECODECLIENTRUNENDED: the two ends of a connection never
+/// begin a close with the same code, so that an end can tell an answer to its close (which echoes
+/// its code) from the other end's own close crossing it (GWebsocketPeer, GPeerI.hpp rule 6).
+constexpr std::uint16_t GCONSUMERCLOSECODESERVERNORMAL = 4001;
+/// See GCONSUMERCLOSECODESERVERNORMAL
+constexpr std::uint16_t GCONSUMERCLOSECODECLIENTRUNENDED = 4002;
+/// See GCONSUMERCLOSECODESERVERNORMAL
+constexpr std::uint16_t GCONSUMERCLOSECODESERVERERROR = 4003;
 /// The largest websocket message accepted, in bytes; 0 means no limit. A work item or a result
 /// travels as one message, and its size is the user's business (the MPI transport has no cap
 /// either).

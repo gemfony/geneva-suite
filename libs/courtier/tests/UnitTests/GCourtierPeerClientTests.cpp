@@ -32,6 +32,7 @@
 // held items, the parallel evaluations, the item processor, the busy signal, and scarce work.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
@@ -86,6 +87,7 @@ using Gem::Courtier::Consumers::GPeerI;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessListenerRef;
+using Gem::Courtier::Tests::GInProcessPeer;
 using Gem::Courtier::Tests::GInProcessPeerWatch;
 using Gem::Courtier::Tests::GInProcessRoute;
 using Gem::Courtier::Tests::IoThreads;
@@ -3035,6 +3037,84 @@ TEST_CASE(
     REQUIRE(saved);
     CHECK(saved->get_stored_number() == 23);
     CHECK(saved->is_processed());
+}
+
+/** The server's end closes with ERROR (as a session does after a message it cannot read) while a
+ *  client that halts sends the result of its last evaluation and closes. A result that arrives
+ *  after the server's end was closed, but before its close went out, is handed to the session
+ *  and checked in; one that arrives after the server's close went out is dropped there -- and
+ *  then the two closes have crossed, which confirms neither (GPeerI.hpp, rule 6), so the client
+ *  saves it. Either way the result is not lost, and it is evaluated once. */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario in two orders; Catch2's macros count
+TEST_CASE(
+    "GPeerClientT: a result is not lost when the server's end closes as the client closes",
+    "[courtier][peer][client]"
+) {
+    const bool server_close_out_first = GENERATE(true, false);
+    const UndeliveredDir dir;
+    auto evaluations = std::make_shared<Evaluations>();
+    auto gate = std::make_shared<Gate>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    auto client_close_out = std::make_shared<std::atomic<bool>>(false);
+    watch->setOnMade([client_close_out](GInProcessPeer &end) {
+        end.setTransmitHook([client_close_out](std::string_view payload) {
+            if(payload.size() == 1) {
+                client_close_out->store(true); // a close's word (a frame is longer)
+            }
+        });
+    });
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(17));
+    bool batch_done = false;
+    {
+        World world;
+        auto client = world.client(
+            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+            evaluations,
+            0ms,
+            watch,
+            withGate(evaluations, gate)
+        );
+        auto batch = openBatch(world, items);
+        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
+        auto server_end = world.listener()->lastServerEnd();
+        REQUIRE(server_end);
+
+        // The strand of the server's end is held: what the client sends waits there, and so does
+        // the server's own close, in the order of the calls.
+        std::promise<void> release;
+        boost::asio::post(server_end->executor(), [held = release.get_future()]() mutable {
+            held.wait_for(PATIENCE);
+        });
+        if(server_close_out_first) {
+            server_end->close(GPeerClose::ERROR); // goes out before the result arrives
+        }
+        client->flagCloseRequested(); // the client closes once its evaluation has ended
+        gate->open();
+        REQUIRE(eventually([&] { return client_close_out->load(); })); // the result, the close
+        if(not server_close_out_first) {
+            server_end->close(GPeerClose::ERROR); // after the result arrived, before it is read
+        }
+        release.set_value();
+        REQUIRE(eventually([&] { return world.clientsDone(); }));
+        // Done at once when the session checked the result in; never done when it was dropped
+        batch_done = batch.wait_for(server_close_out_first ? 0s : PATIENCE) ==
+                     std::future_status::ready;
+        world.shell().stopServer();
+        batch.get();
+    }
+    CHECK(evaluations->of(17) == 1);
+    if(server_close_out_first) {
+        CHECK_FALSE(batch_done);
+        REQUIRE(dir.files().size() == 1); // the closes crossed: the result is saved
+        const auto saved = loadSaved(dir.files().front());
+        REQUIRE(saved);
+        CHECK(saved->get_stored_number() == 17);
+    }
+    else {
+        CHECK(batch_done); // the session was handed the result after its close and checked it in
+        CHECK(dir.files().empty());
+    }
 }
 
 /** The reconnect limit runs out while the client holds a finished result: it is saved. */

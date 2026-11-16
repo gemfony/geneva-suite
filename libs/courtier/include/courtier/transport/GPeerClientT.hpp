@@ -186,7 +186,8 @@ struct GPeerClientOptions {
  * transport's own limits) to deliver what it has finished. Whatever it still cannot deliver --
  * also a result given up at the resend limit, a result sent before a close of its own that the
  * server did not confirm (GPeerEnd::CLOSED_HERE_UNCONFIRMED: only a confirmed close, CLOSED_HERE,
- * proves that the server has read what was sent before it; GPeerI.hpp rule 6), and a result that
+ * proves that the server has read what was sent before it, and a close of the server that crossed
+ * the client's own is no confirmation; GPeerI.hpp rule 6), and a result that
  * finishes after the client has ended -- is saved: the evaluated
  * work item, one file per item, in GPeerClientOptions::undeliveredDir, written with the item's
  * toFile() where its type has one and with sharedPtrToString() otherwise (it loads back with
@@ -643,15 +644,17 @@ private:
         }
         if(was == LinkState::CLOSING) {
             if(end == GPeerEnd::CLOSED_HERE) {
-                // The server confirmed the close: it has read everything sent before it on this
-                // connection -- and nothing else (a message sent only on an earlier connection,
-                // or never, is as unproven as before)
+                // The server answered the close: its session has been handed everything sent
+                // before it on this connection (GPeerI.hpp, rule 6; a session checks a result in
+                // also after a close of its own) -- and nothing else (a message sent only on an
+                // earlier connection, or never, is as unproven as before)
                 std::erase_if(unanswered_, [this](const Entry &message) {
                     return message.sentOnConnection == connection_;
                 });
             }
-            // Any other end -- a close the server did not confirm (CLOSED_HERE_UNCONFIRMED), a
-            // loss -- proves nothing: what was sent is saved with what was never sent.
+            // Any other end -- a close the server did not confirm (CLOSED_HERE_UNCONFIRMED: also
+            // one that crossed a close of the server's own), a loss -- proves nothing: what was
+            // sent is saved with what was never sent.
             this->saveUndelivered_();
             this->endClient_();
             return;
