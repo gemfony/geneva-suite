@@ -397,8 +397,9 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "release() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideRound 3 M nonzero round-inside-round
 		EXPECT "round() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
-	# A rank with an MPI environment of its own refuses, and so do the others instead of waiting
-	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 3 M zero environment-exists)
+	# A rank with an MPI environment of its own refuses; the others end the job instead of waiting
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 3 M nonzero environment-exists
+		EXPECT "could not take part in the cascade" "The job is ended (MPI_Abort)")
 	# A submitter that never confirms its role ends the job in its destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
 		EXPECT "the role of the submitter was never confirmed" "The job is ended (MPI_Abort)")

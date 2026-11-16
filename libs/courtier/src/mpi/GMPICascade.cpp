@@ -496,12 +496,15 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
         }
     }
     if(this->agree_(packed, false)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::GMPICascade(): Error!" << '\n'
-            << "Another rank of the base communicator could not take part in the cascade (an MPI "
-            << "environment existed there already, or MPI's thread level is too low); every rank "
-            << "refuses" << '\n'
+        // Some ranks refused, this one did not. A throw would not end anything: where the cascade
+        // initialized MPI, the environment finalizes it on the way out, and MPI_Finalize waits for
+        // every process of the job -- also for the refusing rank, whose program keeps its own
+        // environment for as long as it likes. So the job is ended.
+        this->endJob_(
+            "GMPICascade()",
+            "another rank of the base communicator could not take part in the cascade (an MPI "
+            "environment existed there already, or MPI's thread level is too low there). Build the "
+            "cascade on every rank before any MPI environment exists."
         );
     }
     if(packed[0] != CONFIGPROVIDED) {

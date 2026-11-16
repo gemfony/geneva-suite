@@ -1378,8 +1378,9 @@ int insideRoundScenario(Report &report, bool release) {
 
 /**
  * A rank on which an MPI environment exists already (entry ...EnvironmentExists): rank 1 builds a
- * bystander's environment of its own before the cascade. It refuses ("exists already"), and the
- * other ranks refuse too instead of waiting for it; every rank ends with MPI finalized.
+ * bystander's environment of its own before the cascade. It refuses ("exists already") and then
+ * goes on with its own environment for longer than the entry's bound; the other ranks must not wait
+ * for it (in MPI_Finalize) but end the job.
  */
 int environmentExistsScenario(Report &report) {
     std::shared_ptr<Courtier::Consumers::GMPIEnvironment> own;
@@ -1402,10 +1403,11 @@ int environmentExistsScenario(Report &report) {
         text.contains(expected),
         std::format("the text '{}' does not contain '{}'", text, expected)
     );
-    own.reset(); // rank 1: finalizes MPI, which its environment initialized
-    int finalized = 0;
-    MPI_Finalized(&finalized);
-    report.check(finalized == 1, "MPI is not finalized");
+    if(report.rank() == 1) {
+        std::this_thread::sleep_for(std::chrono::seconds(120)); // a program that goes on
+        own.reset();
+    }
+    report.fail("the job was not ended");
     return report.failures();
 }
 

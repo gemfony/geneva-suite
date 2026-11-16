@@ -123,8 +123,12 @@ public:
  * the process's MPI environment exists: before the first call of mpiEnvironment() or
  * mpiProcessRole(), and so before any MPI consumer or client is built. A rank on which an
  * environment exists already throws "An MPI environment exists already"; it still takes part in
- * the cascade's first two collectives, so that every other rank of the base communicator throws as
- * well ("could not take part") instead of waiting for it. (mpiEnvironment() and mpiProcessRole()
+ * the cascade's first two collectives, so that every other rank of the base communicator learns of
+ * it and ends the MPI job ("could not take part", MPI_Abort) instead of waiting for it -- a throw
+ * would not do there: MPI_Finalize, which the environment calls on the way out where it initialized
+ * MPI, waits for every process of the job, also for the refusing one. If every rank refuses (MPI
+ * initialized by the program below MPI_THREAD_MULTIPLE), every rank throws. (mpiEnvironment() and
+ * mpiProcessRole()
  * build their environment on MPI_COMM_WORLD with a collective duplicate: called on some ranks only,
  * they wait there already, before any cascade.) The cascade builds the environment itself
  * (mpiEnvironmentOn()), which initializes MPI with MPI_THREAD_MULTIPLE unless the program has done
