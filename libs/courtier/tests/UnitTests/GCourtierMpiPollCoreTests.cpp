@@ -806,3 +806,31 @@ TEST_CASE("A send while every owner is busy and the end of a busy spell are foll
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
 }
+
+/******************************************************************************/
+TEST_CASE("The sends under way are looked at once per link and not once per message received") {
+    // A send that never completes stays under way; then many messages arrive at once.
+    constexpr int N_MESSAGES = 160;
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    world->swallow(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    auto receiver = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(0, receiver);
+    core->addReceiver(2, std::make_shared<Receiver>(threads.executor()));
+    core->startSend(2, 50, "never received");
+    for(int i = 0; i < N_MESSAGES; ++i) {
+        world->inject(0, 1, 50, std::to_string(i));
+    }
+    core->start();
+    REQUIRE(eventually([&] { return receiver->count() == N_MESSAGES; }, 10s));
+
+    const auto counts = world->counts(1);
+    const auto polls = core->counts().polls;
+    INFO("links " << polls << ", looks at the sends " << counts.testSomes);
+    CHECK(counts.testSomes <= polls);
+    CHECK(polls < static_cast<std::uint64_t>(N_MESSAGES)); // more than one message per link
+
+    std::ignore = finish(core, {&threads});
+    CHECK(world->violations().empty());
+}

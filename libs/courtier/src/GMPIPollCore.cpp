@@ -411,7 +411,7 @@ void GMPIPollCore::poll_() {
 /******************************************************************************/
 /**
  * The work of one link: receives while there is something (at most GMPIPollTiming::rounds
- * messages), takes over and frees sends, decides whether the chain has ended, and arranges the
+ * messages), then takes over and frees sends (once per link), decides whether the chain has ended, and arranges the
  * next link -- at once if the bound was reached, otherwise after the pause.
  */
 void GMPIPollCore::link_() {
@@ -421,13 +421,15 @@ void GMPIPollCore::link_() {
     bool more = false;
     for(int round = 0; round < timing_.rounds; ++round) {
         more = this->receiveOne_();
-        this->takeStarted_();
-        this->reap_();
         if(not more) {
             break;
         }
         traffic = true;
     }
+    // The sends are looked at once per link, not once per message received: a look tests every
+    // send under way, and with hundreds of ranks there may be hundreds of them
+    this->takeStarted_();
+    this->reap_();
 
     // With every receiver ended nothing is left to wait for but the sends on their way. (A
     // receiver tells of its end after its last send, and through this strand, so every send of an

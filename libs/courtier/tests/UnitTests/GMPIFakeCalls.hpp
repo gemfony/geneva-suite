@@ -120,6 +120,7 @@ public:
         std::uint64_t receives = 0; ///< Messages received
         std::uint64_t sends = 0;    ///< Sends started
         std::uint64_t givenUp = 0;  ///< Sends given up
+        std::uint64_t testSomes = 0; ///< Calls of testSome() with at least one send under way
     };
 
     /** @brief @param n_ranks The size of the communicator */
@@ -383,6 +384,9 @@ GMPIFakeCalls::testSome(std::span<Gem::Courtier::Consumers::GMPIRequest> request
         world_->ranks_.at(static_cast<std::size_t>(rank_)),
         GMPIFakeWorld::GFault::TEST_SOME
     );
+    if(not requests.empty()) {
+        ++world_->ranks_.at(static_cast<std::size_t>(rank_)).counts.testSomes;
+    }
     std::size_t n_completed = 0;
     for(auto &handle : requests) {
         if(handle == Gem::Courtier::Consumers::GMPIRequest::NONE) {
