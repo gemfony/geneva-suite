@@ -1581,8 +1581,9 @@ TEST_CASE("Wire send-once: a cache miss is resolved by the fetch fallback", "[fl
         s_idonly = a.toString(mode::GEM_BINARY);     // second send: id-only
     }
 
-    // A late-joining / reconnected worker with an EMPTY cache receives the id-only item. Its fetch
-    // callback pulls the blob from the server registry (the REQUEST_BLOB/SEND_BLOB round trip).
+    // A worker with an EMPTY cache receives the id-only item. A fetch callback (the hook of
+    // GWireSerializationContext; courtier's clients install none) pulls the blob from the server
+    // registry.
     GWireBlobRegistry worker_reg;
     std::size_t fetch_calls = 0;
     GWireSerializationContext worker_ctx;

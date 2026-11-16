@@ -59,8 +59,10 @@ namespace Gem::Courtier {
  * The transport-side BLOB SEND-ONCE machinery. When a using library ships work items that each carry a
  * copy of the same large, immutable payload, re-sending that payload with every item dominates the wire
  * size. This header provides the TRANSPORT-AGNOSTIC plumbing that lets a serializer send each distinct
- * payload once and reference it by a content id thereafter, with a mandatory cache-miss -> fetch fallback
- * for networked transports (reconnect / late-joining workers).
+ * payload once and reference it by a content id thereafter. Delivery on a connection is ordered, so a
+ * client always has the blob before it meets its id; a client that cannot read an item (a blob it
+ * lacks) says so (UNREADABLE), and the server forgets what that peer holds and sends its blobs in full
+ * again.
  *
  * It lives in the courtier (consumer/session) layer so all transports -- websocket, MPI --
  * inherit it once, and it knows NOTHING about what a blob contains: a blob is an OPAQUE serialized string
@@ -149,15 +151,17 @@ struct GWireBlobIdHash {
  * (server) or held by a client (worker). It serves two roles with one store:
  *
  *  - BLOB STORE (both sides): id -> serialized blob. A worker caches every blob it has received
- *    so a later id-only reference resolves locally; a server caches every blob it has sent so it can
- *    answer a worker's cache-miss fetch.
+ *    so a later id-only reference resolves locally; a server caches every blob it has sent. (A server
+ *    still answers a BLOB_REQUEST from its store; the clients of courtier send none.)
  *  - PER-PEER ACK TRACKING (server side): for each connected peer, the set of blob ids that peer is
  *    known to already hold, so the server sends a given blob to a given peer exactly once and references
  *    it by id afterwards. A peer's set is dropped when its session ends (forgetPeer) -- on reconnect the
- *    peer starts empty, and the miss -> fetch fallback transparently re-sends what it needs.
+ *    peer starts empty and is sent every blob in full again; so is a peer that reports an item it
+ *    could not read.
  *
  * A capacity bound (LRU over the blob store) keeps a long run with many evolving blobs from growing
- * without limit; eviction never breaks correctness because a missing blob is re-fetched on demand.
+ * without limit; eviction never breaks correctness: a source puts a blob back from the item that
+ * carries it, and a client keeps every blob it has received.
  */
 class GWireBlobRegistry
     : public Gem::Common::Concurrency::GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash> {
@@ -206,10 +210,11 @@ struct GWireSerializationContext {
     /// reference and no way to fetch it back. True on the server/source, false on a worker.
     bool may_intern_blobs = true;
 
-    /** @brief Worker-side cache-miss fetch: given a blob id whose content is absent locally, performs the
-     *  blocking round trip to the server (REQUEST_BLOB -> SEND_BLOB) and returns the serialized blob on
-     *  success, or a std::unexpected carrying the failure reason (timeout, transport error, malformed/empty
-     *  reply). The value is always a non-empty blob. Null on the server side (which never fetches). */
+    /** @brief Worker-side cache-miss fetch: given a blob id whose content is absent locally, returns the
+     *  serialized blob, or a std::unexpected carrying the failure reason. The value is always a
+     *  non-empty blob. Null on the server side, and in courtier's clients, which rely on ordered
+     *  delivery instead (a miss throws, and the client reports the item as unreadable); a hook for a
+     *  transport that can fetch. */
     std::function<std::expected<std::string, std::string>(const GWireBlobId &)> fetch_blob;
 };
 
