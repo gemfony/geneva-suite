@@ -169,6 +169,11 @@ public:
         send_delay_us_.store(delay.count());
     }
 
+    /** @brief Every receive() takes @p delay before it returns (0: none), as a large message does */
+    void delayReceives(std::chrono::microseconds delay) {
+        receive_delay_us_.store(delay.count());
+    }
+
     /** @brief @param rank A rank @return What happened on it so far */
     GCounts counts(int rank) const {
         const std::scoped_lock lock(mutex_);
@@ -282,6 +287,7 @@ private:
     std::uint64_t next_request_ = 1;             ///< The id of the next send
     std::vector<std::string> violations_;        ///< What went against the contract
     std::atomic<std::chrono::microseconds::rep> send_delay_us_{0}; ///< See delaySends()
+    std::atomic<std::chrono::microseconds::rep> receive_delay_us_{0}; ///< See delayReceives()
 };
 
 /******************************************************************************/
@@ -321,6 +327,9 @@ inline std::optional<Gem::Courtier::Consumers::GMPIProbed> GMPIFakeCalls::probe(
 }
 
 inline std::string GMPIFakeCalls::receive(const Gem::Courtier::Consumers::GMPIProbed &probed) {
+    if(const auto delay = world_->receive_delay_us_.load(); delay > 0) {
+        std::this_thread::sleep_for(std::chrono::microseconds(delay));
+    }
     const GMPIFakeWorld::GCallGuard guard(*world_, rank_);
     const std::scoped_lock lock(world_->mutex_);
     auto &me = world_->ranks_.at(static_cast<std::size_t>(rank_));

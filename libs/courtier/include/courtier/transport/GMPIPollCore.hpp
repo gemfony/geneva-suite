@@ -82,6 +82,9 @@ struct GMPIPollCounts {
     std::uint64_t sent = 0;     ///< Sends started
     std::uint64_t polls = 0;    ///< Links of the chain that ran
     std::uint64_t givenUp = 0;  ///< Sends given up by shutdown(), because they had not completed
+    /// How long the poll was inside receives (a blocking MPI_Recv of a message the probe reported)
+    std::chrono::nanoseconds receiving{0};
+    std::chrono::nanoseconds longestReceive{0}; ///< The longest of them
 };
 
 /******************************************************************************/
@@ -289,6 +292,8 @@ private:
     std::atomic<std::uint64_t> n_sent_{0};     ///< Sends started
     std::atomic<std::uint64_t> n_polls_{0};    ///< Links that ran
     std::atomic<std::uint64_t> n_given_up_{0}; ///< Sends given up
+    std::atomic<std::int64_t> receiving_ns_{0};       ///< Time inside receives, in ns
+    std::atomic<std::int64_t> longest_receive_ns_{0}; ///< The longest receive, in ns
 
     // Touched by the chain only (on its strand), and by shutdown() when no handler runs:
     std::chrono::microseconds pause_;                   ///< The next pause

@@ -353,7 +353,11 @@ std::size_t GMPIPollCore::shutdown() {
 
     const GMPIPollCounts counts = this->counts();
     glogger << "GMPIPollCore (rank " << calls_->rank() << "): " << counts.received
-            << " messages received, " << counts.sent << " sent, " << counts.polls << " polls"
+            << " messages received, " << counts.sent << " sent, " << counts.polls << " polls, "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(counts.receiving).count()
+            << " ms in receives (longest "
+            << std::chrono::duration_cast<std::chrono::microseconds>(counts.longestReceive).count()
+            << " us)"
             << (n_given_up > 0 ? ", " + std::to_string(n_given_up) + " sends given up"
                                : std::string{})
             << '\n'
@@ -381,7 +385,10 @@ GMPIPollCounts GMPIPollCore::counts() const noexcept {
         .received = n_received_.load(std::memory_order_relaxed),
         .sent = n_sent_.load(std::memory_order_relaxed),
         .polls = n_polls_.load(std::memory_order_relaxed),
-        .givenUp = n_given_up_.load(std::memory_order_relaxed)
+        .givenUp = n_given_up_.load(std::memory_order_relaxed),
+        .receiving = std::chrono::nanoseconds(receiving_ns_.load(std::memory_order_relaxed)),
+        .longestReceive =
+            std::chrono::nanoseconds(longest_receive_ns_.load(std::memory_order_relaxed))
     };
 }
 
@@ -482,7 +489,16 @@ bool GMPIPollCore::receiveOne_() {
     if(not probed) {
         return false;
     }
+    const auto receive_began = std::chrono::steady_clock::now();
     std::string message = calls_->receive(*probed);
+    const std::int64_t took = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                  std::chrono::steady_clock::now() - receive_began
+    )
+                                  .count();
+    receiving_ns_.fetch_add(took, std::memory_order_relaxed);
+    if(took > longest_receive_ns_.load(std::memory_order_relaxed)) {
+        longest_receive_ns_.store(took, std::memory_order_relaxed); // only the chain writes it
+    }
     n_received_.fetch_add(1, std::memory_order_relaxed);
 
     if(this->validRank_(probed->source) && receivers_[static_cast<std::size_t>(probed->source)]) {

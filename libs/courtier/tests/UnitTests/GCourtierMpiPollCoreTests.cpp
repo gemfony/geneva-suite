@@ -861,3 +861,23 @@ TEST_CASE("A send under way keeps the pause short while every owner is busy") {
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
 }
+
+/******************************************************************************/
+TEST_CASE("The poll counts the time it spends in receives") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    world->delayReceives(5ms);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
+    auto receiver = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(0, receiver);
+    for(int i = 0; i < 3; ++i) {
+        world->inject(0, 1, 50, std::to_string(i));
+    }
+    core->start();
+    REQUIRE(eventually([&] { return receiver->count() == 3; }, 5s));
+    const auto counts = core->counts();
+    CHECK(counts.receiving >= 15ms);
+    CHECK(counts.longestReceive >= 5ms);
+    CHECK(counts.longestReceive <= counts.receiving);
+    std::ignore = finish(core, {&threads});
+}
