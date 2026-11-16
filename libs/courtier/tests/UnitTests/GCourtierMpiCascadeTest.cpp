@@ -336,6 +336,8 @@ public:
     /** @brief Counts, and with collective a barrier */
     void tearDown(MPI_Comm group) override {
         ++tear_downs_;
+        std::println("member {} left its rounds after {} rounds", report_.rank(), rounds_);
+        std::ignore = std::fflush(stdout);
         this->barrier_(group);
     }
     /** @brief Receives a number, squares it, sends the square back */
@@ -481,6 +483,11 @@ constexpr int ANSWERTAG = 8;
  */
 class ProbingMember final : public Courtier::GMPIGroupMemberI {
 public:
+    /** @brief Says that the member has left its rounds */
+    void tearDown([[maybe_unused]] MPI_Comm group) override {
+        std::println("member {} left its rounds after {} rounds", launcherRank(), rounds_);
+        std::ignore = std::fflush(stdout);
+    }
     /** @brief Waits for the lead's number, answers with its multiple */
     void serveRound(MPI_Comm group) override {
         const MPI_Status status = Courtier::probePolled(

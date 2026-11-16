@@ -289,13 +289,15 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# (../CheckJobEnds.cmake: exit code, texts, a bound of 60 s)
 	#
 	#     geneva_courtier_mpi_cascade_test(<entry> <ranks> <size> <zero|nonzero> <scenario>
-	#                                      [NO_LAUNCHER] [ARGS <arguments>] [EXPECT <texts>])
+	#                                      [NO_LAUNCHER] [ARGS <arguments>] [EXPECT <texts>]
+	#                                      [REFUSE <texts>])
 	#
-	# Each entry runs in a directory of its own below the build directory. An entry that must end
-	# with 0 under mpirun also expects the watch's verdict "OK: rank <r>:" of every rank. NO_LAUNCHER
+	# Each entry runs in a directory of its own below the build directory. Every entry refuses
+	# "FAIL:" (the driver's rule) and the texts of REFUSE, and expects those of EXPECT; one that must
+	# end with 0 under mpirun also expects the watch's verdict "OK: rank <r>:" of every rank. NO_LAUNCHER
 	# starts the program directly, as one process.
 	FUNCTION(geneva_courtier_mpi_cascade_test entry ranks size expect_exit scenario)
-		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 5 arg "NO_LAUNCHER" "" "ARGS;EXPECT")
+		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 5 arg "NO_LAUNCHER" "" "ARGS;EXPECT;REFUSE")
 		SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/cascade/${entry})
 		FILE(MAKE_DIRECTORY ${_dir})
 		SET(_program $<TARGET_FILE:GCourtierMpiCascadeTest> --scenario=${scenario} ${arg_ARGS})
@@ -317,6 +319,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					"-DCOMMAND=${_command}"
 					-DEXPECT_EXIT=${expect_exit}
 					"-DEXPECT=${_expect}"
+					"-DREFUSE=${arg_REFUSE}"
 					-DLIMIT=60
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
 				WORKING_DIRECTORY ${_dir})
@@ -363,11 +366,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# A lead whose role was not confirmed ends the job at its first round() or lead(), also when the
 	# round runs in a client's item processor, after it has released its members
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmed 3 M nonzero role-not-confirmed
-		EXPECT "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
+		EXPECT "member 1 left its rounds" "member 2 left its rounds" "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoleNotConfirmedLead 3 M nonzero role-not-confirmed-lead
-		EXPECT "lead(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
+		EXPECT "member 1 left its rounds" "member 2 left its rounds" "lead(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocketNotConfirmed 3 M nonzero websocket-not-confirmed
-		EXPECT "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
+		EXPECT "member 1 left its rounds" "member 2 left its rounds" "round(): the role of a lead was not confirmed with requireRole()" "The job is ended (MPI_Abort)")
 	# A lead that never confirms its role and never uses the cascade ends the job in the destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeNeverUsed 3 M nonzero never-used
 		EXPECT "requireRole()" "The job is ended (MPI_Abort)")

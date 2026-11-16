@@ -295,6 +295,7 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
         this->guarded_("serveRound()", [&] { member.serveRound(group_); });
     }
     this->guarded_("tearDown()", [&] { member.tearDown(group_); });
+    this->leaveTogether_();
     served_ = true;
     return 0;
 }
@@ -374,7 +375,29 @@ void GMPICascade::releaseLocked_() noexcept {
     if(lifecycle_ != nullptr) {
         this->guarded_("tearDown()", [this] { lifecycle_->tearDown(group_); });
     }
+    this->leaveTogether_();
 }
+
+/******************************************************************************/
+/**
+ * @brief The last step of a release, on the lead and on every member after its tearDown(): a
+ * barrier on the status communicator. So a release is complete only once every member has left
+ * its rounds and torn down -- also when the lead ends the job right after it (a lead whose role was
+ * not confirmed), no member is still serving when the job ends. An MPI error ends the job.
+ */
+void GMPICascade::leaveTogether_() noexcept {
+    // NOLINTBEGIN(clang-analyzer-optin.mpi.MPI-Checker): waitStarted_() completes the request; the
+    // checker does not know it
+    MPI_Request request = MPI_REQUEST_NULL;
+    this->waitStarted_(
+        MPI_Ibarrier(status_, &request),
+        request,
+        config_.pauseMin,
+        config_.pauseMax,
+        "the end of the group's rounds"
+    );
+}
+// NOLINTEND(clang-analyzer-optin.mpi.MPI-Checker)
 
 /******************************************************************************/
 /**

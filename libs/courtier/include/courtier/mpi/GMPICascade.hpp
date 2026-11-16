@@ -140,7 +140,8 @@ public:
  * <b>The rounds.</b> round() announces a round to the members (a "go" broadcast on a communicator
  * of the group's own) and calls the lead's half; every member's serve() waits for the
  * announcement, polled without waiting busily, and calls GMPIGroupMemberI::serveRound(). release()
- * announces the stop, after which serve() returns. A lead that serves a client of courtier calls
+ * announces the stop; lead and members tear down, and release() returns once every member has
+ * left serve() (a barrier), so that nothing of the group runs any more. A lead that serves a client of courtier calls
  * round() from the client's item processor (setItemProcessor() of the client classes), once per
  * item.
  *
@@ -238,6 +239,8 @@ private:
         std::chrono::microseconds,
         std::string_view
     ) noexcept;
+    /** @brief The barrier that ends a release, on the lead and its members */
+    void leaveTogether_() noexcept;
     /** @brief Broadcasts a command to the members on the status communicator */
     void announce_(int);
     /** @brief MPI_Ibcast from rank 0, completed polled; an MPI error ends the job */

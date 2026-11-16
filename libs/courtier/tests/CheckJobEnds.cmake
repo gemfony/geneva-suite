@@ -37,9 +37,12 @@
 #                                dropped)
 #   -DEXPECT_EXIT=zero|nonzero   the exit code the job must end with
 #   -DEXPECT=<list of texts>     texts the output must contain (optional)
-#   -DREFUSE=<list of texts>     texts the output must not contain (optional); a job that must end
-#                                with 0 also refuses "FAIL:"
+#   -DREFUSE=<list of texts>     further texts the output must not contain (optional)
 #   -DLIMIT=<seconds>            the bound
+#
+# One rule for both kinds of job: a program under this driver prints "FAIL:" only for what is
+# wrong, so the output of every job -- one that must end with 0 and one that must end otherwise --
+# must not contain "FAIL:". What a job must say is in EXPECT.
 #
 # The command runs under coreutils' timeout where it exists: at the bound the launcher gets
 # SIGTERM, so that it ends its ranks rather than leaving them behind. Every line of the verdict
@@ -84,10 +87,10 @@ if(EXPECT_EXIT STREQUAL "zero")
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "FAIL: the job ended with the exit code ${_rc}, not 0")
     endif()
-    list(APPEND REFUSE "FAIL:")
 elseif(_rc EQUAL 0)
     message(FATAL_ERROR "FAIL: the job ended with the exit code 0")
 endif()
+list(APPEND REFUSE "FAIL:")
 foreach(_text IN LISTS EXPECT)
     string(FIND "${_out}" "${_text}" _at)
     if(_at EQUAL -1)
