@@ -1919,3 +1919,65 @@ TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[p
     CHECK(root.contains("legend->AddEntry((TObject *)nullptr, \"and 3 more series\", \"\");"));
     CHECK(root.contains("legend entries: 7"));
 }
+
+/******************************************************************************/
+// ROOT's own placement of a 2-d legend does not avoid data; FREEST puts it in the corner that
+// covers the fewest of the pad's points and line samples, in every backend.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
+TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[plotting][overlay][legend]") {
+    SECTION("the freest corner of points and a curve") {
+        // A cloud along the top and a curve through the lower right: the lower right, the first
+        // preference, is covered, the middle of the right side, the second, is free.
+        std::vector<std::pair<double, double>> cloud;
+        for(int i = 0; i <= 40; ++i) {
+            cloud.emplace_back(i, 8. + 0.05 * (i % 7));
+        }
+        const std::vector<std::vector<std::pair<double, double>>> curve{{{20., 0.}, {40., 0.5}}};
+        CHECK(freestLegendCorner(curve, {cloud}, 2) == legendPosition::CENTER_RIGHT);
+        // A point in the lower left instead of the curve: the lower right is free.
+        auto with_point = cloud;
+        with_point.emplace_back(0., 0.);
+        CHECK(freestLegendCorner({}, {with_point}, 2) == legendPosition::BOTTOM_RIGHT);
+        // Covered everywhere: the corner that covers the fewest.
+        std::vector<std::pair<double, double>> everywhere;
+        for(int i = 0; i <= 40; ++i) {
+            for(int j = 0; j <= 40; ++j) {
+                if(not(i > 30 and j > 30)) { // the top right is left a little freer
+                    everywhere.emplace_back(i, j);
+                }
+            }
+        }
+        CHECK(freestLegendCorner({}, {everywhere}, 2) == legendPosition::TOP_RIGHT);
+    }
+
+    SECTION("every backend places a FREEST legend in that corner; a 3-d pad keeps its band") {
+        auto points = std::make_shared<GGraph2D>();
+        points->setPlotMode(graphPlotMode::SCATTER);
+        points->setPlotLabel("points");
+        auto line = std::make_shared<GGraph2D>();
+        line->setPlotLabel("a line");
+        for(int i = 0; i <= 40; ++i) {
+            (*points) & std::tuple<double, double>(i, 8. + 0.05 * (i % 7));
+        }
+        (*line) & std::tuple<double, double>(20., 0.);
+        (*line) & std::tuple<double, double>(40., 0.5);
+        points->registerSecondaryPlotter(line);
+        points->setLegendPosition(legendPosition::FREEST);
+        CHECK(points->getLegendPosition() == legendPosition::FREEST);
+        CHECK(points->legendPlace() == legendPosition::CENTER_RIGHT);
+        CHECK(render(points, plotBackend::ROOT).contains("new TLegend(0.56, 0.42, 0.88, 0.58);"));
+        CHECK(render(points, plotBackend::MATPLOTLIB).contains("], loc=\"center right\")"));
+        CHECK(render(points, plotBackend::OCTAVE).contains("legend('location', 'east');"));
+        CHECK(render(points, plotBackend::GNUPLOT).contains("set key right center"));
+        CHECK(points->plotSpec().toJson().contains("\"legend\": \"freest\""));
+
+        auto map = smallSurface(surfaceProjection::NONE);
+        map->setPlotLabel("a surface");
+        auto more = smallSurface(surfaceProjection::NONE);
+        more->setPlotLabel("another");
+        map->registerSecondaryPlotter(more);
+        map->setLegendPosition(legendPosition::FREEST);
+        CHECK(map->legendPlace() == legendPosition::AUTO);
+        CHECK(render(map, plotBackend::ROOT).contains("// a 3-d pad: the band at the top left"));
+    }
+}

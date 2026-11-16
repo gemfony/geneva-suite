@@ -162,6 +162,7 @@ std::string gnuplotKeyPosition(legendPosition position) {
         case legendPosition::BOTTOM_RIGHT: return "bottom right";
         case legendPosition::CENTER_RIGHT: return "right center";
         case legendPosition::AUTO:         break;
+        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -326,7 +327,7 @@ void emitMultiplot(
         // command.
         const auto entries = p->legendEntries();
         // AUTO on a 3-d pad is the upper left, as in the other backends.
-        std::string key_position = gnuplotKeyPosition(p->getLegendPosition());
+        std::string key_position = gnuplotKeyPosition(p->legendPlace());
         if(key_position.empty() and three_d) {
             key_position = "top left";
         }

@@ -221,12 +221,17 @@ public:
      * (LEGENDTEXTSIZE); labels too long for the box are drawn smaller, down to LEGENDMINTEXTSIZE,
      * and where the widest still does not fit, the box grows away from its side of the pad, at
      * most to the pad's frame (on a 3-d pad: left of the palette); a label longer still is
-     * shortened at its end and marked with "...". AUTO is ROOT's own placement on a 2-d pad and
-     * the band at the top left on a 3-d pad (legendBox3D()): it reaches down to 0.70 of the pad
-     * for five entries, six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of
-     * LEGEND3DMAXROWS rows says how many series are not shown. The other backends name the
-     * corner, and on a 3-d pad AUTO is the upper left.
-     * @param position A corner, or AUTO (the default)
+     * shortened at its end and marked with "...". AUTO is ROOT's own placement on a 2-d pad
+     * (TPad::PlaceBox(), which looks for room among the drawn objects but does not guarantee to
+     * avoid data: a dense marker plot can lie under it), and the band at the top left on a 3-d
+     * pad (legendBox3D()). FREEST puts a 2-d pad's legend in the corner that covers the fewest of
+     * its data points and line samples (freestLegendCorner()), in every backend -- the freest, not
+     * necessarily a free one, measured for the box before it grows for a long label; on a 3-d
+     * pad it is AUTO. The band of a 3-d pad reaches down to 0.70 of the pad for five entries,
+     * six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of LEGEND3DMAXROWS
+     * rows says how many series are not shown. The other backends name the corner (AUTO on a 2-d
+     * pad: their own placement; matplotlib's avoids data), and on a 3-d pad AUTO is the upper left.
+     * @param position A corner, FREEST, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);
     /**
@@ -234,6 +239,13 @@ public:
      * @return The legend position
      */
     [[nodiscard]] legendPosition getLegendPosition() const;
+    /**
+     * @brief Where the legend of this (primary) plotter's pad lies, as the backends place it: the
+     * position that was set, with FREEST resolved from the pad's data (freestLegendCorner()); on a
+     * 3-d pad FREEST is AUTO.
+     * @return The legend position, never FREEST
+     */
+    [[nodiscard]] legendPosition legendPlace() const;
     /**
      * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
      * follows it

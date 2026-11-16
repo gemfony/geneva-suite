@@ -191,7 +191,9 @@ inline std::string rootLegendOption(legendSample sample) {
  * gave it hundreds of cells) and shows line, marker and fill for each.
  *
  * AUTO is ROOT's own placement on a 2-d pad, as BuildLegend() makes it: a box of 0.3 x 0.21 of the
- * pad, put where it covers the least at painting time, with its text sized to the box. On a 3-d
+ * pad, put by TPad::PlaceBox() at painting time where the drawn objects seem to leave room, with
+ * its text sized to the box -- it does not guarantee to avoid data (FREEST, resolved before, does
+ * from the data). On a 3-d
  * pad ROOT's placement sees only the pad's 2-d grid and put the box over the front-left axis;
  * there AUTO is the band at the top left (legendBox3D()). A corner puts the box of legendBox()
  * there.

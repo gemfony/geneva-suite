@@ -32,11 +32,14 @@
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
+#include <cmath>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection, legendPosition
@@ -255,6 +258,7 @@ struct GPlotSpec {
                 case legendPosition::BOTTOM_LEFT:  out += "bottom_left"; break;
                 case legendPosition::BOTTOM_RIGHT: out += "bottom_right"; break;
                 case legendPosition::CENTER_RIGHT: out += "center_right"; break;
+                case legendPosition::FREEST:       out += "freest"; break;
             }
             out += "\"";
         }
@@ -533,6 +537,96 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
     constexpr double BOTTOM = 0.70; // the lowest the band reaches: five entries
     const double height = (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
     return {X1, std::max(BOTTOM, TOP - height), X2, TOP};
+}
+
+/**
+ * The place of a 2-d pad's legend that covers the least of its data: of the boxes legendBox() gives
+ * the lower right, the middle of the right side, the top left, the lower left and the top right
+ * (in this order of preference), the one with the fewest samples of the data inside. A curve is
+ * sampled along its straight segments, a point cloud by its points; the data are placed in the pad
+ * as ROOT frames them (the range of the data widened by a twentieth on each side, by a factor of
+ * 1.1 on a logarithmic axis, inside margins of a tenth). It is the freest corner, not a free one:
+ * where every corner covers data, the legend covers the fewest.
+ *
+ * @param curves Series drawn with a line, each its points in drawing order
+ * @param points Series drawn as markers alone, each its points
+ * @param n_series The number of entries of the legend
+ * @param x_log Whether the x axis is logarithmic
+ * @param y_log Whether the y axis is logarithmic
+ * @return The freest of the five places
+ */
+[[nodiscard]] inline legendPosition freestLegendCorner(
+    const std::vector<std::vector<std::pair<double, double>>> &curves,
+    const std::vector<std::vector<std::pair<double, double>>> &points,
+    std::size_t n_series,
+    bool x_log = false,
+    bool y_log = false
+) {
+    const auto axis = [](double v, bool log) { return log ? std::log10(v) : v; };
+    double x_lo = std::numeric_limits<double>::max();
+    double x_hi = std::numeric_limits<double>::lowest();
+    double y_lo = x_lo;
+    double y_hi = x_hi;
+    for(const auto *set : {&curves, &points}) {
+        for(const auto &series : *set) {
+            for(const auto &[x, y] : series) {
+                if((x_log and x <= 0.) or (y_log and y <= 0.)) {
+                    continue; // not shown on a logarithmic axis
+                }
+                x_lo = std::min(x_lo, axis(x, x_log));
+                x_hi = std::max(x_hi, axis(x, x_log));
+                y_lo = std::min(y_lo, axis(y, y_log));
+                y_hi = std::max(y_hi, axis(y, y_log));
+            }
+        }
+    }
+    const auto to_pad = [](double v, double lo, double hi, bool log) {
+        const double width = hi > lo ? hi - lo : 1.;
+        const double widen = log ? std::log10(1.1) : 0.05 * width;
+        return 0.1 + (0.8 * (v - (lo - widen)) / (width + (2. * widen)));
+    };
+    constexpr int SAMPLES = 200;
+    std::vector<std::pair<double, double>> samples;
+    const auto place = [&](double x, double y) {
+        if((x_log and x <= 0.) or (y_log and y <= 0.)) {
+            return;
+        }
+        samples.emplace_back(
+            to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log)
+        );
+    };
+    for(const auto &curve : curves) {
+        for(std::size_t i = 0; i + 1 < curve.size(); i++) {
+            for(int k = 0; k <= SAMPLES; k++) {
+                const double t = static_cast<double>(k) / SAMPLES;
+                place(curve[i].first + (t * (curve[i + 1].first - curve[i].first)),
+                      curve[i].second + (t * (curve[i + 1].second - curve[i].second)));
+            }
+        }
+    }
+    for(const auto &cloud : points) {
+        for(const auto &[x, y] : cloud) {
+            place(x, y);
+        }
+    }
+    legendPosition best = legendPosition::BOTTOM_RIGHT;
+    std::size_t fewest = std::numeric_limits<std::size_t>::max();
+    for(const auto corner :
+        {legendPosition::BOTTOM_RIGHT,
+         legendPosition::CENTER_RIGHT,
+         legendPosition::TOP_LEFT,
+         legendPosition::BOTTOM_LEFT,
+         legendPosition::TOP_RIGHT}) {
+        const auto [x1, y1, x2, y2] = legendBox(corner, n_series);
+        const auto covered = static_cast<std::size_t>(std::ranges::count_if(samples, [&](const auto &p) {
+            return p.first >= x1 and p.first <= x2 and p.second >= y1 and p.second <= y2;
+        }));
+        if(covered < fewest) {
+            fewest = covered;
+            best = corner;
+        }
+    }
+    return best;
 }
 
 /** The most rows the band of a 3-d pad shows (legendBox3D()); more series are summed up in the last */

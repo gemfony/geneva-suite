@@ -250,72 +250,6 @@ std::optional<legendPosition> legendFromName(const std::string &name) {
 
 /******************************************************************************/
 /**
- * Chooses the place of a pad's legend where it covers the least of its curves. Speed-up curves
- * rise from the lower left and flatten under the ideal line, so the lower right is usually free
- * and is preferred; but a consumer that stays far below the others runs along the bottom, and then
- * the middle of the right side or a corner is. The curves are sampled along their straight segments and placed in the pad
- * as ROOT frames them (the range of the data, widened by a twentieth on each side, inside margins
- * of a tenth); the legend's box is dietrich's (legendBox()).
- *
- * @param curves The curves of the pad, each as its points in order of the evaluation time
- * @param n_series The number of entries of the legend
- * @return The corner with the fewest samples of a curve inside the legend's box
- */
-legendPosition freestCorner(
-    const std::vector<std::vector<std::pair<double, double>>> &curves,
-    std::size_t n_series
-) {
-    double x_lo = std::numeric_limits<double>::max();
-    double x_hi = std::numeric_limits<double>::lowest();
-    double y_lo = x_lo;
-    double y_hi = x_hi;
-    for(const auto &curve : curves) {
-        for(const auto &[x, y] : curve) {
-            x_lo = std::min(x_lo, x);
-            x_hi = std::max(x_hi, x);
-            y_lo = std::min(y_lo, y);
-            y_hi = std::max(y_hi, y);
-        }
-    }
-    const auto to_pad = [](double v, double lo, double hi) {
-        const double width = hi > lo ? hi - lo : 1.;
-        return 0.1 + (0.8 * (v - (lo - (0.05 * width))) / (1.1 * width));
-    };
-    constexpr int SAMPLES = 200;
-    std::vector<std::pair<double, double>> samples;
-    for(const auto &curve : curves) {
-        for(std::size_t i = 0; i + 1 < curve.size(); i++) {
-            for(int k = 0; k <= SAMPLES; k++) {
-                const double t = static_cast<double>(k) / SAMPLES;
-                const double x = curve[i].first + (t * (curve[i + 1].first - curve[i].first));
-                const double y = curve[i].second + (t * (curve[i + 1].second - curve[i].second));
-                samples.emplace_back(to_pad(x, x_lo, x_hi), to_pad(y, y_lo, y_hi));
-            }
-        }
-    }
-    legendPosition best = legendPosition::BOTTOM_RIGHT;
-    std::size_t fewest = std::numeric_limits<std::size_t>::max();
-    for(const auto corner :
-        {legendPosition::BOTTOM_RIGHT,
-         legendPosition::CENTER_RIGHT,
-         legendPosition::TOP_LEFT,
-         legendPosition::BOTTOM_LEFT,
-         legendPosition::TOP_RIGHT}) {
-        const auto [x1, y1, x2, y2] = Gem::Dietrich::legendBox(corner, n_series);
-        const auto covered =
-            static_cast<std::size_t>(std::ranges::count_if(samples, [&](const auto &p) {
-                return p.first >= x1 and p.first <= x2 and p.second >= y1 and p.second <= y2;
-            }));
-        if(covered < fewest) {
-            fewest = covered;
-            best = corner;
-        }
-    }
-    return best;
-}
-
-/******************************************************************************/
-/**
  * Declares one pad of the figure: a series per label, with error bars, and the ideal speed-up as a
  * line over the range of the evaluation times shown. All series of a pad are of the same kind
  * (dietrich overlays only those), so the ideal line is a graph with error bars of zero. Every
@@ -355,7 +289,11 @@ void declarePad(
     if(ideal_line) {
         curves.push_back({{shortest, ideal}, {longest, ideal}});
     }
-    const legendPosition legend = corner.value_or(freestCorner(curves, curves.size()));
+    // Without a chosen corner: the one that covers the least of the curves. Speed-up curves rise
+    // from the lower left and flatten under the ideal line, so the lower right, which the library
+    // prefers, is usually free; a consumer that stays far below the others runs along the bottom,
+    // and then the middle of the right side or a corner is.
+    const legendPosition legend = corner.value_or(Gem::Dietrich::freestLegendCorner(curves, {}, curves.size()));
 
     std::optional<GDataLog::SeriesId> primary;
     const auto declare = [&](const std::string &name,

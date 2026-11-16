@@ -338,6 +338,48 @@ legendPosition GBasePlotter::getLegendPosition() const {
 }
 
 /**
+ * Where the legend of this pad lies, as the backends place it: FREEST is resolved from the data of
+ * the pad's series -- those drawn with a line as curves, the others as points, each by its x and y
+ * values -- into the corner that covers the fewest of them; on a 3-d pad it is AUTO.
+ *
+ * @return The legend position, never FREEST
+ */
+legendPosition GBasePlotter::legendPlace() const {
+    if(legend_position_ != legendPosition::FREEST) {
+        return legend_position_;
+    }
+    if(isThreeDimensional(this->plotSpec())) {
+        return legendPosition::AUTO;
+    }
+    std::vector<std::vector<std::pair<double, double>>> curves;
+    std::vector<std::vector<std::pair<double, double>>> points;
+    const auto value = [](const GPlotColumn &c, std::size_t i) {
+        return std::visit([i](const auto *v) { return static_cast<double>((*v)[i]); }, c);
+    };
+    const auto add = [&](const GBasePlotter &p) {
+        const auto cols = p.dataColumns();
+        if(cols.size() < 2) {
+            return; // nothing to place (a 1-d histogram, a function)
+        }
+        // x and y: a graph with errors stores (x, ex, y, ey)
+        const std::size_t y_col = p.plotSpec().kind == plotKind::graph_2d_err ? 2 : 1;
+        const std::size_t n = std::visit([](const auto *v) { return v->size(); }, cols[0]);
+        std::vector<std::pair<double, double>> series;
+        for(std::size_t i = 0; i < n; ++i) {
+            series.emplace_back(value(cols[0], i), value(cols[y_col], i));
+        }
+        (p.drawStyle().line ? curves : points).push_back(std::move(series));
+    };
+    add(*this);
+    for(const auto &sp : secondary_plotter_) {
+        add(*sp);
+    }
+    return freestLegendCorner(
+        curves, points, std::max<std::size_t>(1, legendEntries().size()), x_axis_logarithmic_, y_axis_logarithmic_
+    );
+}
+
+/**
  * Sets the width of the line this plotter draws (2-d graphs); its legend sample follows it.
  *
  * @param line_width The width in the backend's units (0: the backend's default)
@@ -821,13 +863,13 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
             root_entries.push_back({object, e.label, e.sample, e.series, e.line_width});
         }
         emitRootOverlayFrameAndLegend(
-            footer_data, indent, legend_position_, root_entries, isThreeDimensional(this->plotSpec())
+            footer_data, indent, legendPlace(), root_entries, isThreeDimensional(this->plotSpec())
         );
     }
     // The number of rows ROOT draws of the description (the band of a 3-d pad shows at most
     // LEGEND3DMAXROWS), for a reader of the script that checks what ROOT drew (the validity test
     // of the plotting library).
-    const bool band = legend_position_ == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
+    const bool band = legendPlace() == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
     footer_data << indent << "// legend entries: "
                 << (band ? std::min(entries.size(), LEGEND3DMAXROWS) : entries.size()) << '\n';
     // A pad title set apart from the first series' label replaces that label as the title, once

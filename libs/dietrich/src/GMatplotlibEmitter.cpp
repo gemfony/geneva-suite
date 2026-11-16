@@ -119,6 +119,7 @@ std::string matplotlibLegendLocation(legendPosition position) {
         case legendPosition::BOTTOM_RIGHT: return "lower right";
         case legendPosition::CENTER_RIGHT: return "center right";
         case legendPosition::AUTO:         break;
+        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -364,7 +365,7 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
             result << "]";
             // AUTO on a 3-d Axes is the upper left: matplotlib's "best" place is computed in the
             // flat projection and put the legend over the box and the axis labels.
-            std::string location = matplotlibLegendLocation(p->getLegendPosition());
+            std::string location = matplotlibLegendLocation(p->legendPlace());
             if(location.empty() and three_d) {
                 location = "upper left";
             }

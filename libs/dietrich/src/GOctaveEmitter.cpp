@@ -120,6 +120,7 @@ std::string octaveLegendLocation(legendPosition position) {
         case legendPosition::BOTTOM_RIGHT: return "southeast";
         case legendPosition::CENTER_RIGHT: return "east";
         case legendPosition::AUTO:         break;
+        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -362,7 +363,7 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
             result << "});" << '\n';
             // AUTO on a 3-d pad is the upper left, as in the other backends (Octave's default, the
             // upper right, lies over the box).
-            std::string location = octaveLegendLocation(p->getLegendPosition());
+            std::string location = octaveLegendLocation(p->legendPlace());
             if(location.empty() and three_d) {
                 location = "northwest";
             }

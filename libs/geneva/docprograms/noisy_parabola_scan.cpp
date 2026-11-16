@@ -297,6 +297,7 @@ int main() {
     spread.plot_mode = graphPlotMode::SCATTER; // the backend-independent intent ...
     spread.drawing_args = "A*";                // ... and ROOT's own refinement of it: star markers
     spread.name = "every individual the run evaluated";
+    spread.legend = legendPosition::FREEST; // where the run's points leave room
     spread.x_label = "iteration";
     spread.y_label = "log_{10}(fitness)";
     spread.columns = {"x", "y"};
