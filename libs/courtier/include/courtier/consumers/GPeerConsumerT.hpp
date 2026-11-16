@@ -178,7 +178,10 @@ public:
      *  soon as its connection is open). Counted: a client that has died without its connection
      *  ending (its host gone without a reset, its process stopped), until the transport notices
      *  the loss -- at its idle limit if it has one (GListenerI::detectsLoss()), otherwise not
-     *  before the end of the run. getNActiveSessions() counts all sessions, the silent ones too.
+     *  before the end of the run. Such a client that connects again is counted twice until then:
+     *  a client carries no identity of its own across connections, so its new session cannot
+     *  know that it replaces another. getNActiveSessions() counts all sessions, the silent ones
+     *  too.
      *  @return The count */
     [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
         return n_connected_.load();
