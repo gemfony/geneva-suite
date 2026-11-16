@@ -206,7 +206,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and a
   second). A result a client can no longer deliver is saved (`--mpi_undeliveredDir`). The
   consumer answers `connectedClients()` (the clients that have asked for work), so the speed-up
-  benchmarks' `--waitForClients` works for MPI. A submitter whose consumer is destroyed without
+  benchmarks' `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket:
+  an MPI client has at most one request unanswered, so the item it fetches ahead is never one
+  that another idle client could have had first; a websocket client without that rule would
+  hold two items while others wait. A submitter whose consumer is destroyed without
   having been started tells its clients that the run has ended, and they end at once; so does a
   submitter whose side of a client fails (a failed MPI poll, a session that cannot be made, the end
   of its work before a close went out): no client is left waiting for a submitter that has gone.
@@ -297,7 +300,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
   does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
-  A websocket client that cannot read an item tells the server (`unreadable`), which puts back what
+  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts back what
   the client held and sends it its blobs anew; the client stays. A result that
   cannot be applied to its item marks the item as failed, and so does an item that the server
   cannot encode for a client, or whose result the client cannot encode or return (the client

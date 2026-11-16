@@ -168,7 +168,9 @@ public:
             po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
             "\t[mpi] n: how many work items a client holds at once -- the one(s) being evaluated "
             "and the next one, fetched while the current one is evaluated (1: none is fetched "
-            "ahead; how many it evaluates at once: --mpi_parallelEvaluations)"
+            "ahead; how many it evaluates at once: --mpi_parallelEvaluations). 2 by default, unlike "
+            "--beast_prefetchDepth: an MPI client has at most one request unanswered, so fetching "
+            "ahead takes no item from a client that waits"
         );
         hidden.add_options()(
             "mpi_serializationMode",

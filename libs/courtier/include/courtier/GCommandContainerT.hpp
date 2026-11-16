@@ -67,8 +67,8 @@ namespace Gem::Courtier {
  * The class is deliberately two-layered, and the layers belong to different owners:
  *
  *  - **Courtier's layer** is the frame kind (GFrameKind) and -- on a RETURN or a RESULT --
- *    the GProcessingOutcome. These are the things courtier itself acts on: dispatch, check-in, shutdown,
- *    blob fetch, reconciliation.
+ *    the GProcessingOutcome. These are the things courtier itself acts on: dispatch, check-in, an
+ *    answer that could not be read, blob fetch, reconciliation.
  *  - **The using library's layer** is an opaque numeric @c tag and, for frames that do not ship a work
  *    item, a library-defined payload (GWireProtocolT<processable_type>::payload_type). Courtier stores
  *    and relays both without ever interpreting them.
