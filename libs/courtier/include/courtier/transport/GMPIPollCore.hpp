@@ -66,6 +66,9 @@ struct GMPIPollTiming {
     std::chrono::microseconds pauseMin = GMPIPEERPOLLPAUSEMIN;
     /// The longest pause: without traffic the pause doubles up to it
     std::chrono::microseconds pauseMax = GMPIPEERPOLLPAUSEMAX;
+    /// The longest pause while the owner of every receiver that has not ended is busy
+    /// (receiverBusy()); not below pauseMax
+    std::chrono::microseconds pauseBusy = GMPIPEERPOLLPAUSEBUSY;
     /// How many messages one link of the chain receives before it lets other handlers run
     int rounds = GMPIPEERPOLLROUNDS;
     /// How long the chain waits, after the last receiver has ended, for sends to complete
@@ -130,7 +133,10 @@ public:
  * GMPIPollTiming::rounds messages through a post, so that other handlers of the executor get their
  * turn --, otherwise after a pause that grows from GMPIPollTiming::pauseMin to pauseMax. A
  * received message and a started send reset the pause, and a started send ends a pause that is
- * under way (the "kick"): the answer to a send is what the poll waits for.
+ * under way (the "kick"): the answer to a send is what the poll waits for. While the owner of every
+ * receiver that has not ended is busy (receiverBusy(); a client that evaluates), the pause grows to
+ * GMPIPollTiming::pauseBusy instead: nothing that may arrive is needed before the evaluation ends,
+ * and the end of a busy spell is a kick too.
  *
  * Where it runs is its owner's choice and makes no difference to it: on a master an io context of
  * its own with one thread (no handler of a session holds it up), on a client the client's io
@@ -196,6 +202,10 @@ public:
      *  after its last startSend(). From any thread. */
     void receiverEnded(int);
 
+    /** @brief A receiver tells that its owner has become busy, or is busy no more; on changes only,
+     *  and a receiver that ends busy says so first. From any thread. */
+    void receiverBusy(bool);
+
     /***************************************************************************/
     /** @brief Ends the poll's work and gives up the sends that have not completed. When no handler
      *  of the executors runs any more; idempotent. */
@@ -260,6 +270,7 @@ private:
     /// Sends that were started and that the chain has not taken over yet
     Gem::Common::Concurrency::GMPMCQueueT<GStartedSend, 0> started_;
     std::atomic<bool> kick_pending_{false};  ///< A kick is on its way to the strand
+    std::atomic<std::size_t> busy_receivers_{0}; ///< Receivers whose owner is busy (receiverBusy())
     std::atomic<bool> started_chain_{false}; ///< start() has been called
     std::atomic<bool> chain_ended_{false};   ///< No further link runs
     std::atomic<bool> shut_down_{false};     ///< shutdown() has run

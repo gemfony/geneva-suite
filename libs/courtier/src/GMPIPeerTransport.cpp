@@ -191,9 +191,17 @@ boost::asio::any_io_executor GMPIPeer::executor() {
 }
 
 /******************************************************************************/
-/** @param busy Whether the owner evaluates (recorded; see GPeerI::setOwnerBusy()) */
+/** @param busy Whether the owner evaluates: the poll is told of a change, while this end has not
+ *  ended (GMPIPollCore::receiverBusy()) */
 void GMPIPeer::setOwnerBusy(bool busy) {
     owner_busy_.store(busy);
+    if(busy == busy_told_ || state_ == GState::ENDED) {
+        return;
+    }
+    busy_told_ = busy;
+    if(auto core = core_.lock()) {
+        core->receiverBusy(busy);
+    }
 }
 
 /******************************************************************************/
@@ -472,6 +480,10 @@ void GMPIPeer::finish_(GPeerEnd end, GPeerClose how, std::string_view detail) {
     waiting_.clear();
     close_timer_.cancel();
     if(auto core = core_.lock()) {
+        if(busy_told_) {
+            busy_told_ = false;
+            core->receiverBusy(false); // an end that has ended is nobody's busy end
+        }
         core->receiverEnded(rank_);
     }
     if(not started) {

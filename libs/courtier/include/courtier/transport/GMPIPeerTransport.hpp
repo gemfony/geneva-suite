@@ -175,7 +175,8 @@ public:
     void abort() override;
     /** @brief The strand every handler of this end runs on (also the poll's receiver executor) */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
-    /** @brief Records whether the owner evaluates. On the strand. */
+    /** @brief Tells the poll whether the owner evaluates: while every end it receives for has a
+     *  busy owner, it looks less often. On the strand. */
     void setOwnerBusy(bool) override;
 
     /***************************************************************************/
@@ -250,6 +251,7 @@ private:
     /// The end found before start()'s work ran (abort(), a failed poll), reported when it runs
     std::optional<GEndReport> unreported_;
     std::atomic<bool> owner_busy_{false}; ///< What setOwnerBusy() was told last
+    bool busy_told_ = false;              ///< On the strand: the poll counts this end as busy
     std::atomic<bool> ended_{false};      ///< The end has ended
 };
 

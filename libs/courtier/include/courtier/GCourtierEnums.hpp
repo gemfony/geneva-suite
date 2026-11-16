@@ -280,6 +280,10 @@ constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 /// doubles up to the upper one. A received message and a started send reset it.
 constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMIN{50};
 constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMAX{1'000};
+/// The longest pause of the MPI poll while the owner of every end it receives for is busy (a client
+/// that evaluates has no use for an answer before its evaluation ends): the pause then doubles up to
+/// this instead. A started send ends the pause at once, as always.
+constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEBUSY{50'000};
 /// How many messages the MPI poll receives in one go before it lets other handlers of its
 /// executor have their turn.
 constexpr int GMPIPEERPOLLROUNDS = 16;

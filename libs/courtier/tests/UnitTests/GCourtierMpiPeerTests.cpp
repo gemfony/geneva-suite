@@ -598,3 +598,34 @@ TEST_CASE(
     CHECK(weak_role.expired());
     connector.reset();
 }
+
+/******************************************************************************/
+/**
+ * A client's end whose owner is busy makes its poll look far less often (it has no use for an
+ * answer while it evaluates); a send of the end still goes out and is looked after at once.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: a busy owner makes its poll look less often", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Master master(world);
+    Client client(world, 1);
+    master.start();
+    REQUIRE(eventually([&] { return client.role().events().size() == 1; }));
+
+    const auto looks = [&] {
+        std::this_thread::sleep_for(300ms);
+        const auto before = world->counts(1).probes;
+        std::this_thread::sleep_for(500ms);
+        return world->counts(1).probes - before;
+    };
+    const auto idle = looks();
+    boost::asio::post(client.executor(), [&client] { client.role().setOwnerBusy(true); });
+    const auto busy = looks();
+    INFO("looks in 500 ms: idle " << idle << ", busy " << busy);
+    CHECK(busy * 10 <= idle);
+
+    // The end of the run reaches a busy client all the same
+    client.role().close(GPeerClose::NORMAL);
+    REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
+    CHECK(client.role().events().back() == "closed:CLOSED_HERE:NORMAL");
+}

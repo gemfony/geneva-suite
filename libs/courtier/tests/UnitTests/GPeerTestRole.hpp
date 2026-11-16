@@ -138,6 +138,14 @@ public:
         }
     }
 
+    /** @brief Tells the peer whether this role is busy (on its executor) @param busy Whether */
+    void setOwnerBusy(bool busy) {
+        if(auto peer = peer_.lock()) {
+            const InPeerCall call;
+            peer->setOwnerBusy(busy);
+        }
+    }
+
     /** @brief @return A copy of what has been recorded */
     std::vector<std::string> events() const {
         const std::scoped_lock lock(mutex_);

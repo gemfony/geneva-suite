@@ -78,13 +78,15 @@ GMPIPollCore::GMPIPollCore(
             << "No calls to MPI were given" << '\n'
         );
     }
-    if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin || timing_.rounds < 1 ||
+    if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin ||
+       timing_.pauseBusy < timing_.pauseMax || timing_.rounds < 1 ||
        timing_.drainGrace.count() < 0) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "The timing is not usable: the shortest pause must be positive and not above the "
-            << "longest, at least one round, and a drain grace that is not negative" << '\n'
+            << "longest, the busy pause not below the longest, at least one round, and a drain "
+            << "grace that is not negative" << '\n'
         );
     }
 }
@@ -229,6 +231,24 @@ void GMPIPollCore::receiverEnded(int rank) {
         return;
     }
     boost::asio::post(strand_, [self = this->shared_from_this(), rank] { self->ended_(rank); });
+}
+
+/******************************************************************************/
+/**
+ * A receiver's owner has become busy, or is busy no more (see the class comment). The end of a busy
+ * spell is a kick: the pause is reset and one under way ends. From any thread; on changes only.
+ *
+ * @param busy Whether the owner is busy now
+ */
+void GMPIPollCore::receiverBusy(bool busy) {
+    if(busy) {
+        busy_receivers_.fetch_add(1);
+        return;
+    }
+    busy_receivers_.fetch_sub(1);
+    if(not shut_down_.load() && not kick_pending_.exchange(true)) {
+        boost::asio::post(strand_, [self = this->shared_from_this()] { self->kick_(); });
+    }
 }
 
 /******************************************************************************/
@@ -395,7 +415,9 @@ void GMPIPollCore::link_() {
         pause_ = timing_.pauseMin;
     }
     timer_.expires_after(pause_);
-    pause_ = std::min(2 * pause_, timing_.pauseMax);
+    // Every receiver that has not ended has a busy owner: the pause may grow further
+    const bool relaxed = live_receivers_ > 0 && busy_receivers_.load() >= live_receivers_;
+    pause_ = std::min(2 * pause_, relaxed ? timing_.pauseBusy : timing_.pauseMax);
     // The link runs whether the timer expired or was cancelled by a kick.
     timer_.async_wait([self]([[maybe_unused]] const boost::system::error_code &ec) {
         self->poll_();
