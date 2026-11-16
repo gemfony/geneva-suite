@@ -384,6 +384,9 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "the broadcast of the configuration failed with the MPI error code" "The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeTestallFails 3 M nonzero testall-fails
 		EXPECT "the broadcast of the configuration failed with the MPI error code" "The job is ended (MPI_Abort)")
+	# lead() after a round, after release() or a second time is refused
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadAfterRound 3 M zero lead-after-round)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadTwice 3 M zero lead-twice)
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged

@@ -64,8 +64,9 @@ namespace Gem::Courtier {
 /**
  * What a process of a group does once before its first round and once after its last. The lead
  * (GMPICascade::lead(), GMPICascade::release()) and the members (GMPICascade::serve()) run it as a
- * pair, in step; it is typically collective on the group. An exception out of either function ends
- * the MPI job (see GMPICascade).
+ * pair, in step; it is typically collective on the group. A member's setUp() runs when it enters
+ * serve(); if it is collective, its lead must call GMPICascade::lead() before its first round. An
+ * exception out of either function ends the MPI job (see GMPICascade).
  */
 class GMPIGroupLifecycleI {
 public:
@@ -250,6 +251,7 @@ private:
 
     std::mutex round_mutex_; ///< Held by a round from its announcement to its end; guards released_
     bool released_ = false;  ///< A lead: the stop was announced
+    bool announced_ = false; ///< A lead: a round was announced (guarded by round_mutex_)
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()

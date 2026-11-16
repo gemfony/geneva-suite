@@ -1287,6 +1287,51 @@ int mpiErrorScenario(Report &report, bool at_start) {
 }
 
 /**
+ * lead() in the wrong order is refused (entries ...LeadAfterRound, ...LeadTwice): after a round
+ * and after release(), or a second time. The refusals throw before anything is announced, so the
+ * group stays in step and ends in order.
+ *
+ * @param twice Whether lead() is called twice rather than after a round and after release()
+ */
+int leadOrderScenario(Report &report, bool twice) {
+    SquareMember member(report);
+    LeadLifecycle lifecycle(false);
+    Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
+    if(cascade.role() != processRole::CLIENT) {
+        runGroups(report, cascade, member, 1);
+        return report.failures();
+    }
+    cascade.requireRole(processRole::CLIENT);
+    if(twice) {
+        cascade.lead(lifecycle);
+        report.expectThrow("a second lead()", "a group is set up once", [&] {
+            cascade.lead(lifecycle);
+        });
+    }
+    report.check(
+        cascade.round([&](MPI_Comm group) { return squareRound(group, cascade, 2.); }),
+        "a wrong sum"
+    );
+    if(not twice) {
+        report.expectThrow("lead() after a round", "A round was announced already", [&] {
+            cascade.lead(lifecycle);
+        });
+    }
+    cascade.release();
+    if(not twice) {
+        report.expectThrow("lead() after release()", "The group was released (release())", [&] {
+            cascade.lead(lifecycle);
+        });
+    }
+    report.check(
+        lifecycle.setUps() == (twice ? 1 : 0),
+        "the lead was set up a wrong number of times"
+    );
+    std::println("lead led 1 rounds");
+    return report.failures();
+}
+
+/**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
  */
@@ -1546,6 +1591,8 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"lead-after-round", [](Report &r) { return leadOrderScenario(r, false); }},
+        {"lead-twice", [](Report &r) { return leadOrderScenario(r, true); }},
         {"ibcast-start-fails", [](Report &r) { return mpiErrorScenario(r, true); }},
         {"testall-fails", [](Report &r) { return mpiErrorScenario(r, false); }},
         {"serve-round-throws", [](Report &r) { return failureScenario(r, Injected::SERVE_ROUND); }},

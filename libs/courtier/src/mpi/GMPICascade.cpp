@@ -275,12 +275,14 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
 /******************************************************************************/
 /**
  * @brief On a lead: calls @p lifecycle's setUp() now, in step with the members' setUp(), and its
- * tearDown() at release(). Optional: a lead that does not call it is released without a
- * tearDown(). An exception out of setUp() ends the MPI job.
+ * tearDown() at release(). Called once, before the first round(). Optional for a lead whose
+ * members' setUp() and tearDown() take no part in anything collective: such a lead is released
+ * without a tearDown(); a lead whose members' lifecycle is collective must call it. An exception
+ * out of setUp() ends the MPI job.
  *
  * @param lifecycle The lead's lifecycle; outlives the cascade
- * @throws geneva_exception without MPI, on a process that is not a lead, after release() or on a
- *         second call. Before requireRole() the MPI job is ended instead, after the lifecycle was
+ * @throws geneva_exception without MPI, on a process that is not a lead, after release(), after
+ *         the first round() or on a second call. Before requireRole() the MPI job is ended instead, after the lifecycle was
  *         set up and the group released (setUp() and tearDown() run in step with the members')
  */
 void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
@@ -292,6 +294,14 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::lead(): Error!" << '\n'
             << "The group was released (release()); lead() comes before the first round" << '\n'
+        );
+    }
+    if(announced_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GMPICascade::lead(): Error!" << '\n'
+            << "A round was announced already; lead() comes before the first round, so that "
+            << "its setUp() pairs with the members' setUp()" << '\n'
         );
     }
     if(lifecycle_ != nullptr) {
@@ -520,6 +530,7 @@ void GMPICascade::announceRound_() {
             << "The group was released (release()); no round follows the stop" << '\n'
         );
     }
+    announced_ = true;
     this->announce_(ROUNDGO);
 }
 
