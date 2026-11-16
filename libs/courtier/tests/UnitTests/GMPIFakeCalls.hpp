@@ -116,10 +116,10 @@ class GMPIFakeWorld final : public std::enable_shared_from_this<GMPIFakeWorld> {
 public:
     /** @brief What happened on one rank so far */
     struct GCounts {
-        std::uint64_t probes = 0;   ///< Calls of probe()
-        std::uint64_t receives = 0; ///< Messages received
-        std::uint64_t sends = 0;    ///< Sends started
-        std::uint64_t givenUp = 0;  ///< Sends given up
+        std::uint64_t probes = 0;    ///< Calls of probe()
+        std::uint64_t receives = 0;  ///< Messages received
+        std::uint64_t sends = 0;     ///< Sends started
+        std::uint64_t givenUp = 0;   ///< Sends given up
         std::uint64_t testSomes = 0; ///< Calls of testSome() with at least one send under way
     };
 
@@ -152,9 +152,10 @@ public:
 
     /** @brief Where an armed fault strikes */
     enum class GFault {
-        PROBE,    ///< The next probe() throws (before it looks)
-        RECEIVE,  ///< The next receive() throws; the message stays in the mailbox
-        TEST_SOME ///< The next testSome() throws (before it looks)
+        PROBE,     ///< The next probe() throws (before it looks)
+        RECEIVE,   ///< The next receive() throws; the message stays in the mailbox
+        TEST_SOME, ///< The next testSome() throws (before it looks)
+        SEND       ///< The next startSend() throws (nothing is sent)
     };
 
     /** @brief The next call of the kind @p fault on @p rank throws once: a std::runtime_error, or
@@ -286,7 +287,7 @@ private:
     std::map<std::uint64_t, GRequest> requests_; ///< Sends under way, by id
     std::uint64_t next_request_ = 1;             ///< The id of the next send
     std::vector<std::string> violations_;        ///< What went against the contract
-    std::atomic<std::chrono::microseconds::rep> send_delay_us_{0}; ///< See delaySends()
+    std::atomic<std::chrono::microseconds::rep> send_delay_us_{0};    ///< See delaySends()
     std::atomic<std::chrono::microseconds::rep> receive_delay_us_{0}; ///< See delayReceives()
 };
 
@@ -372,6 +373,10 @@ GMPIFakeCalls::startSend(int rank, int tag, std::string_view bytes) {
         std::this_thread::sleep_for(std::chrono::microseconds(delay));
     }
     const std::scoped_lock lock(world_->mutex_);
+    GMPIFakeWorld::strike_(
+        world_->ranks_.at(static_cast<std::size_t>(rank_)),
+        GMPIFakeWorld::GFault::SEND
+    );
     const std::uint64_t id = world_->next_request_++;
     world_->requests_[id] =
         GMPIFakeWorld::GRequest{.owner = rank_, .destination = rank, .done = false};

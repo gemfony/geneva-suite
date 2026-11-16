@@ -582,7 +582,10 @@ GMPIListener::~GMPIListener() {
  * Makes the poll and a peer for every other rank, starts the poll's thread, greets every client
  * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell:
  * on_peer is posted, once per rank, to a strand of @p executor, with the rank as the client's id.
- * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer.
+ * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer: one
+ * that fails after the poll was set up ends the work as endWork() does, so every client rank is
+ * told that the run has ended (its client would wait for ever otherwise), and the shell, which
+ * then counts the listener as not started, has nothing to end.
  *
  * A communicator of this rank alone is refused: there is no client rank, and an MPI job keeps the
  * ranks it was started with, so the work would wait for ever.
@@ -624,17 +627,26 @@ void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_
         const std::scoped_lock lock(core_mutex_);
         core_ = core;
     }
-    handler_executor_ = std::move(executor);
-    on_peer_ = std::move(on_peer);
-    n_peers_.store(peers.size());
-    peers_.assign(peers.begin(), peers.end());
+    // (Only a failing allocation gets into the catch outside the tests.)
+    try {
+        handler_executor_ = std::move(executor);
+        on_peer_ = std::move(on_peer);
+        n_peers_.store(peers.size());
+        peers_.assign(peers.begin(), peers.end());
 
-    // The greeting goes out before anything a peer sends: a client's end opens on it.
-    for(const auto &peer : peers) {
-        core->startSend(peer->rank(), TAG_PEER_OPEN, std::string{});
+        // The greeting goes out before anything a peer sends: a client's end opens on it.
+        for(const auto &peer : peers) {
+            core->startSend(peer->rank(), TAG_PEER_OPEN, std::string{});
+        }
+        core->start();
+        this->handOver_(std::move(peers));
     }
-    core->start();
-    this->handOver_(std::move(peers));
+    catch(...) {
+        // The shell starts no thread of its own after a throw, and destroys its context before
+        // this listener: the clients are told, and the poll lets go of that context, now.
+        this->endWork();
+        throw;
+    }
 }
 
 /******************************************************************************/
