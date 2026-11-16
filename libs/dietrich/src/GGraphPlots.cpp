@@ -1307,14 +1307,40 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
         *std::ranges::min_element(w_col),
         *std::ranges::max_element(w_col)
     };
+    // The frame of a pad's primary holds the points of every 4-d graph laid over it: an overlay
+    // draws no frame of its own, and its points outside the primary's would lie outside the box.
+    double x_lo = std::get<0>(min_max);
+    double x_hi = std::get<1>(min_max);
+    double y_lo = std::get<2>(min_max);
+    double y_hi = std::get<3>(min_max);
+    double z_lo = std::get<4>(min_max);
+    double z_hi = std::get<5>(min_max);
+    if(not is_secondary) {
+        for(const auto &sp : this->secondaryPlotters()) {
+            const auto cols = sp->dataColumns();
+            if(cols.size() != 4) {
+                continue;
+            }
+            const auto [sx_lo, sx_hi] = columnRange(cols[0]);
+            const auto [sy_lo, sy_hi] = columnRange(cols[1]);
+            const auto [sz_lo, sz_hi] = columnRange(cols[2]);
+            x_lo = std::min(x_lo, sx_lo);
+            x_hi = std::max(x_hi, sx_hi);
+            y_lo = std::min(y_lo, sy_lo);
+            y_hi = std::max(y_hi, sy_hi);
+            z_lo = std::min(z_lo, sz_lo);
+            z_hi = std::max(z_hi, sz_hi);
+        }
+    }
 
     // Set up the TH3F frame for our 3D data, spanning the minimum and maximum values. The
     // frame name carries the plot suffix so two 4D plots on one canvas do not collide.
     const std::string frame_name = std::string("fr_") + base_name;
+    if(not is_secondary) {
     footer_data << indent << "TH3F *" << frame_name << " = new TH3F(\"" << frame_name << "\",\"" << frame_name << "\","
-                << "10, " << std::get<0>(min_max) << ", " << std::get<1>(min_max) << ", "
-                << "10, " << std::get<2>(min_max) << ", " << std::get<3>(min_max) << ", "
-                << "10, " << std::get<4>(min_max) << ", " << std::get<5>(min_max) << ");" << '\n'
+                << "10, " << x_lo << ", " << x_hi << ", "
+                << "10, " << y_lo << ", " << y_hi << ", "
+                << "10, " << z_lo << ", " << z_hi << ");" << '\n'
                 << indent << frame_name << "->SetTitle(\" \");" << '\n'
                 << indent << frame_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");" << '\n'
                 << indent << frame_name << "->GetXaxis()->SetTitleOffset(1.6);" << '\n'
@@ -1323,8 +1349,8 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
                 << indent << frame_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel()) << "\");" << '\n'
                 << indent << frame_name << "->GetZaxis()->SetTitleOffset(1.6);" << '\n'
                 << '\n'
-                // An overlay's frame is drawn into the pad of its primary, not over it.
-                << indent << frame_name << "->Draw(\"" << (is_secondary ? "same" : "") << "\");" << '\n';
+                << indent << frame_name << "->Draw();" << '\n';
+    }
 
     double const w_min = std::get<6>(min_max);
     double const w_max = std::get<7>(min_max);
@@ -1362,7 +1388,9 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
             }
         }
 
-        footer_data << indent << poly_marker_name << "->SetPoint(" << pos << ", " << x << ", " << y
+        // The marker's only point: a TPolyMarker3D(1) given point n > 0 grows to n + 1 points, the
+        // ones before at the origin, which every marker after the first painted there.
+        footer_data << indent << poly_marker_name << "->SetPoint(0, " << x << ", " << y
                     << ", " << z << "); // w = " << w << '\n'
                     << indent << poly_marker_name << "->SetMarkerSize(" << marker_size << ");"
                     << '\n'

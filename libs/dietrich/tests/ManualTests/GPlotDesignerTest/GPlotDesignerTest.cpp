@@ -222,6 +222,19 @@ int main(int argc, char **argv) {
             "shortened at its end, marked with three dots");
         power->setLegendPosition(legendPosition::TOP_LEFT);
         gpd.registerPlotter(power);
+        // Two labelled 4-d graphs of different ranges in one pad: one frame for both, a marker
+        // sample for each.
+        auto cloud = std::make_shared<GGraph4D>();
+        auto other = std::make_shared<GGraph4D>();
+        for(int i = 0; i < 20; ++i) {
+            const double t = static_cast<double>(i) / 19.;
+            (*cloud) & std::tuple<double, double, double, double>(t, t * t, 1. - t, t);
+            (*other) & std::tuple<double, double, double, double>(1. + t, -t, 2. * t, 1. - t);
+        }
+        cloud->setPlotLabel("a cloud");
+        other->setPlotLabel("another cloud, further out");
+        cloud->registerSecondaryPlotter(other);
+        gpd.registerPlotter(cloud);
     }
 
     gpd.writeToFile("result.C");

@@ -1642,7 +1642,7 @@ TEST_CASE(
         const std::string root = render(first, plotBackend::ROOT);
         CHECK(root.contains("legend->AddEntry(pm3d__0_1, \"first\", \"p\");"));
         CHECK(root.contains("legend->AddEntry(pm3d__0_0_1, \"second\", \"p\");"));
-        CHECK(root.contains("fr__0_0->Draw(\"same\");")); // the overlay's frame keeps the pad
+        CHECK_FALSE(root.contains("fr__0_0")); // an overlay draws no frame of its own: the pad keeps its box
         const std::string oct = render(first, plotBackend::OCTAVE);
         CHECK(oct.contains("legend(s_, {'first', 'second'});"));
         CHECK_FALSE(oct.contains("legend('show')"));
@@ -1980,4 +1980,23 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
         CHECK(map->legendPlace() == legendPosition::AUTO);
         CHECK(render(map, plotBackend::ROOT).contains("// a 3-d pad: the band at the top left"));
     }
+}
+
+/******************************************************************************/
+// 4-d graphs laid over each other share the primary's frame, which holds all their points; every
+// marker paints its one point only.
+TEST_CASE("Overlaid 4-d graphs share one frame that holds all their points", "[plotting][overlay]") {
+    auto first = std::make_shared<GGraph4D>();
+    (*first) & std::tuple<double, double, double, double>(0., 0., 0., 1.);
+    (*first) & std::tuple<double, double, double, double>(2., 1., 1., 2.);
+    auto second = std::make_shared<GGraph4D>();
+    (*second) & std::tuple<double, double, double, double>(3., -1., 4., 1.);
+    (*second) & std::tuple<double, double, double, double>(1., 0.5, 0.5, 3.);
+    first->registerSecondaryPlotter(second);
+    const std::string root = render(first, plotBackend::ROOT);
+    CHECK(root.contains("new TH3F(\"fr__0\",\"fr__0\",10, 0, 3, 10, -1, 1, 10, 0, 4);"));
+    CHECK_FALSE(root.contains("fr__0_0"));
+    CHECK(root.contains("pm3d__0_1->SetPoint(0, "));
+    CHECK(root.contains("pm3d__0_0_1->SetPoint(0, "));
+    CHECK_FALSE(root.contains("->SetPoint(1, "));
 }
