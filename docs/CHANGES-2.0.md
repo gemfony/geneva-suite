@@ -213,7 +213,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   There is no keep-alive and no limit on a client's wait once it has been greeted: a client whose
   submitter hangs, or whose submitter ends without starting its consumer and without telling it
   (a program that exits before it builds its consumer), waits until the job is ended. Before
-  1.99, a worker ended after 120 s without word from its master. While a
+  1.99, a worker ended after 120 s without word from its master. A message is limited to INT_MAX
+  bytes (about 2 GiB): an item that would be longer fails where it is handed out, a result that
+  would be longer comes back flagged; the connection, and the run, go on. While a
   client evaluates, its poll looks for
   messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1 ms); what it
   sends goes out at once, so this costs no time per item, and a stop that reaches a client during an

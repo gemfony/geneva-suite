@@ -215,10 +215,11 @@ class GPeerClientT
     using pipeline_base::drop_held_;
     using pipeline_base::in_flight_;
     using pipeline_base::io_context_;
+    using pipeline_base::max_message_bytes_;
     using pipeline_base::n_decoding_;
-    using pipeline_base::n_nodata_;
     using pipeline_base::n_halt_polls_;
     using pipeline_base::n_messages_booked_;
+    using pipeline_base::n_nodata_;
     using pipeline_base::pending_pulls_;
     using pipeline_base::prefetch_depth_;
     using pipeline_base::schedule_refill_;
@@ -490,6 +491,9 @@ private:
      *  run_()). */
     void when_open_() {
         state_ = LinkState::OPEN;
+        if(auto peer = peer_.lock()) {
+            max_message_bytes_.store(peer->maxMessageBytes(), std::memory_order_relaxed);
+        }
         opened_at_ = clock::now();
         contact_on_connection_ = false;
         n_connections_.fetch_add(1);

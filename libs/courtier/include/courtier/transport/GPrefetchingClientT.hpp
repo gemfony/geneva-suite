@@ -33,11 +33,13 @@
 
 // Standard headers
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <exception>
+#include <limits>
 #include <random>
 #include <string>
 #include <string_view>
@@ -47,6 +49,8 @@
 #include <boost/asio.hpp>
 
 // Geneva headers
+#include "common/GErrorStreamer.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GBaseClientT.hpp"
@@ -409,7 +413,19 @@ protected:
     std::string encodeResult_(GCommandContainerT<processable_type> &frame, std::string &error) {
         std::string reason;
         try {
-            return Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
+            std::string bytes = Gem::Courtier::wireEncode(frame, &wire_ctx_, wire_ctx_.mode);
+            // A result the transport cannot carry is returned as failed, as one that cannot be
+            // encoded: handed to the peer, it would end the connection
+            const std::size_t limit = max_message_bytes_.load(std::memory_order_relaxed);
+            if(bytes.size() > limit) {
+                throw geneva_exception(
+                    g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+                    << "the message of " << bytes.size()
+                    << " bytes is longer than the transport can carry (" << limit << " bytes)"
+                    << '\n'
+                );
+            }
+            return bytes;
         }
         catch(...) {
             reason = Gem::Courtier::describeException(std::current_exception());
@@ -599,6 +615,9 @@ protected:
     /// How often a NO_WORK reply was received (reported at shutdown). Written on the io thread; an
     /// atomic, so that it may be read from any thread (noWorkCount()).
     std::atomic<std::uint64_t> n_nodata_{0};
+    /// The longest message the transport of the current connection carries
+    /// (GPeerI::maxMessageBytes()); set by the concrete client, read by the compute threads
+    std::atomic<std::size_t> max_message_bytes_{std::numeric_limits<std::size_t>::max()};
     /// How often the halt poll has run to its end (whatever it found); counted on the io thread,
     /// read from any thread (haltPolls())
     std::atomic<std::uint64_t> n_halt_polls_{0};

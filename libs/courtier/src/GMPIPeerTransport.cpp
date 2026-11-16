@@ -199,6 +199,12 @@ void GMPIPeer::endOfWork(GPeerClose word) {
 }
 
 /******************************************************************************/
+/** @return The longest message this end sends */
+std::size_t GMPIPeer::maxMessageBytes() const {
+    return max_message_bytes_;
+}
+
+/******************************************************************************/
 /** @return The strand of this end */
 boost::asio::any_io_executor GMPIPeer::executor() {
     return executor_;

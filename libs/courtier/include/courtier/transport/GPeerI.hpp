@@ -34,7 +34,9 @@
 
 // Standard headers go here
 #include <chrono>
+#include <cstddef>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -227,6 +229,14 @@ public:
 
     /** @brief The executor all handlers of this peer run on. From any thread. */
     [[nodiscard]] virtual boost::asio::any_io_executor executor() = 0;
+
+    /** @brief The longest message the transport can carry; a longer one handed to send() ends the
+     *  connection (FAILED). A role checks the length of what it encodes against it and fails the
+     *  item instead, so that the connection, and the other items, go on. Any thread. The default:
+     *  no limit. @return The length in bytes */
+    [[nodiscard]] virtual std::size_t maxMessageBytes() const {
+        return std::numeric_limits<std::size_t>::max();
+    }
 
     /** @brief Tells the transport whether the owner of this peer (a client) is busy: every one of
      *  its evaluation slots is taken, so that nothing that may arrive is needed before an

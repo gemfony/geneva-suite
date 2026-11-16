@@ -760,3 +760,42 @@ TEST_CASE(
         CHECK(consumer.nPending() == 2); // what the client held is back, and nothing is out
     }
 }
+
+/******************************************************************************/
+/**
+ * An item whose message is longer than the transport can carry fails, and only it: it is not handed
+ * to the peer (which would end the connection, and the next client would meet the item again). The
+ * connection stays open, and the request is still owed.
+ */
+TEST_CASE(
+    "GPeerSessionT: an item longer than the transport can carry fails and the connection stays",
+    "[courtier][peer][session]"
+) {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto [server_end, client_end] = GInProcessPeer::makePair(
+            server.executor(),
+            {.maxMessageBytes = 8}, // below every WORK
+            client.executor(),
+            {},
+            CLOSE_GRACE
+        );
+        Connection connection;
+        connection.clientPeer = client_end;
+        connection.serverPeer = server_end;
+        std::make_shared<session_type>(consumer.hooks(), BIN, nullptr, 1)->start(server_end);
+        connection.client->start(client_end);
+
+        consumer.offer({1});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return consumer.nFailed() == 1; }));
+        REQUIRE(eventually([&] { return consumer.nParked() == 1; })); // the request is still owed
+        CHECK(connection.client->nFrames() == 0);
+        CHECK(connection.client->closed().empty()); // the connection goes on
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}

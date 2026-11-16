@@ -44,6 +44,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -64,8 +65,13 @@
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GDemoProcessingContainers.hpp"
+#include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
+#include "courtier/consumers/GPeerConsumerT.hpp"
 #include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GMPIPeerTransport.hpp"
+#include "courtier/transport/GPeerClientT.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 using Gem::Common::Concurrency::GThreadGroup;
@@ -729,4 +735,65 @@ TEST_CASE("MPI transport: a listener that never starts announces the end", "[cou
         CHECK(took >= CLOSE_GRACE);
         CHECK(took < listener->stopGrace() + 2s);
     }
+}
+
+/******************************************************************************/
+/**
+ * A result longer than the client's MPI end can carry is returned as failed (the item comes back
+ * flagged and the policy refills its slot), and the client keeps its connection: handed to the end,
+ * it would end the connection. Rank 1's end carries at most 2000 bytes, an item of 1000 numbers
+ * about 8000; rank 2 serves normally.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: a result longer than the end can carry is returned as failed",
+    "[courtier][mpi]"
+) {
+    using item_type = Gem::Courtier::GRandomNumberContainer;
+    using client_type = Gem::Courtier::Consumers::GPeerClientT<item_type>;
+    using Gem::Courtier::Consumers::GPeerClientOptions;
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    Gem::Courtier::GPeerConsumerT<item_type> shell(
+        "limit shell",
+        std::make_unique<GMPIListener>(world->calls(0), optionsWith()),
+        2,
+        Gem::Common::serializationMode::GEM_BINARY
+    );
+    Gem::Courtier::GNetworkedTimeoutConfig timeouts;
+    timeouts.treatment = "wait_indefinitely";
+    shell.applyTimeoutConfig(timeouts);
+    shell.startServer();
+
+    GMPIPeerOptions limited_options = optionsWith();
+    limited_options.maxMessageBytes = 2000;
+    auto limited = std::make_shared<client_type>(
+        std::make_unique<GMPIConnector>(world->calls(1), limited_options),
+        GPeerClientOptions{.name = "limited"}
+    );
+    auto unlimited = std::make_shared<client_type>(
+        std::make_unique<GMPIConnector>(world->calls(2), optionsWith()),
+        GPeerClientOptions{.name = "unlimited"}
+    );
+    std::jthread run_limited([&limited] { limited->run(); });
+    std::jthread run_unlimited([&unlimited] { unlimited->run(); });
+
+    std::vector<std::unique_ptr<item_type>> items;
+    items.reserve(20);
+    for(int i = 0; i < 20; ++i) {
+        items.push_back(std::make_unique<item_type>(1000));
+    }
+    shell.processBatch(
+        std::span(items.data(), items.size()),
+        Gem::Courtier::GSubmissionPolicy::clone_on_partial_return()
+    );
+    shell.stopServer();
+    run_limited.join();
+    run_unlimited.join();
+    CHECK(limited->getNProcessed() > 0); // it evaluated items and returned them as failed
+    CHECK(
+        limited->connectionEnd() == Gem::Courtier::Consumers::GPeerEnd::CLOSED_THERE
+    ); // told the end
+    CHECK(limited->resultsSaved() == 0);
+    CHECK_FALSE(limited->terminalErrorFlagged());
+    CHECK(unlimited->getNProcessed() > 0);
 }

@@ -82,6 +82,10 @@ namespace Gem::Courtier {
  * exits abnormally; MPI's errors being fatal on courtier's communicator only ends a rank whose own
  * MPI call fails. The items of a rank that hangs come back by the time lease.
  *
+ * Size: MPI carries a message of at most INT_MAX bytes (about 2 GiB). A work item whose message
+ * would be longer fails where the submitter hands it out, and a result that would be longer comes
+ * back flagged from its client; the run goes on with the other items and clients.
+ *
  * Silence: there is no keep-alive between the ranks, and no limit on how long a client waits for
  * its submitter once it has been greeted. A client whose submitter hangs, or ends without having
  * started its consumer and without telling it, waits until the job is ended (by the batch system

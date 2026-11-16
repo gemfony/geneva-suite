@@ -173,6 +173,9 @@ public:
     void close(GPeerClose) override;
     /** @brief Ends at once, for teardown; tells the other end if it has not been told */
     void abort() override;
+    /** @brief The longest message: GMPIPeerOptions::maxMessageBytes, at most INT_MAX (MPI counts
+     *  in int) */
+    [[nodiscard]] std::size_t maxMessageBytes() const override;
     /** @brief The strand every handler of this end runs on (also the poll's receiver executor) */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
     /** @brief Tells the poll whether the owner evaluates: while every end it receives for has a

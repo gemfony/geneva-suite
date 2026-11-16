@@ -84,6 +84,9 @@ struct GInProcessFaults {
     bool acknowledgeClose = true;
     /// true: start() fails; onClosed (FAILED) is reported, onOpen never
     bool failStart = false;
+    /// The longest message this end carries (maxMessageBytes()); a longer one handed to send()
+    /// ends the connection as FAILED, as with the MPI transport
+    std::size_t maxMessageBytes = std::numeric_limits<std::size_t>::max();
 };
 
 /******************************************************************************/
@@ -263,7 +266,28 @@ public:
            link_->severed.load()) {
             return;
         }
+        if(message->size() > faults_.maxMessageBytes) {
+            // As a transport with a limit does: the connection fails, reported on the strand
+            boost::asio::post(strand_, [self = this->shared_from_this(), size = message->size()] {
+                if(self->state_ == state::OPEN) {
+                    self->close_requested_.store(true);
+                    self->transmit_(wire::CLOSE, encode_(GPeerClose::ERROR));
+                    self->finish_(
+                        GPeerEnd::FAILED,
+                        GPeerClose::NORMAL,
+                        "a message of " + std::to_string(size) + " bytes, above the limit of " +
+                            std::to_string(self->faults_.maxMessageBytes)
+                    );
+                }
+            });
+            return;
+        }
         this->transmit_(wire::MESSAGE, std::string(*message));
+    }
+
+    /** @brief @return The longest message this end carries (GInProcessFaults::maxMessageBytes) */
+    [[nodiscard]] std::size_t maxMessageBytes() const override {
+        return faults_.maxMessageBytes;
     }
 
     /** @brief Closes after what was handed to send() before. Any thread; idempotent.
