@@ -93,12 +93,11 @@ int started(int result, const MPI_Request *request) {
     return result;
 }
 
-/** @brief Notes a communicator that was made
+/** @brief Notes a communicator that was made; the caller holds the watch's mutex
  *  @param result What the call returned @param communicator The new communicator @return @p result */
 int made(int result, const MPI_Comm *communicator) {
     if(result == MPI_SUCCESS && *communicator != MPI_COMM_NULL) {
         ++watch().communicatorsMade;
-        const std::scoped_lock lock(watch().mutex);
         watch().aliveCommunicators.insert(keyOf(*communicator));
     }
     return result;
@@ -264,20 +263,28 @@ int MPI_Testall(
     return result;
 }
 
+// The calls that make and free communicators hold the watch's mutex from the call to the
+// bookkeeping, as the starts and tests of requests do: MPI may give the handle of a communicator
+// that one thread has just freed to the one another thread makes. The first two are blocking
+// collectives; holding the mutex across them is safe while no other thread of the process must make
+// a watched call for them to complete -- in the cascade's tests communicators are made and freed
+// by the program's main thread only.
 int MPI_Comm_split(MPI_Comm comm, int color, int key, MPI_Comm *newcomm) {
     ++watch().splits;
+    const std::scoped_lock lock(watch().mutex); // from the call to the bookkeeping
     return made(PMPI_Comm_split(comm, color, key, newcomm), newcomm);
 }
 
 int MPI_Comm_dup(MPI_Comm comm, MPI_Comm *newcomm) {
+    const std::scoped_lock lock(watch().mutex); // from the call to the bookkeeping
     return made(PMPI_Comm_dup(comm, newcomm), newcomm);
 }
 
 int MPI_Comm_free(MPI_Comm *comm) {
+    const std::scoped_lock lock(watch().mutex); // from the call to the bookkeeping
     const auto key = keyOf(*comm);
     const int result = PMPI_Comm_free(comm);
     if(result == MPI_SUCCESS) {
-        const std::scoped_lock lock(watch().mutex);
         watch().aliveCommunicators.erase(key);
     }
     return result;
