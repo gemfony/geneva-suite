@@ -399,6 +399,13 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# A submitter that never confirms its role ends the job in its destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
 		EXPECT "the role of the submitter was never confirmed" "The job is ended (MPI_Abort)")
+	# ... and from inside setUp(), tearDown() or a member's serveRound()
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
+		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeReleaseInsideTearDown 3 M nonzero release-inside-tear-down
+		EXPECT "release() was called from inside tearDown()" "The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeServeInsideServeRound 3 M nonzero serve-inside-serve-round
+		EXPECT "serve() was called from inside serveRound()" "The job is ended (MPI_Abort)")
 	# The cascade behind a websocket client with two evaluations at a time
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeWebsocket 3 M zero websocket)
 	# The time of an empty round: printed for a caption, not judged

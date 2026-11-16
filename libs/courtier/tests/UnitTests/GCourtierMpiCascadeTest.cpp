@@ -405,14 +405,24 @@ private:
 class LeadLifecycle final : public Courtier::GMPIGroupLifecycleI {
 public:
     /** @brief A lifecycle @param collective Whether setUp()/tearDown() are collective
-     *  @param on_tear_down Called in tearDown() (may be empty) */
-    explicit LeadLifecycle(bool collective, std::function<void()> on_tear_down = {})
+     *  @param on_tear_down Called in tearDown() (may be empty)
+     *  @param on_set_up Called in setUp() (may be empty) */
+    explicit LeadLifecycle(
+        bool collective,
+        std::function<void()> on_tear_down = {},
+        std::function<void()> on_set_up = {}
+    )
       : collective_(collective)
-      , on_tear_down_(std::move(on_tear_down)) { /* nothing */
+      , on_tear_down_(std::move(on_tear_down))
+      , on_set_up_(std::move(on_set_up)) { /* nothing */
     }
 
+    /** @brief Counts, calls the hook, and with collective a barrier */
     void setUp(MPI_Comm group) override {
         ++set_ups_;
+        if(on_set_up_) {
+            on_set_up_();
+        }
         this->barrier_(group);
     }
     void tearDown(MPI_Comm group) override {
@@ -439,6 +449,7 @@ private:
 
     bool collective_;
     std::function<void()> on_tear_down_;
+    std::function<void()> on_set_up_;
     std::atomic<int> set_ups_{0};
     std::atomic<int> tear_downs_{0};
 };
@@ -1410,6 +1421,66 @@ int submitterNeverConfirmsScenario(Report &report) {
     return report.failures();
 }
 
+/** A member whose serveRound() calls a hook (set after the cascade exists). */
+class HookMember final : public Courtier::GMPIGroupMemberI {
+public:
+    /** @brief Calls the hook */
+    void serveRound([[maybe_unused]] MPI_Comm group) override {
+        if(hook) {
+            hook();
+        }
+    }
+    std::function<void()> hook; ///< What serveRound() does
+};
+
+/** Where insideCallbackScenario() calls into the cascade */
+enum class Reentry {
+    ROUND_IN_SET_UP,      ///< the lead's setUp() calls round()
+    RELEASE_IN_TEAR_DOWN, ///< the lead's tearDown() calls release()
+    SERVE_IN_SERVE_ROUND  ///< a member's serveRound() calls serve()
+};
+
+/**
+ * A call into the cascade from inside a lifecycle function or a member's half ends the job with a
+ * message (entries ...RoundInsideSetUp, ...ReleaseInsideTearDown, ...ServeInsideServeRound)
+ * instead of a deadlock or a group out of step.
+ *
+ * @param reentry Where the call is made
+ */
+int insideCallbackScenario(Report &report, Reentry reentry) {
+    HookMember member;
+    Courtier::GMPICascade *cascade_of_hooks = nullptr; // set below; the hooks run after that
+    LeadLifecycle lifecycle(
+        false,
+        [&] {
+            if(reentry == Reentry::RELEASE_IN_TEAR_DOWN) {
+                cascade_of_hooks->release();
+            }
+        },
+        [&] {
+            if(reentry == Reentry::ROUND_IN_SET_UP) {
+                std::ignore = cascade_of_hooks->round(NOTHING);
+            }
+        }
+    );
+    Courtier::GMPICascade cascade([] { return configOf(3, GMPICascadeLayout::GROUPS_ONLY); });
+    cascade_of_hooks = &cascade;
+    if(cascade.role() == processRole::BYSTANDER) {
+        if(reentry == Reentry::SERVE_IN_SERVE_ROUND) {
+            member.hook = [&] { std::ignore = cascade.serve(member); };
+        }
+        std::ignore = cascade.serve(member);
+        std::println("member {} came back from serve()", report.rank());
+        return report.failures();
+    }
+    cascade.requireRole(processRole::CLIENT);
+    cascade.lead(lifecycle);
+    std::ignore = cascade.round(NOTHING);
+    cascade.release();
+    report.fail("the call into the cascade did not end the job");
+    return report.failures();
+}
+
 /**
  * A lead that never confirms its role and never uses the cascade (entry ...NeverUsed): the
  * destructor releases the group and ends the job, the last safeguard.
@@ -1668,6 +1739,12 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"role-not-confirmed", [](Report &r) { return roleNotConfirmedScenario(r, false); }},
         {"role-not-confirmed-lead", [](Report &r) { return roleNotConfirmedScenario(r, true); }},
         {"never-used", neverUsedScenario},
+        {"round-inside-set-up",
+         [](Report &r) { return insideCallbackScenario(r, Reentry::ROUND_IN_SET_UP); }},
+        {"release-inside-tear-down",
+         [](Report &r) { return insideCallbackScenario(r, Reentry::RELEASE_IN_TEAR_DOWN); }},
+        {"serve-inside-serve-round",
+         [](Report &r) { return insideCallbackScenario(r, Reentry::SERVE_IN_SERVE_ROUND); }},
         {"submitter-never-confirms", submitterNeverConfirmsScenario},
         {"environment-exists", environmentExistsScenario},
         {"release-inside-round", [](Report &r) { return insideRoundScenario(r, true); }},

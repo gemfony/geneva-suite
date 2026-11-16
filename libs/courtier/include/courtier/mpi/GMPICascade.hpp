@@ -148,9 +148,12 @@ public:
  * the program's main thread. round() may be called by any thread; rounds run one after the other
  * (a lock is held from the announcement to the return of the lead's half). release() may be called
  * by any thread, not concurrently with the destructor; it waits for a round that runs, and a later
- * round() throws. round(), lead() and release() are not called from inside a lead's half: they
- * would wait for the round they run in; the cascade detects it and ends the MPI job with a message
- * that says so. role(), group() and config() may be called by any thread.
+ * round() throws. round(), lead(), release() and serve() are not called from inside a function of
+ * the program that the cascade runs -- a lead's half, setUp(), serveRound(), tearDown(): the lead's
+ * would wait for the cascade's lock, which the call holds, and a member's would take the group out
+ * of step. The cascade detects such a call on the thread that runs the function and ends the MPI
+ * job with a message that names both; a call handed to another thread that the function then
+ * waits for cannot be seen and hangs. role(), group() and config() may be called by any thread.
  *
  * <b>Lifetime.</b> The member and lifecycle objects passed to serve() and lead() are declared
  * before the cascade, so that they outlive it. The cascade outlives every call of an item
@@ -247,8 +250,8 @@ private:
         std::chrono::microseconds,
         std::string_view
     ) noexcept;
-    /** @brief Ends the job if the calling thread runs a lead's half (the call would wait for ever) */
-    void refuseInsideRound_(std::string_view) const noexcept;
+    /** @brief Ends the job if the calling thread runs a function of the program for the cascade */
+    void refuseInside_(std::string_view) const noexcept;
     /** @brief Ends the job unless an MPI call returned MPI_SUCCESS */
     void mpiChecked_(int, std::string_view) const noexcept;
     /** @brief On a member: waits for the next command; false for the stop */
@@ -259,7 +262,7 @@ private:
     void requireCascadeRole_(processRole, std::string_view) const;
     /** @brief Calls a lifecycle or member function; an exception out of it ends the job */
     template <typename F>
-    void guarded_(std::string_view, F &&) noexcept;
+    void guarded_(const char *, F &&) noexcept;
     /** @brief Ends the MPI job after an exception left a half of the group */
     [[noreturn]] void endJob_(std::string_view, const std::exception_ptr &) const noexcept;
     /** @brief Ends the MPI job with a reason */
@@ -283,29 +286,41 @@ private:
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
-    /// The thread that runs a round, from the announcement to the end of the lead's half; empty
-    /// between rounds
-    std::atomic<std::thread::id> round_thread_;
+    /// The thread that runs a function of the program for the cascade (a lead's half, setUp(),
+    /// serveRound(), tearDown()); empty while none runs
+    std::atomic<std::thread::id> inside_thread_;
+    /// The function that inside_thread_ runs, for the message (a string literal)
+    std::atomic<const char *> inside_what_{nullptr};
 
-    /** Marks the calling thread as the one that runs a round, for the time of the round. */
-    class RoundMark {
+    /**
+     * Marks the calling thread as running a function of the program for the cascade, for the time
+     * of that function, and restores the mark it found (a lifecycle function can run within a
+     * round). The one mark that refuseInside_() reads.
+     */
+    class InsideMark {
     public:
-        /** @brief Marks the calling thread @param round_thread Where the mark goes */
-        explicit RoundMark(std::atomic<std::thread::id> &round_thread)
-          : round_thread_(round_thread) {
-            round_thread_ = std::this_thread::get_id();
+        /** @brief Marks the calling thread @param cascade Whose mark @param what The function */
+        InsideMark(GMPICascade &cascade, const char *what)
+          : cascade_(cascade)
+          , previous_thread_(cascade.inside_thread_.load())
+          , previous_what_(cascade.inside_what_.load()) {
+            cascade_.inside_what_ = what;
+            cascade_.inside_thread_ = std::this_thread::get_id();
         }
-        /** @brief Removes the mark */
-        ~RoundMark() {
-            round_thread_ = std::thread::id{};
+        /** @brief Restores the mark that was there before */
+        ~InsideMark() {
+            cascade_.inside_thread_ = previous_thread_;
+            cascade_.inside_what_ = previous_what_;
         }
-        RoundMark(const RoundMark &) = delete;
-        RoundMark(RoundMark &&) = delete;
-        RoundMark &operator=(const RoundMark &) = delete;
-        RoundMark &operator=(RoundMark &&) = delete;
+        InsideMark(const InsideMark &) = delete;
+        InsideMark(InsideMark &&) = delete;
+        InsideMark &operator=(const InsideMark &) = delete;
+        InsideMark &operator=(InsideMark &&) = delete;
 
     private:
-        std::atomic<std::thread::id> &round_thread_; ///< The cascade's mark (not owned)
+        GMPICascade &cascade_;            ///< Whose mark (not owned)
+        std::thread::id previous_thread_; ///< The mark found
+        const char *previous_what_;       ///< Its function
     };
     /// A lead: the lifecycle passed to lead(), torn down by release(); not owned (it outlives the
     /// cascade), null if lead() was not called
@@ -325,9 +340,9 @@ private:
  */
 template <typename F>
 decltype(auto) GMPICascade::round(F &&lead_half) {
-    this->refuseInsideRound_("round()");
+    this->refuseInside_("round()");
     const std::scoped_lock lock(round_mutex_); // one round at a time
-    const RoundMark mark(round_thread_);
+    const InsideMark mark(*this, "the lead's half of a round");
     this->announceRound_();
     try {
         return std::invoke(std::forward<F>(lead_half), group_);
@@ -339,14 +354,16 @@ decltype(auto) GMPICascade::round(F &&lead_half) {
 
 /******************************************************************************/
 /**
- * @brief Calls @p function; an exception out of it ends the MPI job, because the group can then
- * no longer be assumed to be in step.
+ * @brief Calls @p function, a function of the program, with the calling thread marked as inside
+ * it (refuseInside_()); an exception out of it ends the MPI job, because the group can then no
+ * longer be assumed to be in step.
  *
- * @param where The function that is called, for the message
+ * @param where The function that is called, for the messages (a string literal)
  * @param function What to call
  */
 template <typename F>
-void GMPICascade::guarded_(std::string_view where, F &&function) noexcept {
+void GMPICascade::guarded_(const char *where, F &&function) noexcept {
+    const InsideMark mark(*this, where);
     try {
         std::forward<F>(function)();
     }

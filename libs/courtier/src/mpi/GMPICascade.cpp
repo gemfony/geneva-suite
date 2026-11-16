@@ -39,6 +39,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -283,6 +284,7 @@ const GMPICascadeConfig &GMPICascade::config() const noexcept {
 int GMPICascade::serve(GMPIGroupMemberI &member) {
     this->requireMpi_("serve()");
     this->requireCascadeRole_(processRole::BYSTANDER, "serve()");
+    this->refuseInside_("serve()");
     // Latched: after the stop nothing is posted on the status communicator, where no broadcast of
     // the lead would ever answer, and the member half is not set up again.
     if(stop_received_) {
@@ -313,7 +315,7 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
 void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     this->requireMpi_("lead()");
     this->requireCascadeRole_(processRole::CLIENT, "lead()");
-    this->refuseInsideRound_("lead()");
+    this->refuseInside_("lead()");
     const std::scoped_lock lock(round_mutex_);
     if(released_) {
         throw geneva_exception(
@@ -352,7 +354,7 @@ void GMPICascade::release() noexcept {
     if(not environment_ || role_ != processRole::CLIENT) {
         return;
     }
-    this->refuseInsideRound_("release()");
+    this->refuseInside_("release()");
     const std::scoped_lock lock(round_mutex_);
     this->releaseLocked_();
 }
@@ -699,20 +701,28 @@ void GMPICascade::waitStarted_(
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job if the calling thread runs a lead's half: round(), lead() and release()
- * take the round lock, which that thread holds, and would wait for ever.
+ * @brief Ends the MPI job if the calling thread runs a function of the program for the cascade (a
+ * lead's half, setUp(), serveRound(), tearDown(); see InsideMark): on a lead, round(), lead() and
+ * release() take the round lock, which that thread holds, and would wait for ever; on a member,
+ * serve() would take the group out of step.
  *
  * @param where The function that was called
  */
-void GMPICascade::refuseInsideRound_(std::string_view where) const noexcept {
-    if(round_thread_.load() != std::this_thread::get_id()) {
+void GMPICascade::refuseInside_(std::string_view where) const noexcept {
+    if(inside_thread_.load() != std::this_thread::get_id()) {
         return;
     }
     std::string reason;
     try {
-        reason = std::string(where) +
-                 " was called from inside the lead's half of a round; it would wait for that round "
-                 "for ever. Call it after round() has returned.";
+        const char *what = inside_what_.load();
+        const std::string inside = what != nullptr ? what : "a function the cascade runs";
+        reason = std::format(
+            "{} was called from inside {}; it would wait for the cascade for ever or take the "
+            "group out of step. Call it after {} has returned.",
+            where,
+            inside,
+            inside
+        );
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }
