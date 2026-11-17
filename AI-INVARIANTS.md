@@ -97,6 +97,32 @@ cost. In the courtier rework of November 2026 the main branch went through four 
 side branch through three; the first rounds found a lost result and several hangs, the later ones
 rare, cosmetic or older defects, at the same price per round.
 
+## AI-7. The work lists are kept current by whoever changes the work
+
+The work of this repository is tracked in three files under `prompts/`:
+
+- `PLANNED.md` -- decided work, by priority. Its first section, "Now", says what is running and what
+  comes next; it is where a successor starts.
+- `IDEAS.md` -- undecided work, by priority.
+- `DONE.md` -- finished or dropped work, newest first, each entry with its evidence (commit, pull
+  request, or the reason it was dropped).
+
+The design papers and packages these entries refer to live beside them (`prompts/designs/`, the
+packages and reviews of a work stream); an entry links to them instead of repeating them.
+
+- **Every change of the work updates the lists in the same step.** An agent -- the supervisor as
+  much as an executing agent -- that finishes, drops, starts, splits or reorders a piece of work,
+  or receives a decision on it, moves the entry accordingly: finished or dropped to `DONE.md` with
+  its evidence, decided from `IDEAS.md` to `PLANNED.md`, a new idea sorted into `IDEAS.md` at its
+  priority; and keeps "Now" true.
+- **Each item stands in exactly one of the three files** (Invariant 20, "state each fact once").
+- **A document the lists no longer need** (a design that has been carried out, a superseded
+  draft) moves to `prompts/obsolete/`, and the references to it are updated.
+
+*Why:* open work had spread over dated plan files, hand-over notes, packages and design papers,
+until nobody could say from one place what was decided, what was running and what was done.
+(Maintainer decision, 2026-11-17.)
+
 ---
 
 *Add new AI invariants below as the maintainer establishes them. Keep each rule short, mandatory, and
