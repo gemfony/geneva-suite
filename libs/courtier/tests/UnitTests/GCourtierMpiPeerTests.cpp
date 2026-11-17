@@ -483,8 +483,16 @@ TEST_CASE("MPI transport: the end of the listener's work tells the clients", "[c
     Client client_one(world, 1);
     Client client_two(world, 2);
     master.start();
+    // The server's ends are open too: a handler still queued on the pool when it is joined never
+    // runs, and the peer it holds would keep its role (rolesLetGo() below). The roles are looked
+    // up inside the wait, so that the test holds none of them afterwards.
+    const auto open_here = [&](GWirePeerId rank) {
+        const auto role = master.role(rank);
+        return role != nullptr && role->events().size() == 1;
+    };
     REQUIRE(eventually([&] {
-        return client_one.role().events().size() == 1 && client_two.role().events().size() == 1;
+        return open_here(1) && open_here(2) && client_one.role().events().size() == 1 &&
+               client_two.role().events().size() == 1;
     }));
     master.pool().join(); // no session runs: nobody closes the ends
     master.listener().endWork();
