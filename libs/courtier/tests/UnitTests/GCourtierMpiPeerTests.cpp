@@ -475,14 +475,24 @@ TEST_CASE("MPI transport: a failed poll ends every end", "[courtier][mpi]") {
 /**
  * The listener's endWork() lets go of the ends that have not ended (the shell's threads were stuck
  * past the grace, say): each tells its client rank that the run has ended, before the poll ends.
+ * The server's end of rank 1 is started late on purpose, so that a test that joined the pool once
+ * the clients are open, without waiting for the server's ends, fails every time.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: the end of the listener's work tells the clients", "[courtier][mpi]") {
+    constexpr auto SERVER_START_HOLD = 500ms;
     auto world = std::make_shared<GMPIFakeWorld>(3);
     Master master(world);
     Client client_one(world, 1);
     Client client_two(world, 2);
-    master.start();
+    // The clients' ends open on the greeting, which goes out before the listener hands the peers
+    // over; the server's end of rank 1 is started only after the hold (its open handler is then
+    // posted to the pool), long after the clients are open.
+    master.start([&](Role &, GWirePeerId rank) {
+        if(rank == 1) {
+            std::this_thread::sleep_for(SERVER_START_HOLD);
+        }
+    });
     // The server's ends are open too: a handler still queued on the pool when it is joined never
     // runs, and the peer it holds would keep its role (rolesLetGo() below). The roles are looked
     // up inside the wait, so that the test holds none of them afterwards.
