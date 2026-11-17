@@ -81,6 +81,8 @@ using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessListenerRef;
+using Gem::Courtier::Tests::GInProcessPeer;
+using Gem::Courtier::Tests::GInProcessPeerWatch;
 using Gem::Courtier::Tests::GInProcessRoute;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
@@ -898,18 +900,29 @@ TEST_CASE(
 /**
  * A connection that the session closed with an error before the stop and that then ends unconfirmed
  * while the shell waits for the end of the run did not fail to confirm the end of the run: it is
- * not counted (clientsUnconfirmedAtStop()).
+ * not counted (clientsUnconfirmedAtStop()). The client is given its end late on purpose, so that a
+ * test that sent through the client once the server has its session, without waiting for the
+ * client's end, fails every time.
  */
 TEST_CASE(
     "GPeerConsumerT: a connection the session closed with an error is not counted at the stop",
     "[courtier][peer][shell]"
 ) {
+    constexpr auto CLIENT_END_HOLD = 500ms;
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
         .clientFaults = GInProcessFaults{.acknowledgeClose = false},
         .closeGrace = 300ms, // the server's end gives up on its close long before the stop's grace
         .stopGrace = 5s
     });
-    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
+    // The server's session is made as soon as the connection is (on_peer is posted first); the
+    // client is given its end afterwards, here only once the test has acted through the client, or
+    // after the hold
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    const auto acted = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    watch->setOnMade([acted, CLIENT_END_HOLD](GInProcessPeer &) {
+        std::ignore = acted->wait_for(CLIENT_END_HOLD);
+    });
+    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener), true, watch};
     IoThreads clients;
     auto role = std::make_shared<ScriptedClient>(0, true);
     auto seam = std::make_shared<SeamPeer::Seam>();
@@ -920,6 +933,7 @@ TEST_CASE(
         // Both ends: a message sent before the client knows its end would go nowhere
         REQUIRE(eventually([&] { return role->open() && shell.getNActiveSessions() == 1; }));
         role->sendBytes("x"); // a message whose kind cannot be read: the session closes with ERROR
+        acted->count_down();
         REQUIRE(eventually([&] { return seam->closeRequested.load(); }));
         REQUIRE(seam->how.load() == GPeerClose::ERROR);
 
