@@ -45,6 +45,12 @@
 # without a title of its own shows its first series' label, which is also the
 # legend's first entry), and where a figure of one pad shows both a canvas
 # label and a pad title. A pad is the part of the macro after graphPad->cd(<n>).
+# A blank text is no text: the plotting library gives an unlabelled series the
+# title " ", which ROOT shows as nothing.
+#
+# The macros are read where their programs wrote them; each registration removes
+# them before the programs run (a fixture), so that a program that no longer
+# writes one fails the check instead of leaving an earlier run's macro to pass it.
 #
 # Input (passed via -D):
 #   FIGURES   the ROOT macros to check (a list; each must exist)
@@ -74,22 +80,25 @@ FOREACH(_figure IN LISTS FIGURES)
 	# into CMake lists: a semicolon or a "[" in a text would split or swallow elements).
 	FOREACH(_line IN LISTS _lines)
 		IF(_line MATCHES "new TPaveLabel\\(.*, ${_lit}\\);")
-			SET(_canvas_label "${CMAKE_MATCH_1}")
+			STRING(STRIP "${CMAKE_MATCH_1}" _canvas_label)
 		ELSEIF(_line MATCHES "graphPad->cd\\([0-9]+\\);")
 			MATH(EXPR _n_pads "${_n_pads} + 1")
 			SET(_pad${_n_pads}_title "")
 			SET(_pad${_n_pads}_first "")
 			SET(_pad${_n_pads}_n_entries 0)
 		ELSEIF(_n_pads GREATER 0 AND _line MATCHES "^[ \t]*n->SetTitle\\(${_lit}\\);")
-			SET(_pad${_n_pads}_title "${CMAKE_MATCH_1}")
+			STRING(STRIP "${CMAKE_MATCH_1}" _pad${_n_pads}_title)
 		ELSEIF(_n_pads GREATER 0 AND _line MATCHES "^[ \t]*[A-Za-z_][A-Za-z_0-9]*->SetTitle\\(${_lit}\\);")
 			IF("${_pad${_n_pads}_first}" STREQUAL "")
-				SET(_pad${_n_pads}_first "${CMAKE_MATCH_1}")
+				STRING(STRIP "${CMAKE_MATCH_1}" _pad${_n_pads}_first)
 			ENDIF()
 		ELSEIF(_n_pads GREATER 0 AND _line MATCHES "legend->AddEntry\\([^,]*, ${_lit}, ")
-			MATH(EXPR _e "${_pad${_n_pads}_n_entries} + 1")
-			SET(_pad${_n_pads}_entry${_e} "${CMAKE_MATCH_1}")
-			SET(_pad${_n_pads}_n_entries ${_e})
+			STRING(STRIP "${CMAKE_MATCH_1}" _entry)
+			IF(NOT "${_entry}" STREQUAL "")
+				MATH(EXPR _e "${_pad${_n_pads}_n_entries} + 1")
+				SET(_pad${_n_pads}_entry${_e} "${_entry}")
+				SET(_pad${_n_pads}_n_entries ${_e})
+			ENDIF()
 		ENDIF()
 	ENDFOREACH()
 

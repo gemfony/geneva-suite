@@ -808,6 +808,28 @@ IF (GENEVA_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(SpecialMemberNolintEffective PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(SpecialMemberNolintEffective S)
 
+	# The rule of CheckFigureTitles.cmake on two figures of one pad with a canvas label: a series
+	# with a blank title (the plotting library's " " for an unlabelled series) shows no second
+	# title, a labelled one does.
+	SET(_titles_dir ${CMAKE_BINARY_DIR}/CheckFigureTitles)
+	FOREACH(_case blank labelled)
+		IF(_case STREQUAL "blank")
+			SET(_series_title " ")
+		ELSE()
+			SET(_series_title "a series")
+		ENDIF()
+		FILE(WRITE ${_titles_dir}/${_case}.C
+			"TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \"A figure\");\n"
+			"graphPad->cd(1);\n"
+			"graph_0->SetTitle(\"${_series_title}\");\n")
+		ADD_TEST(NAME CheckFigureTitlesRule_${_case}
+			COMMAND ${CMAKE_COMMAND} -DFIGURES=${_titles_dir}/${_case}.C
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake)
+		GENEVA_TEST_SIZE(CheckFigureTitlesRule_${_case} S)
+	ENDFOREACH()
+	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
+		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
+
 	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
 	# external dependency of the test, not of the build, so it is registered only where configure
 	# finds one. -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the source tree.

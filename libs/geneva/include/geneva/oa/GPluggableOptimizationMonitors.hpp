@@ -687,8 +687,8 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Allows to set the canvas label, the title of the figure (with a landscape, see
-	  * setLandscapeResolution(), the title of its one pad)
+	  * @brief Allows to set the canvas label, the title of the figure; the figure has one pad, and
+	  * the label is shown as that pad's title
 	  *
 	  * @param canvas_label The label to assign to the canvas
 	  */
@@ -783,6 +783,7 @@ private:
                 Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
                 spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
                 spec.name = "Fitness as a function of a parameter value";
+                spec.pad_title = canvas_label_;
                 spec.x_label = this->getLabel(fp_prof_var_vec_[0]);
                 spec.y_label = "Fitness";
                 spec.columns = {"x", "y"};
@@ -791,6 +792,7 @@ private:
             case 2: {
                 Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_3d);
                 spec.name = "Fitness as a function of parameter values";
+                spec.pad_title = canvas_label_;
                 spec.x_label = this->getLabel(fp_prof_var_vec_[0]);
                 spec.y_label = this->getLabel(fp_prof_var_vec_[1]);
                 spec.z_label = "Fitness";
@@ -800,12 +802,9 @@ private:
                 } else {
                     // The objective function as a heat map on the floor (filled in at INFOEND), without
                     // its surface; the evaluated candidates above it, their shadows on the map. The
-                    // pad has a legend, so each text is shown once: the canvas label becomes the title
-                    // of the one pad (and is not shown above it), the map's legend entry says what the
-                    // map is.
+                    // pad has a legend, so each text is shown once: the pad's title is the canvas
+                    // label, the map's legend entry says what the map is.
                     spec.name = "fitness landscape";
-                    spec.pad_title = canvas_label_;
-                    data_log_->setShowCanvasLabel(false);
                     spec.projection = Gem::Dietrich::surfaceProjection::FLOOR;
                     spec.surface = false;
                     landscape_series_ = data_log_->declareSeries(spec);
@@ -820,6 +819,7 @@ private:
             case 3: {
                 Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_4d);
                 spec.name = "Fitness (color-coded) as a function of parameter values";
+                spec.pad_title = canvas_label_;
                 spec.x_label = this->getLabel(fp_prof_var_vec_[0]);
                 spec.y_label = this->getLabel(fp_prof_var_vec_[1]);
                 spec.z_label = this->getLabel(fp_prof_var_vec_[2]);
@@ -839,6 +839,11 @@ private:
                         << "No graphical output will be created." << '\n'
                         << GLOGGING;
             } break;
+            }
+            if(have_series_) {
+                // The figure has one pad and one title: the canvas label is the title of the pad
+                // (spec.pad_title above), and is not shown above it as well.
+                data_log_->setShowCanvasLabel(false);
             }
 
             data_log_->setCanvasDimensions(

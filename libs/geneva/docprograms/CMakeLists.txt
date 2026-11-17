@@ -72,6 +72,16 @@ FOREACH ( _algorithm ea sepcma sa gsa swarm spso2011 acor cgd nm ps )
 ENDFOREACH ()
 LIST ( TRANSFORM _GENEVA_DOCPROGRAM_FIGURES PREPEND ${CMAKE_CURRENT_BINARY_DIR}/ )
 LIST ( TRANSFORM _GENEVA_DOCPROGRAM_FIGURES APPEND .C )
+# The figures of an earlier run are removed before the programs run, so that the check reads only
+# what this run wrote.
+ADD_TEST ( NAME geneva_docprogram_figures_removed
+	COMMAND ${CMAKE_COMMAND} -E rm -f ${_GENEVA_DOCPROGRAM_FIGURES} )
+SET_TESTS_PROPERTIES ( geneva_docprogram_figures_removed PROPERTIES LABELS "geneva;docprogram"
+	FIXTURES_SETUP geneva_docprogram_fresh )
+GENEVA_TEST_SIZE ( geneva_docprogram_figures_removed S )
+FOREACH ( _dp ${_GENEVA_DOCPROGRAMS} )
+	SET_PROPERTY ( TEST geneva_${_dp} APPEND PROPERTY FIXTURES_REQUIRED geneva_docprogram_fresh )
+ENDFOREACH ()
 ADD_TEST ( NAME geneva_docprogram_titles
 	COMMAND ${CMAKE_COMMAND} "-DFIGURES=${_GENEVA_DOCPROGRAM_FIGURES}"
 		-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake )

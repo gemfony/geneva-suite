@@ -187,6 +187,40 @@ TEST_CASE("GProgressPlotterT names its axes and draws a 2-d profile over a heat 
 
 /******************************************************************************/
 
+TEST_CASE("GProgressPlotterT shows the canvas label as the one title of its one pad", "[monitor][plot][oa]") {
+    // One, two (without a landscape) and three profiled variables: the canvas label is the title of
+    // the figure's one pad and is not drawn above it as well, so the figure has one title.
+    const std::string label = "Progress of the title check";
+    for(const std::string spec : {"d(0, -5, 5)", "d(0, -5, 5), d(1, -5, 5)",
+                                  "d(0, -5, 5), d(1, -5, 5), d(2, -5, 5)"}) {
+        const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_title.C";
+        std::filesystem::remove(out);
+        auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
+        monitor->setProfileSpec(spec);
+        monitor->setCanvasLabel(label);
+        monitor->setFileName(out.string());
+
+        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        p->setPopulationSizes(8, 2);
+        p->setMaxIteration(2);
+        p->setReportIteration(100000);
+        Sphere3 const src;
+        p->push_back(src.clone());
+        p->setAdaptionConfig(src.buildAdaptionConfig());
+        p->registerPluggableOM(monitor);
+        REQUIRE_NOTHROW(p->optimize());
+        REQUIRE(std::filesystem::exists(out));
+
+        const std::string content = readFile(out);
+        INFO("profile " << spec);
+        CHECK(content.contains("n->SetTitle(\"" + label + "\");"));
+        CHECK_FALSE(content.contains("TPaveLabel"));
+        std::filesystem::remove(out);
+    }
+}
+
+/******************************************************************************/
+
 TEST_CASE("GProgressPlotterT with no profiled variable still writes an (empty) canvas", "[monitor][plot][oa]") {
     // With zero profiled variables nProfileVars() is 0, so no renderable series is declared; the monitor
     // must still emit a valid, non-empty ROOT macro (an empty canvas), exactly as the legacy path did.
