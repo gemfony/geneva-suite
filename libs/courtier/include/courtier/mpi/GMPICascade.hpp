@@ -181,8 +181,10 @@ public:
  * also inside a client's item processor, where an exception would only flag the item: the cascade
  * releases its group (the members' serve() returns, so no process is left waiting), logs what the
  * program has to add and calls MPI_Abort. A lead or the submitter that never confirmed its role
- * ends the MPI job in the destructor (unless an exception is unwinding), the last safeguard for a
- * process that never uses the cascade.
+ * ends the MPI job in the destructor (unless an exception unwinds through the cascade), the last
+ * safeguard for a process that never uses the cascade. "Unwinds through the cascade" counts the
+ * exceptions that unwind beyond those that unwound at its construction, so a cascade that lives
+ * entirely inside a destructor run by an unrelated exception ends as any other.
  *
  * <b>A submitter that fails.</b> In SUBMITTER_AND_GROUPS the leads wait for the greeting of the
  * submitter's MPI consumer, without a limit by default, and their members for them. If an
@@ -290,6 +292,8 @@ private:
     [[noreturn]] void endJob_(std::string_view, const std::exception_ptr &) const noexcept;
     /** @brief Ends the MPI job with a reason */
     [[noreturn]] void endJob_(std::string_view, std::string_view) const noexcept;
+    /** @brief Whether an exception unwinds through the cascade (more than at its construction) */
+    [[nodiscard]] bool unwinding_() const noexcept;
 
     /// Keeps MPI initialized; null without MPI
     std::shared_ptr<Consumers::GMPIEnvironment> environment_;
@@ -299,6 +303,9 @@ private:
     MPI_Comm group_ = MPI_COMM_NULL;            ///< The group's communicator, for the halves
     MPI_Comm status_ = MPI_COMM_NULL;           ///< The group's communicator for the announcements
     int base_rank_ = 0;                         ///< This process's rank in base_
+    /// The exceptions that unwound when the cascade was constructed: it may live entirely inside
+    /// a destructor that runs while an unrelated exception unwinds
+    const int uncaught_at_construction_ = std::uncaught_exceptions();
     GMPICascadeConfig config_;                  ///< Rank 0's configuration
     processRole role_ = processRole::SUBMITTER; ///< The cascade's role of this process
 

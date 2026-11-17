@@ -422,6 +422,13 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterThrowsAfterConsumer 4 M zero
 		submitter-throws-after-consumer EXPECT "the submitter's exception reached the program"
 		REFUSE "MPI_Abort")
+	# A cascade that lives inside a destructor while an unrelated exception unwinds: no exception
+	# unwinds through it, so the job ends normally; a submitter that never confirms its role there
+	# still ends the job for that reason
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwinding 4 M zero during-unwinding)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwindingNeverConfirms 4 M nonzero
+		during-unwinding-never-confirms EXPECT "the role of the submitter was never confirmed"
+		"The job is ended (MPI_Abort)")
 	# ... and from inside setUp(), tearDown() or a member's serveRound()
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
 		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")
