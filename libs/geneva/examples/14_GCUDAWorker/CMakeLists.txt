@@ -147,15 +147,16 @@ GENEVA_TEST_SIZE(GCUDAWorker_CPU L)
 # scores -- fails the test as well. One generation covers the path (Inv 22); three clients rather
 # than one keep a Debug run of it below a minute.
 IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
-	ADD_TEST (
+	GENEVA_ADD_MPI_TEST (
 		NAME GCUDAWorker_NetworkedClient
+		TIMEOUT 300
 		COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
 			${MPIEXEC_PREFLAGS} $<TARGET_FILE:${EXECUTABLENAME}> ${MPIEXEC_POSTFLAGS}
 			--module $<TARGET_FILE:GImageIndividual> --consumer mpi --eaMaxIterations 1
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 	)
 	SET_TESTS_PROPERTIES ( GCUDAWorker_NetworkedClient PROPERTIES
-		LABELS "geneva;example" TIMEOUT 300 PROCESSORS 4
+		LABELS "geneva;example" PROCESSORS 4
 		FAIL_REGULAR_EXPRESSION "no target image is loaded;Best fitness: 0[\r\n]" )
 	GENEVA_TEST_SIZE(GCUDAWorker_NetworkedClient L)
 ENDIF ()

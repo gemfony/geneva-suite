@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
     );
     allSolutionLogger_ptr
         ->setPrintInitial(); // Also log the initial population, prior to optimization
-    allSolutionLogger_ptr->setShowIterationBoundaries(); // Facilitates reading of the log file
+    allSolutionLogger_ptr->setShowIterationBoundaries(); // Makes the log easier to read
 
     go.registerPluggableOM(allSolutionLogger_ptr);
     //! [monitors:register-simple]
@@ -80,8 +80,9 @@ int main(int argc, char **argv) {
     // Add a content creator so Go2 can generate its own individuals, if necessary
     go.registerContentCreator(gsif_ptr);
 
-    // The genome carries only structure; its Gauss adaptor lives on an OA-owned config the factory
-    // authors from the configuration. Register it for the adapting algorithms (EA / SA).
+    // The genome carries only structure; its Gauss adaptor lives on an OA-owned config
+    // the factory authors from the configuration. Register it for the adapting
+    // algorithms (EA / SA).
     {
         auto sample = gsif_ptr->get_as<GStarterIndividual>();
         auto cfg = gsif_ptr->getAdaptionConfig(*sample);

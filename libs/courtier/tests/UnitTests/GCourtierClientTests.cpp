@@ -47,7 +47,7 @@
 #include <boost/asio.hpp>
 
 #include "courtier/GCommandContainerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GWireProtocolT.hpp"
 #include "courtier/transport/GPrefetchingClientT.hpp"

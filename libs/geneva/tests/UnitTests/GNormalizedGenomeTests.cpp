@@ -387,10 +387,10 @@ TEST_CASE(
     // Box [-1, 10000): 9999 is accepted, 10000 (exactly the open upper) and 10001 both throw; below the
     // lower bound throws too. (Mirrors the §2.6 worked example.)
     //! [constraints:half-open]
-    NgBoxIndividual ind(1, -1., 10000.);
+    NgBoxIndividual ind(1, -1., 10000.); // the half-open box [-1, 10000)
     CHECK_NOTHROW(ind.assignValueVector<double>(std::vector<double>{9999.0}));
-    CHECK_NOTHROW(ind.assignValueVector<double>(std::vector<double>{-1.0})); // exactly the closed lower
-    CHECK_THROWS(ind.assignValueVector<double>(std::vector<double>{10000.0})); // exactly the open upper
+    CHECK_NOTHROW(ind.assignValueVector<double>(std::vector<double>{-1.0}));   // lower: in
+    CHECK_THROWS(ind.assignValueVector<double>(std::vector<double>{10000.0})); // upper: out
     CHECK_THROWS(ind.assignValueVector<double>(std::vector<double>{10001.0}));
     CHECK_THROWS(ind.assignValueVector<double>(std::vector<double>{-1.5}));
     //! [constraints:half-open]

@@ -49,21 +49,23 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  */
 //! [hesse-options]
 struct GHesseErrorOptions {
-    /** @brief The error definition UP: the increase of the objective that defines one standard
-     *  deviation. 1.0 for a chi^2-like objective, 0.5 for a negative-log-likelihood (the MINUIT
-     *  convention). */
+    /** @brief The error definition UP: the increase of the objective that defines one
+     *  standard deviation. 1.0 for a chi^2-like objective, 0.5 for a
+     *  negative-log-likelihood (the MINUIT convention). */
     double up = 1.;
-    /** @brief When true and the dimension is at most max_full_dim, the full Hessian is built and
-     *  inverted to a covariance matrix, giving correlation-aware (profiled) parameter errors.
-     *  Otherwise only the cheap diagonal (parameter-fixed) estimate is computed. */
+    /** @brief When true and the dimension is at most max_full_dim, the full Hessian is
+     *  built and inverted to a covariance matrix, giving correlation-aware (profiled)
+     *  parameter errors. Otherwise only the cheap diagonal (parameter-fixed) estimate
+     *  is computed. */
     bool full_covariance = false;
-    /** @brief The dimension above which a full Hessian is never attempted (it costs O(n^2)
-     *  evaluations), regardless of full_covariance. */
+    /** @brief The dimension above which a full Hessian is never attempted (it costs
+     *  O(n^2) evaluations), regardless of full_covariance. */
     std::size_t max_full_dim = 64;
-    /** @brief When true (and dimension <= max_full_dim), compute MINUIT-style MINOS asymmetric errors:
-     *  per parameter, the points where the PROFILE of the objective (re-minimised over all other
-     *  parameters) rises by UP above the minimum. Captures non-parabolic / correlated minima. Opt-in
-     *  and expensive -- each bound costs repeated re-minimisations. */
+    /** @brief When true (and dimension <= max_full_dim), compute MINUIT-style MINOS
+     *  asymmetric errors: per parameter, the points where the PROFILE of the objective
+     *  (re-minimised over all other parameters) rises by UP above the minimum. Captures
+     *  non-parabolic / correlated minima. Opt-in and expensive -- each bound costs
+     *  repeated re-minimisations. */
     bool minos = false;
 };
 //! [hesse-options]
@@ -128,7 +130,7 @@ struct GHesseErrorResult {
 //! [hesse-estimate#1]
 class GHesseError {
 public:
-    /** @brief Evaluates a batch of points and returns one (min-only) objective value per point. */
+    /** @brief Evaluates a batch of points; one (min-only) objective value per point. */
     using eval_fn_t =
         std::function<std::vector<double>(const std::vector<std::vector<double>> &)>;
 //! [hesse-estimate#1]

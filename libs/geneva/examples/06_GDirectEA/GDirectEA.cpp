@@ -356,8 +356,9 @@ int main(int argc, char **argv) {
         pop_ptr->push_back(ind->clone());
     }
 
-    // The genome carries only structure; the configured Gauss / bi-Gauss adaptor lives on an OA-owned
-    // config the factory authors. Hand it to the EA directly (the setAdaptionConfig distribution path).
+    // The genome carries only structure; the configured Gauss / bi-Gauss adaptor lives
+    // on an OA-owned config the factory authors. Hand it to the EA directly (the
+    // setAdaptionConfig distribution path).
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
     //! [algo-ea:direct-setup]
 

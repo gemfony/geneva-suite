@@ -39,10 +39,15 @@ SET (GENEVA_DOC_LIB_DESC "Core optimisation: Go2 driver, GGenome "
 		"workflow, seven optimisation algorithms (EA/SA/Swarm/GD/CGD/NM/PS), "
 		"per-category GCommonInterfaceT<Root> CRTP roots, individuals, "
 		"pluggable monitors")
-# Upstream: common, hap, courtier. Single space-separated string (see the
-# courtier counterpart for the multi-arg-SET caveat).
-SET (GENEVA_DOC_TAGFILES
-		"${CMAKE_BINARY_DIR}/common/doc/common.tag=../../../common/doc/html ${CMAKE_BINARY_DIR}/hap/doc/hap.tag=../../../hap/doc/html ${CMAKE_BINARY_DIR}/courtier/doc/courtier.tag=../../../courtier/doc/html")
+# Upstream: common, hap, dietrich, courtier, each built in libs/<lib>/doc of the build tree; the
+# html paths are relative to libs/geneva/doc/html. Joined into one space-separated string (see the
+# courtier counterpart for why it is not a CMake list).
+SET (_tag_dir "${CMAKE_BINARY_DIR}/libs")
+STRING (JOIN " " GENEVA_DOC_TAGFILES
+		"${_tag_dir}/common/doc/common.tag=../../../common/doc/html"
+		"${_tag_dir}/hap/doc/hap.tag=../../../hap/doc/html"
+		"${_tag_dir}/dietrich/doc/dietrich.tag=../../../dietrich/doc/html"
+		"${_tag_dir}/courtier/doc/courtier.tag=../../../courtier/doc/html")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
@@ -57,4 +62,4 @@ ADD_CUSTOM_TARGET (doc-geneva
 	VERBATIM
 )
 
-ADD_DEPENDENCIES (doc-geneva doc-common doc-hap doc-courtier)
+ADD_DEPENDENCIES (doc-geneva doc-common doc-hap doc-dietrich doc-courtier)

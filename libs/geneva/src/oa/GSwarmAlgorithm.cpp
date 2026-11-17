@@ -1053,15 +1053,17 @@ void GSwarmAlgorithm::updateIndividualPositions(
  */
 //! [swarm-prune-velocity]
 void GSwarmAlgorithm::pruneVelocity(std::vector<double> &vel_vec) {
-    // The velocity cap vel_max_ is a single dimensionless fraction of the normalized unit interval, the
-    // same for every parameter. A zero cap (velocity range percentage of 0) freezes all velocities.
+    // The velocity cap vel_max_ is a single dimensionless fraction of the normalized
+    // unit interval, the same for every parameter. A zero cap (velocity range
+    // percentage of 0) freezes all velocities.
     if(vel_max_ <= 0.) {
         std::fill(vel_vec.begin(), vel_vec.end(), 0.);
         return;
     }
 
-    // Find the component that exceeds the cap by the largest factor; if any does, scale the whole velocity
-    // vector down uniformly so its largest component sits exactly at the cap (preserving its direction).
+    // Find the component that exceeds the cap by the largest factor; if any does, scale
+    // the whole velocity vector down uniformly so its largest component sits exactly at
+    // the cap (preserving its direction).
     double max_percentage = 1.;
     bool overflow_found = false;
     for(double const v : vel_vec) {
@@ -1640,6 +1642,8 @@ void GSwarmAlgorithm::setNeighborhoodsEqualFillUp() {
 /******************************************************************************/
 /**
  * All individuals automatically added to a neighborhood will have a random value
+ *
+ * @param random_fill_up Whether random fill-up should be enabled (defaults to true)
  */
 void GSwarmAlgorithm::setNeighborhoodsRandomFillUp(bool random_fill_up) {
     random_fill_up_ = random_fill_up;

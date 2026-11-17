@@ -56,10 +56,11 @@ runWithClients.sh does the two runs for a server and N clients on one host and
 leaves the results in a work directory outside the source tree; the server
 waits for the N clients (--waitForClients N). With the
 consumer mpi it starts one mpirun with N + 1 ranks instead (rank 0 is the
-server); everything else -- the work directory, the server options, the
-reference -- is the same for every consumer. Several runs can share one serial
-reference: copy its referenceLine.txt into their work directories, so that the
-speed-ups of two consumers are measured against the same serial time.
+server); everything else -- the work directory, the options (they reach the
+server and every client), the reference -- is the same for every consumer.
+Several runs can share one serial reference: copy its referenceLine.txt into
+their work directories, so that the speed-ups of two consumers are measured
+against the same serial time.
 compareSpeedups.py averages the result tables of several runs and tells whether
 a second group of runs is slower than the first by more than their errors
 allow. Both describe their arguments in their header.

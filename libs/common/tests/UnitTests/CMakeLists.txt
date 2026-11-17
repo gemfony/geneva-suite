@@ -32,9 +32,9 @@
 #
 #     geneva_common_test(<exe-name> <size> <source-files...>)
 #
-# creates an executable, links it against the Geneva libraries + Boost +
-# Catch2::Catch2WithMain (+ MPI when GENEVA_BUILD_WITH_MPI_CONSUMER), registers
-# it with CTest under the "common" label plus its size label, installs it, and
+# creates an executable, links it against the common library + Boost +
+# Catch2::Catch2WithMain (nothing of the libraries above common:
+# CommonProgramsLinkOnlyCommon), registers it with CTest under the "common" label plus its size label, installs it, and
 # appends it to the `tests-common-unit` aggregate target. Used by every test
 # below.
 #
@@ -48,7 +48,7 @@ SET(_GENEVA_COMMON_TEST_TARGETS "")
 FUNCTION(geneva_common_test name size)
 	ADD_EXECUTABLE(${name} ${ARGN})
 
-	SET(_libs ${GENEVA_LIBRARIES} ${Boost_LIBRARIES} Catch2::Catch2WithMain)
+	SET(_libs ${COMMON_LIBNAME} ${Boost_LIBRARIES} Catch2::Catch2WithMain)
 	TARGET_LINK_LIBRARIES(${name} ${_libs})
 
 	ADD_TEST(${name} ${name})

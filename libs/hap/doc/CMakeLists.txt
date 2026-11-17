@@ -39,9 +39,10 @@ SET (GENEVA_DOC_LIB_NAME "hap")
 SET (GENEVA_DOC_LIB_DESC "Random-number library: GRandomT, GRandomFactory, "
 		"distribution wrappers, xoshiro256++ "
 		"engine with optional SIMD bulk-refill")
-# Upstream: common -- relative html path from hap/doc/html to common/doc/html.
+# Upstream: common -- the tag file where common's doc is built (libs/common/doc in the build
+# tree), and the relative html path from libs/hap/doc/html to libs/common/doc/html.
 SET (GENEVA_DOC_TAGFILES
-		"${CMAKE_BINARY_DIR}/common/doc/common.tag=../../../common/doc/html")
+		"${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in

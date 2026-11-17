@@ -91,11 +91,19 @@ set_property(CACHE GENEVA_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 #   staged     -> chunks from a shared, bulk-filled staging pool into a per-proxy double buffer
 #   quarantine -> read in place from N rotating, bulk-filled pools (benign-race, aligned-64-bit)
 # Every other source remains usable explicitly via GRandomT<randomSource::...>; this only
-# picks what the GRandom alias maps to. Consumed in libs/hap/src/CMakeLists.txt.
+# picks what the GRandom alias maps to.
 set(HAP_RANDOM_SOURCE "queue" CACHE STRING "Source for the default Gem::Hap::GRandom proxy: queue|local|staged|quarantine")
 set_property(CACHE HAP_RANDOM_SOURCE PROPERTY STRINGS queue local staged quarantine)
 if(NOT HAP_RANDOM_SOURCE MATCHES "^(queue|local|staged|quarantine)$")
 	message(FATAL_ERROR "HAP_RANDOM_SOURCE must be one of queue|local|staged|quarantine (got '${HAP_RANDOM_SOURCE}').")
+endif()
+# The compile definition that makes <hap/GRandomT.hpp> pick the source; none for queue, the header's
+# default. Every consumer of hap must see the same one (else GRandom differs between the library
+# and the program): hap's PUBLIC compile definition (libs/hap/src/CMakeLists.txt), and the one of
+# Geneva::hap in the installed FindGeneva.cmake (CMakeModules/CMakeLists.txt).
+set(GENEVA_HAP_PUBLIC_DEFINE "")
+if(NOT HAP_RANDOM_SOURCE STREQUAL "queue")
+	string(TOUPPER "HAP_DEFAULT_SOURCE_${HAP_RANDOM_SOURCE}=1" GENEVA_HAP_PUBLIC_DEFINE)
 endif()
 
 # Set ON to instrument the Common library and its tests with coverage flags
@@ -611,12 +619,12 @@ ELSE ()
 	MESSAGE (STATUS "Doxygen not found; the per-library doc targets and 'make doc' are disabled.")
 ENDIF ()
 
-# Self-contained per-library subtrees. All four libraries now live under
-# their own top-level directory; the legacy split-by-kind include/, src/,
-# tests/, examples/, benchmarks/ trees no longer exist. Order matches the
-# dependency chain (weft <- common <- hap <- courtier <- geneva) so every
-# library's targets exist when its dependents configure. Weft (the standalone
-# serialization engine) is the deepest layer, added before common.
+# Self-contained per-library subtrees under libs/; the legacy split-by-kind
+# include/, src/, tests/, examples/, benchmarks/ trees no longer exist. The
+# layers: weft (the standalone serialization engine) at the bottom, common on
+# weft, dietrich, hap and courtier each on common only (three peers), geneva on
+# all of them. A library is added after the ones it builds on, so that their
+# targets exist when it configures.
 ADD_SUBDIRECTORY (libs/weft)
 ADD_SUBDIRECTORY (libs/common)
 ADD_SUBDIRECTORY (libs/dietrich)
@@ -637,10 +645,12 @@ ENDFOREACH ()
 #
 # This is the modern, preferred way for downstream projects to consume an
 # installed Geneva: find_package(Geneva CONFIG REQUIRED) then link the imported
-# targets Geneva::common / Geneva::hap / Geneva::courtier / Geneva::geneva.
+# targets Geneva::weft / Geneva::common / Geneva::dietrich / Geneva::hap /
+# Geneva::courtier / Geneva::geneva.
 #
 # The exported targets carry their include directories ($<INSTALL_INTERFACE>),
-# their inter-library link dependencies (geneva -> courtier -> hap -> common),
+# their inter-library link dependencies (geneva -> courtier, hap, dietrich;
+# each of these -> common -> weft),
 # the C++23 requirement and the Boost dependency transitively. The config file
 # re-finds Boost so consumers do not have to.
 #
@@ -742,6 +752,7 @@ IF (GENEVA_BUILD_TESTS)
 				-DCATCH2_DIR=${Catch2_DIR}
 				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
 				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
+				-DHAP_DEFINE=${GENEVA_HAP_PUBLIC_DEFINE}
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)
@@ -769,6 +780,15 @@ IF (GENEVA_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
 
+	# Every library and program includes only the libraries of its layer (courtier nothing of hap).
+	ADD_TEST(
+		NAME LibraryLayersRespected
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckLibraryLayers.cmake
+	)
+	SET_TESTS_PROPERTIES(LibraryLayersRespected PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(LibraryLayersRespected S)
+
 	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
 	ADD_TEST(
 		NAME TestCaseNamesSelectable
@@ -777,6 +797,61 @@ IF (GENEVA_BUILD_TESTS)
 	)
 	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
+
+	# A NOLINT of cppcoreguidelines-special-member-functions sits on the class's name line, where
+	# clang-tidy reports the check (elsewhere it suppresses nothing).
+	ADD_TEST(
+		NAME SpecialMemberNolintEffective
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckSpecialMemberNolint.cmake
+	)
+	SET_TESTS_PROPERTIES(SpecialMemberNolintEffective PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(SpecialMemberNolintEffective S)
+
+	# The rule of CheckFigureTitles.cmake on two figures of one pad with a canvas label: a series
+	# with a blank title (the plotting library's " " for an unlabelled series) shows no second
+	# title, a labelled one does.
+	SET(_titles_dir ${CMAKE_BINARY_DIR}/CheckFigureTitles)
+	FOREACH(_case blank labelled)
+		IF(_case STREQUAL "blank")
+			SET(_series_title " ")
+		ELSE()
+			SET(_series_title "a series")
+		ENDIF()
+		FILE(WRITE ${_titles_dir}/${_case}.C
+			"TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \"A figure\");\n"
+			"graphPad->cd(1);\n"
+			"graph_0->SetTitle(\"${_series_title}\");\n")
+		ADD_TEST(NAME CheckFigureTitlesRule_${_case}
+			COMMAND ${CMAKE_COMMAND} -DFIGURES=${_titles_dir}/${_case}.C
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake)
+		GENEVA_TEST_SIZE(CheckFigureTitlesRule_${_case} S)
+	ENDFOREACH()
+	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
+		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
+
+	# The runner of the tests that start MPI jobs (GenevaMpiTest.cmake) gives two runs at the same
+	# time two directories for Open MPI's shared-memory files and removes each, also after a
+	# failure and at its bound; and every entry that names the MPI launcher runs under it.
+	ADD_TEST(
+		NAME GenevaMpiTestDirectories
+		COMMAND ${CMAKE_COMMAND} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
+			-DWORK=${CMAKE_BINARY_DIR}/GenevaMpiTestDirectories
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestDirectories.cmake
+	)
+	SET_TESTS_PROPERTIES(GenevaMpiTestDirectories PROPERTIES LABELS "conventions" TIMEOUT 60)
+	GENEVA_TEST_SIZE(GenevaMpiTestDirectories S)
+	IF (MPIEXEC_EXECUTABLE)
+		ADD_TEST(
+			NAME GenevaMpiTestsRegistered
+			COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND} -DBUILD_DIR=${CMAKE_BINARY_DIR}
+				-DMPIEXEC=${MPIEXEC_EXECUTABLE} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
+				-DMARGIN=${GENEVA_MPI_TEST_MARGIN}
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestRegistrations.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaMpiTestsRegistered PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GENEVA_TEST_SIZE(GenevaMpiTestsRegistered S)
+	ENDIF ()
 
 	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
 	# external dependency of the test, not of the build, so it is registered only where configure
@@ -842,13 +917,13 @@ INSTALL ( FILES ${INFORMATIONFILES} DESTINATION ${INSTALL_PREFIX_DOCS} )
 
 ################################################################################
 # Aggregated reference documentation: depends on every per-library doc-<lib>
-# target so `make doc` produces all four lib bundles with cross-references
+# target so `make doc` produces all six lib bundles with cross-references
 # wired via Doxygen TAGFILES (the per-library CMakeLists declares the
 # upstream tag-file dependencies, so ordering is automatic).
 #
 IF (DOXYGEN_FOUND)
 	ADD_CUSTOM_TARGET (doc
-		DEPENDS doc-common doc-hap doc-courtier doc-geneva
+		DEPENDS doc-weft doc-common doc-hap doc-dietrich doc-courtier doc-geneva
 		COMMENT "Generating aggregated Doxygen documentation for all Geneva libraries."
 	)
 ENDIF ()

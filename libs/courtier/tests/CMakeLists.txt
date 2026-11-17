@@ -27,31 +27,48 @@
 #
 ################################################################################
 
+# The work items of the tests, the manual tests and the documentation program (not part of the library)
+ADD_SUBDIRECTORY ( support )
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 
-# With the CUDA backend of the GPU consumer built in: no Geneva library may need the CUDA driver
-# library at load time, so that a CUDA build still starts on machines without an NVIDIA driver.
+# courtier builds on common only: neither the library nor courtier's MPI library needs a library of
+# hap, dietrich or geneva at load time.
+IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+	SET ( _courtier_libs $<TARGET_FILE:${COURTIER_LIBNAME}> $<TARGET_FILE:${COURTIER_MPI_LIBNAME}> )
+ELSE ()
+	SET ( _courtier_libs $<TARGET_FILE:${COURTIER_LIBNAME}> )
+ENDIF ()
+ADD_TEST ( NAME CourtierNeedsOnlyCommon
+	COMMAND ${CMAKE_COMMAND}
+		"-DLIBS=${_courtier_libs}"
+		"-DPATTERN=libgemfony-(hap|dietrich|geneva)"
+		"-DADVICE=courtier builds on common only: see the link of libs/courtier/src/CMakeLists.txt"
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+SET_TESTS_PROPERTIES ( CourtierNeedsOnlyCommon PROPERTIES LABELS "courtier" )
+GENEVA_TEST_SIZE ( CourtierNeedsOnlyCommon S )
+
+# With the CUDA backend of the GPU consumer built in: courtier, which carries the backend, may not
+# need the CUDA driver library at load time, so that a CUDA build still starts on machines without
+# an NVIDIA driver. (ldd lists the whole closure, so common and weft are covered; hap and geneva
+# are checked by GenevaNoDriverLink in libs/geneva/tests, whose closure holds them.)
 IF ( GENEVA_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )
 	ADD_TEST ( NAME CourtierNoDriverLink
 		COMMAND ${CMAKE_COMMAND}
-			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>;$<TARGET_FILE:${HAP_LIBNAME}>;$<TARGET_FILE:${GENEVA_LIBNAME}>"
+			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( CourtierNoDriverLink PROPERTIES LABELS "courtier" )
 	GENEVA_TEST_SIZE ( CourtierNoDriverLink S )
 ENDIF ()
 
-# With the MPI consumer built: courtier, hap and common need no MPI library at load time, so that a
-# courtier program that does not use MPI starts on a machine without it; MPI is linked by courtier's
-# MPI library only, which in turn must link it (it holds the process's MPI environment).
+# With the MPI consumer built: courtier (and with it common and weft, which ldd lists as part of its
+# closure) needs no MPI library at load time, so that a courtier program that does not use MPI
+# starts on a machine without it; MPI is linked by courtier's MPI library only, which in turn must
+# link it (it holds the process's MPI environment). hap and geneva: GenevaNoMpiLink.
 IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
-	SET ( _mpi_free_libs
-		$<TARGET_FILE:${COURTIER_LIBNAME}>
-		$<TARGET_FILE:${HAP_LIBNAME}>
-		$<TARGET_FILE:${COMMON_LIBNAME}> )
 	ADD_TEST ( NAME CourtierNoMpiLink
 		COMMAND ${CMAKE_COMMAND}
-			"-DLIBS=${_mpi_free_libs}"
+			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>"
 			"-DPATTERN=libmpi\\.so"
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( CourtierNoMpiLink PROPERTIES LABELS "courtier" )

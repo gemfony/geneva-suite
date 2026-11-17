@@ -33,16 +33,20 @@
 #
 # Usage:
 #   ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population> \
-#       <iterations> "<delays>" "<reference delays>" <measurements> [server options]
+#       <iterations> "<delays>" "<reference delays>" <measurements> [options]
 #
 #     binary       the GParallelisationOverhead (or GSubClientOverhead) executable
 #     workdir      a directory OUTSIDE the source tree
 #     consumer     the consumer to measure: a networked one such as beast (a
 #                  server process and N client processes), or mpi (one mpirun
-#                  with N + 1 ranks: rank 0 is the server, the others its clients)
+#                  with N + 1 ranks: rank 0 is the server, the others its clients;
+#                  with GROUP > 1, 1 + N x GROUP ranks laid out in groups)
 #     delays       the evaluation times, as "(seconds,milliseconds), ..."
 #     reference delays   the (short) evaluation times of the serial reference
 #     measurements how often each evaluation time is measured
+#
+# The options after the nine arguments go to every process: the server and each
+# client (with mpi: every rank).
 #
 # The serial reference is a run of its own on one local worker. It is kept if
 # the work directory already holds a referenceLine.txt, so that several runs can
@@ -59,9 +63,10 @@
 #            "mpirun --oversubscribe -np": Open MPI needs the flag when there are
 #            more ranks than cores; MPICH's mpiexec knows no such flag)
 #   GROUP    processes per client group (default 1), for GSubClientOverhead: every
-#            client shares its evaluations with GROUP - 1 sub-clients. With mpi
-#            the job has 1 + clients x GROUP ranks; with a networked consumer
-#            every client is an MPI job of GROUP ranks of its own.
+#            client shares its evaluations with GROUP - 1 sub-clients, in a group
+#            of the MPI cascade (--group GROUP). With mpi the job has
+#            1 + clients x GROUP ranks; with a networked consumer every client is
+#            an MPI job of GROUP ranks of its own.
 #   INTER_DELAY  seconds to wait after the measurements of an evaluation time
 #            (the configuration's inter_measurement_delay, 1 unless set here)
 #   POLL_PAUSES  GSubClientOverhead: min:max microseconds a process pauses between
@@ -86,15 +91,33 @@
 #            adaptive lease may give an item to a second client.
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
-# sets the configuration of either individual. The output of the clients goes
-# to clients.log.
+# sets the configuration of either individual. The output of the clients of
+# this run goes to clients.log (with mpi there is none: every rank writes to
+# server.log).
+#
+# A script that is ended from outside (Ctrl-C, kill) ends the server, the clients
+# and the MPI jobs it started first; they would otherwise run on. The script
+# needs bash 4.4 or newer (empty arrays under set -u).
+#
+# Every MPI job the script starts keeps the files of Open MPI's shared-memory
+# transport in a directory of its own (OMPI_MCA_btl_sm_backing_directory; other
+# MPI libraries ignore it), below /dev/shm, removed when the script ends. Open MPI
+# 5 names these files after the job's id, which it derives from a 16-bit hash, so
+# two independent jobs on one host can get the same names; they then use each
+# other's memory and crash or hang (SIGSEGV in mca_btl_sm_poll_handle_frag). With many
+# client jobs at once that is likely: about one run in four with 200 of them.
 ####################################################################
 
 set -u
 
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
+       { [ "${BASH_VERSINFO[0]}" = 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
+    echo "Error: runWithClients.sh needs bash 4.4 or newer, not $BASH_VERSION"; exit 1
+fi
+
 if [ $# -lt 9 ]; then
     echo "Usage: ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population>" \
-         "<iterations> \"<delays>\" \"<reference delays>\" <measurements> [server options]"
+         "<iterations> \"<delays>\" \"<reference delays>\" <measurements> [options]"
     exit 1
 fi
 
@@ -105,6 +128,29 @@ if [ ! -x "$X" ]; then
     echo "Error: $X is not an executable"; exit 1
 fi
 mkdir -p "$W" && cd "$W" || exit 1
+# clients.log holds the clients of this run only
+rm -f clients.log
+
+# The directories of the MPI jobs' shared-memory files (see above), on a memory file system where
+# there is one
+SHM=/dev/shm
+if [ ! -d "$SHM" ] || [ ! -w "$SHM" ]; then
+    SHM=${TMPDIR:-/tmp}
+fi
+SMDIR=$(mktemp -d "$SHM/geneva-sm.XXXXXX") || exit 1
+# What the script started is ended when it ends, also when it is ended from outside: its background
+# processes ignore SIGINT, and nothing in them ends them with the script.
+SRV=""; MPIJOB=""; PIDS=()
+cleanup() {
+    # shellcheck disable=SC2086
+    kill $SRV $MPIJOB "${PIDS[@]}" 2>/dev/null
+    rm -rf "$SMDIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+# Prints the directory of the MPI job $1, created
+jobdir() { mkdir -p "$SMDIR/$1" && echo "$SMDIR/$1"; }
 rm -rf config && cp -r "$(dirname "$X")/config" config
 
 python3 - "$POP" "$ITER" "$DELAYS" "$REFDELAYS" "$NMEAS" "$GROUP" <<'P' || exit 1
@@ -130,50 +176,69 @@ f = 'config/GNetworkedConsumer.json'
 if os.environ.get('TIMEOUT_TREATMENT'):
     d = json.load(open(f)); d['treatment']['value'] = os.environ['TIMEOUT_TREATMENT']
     json.dump(d, open(f, 'w'), indent=1)
-# The group size of an MPI job with sub-clients
-f = 'config/GMPISubClientOptimizer.json'
-if os.path.exists(f):
-    d = json.load(open(f)); d['sub_client_group_size']['value'] = int(group)
-    json.dump(d, open(f, 'w'), indent=1)
-elif int(group) != 1:
+# Only GSubClientOverhead has sub-clients: its individual's file holds the poll pauses
+if int(group) != 1 and not any('poll_pause_min' in json.load(open(f))
+                               for f in glob.glob('config/*Individual.json')):
     sys.exit('this program has no sub-clients; GROUP must be 1')
 P
 
+# No measurement without its reference
 if [ ! -s referenceLine.txt ] || [ "${REFRESH_REFERENCE:-0}" = 1 ]; then
-    "$X" --reference > reference.log 2>&1; echo "reference exit: $?"
+    "$X" --reference > reference.log 2>&1
+    REFSTATUS=$?
+    echo "reference exit: $REFSTATUS"
+    if [ "$REFSTATUS" != 0 ]; then
+        echo "the serial reference failed; see reference.log"
+        exit 1
+    fi
 fi
 
 # The server starts its clock when the clients it waits for are connected.
 GATE=(--waitForClients "${EXPECT_CLIENTS:-$N}" --clientWaitLimit "${CLIENT_WAIT_LIMIT:-600}")
+# The group size, for the processes of the groups (a program without groups does not know it)
+GROUPOPT=()
+if [ "$GROUP" -gt 1 ]; then
+    GROUPOPT=(--group "$GROUP")
+fi
 
 if [ "$C" = mpi ]; then
-    # The ranks take their roles from MPI; the server options reach every rank.
+    # The ranks take their roles from MPI (and with groups from the cascade); the options reach
+    # every rank.
     # shellcheck disable=SC2086
-    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" "$@" \
-        > server.log 2>&1
-    STATUS=$?
+    OMPI_MCA_btl_sm_backing_directory=$(jobdir job) \
+        ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
+        "${GROUPOPT[@]}" "$@" > server.log 2>&1 &
+    # In the background, so that a signal reaches the script's trap at once (bash runs a trap only
+    # after a command in the foreground has ended, but it interrupts wait)
+    MPIJOB=$!
+    wait "$MPIJOB"; STATUS=$?
+    MPIJOB=""
 else
     # The port is drawn at random; another process on the host may hold it. A server that could
     # not bind it is started again on another one (SERVER_PORT: the first port to try).
     PORT=${SERVER_PORT:-$((15000 + RANDOM % 2000))}
     for _ in $(seq 1 10); do
-        "$X" -c "$C" "--${C}_port" $PORT "${GATE[@]}" "$@" > server.log 2>&1 &
+        "$X" -c "$C" "--${C}_port" "$PORT" "${GATE[@]}" "$@" > server.log 2>&1 &
         SRV=$!
         sleep 2
         if kill -0 "$SRV" 2>/dev/null || ! grep -q 'could not bind to port' server.log; then
             break
         fi
-        wait "$SRV" 2>/dev/null
+        # Reaped: its pid may be reused, and the trap must not signal it
+        wait "$SRV" 2>/dev/null; SRV=""
         echo "port $PORT is taken; the server is started on another one"
         PORT=$((15000 + RANDOM % 2000))
     done
+    if [ -z "$SRV" ]; then
+        echo "the server found no free port in 10 attempts; see server.log"
+        exit 1
+    fi
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
-    LAUNCH=(); GROUPOPT=()
+    LAUNCH=()
     if [ "$GROUP" -gt 1 ]; then
         # shellcheck disable=SC2206
-        LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP"); GROUPOPT=(--group "$GROUP")
+        LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP")
     fi
-    PIDS=()
     for i in $(seq 1 "$N"); do
         if [ "$i" = "$N" ] && [ "${LAST_CLIENT_DELAY:-0}" != 0 ]; then
             # The delay counts from the moment the server begins to wait (its log says so), not
@@ -184,19 +249,35 @@ else
             done
             sleep "$LAST_CLIENT_DELAY"
         fi
-        "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" >> clients.log 2>&1 &
+        OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
+            "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" "$PORT" "${GROUPOPT[@]}" "$@" \
+            >> clients.log 2>&1 &
         PIDS+=($!)
     done
-    wait $SRV; STATUS=$?
+    wait "$SRV"; STATUS=$?
+    # Reaped: its pid may be reused, and the trap must not signal it any more
+    SRV=""
     # The clients end by themselves once their server is gone; those still there after the grace
-    # period are ended and counted.
-    left() { local n=0 p; for p in "${PIDS[@]}"; do kill -0 "$p" 2>/dev/null && n=$((n + 1)); done; echo $n; }
+    # period are ended and counted. A client that has ended leaves PIDS at the next look, for the
+    # same reason as the server.
+    running() {
+        local p alive=()
+        for p in "${PIDS[@]}"; do
+            kill -0 "$p" 2>/dev/null && alive+=("$p")
+        done
+        PIDS=("${alive[@]}")
+    }
     for _ in $(seq 1 "${CLIENT_GRACE:-30}"); do
-        [ "$(left)" = 0 ] && break
+        running
+        [ "${#PIDS[@]}" = 0 ] && break
         sleep 1
     done
-    echo "clients that did not end by themselves: $(left)"
-    kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+    running
+    echo "clients that did not end by themselves: ${#PIDS[@]}"
+    if [ "${#PIDS[@]}" != 0 ]; then
+        kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+    fi
+    PIDS=()
 fi
 echo "server exit: $STATUS"
 exit $STATUS

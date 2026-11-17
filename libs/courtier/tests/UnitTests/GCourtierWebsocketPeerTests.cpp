@@ -503,19 +503,25 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// An end whose role asks for the close after the handshake has completed but before it has been
-// told of the open (here: its handler strand, on a context of its own, does not run yet) is told
-// nothing -- and it must not answer the other end's close either, which would confirm a message
-// no role received (GPeerI.hpp, rule 6). The other end sends D and closes in that window; the end
-// under test reads nothing before its own close has gone out, so the two closes cross. (While the
-// strand is held the test gives a peer that would read at once a second to answer: an end that
-// answers in that time is caught; one that is slower than that on a loaded host is not.)
+// The other end sends D and closes. Whether that close is answered -- confirmed -- depends on
+// whether the role under test gets D (GPeerI.hpp, rule 6), and so on when the role asks for its
+// own close:
+//  - before its end has opened (during the handshake): the role is told nothing, and the end reads
+//    nothing before its own close has gone out, so the two closes cross;
+//  - after its end has opened (the handshake has completed) but before the role has been told of
+//    the open (its handler strand, on a context of its own, does not run yet): the end reads from
+//    the open on, so it answers the other end's close, and the role is told of the open and of D.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "GWebsocketPeer does not answer a close for a role that closed before it was told of the open",
+    "GWebsocketPeer answers a close only for a role that is told what arrived before it",
     "[courtier][websocket][peer]"
 ) {
     using namespace std::chrono_literals;
+    const bool close_before_open = GENERATE(true, false);
+    INFO(
+        (close_before_open ? "the role closes during the handshake"
+                           : "the role closes after the open, before it is told of it")
+    );
     boost::asio::io_context ctx;     // the socket's executor
     boost::asio::io_context handler; // the handler strand's context: held until the role closes
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
@@ -525,8 +531,7 @@ TEST_CASE(
     std::promise<std::uint16_t> their_view;
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
-    const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
-                                  sent = go]() {
+    const std::jthread other_end([&, port = acceptor.local_endpoint().port(), sent = go]() {
         try {
             ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
             ws.handshake("localhost", "/");
@@ -547,6 +552,9 @@ TEST_CASE(
         handler.get_executor()
     );
     startRecording(server, server_seen);
+    if(close_before_open) {
+        server->close(GPeerClose::NORMAL); // ordered after start()'s work, before the handshake
+    }
     // Runs a context for a moment, also one that had run out of work before
     const auto run = [](boost::asio::io_context &context) {
         if(context.stopped()) {
@@ -561,11 +569,11 @@ TEST_CASE(
     REQUIRE(shaken.load());
     go->count_down(); // D and the other end's close are on their way
     auto view = their_view.get_future();
-    const auto window = std::chrono::steady_clock::now() + 1s;
-    while(view.wait_for(0s) != std::future_status::ready && std::chrono::steady_clock::now() < window) {
-        run(ctx); // a peer that reads before its role knows would answer now
+    while(view.wait_for(0s) != std::future_status::ready &&
+          std::chrono::steady_clock::now() < deadline) {
+        run(ctx); // the close handshake, with the role's strand still held
     }
-    server->close(GPeerClose::NORMAL); // the role closes before it was told of the open
+    server->close(GPeerClose::NORMAL); // after the open: the role closes before it was told of it
     server.reset();
     while((server_seen.nClosed != 1 || view.wait_for(0s) != std::future_status::ready) &&
           std::chrono::steady_clock::now() < deadline) {
@@ -578,12 +586,26 @@ TEST_CASE(
         std::ignore = ws.next_layer().shutdown(tcp::socket::shutdown_both, ignored);
     }
     REQUIRE(done);
-    // The other end's close was not answered: it read this end's own close (the server's code)
-    CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
-    CHECK(server_seen.nOpen == 0);
-    CHECK(server_seen.messages.empty());
     CHECK(server_seen.nClosed == 1);
-    CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    if(close_before_open) {
+        // Not answered: the other end read this end's own close (the server's code), and the role
+        // heard nothing of D
+        CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+        CHECK(server_seen.nOpen == 0);
+        CHECK(server_seen.messages.empty());
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    }
+    else {
+        // Answered (the other end's own code came back), and the role was handed D
+        CHECK(
+            view.get() ==
+            static_cast<std::uint16_t>(boost::beast::websocket::close_code::internal_error)
+        );
+        CHECK(server_seen.nOpen == 1);
+        CHECK(server_seen.messages == std::vector<std::string>{"D"});
+        CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
+        CHECK(server_seen.how == GPeerClose::ERROR);
+    }
 }
 
 /******************************************************************************/
@@ -815,6 +837,88 @@ TEST_CASE(
     CHECK(client_seen.messages.front() == "answer");
     CHECK(client_seen.nClosed == 1);
     CHECK(client_seen.end == GPeerEnd::CLOSED_HERE); // it did not give up on a silent server
+    CHECK(server_seen.nClosed == 1);
+    CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
+}
+
+/******************************************************************************/
+// An end opens when its handshake has completed, and from then on it reads -- and so answers the
+// other end's pings -- also while its role has not yet been told of the open: the role's executor
+// may be busy for any length of time (on a server, every session thread may be encoding a large
+// item). Here the server's handlers' context does not run at all for two idle limits after the
+// handshake; the client's end must not give up on the server meanwhile. When the context runs
+// again, the server's role is told of the open first and then of the message that arrived in the
+// meantime (rule 1).
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "GWebsocketPeer answers pings from its handshake on while its role's executor is busy",
+    "[courtier][websocket][peer]"
+) {
+    using namespace std::chrono_literals;
+    constexpr auto PING = 1s; // the idle limit is 2 s
+    constexpr auto HOLD = 4s; // the server's handlers do not run for two idle limits
+    // The handlers' context goes last: the peers that the I/O context's handlers still hold (on a
+    // run that fails) are destroyed with those, and the server's strand is on this one.
+    boost::asio::io_context role_ctx; // the server's handlers: held, then run
+    boost::asio::io_context ctx;      // the I/O of both ends, and the client's handlers
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen server_seen;
+    GSeen client_seen;
+    bool open_came_first = false;
+
+    auto server = std::make_shared<GWebsocketPeer>(
+        std::move(accepted),
+        GWebsocketPeer::GOptions{.name = "server end", .pingInterval = PING},
+        role_ctx.get_executor()
+    );
+    auto client = clientEnd(std::move(connecting), {.name = "client end", .pingInterval = PING});
+    const std::weak_ptr<GWebsocketPeer> client_weak = client;
+    startRecording(server, server_seen, {}, [&server_seen, &open_came_first](const std::string &) {
+        open_came_first = server_seen.nOpen == 1;
+    });
+    startRecording(client, client_seen, [&client_weak] {
+        if(auto peer = client_weak.lock()) {
+            peer->send(makeMessage("question"));
+        }
+    });
+    server.reset();
+    client.reset();
+
+    // Runs a context for a moment, also one that had run out of work before
+    const auto run = [](boost::asio::io_context &context) {
+        if(context.stopped()) {
+            context.restart();
+        }
+        context.run_for(10ms);
+    };
+    const auto hold_until = std::chrono::steady_clock::now() + HOLD;
+    while(std::chrono::steady_clock::now() < hold_until) {
+        run(ctx); // the handshake, the question, and the keep-alive of both ends
+    }
+    CHECK(client_seen.nOpen == 1);
+    CHECK(client_seen.nClosed == 0); // the client did not give up on a server that reads
+    CHECK(server_seen.nOpen == 0);   // the server's role has not been told yet
+
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    while(server_seen.messages.empty() && std::chrono::steady_clock::now() < deadline) {
+        run(role_ctx);
+        run(ctx);
+    }
+    CHECK(server_seen.nOpen == 1);
+    REQUIRE(server_seen.messages.size() == 1);
+    CHECK(server_seen.messages.front() == "question");
+    CHECK(open_came_first);
+
+    if(auto peer = client_weak.lock()) {
+        peer->close(GPeerClose::NORMAL);
+    }
+    while((server_seen.nClosed == 0 || client_seen.nClosed == 0) &&
+          std::chrono::steady_clock::now() < deadline) {
+        run(ctx);
+        run(role_ctx);
+    }
+    CHECK(client_seen.nClosed == 1);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::CLOSED_THERE);
 }

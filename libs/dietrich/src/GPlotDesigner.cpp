@@ -1123,13 +1123,44 @@ std::string GPlotDesigner::staticHeader(const std::string &indent) const {
            << '\n'
            ;
     // The canvas label is the title of the figure, in a box above the pads; without it the pads
-    // take the whole canvas.
+    // take the whole canvas. Its text has one size (CANVASLABELTEXTSIZE), whatever its letters,
+    // unless it is too wide for the box: then it is drawn just small enough (ROOT measures it, as
+    // TPaveLabel would, at the size TPaveLabel derives from the box's height in pixels).
     if(show_canvas_label_) {
+        std::ostringstream size;
+        size.imbue(std::locale::classic());
+        size << CANVASLABELTEXTSIZE;
         result << indent << "TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \""
                << rootEscape(canvas_label_) << "\");" << '\n'
+               << indent << "{ // one text size, whatever the letters; smaller only if too wide"
+               << '\n'
+               << indent << "   const double x1 = 0.2, y1 = 0.95, x2 = 0.8, y2 = 0.99;" << '\n'
+               << indent << "   const double pad_w = gPad->XtoPixel(gPad->GetX2());" << '\n'
+               << indent << "   const double pad_h = gPad->YtoPixel(gPad->GetY1());" << '\n'
+               << indent << "   const double room = 0.95 * (x2 - x1);" << '\n'
+               << indent << "   TLatex label(0., 0., canvasTitle->GetLabel());" << '\n'
+               << indent << "   label.SetTextFont(canvasTitle->GetTextFont());" << '\n'
+               << indent << "   const auto width_at = [&](double size) { // of the box's height"
+               << '\n'
+               << indent << "      const double box_h = (y2 - y1) * pad_h;" << '\n'
+               << indent << "      label.SetTextSize(size * box_h / TMath::Min(pad_w, pad_h));"
+               << '\n'
+               << indent << "      return label.GetXsize() / (gPad->GetX2() - gPad->GetX1());"
+               << '\n'
+               << indent << "   };" << '\n'
+               << indent << "   double size = " << size.str() << ";" << '\n'
+               << indent << "   double width = width_at(size);" << '\n'
+               << indent << "   for(int pass = 0; pass < 4 && width > room; ++pass) {" << '\n'
+               << indent << "      size *= room / width; // a width is not quite proportional"
+               << '\n'
+               << indent << "      width = width_at(size);" << '\n'
+               << indent << "   }" << '\n'
+               << indent << "   canvasTitle->SetTextSize(size);" << '\n'
+               << indent << "}" << '\n'
                << indent << "canvasTitle->Draw();" << '\n'
                << '\n'
-               << indent << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
+               << indent
+               << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
                << '\n';
     }
     else {

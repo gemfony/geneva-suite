@@ -50,13 +50,13 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  */
 //! [algo-gd-linesearch-options]
 struct GLineSearchOptions {
-    /** @brief Armijo sufficient-decrease constant c1, with 0 < c1 < 1 (typically 1e-4). */
+    /** @brief Armijo sufficient-decrease constant c1, 0 < c1 < 1 (typically 1e-4). */
     double c1 = 1.e-4;
     /** @brief The initial (largest) trial step length. */
     double alpha_init = 1.;
-    /** @brief The step-reduction factor applied on each backtrack, with 0 < backtrack < 1. */
+    /** @brief The step-reduction factor of each backtrack, 0 < backtrack < 1. */
     double backtrack = 0.5;
-    /** @brief k: the number of trial step lengths evaluated together in one batch (>= 1). */
+    /** @brief k: the number of trial step lengths evaluated in one batch (>= 1). */
     std::size_t probes_per_round = 4;
     /** @brief The total trial-evaluation budget before the search gives up. */
     std::size_t max_probes = 40;

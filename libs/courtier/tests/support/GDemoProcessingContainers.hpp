@@ -1,5 +1,8 @@
 /**
  * @file GDemoProcessingContainers.hpp
+ * The work items of courtier's tests and of its documentation program. They are not part of
+ * the courtier library: they are built into courtier's test-support library
+ * (libs/courtier/tests/support), which links courtier and common only.
  */
 
 /********************************************************************************
@@ -46,13 +49,12 @@
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named / archive_named_base (named member / base emitters)
 #include "courtier/GProcessingContainerT.hpp"
-#include "hap/GRandomT.hpp"
 
 namespace Gem::Courtier {
 
 /**********************************************************************************************/
 /**
- * This class implements the simplest-possible procesiing container object, used for tests of
+ * This class implements the simplest-possible processing container object, used for tests of
  * the courtier lib.
  */
 class GSimpleContainer

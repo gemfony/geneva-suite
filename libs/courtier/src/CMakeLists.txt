@@ -30,7 +30,6 @@
 SET(COMMUNICATIONSOURCES
         GCourtierHelperFunctions.cpp
         GCourtierEnums.cpp
-        GDemoProcessingContainers.cpp
         GMPIPeerTransport.cpp
         GMPIPollCore.cpp
         GWebsocketPeer.cpp
@@ -79,8 +78,9 @@ TARGET_INCLUDE_DIRECTORIES(
         $<INSTALL_INTERFACE:include>
 )
 
-# Inter-library dependency: courtier builds on hap (and transitively common).
-TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PUBLIC ${HAP_LIBNAME})
+# Inter-library dependency: courtier builds on common (and through it on weft) -- not on hap, dietrich
+# or geneva (tests CourtierNeedsOnlyCommon and LibraryLayersRespected).
+TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PUBLIC ${COMMON_LIBNAME})
 
 # The GPU consumer's device dependencies (CUDA driver/NVRTC) are implementation details of the
 # backend .cpp files -> link them PRIVATE so they do not leak into courtier's exported interface. The

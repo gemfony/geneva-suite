@@ -63,7 +63,9 @@ namespace Gem::Courtier {
  * communicator, which need not be rank 0 of MPI_COMM_WORLD); a process whose role is CLIENT builds
  * the client, a BYSTANDER (a process without a communicator) neither. A program asks for the role
  * first (the environment's role(), or Gem::Geneva::consumerRole() for a Geneva program). The
- * consumer holds the environment, so MPI stays initialized while it exists.
+ * consumer holds the environment, so MPI stays initialized while it exists, and notes in it that
+ * it was built (GMPIEnvironment::noteConsumer()): its end tells the clients (see "Silence" below),
+ * so that a cascade on the submitter need not end the job for them (GMPICascade).
  *
  * Threads. One thread polls courtier's communicator for every rank (the listener's); the sessions
  * run on nHandlerThreads threads (2 by default; 0: one per hardware thread). A session may take as
@@ -110,7 +112,7 @@ public:
     /** @brief Builds the consumer on the submitter.
      *
      *  @param environment The process's MPI environment; the consumer keeps it for as long as it
-     *         exists. Must not be null.
+     *         exists and notes in it that it was built. Must not be null.
      *  @param config Reads nHandlerThreads (the session threads; 0: one per hardware thread) and
      *         serializationMode. The client members are ignored.
      *  @throws geneva_exception if @p environment is null or the role of this process is not
@@ -122,12 +124,14 @@ public:
       : GPeerConsumerT<processable_type>(
             CONSUMER_NAME,
             std::make_unique<Consumers::GMPIListener>(
-                std::make_shared<Consumers::GMPICalls>(requireSubmitter_(std::move(environment))),
+                std::make_shared<Consumers::GMPICalls>(requireSubmitter_(environment)),
                 Consumers::GMPIPeerOptions{.name = CONSUMER_NAME}
             ),
             config.nHandlerThreads,
             config.serializationMode
-        ) { /* nothing */
+        ) {
+        // Built completely: the destructor runs and tells the clients
+        environment->noteConsumer();
     }
 
     /** @brief Stops the server while this object is still complete. MPI is finalized by the

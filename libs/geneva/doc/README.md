@@ -15,15 +15,15 @@ cd /your/build && make doc-geneva      # this library only
 cd /your/build && make doc             # all libraries (aggregator)
 ```
 
-`doc-geneva` automatically depends on `doc-common`, `doc-hap`, and
-`doc-courtier` so all three upstream tag files exist for cross-references.
+`doc-geneva` automatically depends on `doc-common`, `doc-hap`, `doc-dietrich`
+and `doc-courtier` so all four upstream tag files exist for cross-references.
 
 ## Output location
 
 Generated HTML / XML / tag files land in the **build tree**:
 
 ```
-<build>/geneva/doc/
+<build>/libs/geneva/doc/
     Doxyfile         configured from Doxyfile.in
     geneva.tag       Doxygen tag file (no downstream consumer in-tree;
                      handy for external projects that build against the
@@ -36,8 +36,8 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 - `Doxyfile.in`     -- per-library Doxygen configuration template
 - `CMakeLists.txt`  -- registers the `doc-geneva` target and its
-                       `doc-common` + `doc-hap` + `doc-courtier`
-                       dependencies
+                       `doc-common` + `doc-hap` + `doc-dietrich` +
+                       `doc-courtier` dependencies
 - `README.md`       -- this file
 
 Reserved for future Geneva-library manuals: the `Go2` workflow tutorial,

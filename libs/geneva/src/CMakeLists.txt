@@ -259,10 +259,10 @@ TARGET_INCLUDE_DIRECTORIES(
 	$<INSTALL_INTERFACE:include>
 )
 
-# Inter-library dependency: geneva builds on courtier (and transitively on hap
-# and common). PUBLIC so the full include/Boost interface propagates to
-# downstream consumers that link Geneva::geneva.
-TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${COURTIER_LIBNAME})
+# Inter-library dependency: geneva builds on courtier, hap, dietrich (below) and common (through
+# each of them). hap is linked here, not through courtier, which does not depend on it. PUBLIC so
+# the full include/Boost interface propagates to downstream consumers that link Geneva::geneva.
+TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${COURTIER_LIBNAME} ${HAP_LIBNAME})
 
 # geneva's pluggable monitors render through the dietrich plotting library.
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})

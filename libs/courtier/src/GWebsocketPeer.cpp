@@ -36,6 +36,7 @@
 
 // Boost headers go here
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/execution/outstanding_work.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/prefer.hpp>
@@ -212,11 +213,17 @@ void GWebsocketPeer::start(GPeerHandlers handlers) {
 
 /******************************************************************************/
 /**
- * Called when either handshake has completed. On success the role is told that it may send, and
- * then the read that stays outstanding for the rest of the connection is started -- unless the role
- * has asked for the close meanwhile: then neither onOpen nor any message is delivered (rule 1), no
- * read is started, and the close goes out first (Beast's close operation reads what follows; rule
- * 6).
+ * Called when either handshake has completed: the end opens here, on the socket's executor. Unless
+ * the role has asked for the close by then, the read that stays outstanding for the rest of the
+ * connection starts at once, and the role is told of the open on its strand -- at once if that is
+ * the socket's executor, else as soon as the strand runs. Reading does not wait for the role: on a
+ * server the strand is on the session pool, whose threads may all be busy (encoding a large item,
+ * say) for longer than the idle limit, and an end that read nothing meanwhile would leave the other
+ * end's pings unanswered until the other end gives up (GPeerI.hpp, rule 2). Since what is read is
+ * delivered, the role is told of the open and of every message read before its close has gone out,
+ * also when it asks for the close before onOpen has run (rule 6). A role that asked for the close
+ * before the open is told nothing (rule 1), no read is started, and the close goes out first
+ * (Beast's close operation reads what follows; rule 6).
  *
  * @param ec The outcome of the handshake
  */
@@ -236,27 +243,18 @@ void GWebsocketPeer::handshakeDone_(const error_code &ec) {
         this->closeWhenSent_();
         return;
     }
-    // Until the read is started, nothing of this peer is pending on the socket's executor: it is
-    // kept busy meanwhile, so that its context does not run dry in between
-    auto io_work =
-        boost::asio::prefer(io_executor_, boost::asio::execution::outstanding_work_t::tracked);
-    boost::asio::post(handler_strand_, [self = this->shared_from_this(), io_work]() mutable {
-        // A role that asked for the close before it was told of the open is told nothing (rule 1:
-        // onOpen precedes any onMessage), and nothing is read before this end's close (which
-        // close() has posted) has gone out: an answer to the other end's close would otherwise
-        // prove what no role has received (rule 6). Reading starts once the role knows.
-        if(self->close_requested_.load()) {
-            return;
-        }
-        self->role_open_ = true;
+    if(close_requested_.load()) {
+        // close() was called before the open, and its beginClose_() is on its way here: as above,
+        // nothing is read and the role is told nothing; an answer to the other end's close would
+        // otherwise prove what no role has received (rule 6)
+        return;
+    }
+    this->read_();
+    // Posted from here, before any message: onOpen precedes every onMessage on the strand (rule 1)
+    boost::asio::dispatch(handler_strand_, [self = this->shared_from_this()] {
         if(self->handlers_.onOpen) {
             self->handlers_.onOpen();
         }
-        boost::asio::post(self->io_executor_, [self, io_work = std::move(io_work)] {
-            if(not self->finished_ && not self->close_sent_) {
-                self->read_();
-            }
-        });
     });
 }
 
@@ -308,13 +306,14 @@ void GWebsocketPeer::readDone_(const error_code &ec) {
 
 /******************************************************************************/
 /**
- * On the handler strand: hands one message to the role (also after close(), see readDone_(); but
- * not to a role that was not told of the open), and lets reading go on if it waited for the role.
+ * On the handler strand: hands one message to the role (also after close(), see readDone_(); the
+ * role has been told of the open before, handshakeDone_()), and lets reading go on if it waited for
+ * the role.
  *
  * @param message The message, as it arrived
  */
 void GWebsocketPeer::deliver_(std::string &message) {
-    if(handlers_.onMessage && role_open_) {
+    if(handlers_.onMessage) {
         handlers_.onMessage(std::move(message));
     }
     if(unhandled_.fetch_sub(1) == GWEBSOCKETMAXUNHANDLEDMESSAGES) {

@@ -64,7 +64,7 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/$
 # (a 50 ms sleep per parameter, spread over the sub-client group), so a full run costs minutes; one
 # generation already exercises the whole sub-client path -- scatter, per-rank work, gather, shutdown
 # barrier -- which is what the example demonstrates (Inv 22).
-ADD_TEST(NAME ${EXECUTABLENAME}
+GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME} TIMEOUT 600
 	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 9
 			${MPIEXEC_PREFLAGS} $<TARGET_FILE:${EXECUTABLENAME}> ${MPIEXEC_POSTFLAGS}
 			--consumer mpi --eaMaxIterations 1
@@ -72,7 +72,7 @@ ADD_TEST(NAME ${EXECUTABLENAME}
 #
 # PROCESSORS 9 tells the `ctest -j` scheduler what this entry really costs: one CTest slot but nine
 # live ranks. Without it the scheduler counts it as one and oversubscribes the machine.
-SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 600 PROCESSORS 9)
+SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" PROCESSORS 9)
 GENEVA_TEST_SIZE(${EXECUTABLENAME} L)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

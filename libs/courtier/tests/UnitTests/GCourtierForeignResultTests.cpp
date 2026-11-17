@@ -54,7 +54,7 @@
 #include <unistd.h>
 
 #include "common/concurrency/GCompletionLatchT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"

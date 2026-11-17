@@ -37,7 +37,7 @@
 #
 # Hap implementation + the gemfony-hap target. Uses the xoshiro256++ engine
 # (scalar + SIMD bulk-refill) with an optional cuRAND GPU backend, and is
-# exported into the GenevaTargets set so courtier/geneva can consume it.
+# exported into the GenevaTargets set so geneva (and any other user) can consume it.
 #
 ################################################################################
 
@@ -90,24 +90,16 @@ TARGET_INCLUDE_DIRECTORIES(
     $<INSTALL_INTERFACE:include>
 )
 
-# Default-source selection for the Gem::Hap::GRandom alias (see HAP_RANDOM_SOURCE in the
-# top-level CMakeLists). The macro is PUBLIC so every consumer of <hap/GRandomT.hpp> sees the
-# same GRandom; 'queue' defines nothing (the header defaults to QUEUE), keeping the common case
-# macro-free. The value is validated at the top level, so only the two non-default cases remain.
-IF(HAP_RANDOM_SOURCE STREQUAL "local")
-	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC HAP_DEFAULT_SOURCE_LOCAL=1)
-	MESSAGE(STATUS "Hap: default GRandom source = LOCAL (per-proxy engine)")
-ELSEIF(HAP_RANDOM_SOURCE STREQUAL "staged")
-	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC HAP_DEFAULT_SOURCE_STAGED=1)
-	MESSAGE(STATUS "Hap: default GRandom source = STAGED (shared staging pool + double buffer)")
-ELSEIF(HAP_RANDOM_SOURCE STREQUAL "quarantine")
-	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC HAP_DEFAULT_SOURCE_QUARANTINE=1)
-	MESSAGE(STATUS "Hap: default GRandom source = QUARANTINE (rotating in-place pools, benign-race)")
-ELSE()
-	MESSAGE(STATUS "Hap: default GRandom source = QUEUE (central factory queue)")
+# Default-source selection for the Gem::Hap::GRandom alias (see HAP_RANDOM_SOURCE and
+# GENEVA_HAP_PUBLIC_DEFINE in the top-level CMakeLists). The macro is PUBLIC so every consumer of
+# <hap/GRandomT.hpp> sees the same GRandom; 'queue' defines nothing (the header defaults to QUEUE),
+# keeping the common case macro-free.
+IF(GENEVA_HAP_PUBLIC_DEFINE)
+	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC ${GENEVA_HAP_PUBLIC_DEFINE})
 ENDIF()
+MESSAGE(STATUS "Hap: default GRandom source = ${HAP_RANDOM_SOURCE}")
 
-# Inter-library dependency: hap builds on common (exactly like hap).
+# Inter-library dependency: hap builds on common (and through it on weft).
 TARGET_LINK_LIBRARIES(${HAP_LIBNAME} PUBLIC ${COMMON_LIBNAME})
 
 # When CUDA RNG is enabled at build time, the producer can refill containers on
@@ -178,5 +170,5 @@ ENDIF ()
 
 ################################################################################
 # Install the library and register it in the GenevaTargets export set, so that
-# the exported package config resolves gemfony-hap (courtier/geneva depend on it).
+# the exported package config resolves gemfony-hap (geneva depends on it).
 INSTALL ( TARGETS ${HAP_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )

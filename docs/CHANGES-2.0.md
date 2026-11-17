@@ -246,7 +246,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a connection or a thread. A client answers pings while it evaluates, and both ends answer them
   while they encode or decode a message (neither does that on the thread that moves the
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
-  time. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
+  time; a connection that opens while every session thread of the server is busy encoding or
+  decoding answers pings from its handshake on, instead of being lost to its client's idle limit.
+  There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
   lost client is not noticed by the transport, and the server reclaims its items by the time lease.
 - **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
   (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
@@ -347,9 +349,21 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   library now links only `libboost_json` and `libboost_program_options` (Boost headers are still
   needed at build time, e.g. Boost.Asio/Beast for the networked consumers and Boost.DLL for module
   loading).
+- **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
+  `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
+  courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
+  before. The demo work items `GSimpleContainer`, `GRandomNumberContainer` and `GFaultyContainer`
+  (header `courtier/GDemoProcessingContainers.hpp`) are no longer part of the library: they are
+  test code of courtier's own tests and are neither installed nor exported.
+- **A project outside the tree finds Geneva with `find_package(Geneva)` only.** The installation
+  no longer carries the modules that build the collection itself (`CommonGenevaBuild.cmake`,
+  the modules it includes, and `IndependentBuild.cmake` with its `SETUP_BUILD_SYSTEM` macro);
+  its `CMakeModules/` directory holds `FindGeneva.cmake`, the fallback of
+  `find_package(Geneva MODULE)`, and nothing else.
 - **The Geneva library ships no concrete optimization individual.** The reusable sample
-  problems were folded into `gemfony-geneva` (`Gem::Geneva::Individuals`); there is no
-  separate `geneva-individuals` library.
+  problems live in `Gem::Geneva::Individuals` and are packaged next to the library (object
+  libraries and loadable modules), not compiled into `gemfony-geneva`; there is no separate
+  `geneva-individuals` library.
 - **Individuals, optimization algorithms and GPU marshallers can be shipped as
   runtime-loadable `.so` modules** (`GENEVA_DECLARE_INDIVIDUAL` /
   `GENEVA_ADD_INDIVIDUAL_MODULE`, `individualManifest<>` / `oaManifest<>` /

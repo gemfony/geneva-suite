@@ -13,15 +13,15 @@ cd /your/build && make doc-courtier    # this library only
 cd /your/build && make doc             # all libraries (aggregator)
 ```
 
-`doc-courtier` automatically depends on `doc-common` and `doc-hap` so
-both upstream tag files exist for cross-references.
+`doc-courtier` automatically depends on `doc-common` so the upstream tag
+file exists for cross-references (courtier builds on common only).
 
 ## Output location
 
 Generated HTML / XML / tag files land in the **build tree**:
 
 ```
-<build>/courtier/doc/
+<build>/libs/courtier/doc/
     Doxyfile           configured from Doxyfile.in
     courtier.tag       Doxygen tag file (consumed by geneva)
     html/              browsable HTML reference
@@ -32,7 +32,7 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 - `Doxyfile.in`     -- per-library Doxygen configuration template
 - `CMakeLists.txt`  -- registers the `doc-courtier` target and its
-                       `doc-common` + `doc-hap` dependencies
+                       `doc-common` dependency
 - `README.md`       -- this file
 
 Reserved for future Courtier-library manuals (consumer protocol,

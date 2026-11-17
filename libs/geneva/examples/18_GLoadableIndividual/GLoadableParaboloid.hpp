@@ -86,7 +86,7 @@ public:
         std::size_t par_dim = 2; ///< the number of parameters (dimensions)
         double min = -10.;       ///< the lower boundary of each parameter
         double max = 10.;        ///< the upper boundary of each parameter
-        double sigma = 0.5;      ///< the initial Gauss mutation width (a fraction of the range)
+        double sigma = 0.5;      ///< the initial Gauss sigma (a fraction of the range)
     };
 
     /** @brief Registers this problem's config-file options, binding them to @p c. */
@@ -101,10 +101,11 @@ public:
         );
     }
 
-    /** @brief Builds the (structure-only) genome + its shared, immutable layout from the parsed config. */
+    /** @brief Builds the structure-only genome + its shared, immutable layout from @p c. */
     static Gem::Geneva::Genome::GenomeData buildGenome(const Config &c) {
         Gem::Geneva::Genome::GGenomeBuilder b;
-        b.addDoubleGroup(c.par_dim, c.min, c.max); // structure only; the adaptor lives on the OA config
+        // Structure only; the adaptor lives on the OA config.
+        b.addDoubleGroup(c.par_dim, c.min, c.max);
         return b.build();
     }
     //! [modules-individual-hooks]

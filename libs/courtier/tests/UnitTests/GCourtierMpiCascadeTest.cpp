@@ -51,10 +51,13 @@
 #include <format>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <print>
 #include <span>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -72,7 +75,7 @@
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -1860,6 +1863,271 @@ int mpiConsumerScenario(Report &report, bool confirm) {
     return report.failures();
 }
 
+/** The failure a scenario injects into the submitter, told apart from every other exception */
+class InjectedFailure final : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
+/**
+ * A submitter that fails while its leads wait for it (entries ...SubmitterThrows and
+ * ...SubmitterThrowsAfterConsumer): in SUBMITTER_AND_GROUPS rank 0 confirms its role and throws;
+ * every lead is an MPI client that waits for the greeting of the submitter's consumer without a
+ * limit, its members for their lead. The exception unwinds through the submitter's cascade.
+ * Without @p consumer_first no MPI consumer was built: nobody tells the leads, and MPI_Finalize on
+ * the submitter would wait for them, so the cascade must end the job. With @p consumer_first the
+ * submitter throws while its consumer exists, never started: the consumer's end tells the leads,
+ * they release their members, and every rank ends by itself with 0.
+ *
+ * @param consumer_first Whether the submitter builds its MPI consumer before it throws
+ */
+int submitterThrowsScenario(Report &report, bool consumer_first) {
+    ProbingMember member;
+    try {
+        Courtier::GMPICascade cascade([] {
+            return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+        });
+        if(cascade.role() == processRole::BYSTANDER) {
+            std::ignore = cascade.serve(member);
+            std::println("member {} served {} rounds", report.rank(), member.rounds());
+            return report.failures();
+        }
+        cascade.requireRole(Courtier::mpiProcessRole());
+        if(cascade.role() == processRole::SUBMITTER) {
+            if(consumer_first) {
+                // Declared after the cascade: it goes before the cascade frees its communicators
+                const auto consumer =
+                    std::make_shared<Courtier::GMPIConsumerT<Courtier::GFaultyContainer>>(
+                        Courtier::mpiEnvironment()
+                    );
+                throw InjectedFailure("injected failure of the submitter, its consumer built");
+            }
+            throw InjectedFailure("injected failure of the submitter before its consumer");
+        }
+        std::atomic<int> led{0};
+        const MpiClientRun run = runAsMpiClient(cascade, 1, led, report);
+        report.check(not run.clientThrew, "the client's run threw");
+        report.check(led.load() == 0, std::format("the lead led {} rounds, not 0", led.load()));
+        std::println("lead led {} rounds", led.load());
+        return report.failures();
+    }
+    catch(const InjectedFailure &e) {
+        // On the submitter, after its cascade is gone
+        if(not consumer_first) {
+            report.fail("the job was not ended: {}", e.what());
+        }
+        else {
+            std::println("the submitter's exception reached the program: {}", e.what());
+        }
+        return report.failures();
+    }
+}
+
+/** Runs a function in its destructor; a failure out of it is reported, not thrown */
+class InDestructor final {
+public:
+    /** @brief Runs @p function when destroyed @param report For a failure @param function What */
+    InDestructor(Report &report, std::function<void()> function)
+      : report_(report)
+      , function_(std::move(function)) { /* nothing */
+    }
+    /** @brief Runs the function */
+    ~InDestructor() {
+        try {
+            function_();
+        }
+        catch(const std::exception &e) {
+            report_.fail("an exception left the destructor's function: {}", e.what());
+        }
+        catch(...) {
+            report_.fail(
+                "an exception that is not a std::exception left the destructor's function"
+            );
+        }
+    }
+    InDestructor(const InDestructor &) = delete;
+    InDestructor(InDestructor &&) = delete;
+    InDestructor &operator=(const InDestructor &) = delete;
+    InDestructor &operator=(InDestructor &&) = delete;
+
+private:
+    Report &report_;                 ///< For a failure
+    std::function<void()> function_; ///< What runs in the destructor
+};
+
+/**
+ * A cascade that lives entirely inside a destructor that runs while an unrelated exception
+ * unwinds (entries ...DuringUnwinding and ...DuringUnwindingNeverConfirms): in SUBMITTER_AND_GROUPS
+ * without a consumer, every lead calls its rounds itself. No exception unwinds through the
+ * cascade, so with @p confirm the job ends normally with 0 -- the submitter's rule for an exception
+ * before its consumer must not fire. Without @p confirm the submitter never confirms its role, and
+ * its destructor must end the job for that reason.
+ *
+ * @param confirm Whether the submitter confirms its role
+ */
+int duringUnwindingScenario(Report &report, bool confirm) {
+    try {
+        const InDestructor during(report, [&report, confirm] {
+            report.check(
+                std::uncaught_exceptions() == 1,
+                std::format(
+                    "{} exceptions unwind in the destructor, not 1",
+                    std::uncaught_exceptions()
+                )
+            );
+            SquareMember member(report);
+            Courtier::GMPICascade cascade([] {
+                return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+            });
+            if(cascade.role() == processRole::SUBMITTER && not confirm) {
+                std::println("the submitter leaves without confirming its role");
+                std::ignore = std::fflush(stdout);
+                return; // the cascade's destructor ends the job
+            }
+            runGroups(report, cascade, member, 2);
+        });
+        throw InjectedFailure("an exception that has nothing to do with the cascade");
+    }
+    catch(const InjectedFailure &) {
+        // expected: the cascade lived and ended inside the destructor
+    }
+    return report.failures();
+}
+
+/** The exit code a submitter of submitterAbortsScenario() ends the job with */
+constexpr int ABORTCODE = 42;
+
+/**
+ * Holds the first call of abortJob() between its log and its MPI_Abort, for a second call to be
+ * made while the first ends the job: it stands in for std::cerr's buffer, which abortJob()
+ * flushes after its log and before MPI_Abort, and holds 2 s in its first sync() on the thread
+ * that constructed it; waitHeld() returns once the hold has begun. Everything written goes on to
+ * std::cerr's own buffer, which is put back at the end of the hold's scope.
+ */
+class GAbortHold : public std::streambuf {
+public:
+    /** @brief Stands in for std::cerr's buffer, armed for the calling thread */
+    GAbortHold()
+      : target_(std::cerr.rdbuf(this))
+      , holder_(std::this_thread::get_id()) { /* nothing */
+    }
+
+    GAbortHold(const GAbortHold &) = delete;
+    GAbortHold(GAbortHold &&) = delete;
+    GAbortHold &operator=(const GAbortHold &) = delete;
+    GAbortHold &operator=(GAbortHold &&) = delete;
+
+    /** @brief Puts std::cerr's own buffer back */
+    ~GAbortHold() override {
+        std::cerr.rdbuf(target_);
+    }
+
+    /** @brief Waits until the hold has begun */
+    void waitHeld() const {
+        held_.wait(false);
+    }
+
+protected:
+    /** @brief Passes one character on */
+    int_type overflow(int_type c) override {
+        if(traits_type::eq_int_type(c, traits_type::eof())) {
+            return traits_type::not_eof(c);
+        }
+        return target_->sputc(traits_type::to_char_type(c));
+    }
+
+    /** @brief Passes a sequence of characters on */
+    std::streamsize xsputn(const char *s, std::streamsize n) override {
+        return target_->sputn(s, n);
+    }
+
+    /** @brief Holds 2 s the first time it is called on the arming thread, then flushes */
+    int sync() override {
+        if(std::this_thread::get_id() == holder_.load() && not held_.exchange(true)) {
+            held_.notify_all();
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+        return target_->pubsync();
+    }
+
+private:
+    std::streambuf *target_;              ///< std::cerr's own buffer
+    std::atomic<std::thread::id> holder_; ///< The thread whose first sync() holds
+    std::atomic<bool> held_{false};       ///< The hold has begun
+};
+
+/**
+ * A submitter that catches its failure and ends the job explicitly (entries ...SubmitterAborts and
+ * ...SubmitterAbortsTwice): in SUBMITTER_AND_GROUPS rank 0 confirms its role, catches an exception
+ * before its consumer exists and calls abortJob() with ABORTCODE and the exception's text. The
+ * leads wait for the greeting as MPI clients, without a limit, their members for them: had the
+ * submitter returned after the catch instead, the job would never end. abortJob() is refused on
+ * every lead and member first. With @p twice a second thread calls abortJob() with ABORTCODE + 1
+ * and a reason of its own while the first call is held between its log and its MPI_Abort
+ * (GAbortHold): the second call must wait for the first, so that the job ends with ABORTCODE and
+ * the second reason is never logged. A second call that went on would log its reason and end the
+ * job with its own code within the hold.
+ *
+ * @param twice Whether a second thread calls abortJob() as well
+ */
+int submitterAbortsScenario(Report &report, bool twice) {
+    ProbingMember member;
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    if(cascade.role() != processRole::SUBMITTER) {
+        report.expectThrow(
+            "abortJob() on a lead or a member",
+            "abortJob() is called on the submitter",
+            [&] { cascade.abortJob(ABORTCODE, "refused here"); }
+        );
+    }
+    if(cascade.role() == processRole::BYSTANDER) {
+        std::ignore = cascade.serve(member);
+        std::println("member {} served {} rounds", report.rank(), member.rounds());
+        return report.failures();
+    }
+    cascade.requireRole(Courtier::mpiProcessRole());
+    if(cascade.role() == processRole::SUBMITTER) {
+        try {
+            throw InjectedFailure("injected failure of the submitter before its consumer");
+        }
+        catch(const InjectedFailure &e) {
+            // Never joined: the first call ends the job, the second waits for that end
+            std::optional<GAbortHold> hold;
+            Gem::Common::Concurrency::GThreadGroup threads;
+            if(twice) {
+                hold.emplace();
+                threads.create_thread([&cascade, &hold] {
+                    hold->waitHeld();
+                    cascade.abortJob(ABORTCODE + 1, "a second call of abortJob()");
+                });
+            }
+            cascade.abortJob(ABORTCODE, std::format("the submitter failed: {}", e.what()));
+        }
+    }
+    std::atomic<int> led{0};
+    const MpiClientRun run = runAsMpiClient(cascade, 1, led, report);
+    report.fail("the lead's client returned (threw: {}): the job was not ended", run.clientThrew);
+    return report.failures();
+}
+
+/**
+ * abortJob() without MPI (entry ...AbortWithoutMpi, no launcher, --update-configs): the cascade
+ * makes no MPI call, and abortJob() ends the process with the code.
+ */
+int abortWithoutMpiScenario(Report &report, int argc, char **argv) {
+    if(not Gem::Common::configEmissionRequested(argc, argv)) {
+        report.fail("the scenario must be started with --update-configs");
+        return report.failures();
+    }
+    Gem::Common::beginConfigEmission();
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    cascade.abortJob(ABORTCODE, "the submitter failed without MPI");
+}
+
 /** The time of an empty round (entry ...EmptyRound): a number for a caption, not a gate. */
 int emptyRoundScenario(Report &report) {
     constexpr std::size_t ROUNDS = 1'000;
@@ -1949,6 +2217,16 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"mpi-consumer", [](Report &r) { return mpiConsumerScenario(r, true); }},
         {"mpi-consumer-not-confirmed", [](Report &r) { return mpiConsumerScenario(r, false); }},
         {"empty-round", emptyRoundScenario},
+        {"submitter-throws", [](Report &r) { return submitterThrowsScenario(r, false); }},
+        {"submitter-throws-after-consumer",
+         [](Report &r) { return submitterThrowsScenario(r, true); }},
+        {"during-unwinding", [](Report &r) { return duringUnwindingScenario(r, true); }},
+        {"submitter-aborts", [](Report &r) { return submitterAbortsScenario(r, false); }},
+        {"submitter-aborts-twice", [](Report &r) { return submitterAbortsScenario(r, true); }},
+        {"abort-without-mpi",
+         [argc, argv](Report &r) { return abortWithoutMpiScenario(r, argc, argv); }},
+        {"during-unwinding-never-confirms",
+         [](Report &r) { return duringUnwindingScenario(r, false); }},
     };
     for(const auto &[scenario_name, scenario] : scenarios) {
         if(scenario_name == name) {

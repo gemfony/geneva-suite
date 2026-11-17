@@ -614,8 +614,9 @@ std::tuple<double, double> GSepCmaEvolutionStrategy::cycleLogic_() {
     std::vector<std::size_t> ranked = rankPopulation();
     updateDistribution(ranked);
 
-    // 4) Record the rank in each individual's personality traits (informational), and move the best
-    //    individual to the front so the base class's best-extraction (slot 0) picks it up.
+    // 4) Record the rank in each individual's personality traits (informational), and
+    //    move the best individual to the front so the base class's best-extraction
+    //    (slot 0) picks it up.
     for(std::size_t r = 0; r < ranked.size(); ++r) {
         this->at(ranked[r])
             ->getPersonalityTraits<GSepCmaEvolutionStrategy_PersonalityTraits>()

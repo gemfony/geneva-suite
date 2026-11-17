@@ -37,8 +37,9 @@
  * which port is bound, whether the work travels over a network -- is the concrete consumer's
  * business and invisible here.
  *
- * The demo work item is courtier's own GSimpleContainer, so the program depends on nothing but the
- * courtier library itself. It is registered as a test, because a documentation example that no
+ * The demo work item is GSimpleContainer from courtier's test support
+ * (libs/courtier/tests/support), which links nothing but the courtier library, so the program
+ * depends on nothing beyond courtier. It is registered as a test, because a documentation example that no
  * longer compiles (or no longer does what the surrounding text says) is worse than none.
  */
 
@@ -49,7 +50,7 @@
 #include <vector>
 
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 
 using namespace Gem::Courtier;

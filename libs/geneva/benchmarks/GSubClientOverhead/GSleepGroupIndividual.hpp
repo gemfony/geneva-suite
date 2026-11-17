@@ -49,6 +49,7 @@
 
 // Geneva header files go here
 #include "common/GParserBuilder.hpp"
+#include "courtier/GCourtierEnums.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 
 namespace Gem::Geneva::SubClientOverhead {
@@ -56,12 +57,13 @@ namespace Gem::Geneva::SubClientOverhead {
 /******************************************************************************/
 /**
  * The individual of GSubClientOverhead. Its evaluation of a nominal duration sleeps, as
- * GDelayIndividual's does, but in the group of processes of its client: every process of the
- * group gets a message with an equal part of the time (or, if the evaluation is not split, the
- * whole duration) and its share of the parameter values, sleeps, and answers with the sum of the
- * squares of its share; the fitness is the sum of the answers. In a group of one -- a client
- * without sub-clients, or the serial reference -- it does all of it itself; that is the same code
- * path and sends no message.
+ * GDelayIndividual's does, and its fitness is the sum of the squares of its parameter values.
+ * evaluate() does it all in one process: the serial reference and a client without sub-clients.
+ * A client with sub-clients evaluates it in its group of processes instead, with the item
+ * processor of its lead (GSubClientOverhead.cpp): every process of the group gets a message with
+ * an equal part of the time (or, if the evaluation is not split, the whole duration) and its share
+ * of the parameter values, sleeps, and answers with the sum of the squares of its share; the
+ * fitness is the sum of the answers. The individual itself knows nothing of MPI.
  */
 class GSleepGroupIndividual // NOLINT(cppcoreguidelines-special-member-functions)
   : public gen::GGenomeT<GSleepGroupIndividual> {
@@ -88,9 +90,13 @@ public:
         std::string short_result_file = "shortDelayResults.txt"; ///< The table
         std::uint32_t n_measurements = 3;                        ///< Measurements per time
         std::uint32_t inter_measurement_delay = 1;               ///< Seconds between two times
-        bool split_evaluation = true;      ///< The group shares the time (or each sleeps all of it)
-        std::uint32_t poll_pause_min = 50; ///< The shortest pause between two looks [us]
-        std::uint32_t poll_pause_max = 1'000; ///< The longest pause between two looks [us]
+        bool split_evaluation = true; ///< The group shares the time (or each sleeps all of it)
+        /// The shortest pause between two looks [us]; courtier's default for the waits of MPI
+        std::uint32_t poll_pause_min =
+            static_cast<std::uint32_t>(Gem::Courtier::GMPIPEERPOLLPAUSEMIN.count());
+        /// The longest pause between two looks [us]; courtier's default for the waits of MPI
+        std::uint32_t poll_pause_max =
+            static_cast<std::uint32_t>(Gem::Courtier::GMPIPEERPOLLPAUSEMAX.count());
     };
 
     /** @brief The default constructor (for the archive) */
@@ -108,8 +114,13 @@ public:
     static std::shared_ptr<GSleepGroupIndividual>
     create(const Config &, const std::chrono::duration<double> &);
 
+    /** @brief The nominal duration of an evaluation [s] */
+    [[nodiscard]] double evaluationTime() const noexcept;
+    /** @brief Whether the processes of a group share the evaluation time */
+    [[nodiscard]] bool split() const noexcept;
+
 protected:
-    /** @brief Sleeps in the group of this process */
+    /** @brief Sleeps the evaluation time and computes the fitness, in this process alone */
     std::vector<double> evaluate() final;
 
 private:

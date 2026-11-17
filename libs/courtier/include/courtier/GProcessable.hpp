@@ -126,8 +126,8 @@ class g_processing_exception : public geneva_exception {
  * The result store, the actual process() orchestration and the (typed) pre-/post-processors live one
  * layer down, on whichever class turns a GProcessable into an actual submittable work item. There are two
  * such implementations: the generic, geneva-free GProcessingContainerT<processable_type,
- * processing_result_type> (used by the courtier-internal demo work items / tests), and geneva's
- * specialized Gem::Geneva::Genome::GGenome (which derives this class DIRECTLY and supplies its
+ * processing_result_type> (used by the work items of courtier's tests, libs/courtier/tests/support),
+ * and geneva's specialized Gem::Geneva::Genome::GGenome (which derives this class DIRECTLY and supplies its
  * own result store + process() with optimization-specific orchestration). Either way the only coupling
  * between the status machine and the result store -- clearing stored results when the status is reset --
  * is bridged by the virtual clearStoredResults_() hook, which the result-bearing derived class overrides.

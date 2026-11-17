@@ -27,8 +27,11 @@
 #
 ################################################################################
 
+# courtier's own closure only (CourtierProgramsLinkOnlyCourtier): the work items of the test support,
+# courtier (and through it common and weft), Boost and Catch2
 SET(LIBRARIES_TO_LINK
-		${GENEVA_LIBRARIES}
+		courtier-test-support
+		${COURTIER_LIBNAME}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain)
 
@@ -116,7 +119,7 @@ geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.h
 # server runs in a process of its own (the helper below), because a server tells the items of
 # another process from its own by a salt drawn once per process
 ADD_EXECUTABLE(GCourtierHelperServer GCourtierHelperServer.cpp)
-TARGET_LINK_LIBRARIES(GCourtierHelperServer ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(GCourtierHelperServer courtier-test-support ${COURTIER_LIBNAME} ${Boost_LIBRARIES})
 geneva_courtier_test(GCourtierForeignResultTests M GCourtierForeignResultTests.cpp GTcpRelay.hpp)
 TARGET_COMPILE_DEFINITIONS(GCourtierForeignResultTests
 	PRIVATE GCOURTIER_HELPER_SERVER="$<TARGET_FILE:GCourtierHelperServer>")
@@ -173,17 +176,24 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 
 	# Helper: one entry of the exerciser
 	#
-	#     geneva_courtier_mpi_scenario(<entry-name> <ranks> <scenario> [<further arguments>...])
+	#     geneva_courtier_mpi_scenario(<entry-name> <ranks> <scenario> [TIMEOUT <seconds>]
+	#                                  [<further arguments>...])
+	#
+	# The entry runs under GENEVA_ADD_MPI_TEST, bounded at 120 s unless a TIMEOUT is given.
 	#
 	# PROCESSORS tells the `ctest -j` scheduler what the entry really costs: one CTest slot but
 	# <ranks> live processes. Without it the scheduler counts it as one and oversubscribes the
 	# machine.
 	FUNCTION(geneva_courtier_mpi_scenario entry ranks scenario)
-		ADD_TEST(NAME ${entry}
+		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 3 arg "" "TIMEOUT" "")
+		IF(NOT arg_TIMEOUT)
+			SET(arg_TIMEOUT 120)
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME ${entry} TIMEOUT ${arg_TIMEOUT}
 				COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
 						${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=${scenario}
-						${ARGN} ${MPIEXEC_POSTFLAGS})
-		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks} TIMEOUT 120)
+						${arg_UNPARSED_ARGUMENTS} ${MPIEXEC_POSTFLAGS})
+		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks})
 		GENEVA_TEST_SIZE(${entry} M)
 	ENDFUNCTION()
 
@@ -194,8 +204,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_scenario(GCourtierMpiThrowingItemTest 3 throwing)
 	# A master consumer that is destroyed without ever starting its server tells its clients, which
 	# wait for its greeting without a limit: everyone ends at once.
-	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 3 never-started)
-	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES TIMEOUT 30)
+	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 3 never-started TIMEOUT 30)
 	# A program that initialized MPI itself, below MPI_THREAD_MULTIPLE, is refused. An MPI library
 	# that grants the full level whatever is asked for cannot be checked; the entry is then skipped.
 	geneva_courtier_mpi_scenario(GCourtierMpiThreadLevelTest 1 low-thread-level)
@@ -231,17 +240,17 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	TARGET_LINK_LIBRARIES(GCourtierMpiCallsExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME} MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiCallsExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
-	ADD_TEST(NAME GCourtierMpiCallsTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiCallsTest TIMEOUT 60
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS})
-	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
+	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiCallsTest M)
 	# Sends that are given up and never received do not keep MPI from finalizing: both ranks end.
-	ADD_TEST(NAME GCourtierMpiGivenUpSendsTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiGivenUpSendsTest TIMEOUT 20
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS}
 					--never-received)
-	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 20)
+	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
 
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
@@ -253,12 +262,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	INSTALL(TARGETS GCourtierMpiPeerExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	FOREACH(scenario end-of-work session-fails)
-		ADD_TEST(NAME GCourtierMpiPeer_${scenario}
+		GENEVA_ADD_MPI_TEST(NAME GCourtierMpiPeer_${scenario} TIMEOUT 60
 				COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
 						${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiPeerExerciser> --scenario=${scenario}
 						${MPIEXEC_POSTFLAGS})
-		SET_TESTS_PROPERTIES(GCourtierMpiPeer_${scenario} PROPERTIES
-				LABELS "courtier" PROCESSORS 3 TIMEOUT 60)
+		SET_TESTS_PROPERTIES(GCourtierMpiPeer_${scenario} PROPERTIES LABELS "courtier" PROCESSORS 3)
 		GENEVA_TEST_SIZE(GCourtierMpiPeer_${scenario} M)
 	ENDFOREACH()
 
@@ -269,7 +277,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiLargePayloadExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
-	ADD_TEST(NAME GCourtierMpiLargePayloadTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiLargePayloadTest TIMEOUT 120
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiLargePayloadExerciser> ${MPIEXEC_POSTFLAGS})
 	SET_TESTS_PROPERTIES(GCourtierMpiLargePayloadTest PROPERTIES LABELS "courtier" PROCESSORS 3)
@@ -280,7 +288,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# ../CMakeLists.txt) -- and exports its symbols, so that its watch of MPI calls
 	# (GMPICallWatch.cpp) also sees the calls made inside courtier's MPI library.
 	ADD_EXECUTABLE(GCourtierMpiCascadeTest GCourtierMpiCascadeTest.cpp GMPICallWatch.cpp GMPICallWatch.hpp)
-	TARGET_LINK_LIBRARIES(GCourtierMpiCascadeTest ${COURTIER_MPI_LIBNAME} ${Boost_LIBRARIES} MPI::MPI_CXX)
+	TARGET_LINK_LIBRARIES(GCourtierMpiCascadeTest courtier-test-support ${COURTIER_MPI_LIBNAME} ${Boost_LIBRARIES}
+		MPI::MPI_CXX)
 	SET_TARGET_PROPERTIES(GCourtierMpiCascadeTest PROPERTIES ENABLE_EXPORTS TRUE)
 	INSTALL(TARGETS GCourtierMpiCascadeTest
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
@@ -288,7 +297,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# Helper: an entry that runs one scenario of GCourtierMpiCascadeTest and judges how the job ends
 	# (../CheckJobEnds.cmake: exit code, texts, a bound of 60 s)
 	#
-	#     geneva_courtier_mpi_cascade_test(<entry> <ranks> <size> <zero|nonzero> <scenario>
+	#     geneva_courtier_mpi_cascade_test(<entry> <ranks> <size> <zero|nonzero|code> <scenario>
 	#                                      [NO_LAUNCHER] [ARGS <arguments>] [EXPECT <texts>]
 	#                                      [REFUSE <texts>])
 	#
@@ -314,7 +323,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 				ENDFOREACH()
 			ENDIF()
 		ENDIF()
-		ADD_TEST(NAME ${entry}
+		# Also the entry without the launcher (it makes no MPI call): one way to register them all
+		GENEVA_ADD_MPI_TEST(NAME ${entry} TIMEOUT 90
 				COMMAND ${CMAKE_COMMAND}
 					"-DCOMMAND=${_command}"
 					-DEXPECT_EXIT=${expect_exit}
@@ -323,7 +333,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					-DLIMIT=60
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
 				WORKING_DIRECTORY ${_dir})
-		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" TIMEOUT 90 PROCESSORS ${ranks})
+		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks})
 		GENEVA_TEST_SIZE(${entry} ${size})
 	ENDFUNCTION()
 
@@ -403,6 +413,39 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# A submitter that never confirms its role ends the job in its destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
 		EXPECT "the role of the submitter was never confirmed" "The job is ended (MPI_Abort)")
+	# A submitter that throws before its MPI consumer exists, while its leads wait for the greeting,
+	# ends the job in its destructor; one that throws while its consumer exists does not: the
+	# consumer's end tells the leads, and the job ends by itself
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterThrows 4 M nonzero submitter-throws
+		EXPECT "an exception leaves the submitter before an MPI consumer was built"
+		"The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterThrowsAfterConsumer 4 M zero
+		submitter-throws-after-consumer EXPECT "the submitter's exception reached the program"
+		REFUSE "MPI_Abort")
+	# A submitter that catches its failure and ends the job with abortJob() and a code: the job
+	# ends with that code (a catch that returned instead would leave the leads waiting); a second
+	# call, with code 43, made while the first is held before its MPI_Abort, waits for the first:
+	# its reason is never logged and the job ends with 42; abortJob() is refused on leads and
+	# members; without MPI it ends the process with the code
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterAborts 4 M 42 submitter-aborts
+		EXPECT "abortJob(): the submitter failed: injected failure of the submitter"
+			"The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterAbortsTwice 4 M 42
+		submitter-aborts-twice
+		EXPECT "abortJob(): the submitter failed: injected failure of the submitter"
+			"The job is ended (MPI_Abort)"
+		REFUSE "a second call of abortJob()")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeAbortWithoutMpi 1 M 42 abort-without-mpi
+		NO_LAUNCHER ARGS --update-configs
+		EXPECT "abortJob(): the submitter failed without MPI"
+			"the process is ended with the exit code 42")
+	# A cascade that lives inside a destructor while an unrelated exception unwinds: no exception
+	# unwinds through it, so the job ends normally; a submitter that never confirms its role there
+	# still ends the job for that reason
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwinding 4 M zero during-unwinding)
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwindingNeverConfirms 4 M nonzero
+		during-unwinding-never-confirms EXPECT "the role of the submitter was never confirmed"
+		"The job is ended (MPI_Abort)")
 	# ... and from inside setUp(), tearDown() or a member's serveRound()
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
 		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")

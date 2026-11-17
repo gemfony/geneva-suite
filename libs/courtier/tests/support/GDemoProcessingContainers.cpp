@@ -31,14 +31,13 @@
  *
  ********************************************************************************/
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GCommonHelperFunctions.hpp"
-#include "hap/GHapEnums.hpp"
-#include "hap/GRandomT.hpp"
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <iostream>
@@ -81,14 +80,18 @@ void GSimpleContainer::print() const {
 /**
  * The standard constructor -- Initialization with an amount of random numbers
  *
+ * The numbers come from a standard engine, one per construction, seeded from std::random_device:
+ * the tests only sort them, so any engine serves, and courtier and its tests do not depend on hap.
+ *
  * @param nrnr The desired amount of random numbers to be added to the random_numbers_ vector
  */
 GRandomNumberContainer::GRandomNumberContainer(const std::size_t &nrnr)
   : Gem::Courtier::GProcessingContainerT<GRandomNumberContainer, bool>(1) {
-    Gem::Hap::GRandom gr;
+    std::mt19937_64 engine{std::random_device{}()};
     std::uniform_real_distribution<double> uniform_real_distribution;
+    random_numbers_.reserve(nrnr);
     for(std::size_t i = 0; i < nrnr; i++) {
-        random_numbers_.push_back(uniform_real_distribution(gr));
+        random_numbers_.push_back(uniform_real_distribution(engine));
     }
 }
 

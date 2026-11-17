@@ -57,10 +57,36 @@ FOREACH ( _dp ${_GENEVA_DOCPROGRAMS} )
 	# tree and never in the source tree (Invariant 17).
 	ADD_TEST ( NAME geneva_${_dp} COMMAND geneva_${_dp}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
-	SET_TESTS_PROPERTIES ( geneva_${_dp} PROPERTIES LABELS "geneva;docprogram" TIMEOUT 120 )
+	SET_TESTS_PROPERTIES ( geneva_${_dp} PROPERTIES LABELS "geneva;docprogram" TIMEOUT 120
+		FIXTURES_SETUP geneva_docprogram_figures )
 	GENEVA_TEST_SIZE ( geneva_${_dp} S )
 	INSTALL ( TARGETS geneva_${_dp}
 		DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/geneva )
 ENDFOREACH ()
+
+# Every figure the programs write shows each text once, and a figure of one pad has one title
+# (CheckFigureTitles.cmake): read after the programs have written them.
+SET ( _GENEVA_DOCPROGRAM_FIGURES noisy-parabola-scan noisy-parabola-progress )
+FOREACH ( _algorithm ea sepcma sa gsa swarm spso2011 acor cgd nm ps )
+	LIST ( APPEND _GENEVA_DOCPROGRAM_FIGURES search-${_algorithm} )
+ENDFOREACH ()
+LIST ( TRANSFORM _GENEVA_DOCPROGRAM_FIGURES PREPEND ${CMAKE_CURRENT_BINARY_DIR}/ )
+LIST ( TRANSFORM _GENEVA_DOCPROGRAM_FIGURES APPEND .C )
+# The figures of an earlier run are removed before the programs run, so that the check reads only
+# what this run wrote.
+ADD_TEST ( NAME geneva_docprogram_figures_removed
+	COMMAND ${CMAKE_COMMAND} -E rm -f ${_GENEVA_DOCPROGRAM_FIGURES} )
+SET_TESTS_PROPERTIES ( geneva_docprogram_figures_removed PROPERTIES LABELS "geneva;docprogram"
+	FIXTURES_SETUP geneva_docprogram_fresh )
+GENEVA_TEST_SIZE ( geneva_docprogram_figures_removed S )
+FOREACH ( _dp ${_GENEVA_DOCPROGRAMS} )
+	SET_PROPERTY ( TEST geneva_${_dp} APPEND PROPERTY FIXTURES_REQUIRED geneva_docprogram_fresh )
+ENDFOREACH ()
+ADD_TEST ( NAME geneva_docprogram_titles
+	COMMAND ${CMAKE_COMMAND} "-DFIGURES=${_GENEVA_DOCPROGRAM_FIGURES}"
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake )
+SET_TESTS_PROPERTIES ( geneva_docprogram_titles PROPERTIES LABELS "geneva;docprogram"
+	FIXTURES_REQUIRED geneva_docprogram_figures )
+GENEVA_TEST_SIZE ( geneva_docprogram_titles S )
 
 GENEVA_AGGREGATE_TARGET( "docprograms-geneva" )

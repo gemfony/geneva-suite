@@ -55,7 +55,7 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/$
 #
 # --maxIterations caps the run at 5 iterations; the example's own default is 200, which takes half a
 # minute and verifies nothing the first few iterations do not (Inv 22).
-ADD_TEST(NAME ${EXECUTABLENAME}
+GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME} TIMEOUT 300
         COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
                 ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${EXECUTABLENAME}> ${MPIEXEC_POSTFLAGS}
                 --maxIterations 5
@@ -63,7 +63,7 @@ ADD_TEST(NAME ${EXECUTABLENAME}
 #
 # PROCESSORS 4 tells the `ctest -j` scheduler what this entry really costs: one CTest slot but four
 # live ranks. Without it the scheduler counts it as one and oversubscribes the machine.
-SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300 PROCESSORS 4)
+SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" PROCESSORS 4)
 GENEVA_TEST_SIZE(${EXECUTABLENAME} M)
 
 INSTALL(TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME})

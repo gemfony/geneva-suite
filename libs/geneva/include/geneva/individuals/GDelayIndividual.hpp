@@ -82,8 +82,8 @@ public:
  * crash with a predefined likelihood. This allows to test the stability of the communication between
  * clients and server.
  */
-class GDelayIndividual
-  : public gen::GGenomeT<GDelayIndividual> // NOLINT(cppcoreguidelines-special-member-functions)
+class GDelayIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+  : public gen::GGenomeT<GDelayIndividual>
   , public Gem::Common::GSelfTestable
 {
     /////////////////////////////////////////////////////////////////////////////

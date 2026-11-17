@@ -61,6 +61,14 @@ ENDIF ()
 # when Doxygen was not found.
 ADD_SUBDIRECTORY ( doc )
 
+# common's programs and the libraries they are built with link common only (and through it weft):
+# nothing of the libraries that build on it.
+IF ( GENEVA_BUILD_TESTS )
+	geneva_check_link_closure ( CommonProgramsLinkOnlyCommon
+		FORBID "^gemfony-(hap|dietrich|courtier|geneva)"
+		DIRECTORIES tests examples benchmarks tools )
+ENDIF ()
+
 # Self-contained aggregate over EVERYTHING in this lib's subtree (lib +
 # tests + examples + benchmarks). The top-level `gemfony-build-all` depends
 # on this so a plain `make gemfony-build-all` still builds all of common.

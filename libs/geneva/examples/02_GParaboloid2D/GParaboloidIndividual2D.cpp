@@ -35,7 +35,7 @@
 
 #include "geneva/oa/GAdaption.hpp"
 //! [weft-register-archivable#1]
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE: polymorphic dispatch
 //! [weft-register-archivable#1]
 #include "geneva/oa/GAdaptionConfig.hpp"
 
@@ -57,11 +57,12 @@ namespace Gem::Geneva {
 GParaboloidIndividual2D::GParaboloidIndividual2D()
   : M_PAR_MIN(-10.)
   , M_PAR_MAX(10.) {
-    // Build a flat genome of two constrained doubles in [M_PAR_MIN, M_PAR_MAX[, each its own Gauss
-    // group adapted with the default GDoubleGaussAdaptor configuration.
+    // Build a flat genome of two constrained doubles in [M_PAR_MIN, M_PAR_MAX[, each
+    // its own Gauss group adapted with the default GDoubleGaussAdaptor configuration.
+    // The genome holds structure only; the adaptor lives on the OA config.
     gen::GGenomeBuilder b;
     for(std::size_t npar = 0; npar < 2; npar++) {
-        b.addDouble(M_PAR_MIN, M_PAR_MIN, M_PAR_MAX); // structure only; the adaptor lives on the OA config
+        b.addDouble(M_PAR_MIN, M_PAR_MIN, M_PAR_MAX);
     }
     this->setGenome(b.build());
 

@@ -845,7 +845,7 @@ void GParChild::markChildren() {
  */
 //! [algo-ea:cycle-logic]
 std::tuple<double, double> GParChild::cycleLogic_() {
-    // If this is not the first iteration, check whether we need to increase the population
+    // After the first iteration, check whether the population needs to grow
     if(GOptimizationAlgorithmBase::afterFirstIteration()) {
         performScheduledPopulationGrowth();
     }

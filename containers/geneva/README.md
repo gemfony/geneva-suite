@@ -24,7 +24,7 @@ From anywhere inside the checkout:
 
 ```sh
 containers/geneva/build.sh            # CPU image with MPI support, tagged geneva:cpu
-containers/geneva/build.sh --cuda     # adds the CUDA toolkit and the GPU consumer, geneva:cuda
+containers/geneva/build.sh --cuda     # adds CUDA and the GPU consumer, geneva:cuda
 ```
 
 `build.sh` uses Podman if it is installed and Docker otherwise; `CONTAINER_ENGINE=docker` forces

@@ -68,7 +68,7 @@
 #include "GInProcessTestSupport.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
@@ -2104,6 +2104,41 @@ private:
     }
 };
 
+/**
+ * @brief Holds nothing of GHeldDecodeItem, and counts from 0, from its construction on and again
+ * after its destruction: a case that uses the holds declares one first and then sets the hold it
+ * needs. A case that fails half-way (a REQUIRE) would otherwise leave its hold set for the next
+ * case, whose encodings or decodes would then wait unasked.
+ */
+class HeldStateReset final {
+public:
+    /** @brief Resets the holds */
+    HeldStateReset() {
+        reset();
+    }
+    /** @brief Resets the holds again */
+    ~HeldStateReset() {
+        reset();
+    }
+    HeldStateReset(const HeldStateReset &) = delete;
+    HeldStateReset(HeldStateReset &&) = delete;
+    HeldStateReset &operator=(const HeldStateReset &) = delete;
+    HeldStateReset &operator=(HeldStateReset &&) = delete;
+
+private:
+    /** @brief Nothing held, nothing counted */
+    static void reset() {
+        gatedDecodes.store(0);
+        heldDecode.store(std::numeric_limits<std::size_t>::max());
+        decodeHeld.store(false);
+        decodeWaits.store(false);
+        processedSaves.store(0);
+        heldSave.store(std::numeric_limits<std::size_t>::max());
+        saveHeld.store(false);
+        saveWaits.store(false);
+    }
+};
+
 } /* anonymous namespace */
 
 /**
@@ -2118,10 +2153,9 @@ TEST_CASE(
     "GPeerClientT: an answer decoded after a loss is booked against the lost connection",
     "[courtier][peer][client]"
 ) {
-    gatedDecodes.store(0);
+    const HeldStateReset held_state;
     heldDecode.store(1);
     decodeHeld.store(true);
-    decodeWaits.store(false);
     using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     auto watch = std::make_shared<GInProcessPeerWatch>();
@@ -2189,10 +2223,9 @@ TEST_CASE(
     "GPeerClientT: a second loss long after the first is not held against the reconnect limit",
     "[courtier][peer][client]"
 ) {
-    gatedDecodes.store(0);
+    const HeldStateReset held_state;
     heldDecode.store(3); // the second item of the second batch
     decodeHeld.store(true);
-    decodeWaits.store(false);
     using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     auto watch = std::make_shared<GInProcessPeerWatch>();
@@ -2601,10 +2634,9 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
-    gatedDecodes.store(0);
+    const HeldStateReset held_state;
     heldDecode.store(1); // B
     decodeHeld.store(true);
-    decodeWaits.store(false);
     {
         HeldWorld world(GPeerClientOptions{
             .name = "look-ahead client",
@@ -2651,10 +2683,9 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
-    gatedDecodes.store(0);
+    const HeldStateReset held_state;
     heldDecode.store(2); // B, the third item
     decodeHeld.store(true);
-    decodeWaits.store(false);
     auto permits = std::make_shared<std::counting_semaphore<4>>(0);
     auto started = std::make_shared<std::atomic<int>>(0);
     {
@@ -2894,12 +2925,9 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
-    gatedDecodes.store(0);
-    heldDecode.store(std::numeric_limits<std::size_t>::max());
-    processedSaves.store(0);
+    const HeldStateReset held_state;
     heldSave.store(1); // the second encoding of the processed item: the RESULT
     saveHeld.store(true);
-    saveWaits.store(false);
     auto permits = std::make_shared<std::counting_semaphore<4>>(0);
     auto started = std::make_shared<std::atomic<int>>(0);
     {
@@ -2914,6 +2942,13 @@ TEST_CASE(
         auto items = heldItems(1);
         auto batch = world.batch(items);
         REQUIRE(eventually([&] { return started->load() == 1; }));
+        // The io thread publishes the kind the result is to be encoded with (a RETURN: the client
+        // may still ask) only after it has handed the item to the compute pool; a close requested
+        // before that would make it a RESULT from the start, encoded once. The io thread is one
+        // thread, so a halt poll that ends after the evaluation has begun ends after that
+        // publication.
+        const auto polls_before_close = world.client().haltPolls();
+        REQUIRE(eventually([&] { return world.client().haltPolls() > polls_before_close; }));
         world.client().flagCloseRequested(); // the compute thread still encodes a RETURN
         permits->release();
         REQUIRE(eventually([] { return saveWaits.load(); }));
@@ -2933,8 +2968,6 @@ TEST_CASE(
         world.shell().stopServer();
         batch.get();
     }
-    saveHeld.store(false);
-    heldSave.store(std::numeric_limits<std::size_t>::max());
     CHECK(dir.files().size() == 1);
 }
 
@@ -2952,10 +2985,9 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
-    gatedDecodes.store(0);
+    const HeldStateReset held_state;
     heldDecode.store(1); // B
     decodeHeld.store(true);
-    decodeWaits.store(false);
     {
         HeldWorld world(
             GPeerClientOptions{
@@ -3002,8 +3034,7 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     const UndeliveredDir dir;
-    gatedDecodes.store(0);
-    heldDecode.store(std::numeric_limits<std::size_t>::max());
+    const HeldStateReset held_state;
     auto permits = std::make_shared<std::counting_semaphore<4>>(0);
     auto started = std::make_shared<std::atomic<int>>(0);
     {

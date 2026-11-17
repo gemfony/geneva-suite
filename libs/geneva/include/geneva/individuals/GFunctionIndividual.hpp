@@ -320,8 +320,8 @@ const solverFunction GO_DEF_EVALFUNCTION = solverFunction::PARABOLA;
  * @note For MICHALEWICZ the natural domain is [0, π]. Set min_var=0 and max_var≈3.14159
  *       explicitly; the factory default of [-10, 10] is not suitable for that function.
  */
-class GFunctionIndividual
-  : public gen::GGenomeT<GFunctionIndividual> // NOLINT(cppcoreguidelines-special-member-functions)
+class GFunctionIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+  : public gen::GGenomeT<GFunctionIndividual>
   , public Gem::Common::GSelfTestable
 {
     ///////////////////////////////////////////////////////////////////////
@@ -677,9 +677,9 @@ using GFunctionIndividualFactory =
  * than a given constant.
  */
 //! [constraints:declaration#1]
-class GDoubleSumConstraint
+class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -692,7 +692,7 @@ class GDoubleSumConstraint
 //! [constraints:declaration#1]
 //! [constraints:declaration#2]
 public:
-    /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
+    /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GDoubleSumConstraint";
 
     /** @brief The default constructor */
@@ -733,8 +733,8 @@ protected:
 
     //! [constraints:declaration#4]
     /**
-     * @brief Checks whether the constraint (sum of parameters below the constant) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @brief Checks the constraint: the sum of parameters stays below the constant.
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if the constraint is satisfied)
      */
     double check_(const gen::GGenome *p) const override;
@@ -750,7 +750,7 @@ protected:
 
 //! [constraints:declaration#5]
 private:
-    double c_ = 1.; ///< The constant that should not be exceeded by the sum of parameters
+    double c_ = 1.; ///< The constant the sum of parameters should not exceed
 };
 //! [constraints:declaration#5]
 
@@ -761,9 +761,9 @@ private:
  * A constraint checker trying to enforce a condition x+y+z=C (note the equal
  * sign!) for double variables
  */
-class GDoubleSumGapConstraint
+class GDoubleSumGapConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GDoubleSumGapConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -815,7 +815,7 @@ protected:
 
     /**
      * @brief Checks whether the equality constraint (sum of parameters near the constant) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if within the allowed gap)
      */
     double check_(const gen::GGenome *p) const override;
@@ -840,9 +840,9 @@ private:
  * A simple constraint checker searching for valid solutions that fulfill
  * a given constraint. Here, valid solutions lie in a sphere around 0
  */
-class GSphereConstraint
+class GSphereConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GSphereConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -891,7 +891,7 @@ protected:
 
     /**
      * @brief Checks whether the constraint (solution within a sphere around 0) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if inside the sphere)
      */
     double check_(const gen::GGenome *p) const override;

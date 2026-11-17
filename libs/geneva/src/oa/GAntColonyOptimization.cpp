@@ -396,8 +396,8 @@ void GAntColonyOptimization::constructAnts() {
         std::vector<double> x_new(n_fp_parms_, 0.);
 
         for(std::size_t i = 0; i < n_fp_parms_; ++i) {
-            // 1. Choose a guiding archive member by roulette wheel on {p_l}; l is its RANK in the
-            //    best-first archive, which is what the ranked weights are defined over.
+            // 1. Choose a guiding archive member by roulette wheel on {p_l}; l is its
+            //    RANK in the best-first archive, the order the ranked weights refer to.
             const std::size_t l = rouletteSelect();
             const double mu = archive_.at(l).parms[i];
 
@@ -409,8 +409,9 @@ void GAntColonyOptimization::constructAnts() {
                 }
                 sum_dist += std::fabs(archive_.at(e).parms[i] - mu);
             }
-            // The mean-distance bandwidth, floored against a dimensionless fraction of the (normalized)
-            // range so a collapsed archive cannot drive sigma to zero and stall the search prematurely.
+            // The mean-distance bandwidth, floored against a dimensionless fraction of
+            // the (normalized) range so a collapsed archive cannot drive sigma to zero
+            // and stall the search prematurely.
             const double sigma = std::max(
                 xi_ * sum_dist / static_cast<double>(archive_size_ - 1), ACOR_SIGMA_FLOOR_FRACTION
             );
@@ -420,8 +421,9 @@ void GAntColonyOptimization::constructAnts() {
             x_new[i] = gauss(gr_);
         }
 
-        // Write the sampled vector through the genome; the constrained parameter objects fold/clamp it
-        // into the feasible box automatically. Mark the slot for (re)evaluation.
+        // Write the sampled vector through the genome; the constrained parameter
+        // objects fold/clamp it into the feasible box automatically. Mark the slot for
+        // (re)evaluation.
         this->at(a)->assignFPValueVectorInternal(x_new, activityMode::ACTIVEONLY);
         this->at(a)->mark_as_due_for_processing();
     }

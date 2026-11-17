@@ -317,8 +317,9 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS (
 
 ###############################################################################
 # Define the IMPORTED targets, mirroring those provided by the config package.
-# The targets are wired up in dependency order (common <- hap <- courtier <-
-# geneva), so that linking Geneva::geneva pulls in the rest transitively.
+# The targets are wired up in dependency order (weft <- common; hap, dietrich
+# and courtier each on common only; geneva on all of them), so that linking
+# Geneva::geneva pulls in the rest transitively.
 
 IF (GENEVA_FOUND)
 	# Geneva exposes Boost through its public headers; re-find it so the
@@ -360,12 +361,15 @@ IF (GENEVA_FOUND)
 		)
 	ENDIF ()
 
+	# The definition that picks the source of Gem::Hap::GRandom, as the libraries were compiled
+	# (generated; none for the default source)
 	IF (NOT TARGET Geneva::hap)
 		ADD_LIBRARY (Geneva::hap UNKNOWN IMPORTED)
 		SET_TARGET_PROPERTIES (Geneva::hap PROPERTIES
 			IMPORTED_LOCATION "${GENEVA_HAP_LIBRARY}"
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
 			INTERFACE_LINK_LIBRARIES "Geneva::common"
+			INTERFACE_COMPILE_DEFINITIONS "@GENEVA_HAP_PUBLIC_DEFINE@"
 		)
 	ENDIF ()
 
@@ -374,12 +378,12 @@ IF (GENEVA_FOUND)
 		SET_TARGET_PROPERTIES (Geneva::courtier PROPERTIES
 			IMPORTED_LOCATION "${GENEVA_COURTIER_LIBRARY}"
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
-			INTERFACE_LINK_LIBRARIES "Geneva::hap"
+			INTERFACE_LINK_LIBRARIES "Geneva::common"
 		)
 	ENDIF ()
 
 	# A testing-enabled libgemfony-geneva references Catch2 symbols (see GENEVA_TESTING above).
-	SET (_GENEVA_GENEVA_LINKS "Geneva::courtier;Geneva::dietrich")
+	SET (_GENEVA_GENEVA_LINKS "Geneva::hap;Geneva::courtier;Geneva::dietrich")
 	IF (GENEVA_TESTING)
 		FIND_DEPENDENCY (Catch2 3)
 		LIST (APPEND _GENEVA_GENEVA_LINKS "Catch2::Catch2")

@@ -184,7 +184,7 @@ private:
 
         std::vector<double> parameters;
         for(const auto &ind_ptr : *goa) {
-            ind_ptr->streamline<double>(parameters); // the genome's doubles, in genome order
+            ind_ptr->streamline<double>(parameters); // the genome's doubles, in order
             const double fitness = ind_ptr->raw_fitness(0);
 
             path_log_->append(path_, parameters[0], parameters[1], fitness);
@@ -192,7 +192,7 @@ private:
             ++n_recorded_;
         }
 
-        // The algorithm's own book-keeping of the best result seen so far -- (raw, transformed).
+        // The algorithm's own record of the best result so far -- (raw, transformed).
         progress_log_->append(
             best_,
             double(goa->getIteration()),
@@ -249,11 +249,15 @@ int main() {
     // One pad, two series: the scanned landscape, and the search drawn on
     // top of it. Both are 3-d graphs -- only same-kind series may share a
     // pad -- so the overlay's markers sit at the very fitness values the
-    // surface shows.
-    GDataLog scan_log("A landscape scanned exhaustively, and searched", 1, 1);
+    // surface shows. A figure of one pad has one title, the pad's: the
+    // canvas label is not shown.
+    const std::string scan_title = "A landscape scanned exhaustively, and searched";
+    GDataLog scan_log(scan_title, 1, 1);
+    scan_log.setShowCanvasLabel(false);
 
     GPlotSpec landscape(plotKind::graph_3d);
-    landscape.name = "Berlich noisy parabola";
+    landscape.name = "Berlich noisy parabola"; // its legend entry
+    landscape.pad_title = scan_title;
     landscape.x_label = "x_{0}";
     landscape.y_label = "x_{1}";
     landscape.z_label = "fitness";
@@ -290,13 +294,16 @@ int main() {
     // One pad again, and the other kind of overlay: a SCATTER of every individual the run
     // evaluated, with the CURVE of the best result known so far drawn through it. The fitness is
     // plotted logarithmically -- a converging run crosses several decades, and a linear axis shows
-    // the last three of them as one line on the floor.
-    GDataLog progress_log("The same run, seen from the optimizer's side", 1, 1);
+    // the last three of them as one line on the floor. Again one pad, one title.
+    const std::string progress_title = "The same run, seen from the optimizer's side";
+    GDataLog progress_log(progress_title, 1, 1);
+    progress_log.setShowCanvasLabel(false);
 
     GPlotSpec spread(plotKind::graph_2d);
     spread.plot_mode = graphPlotMode::SCATTER; // the backend-independent intent ...
     spread.drawing_args = "A*";                // ... and ROOT's own refinement of it: star markers
     spread.name = "every individual the run evaluated";
+    spread.pad_title = progress_title;
     // The run leaves no corner free: the cloud decays towards a plateau. The legend gets a band of
     // its own below the plateau, free by construction.
     spread.legend = legendPosition::BOTTOM_RIGHT;

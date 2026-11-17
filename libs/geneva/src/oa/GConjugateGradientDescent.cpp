@@ -604,7 +604,7 @@ std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
     const std::size_t n_probes = central_differences_ ? 2 : 1;
     const std::size_t children_per_sp = n_fp_parms_first_ * n_probes;
     std::vector<double> gradient(n_fp_parms_first_, 0.);
-    const double h = adjusted_finite_step_; // uniform across parameters (normalized coordinate)
+    const double h = adjusted_finite_step_; // one step for all parameters (normalized)
     for(std::size_t j = 0; j < n_fp_parms_first_; j++) {
         if(h <= 0.) {
             continue;

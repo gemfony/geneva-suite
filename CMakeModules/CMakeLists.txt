@@ -28,18 +28,15 @@
 ################################################################################
 
 # FindGeneva.cmake, the MODULE-mode fallback for finding an installed Geneva, names the Boost
-# version and components the build was made with; it is generated from them, so that the fact is
-# stated once (GENEVA_MIN_BOOST_VERSION, GENEVA_BOOST_LIBS in CommonGenevaBuild.cmake).
+# version and components the build was made with, and hap's compile definition; it is generated
+# from them, so that each fact is stated once (GENEVA_MIN_BOOST_VERSION, GENEVA_BOOST_LIBS in
+# CommonGenevaBuild.cmake, GENEVA_HAP_PUBLIC_DEFINE in the top-level CMakeLists.txt).
 CONFIGURE_FILE ( FindGeneva.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake @ONLY )
 
-SET ( CMAKEFILES
-	README
-	CommonGenevaBuild.cmake
-	${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake
-	# Other macro files
-	CleanCmakeTemporaries.cmake
-	IdentifySystemParameters.cmake
-	IndependentBuild.cmake
-)
-
-INSTALL ( FILES ${CMAKEFILES} DESTINATION ${INSTALL_PREFIX_DATA}/CMakeModules )
+# It is the only module installed into the installation's CMakeModules/ directory. The config
+# package carries its own helpers (GenevaIndividualModule.cmake, GenevaConfigMaterialization.cmake,
+# GenevaRunQuiet.cmake; installed by the top-level CMakeLists.txt next to GenevaConfig.cmake). The
+# other modules build the collection itself (CommonGenevaBuild.cmake and what it includes); a
+# project outside the tree uses find_package(Geneva).
+INSTALL ( FILES ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake
+	DESTINATION ${INSTALL_PREFIX_DATA}/CMakeModules )

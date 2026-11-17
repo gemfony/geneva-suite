@@ -35,7 +35,7 @@
 # Driven via `cmake -P` with
 #   -DCOMMAND=<list>             the command (empty elements, e.g. an empty MPIEXEC_PREFLAGS, are
 #                                dropped)
-#   -DEXPECT_EXIT=zero|nonzero   the exit code the job must end with
+#   -DEXPECT_EXIT=zero|nonzero|<code>  the exit code the job must end with (a number: exactly it)
 #   -DEXPECT=<list of texts>     texts the output must contain (optional)
 #   -DREFUSE=<list of texts>     further texts the output must not contain (optional)
 #   -DLIMIT=<seconds>            the bound
@@ -53,8 +53,9 @@ foreach(_required COMMAND EXPECT_EXIT LIMIT)
         message(FATAL_ERROR "FAIL: CheckJobEnds.cmake needs -D${_required}=...")
     endif()
 endforeach()
-if(NOT EXPECT_EXIT MATCHES "^(zero|nonzero)$")
-    message(FATAL_ERROR "FAIL: EXPECT_EXIT must be 'zero' or 'nonzero', not '${EXPECT_EXIT}'")
+if(NOT EXPECT_EXIT MATCHES "^(zero|nonzero|[1-9][0-9]*)$")
+    message(FATAL_ERROR "FAIL: EXPECT_EXIT must be 'zero', 'nonzero' or a code above 0, not "
+        "'${EXPECT_EXIT}'")
 endif()
 list(REMOVE_ITEM COMMAND "")
 
@@ -85,12 +86,13 @@ if((_timeout_program AND _rc STREQUAL "124") OR _rc MATCHES "timeout")
         "processes named GCourtierMpiCas still running: ${_left}")
 endif()
 # The job ended, but the launcher by a signal (a text instead of a number): Open MPI 5.0.10's
-# prterun was seen to crash in PMIx_server_finalize while it tore a job down after MPI_Abort. That is
-# a non-zero end of the job -- all a job that must end otherwise asks for; one that must end with 0
-# fails.
+# prterun was seen to crash in PMIx_server_finalize while it tore a job down after MPI_Abort. That
+# is a non-zero end of the job -- all a job that must end otherwise asks for; one that must end
+# with 0 or with a given code fails.
 if(NOT _rc MATCHES "^-?[0-9]+$")
-    if(EXPECT_EXIT STREQUAL "zero")
-        message(FATAL_ERROR "FAIL: the launcher ended by a signal (${_rc}), not with 0")
+    if(NOT EXPECT_EXIT STREQUAL "nonzero")
+        message(FATAL_ERROR
+            "FAIL: the launcher ended by a signal (${_rc}), not with ${EXPECT_EXIT}")
     endif()
     message(STATUS "the launcher ended by a signal (${_rc}): a non-zero end")
     set(_rc "a signal (${_rc})")
@@ -98,8 +100,12 @@ elseif(EXPECT_EXIT STREQUAL "zero")
     if(NOT _rc EQUAL 0)
         message(FATAL_ERROR "FAIL: the job ended with the exit code ${_rc}, not 0")
     endif()
-elseif(_rc EQUAL 0)
-    message(FATAL_ERROR "FAIL: the job ended with the exit code 0")
+elseif(EXPECT_EXIT STREQUAL "nonzero")
+    if(_rc EQUAL 0)
+        message(FATAL_ERROR "FAIL: the job ended with the exit code 0")
+    endif()
+elseif(NOT _rc EQUAL EXPECT_EXIT)
+    message(FATAL_ERROR "FAIL: the job ended with the exit code ${_rc}, not ${EXPECT_EXIT}")
 endif()
 list(APPEND REFUSE "FAIL:")
 foreach(_text IN LISTS EXPECT)

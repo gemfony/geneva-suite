@@ -216,8 +216,9 @@ public:
     static constexpr std::string_view class_name = "GEvolutionaryAlgorithm";
     static constexpr std::string_view oa_algorithm_name = "Evolutionary Algorithm";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_EA";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
-     *  and the default second template argument of the algorithm factory scaffold. */
+    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_()
+     *  hands out, and the default second template argument of the algorithm factory
+     *  scaffold. */
     using personality_traits_type = GEvolutionaryAlgorithm_PersonalityTraits;
 //! [geneva.oa.identifiers]
 

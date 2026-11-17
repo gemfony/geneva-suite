@@ -149,13 +149,15 @@ protected:
     }
 
     //-------------------------------------------------------------------------
-    /** @brief The destructor. Logs a shutdown summary (items processed, NO_WORK count, prefetch depth). */
+    /** @brief The destructor. Logs a shutdown summary (items processed, NO_WORK count, prefetch
+     *  depth n, parallel evaluations m). */
     ~GPrefetchingClientT() override {
         glogger << '\n'
                 << client_name_ << " is shutting down. Processed " << this->getNProcessed()
                 << " items in total" << '\n'
                 << "\"no data\" was received " << n_nodata_.load() << " times" << '\n'
                 << "prefetch depth was " << prefetch_depth_ << '\n'
+                << "parallel evaluations were " << parallel_evaluations_ << '\n'
                 << '\n'
                 << GLOGGING;
     }

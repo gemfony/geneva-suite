@@ -11,8 +11,8 @@ cd /your/build && make doc-common      # this library only
 cd /your/build && make doc             # all libraries (aggregator)
 ```
 
-`make doc` depends on `doc-common`, `doc-hap`, `doc-courtier`, `doc-geneva`
-in that order (per-lib `CMakeLists.txt` declares the dependency chain so
+`make doc` depends on `doc-weft`, `doc-common`, `doc-hap`, `doc-dietrich`,
+`doc-courtier` and `doc-geneva` (per-lib `CMakeLists.txt` declares the dependencies so
 Doxygen TAGFILES from upstream libs are available when downstream libs
 are documented).
 
@@ -22,9 +22,9 @@ Generated HTML / XML / tag files land in the **build tree**, not in the
 source tree:
 
 ```
-<build>/common/doc/
+<build>/libs/common/doc/
     Doxyfile          configured from Doxyfile.in
-    common.tag        Doxygen tag file (consumed by hap/courtier/geneva)
+    common.tag        Doxygen tag file (consumed by hap/dietrich/courtier/geneva)
     html/             browsable HTML reference
     xml/              XML for downstream tooling (Sphinx + Exhale, etc.)
 ```

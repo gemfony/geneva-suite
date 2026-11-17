@@ -37,6 +37,7 @@
 // have.
 
 // Standard headers go here
+#include <atomic>
 #include <functional>
 
 // MPI headers go here
@@ -70,6 +71,10 @@ namespace Gem::Courtier::Consumers {
  *  - A process that takes no part in courtier's protocol (in a cascade: a member; in a cascade
  *    laid out GROUPS_ONLY, every process) passes MPI_COMM_NULL. It has the role BYSTANDER and no
  *    communicator. A cascade builds the environment itself (courtier/mpi/GMPICascade.hpp).
+ *
+ * A consumer built on the submitter notes that it exists (noteConsumer()): from then on its end
+ * tells the clients that the run has ended, however it ends. A cascade on the submitter asks for
+ * it (consumerBuilt()) when an exception unwinds through it (GMPICascade).
  *
  * The destructor frees the duplicate and finalizes MPI if this object initialized it. A program
  * that initialized MPI itself finalizes it itself, and must let go of its consumer or client
@@ -224,6 +229,18 @@ public:
         return rank_;
     }
 
+    /** @brief Notes that a consumer was built on this process; its end tells the clients. Any
+     *  thread. */
+    void noteConsumer() noexcept {
+        consumer_built_ = true;
+    }
+
+    /** @brief Whether a consumer was built on this process (noteConsumer()). Any thread.
+     *  @return true once noteConsumer() was called */
+    [[nodiscard]] bool consumerBuilt() const noexcept {
+        return consumer_built_.load();
+    }
+
     /** @brief The number of processes in courtier's communicator.
      *  @return The size
      *  @throws geneva_exception on a bystander */
@@ -252,6 +269,8 @@ private:
     int rank_ = -1;                         ///< The rank in communicator_; -1 on a bystander
     int size_ = 0;                          ///< The size of communicator_; 0 on a bystander
     bool i_initialized_mpi_ = false;        ///< Whether the constructor initialized MPI
+    /// A consumer was built in this process (noteConsumer())
+    std::atomic<bool> consumer_built_{false};
 };
 
 /******************************************************************************/

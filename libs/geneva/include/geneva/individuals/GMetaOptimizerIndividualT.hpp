@@ -452,8 +452,9 @@ public:
     ) {
         gen::GGenomeBuilder b;
 
-        // Integer knobs first (int32 channel), then the real knobs (double channel); within each channel
-        // the order is the manifest order, which readTuned() walks identically.
+        // Integer knobs first (int32 channel), then the real knobs (double channel);
+        // within each channel the order is the manifest order, which readTuned() walks
+        // identically.
         for(const auto &tp : manifest) {
             if(tp.is_integer) {
                 b.addInt32(
@@ -736,8 +737,9 @@ protected:
             std::shared_ptr<gen::GGenome> const gi_ptr = ind_factory_->get();
             ea.push_back(gi_ptr->clone());
         }
-        // Drive the sub-individuals' adaption through the OA-owned config, and set the likelihood for work
-        // items to be produced through cross-over rather than mutation alone.
+        // Drive the sub-individuals' adaption through the OA-owned config, and set the
+        // likelihood for work items to be produced through cross-over rather than
+        // mutation alone.
         ea.setAdaptionConfig(sub_adaption_config);
         ea.setAmalgamationLikelihood(amalgamation_likelihood);
         //! [meta.populatesubea]

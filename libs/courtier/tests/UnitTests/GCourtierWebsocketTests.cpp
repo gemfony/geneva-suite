@@ -54,7 +54,7 @@
 
 #include <unistd.h> // getpid()
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"

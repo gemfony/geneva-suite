@@ -54,7 +54,7 @@
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GServerSessionLogic.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/GWireSerializationContext.hpp"

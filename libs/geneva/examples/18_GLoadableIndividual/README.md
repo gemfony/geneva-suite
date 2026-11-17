@@ -22,8 +22,10 @@ just needs the same `.so` present on every node (already there on a shared HPC f
 the binary in the cloud):
 
 ```bash
-./GGenericOptimizer --individual ./libGLoadableParaboloid.so --consumer beast          # server
-./GGenericOptimizer --individual ./libGLoadableParaboloid.so --consumer beast --client  # worker
+# server
+./GGenericOptimizer --individual ./libGLoadableParaboloid.so --consumer beast
+# worker
+./GGenericOptimizer --individual ./libGLoadableParaboloid.so --consumer beast --client
 ```
 
 ## How to make your OWN loadable individual

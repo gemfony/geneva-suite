@@ -34,7 +34,9 @@
 #  1. "cmake --install" of the build into a fresh directory (mktemp -d) as prefix;
 #  2. that installation is renamed: nothing in it may still name the prefix it
 #     was installed to (the exported targets, the config package, the run paths);
-#     a staged install (DESTDIR) is usable in the same way;
+#     a staged install (DESTDIR) is usable in the same way; of the collection's
+#     CMake modules it carries FindGeneva.cmake only (not CommonGenevaBuild.cmake,
+#     which builds the collection itself);
 #     every installed library, module and program must then resolve all its
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
 #  3. the quickstart (libs/geneva/quickstart) is configured standalone with
@@ -58,7 +60,9 @@
 #     same Boost version and components;
 #  6. both the config package and FindGeneva.cmake say whether the installation has
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
-#     was configured.
+#     was configured, both give Geneva::hap the compile definition the libraries
+#     were compiled with (the source of Gem::Hap::GRandom), and both keep the
+#     layers: Geneva::courtier does not link Geneva::hap, Geneva::geneva does.
 # Configuring a project against the installation (steps 3, 5, 6) prints no CMake
 # warning.
 #
@@ -83,6 +87,7 @@
 #   CATCH2_DIR       Catch2's CMake package directory (a testing-enabled install needs it)
 #   WITH_MPI         ON if the build has the MPI consumer
 #   WITH_GPU         TRUE if the build has the GPU consumer
+#   HAP_DEFINE       hap's public compile definition (empty for the default source)
 #   JOBS             parallel build jobs for each probe
 # and, set by this script for a lane only: LANE, ROOT, GENERATOR.
 #
@@ -305,7 +310,9 @@ FUNCTION(gip_lane_findgeneva)
 ENDFUNCTION()
 
 # 6. What the installation has: GENEVA_MPI and GENEVA_GPU, from the config package (_mode
-#    CONFIG) or from FindGeneva.cmake (MODULE), must say what the build was configured with.
+#    CONFIG) or from FindGeneva.cmake (MODULE), must say what the build was configured with; and
+#    Geneva::courtier must not link Geneva::hap, while Geneva::geneva must (a substring check: the
+#    exported list may hold generator expressions).
 FUNCTION(gip_lane_flags _mode)
 	gip_common_args(_args)
 	IF(WITH_MPI)
@@ -339,6 +346,22 @@ FUNCTION(gip_lane_flags _mode)
 		"if(NOT _mpi STREQUAL \"${_want_mpi}\" OR NOT _gpu STREQUAL \"${_want_gpu}\")\n"
 		"  message(FATAL_ERROR \"${_mode}: GENEVA_MPI=\${_mpi} GENEVA_GPU=\${_gpu}, the build has "
 		"MPI=${_want_mpi} GPU=${_want_gpu}\")\n"
+		"endif()\n"
+		"get_target_property(_hap_defines Geneva::hap INTERFACE_COMPILE_DEFINITIONS)\n"
+		"if(NOT _hap_defines)\n  set(_hap_defines \"\")\nendif()\n"
+		"if(NOT \"\${_hap_defines}\" STREQUAL \"${HAP_DEFINE}\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::hap has the compile definitions "
+		"'\${_hap_defines}', the libraries were compiled with '${HAP_DEFINE}'\")\n"
+		"endif()\n"
+		"get_target_property(_courtier_links Geneva::courtier INTERFACE_LINK_LIBRARIES)\n"
+		"get_target_property(_geneva_links Geneva::geneva INTERFACE_LINK_LIBRARIES)\n"
+		"if(\"\${_courtier_links}\" MATCHES \"Geneva::hap\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::courtier links Geneva::hap "
+		"(\${_courtier_links}); courtier builds on common only\")\n"
+		"endif()\n"
+		"if(NOT \"\${_geneva_links}\" MATCHES \"Geneva::hap\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::geneva does not link Geneva::hap "
+		"(\${_geneva_links})\")\n"
 		"endif()\n")
 	FILE(WRITE "${_flags_src}/CMakeLists.txt" "${_flags_lists}")
 	gip_run("say MPI and GPU through find_package(Geneva ${_mode})" "${ROOT}/flags-${_mode}.log"
@@ -398,6 +421,16 @@ ENDIF()
 # 2. Move.
 FILE(RENAME "${ROOT}/installed" "${ROOT}/moved")
 
+# Of the collection's CMake modules the installation carries FindGeneva.cmake only. The modules that
+# build the collection itself (CommonGenevaBuild.cmake and what it includes) are not installed: a
+# project outside the tree finds Geneva with find_package(Geneva), as the lanes below do.
+FILE(GLOB_RECURSE _build_modules "${ROOT}/moved/*CommonGenevaBuild.cmake")
+FILE(GLOB _modules RELATIVE "${ROOT}/moved/CMakeModules" "${ROOT}/moved/CMakeModules/*")
+IF(_build_modules OR NOT _modules STREQUAL "FindGeneva.cmake")
+	gip_fail("The installation carries CMake modules beyond FindGeneva.cmake: ${_build_modules} "
+		"CMakeModules/{${_modules}}")
+ENDIF()
+
 # The ldd check of step 2 and steps 3 to 6: the lanes, all at the same time.
 SET(_lanes ldd quickstart handlinked findgeneva flags-CONFIG flags-MODULE)
 IF(WITH_MPI)
@@ -411,7 +444,7 @@ ELSE()
 ENDIF()
 SET(_lane_args "")
 FOREACH(_var BUILD_DIR SOURCE_DIR CXX_COMPILER CXX_LAUNCHER BUILD_TYPE BOOST_DIR CATCH2_DIR
-		WITH_MPI WITH_GPU JOBS ROOT)
+		WITH_MPI WITH_GPU HAP_DEFINE JOBS ROOT)
 	STRING(APPEND _lane_args " '-D${_var}=${${_var}}'")
 ENDFOREACH()
 STRING(APPEND _lane_args " '-DGENERATOR=${_generator}' -P '${CMAKE_CURRENT_LIST_FILE}'")

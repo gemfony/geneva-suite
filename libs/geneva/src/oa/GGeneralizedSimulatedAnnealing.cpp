@@ -577,8 +577,8 @@ std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
 
     evaluatePopulation_();
 
-    // Report the best (raw, transformed) fitness among all evaluated individuals this iteration, using
-    // the standard EA/ES ranking helpers (isBetter / getMaxMode).
+    // Report the best (raw, transformed) fitness among all evaluated individuals this
+    // iteration, using the standard EA/ES ranking helpers (isBetter / getMaxMode).
     const auto m = this->at(0)->getMaxMode();
 
     std::tuple<double, double> best_fitness = std::make_tuple(

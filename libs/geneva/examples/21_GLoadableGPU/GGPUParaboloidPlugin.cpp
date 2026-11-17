@@ -82,7 +82,7 @@ void *make_marshaller() {
 }
 
 //! [modules-multi-contribution]
-/** @brief The module manifest: two contributions in one .so, walked by kind by the loader. */
+/** @brief The manifest: two contributions in one .so, walked by kind by the loader. */
 const GenevaContribution g_contributions[] = {
     {GENEVA_CONTRIBUTION_INDIVIDUAL, "GGPUParaboloid", &make_individual},
     {GENEVA_CONTRIBUTION_MARSHALLER, "cuda", &make_marshaller},
