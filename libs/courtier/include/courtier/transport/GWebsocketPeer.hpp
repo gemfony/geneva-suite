@@ -165,18 +165,18 @@ public:
 
 private:
     void configure_();
-    void handshakeDone_(const boost::system::error_code &);
+    void handshakeDone_(const boost::system::error_code &ec);
     void read_();
-    void readDone_(const boost::system::error_code &);
+    void readDone_(const boost::system::error_code &ec);
     void deliver_(std::string &);
     void resumeReading_();
     void report_(GPeerEnd, GPeerClose, const std::string &);
     void pump_();
-    void writeDone_(const boost::system::error_code &);
+    void writeDone_(const boost::system::error_code &ec);
     void beginClose_(GPeerClose);
     void closeWhenSent_();
     [[nodiscard]] bool answersOurClose_() const;
-    void finish_(const boost::system::error_code &, bool = false);
+    void finish_(const boost::system::error_code &cause, bool report_inline = false);
 
     boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws_; ///< The connection
     GOptions options_;

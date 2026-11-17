@@ -3,16 +3,3 @@
 # warning fails the test, and so does a line here that Doxygen no longer reports.
 #
 # Add a line only for a warning that cannot be removed in the documentation itself, and say why.
-#
-# The websocket handlers: Doxygen does not resolve the alias error_code (the definitions'
-# spelling, a using-declaration in the source file) to boost::system::error_code (the
-# declarations' spelling), so it keeps the declarations' parameter list, which is unnamed, and
-# finds no parameter of the names the definitions document. Naming the parameters in the
-# declarations in GWebsocketPeer.hpp and GWebsocketPeerTransport.hpp removes these lines.
-libs/courtier/src/GWebsocketPeer.cpp: warning: argument 'ec' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketPeer::handshakeDone_(const boost::system::error_code &)
-libs/courtier/src/GWebsocketPeer.cpp: warning: argument 'ec' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketPeer::readDone_(const boost::system::error_code &)
-libs/courtier/src/GWebsocketPeer.cpp: warning: argument 'ec' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketPeer::writeDone_(const boost::system::error_code &)
-libs/courtier/src/GWebsocketPeer.cpp: warning: argument 'cause' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketPeer::finish_(const boost::system::error_code &, bool=false)
-libs/courtier/src/GWebsocketPeer.cpp: warning: argument 'report_inline' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketPeer::finish_(const boost::system::error_code &, bool=false)
-libs/courtier/src/GWebsocketPeerTransport.cpp: warning: argument 'ec' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketListener::whenAccepted_(const boost::system::error_code &, boost::asio::ip::tcp::socket)
-libs/courtier/src/GWebsocketPeerTransport.cpp: warning: argument 'socket' of command @param is not found in the argument list of Gem::Courtier::Consumers::GWebsocketListener::whenAccepted_(const boost::system::error_code &, boost::asio::ip::tcp::socket)

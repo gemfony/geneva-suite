@@ -126,7 +126,7 @@ public:
 
 private:
     void accept_();
-    void whenAccepted_(const boost::system::error_code &, boost::asio::ip::tcp::socket);
+    void whenAccepted_(const boost::system::error_code &ec, boost::asio::ip::tcp::socket socket);
     void closeAcceptor_();
     void joinIo_();
 
