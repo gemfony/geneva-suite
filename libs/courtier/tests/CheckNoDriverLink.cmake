@@ -40,14 +40,21 @@
 # links MPI. It also guards the layers of the collection: courtier needs no library of hap,
 # dietrich or geneva at load time (CourtierNeedsOnlyCommon).
 #
-# Driven via `cmake -P` with -DLIBS="<file>;<file>;...", -DPATTERN=<regex> (default: libcuda\.so)
-# and -DEXPECT=absent|present (default: absent).
+# Driven via `cmake -P` with -DLIBS="<file>;<file>;...", -DPATTERN=<regex> (default: libcuda\.so),
+# -DEXPECT=absent|present (default: absent) and -DADVICE=<text>, what a failure says to do (default:
+# load the library at run time, as for the CUDA driver and MPI).
 
 if(NOT DEFINED PATTERN)
     set(PATTERN "libcuda\\.so")
 endif()
 if(NOT DEFINED EXPECT)
     set(EXPECT "absent")
+endif()
+if(NOT DEFINED ADVICE)
+    string(CONCAT ADVICE
+        "Programs linked against it would not start on a machine without that library. It must be "
+        "loaded at run time instead (see libs/courtier/src/gpu/GCUDADriver.hpp for the CUDA driver, "
+        "libs/geneva/src/GMPIConsumerModule.cpp and libs/courtier/src/mpi/ for MPI).")
 endif()
 if(NOT EXPECT MATCHES "^(absent|present)$")
     message(FATAL_ERROR "EXPECT must be 'absent' or 'present', not '${EXPECT}'")
@@ -71,10 +78,7 @@ foreach(_lib IN LISTS LIBS)
     endif()
     if(_out MATCHES "${PATTERN}")
         message(FATAL_ERROR
-            "${_lib} depends at load time on a library matching '${PATTERN}':\n${_out}\n"
-            "Programs linked against it would not start on a machine without that library. It must be "
-            "loaded at run time instead (see libs/courtier/src/gpu/GCUDADriver.hpp for the CUDA driver, "
-            "libs/geneva/src/GMPIConsumerModule.cpp and libs/courtier/src/mpi/ for MPI).")
+            "${_lib} depends at load time on a library matching '${PATTERN}':\n${_out}\n${ADVICE}")
     endif()
 endforeach()
 

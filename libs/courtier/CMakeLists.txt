@@ -73,4 +73,12 @@ ENDIF ()
 # Per-library Doxygen target (doc-courtier).
 ADD_SUBDIRECTORY ( doc )
 
+# courtier's programs and the libraries they are built with (its test support) link courtier's
+# own closure only: nothing of hap, dietrich or geneva.
+IF ( GENEVA_BUILD_TESTS )
+	geneva_check_link_closure ( CourtierProgramsLinkOnlyCourtier
+		FORBID "^gemfony-(hap|dietrich|geneva)"
+		DIRECTORIES tests examples benchmarks docprograms )
+ENDIF ()
+
 GENEVA_AGGREGATE_TARGET( "courtier-all" )

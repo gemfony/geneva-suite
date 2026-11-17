@@ -30,7 +30,7 @@
 # A standalone multi-process exerciser (its own main(), no Catch2), formerly in courtier2/tests,
 # merged in at Stage E. Launched by scripts/startCourtierJobs.sh as separate server + client
 # processes. (The "2" in the name is dropped at the Stage-E identifier rename, E2.)
-SET(LIBRARIES_TO_LINK courtier-test-support ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+SET(LIBRARIES_TO_LINK courtier-test-support ${COURTIER_LIBNAME} ${Boost_LIBRARIES})
 
 ADD_EXECUTABLE(GCourtierNetworkedExerciser GCourtierNetworkedExerciser.cpp)
 TARGET_LINK_LIBRARIES(GCourtierNetworkedExerciser ${LIBRARIES_TO_LINK})

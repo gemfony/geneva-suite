@@ -27,9 +27,11 @@
 #
 ################################################################################
 
+# courtier's own closure only (CourtierProgramsLinkOnlyCourtier): the work items of the test support,
+# courtier (and through it common and weft), Boost and Catch2
 SET(LIBRARIES_TO_LINK
 		courtier-test-support
-		${GENEVA_LIBRARIES}
+		${COURTIER_LIBNAME}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain)
 
@@ -117,7 +119,7 @@ geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.h
 # server runs in a process of its own (the helper below), because a server tells the items of
 # another process from its own by a salt drawn once per process
 ADD_EXECUTABLE(GCourtierHelperServer GCourtierHelperServer.cpp)
-TARGET_LINK_LIBRARIES(GCourtierHelperServer courtier-test-support ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(GCourtierHelperServer courtier-test-support ${COURTIER_LIBNAME} ${Boost_LIBRARIES})
 geneva_courtier_test(GCourtierForeignResultTests M GCourtierForeignResultTests.cpp GTcpRelay.hpp)
 TARGET_COMPILE_DEFINITIONS(GCourtierForeignResultTests
 	PRIVATE GCOURTIER_HELPER_SERVER="$<TARGET_FILE:GCourtierHelperServer>")
