@@ -54,16 +54,12 @@ class GGPUDeviceBackendI;
  * would need an additional explicit instantiation.
  *
  * @tparam scalar_type The host-side scalar element type (double or float) of the param/fitness buffers
- * @param kind The requested backend kind (currently only CUDA)
- * @return An owning pointer to the constructed device backend
  */
 template <typename scalar_type = double>
 std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind);
 
 /**
  * @brief Whether @p kind was compiled into this build.
- * @param kind The backend kind to query
- * @return true if the backend was compiled into this build, otherwise false
  */
 [[nodiscard]] bool backendAvailable(BackendKind kind);
 

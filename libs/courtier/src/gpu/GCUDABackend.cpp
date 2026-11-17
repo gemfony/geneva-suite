@@ -291,13 +291,16 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
  * results back to the host. Device buffers grow lazily to fit the largest batch seen.
  *
  * @tparam scalar_type The host-side scalar element type of the param/fitness buffers
- * @param params Host pointer to the flattened parameters, laid out as n_items blocks of @p dim scalars
+ * @param params Host pointer to the row-major parameter buffer of n_items * dim scalar_type
+ *   (params[i*dim + j] = parameter j of item i)
  * @param n_items Number of work items in this batch (no-op if <= 0)
  * @param dim Number of parameters per work item
- * @param pconst Host pointer to the problem-constant blob (e.g. a target image); may be unchanged across calls
+ * @param pconst Opaque problem-constant blob the kernel also receives (e.g. function id, target
+ *   image); may be unchanged across calls, and may be null when pconst_size is 0
  * @param pconst_size Size in bytes of @p pconst (0 means no problem constants)
  * @param fitness_out Host output buffer receiving one fitness value per item (size n_items)
- * @param threads_per_item Number of GPU threads cooperating per item (clamped to a minimum of 1)
+ * @param threads_per_item GPU threads cooperating on one item (intra-item parallelism, clamped to
+ *   a minimum of 1); >1 launches n_items*threads_per_item threads with atomic accumulation
  */
 template <typename scalar_type>
 void GCUDABackend<scalar_type>::evaluate(

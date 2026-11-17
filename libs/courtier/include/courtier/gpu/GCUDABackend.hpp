@@ -63,20 +63,10 @@ public:
 
     /**
      * @brief Acquires the kernel described by @p spec (NVRTC-compile a .cu source, or load a prebuilt .ptx/.cubin) and prepares the CUDA context for launches.
-     *
-     * @param spec The kernel specification (source/binary path, entry-point name, launch geometry, device id)
      */
     void initialize(const KernelSpec &spec) override;
     /**
      * @brief Uploads the whole batch, launches the kernel once, and reads the per-item fitness back.
-     *
-     * @param params Row-major parameter buffer of n_items * dim scalar_type (params[i*dim + j] = parameter j of item i)
-     * @param n_items Number of items in the batch
-     * @param dim Number of scalar_type parameters per item
-     * @param pconst Opaque problem-constant blob the kernel also receives (e.g. function id, target image); may be null when pconst_size is 0
-     * @param pconst_size Size in bytes of the problem-constant blob
-     * @param fitness_out Output buffer receiving n_items fitness scalar_type values
-     * @param threads_per_item GPU threads cooperating on one item (intra-item parallelism); >1 launches n_items*threads_per_item threads with atomic accumulation. Defaults to 1
      */
     void evaluate(
         const scalar_type *params, int n_items, int dim,

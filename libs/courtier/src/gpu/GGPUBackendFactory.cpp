@@ -53,7 +53,7 @@ namespace Gem::Courtier::GPU {
  * (guarded by GPUGEN_HAVE_CUDA). There is no CPU fallback backend.
  *
  * @param kind The backend to query
- * @return true if the backend is available in this build, false otherwise
+ * @return true if the backend was compiled into this build, otherwise false
  */
 bool backendAvailable(BackendKind kind) {
     switch(kind) {
