@@ -20,7 +20,7 @@ HTML).
 Generated HTML / XML / tag files land in the **build tree**:
 
 ```
-<build>/hap/doc/
+<build>/libs/hap/doc/
     Doxyfile          configured from Doxyfile.in
     hap.tag           Doxygen tag file (consumed by geneva)
     html/             browsable HTML reference

@@ -43,7 +43,7 @@ SET (GENEVA_DOC_LIB_DESC "Consumer-based parallelisation framework: "
 # create a semicolon-separated CMake list, which Doxygen does NOT parse as a
 # TAGFILES separator).
 SET (GENEVA_DOC_TAGFILES
-		"${CMAKE_BINARY_DIR}/common/doc/common.tag=../../../common/doc/html")
+		"${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in

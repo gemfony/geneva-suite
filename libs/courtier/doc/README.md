@@ -21,7 +21,7 @@ file exists for cross-references (courtier builds on common only).
 Generated HTML / XML / tag files land in the **build tree**:
 
 ```
-<build>/courtier/doc/
+<build>/libs/courtier/doc/
     Doxyfile           configured from Doxyfile.in
     courtier.tag       Doxygen tag file (consumed by geneva)
     html/              browsable HTML reference

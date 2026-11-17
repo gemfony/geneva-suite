@@ -853,13 +853,13 @@ INSTALL ( FILES ${INFORMATIONFILES} DESTINATION ${INSTALL_PREFIX_DOCS} )
 
 ################################################################################
 # Aggregated reference documentation: depends on every per-library doc-<lib>
-# target so `make doc` produces all four lib bundles with cross-references
+# target so `make doc` produces all six lib bundles with cross-references
 # wired via Doxygen TAGFILES (the per-library CMakeLists declares the
 # upstream tag-file dependencies, so ordering is automatic).
 #
 IF (DOXYGEN_FOUND)
 	ADD_CUSTOM_TARGET (doc
-		DEPENDS doc-common doc-hap doc-courtier doc-geneva
+		DEPENDS doc-weft doc-common doc-hap doc-dietrich doc-courtier doc-geneva
 		COMMENT "Generating aggregated Doxygen documentation for all Geneva libraries."
 	)
 ENDIF ()
