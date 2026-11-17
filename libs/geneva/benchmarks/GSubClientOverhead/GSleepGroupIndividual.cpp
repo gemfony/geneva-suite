@@ -35,6 +35,7 @@
 
 // Standard header files go here
 #include <stdexcept>
+#include <thread>
 
 // Geneva header files go here
 #include "common/GCommonHelperFunctions.hpp"
@@ -42,7 +43,7 @@
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE
 
-#include "GSleepGroup.hpp"
+#include "GSumOfSquares.hpp"
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::SubClientOverhead::GSleepGroupIndividual) // NOLINT
 
@@ -50,20 +51,32 @@ namespace Gem::Geneva::SubClientOverhead {
 
 /******************************************************************************/
 /**
- * Evaluates in the group of this process (see leadRound()): the group sleeps the evaluation time
- * and computes the sum of the squares of the parameter values.
+ * Evaluates in this process alone: sleeps the evaluation time and computes the sum of the squares
+ * of the parameter values. (A client with sub-clients evaluates in its group instead; see the
+ * class.)
  *
  * @return The sum of the squares of the parameter values
  */
 std::vector<double> GSleepGroupIndividual::evaluate() {
     std::vector<double> parameters;
     this->streamline(parameters);
-    return {leadRound(
-        processGroup(),
-        std::chrono::duration<double>(evaluation_time_),
-        split_,
-        parameters
-    )};
+    std::this_thread::sleep_for(std::chrono::duration<double>(evaluation_time_));
+    return {sumOfSquares(parameters)};
+}
+
+/******************************************************************************/
+/**
+ * @return The nominal duration of an evaluation [s]
+ */
+double GSleepGroupIndividual::evaluationTime() const noexcept {
+    return evaluation_time_;
+}
+
+/**
+ * @return Whether the processes of a group share the evaluation time (or each sleeps all of it)
+ */
+bool GSleepGroupIndividual::split() const noexcept {
+    return split_;
 }
 
 /******************************************************************************/

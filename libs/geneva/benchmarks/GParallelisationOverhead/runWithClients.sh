@@ -39,7 +39,8 @@
 #     workdir      a directory OUTSIDE the source tree
 #     consumer     the consumer to measure: a networked one such as beast (a
 #                  server process and N client processes), or mpi (one mpirun
-#                  with N + 1 ranks: rank 0 is the server, the others its clients)
+#                  with N + 1 ranks: rank 0 is the server, the others its clients;
+#                  with GROUP > 1, 1 + N x GROUP ranks laid out in groups)
 #     delays       the evaluation times, as "(seconds,milliseconds), ..."
 #     reference delays   the (short) evaluation times of the serial reference
 #     measurements how often each evaluation time is measured
@@ -62,9 +63,10 @@
 #            "mpirun --oversubscribe -np": Open MPI needs the flag when there are
 #            more ranks than cores; MPICH's mpiexec knows no such flag)
 #   GROUP    processes per client group (default 1), for GSubClientOverhead: every
-#            client shares its evaluations with GROUP - 1 sub-clients. With mpi
-#            the job has 1 + clients x GROUP ranks; with a networked consumer
-#            every client is an MPI job of GROUP ranks of its own.
+#            client shares its evaluations with GROUP - 1 sub-clients, in a group
+#            of the MPI cascade (--group GROUP). With mpi the job has
+#            1 + clients x GROUP ranks; with a networked consumer every client is
+#            an MPI job of GROUP ranks of its own.
 #   INTER_DELAY  seconds to wait after the measurements of an evaluation time
 #            (the configuration's inter_measurement_delay, 1 unless set here)
 #   POLL_PAUSES  GSubClientOverhead: min:max microseconds a process pauses between
@@ -133,12 +135,9 @@ f = 'config/GNetworkedConsumer.json'
 if os.environ.get('TIMEOUT_TREATMENT'):
     d = json.load(open(f)); d['treatment']['value'] = os.environ['TIMEOUT_TREATMENT']
     json.dump(d, open(f, 'w'), indent=1)
-# The group size of an MPI job with sub-clients
-f = 'config/GMPISubClientOptimizer.json'
-if os.path.exists(f):
-    d = json.load(open(f)); d['sub_client_group_size']['value'] = int(group)
-    json.dump(d, open(f, 'w'), indent=1)
-elif int(group) != 1:
+# Only GSubClientOverhead has sub-clients: its individual's file holds the poll pauses
+if int(group) != 1 and not any('poll_pause_min' in json.load(open(f))
+                               for f in glob.glob('config/*Individual.json')):
     sys.exit('this program has no sub-clients; GROUP must be 1')
 P
 
@@ -148,12 +147,18 @@ fi
 
 # The server starts its clock when the clients it waits for are connected.
 GATE=(--waitForClients "${EXPECT_CLIENTS:-$N}" --clientWaitLimit "${CLIENT_WAIT_LIMIT:-600}")
+# The group size, for the processes of the groups (a program without groups does not know it)
+GROUPOPT=()
+if [ "$GROUP" -gt 1 ]; then
+    GROUPOPT=(--group "$GROUP")
+fi
 
 if [ "$C" = mpi ]; then
-    # The ranks take their roles from MPI; the options reach every rank.
+    # The ranks take their roles from MPI (and with groups from the cascade); the options reach
+    # every rank.
     # shellcheck disable=SC2086
-    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" "$@" \
-        > server.log 2>&1
+    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
+        "${GROUPOPT[@]}" "$@" > server.log 2>&1
     STATUS=$?
 else
     # The port is drawn at random; another process on the host may hold it. A server that could
@@ -171,10 +176,10 @@ else
         PORT=$((15000 + RANDOM % 2000))
     done
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
-    LAUNCH=(); GROUPOPT=()
+    LAUNCH=()
     if [ "$GROUP" -gt 1 ]; then
         # shellcheck disable=SC2206
-        LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP"); GROUPOPT=(--group "$GROUP")
+        LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP")
     fi
     # clients.log holds the clients of this run only
     : > clients.log

@@ -14,10 +14,16 @@ of the squares of its share. The fitness is the sum of the answers. With
 split_evaluation false every process sleeps the whole T instead. Nobody waits
 busily: a process that waits for a message looks with a non-blocking test and
 pauses between two looks, from poll_pause_min up to poll_pause_max microseconds
-(50 and 1000 by default, in config/GSleepGroupIndividual.json; every process of
-a run reads the same file, and the server prints them into its log). The serial
-reference does all of it in one process, so with C clients of n processes the
-ideal speed-up is C x n.
+(50 and 1000 by default, courtier's defaults for its MPI waits, in
+config/GSleepGroupIndividual.json; the first process of a job reads the file and
+the MPI cascade gives the pauses to the others, and the server prints them into
+its log). The serial reference does all of it in one process, so with C clients
+of n processes the ideal speed-up is C x n.
+
+The groups are those of courtier's MPI cascade (GMPICascade): a client with
+sub-clients is the lead of its group; its client evaluates every item in a
+round of the group, and the sub-clients run nothing of Geneva. The group size n
+is --group in both modes, and a job that does not form whole groups is refused.
 
 The measurement, the serial reference and the results (shortDelayResults.txt
 and the plot script) are those of GParallelisationOverhead: the code is shared
@@ -27,17 +33,18 @@ iterations.
 
   ./GSubClientOverhead --reference
       the serial reference (one process, a group of one)
-  mpirun -np <1 + C x n> ./GSubClientOverhead -c mpi
-      MPI between server and clients: rank 0 is the server, the communicators
-      are split by GMPISubClientOptimizer (n is sub_client_group_size in
-      config/GMPISubClientOptimizer.json)
+  mpirun -np <1 + C x n> ./GSubClientOverhead -c mpi --group n
+      MPI between server and clients: rank 0 is the server, then come the C
+      groups, each a client (the lead) and its n - 1 sub-clients
   ./GSubClientOverhead -c beast, and per client
-  mpirun -np <n> ./GSubClientOverhead -c beast --client --group <n>
+  mpirun -np n ./GSubClientOverhead -c beast --client --group n
       websockets: every client is an MPI job of its own, whose rank 0 is the
-      client and lead (a group of one is started without mpirun)
+      client and lead
+A group of one is started without --group and without a cascade: with mpi one
+mpirun of 1 + C processes, with websockets every client without mpirun.
 
 As there, --waitForClients C makes the server wait for its C clients before its
-first run (the MPI consumer cannot tell how many it has and is not waited for).
-runWithClients.sh beside GParallelisationOverhead starts both modes (GROUP=n in
-its environment), and GSpeedupFigure there draws the tables of several runs
-into one figure. Run everything from a work directory outside the source tree.
+first run, with either consumer. runWithClients.sh beside
+GParallelisationOverhead starts both modes (GROUP=n in its environment), and
+GSpeedupFigure there draws the tables of several runs into one figure. Run
+everything from a work directory outside the source tree.

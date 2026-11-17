@@ -207,9 +207,6 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 		MESSAGE("Searching for MPI...\n")
 		FIND_PACKAGE(MPI REQUIRED)
 		MESSAGE("")
-		IF(MPI_FOUND)
-			INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH})
-		ENDIF()
 	ENDIF()
 
 	################################################################################

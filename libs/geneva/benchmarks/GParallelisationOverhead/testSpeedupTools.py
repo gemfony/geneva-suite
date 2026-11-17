@@ -41,7 +41,11 @@ Usage:
       used it.
   testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
-      group of three, and every process ends by itself
+      group of three, every process ends by itself, and both clients used the prefetch depth the
+      run passes
+  testSpeedupTools.py groups <GSubClientOverhead> <workdir>
+      a job that does not form whole groups is refused, in both layouts, with a message that
+      names its size and the group
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
   testSpeedupTools.py gate <GParallelisationOverhead> <workdir> <reference dir>
@@ -234,8 +238,13 @@ def check_subclients(program, workdir, consumer, reference_dir):
             os.remove(os.path.join(workdir, name))
     if reference_dir:
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    # The leads build their clients from the consumer options themselves: a prefetch depth other
+    # than the consumer's default must reach both (see check_run()).
+    depth = '3' if consumer == 'mpi' else '2'
+    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '1']
     run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                          consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1'],
+                          consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1']
+                         + options,
                          # Every evaluation exactly once: no item may be given to a second client
                          # because its first one was slow under load (an adaptive lease).
                          env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
@@ -260,7 +269,39 @@ def check_subclients(program, workdir, consumer, reference_dir):
         fail(f'the leads led {leads} rounds instead of {expected} together')
     if members != sorted(leads * 2):
         fail(f'the members served {members} parts, their leads led {leads} rounds')
+    used = {d: log.count(f'prefetch depth was {d}\n') for d in ('1', '2', '3')}
+    if used[depth] != 2 or sum(used.values()) != 2:
+        fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
+             '(depth: number of clients)')
     print(f'{consumer}: {expected} evaluations, each in a group of three; every process ended')
+
+
+def check_groups(program, workdir):
+    """A job that does not form whole groups ends at once, non-zero, on every rank."""
+    os.makedirs(workdir, exist_ok=True)
+    os.chdir(workdir)
+    launcher = os.environ.get('MPIRUN', 'mpirun --oversubscribe -np').split()
+    for ranks, args, expected in (
+            ('6', ['-c', 'mpi', '--group', '3'], 'the MPI job has 6 processes, but with -c mpi '
+             'and --group 3 it needs 1 + clients x 3'),
+            ('2', ['-c', 'beast', '--client', '--group', '3'], 'the MPI job has 2 processes, '
+             'but a client with --group 3 is one job of 3')):
+        with subprocess.Popen(launcher + [ranks, program] + args, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True) as job:
+            try:
+                out, _ = job.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                job.terminate()
+                try:
+                    job.communicate(timeout=20)
+                except subprocess.TimeoutExpired:
+                    job.kill()
+                    job.communicate()
+                fail(f'{ranks} processes with {args} were not refused within 60 s')
+        if job.returncode == 0 or expected not in out:
+            fail(f'{ranks} processes with {args} were not refused (exit {job.returncode}) '
+                 f'with "{expected}": {out[-1000:]}')
+        print(f'{ranks} processes with {" ".join(args)}: refused')
 
 
 def check_refusal(program, workdir):
@@ -329,6 +370,8 @@ def main(args):
     elif len(args) >= 4 and args[0] == 'subclients':
         check_subclients(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
                          os.path.abspath(args[4]) if len(args) > 4 else None)
+    elif len(args) >= 3 and args[0] == 'groups':
+        check_groups(os.path.abspath(args[1]), os.path.abspath(args[2]))
     elif len(args) >= 4 and args[0] == 'gate':
         check_gate(os.path.abspath(args[1]), os.path.abspath(args[2]), os.path.abspath(args[3]))
     elif len(args) >= 3 and args[0] == 'refusal':
