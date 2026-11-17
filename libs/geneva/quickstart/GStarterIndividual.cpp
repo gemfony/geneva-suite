@@ -153,6 +153,7 @@ GStarterIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config
 /**
  * Emit information about this individual
  */
+// clang-format off
 //! [results-print]
 std::string GStarterIndividual::print() {
     std::ostringstream result;
@@ -162,7 +163,8 @@ std::string GStarterIndividual::print() {
     this->streamline(parVec);
 
     result << "GStarterIndividual with target function "
-           << (targetFunction_ == targetFunction::PARABOLA ? " PARABOLA" : " NOISY PARABOLA")
+           << (targetFunction_ == targetFunction::PARABOLA ? " PARABOLA"
+                                                           : " NOISY PARABOLA")
            << '\n'
            << "and raw fitness " << this->raw_fitness(0)
            << " has the following parameter values:" << '\n';
@@ -174,6 +176,7 @@ std::string GStarterIndividual::print() {
     return result.str();
 }
 //! [results-print]
+// clang-format on
 
 /******************************************************************************/
 /**
@@ -433,14 +436,20 @@ gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
     }
 #endif /* DEBUG */
 
+    // clang-format off
     //! [quickstart-buildgenome#2]
     gen::GGenomeBuilder b;
     for(std::size_t i = 0; i < c.start_values.size(); i++) {
-        b.addDouble(c.start_values.at(i), c.lower_boundaries.at(i), c.upper_boundaries.at(i));
+        b.addDouble(
+            c.start_values.at(i),
+            c.lower_boundaries.at(i),
+            c.upper_boundaries.at(i)
+        );
     }
     return b.build();
 }
     //! [quickstart-buildgenome#2]
+// clang-format on
 
 /******************************************************************************/
 /**

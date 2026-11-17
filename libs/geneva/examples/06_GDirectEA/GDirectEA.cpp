@@ -339,9 +339,12 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
 
+    // clang-format off
     //! [algo-ea:direct-setup]
     // Create an empty population
-    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(new oa::GEvolutionaryAlgorithm());
+    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(
+        new oa::GEvolutionaryAlgorithm()
+    );
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);
@@ -361,6 +364,7 @@ int main(int argc, char **argv) {
     // setAdaptionConfig distribution path).
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
     //! [algo-ea:direct-setup]
+    // clang-format on
 
     // Build and register the ONE process-wide consumer, depending on the parallelisation mode.
     // The algorithm submits through it automatically.

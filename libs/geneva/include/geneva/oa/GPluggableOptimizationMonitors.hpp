@@ -70,6 +70,7 @@ namespace Gem::Geneva {
  * It will usually already be registered as a pluggable optimization monitor, when
  * you instantiate a new optimization algorithm.
  */
+// clang-format off
 //! [monitors:custom-decl]
 class GStandardMonitor // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GStandardMonitor, oa::GBasePluggableOM>
@@ -119,10 +120,13 @@ private:
     /**
      * @brief Aggregates the work of all registered pluggable monitors
      */
-    void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    void informationFunction_(
+        infoMode im,
+        oa::GOptimizationAlgorithmBase const *const goa
+    ) override;
 };
 //! [monitors:custom-decl]
+// clang-format on
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

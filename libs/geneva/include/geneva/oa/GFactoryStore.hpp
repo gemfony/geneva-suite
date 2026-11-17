@@ -80,11 +80,14 @@ using GOAProviderPtr = std::shared_ptr<Gem::Common::GProviderT<oa::GOptimization
  * @param provider The algorithm's factory, as the provider handle the store holds (must not be empty)
  * @return true if the algorithm was registered, false if its mnemonic was already taken
  */
+// clang-format off
 //! [geneva.oa.registration#1]
-[[nodiscard]] inline bool registerOptimizationAlgorithm(const GOAProviderPtr &provider) {
+[[nodiscard]] inline bool
+registerOptimizationAlgorithm(const GOAProviderPtr &provider) {
     return oaFactoryStore()->setOnce(provider->getMnemonic(), provider);
 }
 //! [geneva.oa.registration#1]
+// clang-format on
 
 /******************************************************************************/
 

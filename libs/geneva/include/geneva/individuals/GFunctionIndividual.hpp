@@ -655,9 +655,11 @@ using GFunctionIndividualFactory =
  * a given constraint. Here, the sum of all double variables needs to be smaller
  * than a given constant.
  */
+// clang-format off
 //! [constraints:declaration#1]
 class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
+  : public Gem::Common::
+        GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
@@ -669,6 +671,7 @@ class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
     }
     ///////////////////////////////////////////////////////////////////////
 //! [constraints:declaration#1]
+    // clang-format on
 //! [constraints:declaration#2]
 public:
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */

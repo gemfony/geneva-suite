@@ -62,6 +62,7 @@ namespace po = boost::program_options;
 int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // Assemble additional command line options to be passed to Go2
+    // clang-format off
     //! [go2-user-options#2]
     gind::trainingDataType tdt = gind::trainingDataType::TDTNONE;
     std::string trainingDataFile = "./DataSets/hyper_sphere.dat";
@@ -75,8 +76,10 @@ int main(int argc, char **argv) {
     boost::program_options::options_description user_options;
     user_options.add_options()(
         "trainingDataType",
-        po::value<gind::trainingDataType>(&tdt)->default_value(gind::trainingDataType::TDTNONE),
-        "Specify training data to be produced: HYPERCUBE=1, HYPERSPHERE=2, AXISCENTRIC=3, SINUS=4"
+        po::value<gind::trainingDataType>(&tdt)
+            ->default_value(gind::trainingDataType::TDTNONE),
+        "Specify training data to be produced: HYPERCUBE=1, HYPERSPHERE=2, "
+        "AXISCENTRIC=3, SINUS=4"
     )(
         "trainingDataFile",
         po::value<std::string>(&trainingDataFile)->default_value(trainingDataFile),
@@ -99,6 +102,7 @@ int main(int argc, char **argv) {
         "The name of the visualization file"
     );
     //! [go2-user-options#2]
+    // clang-format on
 
     //---------------------------------------------------------------------------
     // Create the main optimizer-wrapper

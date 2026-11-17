@@ -66,6 +66,7 @@ namespace Gem::Geneva::Individuals {
  * This individual takes a vector of 2D double-tuples and calculates the
  * root-square deviation from the line defined by its two parameters
  */
+// clang-format off
 //! [ind-member-list#2]
 class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
   : public gen::GGenomeT<GLineFitIndividual>
@@ -79,7 +80,9 @@ class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
     /** @brief Single declaration of this class'es local data members */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(Gem::Common::make_member("data_points_", self.data_points_));
+        return std::make_tuple(
+            Gem::Common::make_member("data_points_", self.data_points_)
+        );
     }
     ///////////////////////////////////////////////////////////////////////
 
@@ -87,6 +90,7 @@ public:
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GLineFitIndividual";
 //! [ind-member-list#2]
+    // clang-format on
 
     /**
      * @brief The default constructor. Produces a genome-less shell; it is only meaningful after a genome is

@@ -81,6 +81,7 @@ void *make_marshaller() {
             "cuda", "./config/GGPUConsumer.json"));
 }
 
+// clang-format off
 //! [modules-multi-contribution]
 /** @brief The manifest: two contributions in one .so, walked by kind by the loader. */
 const GenevaContribution g_contributions[] = {
@@ -89,8 +90,14 @@ const GenevaContribution g_contributions[] = {
 };
 
 const GenevaModuleManifest g_manifest{
-    GENEVA_MODULE_ABI_STAMP, "GGPUParaboloid", GENEVA_VERSION_STRING, g_contributions, 2u};
+    GENEVA_MODULE_ABI_STAMP,
+    "GGPUParaboloid",
+    GENEVA_VERSION_STRING,
+    g_contributions,
+    2u
+};
 //! [modules-multi-contribution]
+// clang-format on
 
 } // anonymous namespace
 

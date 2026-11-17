@@ -279,14 +279,23 @@ void GImageIndividual::applyConfig(GImageIndividual &ind, const Config &c) {
 	 * @param c The Config supplying the main / location Gauss adaptor parameters
 	 * @return A shared pointer to the populated OA-owned adaption config
 	 */
+// clang-format off
 //! [adaptors-by-label]
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GImageIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
     auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
     cfg->forLabel("loc").gauss(
-        c.loc_sigma, c.loc_sigma_sigma, c.loc_min_sigma, c.loc_max_sigma, c.loc_ad_prob,
-        c.loc_adapt_ad_prob, 1, adaptionMode::WITHPROBABILITY, c.loc_min_ad_prob, c.loc_max_ad_prob
+        c.loc_sigma,
+        c.loc_sigma_sigma,
+        c.loc_min_sigma,
+        c.loc_max_sigma,
+        c.loc_ad_prob,
+        c.loc_adapt_ad_prob,
+        1,
+        adaptionMode::WITHPROBABILITY,
+        c.loc_min_ad_prob,
+        c.loc_max_ad_prob
     );
     cfg->forLabel("main").gauss(
         c.sigma, c.sigma_sigma, c.min_sigma, c.max_sigma, c.ad_prob, c.adapt_ad_prob, 1,
@@ -295,6 +304,7 @@ GImageIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &
     return cfg;
 }
 //! [adaptors-by-label]
+// clang-format on
 
 /*******************************************************************************************/
 /**

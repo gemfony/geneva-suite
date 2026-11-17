@@ -81,6 +81,7 @@ public:
 
     /** @brief The values read from this problem's configuration file (with in-source defaults, so the
      *  problem also works with no config file at all). */
+    // clang-format off
     //! [modules-individual-hooks]
     struct Config {
         std::size_t par_dim = 2; ///< the number of parameters (dimensions)
@@ -92,10 +93,26 @@ public:
     /** @brief Registers this problem's config-file options, binding them to @p c. */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
         gpb.registerFileParameter<std::size_t>(
-            "par_dim", c.par_dim, c.par_dim, Gem::Common::VAR_IS_ESSENTIAL, "Number of parameters"
+            "par_dim",
+            c.par_dim,
+            c.par_dim,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Number of parameters"
         );
-        gpb.registerFileParameter<double>("min", c.min, c.min, Gem::Common::VAR_IS_ESSENTIAL, "Lower bound");
-        gpb.registerFileParameter<double>("max", c.max, c.max, Gem::Common::VAR_IS_ESSENTIAL, "Upper bound");
+        gpb.registerFileParameter<double>(
+            "min",
+            c.min,
+            c.min,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Lower bound"
+        );
+        gpb.registerFileParameter<double>(
+            "max",
+            c.max,
+            c.max,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Upper bound"
+        );
         gpb.registerFileParameter<double>(
             "sigma", c.sigma, c.sigma, Gem::Common::VAR_IS_ESSENTIAL, "Initial Gauss sigma"
         );
@@ -109,6 +126,7 @@ public:
         return b.build();
     }
     //! [modules-individual-hooks]
+    // clang-format on
 
     /** @brief The OA-owned Gauss adaption config for a genome this problem produces. Reached generically
      *  through GGenomeFactory::getAdaptionConfig(), so a launcher need not know this type. */

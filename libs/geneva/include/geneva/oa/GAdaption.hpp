@@ -541,22 +541,29 @@ inline double readRepresentativeMaxSigma(const GAdaptionConfigBase &cfg, double 
  * The config is validated against the genome's structure and copied (its base data is all the
  * data-oriented adaption needs).
  */
+// clang-format off
 //! [adaptors-standalone]
 class StandaloneAdapter {
 public:
-    StandaloneAdapter(const detail::GGenome &ind, const std::shared_ptr<GAdaptionConfigBase> &cfg)
+    StandaloneAdapter(
+        const detail::GGenome &ind,
+        const std::shared_ptr<GAdaptionConfigBase> &cfg
+    )
       : cfg_(*cfg) {
         cfg_.checkConsistency(ind);
         cfg_.installInto(scratch_);
     }
 
-    std::size_t adapt(detail::GGenome &ind) { return adaptIndividual(ind, scratch_, cfg_); }
+    std::size_t adapt(detail::GGenome &ind) {
+        return adaptIndividual(ind, scratch_, cfg_);
+    }
 
 private:
     detail::GAuxiliaryStore scratch_;
     GAdaptionConfigBase cfg_;
 };
 //! [adaptors-standalone]
+// clang-format on
 
 /******************************************************************************/
 

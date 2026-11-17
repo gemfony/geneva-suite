@@ -372,9 +372,12 @@ void GSimulatedAnnealing::sortSAMode() {
   * @return The Boltzmann acceptance weight for the child: a probability in [0,1] for a worse
   *   child; >= 1, i.e. always accept, for a child that is at least as good
   */
+// clang-format off
 //! [sa-cooling#1]
-double
-GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min_only_child) const {
+double GSimulatedAnnealing::saProb(
+    const double &f_min_only_parent,
+    const double &f_min_only_child
+) const {
     // Minimisation: a worse child has f_child > f_parent, so the exponent is negative
     // and the result lies in (0, 1); a child that is at least as good gives a
     // non-negative exponent, hence a result >= 1, which the caller treats as
@@ -383,6 +386,7 @@ GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min
     return exp(-(f_min_only_child - f_min_only_parent) / t_);
 }
 //! [sa-cooling#1]
+// clang-format on
 
 /******************************************************************************/
 /**
