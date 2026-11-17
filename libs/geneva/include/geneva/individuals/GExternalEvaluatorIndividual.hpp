@@ -92,7 +92,6 @@ const std::string GEEI_DEF_CUSTOMOPTIONS = "empty";
 const std::string GEEI_DEF_PARFILEBASENAME = "parameter_file";
 constexpr std::size_t GEEI_DEF_NRESULTS = 1;
 const std::string GEEI_DEF_STARTMODE = "random";
-const std::string GEEI_DEF_DATATYPE = "setup_data";
 const std::string GEEI_DEF_RUNID = "empty";
 constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
 
@@ -197,18 +196,6 @@ public:
      * @brief Retrieves the number of results to be expected from the external evaluation program
      */
     std::size_t getNExpectedResults() const;
-
-    /**
-     * @brief Allows to set the data type of this individual
-     *
-     * The argument is the data-type tag forwarded to the external program in the exchange file.
-     */
-    void setDataType(std::string);
-    /**
-     * @brief Allows to retrieve the data type of this individual
-     * @return The data-type tag of this individual
-     */
-    std::string getDataType() const;
 
     /**
      * @brief Allows to assign a run-id to this individual

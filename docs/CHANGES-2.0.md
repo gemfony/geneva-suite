@@ -551,6 +551,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
   `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.
   Constant problem data is loaded in every process, before `clientRun()` as before `optimize()`.
+- **geneva: `GExternalEvaluatorIndividual::setDataType()` / `getDataType()` and
+  `GEEI_DEF_DATATYPE` were removed.** The two accessors were declared but never defined, so no
+  program could have called them. The `dataType` field of the exchange file names the kind of
+  message and is fixed by the operation that writes it; it is not a property of an individual.
 
 ## 8. Checkpointing
 
