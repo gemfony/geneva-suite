@@ -1989,6 +1989,73 @@ int duringUnwindingScenario(Report &report, bool confirm) {
     return report.failures();
 }
 
+/** The exit code a submitter of submitterAbortsScenario() ends the job with */
+constexpr int ABORTCODE = 42;
+
+/**
+ * A submitter that catches its failure and ends the job explicitly (entries ...SubmitterAborts and
+ * ...SubmitterAbortsTwice): in SUBMITTER_AND_GROUPS rank 0 confirms its role, catches an exception
+ * before its consumer exists and calls abortJob() with ABORTCODE and the exception's text. The
+ * leads wait for the greeting as MPI clients, without a limit, their members for them: had the
+ * submitter returned after the catch instead, the job would never end. abortJob() is refused on
+ * every lead and member first. With @p twice a second thread calls abortJob() at the same time:
+ * the job still ends with ABORTCODE.
+ *
+ * @param twice Whether a second thread calls abortJob() as well
+ */
+int submitterAbortsScenario(Report &report, bool twice) {
+    ProbingMember member;
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    if(cascade.role() != processRole::SUBMITTER) {
+        report.expectThrow("abortJob() on a lead or a member", "abortJob() is called on the submitter", [&] {
+            cascade.abortJob(ABORTCODE, "refused here");
+        });
+    }
+    if(cascade.role() == processRole::BYSTANDER) {
+        std::ignore = cascade.serve(member);
+        std::println("member {} served {} rounds", report.rank(), member.rounds());
+        return report.failures();
+    }
+    cascade.requireRole(Courtier::mpiProcessRole());
+    if(cascade.role() == processRole::SUBMITTER) {
+        try {
+            throw InjectedFailure("injected failure of the submitter before its consumer");
+        }
+        catch(const InjectedFailure &e) {
+            // Never joined: one of the two calls ends the job, the other waits for that end
+            Gem::Common::Concurrency::GThreadGroup threads;
+            if(twice) {
+                threads.create_thread([&cascade] {
+                    cascade.abortJob(ABORTCODE, "the submitter failed (the second thread)");
+                });
+            }
+            cascade.abortJob(ABORTCODE, std::format("the submitter failed: {}", e.what()));
+        }
+    }
+    std::atomic<int> led{0};
+    const MpiClientRun run = runAsMpiClient(cascade, 1, led, report);
+    report.fail("the lead's client returned (threw: {}): the job was not ended", run.clientThrew);
+    return report.failures();
+}
+
+/**
+ * abortJob() without MPI (entry ...AbortWithoutMpi, no launcher, --update-configs): the cascade
+ * makes no MPI call, and abortJob() ends the process with the code.
+ */
+int abortWithoutMpiScenario(Report &report, int argc, char **argv) {
+    if(not Gem::Common::configEmissionRequested(argc, argv)) {
+        report.fail("the scenario must be started with --update-configs");
+        return report.failures();
+    }
+    Gem::Common::beginConfigEmission();
+    Courtier::GMPICascade cascade([] {
+        return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+    });
+    cascade.abortJob(ABORTCODE, "the submitter failed without MPI");
+}
+
 /** The time of an empty round (entry ...EmptyRound): a number for a caption, not a gate. */
 int emptyRoundScenario(Report &report) {
     constexpr std::size_t ROUNDS = 1'000;
@@ -2082,6 +2149,10 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"submitter-throws-after-consumer",
          [](Report &r) { return submitterThrowsScenario(r, true); }},
         {"during-unwinding", [](Report &r) { return duringUnwindingScenario(r, true); }},
+        {"submitter-aborts", [](Report &r) { return submitterAbortsScenario(r, false); }},
+        {"submitter-aborts-twice", [](Report &r) { return submitterAbortsScenario(r, true); }},
+        {"abort-without-mpi",
+         [argc, argv](Report &r) { return abortWithoutMpiScenario(r, argc, argv); }},
         {"during-unwinding-never-confirms",
          [](Report &r) { return duringUnwindingScenario(r, false); }},
     };

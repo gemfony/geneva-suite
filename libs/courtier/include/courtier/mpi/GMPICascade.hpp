@@ -156,7 +156,8 @@ public:
  * classes), once per item.
  *
  * <b>Threads.</b> The constructor, serve(), lead(), requireRole() and the destructor are called by
- * the program's main thread. round() may be called by any thread; rounds run one after the other
+ * the program's main thread. abortJob() may be called by any thread. round() may be called by any
+ * thread; rounds run one after the other
  * (a lock is held from the announcement to the return of the lead's half). release() may be called
  * by any thread, not concurrently with the destructor; it waits for a round that runs, and a later
  * round() throws. round(), lead(), release() and serve() are not called from inside a function of
@@ -187,13 +188,19 @@ public:
  * entirely inside a destructor run by an unrelated exception ends as any other.
  *
  * <b>A submitter that fails.</b> In SUBMITTER_AND_GROUPS the leads wait for the greeting of the
- * submitter's MPI consumer, without a limit by default, and their members for them. If an
- * exception unwinds through the submitter's cascade before an MPI consumer was built on the
- * submitter, nobody tells the leads, and MPI_Finalize on the submitter would wait for them: the
- * destructor ends the MPI job. The exception's text is not known there; a program that wants it in
- * the log catches the exception inside the cascade's scope, logs it and rethrows it. Once a
- * consumer was built, its end tells the leads in every way it ends (GMPIConsumerT), and the
- * destructor ends nothing; nor does it at a normal end.
+ * submitter's MPI consumer, without a limit by default, and their members for them. A submitter
+ * that fails before an MPI consumer was built on it must therefore end the MPI job, in one of two
+ * ways:
+ *  - it lets the exception unwind through its cascade: the destructor ends the MPI job. The
+ *    exception's text is not known there; a program that wants it in the log catches the
+ *    exception inside the cascade's scope, logs it and rethrows it;
+ *  - or it catches the exception and calls abortJob() with an exit code and the reason: the
+ *    reason is logged and the job ends at once with that code.
+ * A submitter that catches the exception and returns without either leaves the leads waiting, and
+ * MPI_Finalize on the submitter waits for them: the job does not end. The cascade cannot tell such
+ * a return from the normal end of a submitter without a consumer, whose leads call round()
+ * themselves. Once a consumer was built, its end tells the leads in every way it ends
+ * (GMPIConsumerT), and the destructor ends nothing; nor does it at a normal end.
  *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with
@@ -235,6 +242,8 @@ public:
     void release() noexcept;
     /** @brief On a lead or the submitter: confirms that the consumer gave this process role() */
     void requireRole(processRole);
+    /** @brief On the submitter: logs the reason and ends the MPI job with the exit code; once */
+    [[noreturn]] void abortJob(int, std::string_view);
 
 private:
     /// Rank 0's configuration as it travels: whether rank 0 could provide it, then the fields of
@@ -290,8 +299,10 @@ private:
     void guarded_(const char *, F &&) noexcept;
     /** @brief Ends the MPI job after an exception left a half of the group */
     [[noreturn]] void endJob_(std::string_view, const std::exception_ptr &) const noexcept;
-    /** @brief Ends the MPI job with a reason */
+    /** @brief Ends the MPI job with a reason, with EXIT_FAILURE */
     [[noreturn]] void endJob_(std::string_view, std::string_view) const noexcept;
+    /** @brief Ends the MPI job with a reason and an exit code */
+    [[noreturn]] void endJob_(std::string_view, std::string_view, int) const noexcept;
     /** @brief Whether an exception unwinds through the cascade (more than at its construction) */
     [[nodiscard]] bool unwinding_() const noexcept;
 
@@ -316,6 +327,7 @@ private:
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
+    std::atomic_flag aborting_;               ///< abortJob() was called; its first call ends the job
     /// The thread that runs a function of the program for the cascade (a lead's half, setUp(),
     /// serveRound(), tearDown()); empty while none runs
     std::atomic<std::thread::id> inside_thread_;

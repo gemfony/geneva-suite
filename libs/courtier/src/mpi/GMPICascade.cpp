@@ -245,7 +245,7 @@ GMPICascade::~GMPICascade() {
             "an exception leaves the submitter before an MPI consumer was built on it. The leads "
             "wait for its greeting, and MPI_Finalize would wait for them. The exception's text is "
             "not known here: a program that wants it in the log catches it inside the cascade's "
-            "scope, logs it and rethrows it."
+            "scope and logs and rethrows it, or ends the job with abortJob() and the text."
         );
     }
     for(MPI_Comm *communicator : {&courtier_, &group_, &status_}) {
@@ -476,6 +476,46 @@ void GMPICascade::requireRole(processRole consumer_role) {
         << ", the cascade the role of " << roleName(role_) << '\n'
         << remedy << '\n'
     );
+}
+
+/******************************************************************************/
+/**
+ * @brief On the submitter: ends the MPI job explicitly. It logs @p reason as a warning, with the
+ * base rank, and calls MPI_Abort on the base communicator with @p code, which ends every process of
+ * the job; Open MPI's launcher then ends with @p code. This is the way for a submitter that has
+ * caught a failure and does not rethrow it (see the class comment, "A submitter that fails"):
+ * returning instead would leave the leads waiting for its consumer's greeting. Where MPI is not in
+ * use (configuration emission) or was finalized already, the job is this process: the reason is
+ * logged and the process ends with @p code (std::_Exit). Called once: a second call, from another
+ * thread while the first ends the job, waits for that end.
+ *
+ * @param code The exit code of the job (the error code of MPI_Abort)
+ * @param reason Why the job ends; logged before it ends
+ * @throws geneva_exception on a lead or a member, which end the job through the cascade's other
+ *         rules; nothing is ended then
+ */
+void GMPICascade::abortJob(int code, std::string_view reason) {
+    this->requireCascadeRole_(processRole::SUBMITTER, "abortJob()");
+    if(aborting_.test_and_set()) {
+        // The first call ends the job; it never returns, and neither does this one
+        for(;;) {
+            aborting_.wait(true);
+        }
+    }
+    if(environment_ && mpiUsable()) {
+        this->endJob_("abortJob()", reason, code);
+    }
+    try {
+        glogger << "In GMPICascade, abortJob(): " << reason << '\n'
+                << "MPI is not in use: the process is ended with the exit code " << code << "."
+                << '\n'
+                << GWARNING;
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the process ends in any case
+    }
+    std::cout.flush();
+    std::cerr.flush();
+    std::_Exit(code);
 }
 
 /******************************************************************************/
@@ -875,14 +915,27 @@ void GMPICascade::endJob_(
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job: logs @p reason and calls MPI_Abort on the base communicator, which
- * ends every process of the job (in SUBMITTER_AND_GROUPS the whole optimization, in GROUPS_ONLY
- * one client job).
+ * @brief Ends the MPI job with EXIT_FAILURE (see the overload with an exit code).
  *
  * @param where The function that was running
  * @param reason Why
  */
 void GMPICascade::endJob_(std::string_view where, std::string_view reason) const noexcept {
+    this->endJob_(where, reason, EXIT_FAILURE);
+}
+
+/******************************************************************************/
+/**
+ * @brief Ends the MPI job: logs @p reason and calls MPI_Abort on the base communicator with
+ * @p code, which ends every process of the job (in SUBMITTER_AND_GROUPS the whole optimization, in
+ * GROUPS_ONLY one client job).
+ *
+ * @param where The function that was running
+ * @param reason Why
+ * @param code The exit code of the job (the error code of MPI_Abort)
+ */
+void GMPICascade::endJob_(std::string_view where, std::string_view reason, int code)
+    const noexcept {
     try {
         glogger << "In GMPICascade (base rank " << base_rank_ << "), " << where << ": " << reason
                 << '\n'
@@ -893,7 +946,7 @@ void GMPICascade::endJob_(std::string_view where, std::string_view reason) const
     }
     std::cout.flush();
     std::cerr.flush();
-    std::ignore = MPI_Abort(base_, EXIT_FAILURE); // does not return; nothing to do if it did
+    std::ignore = MPI_Abort(base_, code); // does not return; nothing to do if it did
     std::abort(); // not reached: MPI_Abort does not return
 }
 
