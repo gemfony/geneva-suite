@@ -104,6 +104,16 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 		MESSAGE(STATUS "${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's")
 	ENDIF ()
 
+	# runWithClients.sh, ended from outside while it measures (SIGINT, as Ctrl-C), ends the server,
+	# the clients and their MPI jobs: nothing it started may remain.
+	ADD_TEST(NAME ${EXECUTABLENAME}Interrupted
+		COMMAND ${SPEEDUP_TOOLS} interrupt $<TARGET_FILE:${EXECUTABLENAME}>
+			${CMAKE_CURRENT_BINARY_DIR}/check-interrupted ${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
+	SET_TESTS_PROPERTIES(${EXECUTABLENAME}Interrupted PROPERTIES
+		LABELS "benchmark" TIMEOUT 180 PROCESSORS 7
+		FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
+	GENEVA_TEST_SIZE(${EXECUTABLENAME}Interrupted M)
+
 	ADD_TEST(NAME ${EXECUTABLENAME}Groups
 		COMMAND ${SPEEDUP_TOOLS} groups $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-groups)

@@ -92,7 +92,12 @@
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients of
-# this run goes to clients.log.
+# this run goes to clients.log (with mpi there is none: every rank writes to
+# server.log).
+#
+# A script that is ended from outside (Ctrl-C, kill) ends the server, the clients
+# and the MPI jobs it started first; they would otherwise run on. The script
+# needs bash 4.4 or newer (empty arrays under set -u).
 #
 # Every MPI job the script starts keeps the files of Open MPI's shared-memory
 # transport in a directory of its own (OMPI_MCA_btl_sm_backing_directory; other
@@ -104,6 +109,10 @@
 ####################################################################
 
 set -u
+
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" = 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
+    echo "Error: runWithClients.sh needs bash 4.4 or newer, not $BASH_VERSION"; exit 1
+fi
 
 if [ $# -lt 9 ]; then
     echo "Usage: ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population>" \
@@ -118,6 +127,8 @@ if [ ! -x "$X" ]; then
     echo "Error: $X is not an executable"; exit 1
 fi
 mkdir -p "$W" && cd "$W" || exit 1
+# clients.log holds the clients of this run only
+rm -f clients.log
 
 # The directories of the MPI jobs' shared-memory files (see above), on a memory file system where
 # there is one
@@ -126,7 +137,17 @@ if [ ! -d "$SHM" ] || [ ! -w "$SHM" ]; then
     SHM=${TMPDIR:-/tmp}
 fi
 SMDIR=$(mktemp -d "$SHM/geneva-sm.XXXXXX") || exit 1
-trap 'rm -rf "$SMDIR"' EXIT
+# What the script started is ended when it ends, also when it is ended from outside: its background
+# processes ignore SIGINT, and nothing in them ends them with the script.
+SRV=""; MPIJOB=""; PIDS=()
+cleanup() {
+    # shellcheck disable=SC2086
+    kill $SRV $MPIJOB "${PIDS[@]}" 2>/dev/null
+    rm -rf "$SMDIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 # Prints the directory of the MPI job $1, created
 jobdir() { mkdir -p "$SMDIR/$1" && echo "$SMDIR/$1"; }
 rm -rf config && cp -r "$(dirname "$X")/config" config
@@ -185,8 +206,12 @@ if [ "$C" = mpi ]; then
     # shellcheck disable=SC2086
     OMPI_MCA_btl_sm_backing_directory=$(jobdir job) \
         ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
-        "${GROUPOPT[@]}" "$@" > server.log 2>&1
-    STATUS=$?
+        "${GROUPOPT[@]}" "$@" > server.log 2>&1 &
+    # In the background, so that a signal reaches the script's trap at once (bash runs a trap only
+    # after a command in the foreground has ended, but it interrupts wait)
+    MPIJOB=$!
+    wait "$MPIJOB"; STATUS=$?
+    MPIJOB=""
 else
     # The port is drawn at random; another process on the host may hold it. A server that could
     # not bind it is started again on another one (SERVER_PORT: the first port to try).
@@ -208,9 +233,6 @@ else
         # shellcheck disable=SC2206
         LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP")
     fi
-    # clients.log holds the clients of this run only
-    : > clients.log
-    PIDS=()
     for i in $(seq 1 "$N"); do
         if [ "$i" = "$N" ] && [ "${LAST_CLIENT_DELAY:-0}" != 0 ]; then
             # The delay counts from the moment the server begins to wait (its log says so), not
@@ -236,6 +258,7 @@ else
     done
     echo "clients that did not end by themselves: $(left)"
     kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+    PIDS=(); SRV=""
 fi
 echo "server exit: $STATUS"
 exit $STATUS

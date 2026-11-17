@@ -47,6 +47,9 @@ Usage:
       as subclients with beast, but Open MPI gives both client jobs the same job id (their
       launcher is placed on pids whose ids collide): the jobs must not share Open MPI's shared
       memory (runWithClients.sh gives each job a directory of its own for it); Open MPI only
+  testSpeedupTools.py interrupt <GSubClientOverhead> <workdir> <reference dir>
+      runWithClients.sh with two websocket clients of three processes each, ended from outside
+      with SIGINT while it measures: no process it started may remain
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group; a job of -c mpi whose submitter fails (an option only it
@@ -263,12 +266,16 @@ def check_subclients(program, workdir, consumer, reference_dir, env=None):
     """Two clients of two sub-clients each: every evaluation once, every process ends by itself;
     env is added to the environment of runWithClients.sh."""
     os.makedirs(workdir, exist_ok=True)
-    for name in ('shortDelayResults.txt', 'referenceLine.txt', 'reference.log', 'clients.log',
-                 'server.log'):
+    for name in ('shortDelayResults.txt', 'referenceLine.txt', 'reference.log', 'server.log'):
         if os.path.exists(os.path.join(workdir, name)):
             os.remove(os.path.join(workdir, name))
     if reference_dir:
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    # The clients.log of an earlier run in the same work directory must not be taken for this
+    # run's (with mpi this run writes none)
+    with open(os.path.join(workdir, 'clients.log'), 'w', encoding='utf-8') as stale:
+        stale.write('GSleepGroup: lead of 3 processes led 99 rounds (an earlier run)\n'
+                    'prefetch depth was 1\n')
     # The leads build their clients from the consumer options themselves: a prefetch depth other
     # than the consumer's default must reach both (see check_run()).
     depth = '3' if consumer == 'mpi' else '2'
@@ -462,6 +469,69 @@ def check_same_job_id(program, workdir, reference_dir):
     print(f'two client jobs with the Open MPI job id {jobs[0].split()[0]} kept apart')
 
 
+def session_processes(session):
+    """The pids of the processes of a session (/proc/<pid>/stat, field 6)."""
+    pids = []
+    for entry in os.listdir('/proc'):
+        if entry.isdigit():
+            try:
+                with open(f'/proc/{entry}/stat', encoding='ascii', errors='replace') as stat:
+                    fields = stat.read().rsplit(')', 1)[1].split()
+            except OSError:
+                continue
+            if int(fields[3]) == session:
+                pids.append(int(entry))
+    return pids
+
+
+def check_interrupt(program, workdir, reference_dir):
+    """runWithClients.sh, ended with SIGINT while it measures, ends what it started."""
+    os.makedirs(workdir, exist_ok=True)
+    for name in ('shortDelayResults.txt', 'referenceLine.txt', 'server.log', 'clients.log'):
+        if os.path.exists(os.path.join(workdir, name)):
+            os.remove(os.path.join(workdir, name))
+    shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    # Evaluations of a second over many iterations: the run is still measuring when it is ended
+    script = subprocess.Popen(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                               'beast', '2', '4', '100', '(1,0)', '(0,10), (0,20), (0,30)', '1'],
+                              env=dict(os.environ, GROUP='3', INTER_DELAY='0'),
+                              start_new_session=True, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.STDOUT)
+    try:
+        log = os.path.join(workdir, 'server.log')
+        for _ in range(600):
+            if os.path.exists(log) and 'Warm-up run' in open(log, encoding='utf-8',
+                                                             errors='replace').read():
+                break
+            time.sleep(0.1)
+        else:
+            fail('the run did not begin to measure within 60 s')
+        script.send_signal(signal.SIGINT)  # to the script alone, as a Ctrl-C reaches it first
+        try:
+            script.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            fail('the script did not end within 30 s of SIGINT')
+        left = []
+        for _ in range(300):
+            left = session_processes(script.pid)
+            if not left:
+                break
+            time.sleep(0.1)
+        if left:
+            fail(f'{len(left)} processes the script started were still running 30 s after it '
+                 f'ended: {left}')
+    finally:
+        for pid in session_processes(script.pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        if script.poll() is None:
+            script.kill()
+            script.wait()
+    print(f'the script ended with {script.returncode} and left no process behind')
+
+
 def check_groups(program, workdir):
     """A job that does not form whole groups ends at once, non-zero, on every rank; so does a job
     of -c mpi whose submitter fails while its leads wait for it."""
@@ -506,9 +576,10 @@ def gate_run(program, workdir, reference_dir, env):
         if os.path.exists(os.path.join(workdir, name)):
             os.remove(os.path.join(workdir, name))
     shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
+    # Two runs of at most 120 s and 20 s to end each fit into the entry's TIMEOUT of 300 s
     status, _ = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
                              'beast', '2', '4', '2', '(0,10)', '(0,10), (0,20), (0,30)', '1'],
-                            240, env=dict(os.environ, INTER_DELAY='0', **env), capture=False)
+                            120, env=dict(os.environ, INTER_DELAY='0', **env), capture=False)
     log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
     return status, log
 
@@ -556,6 +627,9 @@ def main(args):
                           os.path.abspath(args[3]) if len(args) > 3 else None)
     elif len(args) >= 3 and args[0] == 'launch-same-job-id':
         sys.exit(launch_same_job_id(args[1], args[2:]))
+    elif len(args) >= 4 and args[0] == 'interrupt':
+        check_interrupt(os.path.abspath(args[1]), os.path.abspath(args[2]),
+                        os.path.abspath(args[3]))
     elif len(args) >= 3 and args[0] == 'groups':
         check_groups(os.path.abspath(args[1]), os.path.abspath(args[2]))
     elif len(args) >= 4 and args[0] == 'gate':
