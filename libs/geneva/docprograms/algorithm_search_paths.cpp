@@ -342,11 +342,16 @@ bool runShowcase(Showcase const &s) {
         }
     }
 
-    GDataLog log(std::string(s.mnemonic) + " on the " + std::string(s.function_name) + " function", 1, 1);
+    // A figure of one pad has one title, the pad's: the canvas label is not shown.
+    const std::string title =
+        std::string(s.mnemonic) + " on the " + std::string(s.function_name) + " function";
+    GDataLog log(title, 1, 1);
+    log.setShowCanvasLabel(false);
 
     //! [dietrich-projection#1]
     GPlotSpec landscape(plotKind::graph_3d);
-    landscape.name = std::string(s.function_name);
+    landscape.name = std::string(s.function_name); // its legend entry
+    landscape.pad_title = title;
     landscape.x_label = "x_{0}";
     landscape.y_label = "x_{1}";
     landscape.z_label = "log_{10}(1 + f - f_{min})";

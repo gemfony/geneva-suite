@@ -514,7 +514,9 @@ public:
 	  * profiled ranges: at the end of the run the plotter evaluates a copy of the best candidate at
 	  * every grid point, with the profiled variables set to the grid values and all others left as
 	  * they are -- so the map is the slice through the best solution, and it costs points_per_axis^2
-	  * evaluations, made locally. 0 (the default) draws the candidates alone.
+	  * evaluations, made locally. 0 (the default) draws the candidates alone. With the map the pad has
+	  * a legend (the map and the candidates), and the canvas label (setCanvasLabel()) is the title of
+	  * the one pad rather than a label above it, so that no text is shown twice.
 	  *
 	  * @param points_per_axis The number of grid points along each of the two axes (0: no landscape)
 	  */
@@ -685,7 +687,8 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Allows to set the canvas label
+	  * @brief Allows to set the canvas label, the title of the figure (with a landscape, see
+	  * setLandscapeResolution(), the title of its one pad)
 	  *
 	  * @param canvas_label The label to assign to the canvas
 	  */
@@ -796,7 +799,13 @@ private:
                     active_series_ = data_log_->declareSeries(spec);
                 } else {
                     // The objective function as a heat map on the floor (filled in at INFOEND), without
-                    // its surface; the evaluated candidates above it, their shadows on the map.
+                    // its surface; the evaluated candidates above it, their shadows on the map. The
+                    // pad has a legend, so each text is shown once: the canvas label becomes the title
+                    // of the one pad (and is not shown above it), the map's legend entry says what the
+                    // map is.
+                    spec.name = "fitness landscape";
+                    spec.pad_title = canvas_label_;
+                    data_log_->setShowCanvasLabel(false);
                     spec.projection = Gem::Dietrich::surfaceProjection::FLOOR;
                     spec.surface = false;
                     landscape_series_ = data_log_->declareSeries(spec);

@@ -60,8 +60,18 @@ ADD_TEST(NAME ${EXECUTABLENAME}
 		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaRunBestOf.cmake
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 120
-	RESOURCE_LOCK GQuickStart_workdir)
+	RESOURCE_LOCK GQuickStart_workdir FIXTURES_SETUP GQuickStart_progress)
 GENEVA_TEST_SIZE(${EXECUTABLENAME} S)
+
+# The progress figure the run writes shows each text once, and its one pad has one title
+# (CheckFigureTitles.cmake): read after the run, in its working directory.
+ADD_TEST(NAME GQuickStartTitles
+	COMMAND ${CMAKE_COMMAND} -DFIGURES=${CMAKE_CURRENT_BINARY_DIR}/progressScan.C
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+SET_TESTS_PROPERTIES(GQuickStartTitles PROPERTIES LABELS "geneva;example"
+	RESOURCE_LOCK GQuickStart_workdir FIXTURES_REQUIRED GQuickStart_progress)
+GENEVA_TEST_SIZE(GQuickStartTitles S)
 
 # On a machine without the MPI library, the MPI module cannot be loaded and "mpi" is no consumer. Asked
 # for it, a Go2 program must say why -- the module is installed, but a library it needs is missing --
