@@ -42,6 +42,7 @@
 #include <functional>
 #include <memory>
 #include <ranges>
+#include <sstream>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -218,6 +219,27 @@ TEST_CASE("GGenome: a fresh flat individual evaluates and reaches PROCESSED", "[
     CHECK(first.rawFitness() == Approx(3.0));
     CHECK(ind.raw_fitness(0) == Approx(3.0));
     CHECK(ind.transformed_fitness(0) == Approx(3.0)); // USESIMPLEEVALUATION: transformed == raw
+}
+
+/******************************************************************************/
+// The output operator of GFunctionIndividual wrote its dump to std::cout and returned the stream it
+// was given untouched, so printing an individual into a file or a string produced nothing.
+TEST_CASE("GFunctionIndividual: operator<< writes to the stream it is given", "[candidate][print]") {
+    gind::GFunctionIndividual ind; // the default demo function, the parabola
+    GGenomeBuilder b;
+    b.addDoubleGroup(2, -10., 10.).init(1.0);
+    ind.setGenome(b.build());
+    ind.process();
+    REQUIRE(ind.is_processed());
+
+    std::ostringstream direct;
+    direct << ind;
+    CHECK_THAT(direct.str(), Catch::Matchers::ContainsSubstring("Raw fitness: "));
+    CHECK_THAT(direct.str(), Catch::Matchers::ContainsSubstring("1: 1"));
+
+    std::ostringstream via_pointer;
+    via_pointer << std::make_unique<gind::GFunctionIndividual>(ind);
+    CHECK(via_pointer.str() == direct.str());
 }
 
 /******************************************************************************/

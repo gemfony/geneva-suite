@@ -706,7 +706,7 @@ GFunctionIndividual::buildConfigured(const Config &c, std::filesystem::path cons
 /**
  * @brief Provide an easy way to print the individual's content.
  *
- * @param s The output stream that is returned (the parameter dump itself is written to std::cout)
+ * @param s The output stream the raw fitness and the parameter values are written to
  * @param f The GFunctionIndividual whose raw fitness and parameter values are printed
  * @return The std::ostream object passed in as @p s
  */
@@ -714,13 +714,13 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunct
     std::vector<double> par_vec;
     f.streamline(par_vec);
 
-    std::cout << '\n' << "Raw fitness: " << f.raw_fitness(0) << '\n' << '\n';
+    s << '\n' << "Raw fitness: " << f.raw_fitness(0) << '\n' << '\n';
     std::size_t pos = 0;
-    std::cout << "Parameter values of best individual:" << '\n';
+    s << "Parameter values of best individual:" << '\n';
     for(const auto &val : par_vec) {
-        std::cout << pos++ << ": " << val << '\n';
+        s << pos++ << ": " << val << '\n';
     }
-    std::cout << '\n';
+    s << '\n';
 
     return s;
 }
@@ -729,7 +729,7 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunct
 /**
  * @brief Provide an easy way to print the individual's content through a smart-pointer.
  *
- * @param s The output stream that is returned (the parameter dump itself is written to std::cout)
+ * @param s The output stream the raw fitness and the parameter values are written to
  * @param f_ptr An owning pointer to the GFunctionIndividual whose content is printed (dereferenced internally)
  * @return The std::ostream object passed in as @p s
  */
