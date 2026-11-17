@@ -58,7 +58,8 @@
 #     same Boost version and components;
 #  6. both the config package and FindGeneva.cmake say whether the installation has
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
-#     was configured.
+#     was configured, and both keep the layers: Geneva::courtier does not link
+#     Geneva::hap, Geneva::geneva does.
 # Configuring a project against the installation (steps 3, 5, 6) prints no CMake
 # warning.
 #
@@ -305,7 +306,9 @@ FUNCTION(gip_lane_findgeneva)
 ENDFUNCTION()
 
 # 6. What the installation has: GENEVA_MPI and GENEVA_GPU, from the config package (_mode
-#    CONFIG) or from FindGeneva.cmake (MODULE), must say what the build was configured with.
+#    CONFIG) or from FindGeneva.cmake (MODULE), must say what the build was configured with; and
+#    Geneva::courtier must not link Geneva::hap, while Geneva::geneva must (a substring check: the
+#    exported list may hold generator expressions).
 FUNCTION(gip_lane_flags _mode)
 	gip_common_args(_args)
 	IF(WITH_MPI)
@@ -339,6 +342,16 @@ FUNCTION(gip_lane_flags _mode)
 		"if(NOT _mpi STREQUAL \"${_want_mpi}\" OR NOT _gpu STREQUAL \"${_want_gpu}\")\n"
 		"  message(FATAL_ERROR \"${_mode}: GENEVA_MPI=\${_mpi} GENEVA_GPU=\${_gpu}, the build has "
 		"MPI=${_want_mpi} GPU=${_want_gpu}\")\n"
+		"endif()\n"
+		"get_target_property(_courtier_links Geneva::courtier INTERFACE_LINK_LIBRARIES)\n"
+		"get_target_property(_geneva_links Geneva::geneva INTERFACE_LINK_LIBRARIES)\n"
+		"if(\"\${_courtier_links}\" MATCHES \"Geneva::hap\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::courtier links Geneva::hap "
+		"(\${_courtier_links}); courtier builds on common only\")\n"
+		"endif()\n"
+		"if(NOT \"\${_geneva_links}\" MATCHES \"Geneva::hap\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::geneva does not link Geneva::hap "
+		"(\${_geneva_links})\")\n"
 		"endif()\n")
 	FILE(WRITE "${_flags_src}/CMakeLists.txt" "${_flags_lists}")
 	gip_run("say MPI and GPU through find_package(Geneva ${_mode})" "${ROOT}/flags-${_mode}.log"

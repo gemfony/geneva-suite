@@ -42,11 +42,11 @@ SET ( _COURTIER_DOCPROGRAMS
 
 FOREACH ( _dp ${_COURTIER_DOCPROGRAMS} )
 	ADD_EXECUTABLE ( courtier_${_dp} ${_dp}.cpp )
-	# courtier's own dependency closure only (courtier <- hap <- common <- weft, in link order) --
-	# a docu-program of this library must not need the libraries that sit above it. Its work item
-	# comes from courtier's test support (../tests/support), which links courtier only.
+	# courtier's own dependency closure only (courtier <- common <- weft, in link order) --
+	# a docu-program of this library must not need the libraries that sit above it or beside it.
+	# Its work item comes from courtier's test support (../tests/support), which links courtier only.
 	TARGET_LINK_LIBRARIES ( courtier_${_dp} courtier-test-support
-		${COURTIER_LIBNAME} ${HAP_LIBNAME} ${COMMON_LIBNAME} ${WEFT_LIBNAME} ${Boost_LIBRARIES} )
+		${COURTIER_LIBNAME} ${COMMON_LIBNAME} ${WEFT_LIBNAME} ${Boost_LIBRARIES} )
 	ADD_TEST ( NAME courtier_${_dp} COMMAND courtier_${_dp} )
 	SET_TESTS_PROPERTIES ( courtier_${_dp} PROPERTIES LABELS "courtier;docprogram" TIMEOUT 120 )
 	GENEVA_TEST_SIZE ( courtier_${_dp} S )

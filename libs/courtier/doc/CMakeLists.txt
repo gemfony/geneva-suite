@@ -39,11 +39,11 @@ SET (GENEVA_DOC_LIB_DESC "Consumer-based parallelisation framework: "
 		"the process-global GConsumerRegistry, thread-pool / "
 		"Beast-websocket / MPI consumers, command-container protocol, "
 		"processing-container CRTP")
-# Upstream: common, hap. Single space-separated string (multi-arg SET would
+# Upstream: common. Single space-separated string (multi-arg SET would
 # create a semicolon-separated CMake list, which Doxygen does NOT parse as a
 # TAGFILES separator).
 SET (GENEVA_DOC_TAGFILES
-		"${CMAKE_BINARY_DIR}/common/doc/common.tag=../../../common/doc/html ${CMAKE_BINARY_DIR}/hap/doc/hap.tag=../../../hap/doc/html")
+		"${CMAKE_BINARY_DIR}/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
@@ -58,4 +58,4 @@ ADD_CUSTOM_TARGET (doc-courtier
 	VERBATIM
 )
 
-ADD_DEPENDENCIES (doc-courtier doc-common doc-hap)
+ADD_DEPENDENCIES (doc-courtier doc-common)

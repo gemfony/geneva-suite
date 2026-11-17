@@ -32,6 +32,21 @@ ADD_SUBDIRECTORY ( support )
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 
+# courtier builds on common only: neither the library nor courtier's MPI library needs a library of
+# hap, dietrich or geneva at load time.
+IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+	SET ( _courtier_libs $<TARGET_FILE:${COURTIER_LIBNAME}> $<TARGET_FILE:${COURTIER_MPI_LIBNAME}> )
+ELSE ()
+	SET ( _courtier_libs $<TARGET_FILE:${COURTIER_LIBNAME}> )
+ENDIF ()
+ADD_TEST ( NAME CourtierNeedsOnlyCommon
+	COMMAND ${CMAKE_COMMAND}
+		"-DLIBS=${_courtier_libs}"
+		"-DPATTERN=libgemfony-(hap|dietrich|geneva)"
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoDriverLink.cmake )
+SET_TESTS_PROPERTIES ( CourtierNeedsOnlyCommon PROPERTIES LABELS "courtier" )
+GENEVA_TEST_SIZE ( CourtierNeedsOnlyCommon S )
+
 # With the CUDA backend of the GPU consumer built in: no Geneva library may need the CUDA driver
 # library at load time, so that a CUDA build still starts on machines without an NVIDIA driver.
 IF ( GENEVA_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )

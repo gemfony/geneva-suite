@@ -611,12 +611,12 @@ ELSE ()
 	MESSAGE (STATUS "Doxygen not found; the per-library doc targets and 'make doc' are disabled.")
 ENDIF ()
 
-# Self-contained per-library subtrees. All four libraries now live under
-# their own top-level directory; the legacy split-by-kind include/, src/,
-# tests/, examples/, benchmarks/ trees no longer exist. Order matches the
-# dependency chain (weft <- common <- hap <- courtier <- geneva) so every
-# library's targets exist when its dependents configure. Weft (the standalone
-# serialization engine) is the deepest layer, added before common.
+# Self-contained per-library subtrees under libs/; the legacy split-by-kind
+# include/, src/, tests/, examples/, benchmarks/ trees no longer exist. The
+# layers: weft (the standalone serialization engine) at the bottom, common on
+# weft, dietrich, hap and courtier each on common only (three peers), geneva on
+# all of them. A library is added after the ones it builds on, so that their
+# targets exist when it configures.
 ADD_SUBDIRECTORY (libs/weft)
 ADD_SUBDIRECTORY (libs/common)
 ADD_SUBDIRECTORY (libs/dietrich)
@@ -637,10 +637,12 @@ ENDFOREACH ()
 #
 # This is the modern, preferred way for downstream projects to consume an
 # installed Geneva: find_package(Geneva CONFIG REQUIRED) then link the imported
-# targets Geneva::common / Geneva::hap / Geneva::courtier / Geneva::geneva.
+# targets Geneva::weft / Geneva::common / Geneva::dietrich / Geneva::hap /
+# Geneva::courtier / Geneva::geneva.
 #
 # The exported targets carry their include directories ($<INSTALL_INTERFACE>),
-# their inter-library link dependencies (geneva -> courtier -> hap -> common),
+# their inter-library link dependencies (geneva -> courtier, hap, dietrich;
+# each of these -> common -> weft),
 # the C++23 requirement and the Boost dependency transitively. The config file
 # re-finds Boost so consumers do not have to.
 #
@@ -768,6 +770,15 @@ IF (GENEVA_BUILD_TESTS)
 	)
 	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
+
+	# Every library and program includes only the libraries of its layer (courtier nothing of hap).
+	ADD_TEST(
+		NAME LibraryLayersRespected
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckLibraryLayers.cmake
+	)
+	SET_TESTS_PROPERTIES(LibraryLayersRespected PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(LibraryLayersRespected S)
 
 	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
 	ADD_TEST(

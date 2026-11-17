@@ -347,6 +347,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   library now links only `libboost_json` and `libboost_program_options` (Boost headers are still
   needed at build time, e.g. Boost.Asio/Beast for the networked consumers and Boost.DLL for module
   loading).
+- **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
+  `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
+  courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
+  before. The demo work items `GSimpleContainer`, `GRandomNumberContainer` and `GFaultyContainer`
+  (header `courtier/GDemoProcessingContainers.hpp`) are no longer part of the library: they are
+  test code of courtier's own tests and are neither installed nor exported.
 - **The Geneva library ships no concrete optimization individual.** The reusable sample
   problems were folded into `gemfony-geneva` (`Gem::Geneva::Individuals`); there is no
   separate `geneva-individuals` library.

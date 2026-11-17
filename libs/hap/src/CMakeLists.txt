@@ -37,7 +37,7 @@
 #
 # Hap implementation + the gemfony-hap target. Uses the xoshiro256++ engine
 # (scalar + SIMD bulk-refill) with an optional cuRAND GPU backend, and is
-# exported into the GenevaTargets set so courtier/geneva can consume it.
+# exported into the GenevaTargets set so geneva (and any other user) can consume it.
 #
 ################################################################################
 
@@ -107,7 +107,7 @@ ELSE()
 	MESSAGE(STATUS "Hap: default GRandom source = QUEUE (central factory queue)")
 ENDIF()
 
-# Inter-library dependency: hap builds on common (exactly like hap).
+# Inter-library dependency: hap builds on common (and through it on weft).
 TARGET_LINK_LIBRARIES(${HAP_LIBNAME} PUBLIC ${COMMON_LIBNAME})
 
 # When CUDA RNG is enabled at build time, the producer can refill containers on
@@ -178,5 +178,5 @@ ENDIF ()
 
 ################################################################################
 # Install the library and register it in the GenevaTargets export set, so that
-# the exported package config resolves gemfony-hap (courtier/geneva depend on it).
+# the exported package config resolves gemfony-hap (geneva depends on it).
 INSTALL ( TARGETS ${HAP_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )

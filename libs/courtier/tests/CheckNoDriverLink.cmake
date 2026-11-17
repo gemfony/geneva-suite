@@ -37,7 +37,8 @@
 #
 # The same check, turned round (-DEXPECT=present), shows that a library which is meant to carry
 # such a dependency does: libgemfony-courtier-mpi, where the process's MPI environment lives,
-# links MPI.
+# links MPI. It also guards the layers of the collection: courtier needs no library of hap,
+# dietrich or geneva at load time (CourtierNeedsOnlyCommon).
 #
 # Driven via `cmake -P` with -DLIBS="<file>;<file>;...", -DPATTERN=<regex> (default: libcuda\.so)
 # and -DEXPECT=absent|present (default: absent).
