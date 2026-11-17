@@ -276,9 +276,9 @@ private:
     std::size_t max_message_bytes_;         ///< The longest message sent
     std::string name_;                      ///< For the log
 
-    GPeerHandlers handlers_;       ///< On the strand; dropped at the end
-    GState state_ = GState::NEW;   ///< On the strand
-    bool role_open_ = false;       ///< On the strand: the role was told of the open
+    GPeerHandlers handlers_;     ///< On the strand; dropped at the end
+    GState state_ = GState::NEW; ///< On the strand
+    bool role_open_ = false;     ///< On the strand: the role was told of the open
     /// On the strand: the other rank knows that the connection is over -- it was sent this end's
     /// close or an answer to its own, or it closed itself (tellOther_())
     bool other_told_ = false;
