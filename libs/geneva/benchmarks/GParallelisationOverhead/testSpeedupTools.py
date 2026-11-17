@@ -59,6 +59,7 @@ import importlib.util
 import math
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -161,15 +162,36 @@ def check_figure(program, workdir):
     print('figure and means as expected')
 
 
+def run_bounded(command, limit, env=None, capture=True):
+    """Runs a command in a process group of its own and returns its exit code and its output
+    (stdout and stderr; empty unless captured). At the limit the whole group is ended -- the
+    command and every process it started, an MPI job included, which would otherwise outlive it
+    -- and the check fails."""
+    with subprocess.Popen(command, env=env, text=True, start_new_session=True,
+                          stdout=subprocess.PIPE if capture else None,
+                          stderr=subprocess.STDOUT if capture else None) as job:
+        try:
+            out, _ = job.communicate(timeout=limit)
+        except subprocess.TimeoutExpired:
+            os.killpg(job.pid, signal.SIGTERM)
+            try:
+                job.communicate(timeout=20)
+            except subprocess.TimeoutExpired:
+                os.killpg(job.pid, signal.SIGKILL)
+                job.communicate()
+            fail(f'{" ".join(command[:3])} ... did not end within {limit} s; it was ended with '
+                 'every process it started')
+    return job.returncode, out or ''
+
+
 def run_script(program, workdir, consumer, rows, reference_delays, env=None, options=None):
     """Runs runWithClients.sh with two clients and returns its exit code and its output; options
     follow the nine arguments."""
-    run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                          consumer, '2', '4', '2', rows, reference_delays, '1'] + (options or []),
-                         env=dict(os.environ, **(env or {})), capture_output=True, text=True,
-                         check=False, timeout=240)
-    sys.stdout.write(run.stdout)
-    return run.returncode, run.stdout
+    status, out = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                               consumer, '2', '4', '2', rows, reference_delays, '1']
+                              + (options or []), 240, env=dict(os.environ, **(env or {})))
+    sys.stdout.write(out)
+    return status, out
 
 
 def check_run(program, workdir, consumer, reference_dir):
@@ -242,18 +264,18 @@ def check_subclients(program, workdir, consumer, reference_dir):
     # than the consumer's default must reach both (see check_run()).
     depth = '3' if consumer == 'mpi' else '2'
     options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '1']
-    run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                          consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1']
-                         + options,
-                         # Every evaluation exactly once: no item may be given to a second client
-                         # because its first one was slow under load (an adaptive lease).
-                         env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
-                                  TIMEOUT_TREATMENT='wait_indefinitely'),
-                         capture_output=True, text=True, check=False, timeout=240)
-    if run.returncode != 0:
-        fail(f'runWithClients.sh exited with {run.returncode}: {run.stdout}')
-    if 'clients that did not end by themselves: 0' not in run.stdout and consumer != 'mpi':
-        fail(f'a client had to be ended: {run.stdout}')
+    status, out = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+                               consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1']
+                              + options, 240,
+                              # Every evaluation exactly once: no item may be given to a second
+                              # client because its first one was slow under load (an adaptive
+                              # lease).
+                              env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
+                                       TIMEOUT_TREATMENT='wait_indefinitely'))
+    if status != 0:
+        fail(f'runWithClients.sh exited with {status}: {out}')
+    if 'clients that did not end by themselves: 0' not in out and consumer != 'mpi':
+        fail(f'a client had to be ended: {out}')
     log = ''
     for name in ('server.log', 'clients.log'):
         if os.path.exists(os.path.join(workdir, name)):
@@ -286,20 +308,9 @@ def check_groups(program, workdir):
              'and --group 3 it needs 1 + clients x 3'),
             ('2', ['-c', 'beast', '--client', '--group', '3'], 'the MPI job has 2 processes, '
              'but a client with --group 3 is one job of 3')):
-        with subprocess.Popen(launcher + [ranks, program] + args, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True) as job:
-            try:
-                out, _ = job.communicate(timeout=60)
-            except subprocess.TimeoutExpired:
-                job.terminate()
-                try:
-                    job.communicate(timeout=20)
-                except subprocess.TimeoutExpired:
-                    job.kill()
-                    job.communicate()
-                fail(f'{ranks} processes with {args} were not refused within 60 s')
-        if job.returncode == 0 or expected not in out:
-            fail(f'{ranks} processes with {args} were not refused (exit {job.returncode}) '
+        status, out = run_bounded(launcher + [ranks, program] + args, 60)
+        if status == 0 or expected not in out:
+            fail(f'{ranks} processes with {args} were not refused (exit {status}) '
                  f'with "{expected}": {out[-1000:]}')
         print(f'{ranks} processes with {" ".join(args)}: refused')
 
@@ -324,10 +335,9 @@ def gate_run(program, workdir, reference_dir, env):
         if os.path.exists(os.path.join(workdir, name)):
             os.remove(os.path.join(workdir, name))
     shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
-    status = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
+    status, _ = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
                              'beast', '2', '4', '2', '(0,10)', '(0,10), (0,20), (0,30)', '1'],
-                            env=dict(os.environ, INTER_DELAY='0', **env), check=False,
-                            timeout=240).returncode
+                            240, env=dict(os.environ, INTER_DELAY='0', **env), capture=False)
     log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
     return status, log
 
