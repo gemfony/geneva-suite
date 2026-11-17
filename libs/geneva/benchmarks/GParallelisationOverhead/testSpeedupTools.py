@@ -37,12 +37,12 @@ Usage:
   testSpeedupTools.py run <GParallelisationOverhead> <workdir> <consumer> [<reference dir>]
       a short run of runWithClients.sh with two clients; with a reference dir, the serial reference
       of that earlier run is used instead of a new one (MPIRUN in the environment says how mpi is
-      started). The run passes a client option, the prefetch depth, and checks that both clients
-      used it.
+      started). The run passes two client options, the prefetch depth and the evaluations at a
+      time, and checks that both clients used them.
   testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
-      group of three, every process ends by itself, and both clients used the prefetch depth the
-      run passes
+      group of three, every process ends by itself, and both clients used the prefetch depth and
+      the evaluations at a time the run passes
   testSpeedupTools.py samejobid <GSubClientOverhead> <workdir> [<reference dir>]
       as subclients with beast, but Open MPI gives both client jobs the same job id (their
       launcher is placed on pids whose ids collide): the jobs must not share Open MPI's shared
@@ -205,6 +205,19 @@ def run_script(program, workdir, consumer, rows, reference_delays, env=None, opt
     return status, out
 
 
+def check_client_options(log, depth):
+    """Both clients name the prefetch depth and the two evaluations at a time that the run passed
+    them, in the summary each writes when it ends, and no other client writes one."""
+    used = {d: log.count(f'prefetch depth was {d}\n') for d in ('1', '2', '3')}
+    if used[depth] != 2 or sum(used.values()) != 2:
+        fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
+             '(depth: number of clients)')
+    parallel = {m: log.count(f'parallel evaluations were {m}\n') for m in ('1', '2')}
+    if parallel['2'] != 2 or sum(parallel.values()) != 2:
+        fail('expected two clients with two evaluations at a time, found '
+             f'{parallel} (evaluations at a time: number of clients)')
+
+
 def check_run(program, workdir, consumer, reference_dir):
     """A short run of runWithClients.sh, with a reference of its own or a shared one."""
     os.makedirs(workdir, exist_ok=True)
@@ -221,10 +234,11 @@ def check_run(program, workdir, consumer, reference_dir):
         holder.bind(('0.0.0.0', 0))
         holder.listen(1)
         env = {'SERVER_PORT': str(holder.getsockname()[1])}
-    # A client option must reach every client: a prefetch depth other than the consumer's default
-    # (1 for a networked consumer, 2 for mpi), which each client names when it ends.
+    # Client options must reach every client: a prefetch depth other than the consumer's default
+    # (1 for a networked consumer, 2 for mpi) and two evaluations at a time (default 1), which
+    # each client names when it ends.
     depth = '3' if consumer == 'mpi' else '2'
-    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '1']
+    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '2']
     try:
         status, out = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)',
                                  env, options)
@@ -250,10 +264,7 @@ def check_run(program, workdir, consumer, reference_dir):
         if 'clients that did not end by themselves: 0' not in out:
             fail(f'a client had to be ended: {out}')
         log = open(os.path.join(workdir, 'clients.log'), encoding='utf-8', errors='replace').read()
-    used = {d: log.count(f'prefetch depth was {d}\n') for d in ('1', '2', '3')}
-    if used[depth] != 2 or sum(used.values()) != 2:
-        fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
-             '(depth: number of clients)')
+    check_client_options(log, depth)
     if reference_dir:
         line = open(os.path.join(reference_dir, 'referenceLine.txt'), encoding='utf-8').read()
         a, _, b, _ = (float(v) for v in line.split())
@@ -276,10 +287,10 @@ def check_subclients(program, workdir, consumer, reference_dir, env=None):
     with open(os.path.join(workdir, 'clients.log'), 'w', encoding='utf-8') as stale:
         stale.write('GSleepGroup: lead of 3 processes led 99 rounds (an earlier run)\n'
                     'prefetch depth was 1\n')
-    # The leads build their clients from the consumer options themselves: a prefetch depth other
-    # than the consumer's default must reach both (see check_run()).
+    # The leads build their clients from the consumer options themselves: the options of
+    # check_run() must reach both.
     depth = '3' if consumer == 'mpi' else '2'
-    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '1']
+    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '2']
     status, out = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
                                consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1']
                               + options, 240,
@@ -307,10 +318,7 @@ def check_subclients(program, workdir, consumer, reference_dir, env=None):
         fail(f'the leads led {leads} rounds instead of {expected} together')
     if members != sorted(leads * 2):
         fail(f'the members served {members} parts, their leads led {leads} rounds')
-    used = {d: log.count(f'prefetch depth was {d}\n') for d in ('1', '2', '3')}
-    if used[depth] != 2 or sum(used.values()) != 2:
-        fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
-             '(depth: number of clients)')
+    check_client_options(log, depth)
     print(f'{consumer}: {expected} evaluations, each in a group of three; every process ended')
 
 
