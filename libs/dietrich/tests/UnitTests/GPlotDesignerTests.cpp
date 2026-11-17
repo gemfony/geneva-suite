@@ -1573,16 +1573,17 @@ TEST_CASE(
         const auto map = map_under_points("the landscape", "evaluated candidates");
         map->setLegendPosition(legendPosition::TOP_LEFT);
         const std::string placed = render(map, plotBackend::ROOT);
-        CHECK(placed.contains("GetXsize()"));
+        CHECK(placed.contains("widest_at(size)"));
         CHECK(placed.contains("size = TMath::Max(floor_size, size * room / widest);"));
         CHECK(placed.contains("legend->SetTextSize(size);"));
-        // ROOT's own placement on a 2-d pad sizes the text to its box itself.
+        // ROOT's own placement on a 2-d pad sizes the text to its box itself. (The legend's own
+        // measuring code, not GetXsize(): the canvas label measures itself too.)
         auto first = decadesGraph(false, false);
         first->setPlotLabel("first");
         auto second = decadesGraph(false, false);
         second->setPlotLabel("second");
         first->registerSecondaryPlotter(second);
-        CHECK_FALSE(render(first, plotBackend::ROOT).contains("GetXsize()"));
+        CHECK_FALSE(render(first, plotBackend::ROOT).contains("widest_at"));
     }
 
     SECTION("a single series gets no legend, labelled or not") {
@@ -2100,4 +2101,35 @@ TEST_CASE("A 2-d histogram rebuilt from its spec keeps its option and its place 
     primary->registerSecondaryPlotter(std::shared_ptr<GBasePlotter>(std::move(rebuilt)));
     const std::string root = render(primary, plotBackend::ROOT);
     CHECK(root.contains("->Draw(\"BOX,same\");"));
+}
+
+/******************************************************************************/
+// The canvas label of a ROOT figure has one text size, whatever its letters: ROOT's own size follows
+// the height of the label's letters, so a label without descenders came out smaller than one with
+// them. The size is set, and only a label too wide for its box is drawn smaller.
+TEST_CASE(
+    "The canvas label of a ROOT figure has one text size whatever its letters",
+    "[plotting]"
+) {
+    auto g = std::make_shared<GGraph2D>();
+    (*g) & std::tuple<double, double>(1.0, 2.0);
+    GPlotDesigner gpd("nm on the Zakharov function", 1, 1);
+    gpd.registerPlotter(g);
+
+    const std::string s = gpd.plot();
+    std::ostringstream size;
+    size.imbue(std::locale::classic());
+    size << "double size = " << CANVASLABELTEXTSIZE << ";";
+    const auto label = s.find("new TPaveLabel(");
+    const auto set = s.find("canvasTitle->SetTextSize(size);");
+    const auto draw = s.find("canvasTitle->Draw();");
+    REQUIRE(label != std::string::npos);
+    CHECK(s.contains(size.str()));
+    REQUIRE(set != std::string::npos);
+    REQUIRE(draw != std::string::npos);
+    CHECK(label < set);
+    CHECK(set < draw);
+    // Without a canvas label there is nothing to size.
+    gpd.setShowCanvasLabel(false);
+    CHECK_FALSE(gpd.plot().contains("canvasTitle"));
 }

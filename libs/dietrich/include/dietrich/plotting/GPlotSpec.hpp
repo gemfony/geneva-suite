@@ -506,6 +506,13 @@ legendBox(legendPosition position, std::size_t n_series) {
 }
 
 /******************************************************************************/
+/**
+ * The text size of the canvas label, the title of a ROOT figure, relative to the height of its box.
+ * ROOT's own choice for a label (no size set) follows the height of the label's letters, so a label
+ * without descenders (g, j, p, q, y) came out smaller than one with them; with this size every label
+ * has one size. A label too wide for its box at this size is drawn smaller.
+ */
+constexpr double CANVASLABELTEXTSIZE = 0.75;
 /** The text size of a legend placed in a corner, relative to the pad's height (ROOT) */
 constexpr double LEGENDTEXTSIZE = 0.045;
 /**
