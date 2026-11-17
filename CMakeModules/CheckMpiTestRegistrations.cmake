@@ -32,15 +32,15 @@
 # the MPIRUN of the speed-up checks) -- runs under GenevaRunMpiTest.sh, that is, was registered with
 # GENEVA_ADD_MPI_TEST (GenevaMpiTest.cmake), so that it has a directory of its own for Open MPI's
 # shared-memory files; and that its TIMEOUT was not lowered afterwards below the runner's bound
-# and the 15 s the runner needs to end the command and remove the directory. The entries are read
-# from "ctest --show-only=json-v1".
+# plus the margin the runner needs to end the command and remove the directory. The entries are
+# read from "ctest --show-only=json-v1".
 #
 # Inputs (via -D): CTEST (the ctest program), BUILD_DIR (the build tree), MPIEXEC (the launcher),
-# RUNNER (GenevaRunMpiTest.sh).
+# RUNNER (GenevaRunMpiTest.sh), MARGIN (GENEVA_MPI_TEST_MARGIN of GenevaMpiTest.cmake).
 #
 ################################################################################
 
-FOREACH(_var CTEST BUILD_DIR MPIEXEC RUNNER)
+FOREACH(_var CTEST BUILD_DIR MPIEXEC RUNNER MARGIN)
 	IF(NOT DEFINED ${_var} OR "${${_var}}" STREQUAL "")
 		MESSAGE(FATAL_ERROR "CheckMpiTestRegistrations.cmake needs -D${_var}=...")
 	ENDIF()
@@ -90,7 +90,7 @@ FOREACH(_i RANGE ${_last})
 			ENDIF()
 		ENDFOREACH()
 	ENDIF()
-	MATH(EXPR _needed "${_bound} + 15")
+	MATH(EXPR _needed "${_bound} + ${MARGIN}")
 	IF(_timeout LESS _needed)
 		LIST(APPEND _short_timeout "${_name} (bound ${_bound} s, TIMEOUT ${_timeout} s)")
 	ENDIF()
@@ -108,7 +108,7 @@ IF(_without_runner)
 ENDIF()
 IF(_short_timeout)
 	LIST(JOIN _short_timeout "\n  " _names)
-	MESSAGE(FATAL_ERROR "Entries whose TIMEOUT leaves the runner less than 15 s after its bound, so "
+	MESSAGE(FATAL_ERROR "Entries whose TIMEOUT leaves the runner less than ${MARGIN} s after its bound, so "
 		"that ctest may end them before the directory is removed (set the TIMEOUT through "
 		"GENEVA_ADD_MPI_TEST only):\n  ${_names}")
 ENDIF()

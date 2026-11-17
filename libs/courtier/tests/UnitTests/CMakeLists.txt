@@ -179,7 +179,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	#     geneva_courtier_mpi_scenario(<entry-name> <ranks> <scenario> [TIMEOUT <seconds>]
 	#                                  [<further arguments>...])
 	#
-	# The entry runs under GENEVA_ADD_MPI_TEST, with a TIMEOUT of 120 s unless one is given.
+	# The entry runs under GENEVA_ADD_MPI_TEST, bounded at 120 s unless a TIMEOUT is given.
 	#
 	# PROCESSORS tells the `ctest -j` scheduler what the entry really costs: one CTest slot but
 	# <ranks> live processes. Without it the scheduler counts it as one and oversubscribes the
@@ -246,7 +246,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiCallsTest M)
 	# Sends that are given up and never received do not keep MPI from finalizing: both ranks end.
-	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiGivenUpSendsTest TIMEOUT 35
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiGivenUpSendsTest TIMEOUT 20
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS}
 					--never-received)
