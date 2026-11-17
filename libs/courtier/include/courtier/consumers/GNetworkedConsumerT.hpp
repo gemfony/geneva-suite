@@ -817,7 +817,7 @@ private:
                 recordLateDrop_locked(1);
                 return;
             }
-            p->graftOaScratchFrom(**orig);
+            p->graftRetainedStateFrom(**orig);
         }
         if(not late_store_.buffering()) {
             recordLateDrop_locked(1); // buffering off: count the drop, do not hold the item

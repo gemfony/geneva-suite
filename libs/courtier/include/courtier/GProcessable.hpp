@@ -390,20 +390,23 @@ public:
     [[nodiscard]] std::string getStoredErrorDescriptions() const { return stored_error_descriptions_; }
 
     /***************************************************************************/
-    // OA scratch transfer (server-side return reconciliation)
+    // Retained-state transfer (server-side return reconciliation)
 
     /**
-     * @brief Re-attaches the optimization-algorithm scratch of @p original onto this work item.
+     * @brief Grafts the retained state of @p original back onto this work item.
      *
-     * The OA-owned scratch (a geneva concept: the per-individual personality object + per-group adaption
-     * POD state) is deliberately omitted on the wire, so a work item that has made a networked round-trip
-     * comes back WITHOUT it. When a networked consumer reconciles such a return against the
-     * originally-submitted item it still holds, it calls this to graft the scratch back from that
-     * original, so the live population element keeps its evolved OA state across the round-trip. The base
-     * carries no scratch, so this is a no-op unless a derived class (geneva's individual) overrides it.
-     * @param original The originally-submitted item supplying the scratch to graft back
+     * A work item may hold state that deliberately does not travel on the wire: it stays with the
+     * submitter and is written only to a checkpoint or file (see ser_wire_omitted_ptr). A work item
+     * that has made a networked round-trip therefore comes back WITHOUT it. When a networked
+     * consumer reconciles such a return against the originally-submitted item it still holds, it
+     * calls this to take that state back from the original, so the submitter's item keeps it across
+     * the round-trip. The base retains no such state, so this is a no-op unless a derived class
+     * overrides graftRetainedStateFrom_() (Geneva's GGenome does, for its algorithm scratch).
+     * @param original The originally-submitted item supplying the retained state
      */
-    void graftOaScratchFrom(const GProcessable &original) { this->graftOaScratchFrom_(original); }
+    void graftRetainedStateFrom(const GProcessable &original) {
+        this->graftRetainedStateFrom_(original);
+    }
 
     /***************************************************************************/
     // The processing lifecycle as a transportable record (see GProcessingOutcome).
@@ -737,13 +740,13 @@ protected:
     }
 
     /**
-     * @brief Hook: re-attaches the OA-owned scratch from @p original (see graftOaScratchFrom()). The base
-     * carries no scratch, so the default is a no-op; geneva's GGenome overrides it to deep-copy
-     * the scratch back.
-     * @param original The originally-submitted item supplying the scratch to graft back
+     * @brief Hook: grafts the retained state of @p original back (see graftRetainedStateFrom()). The
+     * base retains no such state, so the default is a no-op; Geneva's GGenome overrides it to
+     * deep-copy its algorithm scratch back.
+     * @param original The originally-submitted item supplying the retained state
      */
-    virtual void graftOaScratchFrom_([[maybe_unused]] const GProcessable &original) {
-        /* no OA scratch in the base */
+    virtual void graftRetainedStateFrom_([[maybe_unused]] const GProcessable &original) {
+        /* no retained state in the base */
     }
 
     /**

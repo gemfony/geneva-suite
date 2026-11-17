@@ -573,6 +573,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GEEI_DEF_DATATYPE` were removed.** The two accessors were declared but never defined, so no
   program could have called them. The `dataType` field of the exchange file names the kind of
   message and is fixed by the operation that writes it; it is not a property of an individual.
+- **courtier: `GProcessable::graftOaScratchFrom()` / `graftOaScratchFrom_()` are
+  `graftRetainedStateFrom()` / `graftRetainedStateFrom_()`.** The hook takes back from the
+  originally-submitted item the state that does not travel on the wire; courtier names it for
+  that, not for the use Geneva makes of it. A work-item class that overrides the hook renames
+  its override.
 
 ## 8. Checkpointing
 

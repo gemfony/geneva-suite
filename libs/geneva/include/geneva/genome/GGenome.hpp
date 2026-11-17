@@ -1507,9 +1507,9 @@ private:
 
     /** @brief Re-attaches the OA-owned scratch from @p original onto this individual (the wire omits the
      *  scratch, so a networked return arrives without it; the consumer grafts it back from the retained
-     *  original -- see Gem::Courtier::GProcessable::graftOaScratchFrom()).
+     *  original -- see Gem::Courtier::GProcessable::graftRetainedStateFrom()).
      *  @param original The originally-submitted item supplying the scratch (ignored if not a GGenome) */
-    void graftOaScratchFrom_(const Gem::Courtier::GProcessable &original) override {
+    void graftRetainedStateFrom_(const Gem::Courtier::GProcessable &original) override {
         const auto *src = dynamic_cast<const GGenome *>(&original);
         if(src != nullptr && src->scratch_) {
             // This deep-copy runs under the consumer's mutex (the original is reconciled in place). It is
@@ -1517,7 +1517,7 @@ private:
             // so a move WOULD be safe and O(1) -- but coupling correctness to that "source dies next"
             // invariant is a footgun a future reorder could trip silently. SIGNPOST: if profiling at high
             // client/return rates ever shows this mutex as hot, switch to an explicit consume -- take the
-            // source by rvalue-ref (graftOaScratchFrom_(GProcessable&&)) so call sites must std::move it and
+            // source by rvalue-ref (graftRetainedStateFrom_(GProcessable&&)) so call sites must std::move it and
             // the steal is visible -- rather than turning this into a silent move. Until then, keep the copy.
             scratch_ = std::make_unique<GAuxiliaryStore>(*src->scratch_);
         }
