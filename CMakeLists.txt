@@ -808,6 +808,26 @@ IF (GENEVA_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(SpecialMemberNolintEffective PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(SpecialMemberNolintEffective S)
 
+	# Doxygen reports no warning about the libraries' documentation beyond the few that
+	# CMakeModules/DoxygenWarningsAllowed.txt lists with their reason. Needs Doxygen, like the doc
+	# targets.
+	IF (DOXYGEN_FOUND)
+		ADD_TEST(
+			NAME DoxygenWarningsOnlyAllowed
+			COMMAND ${CMAKE_COMMAND}
+				-DDOXYGEN=${DOXYGEN_EXECUTABLE}
+				-DBUILD_DIR=${CMAKE_BINARY_DIR}
+				-DSOURCE_DIR=${PROJECT_SOURCE_DIR}
+				-DALLOWED=${PROJECT_SOURCE_DIR}/CMakeModules/DoxygenWarningsAllowed.txt
+				-DLIBS=weft,common,hap,dietrich,courtier,geneva
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckDoxygenWarnings.cmake
+		)
+		SET_TESTS_PROPERTIES(DoxygenWarningsOnlyAllowed PROPERTIES LABELS "conventions")
+		GENEVA_TEST_SIZE(DoxygenWarningsOnlyAllowed M)
+	ELSE ()
+		MESSAGE(STATUS "DoxygenWarningsOnlyAllowed not registered: Doxygen not found")
+	ENDIF ()
+
 	# The rule of CheckFigureTitles.cmake on two figures of one pad with a canvas label: a series
 	# with a blank title (the plotting library's " " for an unlabelled series) shows no second
 	# title, a labelled one does.
