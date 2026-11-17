@@ -37,7 +37,8 @@ Usage:
   testSpeedupTools.py run <GParallelisationOverhead> <workdir> <consumer> [<reference dir>]
       a short run of runWithClients.sh with two clients; with a reference dir, the serial reference
       of that earlier run is used instead of a new one (MPIRUN in the environment says how mpi is
-      started)
+      started). The run passes a client option, the prefetch depth, and checks that both clients
+      used it.
   testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
       group of three, and every process ends by itself
@@ -156,10 +157,11 @@ def check_figure(program, workdir):
     print('figure and means as expected')
 
 
-def run_script(program, workdir, consumer, rows, reference_delays, env=None):
-    """Runs runWithClients.sh with two clients and returns its exit code and its output."""
+def run_script(program, workdir, consumer, rows, reference_delays, env=None, options=None):
+    """Runs runWithClients.sh with two clients and returns its exit code and its output; options
+    follow the nine arguments."""
     run = subprocess.run(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
-                          consumer, '2', '4', '2', rows, reference_delays, '1'],
+                          consumer, '2', '4', '2', rows, reference_delays, '1'] + (options or []),
                          env=dict(os.environ, **(env or {})), capture_output=True, text=True,
                          check=False, timeout=240)
     sys.stdout.write(run.stdout)
@@ -182,9 +184,13 @@ def check_run(program, workdir, consumer, reference_dir):
         holder.bind(('0.0.0.0', 0))
         holder.listen(1)
         env = {'SERVER_PORT': str(holder.getsockname()[1])}
+    # A client option must reach every client: a prefetch depth other than the consumer's default
+    # (1 for a networked consumer, 2 for mpi), which each client names when it ends.
+    depth = '3' if consumer == 'mpi' else '2'
+    options = [f'--{consumer}_prefetchDepth', depth, f'--{consumer}_parallelEvaluations', '1']
     try:
         status, out = run_script(program, workdir, consumer, '(0,10)', '(0,10), (0,20), (0,30)',
-                                 env)
+                                 env, options)
     finally:
         if holder is not None:
             holder.close()
@@ -201,6 +207,16 @@ def check_run(program, workdir, consumer, reference_dir):
     log = open(os.path.join(workdir, 'server.log'), encoding='utf-8', errors='replace').read()
     if 'Waiting for clients: 2 of 2 clients connected after' not in log:
         fail('the server did not wait for its two clients')
+    # The clients of a networked consumer write to clients.log, the ranks of mpi to server.log. A
+    # client that had to be ended may not have said its prefetch depth.
+    if consumer != 'mpi':
+        if 'clients that did not end by themselves: 0' not in out:
+            fail(f'a client had to be ended: {out}')
+        log = open(os.path.join(workdir, 'clients.log'), encoding='utf-8', errors='replace').read()
+    used = {d: log.count(f'prefetch depth was {d}\n') for d in ('1', '2', '3')}
+    if used[depth] != 2 or sum(used.values()) != 2:
+        fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
+             '(depth: number of clients)')
     if reference_dir:
         line = open(os.path.join(reference_dir, 'referenceLine.txt'), encoding='utf-8').read()
         a, _, b, _ = (float(v) for v in line.split())

@@ -33,7 +33,7 @@
 #
 # Usage:
 #   ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population> \
-#       <iterations> "<delays>" "<reference delays>" <measurements> [server options]
+#       <iterations> "<delays>" "<reference delays>" <measurements> [options]
 #
 #     binary       the GParallelisationOverhead (or GSubClientOverhead) executable
 #     workdir      a directory OUTSIDE the source tree
@@ -43,6 +43,9 @@
 #     delays       the evaluation times, as "(seconds,milliseconds), ..."
 #     reference delays   the (short) evaluation times of the serial reference
 #     measurements how often each evaluation time is measured
+#
+# The options after the nine arguments go to every process: the server and each
+# client (with mpi: every rank).
 #
 # The serial reference is a run of its own on one local worker. It is kept if
 # the work directory already holds a referenceLine.txt, so that several runs can
@@ -86,15 +89,15 @@
 #            adaptive lease may give an item to a second client.
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
-# sets the configuration of either individual. The output of the clients goes
-# to clients.log.
+# sets the configuration of either individual. The output of the clients of
+# this run goes to clients.log.
 ####################################################################
 
 set -u
 
 if [ $# -lt 9 ]; then
     echo "Usage: ./runWithClients.sh <binary> <workdir> <consumer> <clients> <population>" \
-         "<iterations> \"<delays>\" \"<reference delays>\" <measurements> [server options]"
+         "<iterations> \"<delays>\" \"<reference delays>\" <measurements> [options]"
     exit 1
 fi
 
@@ -147,7 +150,7 @@ fi
 GATE=(--waitForClients "${EXPECT_CLIENTS:-$N}" --clientWaitLimit "${CLIENT_WAIT_LIMIT:-600}")
 
 if [ "$C" = mpi ]; then
-    # The ranks take their roles from MPI; the server options reach every rank.
+    # The ranks take their roles from MPI; the options reach every rank.
     # shellcheck disable=SC2086
     ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" "$@" \
         > server.log 2>&1
@@ -173,6 +176,8 @@ else
         # shellcheck disable=SC2206
         LAUNCH=(${MPIRUN:-mpirun --oversubscribe -np} "$GROUP"); GROUPOPT=(--group "$GROUP")
     fi
+    # clients.log holds the clients of this run only
+    : > clients.log
     PIDS=()
     for i in $(seq 1 "$N"); do
         if [ "$i" = "$N" ] && [ "${LAST_CLIENT_DELAY:-0}" != 0 ]; then
@@ -184,7 +189,8 @@ else
             done
             sleep "$LAST_CLIENT_DELAY"
         fi
-        "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" >> clients.log 2>&1 &
+        "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" "$@" \
+            >> clients.log 2>&1 &
         PIDS+=($!)
     done
     wait $SRV; STATUS=$?
