@@ -147,12 +147,13 @@ public:
     /**
      * @brief Initialization with neighborhood sizes and amount of individuals in each neighborhood.
      *
-     * The first (unnamed) argument is the number of neighborhoods, the second is the (default) number
-     * of individuals in each neighborhood.
+     * @param n_neighborhoods The number of neighborhoods
+     * @param default_n_neighborhood_members The (default) number of individuals per neighborhood
      */
     GSwarmAlgorithm(const std::size_t &n_neighborhoods, const std::size_t &default_n_neighborhood_members);
     /**
-     * @brief A standard copy constructor. The (unnamed) argument is the other GSwarmAlgorithm object to be copied.
+     * @brief A standard copy constructor
+     * @param cp The other GSwarmAlgorithm object to be copied
      */
     GSwarmAlgorithm(const GSwarmAlgorithm &cp);
     /** @brief The destructor */
@@ -161,15 +162,15 @@ public:
     /**
      * @brief Sets the number of neighborhoods and the number of members in them.
      *
-     * The first (unnamed) argument is the desired number of neighborhoods, the second is the desired
-     * number of members per neighborhood.
+     * @param n_neighborhoods The desired number of neighborhoods
+     * @param default_n_neighborhood_members The desired number of members per neighborhood
      */
     void setSwarmSizes(std::size_t n_neighborhoods, std::size_t default_n_neighborhood_members);
 
     /**
      * @brief Allows to set a static multiplier for personal distances.
      *
-     * The (unnamed) argument is the new value of the personal-distance multiplier (c_personal_).
+     * @param c_personal The new value of the personal-distance multiplier (c_personal_)
      */
     void setCPersonal(double c_personal);
     /**
@@ -181,7 +182,7 @@ public:
     /**
      * @brief Allows to set a static multiplier for neighborhood distances.
      *
-     * The (unnamed) argument is the new value of the neighborhood-distance multiplier (c_neighborhood_).
+     * @param c_neighborhood The new value of the neighborhood-distance multiplier (c_neighborhood_)
      */
     void setCNeighborhood(double c_neighborhood);
     /**
@@ -193,7 +194,7 @@ public:
     /**
      * @brief Allows to set a static multiplier for global distances.
      *
-     * The (unnamed) argument is the new value of the global-distance multiplier (c_global_).
+     * @param c_global The new value of the global-distance multiplier (c_global_)
      */
     void setCGlobal(double c_global);
     /**
@@ -205,7 +206,7 @@ public:
     /**
      * @brief Allows to set a static multiplier for velocities.
      *
-     * The (unnamed) argument is the new value of the velocity multiplier (c_velocity_).
+     * @param c_velocity The new value of the velocity multiplier (c_velocity_)
      */
     void setCVelocity(double c_velocity);
     /**
@@ -217,8 +218,8 @@ public:
     /**
      * @brief Allows to set the velocity range percentage.
      *
-     * The (unnamed) argument is the new percentage of the parameter value range used when initializing
-     * velocities (velocity_range_percentage_).
+     * @param velocity_range_percentage The new percentage of the parameter value range used when
+     * initializing velocities (velocity_range_percentage_)
      */
     void setVelocityRangePercentage(double velocity_range_percentage);
     /**
@@ -240,7 +241,7 @@ public:
     /**
      * @brief Retrieves the current number of individuals in a given neighborhood.
      *
-     * The (unnamed) argument is the index of the neighborhood whose current member count is requested.
+     * @param neighborhood The index of the neighborhood whose current member count is requested
      * @return The current number of individuals in the requested neighborhood
      */
     std::size_t getCurrentNNeighborhoodMembers(const std::size_t &neighborhood) const;
@@ -248,7 +249,7 @@ public:
     /**
      * @brief Allows to specify the update rule to be used by the swarm.
      *
-     * The (unnamed) argument is the new update rule (update_rule_) governing how positions are updated.
+     * @param ur The new update rule (update_rule_) governing how positions are updated
      */
     void setUpdateRule(updateRule ur);
     /**
@@ -260,8 +261,8 @@ public:
     /**
      * @brief Allows to specify the number of stalls as of which the algorithm switches to repulsive mode.
      *
-     * The (unnamed) argument is the new repulsion threshold (repulsion_threshold_); a value of 0 disables
-     * the switch to repulsion.
+     * @param repulsion_threshold The new repulsion threshold (repulsion_threshold_); a value of 0
+     * disables the switch to repulsion
      */
     void setRepulsionThreshold(std::uint32_t repulsion_threshold);
     /**
@@ -275,7 +276,7 @@ public:
     /**
      * @brief All individuals automatically added to a neighborhood will have a random value.
      *
-     * The (unnamed) argument indicates whether random fill-up should be enabled (defaults to true).
+     * @param random_fill_up Whether random fill-up should be enabled (defaults to true)
      */
     void setNeighborhoodsRandomFillUp(bool random_fill_up = true);
     /**
@@ -393,15 +394,15 @@ protected:
     /**
      * @brief Helper function that returns the id of the first individual of a neighborhood.
      *
-     * The (unnamed) argument is the index of the neighborhood whose first individual position is requested.
+     * @param neighborhood The index of the neighborhood whose first position is requested
      * @return The position (index in the population) of the first individual of the given neighborhood
      */
     std::size_t getFirstNIPos(const std::size_t &neighborhood) const;
     /**
      * @brief Helper function that returns the id of the first individual of a neighborhood, using a vector of neighborhood sizes.
      *
-     * The first (unnamed) argument is the index of the neighborhood; the second is a vector holding the
-     * sizes of all neighborhoods, used to compute the offset.
+     * @param neighborhood The index of the neighborhood
+     * @param vec The sizes of all neighborhoods, used to compute the offset
      * @return The position (index in the population) of the first individual of the given neighborhood
      */
     static std::size_t
@@ -409,7 +410,7 @@ protected:
     /**
      * @brief Helper function that returns the id of the last individual of a neighborhood.
      *
-     * The (unnamed) argument is the index of the neighborhood whose last individual position is requested.
+     * @param neighborhood The index of the neighborhood whose last individual position is requested
      * @return The position (index in the population) one past the last individual of the given neighborhood
      */
     std::size_t getLastNIPos(const std::size_t &neighborhood) const;
@@ -417,10 +418,13 @@ protected:
     /**
      * @brief Triggers an update of an individual's positions.
      *
-     * The (unnamed) arguments are, in order: the neighborhood index, the population slot being moved
-     * (borrowed), the neighborhood-best individual, the global-best individual, and a tuple holding the
-     * four multipliers (c_personal, c_neighborhood, c_global, c_velocity). The per-particle velocity now
-     * lives on the slot's OA scratch.
+     * The per-particle velocity lives on the slot's OA scratch.
+     *
+     * @param neighborhood The neighborhood index
+     * @param ind The population slot being moved (borrowed)
+     * @param neighborhood_best The neighborhood-best individual
+     * @param global_best The global-best individual
+     * @param constants The four multipliers (c_personal, c_neighborhood, c_global, c_velocity)
      */
     void updateIndividualPositions(
         const std::size_t &neighborhood,
@@ -433,22 +437,22 @@ protected:
     /**
      * @brief Adjusts the velocity vector so that its values don't exceed the allowed value range.
      *
-     * The (unnamed) argument is the velocity vector to be pruned in place (clamped to the maximum allowed
-     * per-component velocities).
+     * @param vel_vec The velocity vector to be pruned in place (clamped to the maximum allowed
+     * per-component velocities)
      */
     void pruneVelocity(std::vector<double> &vel_vec);
 
     /**
      * @brief Updates the personal best of an individual.
      *
-     * The (unnamed) argument is the population slot whose personal best is unconditionally updated (borrowed).
+     * @param ind_ptr The population slot whose personal best is unconditionally updated (borrowed)
      */
     static void updatePersonalBest(const std::unique_ptr<gen::GGenome> &ind_ptr);
     /**
      * @brief Updates the personal best of an individual, if a better solution was found.
      *
-     * The (unnamed) argument is the population slot whose personal best is updated only when the current
-     * solution is better (borrowed).
+     * @param ind_ptr The population slot whose personal best is updated only when the current
+     * solution is better (borrowed)
      */
     void updatePersonalBestIfBetter(const std::unique_ptr<gen::GGenome> &ind_ptr);
 
