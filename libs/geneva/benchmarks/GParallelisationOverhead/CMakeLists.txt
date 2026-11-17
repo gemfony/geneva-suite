@@ -117,8 +117,10 @@ IF (Python3_Interpreter_FOUND)
 	# three times, each within 60 s. It runs 2 competitors and up to 16 racers at a time, so it
 	# declares 18 processors. On a host whose pid_max is too small for the placement it ends with 77
 	# and is skipped; the two SmallPidMax entries check that, with a stand-in pid_max of 32768 (the
-	# kernel's default). A placement check killed with SIGKILL leaves no competitor behind. Linux
-	# only: the pids are read from /proc.
+	# kernel's default). A placement check killed with SIGKILL leaves no competitor behind, also on
+	# such a host (it is killed before it places anything, and gives its placement check a stand-in
+	# pid_max large enough; PlacementKilledSmallPidMax checks that). Linux only: the pids are read
+	# from /proc.
 	IF (EXISTS /proc/sys/kernel/ns_last_pid)
 		ADD_TEST(NAME SpeedupToolsPidPlacementUnderLoad COMMAND ${SPEEDUP_TOOLS_CHECK} placement 2)
 		SET_TESTS_PROPERTIES(SpeedupToolsPidPlacementUnderLoad PROPERTIES
@@ -126,10 +128,12 @@ IF (Python3_Interpreter_FOUND)
 		GENEVA_TEST_SIZE(SpeedupToolsPidPlacementUnderLoad L)
 
 		ADD_TEST(NAME SpeedupToolsPidPlacementSmallPidMax
-			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768 ${SPEEDUP_TOOLS_CHECK} placement 2)
+			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768
+				${SPEEDUP_TOOLS_CHECK} placement 2)
 		ADD_TEST(NAME SpeedupToolsSameJobIdSmallPidMax
-			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768 ${SPEEDUP_TOOLS_CHECK}
-				samejobid ${CMAKE_CURRENT_BINARY_DIR}/no-program ${CMAKE_CURRENT_BINARY_DIR}/check-small-pid-max)
+			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768
+				${SPEEDUP_TOOLS_CHECK} samejobid ${CMAKE_CURRENT_BINARY_DIR}/no-program
+				${CMAKE_CURRENT_BINARY_DIR}/check-small-pid-max)
 		FOREACH (_entry SpeedupToolsPidPlacementSmallPidMax SpeedupToolsSameJobIdSmallPidMax)
 			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "benchmark" TIMEOUT 60
 				PASS_REGULAR_EXPRESSION "SKIPPED: pid_max is 32768")
@@ -137,16 +141,22 @@ IF (Python3_Interpreter_FOUND)
 		ENDFOREACH ()
 
 		ADD_TEST(NAME SpeedupToolsPlacementKilled COMMAND ${SPEEDUP_TOOLS_CHECK} placement-killed)
-		SET_TESTS_PROPERTIES(SpeedupToolsPlacementKilled PROPERTIES
-			LABELS "benchmark" TIMEOUT 60 PROCESSORS 18)
-		GENEVA_TEST_SIZE(SpeedupToolsPlacementKilled S)
+		ADD_TEST(NAME SpeedupToolsPlacementKilledSmallPidMax
+			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768
+				${SPEEDUP_TOOLS_CHECK} placement-killed)
+		FOREACH (_entry SpeedupToolsPlacementKilled SpeedupToolsPlacementKilledSmallPidMax)
+			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "benchmark" TIMEOUT 60 PROCESSORS 18
+				PASS_REGULAR_EXPRESSION "the placement check, killed, left no process behind")
+			GENEVA_TEST_SIZE(${_entry} S)
+		ENDFOREACH ()
 	ENDIF ()
 
 	# A check that starts MPI jobs refuses to run without MPIRUN instead of taking a launcher from
 	# PATH, which GenevaMpiTestsRegistered could not see.
 	ADD_TEST(NAME SpeedupToolsLauncherRequired
 		COMMAND ${CMAKE_COMMAND} -E env --unset=MPIRUN ${SPEEDUP_TOOLS_CHECK} groups
-			${CMAKE_CURRENT_BINARY_DIR}/no-program ${CMAKE_CURRENT_BINARY_DIR}/check-launcher-required)
+			${CMAKE_CURRENT_BINARY_DIR}/no-program
+			${CMAKE_CURRENT_BINARY_DIR}/check-launcher-required)
 	SET_TESTS_PROPERTIES(SpeedupToolsLauncherRequired PROPERTIES LABELS "benchmark" TIMEOUT 60
 		PASS_REGULAR_EXPRESSION "FAILED: MPIRUN is not set")
 	GENEVA_TEST_SIZE(SpeedupToolsLauncherRequired S)

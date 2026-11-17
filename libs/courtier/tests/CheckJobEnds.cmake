@@ -86,12 +86,13 @@ if((_timeout_program AND _rc STREQUAL "124") OR _rc MATCHES "timeout")
         "processes named GCourtierMpiCas still running: ${_left}")
 endif()
 # The job ended, but the launcher by a signal (a text instead of a number): Open MPI 5.0.10's
-# prterun was seen to crash in PMIx_server_finalize while it tore a job down after MPI_Abort. That is
-# a non-zero end of the job -- all a job that must end otherwise asks for; one that must end with 0
-# or with a given code fails.
+# prterun was seen to crash in PMIx_server_finalize while it tore a job down after MPI_Abort. That
+# is a non-zero end of the job -- all a job that must end otherwise asks for; one that must end
+# with 0 or with a given code fails.
 if(NOT _rc MATCHES "^-?[0-9]+$")
     if(NOT EXPECT_EXIT STREQUAL "nonzero")
-        message(FATAL_ERROR "FAIL: the launcher ended by a signal (${_rc}), not with ${EXPECT_EXIT}")
+        message(FATAL_ERROR
+            "FAIL: the launcher ended by a signal (${_rc}), not with ${EXPECT_EXIT}")
     endif()
     message(STATUS "the launcher ended by a signal (${_rc}): a non-zero end")
     set(_rc "a signal (${_rc})")

@@ -424,16 +424,21 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		REFUSE "MPI_Abort")
 	# A submitter that catches its failure and ends the job with abortJob() and a code: the job
 	# ends with that code (a catch that returned instead would leave the leads waiting); a second
-	# call at the same time changes nothing; abortJob() is refused on leads and members; without MPI
-	# it ends the process with the code
+	# call, with code 43, made while the first is held before its MPI_Abort, waits for the first:
+	# its reason is never logged and the job ends with 42; abortJob() is refused on leads and
+	# members; without MPI it ends the process with the code
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterAborts 4 M 42 submitter-aborts
-		EXPECT "abortJob(): the submitter failed: injected failure of the submitter before its consumer"
-		"The job is ended (MPI_Abort)")
+		EXPECT "abortJob(): the submitter failed: injected failure of the submitter"
+			"The job is ended (MPI_Abort)")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterAbortsTwice 4 M 42
-		submitter-aborts-twice EXPECT "abortJob(): the submitter failed" "The job is ended (MPI_Abort)")
+		submitter-aborts-twice
+		EXPECT "abortJob(): the submitter failed: injected failure of the submitter"
+			"The job is ended (MPI_Abort)"
+		REFUSE "a second call of abortJob()")
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeAbortWithoutMpi 1 M 42 abort-without-mpi
 		NO_LAUNCHER ARGS --update-configs
-		EXPECT "abortJob(): the submitter failed without MPI" "the process is ended with the exit code 42")
+		EXPECT "abortJob(): the submitter failed without MPI"
+			"the process is ended with the exit code 42")
 	# A cascade that lives inside a destructor while an unrelated exception unwinds: no exception
 	# unwinds through it, so the job ends normally; a submitter that never confirms its role there
 	# still ends the job for that reason

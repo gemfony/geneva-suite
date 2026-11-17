@@ -209,8 +209,9 @@ GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI
  * confirmed with requireRole() ends the job, unless an exception unwinds through the cascade
  * (unwinding_(); a lead that used the cascade has ended it at the first use already); the
  * submitter ends the job if an exception unwinds through the cascade and no MPI consumer was built
- * on it (nobody would tell the leads, which wait for its greeting); then the communicators are freed and the environment is let go of, which finalizes
- * MPI if it initialized it and this was its last holder.
+ * on it (nobody would tell the leads, which wait for its greeting); then the communicators are
+ * freed and the environment is let go of, which finalizes MPI if it initialized it and this was its
+ * last holder.
  */
 GMPICascade::~GMPICascade() {
     if(not environment_) {
@@ -934,8 +935,11 @@ void GMPICascade::endJob_(std::string_view where, std::string_view reason) const
  * @param reason Why
  * @param code The exit code of the job (the error code of MPI_Abort)
  */
-void GMPICascade::endJob_(std::string_view where, std::string_view reason, int code)
-    const noexcept {
+void GMPICascade::endJob_(
+    std::string_view where,
+    std::string_view reason,
+    int code
+) const noexcept {
     try {
         glogger << "In GMPICascade (base rank " << base_rank_ << "), " << where << ": " << reason
                 << '\n'
@@ -947,7 +951,7 @@ void GMPICascade::endJob_(std::string_view where, std::string_view reason, int c
     std::cout.flush();
     std::cerr.flush();
     std::ignore = MPI_Abort(base_, code); // does not return; nothing to do if it did
-    std::abort(); // not reached: MPI_Abort does not return
+    std::abort();                         // not reached: MPI_Abort does not return
 }
 
 /******************************************************************************/

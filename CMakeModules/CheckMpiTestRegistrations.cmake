@@ -112,8 +112,8 @@ IF(_without_runner)
 ENDIF()
 IF(_short_timeout)
 	LIST(JOIN _short_timeout "\n  " _names)
-	MESSAGE(FATAL_ERROR "Entries whose TIMEOUT leaves the runner less than ${MARGIN} s after its bound, so "
-		"that ctest may end them before the directory is removed (set the TIMEOUT through "
-		"GENEVA_ADD_MPI_TEST only):\n  ${_names}")
+	MESSAGE(FATAL_ERROR "Entries whose TIMEOUT leaves the runner less than ${MARGIN} s after its "
+		"bound, so that ctest may end them before the directory is removed (set the TIMEOUT "
+		"through GENEVA_ADD_MPI_TEST only):\n  ${_names}")
 ENDIF()
 MESSAGE(STATUS "All ${_with_launcher} entries that name the MPI launcher run under ${RUNNER}")

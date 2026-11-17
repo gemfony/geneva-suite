@@ -156,11 +156,11 @@ public:
  * classes), once per item.
  *
  * <b>Threads.</b> The constructor, serve(), lead(), requireRole() and the destructor are called by
- * the program's main thread. abortJob() may be called by any thread. round() may be called by any
- * thread; rounds run one after the other
- * (a lock is held from the announcement to the return of the lead's half). release() may be called
- * by any thread, not concurrently with the destructor; it waits for a round that runs, and a later
- * round() throws. round(), lead(), release() and serve() are not called from inside a function of
+ * the program's main thread. abortJob() may be called by any thread, not concurrently with the
+ * destructor. round() may be called by any thread; rounds run one after the other (a lock is held
+ * from the announcement to the return of the lead's half). release() may be called by any thread,
+ * not concurrently with the destructor; it waits for a round that runs, and a later round()
+ * throws. round(), lead(), release() and serve() are not called from inside a function of
  * the program that the cascade runs -- a lead's half, setUp(), serveRound(), tearDown(): the lead's
  * would wait for the cascade's lock, which the call holds, and a member's would take the group out
  * of step. The cascade detects such a call on the thread that runs the function and ends the MPI
@@ -311,9 +311,9 @@ private:
     MPI_Comm base_ = MPI_COMM_NULL; ///< The base communicator (the caller's; never freed)
     /// The submitter's and the leads' communicator, given to the environment
     MPI_Comm courtier_ = MPI_COMM_NULL;
-    MPI_Comm group_ = MPI_COMM_NULL;            ///< The group's communicator, for the halves
-    MPI_Comm status_ = MPI_COMM_NULL;           ///< The group's communicator for the announcements
-    int base_rank_ = 0;                         ///< This process's rank in base_
+    MPI_Comm group_ = MPI_COMM_NULL;  ///< The group's communicator, for the halves
+    MPI_Comm status_ = MPI_COMM_NULL; ///< The group's communicator for the announcements
+    int base_rank_ = 0;               ///< This process's rank in base_
     /// The exceptions that unwound when the cascade was constructed: it may live entirely inside
     /// a destructor that runs while an unrelated exception unwinds
     const int uncaught_at_construction_ = std::uncaught_exceptions();
@@ -327,7 +327,7 @@ private:
     bool stop_received_ = false;              ///< A member: the stop arrived (latched)
     bool served_ = false;                     ///< A member: serve() has run to its end
     std::atomic<bool> role_confirmed_{false}; ///< requireRole() was given role()
-    std::atomic_flag aborting_;               ///< abortJob() was called; its first call ends the job
+    std::atomic_flag aborting_; ///< abortJob() was called; its first call ends the job
     /// The thread that runs a function of the program for the cascade (a lead's half, setUp(),
     /// serveRound(), tearDown()); empty while none runs
     std::atomic<std::thread::id> inside_thread_;

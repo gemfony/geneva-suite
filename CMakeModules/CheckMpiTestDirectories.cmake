@@ -25,7 +25,6 @@
 # See the NOTICE file in the top-level directory of the Geneva library
 # collection for a list of contributors and copyright information.
 #
-#
 ################################################################################
 #
 # Driver of the test GenevaMpiTestDirectories: GenevaRunMpiTest.sh (the runner of every entry
@@ -127,7 +126,8 @@ FUNCTION(cmtd_bounded _how)
 			"${_took} s, not with 124")
 	ENDIF()
 	cmtd_noted("${WORK}/bounded-${_how}" _bounded)
-	MESSAGE(STATUS "A run ${_how} that outlasts its bound: ended after ${_took} s, ${_bounded} removed")
+	MESSAGE(STATUS
+		"A run ${_how} that outlasts its bound: ended after ${_took} s, ${_bounded} removed")
 ENDFUNCTION()
 
 # 4. A run sent <signal> (INT or TERM) while its command runs; it must end with <code>. The first

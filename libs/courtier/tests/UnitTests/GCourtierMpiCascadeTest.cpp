@@ -51,10 +51,13 @@
 #include <format>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <print>
 #include <span>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -1937,7 +1940,9 @@ public:
             report_.fail("an exception left the destructor's function: {}", e.what());
         }
         catch(...) {
-            report_.fail("an exception that is not a std::exception left the destructor's function");
+            report_.fail(
+                "an exception that is not a std::exception left the destructor's function"
+            );
         }
     }
     InDestructor(const InDestructor &) = delete;
@@ -1993,13 +1998,75 @@ int duringUnwindingScenario(Report &report, bool confirm) {
 constexpr int ABORTCODE = 42;
 
 /**
+ * Holds the first call of abortJob() between its log and its MPI_Abort, for a second call to be
+ * made while the first ends the job: it stands in for std::cerr's buffer, which abortJob()
+ * flushes after its log and before MPI_Abort, and holds 2 s in its first sync() on the thread
+ * that constructed it; waitHeld() returns once the hold has begun. Everything written goes on to
+ * std::cerr's own buffer, which is put back at the end of the hold's scope.
+ */
+class GAbortHold : public std::streambuf {
+public:
+    /** @brief Stands in for std::cerr's buffer, armed for the calling thread */
+    GAbortHold()
+      : target_(std::cerr.rdbuf(this))
+      , holder_(std::this_thread::get_id()) { /* nothing */
+    }
+
+    GAbortHold(const GAbortHold &) = delete;
+    GAbortHold(GAbortHold &&) = delete;
+    GAbortHold &operator=(const GAbortHold &) = delete;
+    GAbortHold &operator=(GAbortHold &&) = delete;
+
+    /** @brief Puts std::cerr's own buffer back */
+    ~GAbortHold() override {
+        std::cerr.rdbuf(target_);
+    }
+
+    /** @brief Waits until the hold has begun */
+    void waitHeld() const {
+        held_.wait(false);
+    }
+
+protected:
+    /** @brief Passes one character on */
+    int_type overflow(int_type c) override {
+        if(traits_type::eq_int_type(c, traits_type::eof())) {
+            return traits_type::not_eof(c);
+        }
+        return target_->sputc(traits_type::to_char_type(c));
+    }
+
+    /** @brief Passes a sequence of characters on */
+    std::streamsize xsputn(const char *s, std::streamsize n) override {
+        return target_->sputn(s, n);
+    }
+
+    /** @brief Holds 2 s the first time it is called on the arming thread, then flushes */
+    int sync() override {
+        if(std::this_thread::get_id() == holder_.load() && not held_.exchange(true)) {
+            held_.notify_all();
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+        }
+        return target_->pubsync();
+    }
+
+private:
+    std::streambuf *target_;              ///< std::cerr's own buffer
+    std::atomic<std::thread::id> holder_; ///< The thread whose first sync() holds
+    std::atomic<bool> held_{false};       ///< The hold has begun
+};
+
+/**
  * A submitter that catches its failure and ends the job explicitly (entries ...SubmitterAborts and
  * ...SubmitterAbortsTwice): in SUBMITTER_AND_GROUPS rank 0 confirms its role, catches an exception
  * before its consumer exists and calls abortJob() with ABORTCODE and the exception's text. The
  * leads wait for the greeting as MPI clients, without a limit, their members for them: had the
  * submitter returned after the catch instead, the job would never end. abortJob() is refused on
- * every lead and member first. With @p twice a second thread calls abortJob() at the same time:
- * the job still ends with ABORTCODE.
+ * every lead and member first. With @p twice a second thread calls abortJob() with ABORTCODE + 1
+ * and a reason of its own while the first call is held between its log and its MPI_Abort
+ * (GAbortHold): the second call must wait for the first, so that the job ends with ABORTCODE and
+ * the second reason is never logged. A second call that went on would log its reason and end the
+ * job with its own code within the hold.
  *
  * @param twice Whether a second thread calls abortJob() as well
  */
@@ -2009,9 +2076,11 @@ int submitterAbortsScenario(Report &report, bool twice) {
         return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
     });
     if(cascade.role() != processRole::SUBMITTER) {
-        report.expectThrow("abortJob() on a lead or a member", "abortJob() is called on the submitter", [&] {
-            cascade.abortJob(ABORTCODE, "refused here");
-        });
+        report.expectThrow(
+            "abortJob() on a lead or a member",
+            "abortJob() is called on the submitter",
+            [&] { cascade.abortJob(ABORTCODE, "refused here"); }
+        );
     }
     if(cascade.role() == processRole::BYSTANDER) {
         std::ignore = cascade.serve(member);
@@ -2024,11 +2093,14 @@ int submitterAbortsScenario(Report &report, bool twice) {
             throw InjectedFailure("injected failure of the submitter before its consumer");
         }
         catch(const InjectedFailure &e) {
-            // Never joined: one of the two calls ends the job, the other waits for that end
+            // Never joined: the first call ends the job, the second waits for that end
+            std::optional<GAbortHold> hold;
             Gem::Common::Concurrency::GThreadGroup threads;
             if(twice) {
-                threads.create_thread([&cascade] {
-                    cascade.abortJob(ABORTCODE, "the submitter failed (the second thread)");
+                hold.emplace();
+                threads.create_thread([&cascade, &hold] {
+                    hold->waitHeld();
+                    cascade.abortJob(ABORTCODE + 1, "a second call of abortJob()");
                 });
             }
             cascade.abortJob(ABORTCODE, std::format("the submitter failed: {}", e.what()));

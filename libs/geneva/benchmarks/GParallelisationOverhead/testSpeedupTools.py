@@ -37,8 +37,9 @@ Usage:
   testSpeedupTools.py run <GParallelisationOverhead> <workdir> <consumer> [<reference dir>]
       a short run of runWithClients.sh with two clients; with a reference dir, the serial reference
       of that earlier run is used instead of a new one (MPIRUN in the environment names the MPI
-      launcher; every check that starts MPI jobs refuses to run without it). The run passes two client options, the prefetch depth and the evaluations at a
-      time, and checks that both clients used them.
+      launcher; every check that starts MPI jobs refuses to run without it). The run passes two
+      client options, the prefetch depth and the evaluations at a time, and checks that both
+      clients used them.
   testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
       group of three, every process ends by itself, and both clients used the prefetch depth and
@@ -54,10 +55,6 @@ Usage:
   testSpeedupTools.py placement-killed
       the placement check, ended with SIGKILL while its competitors run (as ctest ends an entry
       at its TIMEOUT), leaves no process behind
-
-The samejobid and placement checks end with 77 (SKIP, the entries' SKIP_RETURN_CODE) on a host
-whose pid_max is too small for a job family to hold pids reliably; SPEEDUP_TOOLS_PID_MAX in the
-environment stands in for the kernel's pid_max, so that this can be checked on any host.
   testSpeedupTools.py interrupt <GSubClientOverhead> <workdir> <reference dir>
       runWithClients.sh with two websocket clients of three processes each, ended from outside
       with SIGINT while it measures: no process it started may remain, nor the geneva-sm.*
@@ -72,6 +69,10 @@ environment stands in for the kernel's pid_max, so that this can be checked on a
       the server waits for its clients before the first run: a client started seconds after the
       other is waited for; with one client too few the server ends at the limit, non-zero, and
       says how many came
+
+The samejobid and placement checks end with 77 (SKIP, the entries' SKIP_RETURN_CODE) on a host
+whose pid_max is too small for a job family to hold pids reliably; SPEEDUP_TOOLS_PID_MAX in the
+environment stands in for the kernel's pid_max, so that this can be checked on any host.
 
 The work directory is created; it must lie outside the source tree.
 """
@@ -98,6 +99,8 @@ SKIP = 77
 # The pids a job family (16 bits of Open MPI's job id) must hold on average in the pid cycle for
 # the placement on one of them to be reliable
 MIN_FAMILY_PIDS = 16
+# The smallest pid_max with that many (past pid_max the kernel starts again at 300)
+DENSE_PID_MAX = MIN_FAMILY_PIDS * 65536 + 300
 
 
 def fail(message):
@@ -418,10 +421,9 @@ def require_dense_families():
     one the first job has. The kernel's default is max(32768, 1024 x CPUs) where nothing raises
     it, which is about one pid per family."""
     limit = pid_max()
-    needed = MIN_FAMILY_PIDS * 65536 + 300
-    if limit < needed:
+    if limit < DENSE_PID_MAX:
         print(f'SKIPPED: pid_max is {limit}; placing a job on a pid of a job family needs at '
-              f'least {needed} (about {MIN_FAMILY_PIDS} pids per family)', flush=True)
+              f'least {DENSE_PID_MAX} (about {MIN_FAMILY_PIDS} pids per family)', flush=True)
         sys.exit(SKIP)
 
 
@@ -636,10 +638,15 @@ def check_placement(competitors):
 
 def check_placement_killed():
     """The placement check, killed with SIGKILL once its competitors run, leaves no process of
-    its session behind within 10 s (the racers of a placement end within 5 s by themselves)."""
+    its session behind within 10 s (the racers of a placement end within 5 s by themselves).
+
+    The check is killed before it places anything, so its pid_max does not matter: on a host
+    whose pid_max is too small for the placement, a stand-in lets it start its competitors
+    instead of skipping."""
+    env = dict(os.environ, SPEEDUP_TOOLS_PID_MAX=str(max(pid_max(), DENSE_PID_MAX)))
     job = subprocess.Popen([sys.executable, '-B', os.path.abspath(__file__), 'placement', '2'],
                            start_new_session=True, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True)
+                           stderr=subprocess.STDOUT, text=True, env=env)
     try:
         line = job.stdout.readline()
         if 'competitors take' not in line:

@@ -41,20 +41,19 @@
 # that run at the same time -- entries of one "ctest -j", or of two build trees -- can get the same
 # id, and then use each other's memory and crash or hang.
 #
-# The bound. At <bound> seconds <command> gets SIGTERM, and SIGKILL ten seconds later if it is
-# still there -- <command> and every process it started, in a process group of their own. Where
-# coreutils' timeout exists, it does this (it puts itself and <command> into a group of their
-# own); elsewhere <command> is started in a group of its own (bash's job control) and a watch of
-# this script signals that group. A bash script for that reason: sh has no job control without a
-# terminal. GENEVA_ADD_MPI_TEST sets the entry's TIMEOUT above the
-# bound, so that the script still removes the directory before ctest would end it with SIGKILL,
-# which no script can answer.
+# The bound. At <bound> seconds <command> gets SIGTERM, and SIGKILL ten seconds later if it is still
+# there -- <command> and every process it started, in a process group of their own. Where coreutils'
+# timeout exists, it does this (it puts itself and <command> into a group of their own); elsewhere
+# <command> is started in a group of its own (bash's job control) and a watch of this script signals
+# that group. A bash script for that reason: sh has no job control without a terminal.
+# GENEVA_ADD_MPI_TEST sets the entry's TIMEOUT above the bound, so that the script still removes the
+# directory before ctest would end it with SIGKILL, which no script can answer.
 #
 # Interrupts. <command> runs in the background while the script waits for it, so that SIGINT,
 # SIGTERM and SIGHUP reach the script at once; it passes each on to <command>'s process group as
-# SIGTERM (through timeout, where it runs), waits for <command> to end and removes the directory. A Ctrl-C at
-# a terminal reaches ctest's process group -- this script, but not timeout's group -- so without
-# this the MPI jobs would run on to their bound.
+# SIGTERM (through timeout, where it runs), waits for <command> to end and removes the directory. A
+# Ctrl-C at a terminal reaches ctest's process group -- this script, but not timeout's group -- so
+# without this the MPI jobs would run on to their bound.
 #
 # The exit code is <command>'s; at the bound 124 (137 after SIGKILL); after an interrupt 128 plus
 # the signal's number (130, 143, 129).
