@@ -147,20 +147,20 @@ public:
         );
     }
 
-    /** @brief Sends a message as it is (on the peer's executor) @param bytes The message */
+    /** @brief Sends a message as it is (on the peer's executor); the client must know its end
+     *  (open()), or the test is wrong and is told so @param bytes The message */
     void sendBytes(std::string bytes) {
-        if(auto peer = this->peer_()) {
-            boost::asio::post(peer->executor(), [peer, bytes = std::move(bytes)]() mutable {
-                peer->send(Gem::Courtier::Consumers::makeMessage(std::move(bytes)));
-            });
-        }
+        auto peer = this->knownPeer_("sendBytes");
+        boost::asio::post(peer->executor(), [peer, bytes = std::move(bytes)]() mutable {
+            peer->send(Gem::Courtier::Consumers::makeMessage(std::move(bytes)));
+        });
     }
 
-    /** @brief Ends the connection at once, as a client that is lost does (on the peer's executor) */
+    /** @brief Ends the connection at once, as a client that is lost does (on the peer's executor);
+     *  the client must know its end */
     void abort() {
-        if(auto peer = this->peer_()) {
-            boost::asio::post(peer->executor(), [peer] { peer->abort(); });
-        }
+        auto peer = this->knownPeer_("abort");
+        boost::asio::post(peer->executor(), [peer] { peer->abort(); });
     }
 
     /** @brief @return Whether the connection is open */
@@ -186,6 +186,18 @@ private:
     std::shared_ptr<GPeerI> peer_() const {
         const std::scoped_lock lock(mutex_);
         return peer_weak_.lock();
+    }
+
+    /** @brief @param what The action that needs the peer @return The peer; throws if there is none
+     *  (an action of the test before the client knows its end would silently go nowhere) */
+    std::shared_ptr<GPeerI> knownPeer_(std::string_view what) const {
+        auto peer = this->peer_();
+        if(not peer) {
+            throw std::logic_error(
+                "ScriptedClient::" + std::string(what) + ": the client does not know its end (yet)"
+            );
+        }
+        return peer;
     }
 
     /** @brief Starts the peer (on its executor) @param peer The client's end */
@@ -866,7 +878,8 @@ TEST_CASE(
         seam->release = [&shell] { return shell.clientsUnconfirmedAtStop() > 0; };
         shell.startServer();
         role->connect(connector, clients.executor());
-        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
+        // Both ends: the client acts through its own end below, which it knows only once it is open
+        REQUIRE(eventually([&] { return role->open() && shell.getNActiveSessions() == 1; }));
 
         auto stop = std::async(std::launch::async, [&shell] { shell.stopServer(); });
         REQUIRE(eventually([&] { return seam->closeRequested.load(); })); // RUN_ENDED, on its way
@@ -898,7 +911,8 @@ TEST_CASE(
         Shell shell{std::make_unique<SeamListener>(listener, seam), 2};
         shell.startServer();
         role->connect(connector, clients.executor());
-        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
+        // Both ends: a message sent before the client knows its end would go nowhere
+        REQUIRE(eventually([&] { return role->open() && shell.getNActiveSessions() == 1; }));
         role->sendBytes("x"); // a message whose kind cannot be read: the session closes with ERROR
         REQUIRE(eventually([&] { return seam->closeRequested.load(); }));
         REQUIRE(seam->how.load() == GPeerClose::ERROR);
