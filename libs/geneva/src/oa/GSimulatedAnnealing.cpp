@@ -348,7 +348,7 @@ void GSimulatedAnnealing::sortSAMode() {
         }
     }
 
-    // Sort the new parents -- it is possible that a child with a worse fitness has replaced a parent
+    // Sort the new parents -- a child with a worse fitness may have replaced a parent
     std::ranges::sort(
         this->begin(),
         this->begin() + this->n_parents_,
@@ -374,10 +374,11 @@ void GSimulatedAnnealing::sortSAMode() {
 //! [sa-cooling#1]
 double
 GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min_only_child) const {
-    // Minimisation: a worse child has f_child > f_parent, so the exponent is negative and the result
-    // lies in (0, 1); a child that is at least as good gives a non-negative exponent, hence a result
-    // >= 1, which the caller treats as "always accept". t_ is floored > 0 by updateTemperature(), so
-    // there is no division by zero.
+    // Minimisation: a worse child has f_child > f_parent, so the exponent is negative
+    // and the result lies in (0, 1); a child that is at least as good gives a
+    // non-negative exponent, hence a result >= 1, which the caller treats as
+    // "always accept". t_ is floored > 0 by updateTemperature(), so there is no
+    // division by zero.
     return exp(-(f_min_only_child - f_min_only_parent) / t_);
 }
 //! [sa-cooling#1]
@@ -388,12 +389,13 @@ GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min
   */
 //! [sa-cooling#2]
 void GSimulatedAnnealing::updateTemperature() {
-    // Clamp to the smallest normalised double so t_ never enters the subnormal range or reaches 0.
-    // With t_ == 0 and a fitness gap of 0, saProb() would compute 0/0 = NaN; the floor prevents that
-    // without changing late-phase behaviour: exp(-(f_child - f_parent) / min()) is approximately 0 for
-    // any positive gap, so worse candidates are effectively never accepted once the floor is reached.
-    // (std::max applies the floor AFTER the multiply, so even if t_ * alpha_ underflows to 0 the result
-    // is min(), never 0.)
+    // Clamp to the smallest normalised double so t_ never enters the subnormal range or
+    // reaches 0. With t_ == 0 and a fitness gap of 0, saProb() would compute 0/0 = NaN;
+    // the floor prevents that without changing late-phase behaviour:
+    // exp(-(f_child - f_parent) / min()) is approximately 0 for any positive gap,
+    // so worse candidates are effectively never accepted once the floor is reached.
+    // (std::max applies the floor AFTER the multiply, so even if t_ * alpha_ underflows
+    // to 0 the result is min(), never 0.)
     t_ = std::max(t_ * alpha_, std::numeric_limits<double>::min());
 }
 //! [sa-cooling#2]

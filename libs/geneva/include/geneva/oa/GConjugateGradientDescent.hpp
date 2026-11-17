@@ -66,16 +66,18 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /******************************************************************************/
 /**
  * Selects how the search direction is built from the (finite-difference) gradient. Steepest descent is
- * the former, separate "gd" algorithm folded in as the beta == 0 special case.
+ * the former, separate "gd" algorithm folded in as the beta == 0 special case. The nonlinear
+ * conjugate gradient (CG) variants differ in their choice of beta; LBFGS builds its quasi-Newton
+ * direction with the two-loop recursion over the last m (s,y) pairs.
  */
 //! [algo-gd-gradient-method-enum]
 enum class gradientMethod : std::uint8_t {
-    CONJUGATE_PR_PLUS = 0, ///< Polak-Ribiere+ nonlinear conjugate gradient with restarts (the default)
+    CONJUGATE_PR_PLUS = 0, ///< Polak-Ribiere+ nonlinear CG with restarts (the default)
     STEEPEST_DESCENT = 1,  ///< Plain steepest descent (beta == 0)
     CONJUGATE_FR = 2,      ///< Fletcher-Reeves (beta = g.g / g_prev.g_prev)
-    CONJUGATE_HS = 3,      ///< Hestenes-Stiefel+ (beta = g.(g-g_prev) / d_prev.(g-g_prev))
+    CONJUGATE_HS = 3,      ///< Hestenes-Stiefel+ (beta = g.y / d_prev.y, y = g-g_prev)
     CONJUGATE_DY = 4,      ///< Dai-Yuan (beta = g.g / d_prev.(g-g_prev))
-    LBFGS = 5              ///< Limited-memory BFGS quasi-Newton (two-loop recursion over the last m (s,y) pairs)
+    LBFGS = 5              ///< Limited-memory BFGS quasi-Newton (last m (s,y) pairs)
 };
 //! [algo-gd-gradient-method-enum]
 

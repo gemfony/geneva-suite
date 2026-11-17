@@ -107,8 +107,9 @@ int main(int argc, char **argv) {
     }
 
     //! [meta.example-main#2]
-    // The meta genome carries only structure; its adaptors (n_parents flip, n_children integer-Gauss,
-    // doubles Gauss) live on an OA-owned config the meta individual authors. Register it for the outer EA.
+    // The meta genome carries only structure; its adaptors (n_parents flip, n_children
+    // integer-Gauss, doubles Gauss) live on an OA-owned config the meta individual
+    // authors. Register it for the outer EA.
     {
         auto sample = gmoi_ptr->get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
         go.registerAdaptionConfig("PERSONALITY_EA", sample->getAdaptionConfig());

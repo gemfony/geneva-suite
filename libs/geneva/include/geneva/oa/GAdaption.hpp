@@ -263,8 +263,9 @@ inline std::size_t adaptIndividual(
     const GAdaptionConfigBase &cfg
 ) {
     //! [hap-lease-idiom]
-    // The candidate holds no RNG of its own -- lease a proxy for the duration of this adaption. The
-    // lease is thread-scoped, so this composes with the EA's parallel adaptChildren_.
+    // The candidate holds no RNG of its own -- lease a proxy for the duration of this
+    // adaption. The lease is thread-scoped, so this composes with the EA's parallel
+    // adaptChildren_.
     auto             lease = Gem::Hap::randomLeasePool().acquire();
     Gem::Hap::GRandomBase &gr = *lease;
     //! [hap-lease-idiom]

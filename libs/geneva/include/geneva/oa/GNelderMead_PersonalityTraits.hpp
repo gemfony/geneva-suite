@@ -49,14 +49,18 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * GPositionPersonalityTraits base provides; the GAlgorithmPersonalityTraitsT scaffold supplies the
  * shared boilerplate, so this class contributes only the algorithm's identity.
  */
+// NOLINTBEGIN(cppcoreguidelines-special-member-functions): on its own line, so the quoted
+// class head below stays within the manual's listing width.
 //! [geneva.oa.traits]
-class GNelderMead_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
+class GNelderMead_PersonalityTraits
   : public GAlgorithmPersonalityTraitsT<GNelderMead_PersonalityTraits> {
-    // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base (via the generator) reach this
-    // stateless class's explicit empty localMembers_() (required by the mixin's deleted fallback).
+    // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base (via the
+    // generator) reach this stateless class's explicit empty localMembers_()
+    // (required by the mixin's deleted fallback).
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
-    /** @brief This traits class adds no own state (only its identity). @return An empty member tuple */
+    /** @brief This traits class adds no own state (only its identity).
+     *  @return An empty member tuple */
     template <typename self_type>
     auto localMembers_(this self_type &) {
         return std::make_tuple();
@@ -69,6 +73,7 @@ public:
     static constexpr std::string_view class_name{"GNelderMead_PersonalityTraits"};
 };
 //! [geneva.oa.traits]
+// NOLINTEND(cppcoreguidelines-special-member-functions)
 
 /******************************************************************************/
 

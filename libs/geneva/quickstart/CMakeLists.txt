@@ -94,18 +94,19 @@ GENEVA_DECLARE_INDIVIDUAL(GStarterIndividual
 	PLUGIN  GStarterIndividualPlugin.cpp
 	CONFIG  ./config/GStarterIndividual.json)
 
-# (1) The COMPILED-IN variant: the classic bespoke GStarter driver with the individual linked in. The object
-# library is listed BEFORE Geneva::geneva, the in-tree convention for an object library carrying archive
-# registrations (see the
-# link-order note in GENEVA_DECLARE_INDIVIDUAL).
+# (1) The COMPILED-IN variant: the classic bespoke GStarter driver with the individual
+# linked in. The object library is listed BEFORE Geneva::geneva, the in-tree convention
+# for an object library carrying archive registrations (see the link-order note in
+# GENEVA_DECLARE_INDIVIDUAL).
 ADD_EXECUTABLE(GStarter GStarter.cpp)
 TARGET_LINK_LIBRARIES(GStarter PRIVATE GStarterIndividual-obj Geneva::geneva)
 TARGET_COMPILE_FEATURES(GStarter PRIVATE cxx_std_23)
 INSTALL(TARGETS GStarter DESTINATION bin)
 
-# (2) The LOADABLE variant's runner: a generic optimizer with NO problem compiled in, which loads the
-# just-built module at runtime via --individual (the GLoadableIndividual example's pattern). ENABLE_EXPORTS so a plugin loaded
-# RTLD_GLOBAL resolves against one symbol namespace (single archive registry + Geneva singletons).
+# (2) The LOADABLE variant's runner: a generic optimizer with NO problem compiled in,
+# which loads the just-built module at runtime via --individual (the GLoadableIndividual
+# example's pattern). ENABLE_EXPORTS so a plugin loaded RTLD_GLOBAL resolves against one
+# symbol namespace (single archive registry + Geneva singletons).
 ADD_EXECUTABLE(GStarterGenericOptimizer GStarterGenericOptimizer.cpp)
 SET_TARGET_PROPERTIES(GStarterGenericOptimizer PROPERTIES ENABLE_EXPORTS TRUE)
 TARGET_LINK_LIBRARIES(GStarterGenericOptimizer PRIVATE Geneva::geneva)

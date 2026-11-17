@@ -677,9 +677,9 @@ using GFunctionIndividualFactory =
  * than a given constant.
  */
 //! [constraints:declaration#1]
-class GDoubleSumConstraint
+class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -692,7 +692,7 @@ class GDoubleSumConstraint
 //! [constraints:declaration#1]
 //! [constraints:declaration#2]
 public:
-    /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
+    /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GDoubleSumConstraint";
 
     /** @brief The default constructor */
@@ -733,8 +733,8 @@ protected:
 
     //! [constraints:declaration#4]
     /**
-     * @brief Checks whether the constraint (sum of parameters below the constant) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @brief Checks the constraint: the sum of parameters stays below the constant.
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if the constraint is satisfied)
      */
     double check_(const gen::GGenome *p) const override;
@@ -750,7 +750,7 @@ protected:
 
 //! [constraints:declaration#5]
 private:
-    double c_ = 1.; ///< The constant that should not be exceeded by the sum of parameters
+    double c_ = 1.; ///< The constant the sum of parameters should not exceed
 };
 //! [constraints:declaration#5]
 
@@ -815,7 +815,7 @@ protected:
 
     /**
      * @brief Checks whether the equality constraint (sum of parameters near the constant) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if within the allowed gap)
      */
     double check_(const gen::GGenome *p) const override;
@@ -891,7 +891,7 @@ protected:
 
     /**
      * @brief Checks whether the constraint (solution within a sphere around 0) is fulfilled.
-     * @param cp The individual whose parameters are checked
+     * @param p The individual whose parameters are checked
      * @return A measure of constraint violation (0 if inside the sphere)
      */
     double check_(const gen::GGenome *p) const override;

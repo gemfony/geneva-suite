@@ -351,7 +351,7 @@ bool runShowcase(Showcase const &s) {
     landscape.y_label = "x_{1}";
     landscape.z_label = "log_{10}(1 + f - f_{min})";
     landscape.columns = {"x", "y", "z"};
-    landscape.projection = MAP_PLANE; // the surface, and its colour map on the floor of the box
+    landscape.projection = MAP_PLANE; // the surface, and its colour map on the box's floor
     const auto landscape_id = log.declareSeries(landscape);
     //! [dietrich-projection#1]
     double map_z = 0.; // the plotted height of f_min is log10(1) = 0, the floor of the box
@@ -370,7 +370,7 @@ bool runShowcase(Showcase const &s) {
     const auto points_id = log.overlaySeries(landscape_id, points);
 
     GPlotSpec path(plotKind::graph_3d);
-    path.plot_mode = graphPlotMode::CURVE; // a line through the points, in the box's own frame
+    path.plot_mode = graphPlotMode::CURVE; // a line through the points, in the box's frame
     path.name = "best position known so far";
     path.columns = {"x", "y", "z"};
     const auto path_id = log.overlaySeries(landscape_id, path);

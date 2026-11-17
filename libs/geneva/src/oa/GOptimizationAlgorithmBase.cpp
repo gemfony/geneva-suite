@@ -563,7 +563,7 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
         updateGlobalBestsPQ_(best_global_individuals_pq_);
         updateIterationBestsPQ_(best_iteration_individuals_pq_);
 
-        // Check whether a better value was found, and do the check-pointing, if necessary and requested.
+        // Check for a better value and checkpoint, if necessary and requested.
         checkpoint(progress());
 
         // Give derived classes an opportunity to act on stalls. NOTE that no action
@@ -586,11 +586,11 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     }
     while(not(halted_ = halt()));
 
-    // Write the final checkpoint. halted_ is only set in the loop condition ABOVE the in-loop
-    // checkpoint() call, so the in-loop calls never see halted() == true -- without this post-loop
-    // call the "final" checkpoint (see checkpoint()'s halted() branch and the "final" file-name tag)
-    // would never be written at all. checkpoint() itself gates on the user having enabled
-    // checkpointing (cp_interval_ != 0).
+    // Write the final checkpoint. halted_ is only set in the loop condition ABOVE the
+    // in-loop checkpoint() call, so the in-loop calls never see halted() == true --
+    // without this post-loop call the "final" checkpoint (see checkpoint()'s halted()
+    // branch and the "final" file-name tag) would never be written at all. checkpoint()
+    // itself gates on the user having enabled checkpointing (cp_interval_ != 0).
     checkpoint(progress());
     //! [geneva.oa.cycle]
 

@@ -184,7 +184,7 @@ private:
 
         std::vector<double> parameters;
         for(const auto &ind_ptr : *goa) {
-            ind_ptr->streamline<double>(parameters); // the genome's doubles, in genome order
+            ind_ptr->streamline<double>(parameters); // the genome's doubles, in order
             const double fitness = ind_ptr->raw_fitness(0);
 
             path_log_->append(path_, parameters[0], parameters[1], fitness);
@@ -192,7 +192,7 @@ private:
             ++n_recorded_;
         }
 
-        // The algorithm's own book-keeping of the best result seen so far -- (raw, transformed).
+        // The algorithm's own record of the best result so far -- (raw, transformed).
         progress_log_->append(
             best_,
             double(goa->getIteration()),

@@ -72,10 +72,11 @@ namespace {
 
 /******************************************************************************/
 //! [algo-overview-registration]
-// The algorithms that are always part of Geneva. Each factory is the GOptimizationAlgorithmFactoryT
-// scaffold instantiated for one algorithm -- that instantiation is the whole factory, so it needs no
-// name and no derived class of its own (the algorithm's own personality traits are the scaffold's
-// default second argument).
+// The algorithms that are always part of Geneva. Each factory is the
+// GOptimizationAlgorithmFactoryT scaffold instantiated for one algorithm -- that
+// instantiation is the whole factory, so it needs no name and no derived class of its
+// own (the algorithm's own personality traits are the scaffold's default second
+// argument).
 
 const GInitializerT<GOptimizationAlgorithmFactoryT<GAntColonyOptimization>> g_aco_registrant;
 //! [geneva.oa.registration#2]
@@ -86,9 +87,9 @@ const GInitializerT<GOptimizationAlgorithmFactoryT<GSepCmaEvolutionStrategy>> g_
 const GInitializerT<GOptimizationAlgorithmFactoryT<GStandardPSO2011>> g_pso_registrant;
 
 /******************************************************************************/
-// The algorithms a slim-core build may leave out. Each switch is set by the build for exactly the
-// algorithms whose sources went into the library, so an omitted algorithm's mnemonic simply does not
-// exist at runtime.
+// The algorithms a slim-core build may leave out. Each switch is set by the build for
+// exactly the algorithms whose sources went into the library, so an omitted algorithm's
+// mnemonic simply does not exist at runtime.
 
 #ifdef GENEVA_ALGO_CGD
 const GInitializerT<GOptimizationAlgorithmFactoryT<GConjugateGradientDescent>> g_cgd_registrant;
@@ -97,8 +98,9 @@ const GInitializerT<GOptimizationAlgorithmFactoryT<GConjugateGradientDescent>> g
 const GInitializerT<GOptimizationAlgorithmFactoryT<GNelderMead>> g_nm_registrant;
 #endif
 #ifdef GENEVA_ALGO_PS
-// The one algorithm whose factory genuinely adds something (the parameter-spec command-line option),
-// so it is a class of its own rather than the bare scaffold instantiation.
+// The one algorithm whose factory genuinely adds something (the parameter-spec
+// command-line option), so it is a class of its own rather than the bare scaffold
+// instantiation.
 //! [geneva.oa.registration#3]
 const GInitializerT<GParameterScanFactory> g_ps_registrant;
 //! [geneva.oa.registration#3]

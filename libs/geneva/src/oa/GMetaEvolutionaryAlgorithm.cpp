@@ -60,8 +60,9 @@ GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::siz
     }
 
     //! [meta.orchestrationpool]
-    // Run each umbrella-individual's process() on the orchestration pool. process() funnels any thrown
-    // exception into the item's status (EXCEPTION_CAUGHT) rather than letting it escape the worker.
+    // Run each umbrella-individual's process() on the orchestration pool. process()
+    // funnels any thrown exception into the item's status (EXCEPTION_CAUGHT) rather
+    // than letting it escape the worker.
     for(std::size_t i = start; i < end; ++i) {
         auto *ind = &((*this->at(i)));
         orchestration_pool_->post([ind]() { ind->process(); });

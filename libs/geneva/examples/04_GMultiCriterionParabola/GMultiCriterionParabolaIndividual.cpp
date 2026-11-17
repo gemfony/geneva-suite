@@ -43,9 +43,10 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GMultiCriterionParabolaIndividual) // NOLIN
 //! [problem-store#1]
 namespace {
 /**
- * @brief The module's load-once store of per-criterion minima -- this problem's hardware-independent
- * constant data. Filled once from the config (in applyConfig) and read by the free evaluator. A
- * function-local static keeps its initialization order well-defined across translation units.
+ * @brief The module's load-once store of per-criterion minima -- this problem's
+ * hardware-independent constant data. Filled once from the config (in applyConfig) and
+ * read by the free evaluator. A function-local static keeps its initialization order
+ * well-defined across translation units.
  */
 Gem::Geneva::Genome::GProblemStoreT<std::vector<double>> &minimaStore() {
     static Gem::Geneva::Genome::GProblemStoreT<std::vector<double>> store;

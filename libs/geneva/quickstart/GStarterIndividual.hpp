@@ -132,7 +132,7 @@ class GStarterIndividual
 
 //! [quickstart-individual-decl#2]
 public:
-    /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() and the compare token. */
+    /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     //! [weft-local-members#3]
     static constexpr std::string_view class_name = "GStarterIndividual";
     //! [weft-local-members#3]
@@ -190,8 +190,9 @@ public:
     static gen::GenomeData buildGenome(const Config &c);
     /** @brief Per-object post-config hook: stamps the (non-genome) target function */
     static void applyConfig(GStarterIndividual &ind, const Config &c);
-    /** @brief The OA-owned Gauss adaption config: every parameter group gets the configured adaptor.
-     *  Authored from the Config -- no adaptor data resides on the individual. */
+    /** @brief The OA-owned Gauss adaption config: every parameter group gets the
+     *  configured adaptor. Authored from the Config -- no adaptor data resides on the
+     *  individual. */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
     //! [problem-factory-hooks#2]
@@ -264,7 +265,7 @@ protected:
     // (via GGenomeT) from localMembers_() -- no hand-written quartet.
 
     //! [quickstart-individual-decl#3]
-    /** @brief The evaluation hook: the selected target function on the genome (single criterion). */
+    /** @brief The evaluation hook: the selected target function (single criterion). */
     std::vector<double> evaluate() final;
     //! [quickstart-individual-decl#3]
 
