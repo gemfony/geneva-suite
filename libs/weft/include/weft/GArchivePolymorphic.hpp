@@ -78,7 +78,7 @@ namespace Gem::Weft {
  *
  * @par Mechanism (registry-thunk model)
  * Identity is the codec-agnostic @c GPolymorphicRegistry (tag <-> factory).
- * Dispatch is @ref GArchivePointerDispatch, a per-hierarchy table mapping a tag
+ * Dispatch is @ref Gem::Weft::GArchivePointerDispatch, a per-hierarchy table mapping a tag
  * to four function-pointer thunks (one per concrete archive type) that each call
  * the concrete type's @c serialize through @c Weft::access. A single
  * mechanism -- the registry -- carries identity; this table carries the typed

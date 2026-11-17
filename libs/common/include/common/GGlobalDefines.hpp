@@ -72,7 +72,7 @@
  * composes them into one monotonically comparable integer
  *   major * 10000 + minor * 100 + patch
  * so that e.g. 1.99.0 → 19900 and ordinary version tests such as
- *   #if GENEVA_VERSION >= 19900
+ *   \#if GENEVA_VERSION >= 19900
  * work. Each component is a plain decimal literal (no leading zero), so no value is
  * ever silently reinterpreted as octal — the historical packed-literal form (e.g.
  * "019900") was an octal literal and, once a minor/patch digit reached 8 or 9 as it

@@ -2316,7 +2316,7 @@ private:
     /***************************************************************************/
     /** @brief DEBUG-build helper shared by every registration overload: throws if an option of
      *  the given name was already registered in @p proxies (formerly an identical 15-line
-     *  #ifdef DEBUG block per overload).
+     *  \#ifdef DEBUG block per overload).
      *  @tparam proxy_vector_type The proxy-vector type (file or command-line proxies)
      *  @param option_name The (first) option name about to be registered
      *  @param proxies The proxy store to check for a duplicate

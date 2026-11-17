@@ -69,12 +69,12 @@ namespace Gem::Weft {
  * @file GArchive.hpp
  * @brief The structural core of the @c GArchive serialization family: the
  * @c nvp / @c base_object wrappers, the container/scalar type traits, and the
- * two CRTP dispatch bases (@ref GOArchiveT saving, @ref GIArchiveT loading)
+ * two CRTP dispatch bases (@ref Gem::Weft::GOArchiveT saving, @ref Gem::Weft::GIArchiveT loading)
  * that walk an object's members and hand primitives to a concrete codec.
  *
  * @par Design
  * A concrete codec (e.g. @c GBinaryOArchive, @c GJsonOArchive) derives from
- * @ref GOArchiveT / @ref GIArchiveT and implements a small, fixed set of
+ * @ref Gem::Weft::GOArchiveT / @ref Gem::Weft::GIArchiveT and implements a small, fixed set of
  * primitive and framing hooks (scalars, strings, object/sequence/element
  * delimiters, member keys). The CRTP base owns @b all type analysis -- it is
  * the single place that knows how a @c std::vector differs from a @c std::map
@@ -87,7 +87,7 @@ namespace Gem::Weft {
  * The reflection layer (@c GMemberReflectionT.hpp) reaches an archive through
  * exactly two spellings: @c "ar & make_nvp(name, ref)" and
  * @c "ar & make_nvp(name, base_object<Base>(derived))". This family mirrors
- * both -- @ref make_nvp and @ref base_object here have the same shape -- so
+ * both -- @ref Gem::Weft::make_nvp and @ref Gem::Weft::base_object here have the same shape -- so
  * retargeting a class's generated @c serialize from a Boost archive to a
  * @c GArchive is a change of the archive @e type only, not of the call sites.
  *

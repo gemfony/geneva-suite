@@ -81,7 +81,7 @@ namespace Gem::Weft {
  * The tag is supplied by the registration site (the fully-qualified, stringized
  * type name -- see @ref GEM_REGISTER_TYPE), @b not read from the type's
  * @c class_name. @c class_name is overloaded as a config @e filename
- * (@c ./config/<class_name>.json), so it is constrained to a filename-safe
+ * (<tt>./config/\<class_name\>.json</tt>), so it is constrained to a filename-safe
  * alphabet; a wire tag by contrast wants a globally-unique, namespace- and
  * template-argument-bearing string (@c "Gem::Geneva::GMetaOptimizerIndividualT<Gem::Geneva::GFunctionIndividual>"),
  * every one of whose @c :: @c < @c > @c , characters is filename-hostile. The

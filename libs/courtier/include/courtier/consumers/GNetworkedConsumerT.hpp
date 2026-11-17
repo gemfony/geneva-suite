@@ -109,7 +109,7 @@ namespace Gem::Courtier {
  * minutes or hours. While waiting, where the transport has no client-liveness signal (usesTimeLease(),
  * default true: MPI), stuck in-flight items of that batch are reclaimed once they exceed the reclaim
  * LEASE. A transport that detects client death directly (the websocket consumer, via its persistent session
- * + CheckoutLease) reclaims immediately on disconnect and disables the time lease, so it honours the
+ * and CheckoutLease) reclaims immediately on disconnect and disables the time lease, so it honours the
  * give-up treatment but is not bound by the time lease.
  *
  * @tparam processable_type The work-item type the consumer schedules to remote clients and reconciles

@@ -43,8 +43,8 @@ namespace Gem::Common {
 /******************************************************************************/
 /**
  * @file GArchiveNamed.hpp
- * @brief The named-member spellings for a hand-written serialize(): @ref archive_named
- * (a plain member by NVP) and @ref archive_named_base (a base slice by NVP), both routing
+ * @brief The named-member spellings for a hand-written serialize(): @ref Gem::Common::archive_named
+ * (a plain member by NVP) and @ref Gem::Common::archive_named_base (a base slice by NVP), both routing
  * to the @c GArchive (Weft) codecs. A serialize() body written against these helpers works
  * unchanged across the binary and JSON codecs.
  *
