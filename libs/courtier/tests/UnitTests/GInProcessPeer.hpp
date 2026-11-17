@@ -48,14 +48,17 @@
 
 // Boost headers go here
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/system/error_code.hpp>
 
 // Geneva headers go here
+#include "common/concurrency/GThreadGroup.hpp"
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
 #include "courtier/GWireSerializationContext.hpp" // GWirePeerId
+#include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 /******************************************************************************/
@@ -583,10 +586,11 @@ private:
 /******************************************************************************/
 /**
  * The server side of the in-process transport. A GInProcessConnector asks it for a connection;
- * it makes a pair, hands the server end to the shell (on_peer, on a strand of the executor given
- * to start()) and the client end to the connector. It has no work of its own. stop() waits, at most
- * Options::stopBound, for the calls of on_peer it has posted (GListenerI::stop()); a test can hold
- * the strand those calls run on (holdAcceptStrand()).
+ * it makes a pair, hands the server end to the shell and the client end to the connector. The
+ * calls of on_peer run on a thread of the listener's own, its accept thread (GListenerI::start());
+ * the server ends' handlers on strands of the executor given to start(). stop() waits, at most
+ * Options::stopBound, for the calls of on_peer it has posted (GListenerI::stop()); endWork() joins
+ * the accept thread (GPeerI.hpp, rule 7). A test can hold the accept thread (holdAcceptThread()).
  */
 class GInProcessListener final : public Gem::Courtier::Consumers::GListenerI {
 public:
@@ -608,9 +612,19 @@ public:
       : options_(options) { /* nothing */
     }
 
-    /** @brief Starts accepting connections.
-     *  @param executor Where the server ends and on_peer run
-     *  @param on_peer What is called for every connection */
+    /** @brief Joins the accept thread if endWork() has not done so */
+    ~GInProcessListener() override {
+        this->joinAcceptThread_();
+    }
+
+    GInProcessListener(const GInProcessListener &) = delete;
+    GInProcessListener(GInProcessListener &&) = delete;
+    GInProcessListener &operator=(const GInProcessListener &) = delete;
+    GInProcessListener &operator=(GInProcessListener &&) = delete;
+
+    /** @brief Starts the accept thread and accepting connections.
+     *  @param executor Where the server ends' handlers run
+     *  @param on_peer What is called for every connection, on the accept thread */
     void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
         if(options_.startThrows) {
             // As GListenerI::start() demands: nothing is kept of a start that failed.
@@ -618,8 +632,8 @@ public:
         }
         const std::scoped_lock lock(mutex_);
         executor_ = std::move(executor);
-        accept_strand_.emplace(boost::asio::make_strand(executor_));
         on_peer_ = std::move(on_peer);
+        accept_thread_.create_thread([this] { accept_context_.run(); });
         accepting_ = true;
     }
 
@@ -639,13 +653,19 @@ public:
         }
     }
 
-    /** @brief Nothing of its own runs; lets go of on_peer and of everything that refers to the
-     *  executor's context, which is destroyed before this listener (GPeerI.hpp, rule 7) */
+    /** @brief Joins the accept thread and drops the calls of on_peer it has not run (with the
+     *  server ends they hold); lets go of on_peer and of everything that refers to the executor's
+     *  context, which is destroyed before this listener (GPeerI.hpp, rule 7) */
     void endWork() override {
+        {
+            const std::scoped_lock lock(mutex_);
+            accepting_ = false;
+        }
+        // Not under the lock: a call of on_peer may still run, and a test may ask lastServerEnd()
+        this->joinAcceptThread_();
+        accept_context_.shutdown();
         const std::scoped_lock lock(mutex_);
-        accepting_ = false;
         on_peer_ = nullptr;
-        accept_strand_.reset();
         executor_ = boost::asio::any_io_executor{};
         work_ended_.store(true);
     }
@@ -668,7 +688,7 @@ public:
     /***************************************************************************/
     /**
      * @brief Makes a connection for a connector: the server end goes to on_peer (posted to the
-     * accept strand), the client end is returned. From the client's executor.
+     * accept thread), the client end is returned. From the client's executor.
      *
      * @param client_executor Where the client end makes its strand
      * @return The client end, or nothing if this listener does not accept
@@ -690,10 +710,10 @@ public:
         last_server_end_ = server_end;
         // Counted under the lock that stop() takes first: a call posted before it is waited for.
         on_peer_calls_.set(id, true);
-        boost::asio::post(*accept_strand_, [this, server_end, id] {
-            // endWork() runs when no handler runs, so on_peer_ cannot change under this. As with
-            // the websocket listener, no exception leaves a thread of the shell's executor: a
-            // client whose session cannot be made is dropped, and the call is counted out.
+        boost::asio::post(accept_context_, [this, server_end, id] {
+            // endWork() joins the accept thread first, so on_peer_ cannot change under this. As
+            // with the websocket listener, no exception leaves the accept thread: a client whose
+            // session cannot be made is dropped, and the call is counted out.
             try {
                 if(on_peer_) {
                     on_peer_(server_end, id);
@@ -706,11 +726,10 @@ public:
         return client_end;
     }
 
-    /** @brief Runs @p hold on the strand the calls of on_peer run on: a call posted while it
-     *  runs waits for it. After start(). @param hold What occupies the strand */
-    void holdAcceptStrand(std::move_only_function<void()> hold) {
-        const std::scoped_lock lock(mutex_);
-        boost::asio::post(*accept_strand_, std::move(hold));
+    /** @brief Runs @p hold on the accept thread, where the calls of on_peer run: a call posted
+     *  while it runs waits for it. After start(). @param hold What occupies the thread */
+    void holdAcceptThread(std::move_only_function<void()> hold) {
+        boost::asio::post(accept_context_, std::move(hold));
     }
 
     /** @brief @return The server end of the last connection made, if it still exists (a test
@@ -741,24 +760,37 @@ public:
     }
 
 private:
+    /** @brief Stops the accept thread and joins it, if it runs */
+    void joinAcceptThread_() {
+        accept_work_.reset();
+        accept_context_.stop();
+        accept_thread_.join_all();
+    }
+
     Options options_; ///< What the pairs are made with
-    /// Guards executor_, accept_strand_ and accepting_: connect_() runs on a client's executor,
-    /// start(), stop() and endWork() on the shell's side
+    /// Guards executor_ and accepting_: connect_() runs on a client's executor, start(), stop()
+    /// and endWork() on the shell's side
     std::mutex mutex_;
     boost::asio::any_io_executor executor_; ///< Set by start(), dropped by endWork()
-    /// Serializes the calls of on_peer; set by start(), dropped by endWork()
-    std::optional<boost::asio::strand<boost::asio::any_io_executor>> accept_strand_;
-    on_peer_type on_peer_;                               ///< Set by start(), dropped by endWork()
-    std::weak_ptr<GInProcessPeer> last_server_end_;      ///< See lastServerEnd()
-    bool accepting_ = false;                             ///< Between start() and stop()
-    std::atomic<bool> work_ended_{false};                ///< endWork() has been called
-    std::atomic<std::size_t> n_stops_{0};                ///< How often stop() has been called
+    on_peer_type on_peer_; ///< Set by start(), called on the accept thread, dropped by endWork()
+    std::weak_ptr<GInProcessPeer> last_server_end_; ///< See lastServerEnd()
+    bool accepting_ = false;                        ///< Between start() and stop()
+    std::atomic<bool> work_ended_{false};           ///< endWork() has been called
+    std::atomic<std::size_t> n_stops_{0};           ///< How often stop() has been called
     std::atomic<std::size_t> n_stop_bounds_hit_{0}; ///< How often stop() gave up waiting
     std::atomic<std::size_t> n_announced_{0}; ///< How often announceEndWithoutStart() was called
     /// The calls of on_peer posted and not returned, by connection id (stop() waits for them)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::GWirePeerId, bool>
         on_peer_calls_;
     std::atomic<Gem::Courtier::GWirePeerId> next_id_{1}; ///< The id of the next connection
+
+    // Declared last: the accept thread goes first, then its context, then what its calls use
+    Gem::Courtier::Consumers::GIoContext accept_context_; ///< Where the calls of on_peer run
+    /// Keeps the accept thread in run() until endWork() or the destructor
+    std::optional<
+        boost::asio::executor_work_guard<Gem::Courtier::Consumers::GIoContext::executor_type>>
+        accept_work_{boost::asio::make_work_guard(accept_context_)};
+    Gem::Common::Concurrency::GThreadGroup accept_thread_; ///< The accept thread (one)
 };
 
 /******************************************************************************/

@@ -71,11 +71,12 @@
  *     executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
  *     after start() has returned is ordered after that work. On a server the handlers run on the
- *     executor the shell hands to the listener, and the transport moves the bytes on threads of
- *     its own: a session may take any time in a handler without its connection, or another,
- *     falling silent. A client's handlers run on the executor given to the connector, which the
- *     transport shares: a client keeps its handlers short (GPrefetchingClientT encodes and
- *     decodes on its compute pool).
+ *     executor the shell hands to the listener, and the transport moves the bytes, and makes and
+ *     hands over its peers (GListenerI::start()), on threads of its own: a session may take any
+ *     time in a handler without its connection, or another, falling silent, and without a client
+ *     that connects meanwhile waiting for it. A client's handlers run on the executor given to the
+ *     connector, which the transport shares: a client keeps its handlers short
+ *     (GPrefetchingClientT encodes and decodes on its compute pool).
  *  3. **No handler runs inside a call** of GPeerI, abort() excepted (see there). A failure found in
  *     send() is posted to the executor, not reported inline: the role's member function that
  *     called send() is still on the stack.
@@ -97,14 +98,17 @@
  *     has been called is still delivered to the role until this end's close has gone out: the
  *     other end sent it before it knew of the close, and the role decides what it means (a
  *     session checks a late result in and answers nothing, a client starts no evaluation). What
- *     arrives after this end's close has gone out may be dropped. A role that asks for the close
- *     before its end has opened is told nothing (rule 1); its end reads nothing before its close
- *     has gone out, so that what arrived for it can never be confirmed to the other end. An end
- *     that moves its bytes on threads of its own opens there and reads from then on, without
- *     waiting for the role's executor, which may be busy for any time (rule 2; GWebsocketPeer:
- *     when its handshake has completed); its role is then told of the open and of what was read
- *     before its close went out, also when it asks for the close before onOpen has run. abort()
- *     is the exception: it ends at once and may cut what has not been sent.
+ *     arrives after this end's close has gone out may be dropped. Where an end opens is the
+ *     transport's choice: one that must answer the other end while its role is busy (a
+ *     keep-alive; GWebsocketPeer, when its handshake has completed) opens on its own threads and
+ *     reads from then on, without waiting for the role's executor, which may be busy for any time
+ *     (rule 2); one without (GMPIPeer, the in-process pair of the tests) may open on the role's
+ *     executor. Either way, a role that asks for the close before its end has opened is told
+ *     nothing (rule 1), and its end reads nothing before its close has gone out, so that what
+ *     arrived for it can never be confirmed to the other end; a role whose end has opened is told
+ *     of the open and of what was read before its close went out, also when its close() came
+ *     before onOpen had run. abort() is the exception: it ends at once and may cut what has not
+ *     been sent.
  *     **Confirmed** means: the other end answered this end's close -- it sent its own close only
  *     after this end's close had arrived there, and so after its role had been handed everything
  *     that arrived before. For the websocket transport that is a close frame, read after ours was
@@ -272,20 +276,23 @@ public:
     GListenerI &operator=(const GListenerI &) = delete;
     GListenerI &operator=(GListenerI &&) = delete;
 
-    /** @brief Starts making peers. Once. The peers' handlers run on strands of the executor;
-     *  on_peer is called on one of its threads. May throw (a port that cannot be bound); a start()
-     *  that throws leaves the listener as if it had not been started: it holds nothing of the
-     *  executor and of on_peer, and runs nothing. Its owner then calls neither stop() nor
+    /** @brief Starts making peers. Once. The peers' handlers run on strands of the executor.
+     *  on_peer is called on a thread of the listener's own, never on one of the executor's: those
+     *  may all be busy for any time (rule 2), and a client that connects meanwhile must not wait
+     *  for one of them -- for the server's side of its handshake, say -- beyond its own limits.
+     *  on_peer is short and does not block (a session is made, signs on and starts its peer; the
+     *  session's work then goes onto the executor). May throw (a port that cannot be bound); a
+     *  start() that throws leaves the listener as if it had not been started: it holds nothing of
+     *  the executor and of on_peer, and runs nothing. Its owner then calls neither stop() nor
      *  endWork(), and does not call start() again. */
     virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
 
     /** @brief No new peers from here on, and none on its way: when stop() returns, no call of
-     *  on_peer is under way and none will come. A listener counts the calls of on_peer it has
-     *  posted and waits until they have returned; they are short (a session is made and
-     *  started). It does not wait for clients (the shell does, rule 8), and its wait has a short
-     *  bound of its own, so that a stop takes one grace, not two; a listener whose bound is hit
-     *  says so in the log. Not on a thread of the executor; the executor still runs.
-     *  Idempotent. */
+     *  on_peer is under way and none will come. A listener waits until the calls of on_peer it
+     *  has begun have returned; they are short (see start()). It does not wait for clients (the
+     *  shell does, rule 8), and its wait has a short bound of its own, so that a stop takes one
+     *  grace, not two; a listener whose bound is hit says so in the log. Neither on a thread of
+     *  the executor nor in on_peer; the executor still runs. Idempotent. */
     virtual void stop() = 0;
 
     /** @brief Ends the transport's own work (rule 7). Called once, by the shell, when no handler

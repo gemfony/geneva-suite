@@ -56,6 +56,7 @@
 #include <boost/asio.hpp>
 
 #include "common/GLogger.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeerTransport.hpp"
 
@@ -162,7 +163,7 @@ TEST_CASE(
 
 /******************************************************************************/
 /** Port 0 lets the system choose; the listener tells which port it got, and a connector reaches it:
- *  the listener hands the server's end to on_peer, on the shell's executor, and both ends open. */
+ *  the listener hands the server's end to on_peer, on a thread of its own, and both ends open. */
 TEST_CASE(
     "GWebsocketListener: port 0 yields a port that a connector reaches",
     "[courtier][websocket][transport]"
@@ -208,6 +209,90 @@ TEST_CASE(
         server_end->close(GPeerClose::NORMAL);
     }
     REQUIRE(eventually([&] { return n_closed.load() == 2; }));
+    listener.stop();
+    listener.endWork();
+}
+
+/******************************************************************************/
+/**
+ * A client that connects while every thread of the shell's executor is busy for longer than its
+ * handshake limit -- on a server, every session thread encoding a large item; the client, typically,
+ * one that reconnects -- is not lost: the listener makes the server's end and hands it over
+ * (on_peer) on a thread of its own, so the server's side of the handshake begins at once
+ * (GListenerI::start()). The role's handlers still run on the shell's executor: the server's role
+ * is told of the open only when that executor runs again.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "GWebsocketListener: a client connects while every session thread is busy",
+    "[courtier][websocket][transport]"
+) {
+    constexpr auto PING = 1s; // the handshake limit is two pings: 2 s
+    constexpr auto HOLD = 4s; // the session thread is busy for two handshake limits
+    std::atomic<int> n_server_open{0};
+    std::atomic<int> n_server_closed{0};
+    std::atomic<int> n_client_open{0};
+    std::atomic<int> n_client_closed{0};
+    std::atomic<bool> holding{false};
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    OneThread sessions; // the shell's executor, with its one session thread
+    OneThread client;
+    GWebsocketListener listener("listener test", 0, withPing(PING), 1);
+    std::shared_ptr<GPeerI> server_end;
+    std::mutex mutex;
+    listener.start(sessions.executor(), [&](std::shared_ptr<GPeerI> peer, GWirePeerId) {
+        peer->start(GPeerHandlers{
+            .onOpen = [&n_server_open] { n_server_open.fetch_add(1); },
+            .onMessage = {},
+            .onClosed = [&n_server_closed](GPeerEnd, GPeerClose, std::string_view) {
+                n_server_closed.fetch_add(1);
+            }
+        });
+        const std::scoped_lock lock(mutex);
+        server_end = std::move(peer);
+    });
+
+    // Every session thread is busy from here on, for two handshake limits
+    boost::asio::post(sessions.executor(), [&holding, release, limit = 2 * HOLD] {
+        holding.store(true);
+        std::ignore = release->wait_for(limit);
+    });
+    REQUIRE(eventually([&] { return holding.load(); }));
+    const auto hold_until = std::chrono::steady_clock::now() + HOLD;
+
+    GWebsocketConnector connector("localhost", listener.getPort(), withPing(PING));
+    boost::asio::post(client.executor(), [&] {
+        connector.connect(
+            client.executor(),
+            [&n_client_open,
+             &n_client_closed](const std::shared_ptr<GPeerI> &peer, std::string_view) {
+                if(peer) {
+                    peer->start(GPeerHandlers{
+                        .onOpen = [&n_client_open] { n_client_open.fetch_add(1); },
+                        .onMessage = {},
+                        .onClosed = [&n_client_closed](GPeerEnd, GPeerClose, std::string_view) {
+                            n_client_closed.fetch_add(1);
+                        }
+                    });
+                }
+            }
+        );
+    });
+    while(std::chrono::steady_clock::now() < hold_until) {
+        std::this_thread::sleep_for(10ms);
+    }
+    CHECK(n_client_open.load() == 1);   // the handshake completed while the session thread was busy
+    CHECK(n_client_closed.load() == 0); // and the client keeps its connection
+    CHECK(n_server_open.load() == 0);   // the server's role waits for its session thread
+
+    release->count_down();
+    REQUIRE(eventually([&] { return n_server_open.load() == 1; }));
+    {
+        const std::scoped_lock lock(mutex);
+        REQUIRE(server_end != nullptr);
+        server_end->close(GPeerClose::NORMAL);
+    }
+    REQUIRE(eventually([&] { return n_server_closed.load() == 1 && n_client_closed.load() == 1; }));
     listener.stop();
     listener.endWork();
 }

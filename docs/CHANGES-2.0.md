@@ -246,9 +246,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a connection or a thread. A client answers pings while it evaluates, and both ends answer them
   while they encode or decode a message (neither does that on the thread that moves the
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
-  time; a connection that opens while every session thread of the server is busy encoding or
-  decoding answers pings from its handshake on, instead of being lost to its client's idle limit.
-  There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
+  time. A connection is accepted, opened and kept alive while every session thread of the server
+  is busy: the server takes a new client on, and answers its handshake and its pings, on the
+  threads that move the bytes. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
   lost client is not noticed by the transport, and the server reclaims its items by the time lease.
 - **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
   (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as

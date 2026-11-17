@@ -75,7 +75,9 @@ namespace Gem::Courtier {
  * Threads. The shell's io context is the session pool: nThreads threads (the hardware concurrency
  * if 0) that run the sessions' handlers and nothing else; they are accounted in the thread budget
  * as "<consumer name>:sessions". The listener is handed the executor of that pool; the threads that
- * move the bytes, if the transport has any, are the listener's own (rule 2).
+ * move the bytes, if the transport has any, are the listener's own (rule 2), and a session is made
+ * there too (startSession_(), called by the listener's on_peer; GListenerI::start()): while every
+ * session thread is busy, a client that connects is still taken on.
  *
  * The peers. A session enters the registry (keyed by the client's id in the blob registry) when its
  * peer has been started, and leaves it in its destructor, through its serverSignOn() hook;
@@ -112,8 +114,9 @@ namespace Gem::Courtier {
  * then evaluated twice and the late duplicate is dropped and counted (GNetworkedConsumerT).
  *
  * Lifetime. The sessions refer to this object through a plain `this`. That is safe because their
- * handlers run on the session threads only, which are joined in stopServer(), and the destructor
- * stops the server. Declaration order matters: the sessions that are still alive when the server
+ * handlers run on the session threads only, which are joined in stopServer(), and the calls of
+ * on_peer on the listener's threads, which endWork() joins in stopServer(); the destructor stops
+ * the server. Declaration order matters: the sessions that are still alive when the server
  * has stopped are destroyed with the session pool's context, and their destructors reach the peer
  * registry and the blob registry, which are declared before it; the listener is declared before the
  * context too, so that it -- and with it the transport's I/O context, whose sockets the peers may
@@ -254,7 +257,7 @@ public:
             return;
         }
 
-        // The listener calls back for every client, on a session thread. A session is owned by
+        // The listener calls back for every client, on a thread of its own. A session is owned by
         // its peer from start() on. If start() throws, nothing has been started.
         listener_->start(
             io_context_.get_executor(),
@@ -409,7 +412,10 @@ private:
 
     /***************************************************************************/
     /** @brief Starts one session for a peer the listener has made, with a CheckoutLease that puts
-     *  back what the client holds when the session ends. On a session thread.
+     *  back what the client holds when the session ends. On a thread of the listener's own, so it
+     *  is short and does not block: it allocates, starts the peer (which only posts its work),
+     *  signs the session on (the peer registry's lock, held for that one operation) and looks at
+     *  the stop; it takes no other lock. The session's work then runs on the session threads.
      *  @param peer The connection, not started yet
      *  @param peer_id The client's id in the blob registry */
     void startSession_(const std::shared_ptr<Consumers::GPeerI> &peer, GWirePeerId peer_id) {

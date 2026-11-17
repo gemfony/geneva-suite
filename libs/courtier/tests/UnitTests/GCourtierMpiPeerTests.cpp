@@ -568,6 +568,43 @@ TEST_CASE("MPI transport: the listener's stop and end", "[courtier][mpi]") {
 }
 
 /******************************************************************************/
+/**
+ * The listener hands its peers over (on_peer) on the poll's thread, not on the shell's executor
+ * (GListenerI::start()): while the one session thread is busy, every rank's session is made all
+ * the same. The roles are told of the open on the session thread, once it is free again.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: the peers reach the shell while every session thread is busy",
+    "[courtier][mpi]"
+) {
+    auto world = std::make_shared<GMPIFakeWorld>(4);
+    Master master(world, optionsWith(), 1);
+    Client one(world, 1);
+    Client two(world, 2);
+    Client three(world, 3);
+    std::atomic<bool> holding{false};
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(master.pool().executor(), [&holding, release] {
+        holding.store(true);
+        std::ignore = release->wait_for(3 * PATIENCE); // longer than the check waits
+    });
+    REQUIRE(eventually([&] { return holding.load(); }));
+
+    master.start();
+    CHECK(eventually([&] { return master.ranks().size() == 3; }));
+    const auto role = master.role(1);
+    REQUIRE(role != nullptr);
+    CHECK(role->events().empty()); // its handlers wait for the session thread
+    release->count_down();
+
+    REQUIRE(eventually([&] { return role->events().size() == 1; }));
+    CHECK(role->events().front() == "open");
+    REQUIRE(eventually([&] { return one.role().events().size() == 1; }));
+    CHECK(one.role().events().front() == "open");
+}
+
+/******************************************************************************/
 /** An MPI client has one connection for the whole run; cancel() keeps done from being called. */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
