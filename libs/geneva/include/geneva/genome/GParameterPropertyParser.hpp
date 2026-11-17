@@ -50,10 +50,6 @@
 namespace Gem::Geneva::Genome {
 
 /******************************************************************************/
-/** @brief Storage of variable-related properties */
-using NAMEANDIDTYPE = std::tuple<std::size_t, std::string, std::size_t>;
-
-/******************************************************************************/
 /**
  * This class holds common properties of supported parameters in the context
  * of parameter scans. This is targeted at float, double, integer and boolean
@@ -76,7 +72,7 @@ class parPropSpec // NOLINT(cppcoreguidelines-special-member-functions)
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
-        archive_named(ar, "var", var);
+        archive_named(ar, "index", index);
         archive_named(ar, "lowerBoundary", lowerBoundary);
         archive_named(ar, "upperBoundary", upperBoundary);
         archive_named(ar, "nSteps", nSteps);
@@ -112,9 +108,9 @@ public:
 	  * @param b The other parPropSpec whose data members are exchanged with this object's
 	  */
     void swap(parPropSpec<par_type> &b) noexcept {
-        NAMEANDIDTYPE var_c = b.var;
-        b.var = this->var;
-        this->var = var_c;
+        std::size_t index_c = b.index;
+        b.index = this->index;
+        this->index = index_c;
         par_type lower_boundary_c = b.lowerBoundary;
         b.lowerBoundary = this->lowerBoundary;
         this->lowerBoundary = lower_boundary_c;
@@ -129,10 +125,7 @@ public:
     /***************************************************************************/
     // Data ...
 
-    // mode: (0, ...), (VarName[0], ...) or (VarName, ...)
-    // variable name
-    // optional index
-    NAMEANDIDTYPE var = NAMEANDIDTYPE(0, std::string(""), 0);
+    std::size_t index = 0; ///< The position of the parameter in the value channel of its type
     par_type lowerBoundary = par_type(0); ///< The lower boundary for the parameter scan
     par_type upperBoundary = par_type(1); ///< The upper boundary for the parameter scan
     std::size_t nSteps =
@@ -144,12 +137,12 @@ protected:
      * @brief The single declaration of this class'es local data members. load_() and
      * compare_() are derived from it, so the member list lives in one place.
      *
-     * @return A tuple of named members (mutable references) bundling var, lowerBoundary, upperBoundary and nSteps
+     * @return A tuple of named members (mutable references) bundling index, lowerBoundary, upperBoundary and nSteps
      */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
-            Gem::Common::make_member("var", self.var),
+            Gem::Common::make_member("index", self.index),
             Gem::Common::make_member("lowerBoundary", self.lowerBoundary),
             Gem::Common::make_member("upperBoundary", self.upperBoundary),
             Gem::Common::make_member("nSteps", self.nSteps)
@@ -266,27 +259,7 @@ struct simpleScanSpec {
  */
 template <typename par_type>
 std::ostream &operator<<(std::ostream &o, const parPropSpec<par_type> &s) {
-    if(0 == std::get<0>(s.var)) {
-        o << "index       = " << std::get<2>(s.var) << '\n';
-    }
-    else if(1 == std::get<0>(s.var)) {
-        o << "Address     = " << std::get<1>(s.var) << "[" << std::get<2>(s.var) << "]"
-          << '\n';
-    }
-    else if(2 == std::get<0>(s.var)) {
-        o << "Name        = " << std::get<1>(s.var) << '\n';
-    }
-    else {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In std::ostream& operator<<(std::ostream& o, const parPropSpec<par_type>& s): "
-               "Error!"
-            << '\n'
-            << "Got invalid mode " << std::get<0>(s.var) << '\n'
-        );
-    }
-
-    o << "mode          = " << std::get<0>(s.var) << '\n'
+    o << "index         = " << s.index << '\n'
       << "lowerBoundary = " << s.lowerBoundary << '\n'
       << "upperBoundary = " << s.upperBoundary << '\n'
       << "nSteps        = " << s.nSteps << '\n';
@@ -339,7 +312,7 @@ private:
     std::vector<std::pair<char, std::string>> tokenizeRaw() const;
     /** @brief Applies one parsed (type, content) fragment to the matching per-type spec vector. */
     void applyFragment(char type, std::string const &content);
-    /** @brief applyFragment() 'b' branch: parse a boolean parameter-scan spec (bounds / nSteps / label). */
+    /** @brief applyFragment() 'b' branch: parse a boolean parameter-scan spec (bounds / nSteps). */
     void applyBoolFragment(std::vector<std::string> const &tok, std::string const &content);
 
 public:

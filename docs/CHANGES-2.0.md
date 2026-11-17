@@ -420,6 +420,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 
 ## 7. Renames and small API removals
 
+- **A parameter-scan or profile specification carries no label.** A variable is addressed by
+  its index in the value channel of its type (`d(0, -1., 1., 10)`); a trailing label such as
+  `d(0, -1., 1., 10, x)` is refused when the specification is parsed, with a message that names
+  it (a progress plot names its variables with `setVariableNames()`). With the label the
+  remainder of the by-name addressing left: `parPropSpec<T>::index` replaces the
+  `(mode, name, index)` tuple `var` (and the `NAMEANDIDTYPE` alias),
+  `GScanParInterface::getVarIndex()` replaces `getVarAddress()`, and `GGenome::getVarVal<T>()`
+  takes the index.
+
 - **The genome-only marker is `using genome_only = void;`** (was
   `using gemfony_flat_individual = void;`). A leaf individual whose state is its genome
   declares it to opt into the generated empty member list; the meaning is unchanged.

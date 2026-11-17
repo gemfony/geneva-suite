@@ -697,14 +697,13 @@ public:
 	  */
     [[nodiscard]] std::string getLabel(const gen::parPropSpec<fp_type> &s) const {
         // A name set with setVariableNames() wins; otherwise the variable is labelled by its
-        // position (the former by-name addressing modes have been removed).
+        // position.
         for(std::size_t i = 0; i < fp_prof_var_vec_.size() && i < variable_names_.size(); ++i) {
             if(&fp_prof_var_vec_[i] == &s && not variable_names_[i].empty()) {
                 return variable_names_[i];
             }
         }
-        const std::size_t var_pos = std::get<2>(s.var);
-        return std::string("variable id ") + Gem::Common::to_string(var_pos);
+        return std::string("variable id ") + Gem::Common::to_string(s.index);
     }
 
 protected:
@@ -888,8 +887,8 @@ private:
 
         std::vector<fp_type> values;
         probe->template streamline<fp_type>(values);
-        const std::size_t ix = std::get<2>(fp_prof_var_vec_[0].var);
-        const std::size_t iy = std::get<2>(fp_prof_var_vec_[1].var);
+        const std::size_t ix = fp_prof_var_vec_[0].index;
+        const std::size_t iy = fp_prof_var_vec_[1].index;
         if(ix >= values.size() || iy >= values.size()) {
             return;
         }
@@ -950,7 +949,7 @@ private:
         // observed window is not logged at all.
         std::array<double, 3> vals{};
         for(std::size_t i = 0; i < n_vars; ++i) {
-            const auto v = ind.GGenome::template getVarVal<fp_type>(fp_prof_var_vec_[i].var);
+            const auto v = ind.GGenome::template getVarVal<fp_type>(fp_prof_var_vec_[i].index);
             if(observe_boundaries_ &&
                (v < fp_prof_var_vec_[i].lowerBoundary || v > fp_prof_var_vec_[i].upperBoundary)) {
                 return;

@@ -152,9 +152,9 @@ class GScanParInterface {
 public:
     /** @brief The (defaulted) virtual destructor */
     virtual ~GScanParInterface() = default;
-    /** @brief Retrieves the name and/or position address of the scanned variable
-     *  @return The address (name and id) of the variable inside the individual */
-    [[nodiscard]] virtual gen::NAMEANDIDTYPE getVarAddress() const = 0;
+    /** @brief Retrieves the position of the scanned variable
+     *  @return The position of the variable in the value channel of its type */
+    [[nodiscard]] virtual std::size_t getVarIndex() const = 0;
     /** @brief Advances to the next grid position, rewinding to the start at the end
      *  @return true if a warp (rewind to the first position) has taken place, false otherwise */
     virtual bool goToNextItem() = 0;
@@ -192,8 +192,7 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
      *  name_()/load_()/compare_() (and the disambiguating serialize() below) all derive from one list.
      *  The pre-computed grid held by the GPodContainerT base is tied in here as data_cnt_ (the container's
      *  only state -- GContainerT serialises just data_cnt_), so the container stays a behaviour-only base
-     *  and needs no base_object handling. var_ (a std::tuple) is listed as its three named sub-elements
-     *  (compare_t cannot stream a whole tuple). GScanParInterface is a stateless pure-virtual interface. */
+     *  and needs no base_object handling. GScanParInterface is a stateless pure-virtual interface. */
     // The member list is written ONCE, in the static template helper below. self_type is deduced as
     // GBaseScanParT or const GBaseScanParT, so each member binds with the matching const-ness and
     // make_member() deduces accordingly; the two localMembers() overloads are trivial forwarders.
@@ -201,9 +200,7 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("data_cnt_", self.data_cnt_),
-            Gem::Common::make_member("var_mode", std::get<0>(self.var_)),
-            Gem::Common::make_member("var_name", std::get<1>(self.var_)),
-            Gem::Common::make_member("var_pos", std::get<2>(self.var_)),
+            Gem::Common::make_member("index_", self.index_),
             Gem::Common::make_member("step_", self.step_),
             Gem::Common::make_member("n_steps_", self.n_steps_),
             Gem::Common::make_member("lower_", self.lower_),
@@ -235,11 +232,11 @@ public:
     /**
      * @brief The standard constructor.
      *
-     * Stores the variable address, boundaries and step count from the property
+     * Stores the variable index, boundaries and step count from the property
      * specification. For a (non-random) grid scan the grid points are pre-computed
      * via fillWithData<T>().
      *
-     * @param pps The parameter property specification (variable address, boundaries, number of steps)
+     * @param pps The parameter property specification (variable index, boundaries, number of steps)
      * @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled
      * @param t A textual identifier for the parameter type (stored as type_description_)
      */
@@ -249,7 +246,7 @@ public:
         const std::string &t // type_description_
     )
       : Gem::Common::GPodContainerT<T>()
-      , var_(pps.var)
+      , index_(pps.index)
       , step_(0)
       , n_steps_(pps.nSteps)
       , lower_(pps.lowerBoundary)
@@ -270,8 +267,10 @@ public:
      * @param cp Another GBaseScanParT object whose state is copied
      */
     GBaseScanParT(const GBaseScanParT<T> &cp)
-      : Gem::Common::GPodContainerT<T>(cp) // copy the pre-computed grid (the random members default-construct)
-      , var_(cp.var_)
+      : Gem::Common::GPodContainerT<T>(
+            cp
+        ) // copy the pre-computed grid (the random members default-construct)
+      , index_(cp.index_)
       , step_(cp.step_)
       , n_steps_(cp.n_steps_)
       , lower_(cp.lower_)
@@ -288,21 +287,21 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Retrieve the address (name and id) of the scanned variable
-     * @return The variable address inside the individual
+     * @brief Retrieve the position of the scanned variable
+     * @return The position of the variable in the value channel of its type
      */
-    gen::NAMEANDIDTYPE getVarAddress() const override {
-        return var_;
+    std::size_t getVarIndex() const override {
+        return index_;
     }
 
     /**
-     * @brief The specification this object was built from (variable address, boundaries, step
+     * @brief The specification this object was built from (variable index, boundaries, step
      * count), so it can be rebuilt for the other scan mode.
      * @return The parameter property specification of this object
      */
     gen::parPropSpec<T> getSpec() const {
         gen::parPropSpec<T> spec;
-        spec.var = var_;
+        spec.index = index_;
         spec.lowerBoundary = lower_;
         spec.upperBoundary = upper_;
         spec.nSteps = n_steps_;
@@ -396,7 +395,7 @@ protected:
     /***************************************************************************/
     // Data
 
-    gen::NAMEANDIDTYPE var_;           ///< Name and/or position of the variable
+    std::size_t index_;           ///< The position of the variable in the value channel of its type
     std::size_t step_;            ///< The current position in the data vector
     std::size_t n_steps_;         ///< Requested steps (random draws or grid points)
     T lower_;                     ///< The lower boundary of an item
@@ -407,7 +406,7 @@ protected:
     /***************************************************************************/
     /** @brief The default constructor -- only needed for de-serialization, hence protected */
     GBaseScanParT()
-      : var_(gen::NAMEANDIDTYPE(0, "empty", 0))
+      : index_(0)
       , step_(0)
       , n_steps_(2)
       , lower_(T(0))
@@ -538,7 +537,7 @@ class GScanParT // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>> {
 public:
     /** @brief Construction from a parameter property specification and a random-scan flag.
-     *  @param pps The parameter property specification (variable address, boundaries, steps)
+     *  @param pps The parameter property specification (variable index, boundaries, steps)
      *  @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled */
     GScanParT(const gen::parPropSpec<T> &pps, bool random_scan)
       : Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>>(
@@ -647,10 +646,7 @@ public:
 
 /******************************************************************************/
 /**
- * @brief A single scanned parameter value together with its position.
- *
- * Every scan parameter is addressed positionally (the former by-name addressing modes have been
- * removed together with their mode/name metadata).
+ * @brief A single scanned parameter value together with its position in its value channel.
  *
  * @tparam T The parameter value type (bool, std::int32_t, float, double)
  */
@@ -872,7 +868,7 @@ private:
      * @brief Writes a single scanned parameter into a value-channel vector at its encoded position.
      *
      * @tparam data_type The parameter value type held by the data point
-     * @param data_point The scanned parameter (value + addressing metadata); only mode 0 is valid here
+     * @param data_point The scanned parameter (value + position)
      * @param data_vec The destination vector, written at data_point.pos
      */
     template <typename data_type>

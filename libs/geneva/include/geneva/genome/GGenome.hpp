@@ -1345,18 +1345,16 @@ public:
     /**
      * @brief Retrieves a parameter of a given type at the specified active index.
      * @tparam val_type The value type to retrieve (double, float, std::int32_t or bool)
-     * @param target A (type-index, name, position) tuple; the third element is the active index
+     * @param idx The active index of the parameter in the value channel of its type
      * @return The parameter value of the requested type at the requested index
      */
     template <typename val_type>
-    val_type getVarVal(std::tuple<std::size_t, std::string, std::size_t> const &target) {
+    val_type getVarVal(const std::size_t idx) {
         static_assert(
             std::is_same_v<val_type, double> || std::is_same_v<val_type, float> ||
                 std::is_same_v<val_type, std::int32_t> || std::is_same_v<val_type, bool>,
             "GGenome::getVarVal<>(): unsupported value type (use double, float, std::int32_t or bool)"
         );
-
-        const std::size_t idx = std::get<2>(target);
 
         if constexpr (std::is_same_v<val_type, double>) {
             return this->getVarVal_d_(idx);

@@ -41,6 +41,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -1410,6 +1411,50 @@ TEST_CASE(
         pop->setScanRandomly(false);
         run_and_count(pop);
     }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "A parameter-scan specification with a label is refused when it is parsed",
+    "[flat][oa][ps]"
+) {
+    // A specification addresses each variable by its index; a trailing label used to be accepted
+    // by the grammar and refused only when the scan ran (as the remainder of the removed by-name
+    // addressing).
+    for(const char *spec :
+        {"d(0, -1., 1., 10, x)",
+         "f(0, -1., 1., x)",
+         "i(0, 0, 5, 3, x)",
+         "b(0, x)",
+         "b(0, false, true, 5, x)"}) {
+        CAPTURE(spec);
+        CHECK_THROWS_WITH(
+            gen::GParameterPropertyParser(spec),
+            Catch::Matchers::ContainsSubstring("\"x\"") &&
+                Catch::Matchers::ContainsSubstring("is not a step count")
+        );
+    }
+    CHECK_THROWS_AS(
+        oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
+        geneva_exception
+    );
+
+    // The forms without a label are read as before
+    gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
+    auto [d_it, d_end] = ppp.getIterators<double>();
+    REQUIRE(std::distance(d_it, d_end) == 1);
+    CHECK(d_it->index == 3);
+    CHECK(d_it->nSteps == 10);
+    auto [b_it, b_end] = ppp.getIterators<bool>();
+    REQUIRE(std::distance(b_it, b_end) == 2);
+    CHECK(b_it->index == 2);
+    CHECK(std::next(b_it)->index == 4);
+    CHECK(std::next(b_it)->nSteps == 7);
+    auto [i_it, i_end] = ppp.getIterators<std::int32_t>();
+    REQUIRE(std::distance(i_it, i_end) == 1);
+    CHECK(i_it->index == 1);
+    CHECK(i_it->nSteps == 100); // the default step count
 }
 
 /******************************************************************************/

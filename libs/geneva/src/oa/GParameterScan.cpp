@@ -554,24 +554,15 @@ std::shared_ptr<parSet> GParameterScan::getParameterSet() {
     // Create a new parSet object
     std::shared_ptr<parSet> result(new parSet());
 
-    // Every scan parameter is positional (the former by-name addressing modes have been removed);
-    // guard once per parameter against a corrupted specification.
     auto append = [this](const auto &scan_par_cnt, auto &target_vec) {
         using single_t = typename std::remove_reference_t<decltype(target_vec)>::value_type;
         for(const auto &scan_par : scan_par_cnt) {
-            gen::NAMEANDIDTYPE var = scan_par->getVarAddress();
-            if(std::get<0>(var) != 0) {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GParameterScan::getParameterSet(): Error!" << '\n'
-                    << "Encountered non-positional addressing mode " << std::get<0>(var)
-                    << " (by-name addressing has been removed)" << '\n'
-                );
-            }
-            target_vec.push_back(single_t{
-                scan_par->getCurrentItem(gr_), // value
-                std::get<2>(var)               // position
-            });
+            target_vec.push_back(
+                single_t{
+                    scan_par->getCurrentItem(gr_), // value
+                    scan_par->getVarIndex()        // position
+                }
+            );
         }
     };
     append(b_cnt_, result->bParVec);
