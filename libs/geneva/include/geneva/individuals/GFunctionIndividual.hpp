@@ -320,8 +320,8 @@ const solverFunction GO_DEF_EVALFUNCTION = solverFunction::PARABOLA;
  * @note For MICHALEWICZ the natural domain is [0, π]. Set min_var=0 and max_var≈3.14159
  *       explicitly; the factory default of [-10, 10] is not suitable for that function.
  */
-class GFunctionIndividual
-  : public gen::GGenomeT<GFunctionIndividual> // NOLINT(cppcoreguidelines-special-member-functions)
+class GFunctionIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+  : public gen::GGenomeT<GFunctionIndividual>
   , public Gem::Common::GSelfTestable
 {
     ///////////////////////////////////////////////////////////////////////
@@ -761,9 +761,9 @@ private:
  * A constraint checker trying to enforce a condition x+y+z=C (note the equal
  * sign!) for double variables
  */
-class GDoubleSumGapConstraint
+class GDoubleSumGapConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GDoubleSumGapConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -840,9 +840,9 @@ private:
  * A simple constraint checker searching for valid solutions that fulfill
  * a given constraint. Here, valid solutions lie in a sphere around 0
  */
-class GSphereConstraint
+class GSphereConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GSphereConstraint, gen::GGenomeConstraint>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 

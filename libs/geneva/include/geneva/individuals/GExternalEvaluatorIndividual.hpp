@@ -117,9 +117,9 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external
  * program needs to read and write this JSON format.
  */
-class GExternalEvaluatorIndividual
+class GExternalEvaluatorIndividual // NOLINT(cppcoreguidelines-special-member-functions)
   : public gen::GGenomeT<GExternalEvaluatorIndividual>
-  , public Gem::Common::GSelfTestable { // NOLINT(cppcoreguidelines-special-member-functions)
+  , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin

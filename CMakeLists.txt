@@ -789,6 +789,16 @@ IF (GENEVA_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
 	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
 
+	# A NOLINT of cppcoreguidelines-special-member-functions sits on the class's name line, where
+	# clang-tidy reports the check (elsewhere it suppresses nothing).
+	ADD_TEST(
+		NAME SpecialMemberNolintEffective
+		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckSpecialMemberNolint.cmake
+	)
+	SET_TESTS_PROPERTIES(SpecialMemberNolintEffective PROPERTIES LABELS "conventions")
+	GENEVA_TEST_SIZE(SpecialMemberNolintEffective S)
+
 	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
 	# external dependency of the test, not of the build, so it is registered only where configure
 	# finds one. -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the source tree.
