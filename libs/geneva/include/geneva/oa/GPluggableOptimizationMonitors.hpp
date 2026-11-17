@@ -118,9 +118,6 @@ protected:
 private:
     /**
      * @brief Aggregates the work of all registered pluggable monitors
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -233,9 +230,6 @@ private:
     /************************************************************************/
     /**
      * @brief Aggregates the work of all registered pluggable monitors
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -334,9 +328,6 @@ protected:
 private:
     /**
      * @brief Aggregates the work of all registered pluggable monitors
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -1212,9 +1203,6 @@ protected:
 private:
     /**
      * @brief Allows to emit information in different stages of the information cycle
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -1342,9 +1330,6 @@ private:
 
     /**
      * @brief Allows to emit information in different stages of the information cycle
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -1481,9 +1466,6 @@ private:
 
     /**
      * @brief Allows to emit information in different stages of the information cycle
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
@@ -2098,9 +2080,6 @@ private:
 
     /**
      * @brief Allows to emit information in different stages of the information cycle
-     *
-     * @param im The information mode (init, processing or finalization)
-     * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;

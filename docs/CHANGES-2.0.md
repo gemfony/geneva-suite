@@ -354,8 +354,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (header `courtier/GDemoProcessingContainers.hpp`) are no longer part of the library: they are
   test code of courtier's own tests and are neither installed nor exported.
 - **The Geneva library ships no concrete optimization individual.** The reusable sample
-  problems were folded into `gemfony-geneva` (`Gem::Geneva::Individuals`); there is no
-  separate `geneva-individuals` library.
+  problems live in `Gem::Geneva::Individuals` and are packaged next to the library (object
+  libraries and loadable modules), not compiled into `gemfony-geneva`; there is no separate
+  `geneva-individuals` library.
 - **Individuals, optimization algorithms and GPU marshallers can be shipped as
   runtime-loadable `.so` modules** (`GENEVA_DECLARE_INDIVIDUAL` /
   `GENEVA_ADD_INDIVIDUAL_MODULE`, `individualManifest<>` / `oaManifest<>` /

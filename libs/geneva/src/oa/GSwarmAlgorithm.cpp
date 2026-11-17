@@ -1642,6 +1642,8 @@ void GSwarmAlgorithm::setNeighborhoodsEqualFillUp() {
 /******************************************************************************/
 /**
  * All individuals automatically added to a neighborhood will have a random value
+ *
+ * @param random_fill_up Whether random fill-up should be enabled (defaults to true)
  */
 void GSwarmAlgorithm::setNeighborhoodsRandomFillUp(bool random_fill_up) {
     random_fill_up_ = random_fill_up;

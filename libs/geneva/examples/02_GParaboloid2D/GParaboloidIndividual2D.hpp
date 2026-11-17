@@ -70,7 +70,7 @@ class GParaboloidIndividual2D : public gen::GGenomeT<GParaboloidIndividual2D> {
 
 //! [problem-declaration#2]
 public:
-    /** @brief Opt into GGenomeT's generated empty member list (no own state). */
+    /** @brief Opt into GGenomeT's generated empty member list (no serialized state). */
     using genome_only = void;
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GParaboloidIndividual2D";
