@@ -33,9 +33,10 @@
 # courtier's MPI cascade (libgemfony-courtier-mpi).
 SET ( EXECUTABLENAME GSubClientOverhead )
 
-# The individual is free of MPI: it is compiled without MPI's include path, so an include of an MPI
-# header (directly, or through GSleepGroup.hpp) fails the build. A client with sub-clients
-# evaluates it in its group through the lead's item processor (GSubClientOverhead.cpp).
+# The individual is free of MPI: it is compiled without MPI's include path, and its source refuses
+# to compile where an MPI header was included (directly, or through GSleepGroup.hpp), also where
+# mpi.h is on the compiler's own search path. A client with sub-clients evaluates it in its group
+# through the lead's item processor (GSubClientOverhead.cpp).
 ADD_LIBRARY(${EXECUTABLENAME}Individual OBJECT GSleepGroupIndividual.cpp)
 TARGET_LINK_LIBRARIES(${EXECUTABLENAME}Individual PRIVATE ${GENEVA_LIBRARIES})
 

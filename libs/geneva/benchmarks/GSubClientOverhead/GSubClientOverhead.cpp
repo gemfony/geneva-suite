@@ -139,7 +139,6 @@ Role readRole(int argc, char **argv) {
 struct Settings {
     bool referenceRun = false;                       ///< --reference
     std::string referenceFile = "referenceLine.txt"; ///< --referenceFile
-    unsigned int group = 1;                          ///< --group
     SpeedupMeasurement::ClientGate gate;             ///< --waitForClients, --clientWaitLimit
 };
 
@@ -164,8 +163,9 @@ boost::program_options::options_description benchmarkOptions(Settings &settings)
             ->default_value(settings.referenceFile),
         "The file that holds the line of the serial reference"
     )(
+        // Read by readRole() (Role::group); registered here for Go2's parse and help
         "group",
-        boost::program_options::value<unsigned int>(&settings.group)->default_value(settings.group),
+        boost::program_options::value<unsigned int>()->default_value(Role{}.group),
         "The processes of a client's group, the client included (1: no sub-clients, no MPI "
         "cascade). With mpi the job has 1 + clients x group processes; a networked client is an "
         "MPI job of group processes"

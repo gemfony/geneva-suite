@@ -157,3 +157,10 @@ std::shared_ptr<GSleepGroupIndividual> GSleepGroupIndividual::create(
 }
 
 } /* namespace Gem::Geneva::SubClientOverhead */
+
+// The individual stays free of MPI (CMakeLists.txt). Every mpi.h defines MPI_VERSION, so an include
+// of an MPI header, directly or through another header, fails the build here also where mpi.h is
+// on the compiler's own search path (an MPI compiler wrapper, CPATH, a system include directory).
+#ifdef MPI_VERSION
+#error "GSleepGroupIndividual must stay free of MPI"
+#endif

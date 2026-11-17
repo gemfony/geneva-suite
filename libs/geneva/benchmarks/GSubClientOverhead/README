@@ -14,7 +14,7 @@ of the squares of its share. The fitness is the sum of the answers. With
 split_evaluation false every process sleeps the whole T instead. Nobody waits
 busily: a process that waits for a message looks with a non-blocking test and
 pauses between two looks, from poll_pause_min up to poll_pause_max microseconds
-(50 and 1000 by default, courtier's defaults for its MPI waits, in
+(by default courtier's pauses for its MPI waits; the values stand in
 config/GSleepGroupIndividual.json; the first process of a job reads the file and
 the MPI cascade gives the pauses to the others, and the server prints them into
 its log). The serial reference does all of it in one process, so with C clients
