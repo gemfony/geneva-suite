@@ -353,6 +353,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   before. The demo work items `GSimpleContainer`, `GRandomNumberContainer` and `GFaultyContainer`
   (header `courtier/GDemoProcessingContainers.hpp`) are no longer part of the library: they are
   test code of courtier's own tests and are neither installed nor exported.
+- **A project outside the tree finds Geneva with `find_package(Geneva)` only.** The installation
+  no longer carries the modules that build the collection itself (`CommonGenevaBuild.cmake`,
+  the modules it includes, and `IndependentBuild.cmake` with its `SETUP_BUILD_SYSTEM` macro);
+  its `CMakeModules/` directory holds `FindGeneva.cmake`, the fallback of
+  `find_package(Geneva MODULE)`, and nothing else.
 - **The Geneva library ships no concrete optimization individual.** The reusable sample
   problems live in `Gem::Geneva::Individuals` and are packaged next to the library (object
   libraries and loadable modules), not compiled into `gemfony-geneva`; there is no separate

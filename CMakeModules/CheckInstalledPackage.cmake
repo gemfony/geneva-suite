@@ -34,7 +34,9 @@
 #  1. "cmake --install" of the build into a fresh directory (mktemp -d) as prefix;
 #  2. that installation is renamed: nothing in it may still name the prefix it
 #     was installed to (the exported targets, the config package, the run paths);
-#     a staged install (DESTDIR) is usable in the same way;
+#     a staged install (DESTDIR) is usable in the same way; of the collection's
+#     CMake modules it carries FindGeneva.cmake only (not CommonGenevaBuild.cmake,
+#     which builds the collection itself);
 #     every installed library, module and program must then resolve all its
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
 #  3. the quickstart (libs/geneva/quickstart) is configured standalone with
@@ -418,6 +420,16 @@ ENDIF()
 
 # 2. Move.
 FILE(RENAME "${ROOT}/installed" "${ROOT}/moved")
+
+# Of the collection's CMake modules the installation carries FindGeneva.cmake only. The modules that
+# build the collection itself (CommonGenevaBuild.cmake and what it includes) are not installed: a
+# project outside the tree finds Geneva with find_package(Geneva), as the lanes below do.
+FILE(GLOB_RECURSE _build_modules "${ROOT}/moved/*CommonGenevaBuild.cmake")
+FILE(GLOB _modules RELATIVE "${ROOT}/moved/CMakeModules" "${ROOT}/moved/CMakeModules/*")
+IF(_build_modules OR NOT _modules STREQUAL "FindGeneva.cmake")
+	gip_fail("The installation carries CMake modules beyond FindGeneva.cmake: ${_build_modules} "
+		"CMakeModules/{${_modules}}")
+ENDIF()
 
 # The ldd check of step 2 and steps 3 to 6: the lanes, all at the same time.
 SET(_lanes ldd quickstart handlinked findgeneva flags-CONFIG flags-MODULE)

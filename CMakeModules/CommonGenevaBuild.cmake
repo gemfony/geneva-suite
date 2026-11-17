@@ -28,8 +28,8 @@
 ################################################################################
 
 #
-# This module is needed to setup the Geneva build system, and may also be used
-# to compile independent Geneva applications.
+# This module sets up the build of the Geneva collection itself. It is not
+# installed: a project outside the tree uses find_package(Geneva).
 #
 
 ################################################################################

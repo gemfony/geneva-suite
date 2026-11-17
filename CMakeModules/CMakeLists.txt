@@ -33,14 +33,8 @@
 # CommonGenevaBuild.cmake, GENEVA_HAP_PUBLIC_DEFINE in the top-level CMakeLists.txt).
 CONFIGURE_FILE ( FindGeneva.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake @ONLY )
 
-SET ( CMAKEFILES
-	README
-	CommonGenevaBuild.cmake
-	${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake
-	# Other macro files
-	CleanCmakeTemporaries.cmake
-	IdentifySystemParameters.cmake
-	IndependentBuild.cmake
-)
-
-INSTALL ( FILES ${CMAKEFILES} DESTINATION ${INSTALL_PREFIX_DATA}/CMakeModules )
+# It is the only module installed. The others build the collection itself (CommonGenevaBuild.cmake
+# and what it includes); a project outside the tree uses find_package(Geneva), and the config
+# package brings the modules it needs with it.
+INSTALL ( FILES ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmake
+	DESTINATION ${INSTALL_PREFIX_DATA}/CMakeModules )
