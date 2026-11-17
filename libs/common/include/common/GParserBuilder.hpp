@@ -1219,7 +1219,7 @@ private:
 	  * values are taken from the def_val_ vector, which may be empty (it is
 	  * then written out as an empty "default"/"value" array).
 	  *
-	  * @param pt The object to which data should be saved
+	  * @param root The JSON object to which data should be saved
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
@@ -1483,7 +1483,7 @@ private:
 	  * Saves data to a property tree object, including comments. Default
 	  * values are taken from the def_val_ vector.
 	  *
-	  * @param pt The object to which data should be saved
+	  * @param root The JSON object to which data should be saved
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments

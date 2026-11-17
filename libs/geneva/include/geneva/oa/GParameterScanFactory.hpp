@@ -85,7 +85,7 @@ public:
     /**
      * @brief The copy constructor
      *
-     * @param The factory to be copied (default member-wise copy).
+     * The factory is copied member-wise (default copy).
      */
     GParameterScanFactory(const GParameterScanFactory &) = default;
     /** @brief The destructor */

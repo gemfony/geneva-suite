@@ -72,10 +72,6 @@ public:
 /******************************************************************************/
 /**
  * @brief This function allows to output a geneva_exception to a stream
- *
- * @param os The output stream the exception's message is written to
- * @param e The geneva_exception whose message is streamed out
- * @return A reference to the output stream
  */
 std::ostream &operator<<(std::ostream &o, const geneva_exception &g);
 

@@ -99,14 +99,16 @@ private:
     /**
      * @brief Retrieves the stored raw fitness with a given id.
      *
-     * @param id The index of the fitness criterion to retrieve
+     * The argument is the index of the fitness criterion to retrieve.
+     *
      * @return The raw (untransformed) fitness value for the requested criterion
      */
     [[nodiscard]] virtual double raw_fitness_(std::size_t) const = 0;
     /**
      * @brief Retrieves the stored transformed fitness with a given id.
      *
-     * @param id The index of the fitness criterion to retrieve
+     * The argument is the index of the fitness criterion to retrieve.
+     *
      * @return The transformed fitness value for the requested criterion
      */
     [[nodiscard]] virtual double transformed_fitness_(std::size_t) const = 0;

@@ -96,11 +96,6 @@ public:
     /**
      * @brief Public entry point that forwards to the derived-class hook for emitting
      * information about the current iteration.
-     *
-     * @param infoMode Indicates which optimization phase is active (initialization, the
-     *        per-iteration cycle, or finalization)
-     * @param GOptimizationAlgorithmBase const *const Non-owning pointer to the algorithm
-     *        currently being monitored; the monitor reads its state but does not own it
      */
     void informationFunction(infoMode im, GOptimizationAlgorithmBase const *const goa);
 
@@ -147,10 +142,9 @@ private:
      * @brief Overload this function in derived classes, specifying actions for initialization,
      * the optimization cycles and finalization (pure virtual).
      *
-     * @param infoMode Indicates which optimization phase is active (initialization, the
-     *        per-iteration cycle, or finalization)
-     * @param GOptimizationAlgorithmBase const *const Non-owning pointer to the algorithm
-     *        currently being monitored
+     * The first argument indicates which optimization phase is active (initialization, the
+     * per-iteration cycle, or finalization); the second is a non-owning pointer to the algorithm
+     * currently being monitored.
      */
     virtual void
     informationFunction_(infoMode, GOptimizationAlgorithmBase const *const) = 0;

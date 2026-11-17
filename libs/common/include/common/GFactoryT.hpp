@@ -354,7 +354,8 @@ protected:
 
     /**
      * @brief Allows to act on the configuration options received from the configuration file
-     * @param std::shared_ptr<prod_type>& The freshly produced object on which derived classes may act
+     *
+     * The argument is the freshly produced object on which derived classes may act.
      */
     virtual void postProcess_(std::shared_ptr<prod_type> &) = 0;
 
@@ -444,7 +445,10 @@ private:
     /***************************************************************************/
     /**
      * @brief Creates objects of the desired type (implemented in derived classes)
-     * @param GParserBuilder& The parser builder to which the object may add further configuration options
+     *
+     * The argument is the parser builder to which the object may add further configuration
+     * options.
+     *
      * @return A newly created object of type prod_type
      */
     virtual std::shared_ptr<prod_type> getObject_(Gem::Common::GParserBuilder &) = 0;

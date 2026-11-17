@@ -239,12 +239,6 @@ GFunctionIndividual::GFunctionIndividual(const solverFunction &d_f)
 
 /******************************************************************************/
 /**
- * @brief Allows external entities to set the fitness.
- *
- * @param result_vec A vector of result values to assign as this individual's fitness
- */
-/******************************************************************************/
-/**
  * @brief Adds local configuration options to a GParserBuilder object.
  *
  * @param gpb The GParserBuilder object to which configuration options should be added

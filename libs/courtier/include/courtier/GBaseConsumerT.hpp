@@ -90,9 +90,9 @@ public:
     /** @brief Enables/sizes the consumer's late-return buffer: results that come back AFTER their
      *  batch was already reconciled are retained (instead of dropped) for the optimization algorithm to
      *  reap. @p cap == 0 disables it. Default: a no-op -- local (serial / thread-pool) consumers never
-     *  produce late returns. Networked consumers override this.
-     *  @param cap Maximum number of late-return items to buffer (0 disables late-return buffering)
-     *  @param ttl_rounds Number of dispatch rounds a buffered late return is kept before being discarded */
+     *  produce late returns. Networked consumers override this. The arguments are the maximum number
+     *  of late-return items to buffer (cap; 0 disables late-return buffering) and the number of
+     *  dispatch rounds a buffered late return is kept before being discarded (ttl_rounds). */
     virtual void enableLateReturns(std::size_t /*cap*/, std::uint64_t /*ttl_rounds*/) {}
 
     /** @brief Hands back (transfers ownership of) the work items the consumer buffered as late returns,

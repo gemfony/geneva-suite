@@ -89,7 +89,7 @@ public:
     /**
      * @brief The copy constructor
      *
-     * @param The object to be copied (default member-wise copy).
+     * The object is copied member-wise (default copy).
      */
     GOptimizationAlgorithmT(const GOptimizationAlgorithmT &) = default;
     /** @brief The destructor */

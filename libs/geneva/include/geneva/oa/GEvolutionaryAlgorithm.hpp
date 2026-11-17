@@ -248,7 +248,7 @@ public:
     /***************************************************************************/
     /** @brief The default constructor */
     GEvolutionaryAlgorithm();
-    /** @brief A standard copy constructor. @param The object to be copied */
+    /** @brief A standard copy constructor. */
     GEvolutionaryAlgorithm(const GEvolutionaryAlgorithm &) = default;
     /** @brief The standard destructor */
     ~GEvolutionaryAlgorithm() override = default;

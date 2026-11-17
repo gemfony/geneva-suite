@@ -235,7 +235,7 @@ public:
      * of deriving a default from the genome layout. The base does nothing -- non-adapting algorithms
      * (swarm, gradient descent, scan) have no adaption config.
      *
-     * @param config The OA-owned adaption configuration to adopt for this run
+     * The argument is the OA-owned adaption configuration to adopt for this run.
      */
     virtual void setAdaptionConfig(std::shared_ptr<GAdaptionConfigBase> /* config */) { /* no-op */ }
 

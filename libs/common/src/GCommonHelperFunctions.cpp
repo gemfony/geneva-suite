@@ -324,10 +324,6 @@ int runExternalCommand(
 
 /******************************************************************************/
 /**
- * Splits a string into a vector of strings, according to a seperator character.
- * Any trailing or leading white spaces are removed from the result strings.
- *
- * @param str The string to be split
  * @brief Trims leading and trailing whitespace (spaces, tabs, CR, LF) from a string.
  *
  * @param s The string to trim

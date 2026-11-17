@@ -479,7 +479,8 @@ protected:
     /**
      * @brief Loads the data of another g_class_type
      *
-     * @param cp A pointer to another g_class_type-derivative whose data should be loaded into this object
+     * The argument points to another g_class_type-derivative whose data should be loaded into
+     * this object.
      */
     virtual void load_(const g_class_type *) = 0;
 

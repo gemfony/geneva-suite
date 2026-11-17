@@ -92,13 +92,11 @@ public:
 
     /**
      * @brief Copy construction
-     * @param cp The other object to copy from
      */
     individual_processing_result(individual_processing_result const &) = default;
 
     /**
      * @brief Move construction
-     * @param cp The other object to move from
      */
     individual_processing_result(individual_processing_result &&) = default;
 
@@ -107,14 +105,12 @@ public:
 
     /**
      * @brief Assignment
-     * @param cp The other object to copy-assign from
      * @return A reference to this object
      */
     individual_processing_result &operator=(individual_processing_result const &) = default;
 
     /**
      * @brief Move assignment
-     * @param cp The other object to move-assign from
      * @return A reference to this object
      */
     individual_processing_result &operator=(individual_processing_result &&) = default;

@@ -222,16 +222,10 @@ public:
     GConjugateGradientDescent();
     /**
      * @brief Initialization with the number of starting points and step parameters.
-     *
-     * @param std::size_t const & The number of starting points in the parameter space
-     * @param double const & The size of the finite step of the difference quotient
-     * @param double const & The multiplier for the initial trial step along the search direction
      */
     GConjugateGradientDescent(const std::size_t &n_starting_points, const double &finite_step, const double &step_size);
     /**
      * @brief A standard copy constructor.
-     *
-     * @param GConjugateGradientDescent const & The object to copy from
      */
     GConjugateGradientDescent(const GConjugateGradientDescent &) = default;
     /** @brief The destructor */
@@ -243,15 +237,11 @@ public:
     std::size_t getNStartingPoints() const;
     /**
      * @brief Allows to set the number of starting points for the conjugate gradient descent.
-     *
-     * @param std::size_t The number of starting positions in the parameter space
      */
     void setNStartingPoints(std::size_t n_starting_points);
 
     /**
      * @brief Set the size of the finite step of the difference quotient.
-     *
-     * @param double The difference-quotient step (per mill of the parameter range)
      */
     void setFiniteStep(double finite_step);
     /**
@@ -261,8 +251,6 @@ public:
 
     /**
      * @brief Sets a multiplier for the initial trial step along the search direction.
-     *
-     * @param double The multiplicative factor for the initial trial step (the line search refines it)
      */
     void setStepSize(double step_size);
     /**
@@ -283,8 +271,6 @@ public:
      * @brief Enables the O(h^2) CENTRAL-difference gradient (g_j = (f(x+h)-f(x-h))/2h) instead of the
      * default O(h) forward difference. More accurate, but doubles the number of probe evaluations per
      * iteration (two perturbed children per direction instead of one).
-     *
-     * @param bool If true, the central-difference gradient is enabled; if false, the forward difference is used
      */
     void setCentralDifferences(bool central);
     /**
@@ -296,8 +282,6 @@ public:
      * @brief Sets the L-BFGS history size m (the number of (s, y) curvature pairs kept per starting
      * point). Only used when gradientMethod::LBFGS is selected. Larger m -> a better inverse-Hessian
      * approximation at the cost of m*n storage and O(m*n) work per step. Clamped to >= 1.
-     *
-     * @param std::size_t The L-BFGS history size m (number of (s, y) pairs to keep)
      */
     void setLBFGSMemory(std::size_t m);
     /**
@@ -315,8 +299,6 @@ public:
     errorEstimationMode getErrorEstimation() const;
     /**
      * @brief Sets the error definition UP (1 for chi^2-like, 0.5 for -logL); see MINUIT.
-     *
-     * @param double The MINUIT error definition UP value
      */
     void setErrorDefinition(double up);
     /**

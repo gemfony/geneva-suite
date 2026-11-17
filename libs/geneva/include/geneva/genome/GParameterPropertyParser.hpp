@@ -188,7 +188,9 @@ protected:
      *
      * @param cp A constant reference to another parPropSpec object to compare against
      * @param e The expected outcome of the comparison (e.g. equality or inequality)
-     * @param limit The maximum allowed deviation for floating point comparisons (unused here)
+     *
+     * The third argument, the maximum allowed deviation for floating point comparisons, is unused
+     * here.
      */
     void compare_(
         const parPropSpec<par_type> &cp // the other object

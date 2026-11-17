@@ -200,7 +200,8 @@ public:
 
     /**
      * @brief Allows to set the data type of this individual
-     * @param dataType The data-type tag forwarded to the external program in the exchange file
+     *
+     * The argument is the data-type tag forwarded to the external program in the exchange file.
      */
     void setDataType(std::string);
     /**

@@ -111,7 +111,7 @@ public:
     /**
      * @brief The copy constructor.
      *
-     * @param The factory to be copied (default member-wise copy).
+     * The factory is copied member-wise (default copy).
      */
     GOptimizationAlgorithmFactoryT(const GOptimizationAlgorithmFactoryT &) = default;
     /** @brief The destructor. */

@@ -279,8 +279,8 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
 /******************************************************************************/
 /**
  * @brief Retrieves parameters relevant for the evaluation from another GGenome.
- * @param cp A reference to the foreign genome (a GGenome); it is moved-from and cleared
- * @param cp_base The entity whose evaluation-relevant parameters are absorbed into this one
+ * @param cp_base The foreign genome (a GGenome) whose evaluation-relevant parameters are absorbed
+ *   into this one; it is moved-from and cleared
  */
 void GGenome::cannibalize(GGenome &cp_base) {
     auto &cp = dynamic_cast<GGenome &>(cp_base);

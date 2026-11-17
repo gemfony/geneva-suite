@@ -201,7 +201,8 @@ protected:
      * The function returns a double value which is expected to be >= 0., giving a level of confidence
      * that this is a valid solution. This function must be overloaded in derived classes.
      *
-     * @param cp A pointer to the individual whose parameters are to be checked
+     * The argument points to the individual whose parameters are to be checked.
+     *
      * @return A raw validity level (>= 0. expected), with values in [0,1] indicating validity
      */
     virtual double check_(const ind_type *) const = 0;
@@ -379,7 +380,8 @@ protected:
     /**
      * @brief Checks whether a given parameter set is valid. To be specified in derived classes.
      *
-     * @param cp A pointer to the individual whose parameters are to be checked
+     * The argument points to the individual whose parameters are to be checked.
+     *
      * @return A raw validity level (>= 0. expected), with values in [0,1] indicating validity
      */
     double check_(const ind_type *) const override = 0;
