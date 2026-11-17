@@ -226,8 +226,8 @@ public:
 
     /***************************************************************************/
     /**
-	  * Perform the actual processing steps. E.g. in optimization algorithms,
-	  * post-processing allows to run a sub-optimization. The amount of time
+	  * Perform the actual processing steps. Post-processing may refine the
+	  * processed item further (Geneva runs a short sub-optimization there). The amount of time
 	  * needed for processing is measured for logging purposes. Where one of the
 	  * processing functions throws an exception, the function will store the
 	  * necessary exception information locally and rethrow the exception.
@@ -324,7 +324,7 @@ public:
     /***************************************************************************/
     /**
 	  * @brief Allows to check whether any user-defined pre-processing before the process()-
-	  * step may occur. This may alter the individual's data.
+	  * step may occur. This may alter the item's data.
 	  *
 	  * @return true if pre-processing is currently allowed, false if it has been vetoed
 	  */
@@ -334,8 +334,8 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Allow or prevent pre-processing (used by pre-processing algorithms to prevent
-	  * recursive pre-processing). See e.g. GEvolutionaryAlgorithmPostOptimizerT. Once a veto
+	  * @brief Allow or prevent pre-processing (used by a pre-processor that processes the
+	  * item again itself, to prevent recursive pre-processing). Once a veto
 	  * exists, no pre-processing will occur until the veto is lifted.
 	  *
 	  * @param veto true to disable (veto) pre-processing, false to allow it
@@ -362,9 +362,9 @@ public:
     /***************************************************************************/
     /**
 	  * @brief Allows to check whether any user-defined post-processing after the process()-
-	  * step may occur. This may be important if e.g. an optimization algorithm wants
-	  * to submit evaluation work items to the process consumer, which may then start an optimization
-	  * run on the individual. This may alter the individual's data.
+	  * step may occur. This matters, e.g., when a post-processor submits work of its own to the
+	  * process consumer (Geneva's post-optimizers run a sub-optimization on the item). This may
+	  * alter the item's data.
 	  *
 	  * @return true if post-processing is currently allowed, false if it has been vetoed
 	  */
@@ -374,8 +374,9 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Allow or prevent post-processing (used by post-processing algorithms to prevent
-	  * recursive post-processing). See e.g. GEvolutionaryAlgorithmPostOptimizerT. Once a veto
+	  * @brief Allow or prevent post-processing (used by a post-processor that processes the
+	  * item again itself, such as Geneva's post-optimizers, to prevent recursive
+	  * post-processing). Once a veto
 	  * exists, no post-processing will occur until the veto is lifted.
 	  *
 	  * @param veto true to disable (veto) post-processing, false to allow it
@@ -401,9 +402,10 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Retrieves the registered post-processor (or an empty pointer). The optimization algorithm uses this
-	  * at setup to decide -- from the post-processor's allowed mnemonics and its own mnemonic -- whether to
-	  * veto post-processing on this work item, so the work item needs no knowledge of the algorithm.
+	  * @brief Retrieves the registered post-processor (or an empty pointer). A submitter uses this to
+	  * decide whether to veto post-processing on this work item (Geneva's algorithms compare the
+	  * post-processor's allowed mnemonics with their own), so the work item needs no knowledge of the
+	  * submitter.
 	  *
 	  * @return The registered post-processor, or an empty pointer if none is registered
 	  */
@@ -413,9 +415,9 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Removes any registered post-processor. Used by a post-processing algorithm on the clone it
-	  * optimizes, so that the sub-optimization's own population carries no post-processor and cannot
-	  * recurse into further post-processing.
+	  * @brief Removes any registered post-processor. Used by a post-processor on the copy it processes
+	  * further, so that the items it submits for that carry no post-processor and cannot recurse into
+	  * further post-processing.
 	  */
     void clearPostProcessor() {
         post_processor_ptr_.reset();
@@ -508,7 +510,7 @@ private:
     /***************************************************************************/
     /** @brief In-place return reconciliation (see GProcessable::absorbResultsFrom): copies the processing
      *  lifecycle (via the base) plus this container's result store from @p src, keeping this item's own
-     *  lineage id. Non-optimization demo/test work items carry no OA scratch, so nothing else is retained.
+     *  lineage id. The container keeps no state that stays off the wire, so nothing else is retained.
      *  @param src The returned, evaluated item whose results + lifecycle are absorbed into this one */
     void absorbResultsFrom_(const GProcessable &src) override {
         GProcessable::absorbResultsFrom_(src); // status / errors / timing / routing, keeping our lineage id

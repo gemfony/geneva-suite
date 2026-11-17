@@ -204,7 +204,7 @@ public:
  *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with
- * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole optimization, in
+ * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole run, in
  * GROUPS_ONLY one client job. A member that leaves without serve() ends the job the same way (its
  * lead would wait for ever). A call made by the wrong role or after release() throws a
  * geneva_exception before anything is announced, so the group stays in step.

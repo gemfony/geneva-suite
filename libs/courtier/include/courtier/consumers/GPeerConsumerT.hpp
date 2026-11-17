@@ -205,7 +205,8 @@ public:
     }
 
     /** @brief The number of distinct blobs the server has interned for transport (blob
-     *  send-once). One per distinct genome structure across all clients.
+     *  send-once). One per distinct shared structure (in Geneva: a genome layout) across all
+     *  clients.
      *  @return The count of interned blobs. */
     [[nodiscard]] std::size_t getInternedBlobCount() const {
         return wire_registry_.size();

@@ -42,7 +42,7 @@ namespace Gem::Courtier::GPU {
  * The driver library (libcuda.so.1) comes with the NVIDIA driver, not with the CUDA toolkit, so it
  * exists only on machines that have a driver installed. Linking it would keep every program that
  * contains the GPU consumer from starting anywhere else -- even for a run on the CPU consumers. The
- * library is therefore loaded with Boost.DLL (as GModuleLoader loads optimization modules) the first
+ * library is therefore loaded with Boost.DLL (as GModuleLoader loads modules) the first
  * time a CUDA backend is initialized, and the functions are taken from it by cuGetProcAddress, which
  * returns the version matching the cuda.h this file was compiled against.
  *

@@ -374,9 +374,9 @@ private:
     // Data
 
     std::chrono::high_resolution_clock::time_point start_time_ = std::chrono::
-        high_resolution_clock::now(); ///< Used to store the start time of the optimization
+        high_resolution_clock::now(); ///< Used to store the start time of the client's work
     std::chrono::duration<double> max_duration_ =
-        std::chrono::microseconds(0); ///< Maximum time frame for the optimization
+        std::chrono::microseconds(0); ///< Maximum time frame for the client's work
 
     std::uint32_t processed_ = 0;  ///< The number of processed items so far
     std::uint32_t process_max_ = 0; ///< The maximum number of items to process

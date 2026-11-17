@@ -46,13 +46,14 @@ namespace Gem::Courtier::GPU {
  * (GCUDABackend when its toolkit is present). The GPU consumer is device-only. The consumer
  * marshals a whole batch into flat host buffers (via GGPUEvaluableI) and hands them to a backend,
  * which uploads, launches the kernel ONCE over the whole batch (bulk submission), and downloads the
- * per-item fitness. All backends share this API; they differ only in how they acquire and run the
+ * per-item results. All backends share this API; they differ only in how they acquire and run the
  * kernel.
  *
- * scalar_type (default double, for backward compatibility) is the genome/fitness flat-buffer element
- * type and thus the device ABI element type: float for the FP32 device speedup, double for parity.
+ * scalar_type (default double, for backward compatibility) is the parameter/result flat-buffer
+ * element type and thus the device ABI element type: float for the FP32 device speedup, double for
+ * parity.
  *
- * @tparam scalar_type The genome/fitness flat-buffer element type and device ABI type (default double)
+ * @tparam scalar_type The parameter/result flat-buffer element and device ABI type (default double)
  */
 template <typename scalar_type = double>
 class GGPUDeviceBackendI {
@@ -67,22 +68,22 @@ public:
     virtual void initialize(const KernelSpec &spec) = 0;
 
     /** @brief Evaluates a whole batch in one launch. @p params is n_items * dim row-major scalar_type;
-     *  @p pconst is an opaque problem-constant blob; writes n_items scalar_type into @p fitness_out.
+     *  @p pconst is an opaque problem-constant blob; writes n_items scalar_type into @p results_out.
      *  @p threads_per_item requests intra-item (e.g. pixel-level) parallelism: a backend that supports
-     *  it launches n_items * threads_per_item threads and the kernel accumulates each item's fitness
-     *  (the backend zeroes fitness_out first); the default 1 is one thread per item (overwrite).
+     *  it launches n_items * threads_per_item threads and the kernel accumulates each item's result
+     *  (the backend zeroes results_out first); the default 1 is one thread per item (overwrite).
      *
      *  @param params Pointer to the flattened parameter buffer (n_items * dim, row-major)
      *  @param n_items Number of work items in the batch
      *  @param dim Number of parameters per item
      *  @param pconst Pointer to the opaque problem-constant blob (may be ignored by a kernel)
      *  @param pconst_size Size in bytes of the problem-constant blob
-     *  @param fitness_out Output buffer receiving n_items fitness values
+     *  @param results_out Output buffer receiving n_items result values
      *  @param threads_per_item Requested intra-item parallelism (default 1 == one thread per item) */
     virtual void evaluate(
         const scalar_type *params, int n_items, int dim,
         const std::byte *pconst, std::size_t pconst_size,
-        scalar_type *fitness_out, int threads_per_item = 1) = 0;
+        scalar_type *results_out, int threads_per_item = 1) = 0;
 
     /** @brief A short human-readable backend name (for logging).
      *  @return The backend's name */

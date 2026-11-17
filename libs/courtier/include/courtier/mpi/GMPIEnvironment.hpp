@@ -145,7 +145,8 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
-                << "Geneva requires MPI with the thread level MPI_THREAD_MULTIPLE (a.k.a. "
+                << "courtier's MPI transport requires MPI with the thread level "
+                << "MPI_THREAD_MULTIPLE (a.k.a. "
                 << MPI_THREAD_MULTIPLE << "), but "
                 << (i_initialized_mpi_ ? "the runtime environment only supports level "
                                        : "the calling program initialized MPI with level ")
@@ -153,7 +154,7 @@ public:
                 << (i_initialized_mpi_
                         ? ""
                         : "Initialize MPI with MPI_Init_thread() and MPI_THREAD_MULTIPLE, or "
-                          "leave the initialization to Geneva.\n")
+                          "leave the initialization to courtier.\n")
             );
         }
 

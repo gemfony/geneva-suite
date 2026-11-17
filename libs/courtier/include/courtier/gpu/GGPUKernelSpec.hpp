@@ -48,7 +48,7 @@ namespace Gem::Courtier::GPU {
  *
  * Which device-programming-model backend evaluates a batch. The GPU consumer is DEVICE-ONLY: the only
  * backend is CUDA, compiled in when its toolkit was found at configure time. There is no CPU backend
- * -- a CPU run uses the individual's own evaluate() through a CPU consumer (e.g. --consumer stc).
+ * -- a CPU run uses the work item's own process() through a CPU consumer (e.g. --consumer stc).
  *
  * This enum is the extension point for new device backends: add a kind here, then teach
  * backendKindFromString()/toString() about it and add a branch in the GGPUBackendFactory (guarded by
@@ -72,8 +72,8 @@ inline BackendKind backendKindFromString(const std::string &s) {
         << "In Gem::Courtier::GPU::backendKindFromString(): Error!" << '\n'
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"
         << " 'cuda'." << '\n'
-        << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which evaluates via"
-        << " the individual's own evaluate()." << '\n');
+        << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which runs the"
+        << " work item's own process()." << '\n');
 }
 
 /** @brief Human-readable name of a backend kind.

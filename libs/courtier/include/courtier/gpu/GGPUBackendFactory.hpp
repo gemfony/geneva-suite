@@ -53,7 +53,8 @@ class GGPUDeviceBackendI;
  * GGPUBackendFactory.cpp is explicitly instantiated there for double and float; other scalar types
  * would need an additional explicit instantiation.
  *
- * @tparam scalar_type The host-side scalar element type (double or float) of the param/fitness buffers
+ * @tparam scalar_type The host-side scalar element type (double or float) of the parameter/result
+ * buffers
  */
 template <typename scalar_type = double>
 std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind);

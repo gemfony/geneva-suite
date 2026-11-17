@@ -191,10 +191,10 @@ public:
  * up (via a GWireSerializationScope) around the encoding/decoding of a work item; the upper-layer genome
  * serializer consults the thread-local current() and, when it is enabled, references shared blobs by id
  * against the registry instead of writing a full copy. When no scope is active (the default everywhere,
- * and always for checkpoint/file serialization) the genome falls back to its self-contained full encoding.
+ * and always for checkpoint/file serialization) the item falls back to its self-contained full encoding.
  */
 struct GWireSerializationContext {
-    bool enabled = false;       ///< master switch: false -> genome uses its full, self-contained encoding
+    bool enabled = false;       ///< master switch: false -> the item's full, self-contained encoding
     Gem::Common::serializationMode mode =
         Gem::Common::serializationMode::GEM_BINARY; ///< the format the surrounding archive uses
     GWirePeerId peer = 0;       ///< server: the destination session; worker: 0 (single upstream)
@@ -221,10 +221,10 @@ struct GWireSerializationContext {
 /******************************************************************************/
 /**
  * RAII installer of the thread-local active GWireSerializationContext. A transport constructs one around
- * a single work-item (de)serialization; the genome serializer reads GWireSerializationScope::current()
+ * a single work-item (de)serialization; the item's serializer reads GWireSerializationScope::current()
  * for the duration. Scopes nest (the previous context is restored on destruction), so a fetch round trip
  * performed mid-decode can safely run with its own (or no) context. Passing nullptr installs "no context"
- * (the genome then uses its full encoding) -- this is how the wire path stays default-off until the
+ * (the item then uses its full encoding) -- this is how the wire path stays default-off until the
  * switch is flipped.
  */
 class GWireSerializationScope {
@@ -254,20 +254,21 @@ private:
 
 /******************************************************************************/
 /**
- * @brief Serialize policy for a "server-side, wire-omitted" optional owned pointer -- an owned aggregate
- * (e.g. an individual's OA scratch) that rides a checkpoint / file but must NOT travel on the wire, so a
- * remote worker neither receives nor can mutate it.
+ * @brief Serialize policy for a "server-side, wire-omitted" optional owned pointer -- an owned
+ * aggregate (e.g. the algorithm state Geneva keeps per individual) that rides a checkpoint / file but
+ * must NOT travel on the wire, so a remote worker neither receives nor can mutate it.
  *
- * Presence is Boost's own smart-pointer null marker (a single NVP), so no separate has-flag is needed:
- * off the wire the pointer is saved as-is (null-or-object); ON the wire it is saved EMPTY (its null marker
- * travels, so the member is omitted while the stream stays self-describing and symmetric).
+ * Presence is the archive's own smart-pointer null marker (a single NVP), so no separate has-flag
+ * is needed: off the wire the pointer is saved as-is (null-or-object); ON the wire it is saved
+ * EMPTY (its null marker travels, so the member is omitted while the stream stays self-describing
+ * and symmetric).
  *
  * On LOAD an omitted (null) member must leave the target's existing pointer UNTOUCHED -- a freshly
- * constructed target already holds a default owned object, and overwriting it with null would break a
- * non-null invariant the owner may rely on (e.g. an individual's scratch(), dereferenced unguarded). So
- * the load reads into a temporary and adopts it only when non-null; a genuine value from a checkpoint
- * replaces the target, a wire-omitted null leaves it as-is. Compose it into a localMembers_() entry via
- * make_wire_omitted_ptr_member.
+ * constructed target already holds a default owned object, and overwriting it with null would break
+ * a non-null invariant the owner may rely on (Geneva's individuals, e.g., dereference theirs
+ * unguarded). So the load reads into a temporary and adopts it only when non-null; a genuine value
+ * from a checkpoint replaces the target, a wire-omitted null leaves it as-is. Compose it into a
+ * localMembers_() entry via make_wire_omitted_ptr_member.
  */
 struct ser_wire_omitted_ptr {
     /**
@@ -305,8 +306,8 @@ struct ser_wire_omitted_ptr {
  * @brief Builds a localMembers_() descriptor for a server-side, wire-omitted optional owned pointer.
  *
  * Serialized via ser_wire_omitted_ptr (by value on disk, omitted on the wire), deep-copied on an in-memory
- * load via load_copy_ptr (copy-constructing the pointee), and excluded from comparison (cmp_skip) -- OA
- * scratch is not part of per-individual identity.
+ * load via load_copy_ptr (copy-constructing the pointee), and excluded from comparison (cmp_skip)
+ * -- such state is not part of the item's identity.
  *
  * @tparam T The (deduced) smart-pointer member type
  * @param name The serialization NVP tag

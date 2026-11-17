@@ -48,7 +48,7 @@ namespace Gem::Courtier::GPU {
  *
  * Compiled only when a CUDA toolkit was found at configure time (see the courtier GPU CMakeLists).
  *
- * @tparam scalar_type The flat-buffer element type for parameters and fitness (double for full parity, float for FP32 device speed); defaults to double
+ * @tparam scalar_type The flat-buffer element type for parameters and results (double for full parity, float for FP32 device speed); defaults to double
  */
 template <typename scalar_type = double>
 class GCUDABackend final : public GGPUDeviceBackendI<scalar_type> {
@@ -66,12 +66,12 @@ public:
      */
     void initialize(const KernelSpec &spec) override;
     /**
-     * @brief Uploads the whole batch, launches the kernel once, and reads the per-item fitness back.
+     * @brief Uploads the whole batch, launches the kernel once, and reads the per-item results back.
      */
     void evaluate(
         const scalar_type *params, int n_items, int dim,
         const std::byte *pconst, std::size_t pconst_size,
-        scalar_type *fitness_out, int threads_per_item = 1) override;
+        scalar_type *results_out, int threads_per_item = 1) override;
     /** @brief A short backend identifier ("cuda"), used for logging and selection. */
     [[nodiscard]] std::string name() const override;
 

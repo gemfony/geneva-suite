@@ -71,8 +71,8 @@ namespace Gem::Courtier {
  * Base class for networked courtier consumers (websocket, MPI). It owns the work machinery
  * that turns the synchronous reconcile-the-span contract of GBaseConsumerT into the asynchronous,
  * checkout/return world of remote clients -- and it does so for MANY concurrent submitters at once
- * (the fan-in design), so a population of optimization algorithms can each submit to the SAME shared
- * client pool simultaneously (e.g. a meta-optimization over a population of inner algorithms).
+ * (the fan-in design), so several submitters can each submit to the SAME shared client pool
+ * simultaneously (e.g. Geneva's meta-optimization over a population of inner algorithms).
  *
  *  - dispatch_(items) registers the round's items as a new BATCH (the scheduling state lives ON each
  *    item -- its dispatchState -- so there are no per-item side queues; each call BORROWS the caller's
@@ -94,7 +94,7 @@ namespace Gem::Courtier {
  * Borrow contract: the
  * batch's vector is BORROWED for the duration of dispatch_; the consumer reads/serializes/schedules
  * through it but never takes ownership. The only write is checkin() swapping a slot's pointer for the
- * deserialized result -- the population stays the sole owner of its individuals.
+ * deserialized result -- the submitter stays the sole owner of its items.
  *
  * Timeout / death-detection (per batch, user-selectable via applyTimeoutConfig()): each dispatch_ waits
  * until its batch is DONE or progress stalls past a give-up window; items left DO_PROCESS == MISSING are
@@ -176,21 +176,22 @@ public:
      * A result that arrives after its batch already finished/timed out is normally dropped (its
      * batch_id is no longer active). With this buffer enabled, such a late arrival -- a genuinely
      * distinct evaluation that simply came back too late to be used this round -- is parked instead
-     * of discarded, so an optimization algorithm can reap it via getOldWorkItems() (the
-     * GOptimizationAlgorithmBase reaper enables it via enableLateReturns() and drains it through
-     * getLateReturns()/getOldWorkItems()). The buffer is bounded two ways: @p cap (max items held; 0 DISABLES buffering, the
-     * default) and @p ttl_rounds (a held item is evicted after this many dispatch rounds). Each entry
-     * carries the dispatch-round "epoch" at which it was buffered, used only for TTL eviction; the batch
-     * id is a 40-bit, process-wide, non-wrapping counter, so a retired batch id is never re-minted and a
-     * buffered late return can never be confused with a fresh batch. Evictions (cap or TTL) are counted
-     * (lateReturnDroppedCount()) and warned once -- never silently lost.
+     * of discarded, so the submitter can reap it via getLateReturns() (Geneva's
+     * GOptimizationAlgorithmBase enables it via enableLateReturns() and drains it through
+     * getLateReturns() in its getOldWorkItems()). The buffer is bounded two ways: @p cap (max items
+     * held; 0 DISABLES buffering, the default) and @p ttl_rounds (a held item is evicted after this
+     * many dispatch rounds). Each entry carries the dispatch-round "epoch" at which it was
+     * buffered, used only for TTL eviction; the batch id is a 40-bit, process-wide, non-wrapping
+     * counter, so a retired batch id is never re-minted and a buffered late return can never be
+     * confused with a fresh batch. Evictions (cap or TTL) are counted (lateReturnDroppedCount())
+     * and warned once -- never silently lost.
      *
      * Enabling this buffer ALSO makes dispatch_ retain a clone of every un-returned original
      * (keyed by correlation id, bounded by the same cap + ttl_rounds). A late return is parked only
      * when such a retained original exists for its correlation id; the retained clone is consumed
      * by it:
-     * @li A late return that CARRIES its work item is parked as it came, with the library-owned
-     *     scratch the wire strips grafted back from the retained original.
+     * @li A late return that CARRIES its work item is parked as it came, with the retained state
+     *     the wire strips grafted back from the retained original.
      * @li A PAYLOAD-ONLY late return (a RETURN frame with only a library payload, no work item) is
      *     applied TO the retained clone, which is then parked like a full return.
      *
@@ -206,7 +207,8 @@ public:
     void setLateReturnBuffer(std::size_t cap, std::uint64_t ttl_rounds) {
         late_store_.configure(cap, ttl_rounds);
     }
-    /** @brief Number of late returns currently held in the buffer (reaped by the OA via getOldWorkItems()).
+    /** @brief Number of late returns currently held in the buffer (reaped by the submitter via
+     *  getLateReturns()).
      *  @return The count of late items currently buffered */
     [[nodiscard]] std::size_t lateReturnBufferSize() const {
         return late_store_.parkedSize();
@@ -236,10 +238,10 @@ public:
     }
 
     /** @brief GBaseConsumerT hook: drain the late-return buffer, transferring the held items to the
-     *  caller (the optimization algorithm reaps them in fixAfterJobSubmission). FIFO / arrival order.
-     *  Every parked item is a complete work item: a full late return with the library-owned
-     *  scratch of its retained original grafted back, or a payload-only late return applied to the
-     *  retained original it named on arrival (see setLateReturnBuffer()).
+     *  caller (the submitter; Geneva's algorithms reap them after each submission). FIFO / arrival
+     *  order. Every parked item is a complete work item: a full late return with the retained state
+     *  of its retained original grafted back, or a payload-only late return applied to the retained
+     *  original it named on arrival (see setLateReturnBuffer()).
      *  @return The buffered late items in arrival order (ownership transferred; the buffer is emptied) */
     std::vector<item_ptr> getLateReturns() override {
         return late_store_.drainParked();
@@ -473,7 +475,7 @@ protected:
         // aliases the live population element). Rather than swapping the returned object in -- which would
         // free the original and RELOCATE the population element -- we keep the original and write only
         // what came back into it. The original already holds the submitted parameters and the evolved
-        // library-owned scratch (omitted on the wire), and address stability is what lets a concurrent
+        // retained state (omitted on the wire), and address stability is what lets a concurrent
         // per-item prefetch hold a snapshot of population addresses across the submission.
         //
         // A result that cannot be written into its slot leaves the slot in an unknown state, so
@@ -783,8 +785,8 @@ private:
      *  dropping it silently -- but only when an original was retained for its correlation id, i.e.
      *  its slot had not returned when its batch ended. Without one (a duplicate of a slot completed
      *  in time, an original past its ttl, or buffering disabled: cap == 0, the default) the drop is
-     *  merely COUNTED. A parked item is later reaped by the OA via getOldWorkItems(). Caller holds
-     *  mtx_.
+     *  merely COUNTED. A parked item is later reaped by the submitter via getLateReturns(). Caller
+     *  holds mtx_.
      *  @param frame The late-arriving RETURN frame (its outcome routes it; its payload is applied)
      *  @param p The work item the frame carried, or null for a payload-only return */
     void bufferLateReturn_locked(const GCommandContainerT<processable_type> &frame, item_ptr p) {
@@ -808,7 +810,7 @@ private:
         }
         else {
             // A late return that carries its own work item is complete except for the
-            // library-owned scratch the wire strips; graft that back from the retained original.
+            // retained state the wire strips; graft that back from the retained original.
             // Without a retained original the slot was completed in time (or its original has
             // outlived the buffer): the frame is a duplicate, and parking it would hand the
             // algorithm a result it already has.
@@ -842,7 +844,7 @@ private:
                     << "batch that had already finished or timed out) was dropped. It came" << '\n'
                     << "too late to be used this round, or it duplicated a result that was" << '\n'
                     << "used. Enable/enlarge the late-return buffer (setLateReturnBuffer)" << '\n'
-                    << "to retain the late ones for the optimization algorithm to reap; the" << '\n'
+                    << "to retain the late ones for the submitter to reap; the" << '\n'
                     << "running drop total is available via lateReturnDroppedCount()." << '\n'
                     << GWARNING;
         }
@@ -1142,14 +1144,15 @@ private:
     /// popped without it (see announceWork_()).
     Gem::Common::Concurrency::GMPMCQueueT<Gem::Courtier::GWakeFn, 0> parked_;
 
-    // --- late-return facility: a result that arrives after its batch finished/timed out is PARKED for a
-    //     later getOldWorkItems() to reap instead of dropped, and a clone of each un-returned original is
-    //     RETAINED (keyed by correlation id) so a late payload-only return can still be applied. Both live
-    //     in one shared aging store (FIFO + keyed faces, one epoch + cap + TTL); the epoch advances once
-    //     per retired batch. Disabled by default (cap == 0); when enabled, the OA-side reaper
-    //     (GOptimizationAlgorithmBase, via enableLateReturns() / getOldWorkItems()) drains the FIFO. The
-    //     apply-or-drop policy and the drop accounting below are the consumer's; the store is invoked
-    //     under mtx_, so its operations stay consistent with the batch bookkeeping. ---
+    // --- late-return facility: a result that arrives after its batch finished/timed out is PARKED
+    //     for a later getLateReturns() to reap instead of dropped, and a clone of each un-returned
+    //     original is RETAINED (keyed by correlation id) so a late payload-only return can still be
+    //     applied. Both live in one shared aging store (FIFO + keyed faces, one epoch + cap + TTL);
+    //     the epoch advances once per retired batch. Disabled by default (cap == 0); when enabled,
+    //     the submitter's reaper (Geneva's GOptimizationAlgorithmBase, via enableLateReturns() /
+    //     getLateReturns()) drains the FIFO. The apply-or-drop policy and the drop accounting below
+    //     are the consumer's; the store is invoked under mtx_, so its operations stay consistent
+    //     with the batch bookkeeping. ---
     Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr> late_store_;
     std::uint64_t late_dropped_count_ = 0;      ///< Total late items dropped (disabled/cap/TTL) -- observable
 

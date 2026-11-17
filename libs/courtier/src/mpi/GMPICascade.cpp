@@ -928,7 +928,7 @@ void GMPICascade::endJob_(std::string_view where, std::string_view reason) const
 /******************************************************************************/
 /**
  * @brief Ends the MPI job: logs @p reason and calls MPI_Abort on the base communicator with
- * @p code, which ends every process of the job (in SUBMITTER_AND_GROUPS the whole optimization, in
+ * @p code, which ends every process of the job (in SUBMITTER_AND_GROUPS the whole run, in
  * GROUPS_ONLY one client job).
  *
  * @param where The function that was running

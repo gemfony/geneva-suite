@@ -44,20 +44,21 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * The process-global holder for the SINGLE consumer a server binary uses -- the one work endpoint every
- * optimization algorithm submits through. An algorithm is transport-agnostic: it never builds or selects
- * a consumer, it just asks the registry for the one consumer and calls processBatch(), with the
- * guarantee of an intact, fully-evaluated population on return -- never knowing whether evaluation
- * happened locally, on a GPU, or on a remote client. The consumer is established once: by Go2 (from the
+ * The process-global holder for the SINGLE consumer a server binary uses -- the one work endpoint
+ * every submitter (in Geneva: every optimization algorithm) submits through. A submitter is
+ * transport-agnostic: it never builds or selects a consumer, it just asks the registry for the one
+ * consumer and calls processBatch(), with the guarantee of an intact, fully processed batch on
+ * return -- never knowing whether the processing happened locally, on a GPU, or on a remote client.
+ * The consumer is established once: by Go2 (from the
  * chosen mnemonic / command-line default), or manually by the user (setConsumer); a standalone algorithm
  * with none set lazily builds a default local thread-pool consumer (ensureConsumer). There is never more
- * than one consumer per process (a meta-optimization runs its sub-optimizations on a separate
- * orchestration thread pool that is NOT a consumer -- see GMetaEvolutionaryAlgorithm).
+ * than one consumer per process (Geneva's meta-optimization runs its sub-optimizations on a
+ * separate orchestration thread pool that is NOT a consumer -- see GMetaEvolutionaryAlgorithm).
  *
  * The single instance is handed out via GSingletonT (it outlives ordinary statics and is reachable
- * concurrently). All access is mutex-guarded, so concurrent submitters (e.g. the sub-optimizations of a
- * meta-optimization, run in parallel) race-freely converge on the one consumer. It is CLEARABLE (clear)
- * so unit tests can start from a known-empty state.
+ * concurrently). All access is mutex-guarded, so concurrent submitters (e.g. the sub-optimizations
+ * of Geneva's meta-optimization, run in parallel) race-freely converge on the one consumer. It is
+ * CLEARABLE (clear) so unit tests can start from a known-empty state.
  *
  * @tparam processable_type The work-item type the consumer handles
  */

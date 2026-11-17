@@ -82,9 +82,9 @@ inline SUBMISSION_UUID_TYPE mint_submission_uuid() {
  * @brief A self-minting lineage id whose value-semantics encode the D11 identity contract in ONE place, so
  * the enclosing GProcessable can keep its special members defaulted:
  *  - default construction / move  -> a fresh (or transferred) id, as usual;
- *  - COPY construction            -> a FRESH id (a copy of a work item is a NEW individual: offspring / refill);
+ *  - COPY construction            -> a FRESH id (a copy of a work item is a NEW item, e.g. a refill);
  *  - COPY assignment              -> KEEPS the target's own id (load(other) must not steal the source's lineage);
- *  - Boost (de)serialization      -> the raw value is written/read, so a wire or checkpoint round-trip PRESERVES
+ *  - (de)serialization            -> the raw value is written/read, so a wire or checkpoint round-trip PRESERVES
  *                                    the id (a deserialized object is default-constructed -> fresh -> then the
  *                                    archived value overwrites it).
  * The asymmetry is intentional and is pinned by the [proc][id] unit tests.
@@ -93,7 +93,7 @@ struct LineageId {
     SUBMISSION_UUID_TYPE value = mint_submission_uuid();
 
     LineageId() = default;
-    LineageId(const LineageId & /* cp */) : value(mint_submission_uuid()) { /* a copy is a new individual */ }
+    LineageId(const LineageId & /* cp */) : value(mint_submission_uuid()) { /* a copy is a new item */ }
     LineageId(LineageId &&) noexcept = default;
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- deliberate: assignment keeps our own lineage (see block comment above)
     LineageId &operator=(const LineageId & /* cp */) { return *this; /* keep our own lineage on load */ }
@@ -335,10 +335,10 @@ public:
     [[nodiscard]] CORRELATION_ID_TYPE getCorrelationId() const noexcept { return correlation_id_; }
 
     /**
-     * @brief The stable, per-individual lineage id (D11). Minted once at construction, preserved across
+     * @brief The stable, per-item lineage id (D11). Minted once at construction, preserved across
      * every (re-)dispatch and serialized round-trip, fresh only on clone(). Unlike the per-dispatch
-     * correlation id (which routes a single return to its slot), this identifies the INDIVIDUAL, so a late
-     * return can be reunited with -- and de-duplicated against -- the live individual it belongs to even
+     * correlation id (which routes a single return to its slot), this identifies the ITEM, so a late
+     * return can be reunited with -- and de-duplicated against -- the live item it belongs to even
      * after it has been resubmitted under a new correlation id.
      * @return This work item's 128-bit lineage id
      */
@@ -460,15 +460,16 @@ public:
      * @brief Absorbs the computed results + processing lifecycle of a returned item @p src INTO this
      * work item, keeping this item's own heap address and lineage id.
      *
-     * This is the pointer-preserving counterpart of "the returned object becomes the slot": rather than
-     * overwriting a population slot's owning pointer with the deserialized return (which would free the
-     * original object and change its address), a networked consumer keeps the originally-submitted object
-     * and absorbs only what the worker computed. Address stability lets other parts of the system (e.g. a
-     * per-individual prefetch overlapping evaluation) hold a snapshot of population addresses across a
-     * submission. The lifecycle (status / errors / timing / correlation id) is copied
-     * while THIS item keeps its own stable lineage id; a result-bearing derived class additionally copies
-     * its result store, and -- as documented on the geneva override -- deliberately keeps its own input
-     * data and OA scratch.
+     * This is the pointer-preserving counterpart of "the returned object becomes the slot": rather
+     * than overwriting a population slot's owning pointer with the deserialized return (which would
+     * free the original object and change its address), a networked consumer keeps the
+     * originally-submitted object and absorbs only what the worker computed. Address stability lets
+     * other parts of the system (e.g. a submitter's per-item prefetch overlapping the processing)
+     * hold a snapshot of the batch's addresses across a submission. The lifecycle (status / errors /
+     * timing / correlation id) is copied while THIS item keeps its own stable lineage id; a
+     * result-bearing derived class additionally copies its result store, and deliberately keeps its
+     * own input data and the state that does not travel on the wire (Geneva's GGenome documents
+     * what it keeps).
      *
      * @param src The returned, evaluated item whose results + lifecycle are absorbed into this one
      */
@@ -476,13 +477,13 @@ public:
 
     /**
      * @brief Replaces this work item's content in place with a deep copy of @p src, keeping this item's
-     * heap address (a fresh lineage id is the caller's responsibility -- a refill is a new individual).
+     * heap address (a fresh lineage id is the caller's responsibility -- a refill is a new item).
      *
      * Used by the clone-on-partial-return refill to substitute a viable sibling into a failed slot without
      * relocating it (so a concurrent address snapshot stays valid). The base has no content and returns
      * false ("not supported"); a result-bearing derived class overrides it to perform the in-place copy
      * and returns true. A consumer that gets false falls back to clone-and-replace (correct for the
-     * non-optimization demo item types, which need no address stability).
+     * item types of courtier's tests, which need no address stability).
      *
      * @param src The source item to deep-copy into this one
      * @return true if the in-place content copy was performed; false if unsupported (caller should replace)
@@ -631,7 +632,7 @@ protected:
             const auto start_time = std::chrono::steady_clock::now();
             core();
 
-            // The fitness has now been computed, so the work item is processed. Mark it PROCESSED
+            // The results have now been computed, so the work item is processed. Mark it PROCESSED
             // BEFORE post-processing: a post-processor refines an ALREADY-EVALUATED item and rejects
             // a dirty one. If processing flagged an error (ERROR_FLAGGED), the error status is left
             // intact and post-processing is skipped.
@@ -753,7 +754,8 @@ protected:
      * @brief Hook behind absorbResultsFrom(): copies the non-generic processing lifecycle (status,
      * errors, timing, correlation id) from @p src into this item while keeping this
      * item's own lineage id (LineageId's copy-assignment keeps the target's value). A result-bearing
-     * derived class overrides this to additionally copy its result store (and to keep genome / scratch).
+     * derived class overrides this to additionally copy its result store (and to keep its input data
+     * and the state that does not travel on the wire).
      * @param src The returned item whose lifecycle state is absorbed
      */
     virtual void absorbResultsFrom_(const GProcessable &src) { GProcessable::operator=(src); }
@@ -787,7 +789,7 @@ protected:
     /***************************************************************************/
     // Data -- protected so the result-bearing derived class's process()/etc. can read/write it.
 
-    /// Stable, per-individual lineage id (D11). A self-minting value type whose copy/assign/serialize
+    /// Stable, per-item lineage id (D11). A self-minting value type whose copy/assign/serialize
     /// semantics implement "fresh on clone, kept on load, preserved on the wire" -- see detail::LineageId.
     detail::LineageId submission_uuid_;
 
