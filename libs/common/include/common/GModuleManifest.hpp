@@ -178,9 +178,10 @@ using geneva_module_manifest_fn = const GenevaModuleManifest *();
 /**
  * @brief A structural, compile-time fixed string usable as a non-type template parameter (C++20/23).
  *
- * Lets the manifest author helpers (individualManifest() / oaManifest()) take the config path and
- * module/contribution name as template arguments (string literals), so a loadable module's manifest is an
- * ordinary typed C++ construct rather than a preprocessor macro. Shared by every kind's helper.
+ * Lets the manifest author helpers (Geneva's individualManifest() / oaManifest(), for example) take
+ * the config path and module/contribution name as template arguments (string literals), so a
+ * loadable module's manifest is an ordinary typed C++ construct rather than a preprocessor macro.
+ * Shared by every kind's helper.
  */
 template <std::size_t N>
 struct GFixedString {
@@ -196,15 +197,16 @@ struct GFixedString {
 
 /******************************************************************************/
 /*
- * A loadable module publishes its manifest by hand-writing the fixed entry point (no Geneva macro):
+ * A loadable module publishes its manifest by hand-writing the fixed entry point (no macro):
  *
  *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
- *       return Gem::Geneva::individualManifest<Factory, "config path", "Name">();  // for an individual
+ *       return someManifest<...>();  // a typed helper of the library that defines the contribution
  *   }
  *
  * The extern "C" wrapper is irreducible (the loader resolves the fixed, unmangled symbol via dlsym); the
- * manifest itself is built by a typed helper (individualManifest() for individuals). A pointer return keeps
- * the extern "C" free of the class-return warning.
+ * manifest itself is built by a typed helper of the library that defines the contribution kind (Geneva's
+ * individualManifest<Factory, "config path", "Name">() for an individual, for example). A pointer return
+ * keeps the extern "C" free of the class-return warning.
  */
 
 /******************************************************************************/

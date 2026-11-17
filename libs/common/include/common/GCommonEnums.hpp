@@ -102,9 +102,9 @@ using ENUMBASETYPE = std::uint16_t;
  * via using-declarations so that ADL finds them for its own enums (see e.g.
  * GPlotEnums.hpp).
  *
- * Enums with textual (non-numeric) streaming -- Gem::Common::tribool,
- * Gem::Courtier::processingStatus -- simply do not opt in and keep their
- * hand-written operators.
+ * Enums with textual (non-numeric) streaming -- Gem::Common::tribool, and
+ * such enums of the libraries above common -- simply do not opt in and keep
+ * their hand-written operators.
  */
 template <typename enum_type>
 inline constexpr bool numeric_enum_io_v = false;

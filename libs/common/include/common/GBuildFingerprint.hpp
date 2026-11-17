@@ -33,13 +33,13 @@
  * @file
  * @brief The Geneva toolchain-compatibility fingerprint (`GenevaCompat`).
  *
- * A runtime-loadable Geneva module (an individual, an optimization algorithm, a consumer) is an in-process
- * C++ shared object that shares vtables, inline code and the GArchive type registry with the
- * host. Two such `.so`s are only ABI-compatible if they were built with a compatible toolchain: same
- * compiler family/version, same standard library, same `_GLIBCXX_USE_CXX11_ABI`, same Boost, same
- * build-mode ABI switches. The plugin loader historically compared only @c GENEVA_VERSION, which does NOT
- * capture any of that -- so a module built with a different toolchain but the same Geneva version passed
- * the gate and then crashed or silently corrupted the process.
+ * A runtime-loadable module (in Geneva: an individual, an optimization algorithm, a consumer) is an
+ * in-process C++ shared object that shares vtables, inline code and the GArchive type registry with
+ * the host. Two such `.so`s are only ABI-compatible if they were built with a compatible toolchain:
+ * same compiler family/version, same standard library, same `_GLIBCXX_USE_CXX11_ABI`, same Boost,
+ * same build-mode ABI switches. The plugin loader historically compared only @c GENEVA_VERSION,
+ * which does NOT capture any of that -- so a module built with a different toolchain but the same
+ * Geneva version passed the gate and then crashed or silently corrupted the process.
  *
  * `GenevaCompat` closes that hole. It is a **plain-C struct** (fixed-width integers only) so that its
  * layout is readable under exactly the toolchain skew it exists to detect -- the loader must read it

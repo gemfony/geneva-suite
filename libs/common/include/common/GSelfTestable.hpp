@@ -46,7 +46,7 @@ namespace Gem::Common {
  *
  * A class that has self-tests to offer inherits this interface **unconditionally** and
  * overrides the hooks it actually implements; a class that has none simply does not inherit
- * it. The three hooks are the ones Geneva's standard-test harnesses drive:
+ * it. The three hooks are the ones the standard-test harness (GUnitTestFrameworkT) drives:
  *
  * - `modify_GUnitTests()` perturbs the object so that the generic clone / copy /
  *   (de-)serialization round-trip tests can check for inequality. Returning `false` tells the
@@ -55,15 +55,15 @@ namespace Gem::Common {
  * - `specificTestsFailuresExpected_GUnitTests()` runs the class's own checks that must throw.
  *
  * @par Why this is a separate interface, not part of GCommonInterfaceT
- * These hooks used to sit on `GCommonInterfaceT`, the universal reflective-value base, which
- * gave that class two unrelated meanings and put three test-only slots into the vtable of
- * *every* Geneva object -- including user-written individuals compiled into runtime-loadable
- * modules, which are built with `-UGEM_TESTING` and can never use them. Worse, the arrangement
- * was only ABI-safe because the hooks were *declared* unconditionally: a preprocessor-gated
- * variant would have made the core's and the module's vtables disagree and broken `dlopen`.
- * Splitting the facet off replaces that discipline-based safety argument with a structural one
- * -- `GSelfTestable` has no conditional members at all, and a class that does not opt in has
- * no test-related slots to disagree about.
+ * These hooks used to sit on `GCommonInterfaceT`, the universal reflective-value base, which gave
+ * that class two unrelated meanings and put three test-only slots into the vtable of *every*
+ * reflective object -- including user-written classes (Geneva's individuals) compiled into
+ * runtime-loadable modules, which are built with `-UGEM_TESTING` and can never use them. Worse, the
+ * arrangement was only ABI-safe because the hooks were *declared* unconditionally: a
+ * preprocessor-gated variant would have made the core's and the module's vtables disagree and
+ * broken `dlopen`. Splitting the facet off replaces that discipline-based safety argument with a
+ * structural one -- `GSelfTestable` has no conditional members at all, and a class that does not
+ * opt in has no test-related slots to disagree about.
  *
  * @par Bodies stay GEM_TESTING-conditional
  * Inheriting this interface is unconditional; *implementing* a hook is not. An override's body
@@ -72,9 +72,9 @@ namespace Gem::Common {
  * loadable modules) while the class layout stays identical in both configurations.
  *
  * @par Hierarchy roots do not inherit this interface
- * Category roots (`GGenome`, `GPersonalityTraits`, `GOptimizationAlgorithmBase`, ...) and CRTP
- * container mixins deliberately do **not** derive from `GSelfTestable`; otherwise every derived
- * user class would carry the slots again and nothing would be gained. Their test bodies are
+ * Category roots (in Geneva: `GGenome`, `GPersonalityTraits`, `GOptimizationAlgorithmBase`, ...)
+ * and CRTP container mixins deliberately do **not** derive from `GSelfTestable`; otherwise every
+ * derived user class would carry the slots again and nothing would be gained. Their test bodies are
  * protected, non-virtual helpers instead, and an opted-in derivative chains to them by qualified
  * call (`GGenome::modify_GUnitTests_()`).
  *
