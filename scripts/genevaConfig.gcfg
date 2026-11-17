@@ -123,7 +123,6 @@ WITHCOVERAGE="0"
 # When set to anything other than "none", CUDA and the MPI consumer are forced
 # OFF automatically (nvcc cannot compile with -fsanitize; MPI floods TSan), and
 # the whole C++ build is instrumented (much slower, for diagnostics only).
-# See prompts/2026-05-30-sanitizer-rollout-plan.md.
 SANITIZER="none"
 
 # Set to 1 to skip all CUDA compilation entirely — no CUDA examples, no CUDA

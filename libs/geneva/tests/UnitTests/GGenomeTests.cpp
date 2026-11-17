@@ -767,10 +767,10 @@ TEST_CASE("GGenome: serialization round-trip", "[flat]") {
 }
 
 /******************************************************************************/
-// CHARACTERIZATION NET (B0, 2026-06-28): outcome-pins for the individual-architecture swap. These
-// assert behaviour that must survive the GProcessable / GGenome / GGenome rebuild,
-// independent of the mechanisms being retired (the old degenerate return encoding and the population slot).
-// See prompts/2026-06-28-characterization-net.md.
+// CHARACTERIZATION NET (2026-06-28): outcome pins written before the individual architecture
+// was rebuilt around GProcessable and GGenome. They assert behaviour that had to survive the
+// rebuild, independent of the mechanisms it retired (the old degenerate return encoding and
+// the population slot).
 
 // External-result acceptance (D14): a precomputed evaluation injected via process(res_vec) is taken
 // VERBATIM and marks the item PROCESSED, WITHOUT invoking the local evaluate(). This is the

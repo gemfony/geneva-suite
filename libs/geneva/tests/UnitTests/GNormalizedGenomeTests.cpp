@@ -29,24 +29,19 @@
 
 /********************************************************************************
  *
- * Test harness for the normalized-genome architecture (see
- * prompts/2026-06-20-normalized-genome-architecture.md, §4). It is written FIRST
- * (Phase 1), pinning the behaviour the transition must preserve, then grown as the
- * model lands. The cases here pass against the CURRENT genome and must keep passing:
+ * Tests of the normalized genome: a bounded parameter is held internally in
+ * normalized coordinates, [-0.5, 0.5), and mapped to its external range [lower, upper)
+ * on access; an unbounded one takes its scale from its initialisation perimeter. The
+ * harness was written before the genome moved to this model, pinning the behaviour the
+ * move had to preserve, and grew with it. The cases cover:
  *
- *   - the reflecting fold contract (same maths as GConstrainedFPT::transfer);
+ *   - the reflecting fold contract (the maths of the former GConstrainedFPT::transfer);
  *   - faithful value round-trip across magnitudes, incl. offset/narrow boxes
- *     (the cancellation case the normalized model is designed to fix);
+ *     (the cancellation case the normalized model fixes);
  *   - bounded and unbounded parameters coexisting on one genome;
- *   - randomInit staying within a constrained parameter's range.
- *
- * Cases that only become testable once the model lands are added in their phase:
- *   - Phase 2: out-of-range EXTERNAL writes throw (incl. exactly the open upper);
- *              internal writes fold; internal store stays in [-0.5, 0.5).
- *   - Phase 3: a sigma of 0.1 produces an external step ~10% of the range,
- *              independent of the range.
- *   - Phase 5: drift of a neutral unbounded parameter stays within the documented
- *              bound; an unbounded value exceeds its init perimeter during a run.
+ *   - initialisation staying within a constrained parameter's range;
+ *   - out-of-range EXTERNAL writes throw (incl. exactly the open upper); internal
+ *     writes fold; the internal store stays in [-0.5, 0.5).
  *
  ********************************************************************************/
 

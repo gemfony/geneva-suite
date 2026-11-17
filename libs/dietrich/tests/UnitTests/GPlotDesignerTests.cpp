@@ -29,9 +29,9 @@
 
 /********************************************************************************
  * Regression tests for the GPlotDesigner ROOT-macro code generator. These pin the
- * emission-correctness fixes from the 2026-06-21 review (see
- * prompts/2026-06-21-gplotdesigner-root-review.md) by asserting on the generated
- * macro text directly -- no ROOT installation required. The complementary
+ * fixes to the emitted macros (a review of the generator, June 2026, and later
+ * defects) by asserting on the generated macro text directly -- no ROOT
+ * installation required. The complementary
  * "does ROOT actually accept the macro" check is wired into ctest as
  * GPlotDesignerRootValidity (only when root + xvfb-run are available).
  ********************************************************************************/

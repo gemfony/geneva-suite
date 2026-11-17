@@ -465,7 +465,6 @@ INCLUDE(CommonGenevaBuild)
 # -fsanitize, and MPI internals flood ThreadSanitizer. The caller (prepareBuild.sh)
 # forces GENEVA_SKIP_CUDA=ON and GENEVA_BUILD_WITH_MPI_CONSUMER=OFF when a
 # sanitizer is selected; we hard-fail here if that contract is violated.
-# See prompts/2026-05-30-sanitizer-rollout-plan.md.
 SET(GENEVA_SANITIZER "none" CACHE STRING
     "Build with a sanitizer: none | thread | address | undefined (default: none)")
 SET_PROPERTY(CACHE GENEVA_SANITIZER PROPERTY STRINGS none thread address undefined)
