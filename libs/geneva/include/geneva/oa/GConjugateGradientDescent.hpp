@@ -384,8 +384,6 @@ private:
 protected:
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     *
-     * @param gpb The parser builder to which this algorithm's configuration options are added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -410,20 +408,11 @@ protected:
 
     /**
      * @brief Computes the normalised finite-difference (proxy) gradient of one starting point
-     * @param starting_point The index of the starting point whose gradient is computed
-     * @param parent_fitness The (minimization-oriented) fitness of that starting point
-     * @return The proxy gradient, one component per floating-point parameter
      */
     std::vector<double> computeProxyGradient_(std::size_t starting_point, double parent_fitness) const;
 
     /**
      * @brief Builds the L-BFGS quasi-Newton direction -H_k g_k, updating the curvature history
-     * @param cg_scratch The central slot's scratch store holding the (s, y) history
-     * @param parm_vec The starting point's current parameter vector
-     * @param gradient The current proxy gradient
-     * @param history_valid Whether the stored previous gradient/parameters are valid
-     * @param periodic_restart Whether this iteration performs the classical periodic restart
-     * @return The search direction
      */
     std::vector<double> lbfgsDirection_(
         Genome::GAuxiliaryStore &cg_scratch,
@@ -486,10 +475,6 @@ private:
      * @brief Evaluates a batch of trial parameter vectors (line-search probes) as clones of the
      * given starting point, submitted through the same consumer the algorithm uses, and returns one
      * min-only fitness per probe.
-     *
-     * @param starting_point Index of the starting point whose central individual is cloned for each probe
-     * @param points The trial parameter vectors to evaluate (one inner vector per probe)
-     * @return One min-only fitness value per probe, in the same order as @p points
      */
     std::vector<double> evaluateProbes(
         std::size_t starting_point,

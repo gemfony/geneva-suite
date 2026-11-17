@@ -117,7 +117,6 @@ public:
     GDelayIndividual();
     /**
      * @brief A standard copy constructor
-     * @param cp The other GDelayIndividual object whose data is copied
      */
     GDelayIndividual(const GDelayIndividual &cp);
     /** @brief The standard destructor */
@@ -125,7 +124,6 @@ public:
 
     /**
      * @brief Sets the sleep-time to a user-defined value
-     * @param sleep_time The fixed amount of time (in seconds) the fitness function should sleep
      */
     void setFixedSleepTime(const std::chrono::duration<double> &sleep_time);
     /**
@@ -136,8 +134,6 @@ public:
 
     /**
      * @brief Indicate that the fitness function may crash at the end of the sleep time
-     * @param may_crash Whether the fitness function is allowed to throw
-     * @param throw_likelihood The probability with which a crash is triggered
      */
     void setMayCrash(bool may_crash, double throw_likelihood);
     /**
@@ -153,8 +149,6 @@ public:
 
     /**
      * @brief Indicates that the fitness function should sleep for a random time
-     * @param sleep_randomly Whether random sleeps are enabled (instead of the fixed sleep time)
-     * @param rand_sleep_boundaries The (min, max) time window in seconds within which random sleeps are drawn
      */
     void setRandomSleep(bool sleep_randomly, std::tuple<double, double> rand_sleep_boundaries);
     /**
@@ -192,20 +186,14 @@ public:
 
     /**
      * @brief Registers the delay configuration options, binding them to the passed Config
-     * @param gpb The parser builder the configuration options are registered with
-     * @param c The Config object whose members the options are bound to
      */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Reads a delay configuration file (creating it with defaults if it does not exist)
-     * @param configFile Path to the delay configuration file
-     * @return The parsed Config object
      */
     static Config readConfig(std::filesystem::path const &configFile);
     /**
      * @brief Parses the textual "delays" list of a Config into (seconds, milliseconds) tuples
-     * @param c The Config whose "delays" string is parsed
-     * @return A vector of (seconds, milliseconds) tuples
      */
     static std::vector<std::tuple<unsigned int, unsigned int>> parseSleepTimes(const Config &c);
     /**
@@ -216,9 +204,6 @@ public:
     static std::chrono::duration<double> tupleToTime(const std::tuple<unsigned int, unsigned int> &time_tuple);
     /**
      * @brief Builds a configured delay individual (genome = n_variables doubles) for one fixed sleep time
-     * @param c The Config supplying genome size and crash / random-sleep settings
-     * @param sleepTime The fixed sleep time (in seconds) assigned to the produced individual
-     * @return A shared pointer to the newly built delay individual
      */
     static std::shared_ptr<GDelayIndividual>
     create(const Config &c, const std::chrono::duration<double> &sleepTime);

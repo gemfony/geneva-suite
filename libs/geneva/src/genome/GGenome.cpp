@@ -131,6 +131,7 @@ bool GGenome::randomInit_(activityMode const &am) {
  * @param store The value array of this channel, modified in place
  * @param ch The channel layout providing per-element activity flags and interval bounds
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 template <typename T>
@@ -155,6 +156,7 @@ bool GGenome::randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, ac
 /**
  * @brief Randomly (re-)initializes the active entries of the int32 value channel.
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 bool GGenome::randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr) {
@@ -180,6 +182,7 @@ bool GGenome::randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr) {
 /**
  * @brief Randomly (re-)initializes the active entries of the boolean value channel.
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 bool GGenome::randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr) {
@@ -614,7 +617,7 @@ GGenome::GGenome(const std::size_t n_fitness_criteria)
 /**
  * @brief The copy constructor. The shared policy is copied by shared pointer (1:N), the
  * pre-/post-processors are deep-cloned.
- * @param cp The other candidate whose data is copied
+ * @param cp The genome to copy from (value channels and shared layout handle)
  */
 GGenome::GGenome(GGenome const &cp) {
     // Every member -- the GProcessable base slice (copy-assigned via its descriptor), the plain members and
@@ -699,7 +702,8 @@ individual_processing_result GGenome::getStoredResult(const std::size_t id) cons
 /******************************************************************************/
 /**
  * @brief Performs the evaluation of this candidate (see the header for the full sequence).
- * @param res_vec Optional pre-computed raw results; if empty, evaluate() is invoked
+ * @param res_vec Optional pre-computed raw results (e.g. from a remote/GPU evaluator); if empty,
+ *   evaluate() is invoked. Its size must match the criteria count.
  * @return The first stored result after processing
  */
 individual_processing_result
@@ -711,7 +715,8 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
 /**
  * @brief Performs the evaluation of this candidate as process() does, with @p evaluation called
  * where process() would call evaluate() (see the header for the full sequence).
- * @param evaluation Computes the raw results of this candidate; must not be empty
+ * @param evaluation Computes the raw results of this candidate; must not be empty. It must
+ *   return as many results as the candidate has criteria.
  * @return The first stored result after processing
  * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
  */
@@ -985,7 +990,7 @@ void GGenome::applyInvalidityPolicy_() {
 /******************************************************************************/
 /**
  * @brief Registers a (raw) result value of the fitness calculation at a given criterion position.
- * @param id The position of the fitness criterion
+ * @param id The position of the fitness criterion (must be < the criteria count)
  * @param value The raw fitness value to register
  */
 void GGenome::setResult(const std::size_t id, const double value) {
@@ -1006,7 +1011,7 @@ void GGenome::setResult(const std::size_t id, const double value) {
 /******************************************************************************/
 /**
  * @brief Retrieve the (raw, transformed) fitness tuple at a given evaluation position.
- * @param id The evaluation position (fitness criterion index)
+ * @param id The evaluation position (fitness criterion index); defaults to 0
  * @return A (raw, transformed) fitness tuple at the requested position
  */
 std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) const {
@@ -1017,7 +1022,7 @@ std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) cons
 /**
  * @brief Checks whether this candidate is at least as good as a set of raw boundaries.
  * @param boundaries One boundary value per fitness criterion
- * @return true if every raw fitness is at least as good as its boundary
+ * @return true if every raw fitness is at least as good as its boundary, false otherwise
  */
 bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
 #ifdef DEBUG
@@ -1181,7 +1186,10 @@ double GGenome::squaredSumCombiner() const {
 
 /******************************************************************************/
 /**
- * @brief @param weights The per-criterion weights. @return The square root of the weighed sum of squares.
+ * @brief Combines the stored transformed fitness values as a weighed square root of the sum of squares.
+ *
+ * @param weights The per-criterion weights (size must match the criteria count)
+ * @return The square root of the weighed sum of squares
  */
 double GGenome::weighedSquaredSumCombiner(std::vector<double> const &weights) const {
     if(this->getNStoredResults() != weights.size()) {

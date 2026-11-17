@@ -117,17 +117,6 @@ public:
     /***************************************************************************/
     /**
      * @brief Performs the backtracking line search along @p dir starting at @p x0.
-     *
-     * @param eval_fn The batch objective: maps a batch of points to one (min-only) value per point.
-     * @param x0 The base point f(x0) is evaluated at.
-     * @param dir The search direction (must be a descent direction, i.e. @p g0_dot_dir < 0).
-     * @param f0 The objective value at the base point, f(x0).
-     * @param g0_dot_dir The directional derivative grad f(x0) . dir (must be negative for descent).
-     * @param opts Acceptance/termination options for the search (defaults to GLineSearchOptions{}).
-     * @return The chosen step, the new point and its value, the number of evaluations, and whether the
-     *         Armijo condition was met. On failure (non-descent direction or budget exhausted) the
-     *         result carries x0 / f0 with success == false, so the caller can restart to steepest
-     *         descent or stop.
      */
     static GLineSearchResult search(
         eval_fn_t const &eval_fn,

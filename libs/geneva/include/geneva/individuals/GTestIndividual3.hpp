@@ -81,7 +81,6 @@ public:
     GTestIndividual3();
     /**
      * @brief The copy constructor
-     * @param cp Another GTestIndividual3 object whose data is copied into this one
      */
     GTestIndividual3(const GTestIndividual3 &cp);
 

@@ -124,7 +124,6 @@ public:
 
     /**
      * @brief Determines the strength of the temperature degradation (cooling schedule).
-     * @param alpha The new value of the temperature degradation strength (alpha_)
      */
     void setTDegradationStrength(double alpha);
     /**
@@ -135,7 +134,6 @@ public:
 
     /**
      * @brief Sets the start temperature. This function is used for simulated annealing.
-     * @param t0 The new value of the start temperature (t0_)
      */
     void setT0(double t0);
     /**
@@ -211,10 +209,6 @@ private:
 
     /**
      * @brief Calculates the simulated annealing probability for a child to replace a parent.
-     * @param f_min_only_parent The fitness value of the parent
-     * @param f_min_only_child The fitness value of the child
-     * @return The acceptance weight for the child (a probability in [0,1] for a worse child; >= 1, i.e.
-     *         always accept, for a child that is at least as good). Reads only the temperature, so const.
      */
     double saProb(const double &f_min_only_parent, const double &f_min_only_child) const;
 

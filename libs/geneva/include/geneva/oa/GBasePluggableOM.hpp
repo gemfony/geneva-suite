@@ -106,9 +106,6 @@ public:
 
     /**
      * @brief Allows to set the use_raw_evaluation_ variable.
-     *
-     * @param use_raw If true, the true (unmodified) evaluation is used instead of any
-     *        transformed value
      */
     void setUseRawEvaluation(bool use_raw);
 

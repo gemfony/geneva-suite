@@ -369,7 +369,8 @@ void GSimulatedAnnealing::sortSAMode() {
   *
   * @param f_min_only_parent The "min only" (minimization-transformed) fitness of the parent
   * @param f_min_only_child The "min only" (minimization-transformed) fitness of the child
-  * @return A double value representing the Boltzmann likelihood for the child to replace the parent
+  * @return The Boltzmann acceptance weight for the child: a probability in [0,1] for a worse
+  *   child; >= 1, i.e. always accept, for a child that is at least as good
   */
 //! [sa-cooling#1]
 double

@@ -77,21 +77,16 @@ public:
 
     /**
      * @brief Initialization with a raw fitness
-     * @param raw_fitness The raw fitness value to store
      */
     explicit individual_processing_result(double raw_fitness);
 
     /**
      * @brief Initialization with a raw and transformed fitness
-     * @param raw_fitness The raw fitness value to store
-     * @param transformed_fitness The transformed fitness value to store
      */
     individual_processing_result(double raw_fitness, double transformed_fitness);
 
     /**
      * @brief Initialization with a raw fitness and recalculation of the transformed fitness
-     * @param raw_fitness The raw fitness value to store
-     * @param f The function used to derive the transformed fitness from the raw value
      */
     individual_processing_result(double raw_fitness, const std::function<double(double)>& f);
 
@@ -138,7 +133,6 @@ public:
 
     /**
      * @brief Updates the transformed fitness using an external function
-     * @param f The function applied to the raw fitness to obtain the transformed fitness
      */
     void setTransformedFitnessWith(const std::function<double(double)>& f);
 
@@ -159,7 +153,6 @@ public:
 
     /**
      * @brief Resets the object and stores a new raw value in the class
-     * @param raw_fitness The new raw fitness value to store
      */
     void reset(double raw_fitness);
 
@@ -172,8 +165,6 @@ public:
 
     /**
      * @brief Resets the object and stores a new raw value in the class and triggers recalculation of the transformed value
-     * @param raw_fitness The new raw fitness value to store
-     * @param f The function used to derive the transformed fitness from the raw value
      */
     void reset(double raw_fitness, const std::function<double(double)>& f);
 

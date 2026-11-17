@@ -89,7 +89,7 @@ void GProblemPolicy::registerConstraint(
  * the candidate is always valid and the validity level is 0.
  * @param genome The genome whose feasibility is checked
  * @param validity_level Out-parameter receiving the computed validity level
- * @return true if the candidate satisfies the constraint (or none is registered)
+ * @return true if the candidate satisfies the constraint (or none is registered), false otherwise
  */
 bool GProblemPolicy::fulfillsConstraints(const GGenome &genome, double &validity_level) const {
     if(constraint_ptr_) {

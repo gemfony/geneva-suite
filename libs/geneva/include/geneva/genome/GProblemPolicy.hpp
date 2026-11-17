@@ -224,9 +224,6 @@ public:
      * @brief Checks whether a candidate fulfils the registered constraint. If no constraint is
      * registered, the candidate is always valid and the validity level is 0. Defined in the .cpp, where
      * GGenome is a complete type (the constraint reads its parameter values).
-     * @param genome The genome whose feasibility is checked
-     * @param validity_level Out-parameter receiving the computed validity level
-     * @return true if the candidate satisfies the constraint (or none is registered), false otherwise
      */
     bool fulfillsConstraints(const GGenome &genome, double &validity_level) const;
 

@@ -123,15 +123,11 @@ protected:
 private:
     /**
          * @brief Sets the MPI communicator the individual uses to communicate with sub-clients in an MPI sub-group.
-         *
-         * @param communicator The communicator to store for shared, static use by all instances.
          */
     static void setCommunicator(const MPI_Comm &communicator);
 
     /**
          * @brief Stores a request that can be used to check the status of the client in the current communication group.
-         *
-         * @param request The MPI request handle whose completion signals a change in the client status.
          */
     static void setClientStatusRequest(const MPI_Request &request);
 

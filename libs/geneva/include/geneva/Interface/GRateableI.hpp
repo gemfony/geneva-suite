@@ -53,18 +53,12 @@ class GRateableI {
 public:
     /**
      * @brief Retrieves the stored raw fitness with a given id.
-     *
-     * @param pos The index of the fitness criterion to retrieve (default 0, the main criterion)
-     * @return The raw (untransformed) fitness value for the requested criterion
      */
     //! [constraints:fitness-accessors#1]
     [[nodiscard]] double raw_fitness(std::size_t pos = 0) const;
     //! [constraints:fitness-accessors#1]
     /**
      * @brief Retrieves the stored transformed fitness with a given id.
-     *
-     * @param pos The index of the fitness criterion to retrieve (default 0, the main criterion)
-     * @return The transformed fitness value for the requested criterion
      */
     //! [constraints:fitness-accessors#2]
     [[nodiscard]] double transformed_fitness(std::size_t pos = 0) const;

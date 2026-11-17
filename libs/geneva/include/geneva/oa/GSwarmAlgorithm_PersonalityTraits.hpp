@@ -96,8 +96,6 @@ public:
 
     /**
      * @brief Specifies in which neighborhood the individual is at present
-     *
-     * @param neighborhood The id of the neighborhood the individual is to be assigned to
      */
     void setNeighborhood(const std::size_t & neighborhood);
     /**
@@ -124,8 +122,6 @@ public:
 
     /**
      * @brief Allows to add a new personal best to the individual
-     *
-     * @param p A shared pointer to the GGenome representing the individual's new personal best
      */
     void registerPersonalBest(const std::shared_ptr<gen::GGenome>& p);
     /**

@@ -114,8 +114,6 @@ public:
 
     /**
      * @brief Stores the parent's id with this object.
-     *
-     * @param parent_id The population position of the parent this individual descended from
      */
     void setParentId(const std::size_t &parent_id);
     /**

@@ -98,12 +98,10 @@ public:
     /**
      * @brief The standard constructor (the compile-in / test path). Builds the two-parameter genome and
      * stores the (x,y) data points directly, in memory.
-     * @param data_points The (x,y) data points the fitted line is evaluated against
      */
     GLineFitIndividual(const std::vector<std::tuple<double, double>> & data_points);
     /**
      * @brief The copy constructor.
-     * @param cp A constant reference to another GLineFitIndividual object
      */
     GLineFitIndividual(const GLineFitIndividual & cp);
 
@@ -145,15 +143,10 @@ public:
     /**
      * @brief Builds the flat genome's structure: two unbounded doubles (the line's offset a and slope b),
      * each its own Gauss group. Independent of the data points.
-     * @param c The configuration (unused for the genome structure; the data path drives applyConfig instead)
-     * @return The structure-only genome data
      */
     static gen::GenomeData buildGenome(const Config & c);
     /**
      * @brief The OA-owned adaption config: the offset a and slope b each get the line-fit Gauss settings.
-     * @param sample A sample flat genome whose group structure the config mirrors
-     * @param c The configuration (unused; the Gauss settings are the individual's fixed defaults)
-     * @return A shared pointer to the populated adaption config
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome & sample, const Config & c);

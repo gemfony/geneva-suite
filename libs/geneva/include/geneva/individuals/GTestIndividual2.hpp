@@ -115,13 +115,10 @@ public:
     /**
      * @brief Initialising constructor: builds a flat genome holding the requested number of double
      *  parameters of the requested representation type
-     * @param n_objects The number of double parameters (or collection entries) to add to the genome
-     * @param otype The representation type of the double parameters to be created (see PERFOBJECTTYPE)
      */
     GTestIndividual2(const std::size_t &n_objects, const PERFOBJECTTYPE &otype);
     /**
      * @brief The copy constructor
-     * @param cp Another GTestIndividual2 object whose data is copied into this one
      */
     GTestIndividual2(const GTestIndividual2 &cp);
 

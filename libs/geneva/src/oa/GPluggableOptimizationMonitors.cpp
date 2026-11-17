@@ -1297,8 +1297,8 @@ GProcessingTimesLogger::GProcessingTimesLogger() = default;
 /**
  * @brief Initialization with file names and histogram bin counts. Note that some variables may be initialized in the class body.
  *
- * @param file_name_pth The name of the file for the 1D processing-times histograms
- * @param file_name_pth2 The name of the file for the 2D processing-times histograms (timing vs. iteration)
+ * @param file_name_pth The file name for the 1D processing-times histograms (ROOT format)
+ * @param file_name_pth2 The file name for the 2D processing-times-versus-iteration histograms (ROOT format)
  * @param file_name_txt The name of the file for the plain-text processing-times output
  * @param n_bins_x The number of histogram bins in x-direction
  * @param n_bins_y The number of histogram bins in y-direction (used for the 2D histograms)

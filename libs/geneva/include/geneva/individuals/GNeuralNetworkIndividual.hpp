@@ -120,9 +120,6 @@ struct trainingSet {
 
     /**
      * @brief Searches for compliance with expectations with respect to another object of the same type.
-     * @param cp The other object to compare against
-     * @param e The expectation for this object, e.g. equality
-     * @param limit The limit for allowed deviations of floating point types
      */
     virtual void compare(
         const trainingSet & cp
@@ -191,7 +188,6 @@ public:
     explicit networkData(const std::string & network_data_file);
     /**
      * @brief The copy constructor.
-     * @param cp A constant reference to another networkData object
      */
     networkData(const networkData & cp);
 
@@ -200,16 +196,11 @@ public:
 
     /**
      * @brief Copies the data of another networkData object.
-     * @param cp A constant reference to the networkData to copy from
-     * @return A reference to this object
      */
     networkData &operator=(const networkData & cp);
 
     /**
      * @brief Searches for compliance with expectations with respect to another object of the same type.
-     * @param cp The other object to compare against
-     * @param e The expectation for this object, e.g. equality
-     * @param limit The limit for allowed deviations of floating point types
      */
     virtual void compare(
         const networkData & cp
@@ -232,17 +223,12 @@ public:
 
     /**
      * @brief Adds a new training set to the collection. Requires the network architecture to be defined already.
-     * @param tS The training set to store
-     * @param pos The position at which the training set is stored
      */
     void addTrainingSet(std::shared_ptr<trainingSet> t_s, const std::size_t & pos);
     /**
      * @brief Retrieves the training set at a given position.
-     * @param pos The position of the training set to retrieve
-     * @return The training set at that position, or an empty optional if none is stored there
      */
     std::optional<std::shared_ptr<trainingSet>>
-
     getTrainingSet(const std::size_t & pos) const;
 
     /**
@@ -258,9 +244,6 @@ public:
 
     /**
      * @brief Saves this data set in ROOT format for visual inspection.
-     * @param outputFile The path of the ROOT script to write
-     * @param min The lower boundary of the plotted value range
-     * @param max The upper boundary of the plotted value range
      */
     void toROOT(const std::string & output_file, const double & min, const double & max);
 
@@ -271,7 +254,6 @@ public:
     bool initRangeSet() const;
     /**
      * @brief Allows to set the initialization range.
-     * @param init_range The per-dimension (lower, upper) initialization ranges
      */
     void setInitRange(const std::vector<std::tuple<double, double>> &init_range);
     /**
@@ -585,16 +567,6 @@ public:
     GNeuralNetworkIndividual();
     /**
      * @brief A constructor which initializes the individual with a suitable set of network layers.
-     * @param min The lower boundary of the weight initialization range
-     * @param max The upper boundary of the weight initialization range
-     * @param sigma The initial sigma (step width) of the weight Gauss adaptor
-     * @param sigma_sigma The self-adaption strength of sigma
-     * @param min_sigma The lower boundary for sigma
-     * @param max_sigma The upper boundary for sigma
-     * @param ad_prob The adaption probability
-     * @param adapt_ad_prob The self-adaption strength of the adaption probability
-     * @param min_ad_prob The lower boundary for the adaption probability
-     * @param max_ad_prob The upper boundary for the adaption probability
      */
     GNeuralNetworkIndividual(
         [[maybe_unused]] const double & min,
@@ -614,7 +586,6 @@ public:
     );
     /**
      * @brief A standard copy constructor.
-     * @param cp A constant reference to another GNeuralNetworkIndividual object
      */
     GNeuralNetworkIndividual(const GNeuralNetworkIndividual &cp);
 
@@ -623,16 +594,6 @@ public:
 
     /**
      * @brief Initialization according to user-specifications.
-     * @param min The lower boundary of the weight initialization range
-     * @param max The upper boundary of the weight initialization range
-     * @param sigma The initial sigma (step width) of the weight Gauss adaptor
-     * @param sigma_sigma The self-adaption strength of sigma
-     * @param min_sigma The lower boundary for sigma
-     * @param max_sigma The upper boundary for sigma
-     * @param ad_prob The adaption probability
-     * @param adapt_ad_prob The self-adaption strength of the adaption probability
-     * @param min_ad_prob The lower boundary for the adaption probability
-     * @param max_ad_prob The upper boundary for the adaption probability
      */
     void init(
         [[maybe_unused]] const double & min,
@@ -653,7 +614,6 @@ public:
 
     /**
      * @brief Sets the type of the transfer function.
-     * @param t_f The transfer function (sigmoid or radial basis function) to use
      */
     void setTransferFunction(transferFunction t_f);
     /**
@@ -1002,12 +962,10 @@ public:
     /***************************************************************************/
     /**
      * @brief Creates a program used for the visualization of optimization results.
-     * @param vis_file The path of the visualization file to write
      */
     void writeVisualizationFile(const std::string &vis_file);
     /**
      * @brief Creates a C++ output file for the trained network.
-     * @param header_file The path of the C++ header file to write
      */
     void writeTrainedNetwork(const std::string &header_file);
 
@@ -1033,28 +991,19 @@ public:
 
     /**
      * @brief Registers the config-file options, binding them to the passed Config.
-     * @param gpb The GParserBuilder object to which the configurable values are added
-     * @param c The Config instance whose members are bound to the parser (written on parse)
      */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Builds the flat weight genome (structure only) for the geometry in the global data store.
-     * @param c The configuration providing the weight init range
-     * @return The structure-only weight genome data
      */
     static gen::GenomeData buildGenome(const Config &c);
     /**
      * @brief The OA-owned Gauss adaption config: every weight group gets the configured Gauss adaptor.
-     * @param sample A sample flat genome whose group structure the config mirrors
-     * @param c The configuration providing the Gauss adaptor settings
-     * @return A shared pointer to the populated adaption config
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the (non-genome) transfer function to a produced individual.
-     * @param ind The individual to configure (modified in place)
-     * @param c The configuration providing the transfer function to apply
      */
     static void applyConfig(GNeuralNetworkIndividual &ind, const Config &c);
 
@@ -1069,8 +1018,6 @@ protected:
 public:
     /**
      * @brief Builds the (shared, immutable) semantic architecture for a given network geometry.
-     * @param n_d The network data describing the network geometry (layer sizes)
-     * @return A shared pointer to the immutable architecture for that geometry
      */
     static std::shared_ptr<const GNeuralNetworkArchitecture>
     makeArchitecture(const networkData &n_d);
@@ -1079,8 +1026,6 @@ private:
     /***************************************************************************/
     /**
      * @brief The transfer function.
-     * @param value The pre-activation input value
-     * @return The transfer function (sigmoid or RBF) applied to the input value
      */
     double transfer(const double &value) const;
 

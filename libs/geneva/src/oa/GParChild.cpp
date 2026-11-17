@@ -90,7 +90,7 @@ void GParChild::resetToOptimizationStart_() {
  * see GParChild::adjustPopulation_() . Also, all error checking is done in
  * that function.
  *
- * @param pop_size The desired total size of the population
+ * @param pop_size The desired total size of the population (parents plus children)
  * @param n_parents The desired number of parents
  */
 void GParChild::setPopulationSizes(
@@ -299,7 +299,7 @@ void GParChild::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
  * @brief Allows to set the likelihood for amalgamation of two units to be
  * performed instead of "just" duplication.
  *
- * @param amalgamation_likelihood The likelihood for amalgamation (cross-over), must be in the range [0,1]
+ * @param amalgamation_likelihood The probability (in [0,1]) that a child is created by cross-over rather than duplication
  */
 void GParChild::setAmalgamationLikelihood(double amalgamation_likelihood) {
     if(amalgamation_likelihood < 0. || amalgamation_likelihood > 1.) {
@@ -1089,7 +1089,7 @@ void GParChild::randomRecombine(const std::unique_ptr<gen::GGenome> &child) {
  * random number evenly distributed between 0 and 1. This way parents with higher
  * fitness are more likely to be chosen for recombination.
  *
- * @param child The child slot into which the chosen parent's slot is loaded
+ * @param child The child slot whose value is replaced by a fitness-weighted chosen parent's
  * @param threshold A std::vector<double> holding the cumulative recombination likelihoods for each parent
  */
 void GParChild::valueRecombine(

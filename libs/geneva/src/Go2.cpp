@@ -547,7 +547,7 @@ std::vector<std::string> Go2::getAlgorithmChain() const {
  * go2.optimize();
  *
  * @param alg A base pointer to another optimization algorithm
- * @return A reference to this object
+ * @return A reference to this object, allowing call chaining
  */
 Go2 &Go2::operator&(const std::shared_ptr<GOABase> &alg) {
     this->addAlgorithm(alg); // NOLINT
@@ -581,7 +581,7 @@ void Go2::addAlgorithm(std::string const &mn) {
  * @brief Makes it easier to add algorithms through their mnemonics.
  *
  * @param mn A small mnemonic identifying the optimization algorithm in the global factory store (e.g. "ea")
- * @return A reference to this object
+ * @return A reference to this object, allowing call chaining
  */
 Go2 &Go2::operator&(std::string const &mn) {
     this->addAlgorithm(mn);

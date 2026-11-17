@@ -298,11 +298,9 @@ public:
 
     /** @brief The default constructor */
     GGenome();
-    /** @brief Initialization with the number of fitness criteria.
-     *  @param n_fitness_criteria The number of fitness criteria this genome will report */
+    /** @brief Initialization with the number of fitness criteria. */
     explicit GGenome(std::size_t n_fitness_criteria);
-    /** @brief The copy constructor.
-     *  @param cp The genome to copy from (value channels and shared layout handle) */
+    /** @brief The copy constructor. */
     GGenome(GGenome const &cp);
     /** @brief The destructor */
     ~GGenome() override = default;
@@ -311,8 +309,7 @@ public:
      *  split-member load(archive_type&, unsigned) below would otherwise hide by name. */
     using Gem::Common::GCommonInterfaceT<GGenome>::load;
 
-    /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder.
-     *  @param g The genome data (the four value channels plus the shared immutable layout) */
+    /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder. */
     void setGenome(GenomeData const &g);
 
     /** @brief Direct, shared access to the structural layout (problem metadata).
@@ -380,12 +377,7 @@ public:
      *  @return A boost::json::object holding this individual's parameters, metadata and results */
     virtual boost::json::object toJSON() const;
 
-    /** @brief Transformation of the individual's parameters into a list of comma-separated values.
-     *  @param with_name_and_type Whether to prefix each value with its name and type
-     *  @param with_commas Whether to separate the values with commas
-     *  @param use_raw_fitness Whether to emit the raw rather than the transformed fitness
-     *  @param show_validity Whether to append the individual's validity flag
-     *  @return The parameters (and optionally fitness/validity) as a single CSV string */
+    /** @brief Transformation of the individual's parameters into a list of comma-separated values. */
     virtual std::string toCSV(
         bool with_name_and_type = false,
         bool with_commas = true,
@@ -393,9 +385,7 @@ public:
         bool show_validity = true
     ) const;
 
-    /** @brief Perform a cross-over operation between this genome and another (a GGenome).
-     *  @param cp_base The other entity to cross over with (must be a GGenome)
-     *  @return A new genome holding the recombined parameter values */
+    /** @brief Perform a cross-over operation between this genome and another (a GGenome). */
     virtual std::shared_ptr<GGenome> crossOverWith(GGenome const &cp_base) const;
 
     /** @brief Retrieves parameters relevant for the evaluation from another GGenome.
@@ -433,9 +423,7 @@ protected:
     // serialize() is NOT generated -- save()/load() above keep the bespoke send-once layout wire
     // protocol.
 
-    /** @brief Random initialization of the genome's parameter values.
-     *  @param am The activity mode selecting which parameters are randomly initialised
-     *  @return true if at least one parameter value was changed */
+    /** @brief Random initialization of the genome's parameter values. */
     virtual bool randomInit_(activityMode const &am);
 
     /** @brief Applies modifications to this object. This is needed for testing purposes */
@@ -486,23 +474,16 @@ private:
         return counts_cache_[type_idx][amIndex(am)];
     }
 
-    /** @brief Retrieve the active double parameter at the given positional index.
-     *  @param idx The position among the active double parameters. @return Its (folded) value */
+    /** @brief Retrieve the active double parameter at the given positional index. */
     virtual double getVarVal_d_(std::size_t idx);
-    /** @brief Retrieve the active float parameter at the given positional index.
-     *  @param idx The position among the active float parameters. @return Its (folded) value */
+    /** @brief Retrieve the active float parameter at the given positional index. */
     virtual float getVarVal_f_(std::size_t idx);
-    /** @brief Retrieve the active int32 parameter at the given positional index.
-     *  @param idx The position among the active int32 parameters. @return Its (folded) value */
+    /** @brief Retrieve the active int32 parameter at the given positional index. */
     virtual std::int32_t getVarVal_i_(std::size_t idx);
-    /** @brief Retrieve the active bool parameter at the given positional index.
-     *  @param idx The position among the active bool parameters. @return Its value */
+    /** @brief Retrieve the active bool parameter at the given positional index. */
     virtual bool getVarVal_b_(std::size_t idx);
 
-    /** @brief Retrieval of a suitable position for cross over inside of a vector.
-     *  @param lower The minimum allowed cross-over position (must be > 0)
-     *  @param upper The exclusive upper bound of the cross-over range
-     *  @return A valid cross-over position within the vector */
+    /** @brief Retrieval of a suitable position for cross over inside of a vector. */
     std::size_t getCrossOverPos(std::size_t lower, std::size_t upper);
 
     /***************************************************************************/
@@ -770,17 +751,12 @@ private:
     /***************************************************************************/
     // Random-init channel helpers (the per-channel ADAPTION kernels are OA-owned).
 
-    /** @brief Randomly initialises a floating-point channel's active parameters.
-     *  @tparam T The channel's value type. @param store The internal storage (overwritten at active positions)
-     *  @param ch The channel layout. @param am The activity mode. @param gr The leased random proxy to draw from.
-     *  @return true if a value changed */
+    /** @brief Randomly initialises a floating-point channel's active parameters. */
     template <typename T>
     bool randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, activityMode const &am, Gem::Hap::GRandomBase &gr);
-    /** @brief Randomly initialises the int32 channel's active parameters.
-     *  @param am The activity mode. @param gr The leased random proxy to draw from. @return true if a value changed */
+    /** @brief Randomly initialises the int32 channel's active parameters. */
     bool randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr);
-    /** @brief Randomly initialises the bool channel's active parameters.
-     *  @param am The activity mode. @param gr The leased random proxy to draw from. @return true if a value changed */
+    /** @brief Randomly initialises the bool channel's active parameters. */
     bool randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr);
 
     /***************************************************************************/
@@ -872,9 +848,6 @@ public:
      * transform and the optional post-processor, measuring the time of each step. On an exception the
      * fitnesses are set to the worst case and a processing exception is rethrown. Only an item with the
      * DO_PROCESS status is accepted.
-     * @param res_vec Optional pre-computed raw results (e.g. from a remote/GPU evaluator); if empty,
-     *        evaluate() is invoked. Its size must match the criteria count.
-     * @return The first stored result after processing
      */
     individual_processing_result process(
         const std::vector<individual_processing_result> &res_vec =
@@ -896,9 +869,6 @@ public:
      * the candidate with the EXCEPTION_CAUGHT status and is rethrown as a processing exception;
      * the post-processor runs afterwards. This is how an execution environment that evaluates
      * differently (a process group, a device) stays inside the lifecycle.
-     * @param evaluation Computes the raw results of this candidate; must not be empty. It must
-     *        return as many results as the candidate has criteria.
-     * @return The first stored result after processing
      * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
      */
     individual_processing_result process(evaluation_function evaluation);
@@ -968,22 +938,16 @@ public:
 
     /**
      * @brief Registers a (raw) result value of the fitness calculation at a given criterion position.
-     * @param id The position of the fitness criterion (must be < the criteria count)
-     * @param value The raw fitness value to register
      */
     void setResult(std::size_t id, double value);
     /** @brief @return true if more than one fitness criterion is present */
     [[nodiscard]] bool hasMultipleFitnessCriteria() const { return this->getNStoredResults() > 1; }
     /**
      * @brief Retrieve the (raw, transformed) fitness tuple at a given evaluation position.
-     * @param id The evaluation position (fitness criterion index); defaults to 0
-     * @return A (raw, transformed) fitness tuple at the requested position
      */
     [[nodiscard]] std::tuple<double, double> getFitnessTuple(std::uint32_t id = 0) const;
     /**
      * @brief Checks whether this candidate is at least as good as a set of raw boundaries.
-     * @param boundaries One boundary value per fitness criterion
-     * @return true if every raw fitness is at least as good as its boundary, false otherwise
      */
     bool isGoodEnough(std::vector<double> const &boundaries);
 
@@ -1468,8 +1432,7 @@ protected:
     [[nodiscard]] double fabsSumCombiner() const;
     /** @brief @return The square root of the sum of squares of all stored transformed fitness values */
     [[nodiscard]] double squaredSumCombiner() const;
-    /** @brief @return The square root of the weighed sum of squares of all stored transformed fitness values
-     *  @param weights The per-criterion weights (size must match the criteria count) */
+    /** @brief Combines the stored transformed fitness values as a weighed square root of the sum of squares */
     [[nodiscard]] double weighedSquaredSumCombiner(std::vector<double> const &weights) const;
 
     /***************************************************************************/
@@ -1573,26 +1536,21 @@ private:
     /***************************************************************************/
     // Evaluation internals.
 
-    /** @brief The body of both process() overloads. @param res_vec Optional pre-computed raw
-     *  results @param evaluation The evaluation to call in place of evaluate(), or nullptr
-     *  @return The first stored result after processing */
+    /** @brief The body of both process() overloads. */
     individual_processing_result processWith_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
     );
 
     /** @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec
-     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results
-     *  @param evaluation The evaluation to call in place of evaluate(), or nullptr */
+     *  adoption + the evaluation-policy transform. */
     void runEvaluation_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
     );
 
     /** @brief runEvaluation_() feasible branch: adopt the raw results and apply the evaluation-policy
-     *  transform (or worst-case the surface if the user flagged an error). @param res_vec Optional
-     *  pre-computed raw results @param evaluation The evaluation to call in place of evaluate(), or
-     *  nullptr */
+     *  transform (or worst-case the surface if the user flagged an error). */
     void finalizeFeasibleEvaluation_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
@@ -1601,9 +1559,7 @@ private:
     /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec
      *  (external GPU/network path), from the evaluation supplied to process(), or from a local
      *  evaluate() -- returning the main (index-0) raw result and storing the secondary criteria.
-     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_().
-     *  @param res_vec Optional pre-computed raw results @param evaluation The evaluation to call in
-     *  place of evaluate(), or nullptr @return The main raw result */
+     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_(). */
     double adoptRawResults_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
@@ -1621,8 +1577,7 @@ private:
 
     /** @brief Sets every raw and transformed fitness to the same value. @param val The value */
     void setAllFitnessTo(double val) { this->setAllFitnessTo(val, val); }
-    /** @brief Sets every raw fitness to raw_value and every transformed fitness to transformed_value.
-     *  @param raw_value The raw value. @param transformed_value The transformed value */
+    /** @brief Sets every raw fitness to raw_value and every transformed fitness to transformed_value. */
     void setAllFitnessTo(double raw_value, double transformed_value);
 
     /** @brief Resets every stored result to a default-constructed value */

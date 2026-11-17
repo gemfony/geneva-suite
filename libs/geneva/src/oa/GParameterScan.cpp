@@ -832,7 +832,7 @@ void GParameterScan::setParameterSpecs(const std::string& par_str) {
 /**
  * @brief Specifies the number of simple scans and puts the class in "simple scan" mode.
  *
- * @param simple_scan_items The number of randomly-initialized work items to evaluate (0 disables simple-scan mode)
+ * @param simple_scan_items The number of random samples of the whole parameter space to take (0 disables simple-scan mode)
  */
 void GParameterScan::setNSimpleScans(std::size_t simple_scan_items) {
     simple_scan_items_ = simple_scan_items;

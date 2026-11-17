@@ -71,7 +71,7 @@ GNelderMead::GNelderMead()
 /**
  * @brief Initialization with the number of simplices.
  *
- * @param n_simplices The number of simultaneous Nelder-Mead simplices to maintain
+ * @param n_simplices The number of simplices to run in parallel (one per starting region)
  */
 GNelderMead::GNelderMead(const std::size_t &n_simplices)
   : n_simplices_(n_simplices) { /* nothing */

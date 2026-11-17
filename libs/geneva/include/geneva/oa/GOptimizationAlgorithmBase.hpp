@@ -207,7 +207,6 @@ public:
 
     /**
      * @brief The copy constructor.
-     * @param cp Another GOptimizationAlgorithmBase object whose state is copied
      */
     GOptimizationAlgorithmBase(GOptimizationAlgorithmBase const &cp);
 
@@ -221,13 +220,11 @@ public:
 
     /**
      * @brief Performs the necessary administratory work of doing check-pointing.
-     * @param is_better Whether the current iteration produced an improvement over the previous best
      */
     void checkpoint(bool is_better) const;
 
     /**
      * @brief Loads the state of the class from disc.
-     * @param cp_file The path to the checkpoint file to restore the algorithm state from
      */
     void loadCheckpoint(std::filesystem::path const &cp_file);
 
@@ -260,7 +257,6 @@ public:
 
     /**
      * @brief Allows to set the number of generations after which a checkpoint should be written.
-     * @param cp_interval The checkpoint interval in iterations (-1 means: write whenever an improvement occurs)
      */
     void setCheckpointInterval(std::int32_t cp_interval);
     /**
@@ -273,8 +269,6 @@ public:
      * @brief Allows to set the base name of the checkpoint file and the directory where it should be stored.
      * A missing directory is created lazily when the first checkpoint is written; configuring has no
      * filesystem side effects (an existing path must be a directory, though).
-     * @param cp_directory The directory in which checkpoint files are stored
-     * @param cp_base_name The base name of the checkpoint files
      */
     void setCheckpointBaseName(const std::string& cp_directory, const std::string& cp_base_name);
     /**
@@ -294,7 +288,6 @@ public:
     std::filesystem::path getCheckpointDirectoryPath() const;
     /**
      * @brief Determines whether checkpointing should be done in Text-, XML- or Binary-mode.
-     * @param cp_ser_mode The serialization mode used for checkpoint files
      */
     void setCheckpointSerializationMode(Gem::Common::serializationMode cp_ser_mode);
     /**
@@ -304,7 +297,6 @@ public:
     Gem::Common::serializationMode getCheckpointSerializationMode() const;
     /**
      * @brief Allows to set the cp_remove_ flag.
-     * @param cp_remove Whether checkpoint files should be removed (true) or kept (false)
      */
     void setRemoveCheckpointFiles(bool cp_remove);
     /**
@@ -320,7 +312,6 @@ public:
     /**
      * @brief Sets the number of threads used for parallel organizational work (adaption,
      *  recombination, ...). 0 means "automatic" (hardware concurrency).
-     * @param n_threads The number of organizational-work threads (0 == hardware concurrency)
      */
     void setNThreads(std::uint16_t n_threads);
     /**
@@ -333,7 +324,6 @@ public:
 
     /**
      * @brief Emits information specific to this class.
-     * @param im The information mode, e.g. start / processing / end of an optimization run
      */
     void informationUpdate(const infoMode &im);
 
@@ -345,7 +335,6 @@ public:
 
     /**
      * @brief Allows to register a pluggable optimization monitor.
-     * @param pluggable_om The pluggable optimization monitor to register
      */
     void registerPluggableOM(const std::shared_ptr<GBasePluggableOM>& pluggable_om);
     /** @brief Allows to reset the local pluggable optimization monitors */
@@ -369,7 +358,6 @@ public:
 
     /**
      * @brief Set the number of iterations after which the optimization should be stopped.
-     * @param max_iteration The maximum number of iterations
      */
     void setMaxIteration(std::uint32_t max_iteration);
     /**
@@ -380,7 +368,6 @@ public:
 
     /**
      * @brief Sets the minimum number of iterations.
-     * @param min_iteration The minimum number of iterations to run before a halt criterion may take effect
      */
     void setMinIteration(std::uint32_t min_iteration);
     /**
@@ -391,7 +378,6 @@ public:
 
     /**
      * @brief Sets the maximum number of iterations allowed without improvement of the best individual.
-     * @param max_stall_iteration The maximum number of stalled (improvement-free) iterations
      */
     void setMaxStallIteration(std::uint32_t max_stall_iteration);
     /**
@@ -402,7 +388,6 @@ public:
 
     /**
      * @brief Sets the maximum allowed processing time.
-     * @param max_duration The maximum allowed run duration
      */
     void setMaxTime(std::chrono::duration<double> max_duration);
     /**
@@ -413,7 +398,6 @@ public:
 
     /**
      * @brief Sets the minimum required processing time.
-     * @param min_duration The minimum run duration before a halt criterion may take effect
      */
     void setMinTime(std::chrono::duration<double> min_duration);
     /**
@@ -424,27 +408,19 @@ public:
 
     /**
      * @brief Sets a quality threshold beyond which optimization is expected to stop.
-     * @param quality_threshold The quality threshold value
-     * @param has_quality_threshold Whether the quality threshold is active
      */
     void setQualityThreshold(double quality_threshold, bool has_quality_threshold);
     /**
      * @brief Retrieves the current value of the quality threshold and also indicates whether the threshold is active.
-     * @param has_quality_threshold Output parameter set to true if the threshold is active, false otherwise
-     * @return The current quality threshold value
      */
     double getQualityThreshold(bool &has_quality_threshold) const;
 
     /**
      * @brief Sets the name of a "termination file".
-     * @param termination_file The path to a file whose modification triggers termination
-     * @param terminate_on_file_modification Whether modification of the file should trigger termination
      */
     void setTerminationFile(std::string termination_file, bool terminate_on_file_modification);
     /**
      * @brief Retrieves the current name of the termination file and also indicates whether the "touched halt" is active.
-     * @param terminate_on_file_modification Output parameter set to true if the touched-halt feature is active
-     * @return The current termination file name
      */
     std::string getTerminationFile(bool &terminate_on_file_modification) const;
 
@@ -464,7 +440,6 @@ public:
 
     /**
      * @brief Sets the number of iterations after which the algorithm should report about its inner state.
-     * @param iter The reporting interval in iterations
      */
     void setReportIteration(std::uint32_t iter);
     /**
@@ -481,7 +456,6 @@ public:
 
     /**
      * @brief Allows to set the number of iterations without improvement, after which individuals are asked to update their internal data structures.
-     * @param stall_counter_threshold The stall count after which actOnStalls is triggered
      */
     void setStallCounterThreshold(std::uint32_t stall_counter_threshold);
     /**
@@ -592,7 +566,6 @@ public:
 
     /**
      * @brief If individuals have been stored in this population, they are added to the priority queue.
-     * @param best_individuals The priority queue that the stored best individuals are added to
      */
     void addCleanStoredBests(gen::GGenomeFixedSizePriorityQueue &best_individuals);
 
@@ -609,8 +582,6 @@ public:
 
     /**
      * @brief Checks whether a checkpoint-file has the same "personality" as our own algorithm.
-     * @param p The path to the checkpoint file to inspect
-     * @return true if the checkpoint's personality matches this algorithm, false otherwise
      */
     bool cp_personality_fits(const std::filesystem::path &p) const;
 
@@ -647,7 +618,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb A reference to the parser-builder that collects this algorithm's configuration options
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
     // load_(), compare_() and name_() are generated by the Gem::Common::GReflectiveInterfaceBaseT base from
@@ -682,10 +652,6 @@ protected:
      * @brief Submits the contiguous sub-range [start, end) of @p work_items for evaluation through
      *  courtier. The algorithm passes the range it wants evaluated explicitly (no per-item DO_PROCESS
      *  flagging needed); the consumer marks and reconciles exactly that span in place.
-     * @param work_items The work-item vector whose sub-range is submitted (reconciled in place)
-     * @param start The (inclusive) start index of the range to evaluate
-     * @param end The (exclusive) end index of the range to evaluate
-     * @return The executor status describing the outcome of the submission
      */
     Gem::Courtier::submission_status_t workOn(
         std::vector<std::unique_ptr<gen::GGenome>> &work_items,
@@ -698,9 +664,6 @@ protected:
      * work item (carrying its own OA scratch), so the population vector is the submission vector:
      * workOn() submits a span over the live sub-range and reconciles it in place -- no move-out /
      * move-back, the scratch rides along on each individual untouched.
-     * @param start The (inclusive) start index of the population range to evaluate
-     * @param end The (exclusive) end index of the population range to evaluate
-     * @return The executor status describing the outcome of the submission
      */
     Gem::Courtier::submission_status_t workOnPopulation(std::size_t start, std::size_t end);
 
@@ -709,8 +672,6 @@ protected:
      * status is incomplete or carries errors. The strict counterpart of discardUnusableItems_() --
      * together the two helpers state the strict/tolerant split exactly once, mirroring the
      * per-algorithm submission policy (getSubmissionPolicy_()).
-     * @param status The executor status returned by the submission
-     * @param caller The calling function's name, used in the error message
      */
     void requireCompleteEvaluation_(
         const Gem::Courtier::submission_status_t &status,
@@ -722,8 +683,6 @@ protected:
      * partial or errored return left unusable (still due for processing, or error-flagged), so the
      * population continues with evaluated individuals only. In DEBUG builds the number of erased
      * individuals is logged. See requireCompleteEvaluation_().
-     * @param status The executor status returned by the submission
-     * @param caller The calling function's name, used in the DEBUG log lines
      */
     void discardUnusableItems_(
         const Gem::Courtier::submission_status_t &status,
@@ -782,14 +741,11 @@ protected:
 
     /**
      * @brief Saves the state of the class to disc.
-     * @param output_file The path of the checkpoint file to write the algorithm state to
      */
     void saveCheckpoint(std::filesystem::path const &output_file) const;
 
     /**
      * @brief Extracts the short name of the optimization algorithm.
-     * @param p The path from which the algorithm's short name is extracted
-     * @return The short name of the optimization algorithm encoded in the path
      */
     static std::string extractOptAlgFromPath(const std::filesystem::path &p);
 
@@ -800,25 +756,21 @@ protected:
 
     /**
      * @brief Sets the default size of the population.
-     * @param def_pop_size The nominal (default) population size
      */
     void setDefaultPopulationSize(std::size_t def_pop_size);
 
     // NB: protected, as a derived function may fall back to this function, cmp EA in non-pareto mode
     /**
      * @brief Adds the individuals of this iteration to the global-best priority queue.
-     * @param best_individuals The priority queue the current iteration's individuals are added to
      */
     virtual void updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals);
     /**
      * @brief Adds the individuals of this iteration to the iteration-best priority queue.
-     * @param best_individuals The priority queue the current iteration's individuals are added to
      */
     virtual void updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals);
 
     /**
      * @brief Set the number of "best" individuals to be recorded in each iteration.
-     * @param n_record_best_individuals The number of best individuals to record per iteration
      */
     void setNRecordBestIndividuals(std::size_t n_record_best_individuals);
     /**
@@ -852,8 +804,6 @@ private:
 
     /**
      * @brief This function encapsulates some common functionality of iteration-based optimization algorithms.
-     * @param offset An iteration offset to start from (non-zero when chaining algorithms, e.g. in a Go2 chain)
-     * @return A pointer to this algorithm after the optimization run has completed
      */
     GOptimizationAlgorithmBase const *optimize_(std::uint32_t offset) final;
     /**
@@ -940,20 +890,15 @@ private:
 
     /**
      * @brief Update the stall counter.
-     * @param best_eval The best evaluation (raw, transformed) of the current iteration used to decide on improvement
      */
     void updateStallCounter(const std::tuple<double, double> &best_eval);
 
     /**
      * @brief This function returns true once a given time has passed.
-     * @param current_time The current time against which the maximum duration is checked
-     * @return true if the maximum duration has been exceeded, false otherwise
      */
     bool timedHalt(const std::chrono::system_clock::time_point &current_time) const;
     /**
      * @brief This function checks whether a minimum amount of time has passed.
-     * @param current_time The current time against which the minimum duration is checked
-     * @return true if the minimum duration has passed, false otherwise
      */
     bool minTimePassed(const std::chrono::system_clock::time_point &current_time) const;
 
@@ -1117,10 +1062,6 @@ private:
     /**
      * @brief Submits the contiguous sub-range [start, end) of @p work_items through the one process-wide
      * consumer (GConsumerRegistry), which the setup layer establishes if the process was never given one.
-     * @param work_items The work-item vector whose sub-range is submitted (reconciled in place)
-     * @param start The (inclusive) start index of the range to evaluate
-     * @param end The (exclusive) end index of the range to evaluate
-     * @return The executor status describing the outcome of the submission
      */
     Gem::Courtier::submission_status_t workOnViaConsumer_(
         std::vector<std::unique_ptr<gen::GGenome>> &work_items,

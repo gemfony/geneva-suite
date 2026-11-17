@@ -198,8 +198,6 @@ public:
      * @brief Initialization with the inner-EA configuration file. The nested refinement always runs
      * inline on the submitting thread (setInlineEvaluation on the inner EA) -- the former
      * serial/multi-threaded/broker execution-mode selection no longer exists.
-     *
-     * @param oa_config_file The name of the configuration file for the evolutionary algorithm
      */
     explicit GEvolutionaryAlgorithmPostOptimizer(const std::string &oa_config_file);
     /**
@@ -213,8 +211,6 @@ public:
 
     /**
      * @brief Allows to specify the name of a configuration file for the optimization algorithm
-     *
-     * @param oa_config_file The name of the configuration file for the evolutionary algorithm
      */
     void setOAConfigFile(const std::string &oa_config_file);
     /**
@@ -240,9 +236,6 @@ protected:
 
     /**
      * @brief The actual post-processing takes place here (no further checks)
-     *
-     * @param p A reference to the individual to be post-processed in place
-     * @return true if the individual was modified by the post-processing, false otherwise
      */
     bool raw_processing_(gen::GGenome &p) override;
 

@@ -58,13 +58,6 @@ class GMPISubClientOptimizer // NOLINT(cppcoreguidelines-special-member-function
 public:
     /**
          * @brief Parses the command line for relevant parameters and allows to specify a default config file name.
-         *
-         * @param argc Number of command line arguments
-         * @param argv Array of command line argument strings
-         * @param configFilePath The name and location of the configuration file
-         * @param userDescriptions Additional command line options (cmp. boost::program_options); defaults to an empty set
-         * @param baseCommunicator MPI communicator that all processes instantiating GMPISubClientOptimizer call. In the
-         *  most frequent and least complicated case the default value of MPI_COMM_WORLD will be correct.
          */
     GMPISubClientOptimizer(
         int argc,
@@ -87,10 +80,6 @@ public:
          *
          * The callback receives the MPI_Comm communicator used by this process and all processes in the same sub-group,
          * over which the sub-clients cooperate to solve the fitness calculation.
-         *
-         * @param callback The function executed by sub-clients; it takes the sub-group communicator and returns an
-         *  integer status code
-         * @return A reference to this object, allowing call chaining
          */
     GMPISubClientOptimizer &
     registerSubClientJob(std::move_only_function<int(MPI_Comm)> callback);
@@ -114,8 +103,6 @@ protected:
 
     /**
          * @brief Adds local configuration options to a GParserBuilder object.
-         *
-         * @param gpb The GParserBuilder object to which configuration options should be added
          */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 

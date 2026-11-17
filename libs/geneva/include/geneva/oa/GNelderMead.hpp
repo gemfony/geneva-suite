@@ -189,7 +189,6 @@ public:
     GNelderMead();
     /**
      * @brief Initialization with the number of simultaneous simplices.
-     * @param n_simplices The number of simplices to run in parallel (one per starting region)
      */
     explicit GNelderMead(const std::size_t &n_simplices);
     /**
@@ -207,13 +206,11 @@ public:
     std::size_t getNSimplices() const;
     /**
      * @brief Allows to set the number of simultaneous simplices.
-     * @param n_simplices The number of simplices to run in parallel
      */
     void setNSimplices(std::size_t n_simplices);
 
     /**
      * @brief Sets the reflection coefficient (alpha).
-     * @param alpha The reflection coefficient controlling how far the worst vertex is reflected through the centroid
      */
     void setAlpha(double alpha);
     /**
@@ -223,7 +220,6 @@ public:
     double getAlpha() const;
     /**
      * @brief Sets the expansion coefficient (gamma).
-     * @param gamma The expansion coefficient controlling how far a successful reflection is extended
      */
     void setGamma(double gamma);
     /**
@@ -233,7 +229,6 @@ public:
     double getGamma() const;
     /**
      * @brief Sets the contraction coefficient (rho).
-     * @param rho The contraction coefficient controlling how far a vertex is contracted towards the centroid
      */
     void setRho(double rho);
     /**
@@ -243,7 +238,6 @@ public:
     double getRho() const;
     /**
      * @brief Sets the shrink coefficient (sigma).
-     * @param sigma The shrink coefficient controlling how far non-best vertices are moved towards the best vertex
      */
     void setSigma(double sigma);
     /**
@@ -253,7 +247,6 @@ public:
     double getSigma() const;
     /**
      * @brief Sets the relative size of the initial simplex.
-     * @param initial_edge The initial simplex edge length, expressed as a fraction of the parameter range
      */
     void setInitialEdge(double initial_edge);
     /**
@@ -263,7 +256,6 @@ public:
     double getInitialEdge() const;
     /**
      * @brief Sets the stall count after which an oriented restart is performed.
-     * @param restart_threshold The number of stalled iterations triggering an oriented restart (0 = disabled)
      */
     void setRestartThreshold(std::uint32_t restart_threshold);
     /**
@@ -305,7 +297,6 @@ private:
 protected:
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb A reference to the parser-builder that collects this algorithm's configuration options
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -361,23 +352,15 @@ private:
     bool restartSimplices();
     /**
      * @brief Shrinks simplex s by moving every non-best vertex towards the best vertex b.
-     * @param s The index of the simplex to shrink
-     * @param b The index (within that simplex) of the best vertex towards which the others are moved
      */
     void shrinkTowardsBest(std::size_t s, std::size_t b);
 
     /**
      * @brief Convenience: population index of vertex v in simplex s.
-     * @param s The simplex index
-     * @param v The vertex index within the simplex
-     * @return The corresponding position in the population
      */
     std::size_t vertexPos(std::size_t s, std::size_t v) const;
     /**
      * @brief Convenience: population index of trial slot t in simplex s.
-     * @param s The simplex index
-     * @param t The trial-slot index within the simplex (NM_REFLECT / NM_EXPAND / NM_CONTRACT / NM_OCONTRACT)
-     * @return The corresponding position in the population
      */
     std::size_t trialPos(std::size_t s, std::size_t t) const;
     /**

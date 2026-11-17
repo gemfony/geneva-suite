@@ -105,11 +105,6 @@ public:
 
     /**
      * @brief A constructor that first parses the command line for relevant parameters and allows to specify a default config file name.
-     *
-     * @param argc The number of command line arguments
-     * @param argv The array of command line argument strings
-     * @param config_filename The name and location of the configuration file
-     * @param user_descriptions Additional user-defined command line options (cmp. boost::program_options); defaults to an empty set
      */
     Go2(int argc,
         char **argv,
@@ -141,7 +136,6 @@ public:
 
     /**
      * @brief Specifies whether only the best individuals of a population should be copied to the next algorithm.
-     * @param copy_best_individuals_only If true, only the best individuals are carried over between chained algorithms
      */
     void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
     /**
@@ -152,24 +146,18 @@ public:
 
     /**
      * @brief Allows to add an optimization algorithm to the chain.
-     * @param alg A shared pointer to the optimization algorithm to append to the chain
      */
     void addAlgorithm(const std::shared_ptr<GOABase> &alg);
     /**
      * @brief Makes it easier to add algorithms (operator form of addAlgorithm).
-     * @param alg A shared pointer to the optimization algorithm to append to the chain
-     * @return A reference to this object, allowing call chaining
      */
     Go2 &operator&(const std::shared_ptr<GOABase> &alg);
     /**
      * @brief Allows to add an optimization algorithm through its mnemonic.
-     * @param mn The mnemonic string identifying the algorithm to append (e.g. "ea", "sa")
      */
     void addAlgorithm(std::string const &mn);
     /**
      * @brief Makes it easier to add algorithms by mnemonic (operator form of addAlgorithm).
-     * @param mn The mnemonic string identifying the algorithm to append (e.g. "ea", "sa")
-     * @return A reference to this object, allowing call chaining
      */
     Go2 &operator&(std::string const &mn);
 
@@ -177,8 +165,7 @@ public:
      *  server started) for this run, OVERRIDING the mnemonic-based consumer
      *  selection. Used to plug in a custom consumer (e.g. a GPU consumer) that Go2 does not know how to
      *  build itself; it becomes the process's single consumer that every algorithm submits through. Call
-     *  after construction and before optimize().
-     *  @param consumer The ready-to-use consumer to register as the process consumer (ownership is taken via move). */
+     *  after construction and before optimize(). */
     void registerConsumer(
         std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
 
@@ -198,15 +185,13 @@ public:
      *  "mpi", "gpu") -- the programmatic equivalent of the --consumer command-line option / the "consumer"
      *  config key. It takes effect when the run is configured (at the first of optimize() / clientRun() /
      *  clientMode()); a --consumer value on the command line overrides this. For a fully custom consumer
-     *  object (that Go2 cannot build from a mnemonic) use registerConsumer() instead.
-     *  @param mnemonic The consumer mnemonic to use */
+     *  object (that Go2 cannot build from a mnemonic) use registerConsumer() instead. */
     void setConsumerName(std::string const &mnemonic);
 
     /** @brief Appends a runtime Geneva module (.so) path to load at startup -- the programmatic equivalent
      *  of a --module command-line option / a module_paths config entry. A module may contribute optimization
      *  algorithms (usable by their mnemonic) and/or the optimization individual. The module is loaded when
-     *  the run is configured (a mnemonic it contributes is then available to setAlgorithmChain()).
-     *  @param path Filesystem path to the module to load */
+     *  the run is configured (a mnemonic it contributes is then available to setAlgorithmChain()). */
     void addModulePath(std::string const &path);
     /** @brief Replaces the list of runtime module (.so) paths to load at startup (see addModulePath()).
      *  @param paths The module paths to load */
@@ -217,8 +202,7 @@ public:
     /** @brief Sets the chain of optimization algorithms by mnemonic (e.g. {"ea", "sa"}) -- the programmatic
      *  equivalent of --optimizationAlgorithms. Resolution is deferred until the run is configured, so a
      *  mnemonic contributed by a runtime module (addModulePath()) is available by then. A
-     *  --optimizationAlgorithms list on the command line overrides this.
-     *  @param mnemonics The ordered algorithm mnemonics forming the chain */
+     *  --optimizationAlgorithms list on the command line overrides this. */
     void setAlgorithmChain(std::vector<std::string> const &mnemonics);
     /** @brief @return The programmatic algorithm-chain mnemonics set via setAlgorithmChain() (empty if none). */
     std::vector<std::string> getAlgorithmChain() const;
@@ -231,7 +215,6 @@ public:
 
     /**
      * @brief Allows to register a content creator (a factory producing the individuals to be optimized).
-     * @param cc_ptr A shared pointer to the factory used to fill the initial population
      */
     void
         registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr);
@@ -250,7 +233,6 @@ public:
     /**
      * @brief Asks for client mode, as --client does. A consumer that determines the role at runtime
      * (see GConsumerProviderT::determinesRoleAtRuntime()) ignores the request.
-     * @param client_mode If true, this object represents a network client
      */
     //! [coding-naming-example#2]
     void setClientMode(bool client_mode);
@@ -264,9 +246,6 @@ public:
 
     /**
      * @brief Loads some configuration data from arguments passed on the command line (or another char ** presented to it).
-     * @param argc The number of command line arguments
-     * @param argv The array of command line argument strings
-     * @param user_options Additional user-defined command line options (cmp. boost::program_options); defaults to an empty set
      */
     void parseCommandLine(
         int argc,
@@ -276,31 +255,26 @@ public:
     );
     /**
      * @brief Loads some configuration data from a configuration file.
-     * @param config_filename The path to the configuration file to read
      */
     void parseConfigFile(std::filesystem::path const &config_filename);
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions(Gem::Common::GParserBuilder &gpb);
 
     /***************************************************************************/
     /**
      * @brief Allows to register a default algorithm via a shared pointer.
-     * @param default_algorithm A shared pointer to the algorithm used when no other algorithm has been registered
      */
     void registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm);
     /**
      * @brief Allows to register a default algorithm via its mnemonic.
-     * @param mn The mnemonic of the algorithm used when no other algorithm has been registered
      */
     void registerDefaultAlgorithm(std::string const &mn);
 
     /**
      * @brief Allows to register a pluggable optimization monitor.
-     * @param pluggable_om A shared pointer to the pluggable optimization monitor to register
      */
     void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &pluggable_om);
     /** @brief Allows to reset the local pluggable optimization monitors */
@@ -328,7 +302,6 @@ public:
 
     /**
      * @brief Allows to set the maximum running time for a client.
-     * @param max_duration The maximum time frame for which a client is allowed to run
      */
     void setMaxClientTime(std::chrono::duration<double> max_duration);
     /**
@@ -369,9 +342,6 @@ public:
      * config, which it adopts (after validating it matches the population's genome) instead of deriving a
      * default from the genome layout. This separates adaption authoring (OA-owned, optionally from a config
      * file) from genome authoring (the individual's factory). Passing a null config clears the entry.
-     *
-     * @param oa_personality_type The algorithm personality type the config applies to (e.g. "PERSONALITY_EA")
-     * @param config The OA-owned adaption configuration to install (a null pointer clears the entry)
      */
     void registerAdaptionConfig(
         const std::string &oa_personality_type,
@@ -397,7 +367,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     virtual void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb);
 
@@ -471,14 +440,11 @@ private:
     /***************************************************************************/
     /**
      * @brief Sets the number of random number production threads.
-     * @param n_producer_threads The number of threads used to produce random numbers
      */
     void setNProducerThreads(std::uint16_t n_producer_threads);
 
     /**
      * @brief Performs the actual optimization cycle.
-     * @param offset The iteration offset at which to start the optimization
-     * @return A pointer to this object after optimization completed
      */
     Go2 const *optimize_(std::uint32_t offset) final;
 
@@ -494,8 +460,6 @@ private:
     void ensureAlgorithmPresent();
     /**
      * @brief Loads a checkpoint or fills the population from the content creator.
-     * @param offset The iteration offset supplied to the optimization run
-     * @return The first algorithm's iteration offset (carried over from a resumed checkpoint, or the passed-in offset)
      */
     std::uint32_t prepareInitialPopulation(std::uint32_t offset);
     /** @brief Throws if a configured checkpoint file does not fit the first algorithm in the chain. */
@@ -508,7 +472,6 @@ private:
     void createIndividualsFromContentCreator();
     /**
      * @brief Runs the registered algorithms in sequence, threading the individuals between them.
-     * @param first_algorithm_offset The iteration offset at which the first algorithm in the chain starts
      */
     void runAlgorithmChain(std::uint32_t first_algorithm_offset);
     /** @brief Sorts the collected individuals by their (min-only transformed) fitness */
@@ -517,12 +480,6 @@ private:
     // --- parseCommandLine sub-steps (decomposition) ---
     /**
      * @brief Emits the help message and exits the process, if --help / --showAll was requested.
-     * @param vm The parsed command line variables map
-     * @param general The general options group (e.g. help-related switches)
-     * @param basic The basic options group
-     * @param visible The options group shown in the standard help output
-     * @param user_options The additional user-supplied options group
-     * @param usage_string The usage line printed at the top of the help message
      */
     static void emitHelpIfRequested(
         boost::program_options::variables_map const &vm,
@@ -534,13 +491,11 @@ private:
     );
     /**
      * @brief Validates, initialises, configures and enrols the consumer chosen on the command line.
-     * @param vm The parsed command line variables map from which the consumer choice is read
      */
     void setupChosenConsumer(boost::program_options::variables_map const &vm);
     /**
      * @brief Resolves a list of algorithm mnemonics against oaFactoryStore() and appends the produced
      * algorithms to the chain. An unknown mnemonic throws.
-     * @param mnemonics The ordered algorithm mnemonics to instantiate and append
      */
     void resolveAlgorithmChain_(std::vector<std::string> const &mnemonics);
     /** @brief Loads every not-yet-loaded module in module_paths_ (plus the individual plugin path): registers
@@ -553,9 +508,7 @@ private:
      *  (ignoring every other, not-yet-declared option), merging them into module_paths_ /
      *  individual_plugin_path_. Run before the help text and per-algorithm option surface are built, so a
      *  module's optimization algorithms are registered in oaFactoryStore() first and thus appear in --help
-     *  and contribute their own command-line options.
-     *  @param argc The number of command line arguments
-     *  @param argv The array of command line argument strings */
+     *  and contribute their own command-line options. */
     void extractEarlyModulePaths_(int argc, char **argv);
     /** @brief Idempotently finalizes configuration: loads any not-yet-loaded runtime modules, resolves the
      *  chosen consumer and resolves the algorithm chain -- honouring programmatic setters called after

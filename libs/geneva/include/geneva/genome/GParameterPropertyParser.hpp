@@ -318,8 +318,7 @@ public:
 
     /** @brief The default constructor -- deleted, as a raw description string is mandatory */
     GParameterPropertyParser() = delete;
-    /** @brief The standard constructor -- assignment of the "raw" parameter property string
-     *  @param rw The raw parameter description string to be parsed */
+    /** @brief The standard constructor -- assignment of the "raw" parameter property string */
     explicit GParameterPropertyParser(const std::string &rw);
 
     /** @brief Retrieves the raw parameter description
@@ -329,8 +328,7 @@ public:
      *  @return true if the raw string has already been parsed, false otherwise */
     [[nodiscard]] bool isParsed() const;
 
-    /** @brief Allows to reset the internal structures and to parse a new parameter string
-     *  @param raw The new raw parameter description string that replaces the current one */
+    /** @brief Allows to reset the internal structures and to parse a new parameter string */
     void setNewParameterDescription(std::string raw);
 
     /** @brief Initiates parsing of the raw string */

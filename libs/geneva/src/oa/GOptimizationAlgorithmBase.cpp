@@ -239,7 +239,7 @@ bool GOptimizationAlgorithmBase::halted() const {
  * A negative value will result in automatic checkpointing, whenever a better solution
  * was found.
  *
- * @param cp_interval The number of generations after which a checkpoint should be written
+ * @param cp_interval The checkpoint interval in iterations (-1 means: write whenever an improvement occurs)
  */
 void GOptimizationAlgorithmBase::setCheckpointInterval(std::int32_t cp_interval) {
     cp_interval_ = cp_interval;
@@ -486,8 +486,9 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
  * predefined criterion is reached. This function is also the main entry
  * point for all optimization algorithms.
  *
- * @param offset Specifies the iteration number to start with (e.g. useful when starting from a checkpoint file)
- * @return A constant pointer to this object
+ * @param offset Specifies the iteration number to start with (non-zero when resuming from a
+ *   checkpoint file or when chaining algorithms, e.g. in a Go2 chain)
+ * @return A constant pointer to this object, after the optimization run has completed
  */
 // NOLINTNEXTLINE(readability-function-size) -- the single top-level optimization lifecycle driver (setup, the init/cycle/checkpoint/halt loop, teardown) shared by every optimization algorithm; splitting the sequenced setup->loop->teardown would scatter one coherent control-flow entry point
 GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uint32_t offset) {
@@ -788,7 +789,7 @@ std::uint32_t GOptimizationAlgorithmBase::getMinIteration() const {
  * Sets the maximum number of generations allowed without improvement of the best
  * individual. Set to 0 in order for this stop criterion to be disabled.
  *
- * @param max_stall_iteration The maximum number of allowed generations
+ * @param max_stall_iteration The maximum number of stalled (improvement-free) iterations
  */
 void GOptimizationAlgorithmBase::setMaxStallIteration(std::uint32_t max_stall_iteration) {
     max_stall_iteration_ = max_stall_iteration;
@@ -839,7 +840,7 @@ std::chrono::duration<double> GOptimizationAlgorithmBase::getMaxTime() const {
 * Sets the minimum required processing time. NOTE: Always set the maximum duration
 * before the minumum duration.
 *
-* @param min_duration The minimum allowed processing time
+* @param min_duration The minimum run duration before a halt criterion may take effect
 */
 void GOptimizationAlgorithmBase::setMinTime(std::chrono::duration<double> min_duration) {
     if(not Gem::Common::isClose<double>(max_duration_.count(), 0.) && max_duration_ < min_duration) {
@@ -884,7 +885,7 @@ void GOptimizationAlgorithmBase::setQualityThreshold(
  * Retrieves the current value of the quality threshold and also indicates whether
  * the threshold is active
  *
- * @param has_quality_threshold A boolean indicating whether a quality threshold has been set
+ * @param has_quality_threshold Output parameter set to true if the threshold is active, false otherwise
  * @return The current value of the quality threshold
  */
 double GOptimizationAlgorithmBase::getQualityThreshold(bool &has_quality_threshold) const {
@@ -898,7 +899,7 @@ double GOptimizationAlgorithmBase::getQualityThreshold(bool &has_quality_thresho
  *  stop when the modification time of this file is more recent than the
  *  start of the optimizatoon rn.
  *
- *  @param termination_file The name of a file used to initiate termination
+ * @param termination_file The path to a file whose modification triggers termination
  *  @param terminate_on_file_modification Allows to (de-)activate "touched termination"
  */
 void GOptimizationAlgorithmBase::setTerminationFile(
@@ -914,7 +915,7 @@ void GOptimizationAlgorithmBase::setTerminationFile(
  * Retrieves the current name of the termination file and also indicates whether
  * the "touched halt" is active
  *
- * @param terminate_on_file_modification A boolean indicating whether "touched termination" is active
+ * @param terminate_on_file_modification Output parameter set to true if the touched-halt feature is active
  * @return The current value of the termination_file_ variable
  */
 std::string
@@ -1501,6 +1502,7 @@ void GOptimizationAlgorithmBase::requireCompleteEvaluation_(
  * erased from the population.
  *
  * @param status The executor status returned by the submission
+ * @param caller The calling function's name, used in the DEBUG log lines
  */
 void GOptimizationAlgorithmBase::discardUnusableItems_(
     const Gem::Courtier::submission_status_t &status,
@@ -1559,7 +1561,7 @@ GOptimizationAlgorithmBase::workOnPopulation(std::size_t start, std::size_t end)
  * getSubmissionPolicy_(): clone-on-partial-return for the tolerant population-based OAs, full-success-
  * or-fatal for the need-all OAs.
  *
- * @param work_items The vector of work items (bare individuals) to be evaluated
+ * @param work_items The work-item vector whose sub-range is submitted (reconciled in place)
  * @param start The index of the first work item in the contiguous sub-range to submit
  * @param end One past the index of the last work item to submit (range is [start, end), clamped to the vector size)
  * @return A struct indicating whether all items returned ("is_complete") and whether there were errors ("has_errors")
@@ -2007,7 +2009,7 @@ void GOptimizationAlgorithmBase::updateStallCounter(const std::tuple<double, dou
  * It is used in the GOptimizationAlgorithmBase::halt() function.
  *
  * @param current_time The reference time point against which the elapsed time since the start of the run is measured
- * @return A boolean indicating whether a given amount of time has passed
+ * @return true if the maximum duration has been exceeded, false otherwise
  */
 bool GOptimizationAlgorithmBase::timedHalt(
     const std::chrono::system_clock::time_point &current_time
