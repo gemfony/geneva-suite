@@ -111,6 +111,17 @@ IF (Python3_Interpreter_FOUND)
 		FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}ClientGate L)
 
+	# The placement of GSubClientOverheadSameJobId's second client job on a pid of the first job's
+	# Open MPI job family, on a busy host: while two processes take pids as fast as they can (a
+	# parallel ctest takes 20000 to 30000 a second), a program is started on a pid of a given family
+	# three times, each within 60 s. Linux only: the pids are read from /proc.
+	IF (EXISTS /proc/sys/kernel/ns_last_pid)
+		ADD_TEST(NAME SpeedupToolsPidPlacementUnderLoad COMMAND ${SPEEDUP_TOOLS_CHECK} placement 2)
+		SET_TESTS_PROPERTIES(SpeedupToolsPidPlacementUnderLoad PROPERTIES
+			LABELS "benchmark" TIMEOUT 240 PROCESSORS 4)
+		GENEVA_TEST_SIZE(SpeedupToolsPidPlacementUnderLoad L)
+	ENDIF ()
+
 	ADD_TEST(NAME ${EXECUTABLENAME}ShortReferenceRefused
 		COMMAND ${SPEEDUP_TOOLS_CHECK} refusal $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-refusal)
