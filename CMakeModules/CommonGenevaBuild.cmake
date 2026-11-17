@@ -443,6 +443,11 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaTestSize.cmake)
 
 	###############################################################################
+	# The check that a library's programs link only the library's own closure
+	# (geneva_check_link_closure). In-tree only, like the size labels.
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaLinkClosure.cmake)
+
+	###############################################################################
 	# Runtime-loadable / compiled-in individual packaging helpers
 	# (GENEVA_ADD_INDIVIDUAL_MODULE / GENEVA_DECLARE_INDIVIDUAL). The function bodies live in the shared,
 	# installable GenevaIndividualModule.cmake so the SAME helpers are available to an out-of-tree project

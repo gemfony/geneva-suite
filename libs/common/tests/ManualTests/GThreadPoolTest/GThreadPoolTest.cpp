@@ -44,8 +44,6 @@
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/concurrency/GThreadPool.hpp"
-#include "hap/GRandomDistributionsT.hpp"
-#include "hap/GRandomT.hpp"
 
 using namespace Gem::Common;
 using namespace Gem::Common::Concurrency;
@@ -143,7 +141,9 @@ private:
     std::uint32_t
         process_called_; ///< This counter will be incremented whenever process() is called
 
-    Gem::Hap::GRandom gr_; // Instantiates a random number generator
+    // A standard engine of the task's own: a task is processed by one thread at a time (the pool
+    // is waited for between the submissions), and common's programs do not depend on hap
+    std::mt19937_64 gr_{std::random_device{}()};
     std::uniform_int_distribution<long> uniform_int_;
     std::bernoulli_distribution uniform_bool_; // probability of 0.5 is the default
 };
@@ -158,7 +158,7 @@ private:
  */
 // NOLINTNEXTLINE(readability-function-size) -- manual-test main: CLI setup, task submission loop, and result verification form one linear test scenario
 int main(int argc, char **argv) {
-    Gem::Hap::GRandom gr; // Instantiates a random number generator
+    std::mt19937_64 gr{std::random_device{}()}; // A standard engine: common's programs do not use hap
     std::uniform_int_distribution<unsigned int> uniform_int_;
 
     //----------------------------------------------------------------

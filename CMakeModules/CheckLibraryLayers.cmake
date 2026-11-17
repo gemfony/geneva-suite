@@ -41,7 +41,7 @@
 #   library    its code (include/, src/) may      its programs (tests/, examples/, benchmarks/,
 #              include                            docprograms/, quickstart/, tools/) may include
 #   weft       weft                               weft
-#   common     common, weft                       everything
+#   common     common, weft                       common, weft
 #   hap        hap, common, weft                  hap, common, weft, dietrich
 #   dietrich   dietrich, common, weft             dietrich, common, weft
 #   courtier   courtier, common, weft             courtier, common, weft
@@ -70,7 +70,7 @@ SET(_code_dietrich dietrich common weft)
 SET(_code_courtier courtier common weft)
 SET(_code_geneva "*")
 SET(_programs_weft weft)
-SET(_programs_common "*")
+SET(_programs_common common weft)
 SET(_programs_hap hap common weft dietrich)
 SET(_programs_dietrich dietrich common weft)
 SET(_programs_courtier courtier common weft)
