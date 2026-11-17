@@ -100,9 +100,9 @@ std::vector<T> fillWithData(
 
 /**
  * @brief Specialization of fillWithData() for type bool (yields the values false and true).
- * @param n_steps The number of steps to generate
- * @param lower The lower boundary of the scanned range
- * @param upper The upper boundary of the scanned range
+ * @param n_steps The requested number of steps (unused: a boolean grid always holds both values)
+ * @param lower The lower boundary of the scanned range (unused)
+ * @param upper The upper boundary of the scanned range (unused)
  * @return A vector holding the boolean grid points
  */
 template <>
@@ -110,15 +110,14 @@ std::vector<bool> fillWithData<bool>(std::size_t n_steps, bool lower, bool upper
 
 /**
  * @brief Specialization of fillWithData() for type std::int32_t.
- * @param n_steps The number of steps to generate (only used for random entries)
+ * @param n_steps The number of steps to generate, including the boundaries
  * @param lower The lower boundary of the scanned range (inclusive)
  * @param upper The upper boundary of the scanned range (inclusive)
  * @return A vector holding the integer grid points
  */
 template <>
 std::vector<std::int32_t> fillWithData<std::int32_t>(
-    std::size_t n_steps // will only be used for random entries
-    ,
+    std::size_t n_steps,
     std::int32_t lower,
     std::int32_t upper // inclusive
 );
@@ -325,7 +324,7 @@ public:
      * @return true if a warp (rewind to the start) has taken place, false otherwise
      */
     bool goToNextItem() override {
-        if(++step_ >= n_steps_) {
+        if(++step_ >= nPositions()) {
             step_ = 0;
             return true;
         }
@@ -338,7 +337,7 @@ public:
      * @return true if the position is at (or beyond) the terminal position, false otherwise
      */
     bool isAtTerminalPosition() const override {
-        return step_ >= n_steps_;
+        return step_ >= nPositions();
     }
 
     /***************************************************************************/
@@ -385,7 +384,7 @@ protected:
 
     gen::NAMEANDIDTYPE var_;           ///< Name and/or position of the variable
     std::size_t step_;            ///< The current position in the data vector
-    std::size_t n_steps_;          ///< The number of steps to be taken in a scan
+    std::size_t n_steps_;         ///< Requested steps (random draws or grid points)
     T lower_;                     ///< The lower boundary of an item
     T upper_;                     ///< The upper boundary of an item
     bool random_scan_;             ///< Indicates whether we are dealing with a random scan or not
@@ -423,6 +422,21 @@ protected:
     }
 
 private:
+    /***************************************************************************/
+    /**
+     * @brief The number of positions a traversal steps through.
+     *
+     * A random scan draws n_steps_ items. A grid scan visits the items of its pre-computed
+     * grid, whose size is the number of values fillWithData() produced -- equal to n_steps_
+     * for the numeric types, but always two for a boolean, whatever step count its spec
+     * carries.
+     *
+     * @return The number of positions before the traversal wraps
+     */
+    [[nodiscard]] std::size_t nPositions() const {
+        return random_scan_ ? n_steps_ : this->size();
+    }
+
     mutable std::bernoulli_distribution
         uniform_bool_; ///< boolean random numbers with an even distribution
     mutable std::uniform_real_distribution<float>

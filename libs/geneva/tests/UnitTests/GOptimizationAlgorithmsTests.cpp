@@ -303,6 +303,7 @@ protected:
 std::mutex g_scan_probe_mutex;
 std::vector<std::int32_t> g_scan_int_samples;            ///< every int value the int probe was evaluated at
 std::vector<std::pair<double, double>> g_scan_pair_samples; ///< every (x, y) the 2-double probe was evaluated at
+std::vector<bool> g_scan_bool_samples;                      ///< every value the bool probe saw
 
 /** @brief A single-int32 probe (genome bound [-10, 10]) recording each evaluated int value. */
 class ScanIntProbe : public gen::GGenomeT<ScanIntProbe> {
@@ -325,6 +326,30 @@ protected:
             g_scan_int_samples.push_back(v[0]);
         }
         return {static_cast<double>(v[0]) * static_cast<double>(v[0])};
+    }
+};
+
+/** @brief A single-boolean probe recording each evaluated boolean value. */
+class ScanBoolProbe : public gen::GGenomeT<ScanBoolProbe> {
+public:
+    using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
+public:
+    ScanBoolProbe() {
+        gen::GGenomeBuilder b;
+        b.addBoolGroup(1).init(false);
+        this->setGenome(b.build());
+    }
+    ScanBoolProbe(const ScanBoolProbe &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<bool> v;
+        this->streamline<bool>(v);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.push_back(v[0]);
+        }
+        return {v[0] ? 1. : 0.};
     }
 };
 
@@ -1234,6 +1259,36 @@ TEST_CASE("Parameter scan grid covers exactly the product of the per-dimension s
     CHECK(combos.count(std::make_pair(-1., 1.)) == 1);
     CHECK(combos.count(std::make_pair(1., -1.)) == 1);
     CHECK(combos.count(std::make_pair(1., 1.)) == 1);
+}
+
+/******************************************************************************/
+
+TEST_CASE("Parameter scan over a boolean visits each of its two values once", "[flat][oa][ps]") {
+    // Regression: a grid scan used to step through a boolean up to the spec's step count -- 100
+    // when a bare b(...) gives none -- while the boolean's grid holds two values, so the third step
+    // read past the grid (std::out_of_range), and a step count of 1 left `true` unscanned. The grid
+    // itself bounds the traversal: every spec below visits false and true exactly once.
+    for(const char *spec : {"b(0)", "b(0, false, true, 5)", "b(0, 1)"}) {
+        CAPTURE(spec);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.clear();
+        }
+
+        auto pop = std::make_shared<oa::GParameterScan>();
+        pop->setScanRandomly(false); // grid scan
+        pop->setParameterSpecs(spec);
+        pop->setMaxIteration(100000);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->push_back(ScanBoolProbe().clone());
+        CHECK_NOTHROW(pop->optimize());
+
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        CHECK(g_scan_bool_samples.size() == 2);
+        CHECK(std::ranges::count(g_scan_bool_samples, false) == 1);
+        CHECK(std::ranges::count(g_scan_bool_samples, true) == 1);
+    }
 }
 
 /******************************************************************************/

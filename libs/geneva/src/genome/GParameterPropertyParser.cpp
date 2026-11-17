@@ -405,7 +405,9 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
  * @brief applyFragment() 'b' branch: parse a boolean parameter-scan spec.
  *
  * Layout: index[,lowerBoundary,upperBoundary][,nSteps][,label] -- the optional trailing tokens
- * (nSteps as an unsigned, everything else a label) may appear in either order.
+ * (nSteps as an unsigned, everything else a label) may appear in either order. nSteps (default
+ * GPP_DEF_NSTEPS) is the number of draws of a random scan; a grid scan visits the two boolean
+ * values whatever it says.
  *
  * @param tok The comma-split tokens of the fragment content
  * @param content The original fragment content (for error messages)

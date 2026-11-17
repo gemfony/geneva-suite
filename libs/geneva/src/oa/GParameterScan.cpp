@@ -67,6 +67,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * @brief Returns a set of boolean data items (always both false and true).
  *
+ * The traversal of a grid scan is bounded by the size of the grid, not by n_steps, so a boolean
+ * scan visits exactly these two values whatever step count its spec carries.
+ *
  * @param n_steps The requested number of grid steps (unused for booleans, which always yield two values)
  * @param lower The lower scan boundary (unused for booleans)
  * @param upper The upper scan boundary (unused for booleans)
@@ -91,10 +94,9 @@ std::vector<bool> fillWithData<bool>(
  * @brief Returns a set of std::int32_t data items spread evenly over the inclusive scan interval.
  *
  * Like the float/double specializations, this honours n_steps: it generates exactly n_steps values
- * evenly spaced over [lower, upper] (endpoints included), each rounded to the nearest integer. Honouring
- * n_steps keeps the grid vector size equal to n_steps_, which the grid traversal logic (goToNextItem /
- * isAtTerminalPosition) relies on. Note that for a small integer range with many steps, neighbouring
- * grid points may round to the same value (harmless, redundant evaluations).
+ * evenly spaced over [lower, upper] (endpoints included), each rounded to the nearest integer.
+ * Note that for a small integer range with many steps, neighbouring grid points may round to the
+ * same value (harmless, redundant evaluations).
  *
  * @param n_steps The number of grid points to generate (must be at least 2)
  * @param lower The (inclusive) lower scan boundary (first generated value)
