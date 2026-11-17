@@ -291,8 +291,8 @@ public:
      *  on_peer is under way and none will come. A listener waits until the calls of on_peer it
      *  has begun have returned; they are short (see start()). It does not wait for clients (the
      *  shell does, rule 8), and its wait has a short bound of its own, so that a stop takes one
-     *  grace, not two; a listener whose bound is hit says so in the log. Neither on a thread of
-     *  the executor nor in on_peer; the executor still runs. Idempotent. */
+     *  grace, not two; a listener whose bound is hit says so in the log. Not in on_peer (it runs
+     *  on a thread of the listener's own, which stop() may wait for). Idempotent. */
     virtual void stop() = 0;
 
     /** @brief Ends the transport's own work (rule 7). Called once, by the shell, when no handler

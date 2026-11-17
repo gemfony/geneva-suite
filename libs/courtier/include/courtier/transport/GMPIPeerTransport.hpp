@@ -303,10 +303,9 @@ private:
  *
  * start() makes the poll and the peers, greets every client rank (TAG_PEER_OPEN: their ends open on
  * it) and hands every peer to the shell (on_peer, posted to the poll's thread). stop() waits for
- * those calls of on_peer,
- * at most a short bound of its own (GListenerI::stop()). endWork() stops and joins the poll's
- * thread, ends the poll (GMPIPollCore::shutdown(): sends that have not completed are given up, the
- * peers are let go) and shuts the poll's context down.
+ * those calls of on_peer, at most a short bound of its own (GListenerI::stop()). endWork() stops
+ * and joins the poll's thread, ends the poll (GMPIPollCore::shutdown(): sends that have not
+ * completed are given up, the peers are let go) and shuts the poll's context down.
  *
  * Loss of a client: not noticed (detectsLoss() is false): a rank that dies ends the whole job, and
  * the items of a rank that hangs come back by the consumer's time lease.

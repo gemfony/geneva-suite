@@ -718,18 +718,28 @@ void GMPIListener::startPoll_(const std::shared_ptr<GMPIPollCore> &core) {
 
 /******************************************************************************/
 /**
- * Hands every peer to the shell: on_peer is posted, once per rank, to the poll's thread, not to the
- * shell's executor (GListenerI::start()): every session thread may be busy for any time, and the
- * calls are short. Every call is counted before it is posted, so that stop() sees every call that
- * will come; on_peer_ is dropped only by endWork(), when the poll's thread no longer runs this.
+ * Hands every peer to the shell: one handler, posted to the poll's thread, not to the shell's
+ * executor (GListenerI::start()), calls on_peer for every rank in turn; every session thread may be
+ * busy for any time, and the calls are short. Every call is counted before the handler is posted,
+ * so that stop() sees every call that will come; on_peer_ is dropped only by endWork(), when the
+ * poll's thread no longer runs this. Everything here that may throw comes before the post, so a
+ * start() that throws has called no on_peer (GListenerI::start()). (No test: only a failing
+ * allocation makes the counting or the post throw.)
  *
  * @param peers The peers, not started
  */
 void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
-    for(auto &peer : peers) {
-        const auto peer_id = static_cast<GWirePeerId>(peer->rank());
-        on_peer_calls_.set(peer_id, true);
-        boost::asio::post(poll_context_, [this, peer = std::move(peer), peer_id]() mutable {
+    for(const auto &peer : peers) {
+        on_peer_calls_.set(static_cast<GWirePeerId>(peer->rank()), true);
+    }
+    boost::asio::post(poll_context_, [this, peers = std::move(peers)] {
+        for(const auto &peer : peers) {
+            if(poll_context_.stopped()) {
+                // endWork() after a stop whose bound was hit: the calls not yet made are dropped,
+                // as the shell's threads have gone (the poll still holds the peers for tellEnds_())
+                return;
+            }
+            const auto peer_id = static_cast<GWirePeerId>(peer->rank());
             // No exception leaves the poll's thread: a rank whose session cannot be made is closed
             // with an error (its client would wait for ever otherwise), and the call is counted
             // out.
@@ -746,8 +756,8 @@ void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
                 peer->close(GPeerClose::ERROR);
             }
             on_peer_calls_.remove(peer_id);
-        });
-    }
+        }
+    });
 }
 
 /******************************************************************************/

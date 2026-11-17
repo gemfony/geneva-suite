@@ -17,9 +17,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 ## 1. Toolchain and build
 
 - **C++23 is now required** (was C++20). Minimum compilers: **GCC ≥ 15** or
-  **Clang ≥ 22**, the versions Ubuntu 26.10 ships. The build pins `CMAKE_CXX_STANDARD=23` and rejects anything lower,
-  and the exported CMake package advertises `cxx_std_23`, so **downstream consumers of
-  the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
+  **Clang ≥ 22**, the versions Ubuntu 26.10 ships. The build pins `CMAKE_CXX_STANDARD=23` and
+  rejects anything lower, and the exported CMake package advertises `cxx_std_23`, so **downstream
+  consumers of the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
   longer build or link against Geneva.
 - **Boost ≥ 1.91**, built in C++23 mode; **CMake ≥ 3.27**; **Catch2 v3** for the tests.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
@@ -168,14 +168,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
   a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result /
-  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on, and
-  nothing else. The end of a run is said by the transport's close, not by a frame: the `shutdown`
-  frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What a message
-  *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
+  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on,
+  and nothing else. The end of a run is said by the transport's close, not by a frame: the
+  `shutdown` frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What
+  a message *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
   `evaluated_and_modified`) and a per-command payload, both relayed by courtier without
-  interpretation. A library plugs its own answers
-  in by specializing `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no
-  Geneva code and knows no Geneva vocabulary.
+  interpretation. A library plugs its own answers in by specializing
+  `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no Geneva code and knows no Geneva
+  vocabulary.
 - **A processed item returns its RESULTS, not a hollowed-out copy of itself.** The ordinary
   return is an `evaluation` carrying the computed result store plus the validity level --
   a few hundred bytes whose size does not grow with the individual, its parameters or any
@@ -248,8 +248,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
   time. A connection is accepted, opened and kept alive while every session thread of the server
   is busy: the server takes a new client on, and answers its handshake and its pings, on the
-  threads that move the bytes. There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
-  lost client is not noticed by the transport, and the server reclaims its items by the time lease.
+  threads that move the bytes. There is no limit on the size of a message. Without the keep-alive
+  (an interval of 0) a lost client is not noticed by the transport, and the server reclaims its
+  items by the time lease.
 - **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
   (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
   many threads again.
@@ -309,12 +310,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
   does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
-  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts back what
-  the client held and sends it its blobs anew; the client stays. A result that
-  cannot be applied to its item marks the item as failed, and so does an item that the server
-  cannot encode for a client, or whose result the client cannot encode or return (the client
-  then sends the outcome alone, marked as failed, and stays). In each case the submission policy
-  decides what happens to the item, as it does for any failed evaluation.
+  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts
+  back what the client held and sends it its blobs anew; the client stays. A result that cannot be
+  applied to its item marks the item as failed, and so does an item that the server cannot encode
+  for a client, or whose result the client cannot encode or return (the client then sends the
+  outcome alone, marked as failed, and stays). In each case the submission policy decides what
+  happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
 - **A batch may hold up to 2^24 items** (`GNetworkedConsumerT::maxBatchSize()`); a larger span
@@ -343,12 +344,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Geneva's Boost link footprint is now just Boost.JSON and Boost.ProgramOptions.** Beyond
   Boost.Serialization (above), **Boost.Filesystem has also been dropped**: Geneva's own code uses
   `std::filesystem` throughout, and the plugin loader (Boost.DLL) is compiled with
-  `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`. `Boost::filesystem`
-  was removed from the library link lines, the `GENEVA_BOOST_LIBS` component list, the installed
-  `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An installed Geneva
-  library now links only `libboost_json` and `libboost_program_options` (Boost headers are still
-  needed at build time, e.g. Boost.Asio/Beast for the networked consumers and Boost.DLL for module
-  loading).
+  `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`.
+  `Boost::filesystem` was removed from the library link lines, the `GENEVA_BOOST_LIBS` component
+  list, the installed `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An
+  installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
+  headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
+  Boost.DLL for module loading).
 - **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
   `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
   courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
@@ -396,18 +397,19 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   uses it through `Gem::Geneva::loadModule()`.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
-  is gone, and a factory registers through one function, `Gem::Geneva::registerOptimizationAlgorithm()`
-  — the same one whether the algorithm is built in (via `GInitializerT`) or loaded from a module (via
-  `oaManifest<>` and the module loader). Consequences for existing code: the per-algorithm factory
-  types and their headers (`GEvolutionaryAlgorithmFactory`, `GSwarmAlgorithmFactory`, … and
-  `geneva/oa/G*Factory.hpp`) are **gone**. For every algorithm but one the factory added nothing to
-  the scaffold, so the factory *is* the scaffold: write
-  `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` where the old type name stood (the algorithm's
-  own personality traits are the default second argument), and include the algorithm's header and
-  `geneva/oa/GOptimizationAlgorithmFactoryT.hpp`. `GParameterScanFactory` is the exception and remains
-  a class of its own — it adds the parameter-spec command-line option; a user-written factory that
-  derived from one of the removed types derives from the instantiation instead. `GOAFactoryT` gains
-  `provide()` and a `final` `getName()` (the provider-interface spelling of `getAlgorithmName()`).
+  is gone, and a factory registers through one function,
+  `Gem::Geneva::registerOptimizationAlgorithm()` — the same one whether the algorithm is built in
+  (via `GInitializerT`) or loaded from a module (via `oaManifest<>` and the module loader).
+  Consequences for existing code: the per-algorithm factory types and their headers
+  (`GEvolutionaryAlgorithmFactory`, `GSwarmAlgorithmFactory`, … and `geneva/oa/G*Factory.hpp`) are
+  **gone**. For every algorithm but one the factory added nothing to the scaffold, so the factory
+  *is* the scaffold: write `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` where the old type name
+  stood (the algorithm's own personality traits are the default second argument), and include the
+  algorithm's header and `geneva/oa/GOptimizationAlgorithmFactoryT.hpp`. `GParameterScanFactory` is
+  the exception and remains a class of its own — it adds the parameter-spec command-line option; a
+  user-written factory that derived from one of the removed types derives from the instantiation
+  instead. `GOAFactoryT` gains `provide()` and a `final` `getName()` (the provider-interface
+  spelling of `getAlgorithmName()`).
 
 ## 7. Renames and small API removals
 
