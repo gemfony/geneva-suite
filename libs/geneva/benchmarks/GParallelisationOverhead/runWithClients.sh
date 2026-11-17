@@ -110,7 +110,8 @@
 
 set -u
 
-if [ "${BASH_VERSINFO[0]}" -lt 4 ] || { [ "${BASH_VERSINFO[0]}" = 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
+if [ "${BASH_VERSINFO[0]}" -lt 4 ] ||
+       { [ "${BASH_VERSINFO[0]}" = 4 ] && [ "${BASH_VERSINFO[1]}" -lt 4 ]; }; then
     echo "Error: runWithClients.sh needs bash 4.4 or newer, not $BASH_VERSION"; exit 1
 fi
 
@@ -217,16 +218,21 @@ else
     # not bind it is started again on another one (SERVER_PORT: the first port to try).
     PORT=${SERVER_PORT:-$((15000 + RANDOM % 2000))}
     for _ in $(seq 1 10); do
-        "$X" -c "$C" "--${C}_port" $PORT "${GATE[@]}" "$@" > server.log 2>&1 &
+        "$X" -c "$C" "--${C}_port" "$PORT" "${GATE[@]}" "$@" > server.log 2>&1 &
         SRV=$!
         sleep 2
         if kill -0 "$SRV" 2>/dev/null || ! grep -q 'could not bind to port' server.log; then
             break
         fi
-        wait "$SRV" 2>/dev/null
+        # Reaped: its pid may be reused, and the trap must not signal it
+        wait "$SRV" 2>/dev/null; SRV=""
         echo "port $PORT is taken; the server is started on another one"
         PORT=$((15000 + RANDOM % 2000))
     done
+    if [ -z "$SRV" ]; then
+        echo "the server found no free port in 10 attempts; see server.log"
+        exit 1
+    fi
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
     LAUNCH=()
     if [ "$GROUP" -gt 1 ]; then
@@ -244,21 +250,34 @@ else
             sleep "$LAST_CLIENT_DELAY"
         fi
         OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
-            "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" "$@" \
+            "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" "$PORT" "${GROUPOPT[@]}" "$@" \
             >> clients.log 2>&1 &
         PIDS+=($!)
     done
-    wait $SRV; STATUS=$?
+    wait "$SRV"; STATUS=$?
+    # Reaped: its pid may be reused, and the trap must not signal it any more
+    SRV=""
     # The clients end by themselves once their server is gone; those still there after the grace
-    # period are ended and counted.
-    left() { local n=0 p; for p in "${PIDS[@]}"; do kill -0 "$p" 2>/dev/null && n=$((n + 1)); done; echo $n; }
+    # period are ended and counted. A client that has ended leaves PIDS at the next look, for the
+    # same reason as the server.
+    running() {
+        local p alive=()
+        for p in "${PIDS[@]}"; do
+            kill -0 "$p" 2>/dev/null && alive+=("$p")
+        done
+        PIDS=("${alive[@]}")
+    }
     for _ in $(seq 1 "${CLIENT_GRACE:-30}"); do
-        [ "$(left)" = 0 ] && break
+        running
+        [ "${#PIDS[@]}" = 0 ] && break
         sleep 1
     done
-    echo "clients that did not end by themselves: $(left)"
-    kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
-    PIDS=(); SRV=""
+    running
+    echo "clients that did not end by themselves: ${#PIDS[@]}"
+    if [ "${#PIDS[@]}" != 0 ]; then
+        kill "${PIDS[@]}" 2>/dev/null; wait "${PIDS[@]}" 2>/dev/null
+    fi
+    PIDS=()
 fi
 echo "server exit: $STATUS"
 exit $STATUS

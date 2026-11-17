@@ -49,7 +49,8 @@ Usage:
       memory (runWithClients.sh gives each job a directory of its own for it); Open MPI only
   testSpeedupTools.py interrupt <GSubClientOverhead> <workdir> <reference dir>
       runWithClients.sh with two websocket clients of three processes each, ended from outside
-      with SIGINT while it measures: no process it started may remain
+      with SIGINT while it measures: no process it started may remain, nor the geneva-sm.*
+      directory of its MPI jobs' shared-memory files
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group; a job of -c mpi whose submitter fails (an option only it
@@ -122,10 +123,12 @@ def check_figure(program, workdir):
     # The series are named by their labels alone, each label once as its graph's title and once
     # as its legend entry; each pad has a title of its own and a legend at the lower right.
     for text, count in (('TGraphErrors(', 6), ('new TLegend(', 2), ('Divide(1,2)', 1),
-                        ('SetTitle("fast")', 2), ('SetTitle("slow")', 2), ('SetTitle("ideal (4)")', 2),
-                        ('"fast", "lp");', 2), ('"slow", "lp");', 2), ('"ideal (4)", "lp");', 2),
+                        ('SetTitle("fast")', 2), ('SetTitle("slow")', 2),
+                        ('SetTitle("ideal (4)")', 2), ('"fast", "lp");', 2),
+                        ('"slow", "lp");', 2), ('"ideal (4)", "lp");', 2),
                         ('"All evaluation times"', 1), ('"Up to 0.1 s"', 1), ('fast:', 0),
-                        ('new TLegend(0.3, 0.21)', 0), ('SetLineWidth(2)', 6), ('canvasTitle->Draw()', 1)):
+                        ('new TLegend(0.3, 0.21)', 0), ('SetLineWidth(2)', 6),
+                        ('canvasTitle->Draw()', 1)):
         if figure.count(text) != count:
             fail(f'the figure holds "{text}" {figure.count(text)} times instead of {count}')
     if 'SetLogx' in figure or 'SetLogy' in figure:
@@ -138,7 +141,8 @@ def check_figure(program, workdir):
             means[(label, float(time))] = (float(mean), float(error), int(runs))
     reference = compare_speedups()
     for label, tables in (('fast', ['fast-1.txt', 'fast-2.txt']), ('slow', ['slow.txt'])):
-        for time, (mean, error, runs) in reference.combine([reference.read(t) for t in tables]).items():
+        combined = reference.combine([reference.read(t) for t in tables])
+        for time, (mean, error, runs) in combined.items():
             got = means.get((label, time))
             if got is None:
                 fail(f'no mean for {label} at {time} s')
@@ -492,8 +496,23 @@ def session_processes(session):
     return pids
 
 
+def backing_directories(pids):
+    """The values of OMPI_MCA_btl_sm_backing_directory in the environments of the processes."""
+    found = set()
+    for pid in pids:
+        try:
+            with open(f'/proc/{pid}/environ', 'rb') as environ:
+                for entry in environ.read().split(b'\0'):
+                    if entry.startswith(b'OMPI_MCA_btl_sm_backing_directory='):
+                        found.add(entry.split(b'=', 1)[1].decode())
+        except OSError:
+            continue
+    return found
+
+
 def check_interrupt(program, workdir, reference_dir):
-    """runWithClients.sh, ended with SIGINT while it measures, ends what it started."""
+    """runWithClients.sh, ended with SIGINT while it measures, ends what it started and removes
+    the directory of its MPI jobs' shared-memory files."""
     os.makedirs(workdir, exist_ok=True)
     for name in ('shortDelayResults.txt', 'referenceLine.txt', 'server.log', 'clients.log'):
         if os.path.exists(os.path.join(workdir, name)):
@@ -514,7 +533,17 @@ def check_interrupt(program, workdir, reference_dir):
             time.sleep(0.1)
         else:
             fail('the run did not begin to measure within 60 s')
-        script.send_signal(signal.SIGINT)  # to the script alone, as a Ctrl-C reaches it first
+        # The directory the script made for its MPI jobs (the client jobs' directories lie in it)
+        job_dirs = backing_directories(session_processes(script.pid))
+        shm_dirs = {os.path.dirname(d) for d in job_dirs}
+        if len(shm_dirs) != 1 or not os.path.basename(next(iter(shm_dirs))).startswith(
+                'geneva-sm.'):
+            fail(f'the client jobs do not have one geneva-sm.* directory: {sorted(job_dirs)}')
+        shm_dir = next(iter(shm_dirs))
+        # To the script alone. A Ctrl-C at a terminal reaches the whole foreground process group
+        # at once; the script's background processes ignore SIGINT, so this ends the same way.
+        # It is also the case of `kill -INT <script>`.
+        script.send_signal(signal.SIGINT)
         try:
             script.wait(timeout=30)
         except subprocess.TimeoutExpired:
@@ -528,6 +557,9 @@ def check_interrupt(program, workdir, reference_dir):
         if left:
             fail(f'{len(left)} processes the script started were still running 30 s after it '
                  f'ended: {left}')
+        if os.path.exists(shm_dir):
+            fail(f'the directory of the MPI jobs\' shared-memory files is left: {shm_dir} '
+                 f'holds {sorted(os.listdir(shm_dir))}')
     finally:
         for pid in session_processes(script.pid):
             try:
@@ -537,7 +569,8 @@ def check_interrupt(program, workdir, reference_dir):
         if script.poll() is None:
             script.kill()
             script.wait()
-    print(f'the script ended with {script.returncode} and left no process behind')
+    print(f'the script ended with {script.returncode} and left no process and no '
+          f'geneva-sm.* directory behind')
 
 
 def check_groups(program, workdir):

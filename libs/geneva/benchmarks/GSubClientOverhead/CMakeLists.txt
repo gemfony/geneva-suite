@@ -45,7 +45,8 @@ ADD_EXECUTABLE(${EXECUTABLENAME}
 	GSleepGroup.cpp
 	$<TARGET_OBJECTS:${EXECUTABLENAME}Individual>
 )
-TARGET_INCLUDE_DIRECTORIES(${EXECUTABLENAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../GParallelisationOverhead)
+TARGET_INCLUDE_DIRECTORIES(${EXECUTABLENAME}
+	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../GParallelisationOverhead)
 
 # The cascade lives in courtier's MPI library. The MPI consumer of the submitter and of the leads is
 # Geneva's MPI module, which libgemfony-geneva loads at run time from its own directory: it is built
@@ -57,19 +58,22 @@ TARGET_LINK_LIBRARIES(${EXECUTABLENAME}
 		MPI::MPI_CXX)
 ADD_DEPENDENCIES(${EXECUTABLENAME} ${GENEVA_MPI_LIBNAME})
 
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME}/config )
+GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME}
+	${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME}/config )
 
 # Both modes with two clients of two sub-clients each and a few iterations: every evaluation must
 # be done once, in a group of three, every process must end by itself, and both clients must use
 # the prefetch depth passed on the command line (testSpeedupTools.py beside
 # GParallelisationOverhead). The websocket run measures the serial reference the MPI run then
 # uses. Another check starts jobs that do not form whole groups, in both layouts, and jobs whose
-# submitter fails: they must end at once (each case is bounded at 60 s, the entry at 4 x 80 s). Python 3 and the MPI launcher are dependencies of the tests only.
+# submitter fails: they must end at once (each case is bounded at 60 s, the entry at 4 x 80 s).
+# Python 3 and the MPI launcher are dependencies of the tests only.
 FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
 IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 	SET(SPEEDUP_TOOLS ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
 		"MPIRUN=${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG}"
-		${Python3_EXECUTABLE} -B ${CMAKE_CURRENT_SOURCE_DIR}/../GParallelisationOverhead/testSpeedupTools.py)
+		${Python3_EXECUTABLE} -B
+		${CMAKE_CURRENT_SOURCE_DIR}/../GParallelisationOverhead/testSpeedupTools.py)
 	SET(SUBCLIENT_CHECK ${SPEEDUP_TOOLS} subclients $<TARGET_FILE:${EXECUTABLENAME}>)
 
 	ADD_TEST(NAME ${EXECUTABLENAME}Websocket
@@ -96,20 +100,24 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 	IF (LAUNCHER_VERSION MATCHES "Open MPI")
 		ADD_TEST(NAME ${EXECUTABLENAME}SameJobId
 			COMMAND ${SPEEDUP_TOOLS} samejobid $<TARGET_FILE:${EXECUTABLENAME}>
-				${CMAKE_CURRENT_BINARY_DIR}/check-same-job-id ${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
+				${CMAKE_CURRENT_BINARY_DIR}/check-same-job-id
+				${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
 		SET_TESTS_PROPERTIES(${EXECUTABLENAME}SameJobId PROPERTIES
 			LABELS "benchmark" TIMEOUT 300 PROCESSORS 7
 			FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
 		GENEVA_TEST_SIZE(${EXECUTABLENAME}SameJobId M)
 	ELSE ()
-		MESSAGE(STATUS "${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's")
+		MESSAGE(STATUS
+			"${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's")
 	ENDIF ()
 
 	# runWithClients.sh, ended from outside while it measures (SIGINT, as Ctrl-C), ends the server,
-	# the clients and their MPI jobs: nothing it started may remain.
+	# the clients and their MPI jobs: nothing it started may remain, nor the geneva-sm.* directory
+	# of their shared-memory files.
 	ADD_TEST(NAME ${EXECUTABLENAME}Interrupted
 		COMMAND ${SPEEDUP_TOOLS} interrupt $<TARGET_FILE:${EXECUTABLENAME}>
-			${CMAKE_CURRENT_BINARY_DIR}/check-interrupted ${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
+			${CMAKE_CURRENT_BINARY_DIR}/check-interrupted
+			${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}Interrupted PROPERTIES
 		LABELS "benchmark" TIMEOUT 180 PROCESSORS 7
 		FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
@@ -122,7 +130,9 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 		LABELS "benchmark" TIMEOUT 360 PROCESSORS 6)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}Groups S)
 ELSE ()
-	MESSAGE(STATUS "The checks of ${EXECUTABLENAME} are not registered: no Python 3 or no MPI launcher")
+	MESSAGE(STATUS
+		"The checks of ${EXECUTABLENAME} are not registered: no Python 3 or no MPI launcher")
 ENDIF ()
 
-INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
+INSTALL ( TARGETS ${EXECUTABLENAME}
+	DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
