@@ -54,6 +54,8 @@
 // Standard header files go here
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -336,9 +338,22 @@ int runGroupProcess(
         return cascade.serve(member);
     }
     if(cascade.role() == processRole::SUBMITTER) {
-        cascade.requireRole(consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer}));
-        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
-        return measure(go, settings);
+        try {
+            cascade.requireRole(
+                consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer})
+            );
+            Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
+            return measure(go, settings);
+        }
+        catch(const std::exception &e) {
+            // The leads wait for this process's greeting without a limit, their members for them,
+            // and MPI_Finalize on the way out would wait for all of them: only an abort ends the
+            // job (an option only Go2 knows, refused here alone; a missing serial reference).
+            std::cerr << "GSubClientOverhead: " << e.what() << '\n';
+            std::cerr.flush();
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+            return EXIT_FAILURE; // not reached: MPI_Abort does not return
+        }
     }
 
     // A lead. The client is declared after the cascade: it goes before the cascade's communicators.

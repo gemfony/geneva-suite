@@ -160,8 +160,15 @@ if int(group) != 1 and not any('poll_pause_min' in json.load(open(f))
     sys.exit('this program has no sub-clients; GROUP must be 1')
 P
 
+# No measurement without its reference
 if [ ! -s referenceLine.txt ] || [ "${REFRESH_REFERENCE:-0}" = 1 ]; then
-    "$X" --reference > reference.log 2>&1; echo "reference exit: $?"
+    "$X" --reference > reference.log 2>&1
+    REFSTATUS=$?
+    echo "reference exit: $REFSTATUS"
+    if [ "$REFSTATUS" != 0 ]; then
+        echo "the serial reference failed; see reference.log"
+        exit 1
+    fi
 fi
 
 # The server starts its clock when the clients it waits for are connected.

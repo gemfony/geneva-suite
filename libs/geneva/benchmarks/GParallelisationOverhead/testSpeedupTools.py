@@ -49,7 +49,8 @@ Usage:
       memory (runWithClients.sh gives each job a directory of its own for it); Open MPI only
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
-      names its size and the group
+      names its size and the group; a job of -c mpi whose submitter fails (an option only it
+      refuses, no serial reference) ends at once, with the submitter's message
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
   testSpeedupTools.py gate <GParallelisationOverhead> <workdir> <reference dir>
@@ -462,15 +463,22 @@ def check_same_job_id(program, workdir, reference_dir):
 
 
 def check_groups(program, workdir):
-    """A job that does not form whole groups ends at once, non-zero, on every rank."""
+    """A job that does not form whole groups ends at once, non-zero, on every rank; so does a job
+    of -c mpi whose submitter fails while its leads wait for it."""
     os.makedirs(workdir, exist_ok=True)
     os.chdir(workdir)
+    # The second failure of the submitter: no serial reference in the work directory
+    if os.path.exists('referenceLine.txt'):
+        os.remove('referenceLine.txt')
     launcher = os.environ.get('MPIRUN', 'mpirun --oversubscribe -np').split()
     for ranks, args, expected in (
             ('6', ['-c', 'mpi', '--group', '3'], 'the MPI job has 6 processes, but with -c mpi '
              'and --group 3 it needs 1 + clients x 3'),
             ('2', ['-c', 'beast', '--client', '--group', '3'], 'the MPI job has 2 processes, '
-             'but a client with --group 3 is one job of 3')):
+             'but a client with --group 3 is one job of 3'),
+            # An option only the submitter's Go2 refuses (the leads parse leniently)
+            ('4', ['-c', 'mpi', '--group', '3', '--no-such-option', '1'], 'no-such-option'),
+            ('4', ['-c', 'mpi', '--group', '3'], 'no serial reference in "referenceLine.txt"')):
         status, out = run_bounded(launcher + [ranks, program] + args, 60)
         if status == 0 or expected not in out:
             fail(f'{ranks} processes with {args} were not refused (exit {status}) '

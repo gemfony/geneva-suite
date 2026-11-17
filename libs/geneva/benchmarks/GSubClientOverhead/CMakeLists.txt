@@ -62,8 +62,8 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks
 # be done once, in a group of three, every process must end by itself, and both clients must use
 # the prefetch depth passed on the command line (testSpeedupTools.py beside
 # GParallelisationOverhead). The websocket run measures the serial reference the MPI run then
-# uses. Another check starts jobs that do not form whole groups, in both layouts: they must be
-# refused at once. Python 3 and the MPI launcher are dependencies of the tests only.
+# uses. Another check starts jobs that do not form whole groups, in both layouts, and jobs whose
+# submitter fails: they must end at once (each case is bounded at 60 s, the entry at 4 x 80 s). Python 3 and the MPI launcher are dependencies of the tests only.
 FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
 IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 	SET(SPEEDUP_TOOLS ${CMAKE_COMMAND} -E env PYTHONDONTWRITEBYTECODE=1
@@ -108,7 +108,7 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 		COMMAND ${SPEEDUP_TOOLS} groups $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-groups)
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}Groups PROPERTIES
-		LABELS "benchmark" TIMEOUT 180 PROCESSORS 6)
+		LABELS "benchmark" TIMEOUT 360 PROCESSORS 6)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}Groups S)
 ELSE ()
 	MESSAGE(STATUS "The checks of ${EXECUTABLENAME} are not registered: no Python 3 or no MPI launcher")
