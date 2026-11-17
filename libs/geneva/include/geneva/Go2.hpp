@@ -122,13 +122,11 @@ public:
     /**
      * @brief Runs this process as a client of the chosen consumer (or, for a process that takes no
      * part in the consumer's protocol, returns at once).
-     * @return An integer return value (suitable for the main function) indicating the execution status
      */
     int clientRun();
     /**
      * @brief Checks whether this process is not the submitter, i.e. whether the caller must call
      * clientRun() instead of optimize().
-     * @return True if the role of this process is client or bystander, false for the submitter
      */
     //! [coding-naming-example#1]
     bool clientMode() const;
@@ -140,7 +138,6 @@ public:
     void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
     /**
      * @brief Checks whether only the best individuals are copied.
-     * @return True if only the best individuals are carried over between chained algorithms
      */
     bool onlyBestIndividualsAreCopied() const;
 
@@ -177,8 +174,7 @@ public:
      *  The consumer belongs to the run: it goes when this Go2 is destroyed (or releases it), and
      *  with it a networked consumer's server and its threads -- in an MPI program before MPI is
      *  finalized. So the pointer is weak: a caller locks it for a question and lets the locked
-     *  pointer go when the question is answered, never keeping it beyond this Go2.
-     *  @return The consumer, weakly; empty (expired) in a client or bystander process */
+     *  pointer go when the question is answered, never keeping it beyond this Go2. */
     std::weak_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer();
 
     /** @brief Selects the consumer (parallelization backend) by mnemonic (e.g. "stc", "beast",
@@ -193,8 +189,7 @@ public:
      *  algorithms (usable by their mnemonic) and/or the optimization individual. The module is loaded when
      *  the run is configured (a mnemonic it contributes is then available to setAlgorithmChain()). */
     void addModulePath(std::string const &path);
-    /** @brief Replaces the list of runtime module (.so) paths to load at startup (see addModulePath()).
-     *  @param paths The module paths to load */
+    /** @brief Replaces the list of runtime module (.so) paths to load at startup (see addModulePath()). */
     void setModulePaths(std::vector<std::string> paths);
     /** @brief @return The runtime module (.so) paths configured for loading (config + --module + programmatic). */
     std::vector<std::string> getModulePaths() const;
@@ -209,7 +204,6 @@ public:
 
     /**
      * @brief Retrieves the currently registered number of algorithms.
-     * @return The number of algorithms in the chain
      */
     std::size_t getNAlgorithms() const;
 
@@ -240,7 +234,6 @@ public:
 
     /**
      * @brief Retrieves the number of random number production threads.
-     * @return The configured number of producer threads
      */
     std::uint16_t getNProducerThreads() const;
 
@@ -296,7 +289,6 @@ public:
     }
     /**
      * @brief Allows to check whether pluggable optimization monitors were registered.
-     * @return True if at least one pluggable optimization monitor is registered
      */
     bool hasOptimizationMonitors() const;
 
@@ -306,19 +298,16 @@ public:
     void setMaxClientTime(std::chrono::duration<double> max_duration);
     /**
      * @brief Allows to retrieve the maximum running time for a client.
-     * @return The maximum time frame for which a client is allowed to run
      */
     std::chrono::duration<double> getMaxClientTime() const;
 
     /**
      * @brief Retrieves the algorithms that were registered with this class.
-     * @return A vector of shared pointers to the registered optimization algorithms
      */
     std::vector<std::shared_ptr<GOABase>> getRegisteredAlgorithms();
 
     /**
      * @brief Retrieves the name of the used consumer.
-     * @return The name of the consumer requested by the user
      */
     std::string getConsumerName();
 
@@ -361,7 +350,6 @@ protected:
     /**
      * @brief Runs this process according to its role: a client builds and runs the client of the
      * consumer, a bystander returns at once.
-     * @return An integer return value (suitable for the main function) indicating the execution status
      */
     virtual int clientRun_();
 
@@ -384,9 +372,7 @@ private:
     /** @brief Claims the single content-creator slot for the optimization problem, enforcing "exactly one
      *  individual per process": a second claim (a compiled-in registration when a plugin was loaded, or a
      *  second plugin) throws, naming both the incumbent and the newcomer. Shared by
-     *  registerContentCreator() (COMPILED_IN) and the plugin load (LOADED).
-     *  @param cc_ptr The content-creator factory to install (must not be empty)
-     *  @param source Where this content creator came from (for the diagnostic on a double claim) */
+     *  registerContentCreator() (COMPILED_IN) and the plugin load (LOADED). */
     void claimContentCreator_(
         const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
         individualSource source
@@ -396,35 +382,29 @@ private:
     // widen access -- matches oa::GOptimizationAlgorithmBase and the base's NVI contract).
     /**
      * @brief Retrieves the best individual found globally across the whole run.
-     * @return A sole-ownership pointer to a copy of the globally best individual
      */
     std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const final;
     /**
      * @brief Retrieves a list of the globally best individuals found.
-     * @return A vector of sole-ownership pointers to copies of the globally best individuals
      */
     std::vector<std::unique_ptr<gen::GGenome>>
     getBestGlobalIndividuals_() const final;
     /**
      * @brief Retrieves the best individual found in the current iteration.
-     * @return A sole-ownership pointer to a copy of the best individual of the current iteration
      */
     std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
     /**
      * @brief Retrieves a list of the best individuals found in the current iteration.
-     * @return A vector of sole-ownership pointers to copies of the current iteration's best individuals
      */
     std::vector<std::unique_ptr<gen::GGenome>>
     getBestIterationIndividuals_() const final;
 
     /**
      * @brief Returns one-word information about the type of optimization algorithm.
-     * @return A short string identifying the algorithm personality type
      */
     std::string getAlgorithmPersonalityType_() const final;
     /**
      * @brief Returns the name of this optimization algorithm.
-     * @return The human-readable name of this optimization algorithm
      */
     std::string getAlgorithmName_() const final;
 
@@ -433,7 +413,6 @@ private:
 
     /**
      * @brief Retrieval of the current iteration.
-     * @return The continuous iteration count accumulated across the algorithm chain
      */
     uint32_t getIteration_() const final;
 

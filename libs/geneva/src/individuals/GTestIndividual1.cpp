@@ -99,7 +99,7 @@ std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> GTestIndividual1::g
  * @brief The actual fitness calculation takes place here; computes a parabola (sum of squares) over the
  * flat double values.
  *
- * @return The fitness of this object: the sum of the squares of all flat double parameters
+ * @return The fitness as a one-element vector (single criterion)
  */
 std::vector<double> GTestIndividual1::evaluate() {
     // Read the flat double values and calculate the value of the parabola.

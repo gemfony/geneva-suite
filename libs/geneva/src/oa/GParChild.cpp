@@ -841,7 +841,7 @@ void GParChild::markChildren() {
  * @brief This function implements the logic that constitutes evolutionary algorithms. The
  * function is called by GOptimizationAlgorithmBase for each cycle of the optimization,
  *
- * @return A tuple holding the raw and transformed primary fitness of the best individual found
+ * @return A tuple holding the best raw and transformed fitness achieved this iteration
  */
 //! [algo-ea:cycle-logic]
 std::tuple<double, double> GParChild::cycleLogic_() {

@@ -119,36 +119,29 @@ public:
     /** @brief Specifies the default size of the population plus the number of parents */
     void setPopulationSizes(std::size_t pop_size, std::size_t n_parents);
 
-    /** @brief Retrieve the number of parents as set by the user
-     *  @return The configured number of parents */
+    /** @brief Retrieve the number of parents as set by the user */
     std::size_t getNParents() const;
-    /** @brief Calculates the current number of children from the number of parents and the size of the vector.
-     *  @return The current number of children */
+    /** @brief Calculates the current number of children from the number of parents and the size of the vector. */
     std::size_t getNChildren() const;
-    /** @brief Retrieves the default_n_children_ parameter
-     *  @return The expected (default) number of children */
+    /** @brief Retrieves the default_n_children_ parameter */
     std::size_t getDefaultNChildren() const;
 
     /** @brief Lets the user set the desired recombination method */
     void setRecombinationMethod(duplicationScheme recombination_method);
 
-    /** @brief Retrieves the value of the recombination_method_ variable
-     *  @return The currently configured recombination method */
+    /** @brief Retrieves the value of the recombination_method_ variable */
     duplicationScheme getRecombinationMethod() const;
 
     /** @brief Adds the option to increase the population by a given amount per iteration */
     void setPopulationGrowth(std::size_t growth_rate, std::size_t max_population_size);
-    /** @brief Allows to retrieve the growth rate of the population
-     *  @return The number of individuals added per iteration */
+    /** @brief Allows to retrieve the growth rate of the population */
     std::size_t getGrowthRate() const;
-    /** @brief Allows to retrieve the maximum population size when growth is enabled
-     *  @return The maximum population size growth may reach */
+    /** @brief Allows to retrieve the maximum population size when growth is enabled */
     std::size_t getMaxPopulationSize() const;
 
     /** @brief Allows to set the likelihood for amalgamation of two units to be performed instead of "just" duplication. */
     void setAmalgamationLikelihood(double amalgamation_likelihood);
-    /** @brief Allows to retrieve the likelihood for amalgamation of two units to be performed instead of "just" duplication.
-     *  @return The configured amalgamation likelihood */
+    /** @brief Allows to retrieve the likelihood for amalgamation of two units to be performed instead of "just" duplication. */
     double getAmalgamationLikelihood() const;
 
     /***************************************************************************/
@@ -234,8 +227,7 @@ protected:
     /** @brief This function is called from GOptimizationAlgorithmBase::optimize() and performs the actual recombination */
     virtual void recombine();
 
-    /** @brief Retrieves the adaption range in a given iteration and sorting scheme.
-     *  @return A tuple holding the [start, end) index range of individuals to be adapted */
+    /** @brief Retrieves the adaption range in a given iteration and sorting scheme. */
     std::tuple<std::size_t, std::size_t> getAdaptionRange() const;
 
     /** @brief This helper function marks parents as parents and children as children. */
@@ -301,15 +293,13 @@ private:
     /***************************************************************************/
     // Virtual or overridden private functions
 
-    /** @brief Emits a name for this class / object
-     *  @return The class name of this object */
+    /** @brief Emits a name for this class / object */
     std::string name_() const override;
     /** @brief Creates a deep clone of this object (pure virtual here; implemented by concrete algorithms)
      *  @return A pointer to a freshly allocated deep copy of this object */
     GOptimizationAlgorithmBase *clone_() const override = 0;
 
-    /** @brief This function implements the logic that constitutes evolutionary algorithms
-     *  @return A tuple holding the best raw and transformed fitness achieved this iteration */
+    /** @brief This function implements the logic that constitutes evolutionary algorithms */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Calculates the fitness of all required individuals; to be re-implemented in derived classes */
     void evaluatePopulation_() override = 0;
@@ -321,8 +311,7 @@ private:
      *  @return A string describing the algorithm's personality type */
     std::string getAlgorithmPersonalityType_() const override = 0;
 
-    /** @brief Retrieve the number of processible items in the current iteration.
-     *  @return The number of items that can be processed in the current iteration */
+    /** @brief Retrieve the number of processible items in the current iteration. */
     std::size_t getNProcessableItems_() const override;
 
     /** @brief Gives individuals an opportunity to update their internal structures */

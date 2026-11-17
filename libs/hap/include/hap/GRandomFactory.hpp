@@ -368,15 +368,11 @@ public:
 
     /**
      * @brief Allows to retrieve the size of the random number array held by each container.
-     *
-     * @return The number of random numbers in a full container
      */
     static std::size_t getCurrentArraySize();
 
     /**
      * @brief Allows to retrieve the size of the bounded buffer of containers.
-     *
-     * @return The maximum number of containers the factory's buffer can hold
      */
     static std::size_t getBufferSize();
 
@@ -396,17 +392,12 @@ public:
      * producer count (getNProducerThreads()) and the reservation in the thread budget become k, a
      * warning names both numbers, and the start counts as done. If not one can be created, the call
      * throws, and the factory stays as if never started: a later call tries again.
-     *
-     * @return A unique_ptr to a filled container, or a null pointer if none came within
-     *         DEFAULTFACTORYGETWAIT milliseconds
      */
     std::unique_ptr<random_container> getNewRandomContainer();
     /**
      * @brief Retrieval of a new seed for external or internal random number generators.
      *
      * Thread-safe; hands out a unique seed from the pre-calculated seed collection.
-     *
-     * @return A fresh seed value
      */
     seed_type getSeed();
 

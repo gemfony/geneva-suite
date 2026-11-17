@@ -74,21 +74,15 @@ public:
 
     /**
 	 * @brief Initialization with the number of bins and automatic range detection
-	 * @param nBinsX The number of bins in x-direction
 	 */
     explicit GHistogram1D(const std::size_t &n_bins_x);
 
     /**
 	 * @brief Initialization with the number of bins and an explicit range
-	 * @param nBinsX The number of bins in x-direction
-	 * @param minX The lower boundary of the histogram
-	 * @param maxX The upper boundary of the histogram
 	 */
     GHistogram1D(const std::size_t &n_bins_x, const double &min_x, const double &max_x);
     /**
 	 * @brief Initialization with the number of bins and a range in the form of a tuple
-	 * @param nBinsX The number of bins in x-direction
-	 * @param rangeX The lower and upper boundaries of the histogram, as a tuple
 	 */
     GHistogram1D(const std::size_t &n_bins_x, const std::tuple<double, double> &range_x);
 
@@ -108,65 +102,46 @@ public:
 
     /**
 	 * @brief Retrieve the number of bins in x-direction
-	 * @return The number of bins in x-direction
 	 */
     [[nodiscard]] std::size_t getNBinsX() const;
 
     /**
 	 * @brief Retrieve the lower boundary of the plot
-	 * @return The lower boundary of the histogram in x-direction
 	 */
     [[nodiscard]] double getMinX() const;
     /**
 	 * @brief Retrieve the upper boundary of the plot
-	 * @return The upper boundary of the histogram in x-direction
 	 */
     [[nodiscard]] double getMaxX() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
@@ -230,15 +205,10 @@ public:
 
     /**
 	 * @brief The standard constructor
-	 * @param nBinsX The number of bins in x-direction
-	 * @param minX The lower boundary of the histogram
-	 * @param maxX The upper boundary of the histogram
 	 */
     GHistogram1I(const std::size_t &n_bins_x, const double &min_x, const double &max_x);
     /**
 	 * @brief Initialization with a range in the form of a tuple
-	 * @param nBinsX The number of bins in x-direction
-	 * @param rangeX The lower and upper boundaries of the histogram, as a tuple
 	 */
     GHistogram1I(const std::size_t &n_bins_x, const std::tuple<double, double> &range_x);
 
@@ -259,30 +229,25 @@ public:
 
     /**
 	 * @brief Retrieve the number of bins in x-direction
-	 * @return The number of bins in x-direction
 	 */
     [[nodiscard]] std::size_t getNBinsX() const;
 
     /**
 	 * @brief Retrieve the lower boundary of the plot
-	 * @return The lower boundary of the histogram in x-direction
 	 */
     [[nodiscard]] double getMinX() const;
     /**
 	 * @brief Retrieve the upper boundary of the plot
-	 * @return The upper boundary of the histogram in x-direction
 	 */
     [[nodiscard]] double getMaxX() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
@@ -290,35 +255,21 @@ protected:
 
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
@@ -387,12 +338,6 @@ public:
 
     /**
 	 * @brief The standard constructor
-	 * @param nBinsX The number of bins in x-direction
-	 * @param nBinsY The number of bins in y-direction
-	 * @param minX The lower boundary of the histogram in x-direction
-	 * @param maxX The upper boundary of the histogram in x-direction
-	 * @param minY The lower boundary of the histogram in y-direction
-	 * @param maxY The upper boundary of the histogram in y-direction
 	 */
     GHistogram2D(
         const std::size_t &n_bins_x,
@@ -404,10 +349,6 @@ public:
     );
     /**
 	 * @brief Initialization with ranges given as tuples
-	 * @param nBinsX The number of bins in x-direction
-	 * @param nBinsY The number of bins in y-direction
-	 * @param rangeX The lower and upper boundaries in x-direction, as a tuple
-	 * @param rangeY The lower and upper boundaries in y-direction, as a tuple
 	 */
     GHistogram2D(
         const std::size_t &n_bins_x,
@@ -417,8 +358,6 @@ public:
     );
     /**
 	 * @brief Initialization with automatic range detection
-	 * @param nBinsX The number of bins in x-direction
-	 * @param nBinsY The number of bins in y-direction
 	 */
     GHistogram2D(const std::size_t &n_bins_x, const std::size_t &n_bins_y);
 
@@ -438,45 +377,37 @@ public:
 
     /**
 	 * @brief Retrieve the number of bins in x-direction
-	 * @return The number of bins in x-direction
 	 */
     [[nodiscard]] std::size_t getNBinsX() const;
     /**
 	 * @brief Retrieve the number of bins in y-direction
-	 * @return The number of bins in y-direction
 	 */
     [[nodiscard]] std::size_t getNBinsY() const;
 
     /**
 	 * @brief Retrieve the lower boundary of the plot in x-direction
-	 * @return The lower boundary in x-direction
 	 */
     [[nodiscard]] double getMinX() const;
     /**
 	 * @brief Retrieve the upper boundary of the plot in x-direction
-	 * @return The upper boundary in x-direction
 	 */
     [[nodiscard]] double getMaxX() const;
     /**
 	 * @brief Retrieve the lower boundary of the plot in y-direction
-	 * @return The lower boundary in y-direction
 	 */
     [[nodiscard]] double getMinY() const;
     /**
 	 * @brief Retrieve the upper boundary of the plot in y-direction
-	 * @return The upper boundary in y-direction
 	 */
     [[nodiscard]] double getMaxY() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
@@ -486,7 +417,6 @@ public:
     void set2DOpt(tddropt dropt);
     /**
 	 * @brief Allows to retrieve 2d-drawing options
-	 * @return The currently set 2-d drawing option
 	 */
     [[nodiscard]] tddropt get2DOpt() const;
     /**
@@ -498,35 +428,21 @@ public:
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 

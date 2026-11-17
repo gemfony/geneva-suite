@@ -268,7 +268,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The parser-builder to which this algorithm's configuration options are added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 

@@ -146,6 +146,8 @@ double GSepCmaEvolutionStrategy::getSigma() const {
 /******************************************************************************/
 /**
  * Adds local configuration options to a GParserBuilder object.
+ *
+ * @param gpb The parser-builder to which this algorithm's configuration options are added
  */
 void GSepCmaEvolutionStrategy::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     // Call our parent class'es function

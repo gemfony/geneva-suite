@@ -251,7 +251,6 @@ public:
 
     /**
      * @brief Checks whether the optimization process has been halted.
-     * @return true if the optimization has halted, false otherwise
      */
     bool halted() const;
 
@@ -261,7 +260,6 @@ public:
     void setCheckpointInterval(std::int32_t cp_interval);
     /**
      * @brief Allows to retrieve the number of generations after which a checkpoint should be written.
-     * @return The checkpoint interval in iterations
      */
     std::int32_t getCheckpointInterval() const;
 
@@ -273,17 +271,14 @@ public:
     void setCheckpointBaseName(const std::string& cp_directory, const std::string& cp_base_name);
     /**
      * @brief Allows to retrieve the base name of the checkpoint file.
-     * @return The base name of the checkpoint files
      */
     std::string getCheckpointBaseName() const;
     /**
      * @brief Allows to retrieve the directory where checkpoint files should be stored.
-     * @return The checkpoint directory as a string
      */
     std::string getCheckpointDirectory() const;
     /**
      * @brief Allows to retrieve the directory where checkpoint files should be stored.
-     * @return The checkpoint directory as a filesystem path
      */
     std::filesystem::path getCheckpointDirectoryPath() const;
     /**
@@ -292,7 +287,6 @@ public:
     void setCheckpointSerializationMode(Gem::Common::serializationMode cp_ser_mode);
     /**
      * @brief Retrieves the current checkpointing serialization mode.
-     * @return The serialization mode used for checkpoint files
      */
     Gem::Common::serializationMode getCheckpointSerializationMode() const;
     /**
@@ -301,7 +295,6 @@ public:
     void setRemoveCheckpointFiles(bool cp_remove);
     /**
      * @brief Allows to check whether checkpoint files will be removed.
-     * @return true if checkpoint files are removed, false if they are kept
      */
     bool checkpointFilesAreRemoved() const;
 
@@ -316,7 +309,6 @@ public:
     void setNThreads(std::uint16_t n_threads);
     /**
      * @brief Retrieves the number of threads used for parallel organizational work.
-     * @return The number of threads used for organizational work
      */
     [[nodiscard]] std::uint16_t getNThreads() const;
 
@@ -329,7 +321,6 @@ public:
 
     /**
      * @brief Checks whether a better solution was found.
-     * @return true if the current iteration improved on the best known fitness, false otherwise
      */
     bool progress() const;
 
@@ -341,18 +332,15 @@ public:
     void resetPluggableOM();
     /**
      * @brief Allows to check whether pluggable optimization monitors were registered.
-     * @return true if at least one pluggable optimization monitor is registered, false otherwise
      */
     bool hasPluggableOptimizationMonitors() const;
 
     /**
      * @brief Retrieves the default population size.
-     * @return The nominal (default) population size
      */
     std::size_t getDefaultPopulationSize() const;
     /**
      * @brief Retrieve the current population size.
-     * @return The current number of individuals in the population
      */
     std::size_t getPopulationSize() const;
 
@@ -362,7 +350,6 @@ public:
     void setMaxIteration(std::uint32_t max_iteration);
     /**
      * @brief Retrieve the number of iterations after which optimization should be stopped.
-     * @return The maximum number of iterations
      */
     std::uint32_t getMaxIteration() const;
 
@@ -372,7 +359,6 @@ public:
     void setMinIteration(std::uint32_t min_iteration);
     /**
      * @brief Retrieves the currently set minimum number of iterations.
-     * @return The minimum number of iterations
      */
     std::uint32_t getMinIteration() const;
 
@@ -382,7 +368,6 @@ public:
     void setMaxStallIteration(std::uint32_t max_stall_iteration);
     /**
      * @brief Retrieves the maximum number of generations allowed in an optimization run without improvement of the best individual.
-     * @return The maximum number of stalled iterations
      */
     std::uint32_t getMaxStallIteration() const;
 
@@ -392,7 +377,6 @@ public:
     void setMaxTime(std::chrono::duration<double> max_duration);
     /**
      * @brief Retrieves the value of the max_duration_ parameter.
-     * @return The maximum allowed run duration
      */
     std::chrono::duration<double> getMaxTime() const;
 
@@ -402,7 +386,6 @@ public:
     void setMinTime(std::chrono::duration<double> min_duration);
     /**
      * @brief Retrieves the value of the min_duration_ parameter.
-     * @return The minimum required run duration
      */
     std::chrono::duration<double> getMinTime() const;
 
@@ -428,13 +411,11 @@ public:
     void resetQualityThreshold();
     /**
      * @brief Checks whether a quality threshold has been set.
-     * @return true if a quality threshold is active, false otherwise
      */
     bool hasQualityThreshold() const;
 
     /**
      * @brief Returns the current offset used to calculate the current iteration.
-     * @return The starting iteration offset (non-zero when chaining algorithms, e.g. in a Go2 chain)
      */
     std::uint32_t getStartIteration() const;
 
@@ -444,13 +425,11 @@ public:
     void setReportIteration(std::uint32_t iter);
     /**
      * @brief Returns the number of iterations after which the algorithm should report about its inner state.
-     * @return The reporting interval in iterations
      */
     std::uint32_t getReportIteration() const;
 
     /**
      * @brief Retrieves the current number of failed optimization attempts.
-     * @return The current stall counter (number of consecutive improvement-free iterations)
      */
     std::uint32_t getStallCounter() const;
 
@@ -460,7 +439,6 @@ public:
     void setStallCounterThreshold(std::uint32_t stall_counter_threshold);
     /**
      * @brief Allows to retrieve the number of iterations without improvement, after which individuals are asked to update their internal data structures.
-     * @return The stall-counter threshold
      */
     std::uint32_t getStallCounterThreshold() const;
 
@@ -468,7 +446,6 @@ public:
      * @brief Sets the time-to-live (in dispatch rounds) of a networked consumer's late-return buffer
      * entry. A buffered late return that is not reaped within this many rounds is evicted (the drop is
      * counted and warned). Applied to the consumer on the next submission.
-     * @param ttl_rounds The late-return buffer TTL, in dispatch rounds
      */
     void setLateReturnTTL(std::uint64_t ttl_rounds);
     /**
@@ -481,7 +458,6 @@ public:
      * population size (the absolute cap is recomputed from the live population on each submission, so it
      * is independent of how a generation is split into submission batches). 0.0 disables late-return
      * buffering entirely.
-     * @param cap_factor The late-return buffer capacity as a multiple of the population size (>= 0)
      */
     void setLateReturnCapFactor(double cap_factor);
     /**
@@ -495,8 +471,6 @@ public:
      * clean successes whose submission UUID is not already in @p seen; each surviving item's UUID is
      * inserted into @p seen (so within-batch duplicates are also dropped). Pre-load @p seen with the
      * live population's UUIDs to also reject lineages that are still present.
-     * @param items The drained late returns to filter (mutated in place)
-     * @param seen The set of already-represented submission UUIDs (updated with survivors)
      */
     static void retainIntegrableLateReturns(
         std::vector<std::unique_ptr<gen::GGenome>> &items,
@@ -505,23 +479,19 @@ public:
 
     /**
      * @brief Retrieve the best value found in the entire optimization run so far.
-     * @return A tuple holding the best known primary fitness (raw, transformed)
      */
     std::tuple<double, double> getBestKnownPrimaryFitness() const;
     /**
      * @brief Retrieves the best value found in the current iteration.
-     * @return A tuple holding the best current primary fitness (raw, transformed)
      */
     std::tuple<double, double> getBestCurrentPrimaryFitness() const;
 
     /**
      * @brief Specifies whether information about termination reasons should be emitted.
-     * @param emit_terminatio_reason Whether termination reasons should be emitted (default true)
      */
     void setEmitTerminationReason(bool emit_termination_reason = true);
     /**
      * @brief Retrieves information on whether information about termination reasons should be emitted.
-     * @return true if termination reasons are emitted, false otherwise
      */
     bool getEmitTerminationReason() const;
 
@@ -560,7 +530,6 @@ public:
 
     /**
      * @brief Retrieve the number of processable items in the current iteration.
-     * @return The number of individuals to be evaluated in the current iteration
      */
     std::size_t getNProcessableItems() const;
 
@@ -571,12 +540,10 @@ public:
 
     /**
      * @brief Helper function that determines whether we are currently inside of the first iteration.
-     * @return true if the current iteration is the first one, false otherwise
      */
     bool inFirstIteration() const;
     /**
      * @brief Helper function that determines whether we are after the first iteration.
-     * @return true if the optimization is past the first iteration, false otherwise
      */
     bool afterFirstIteration() const;
 
@@ -611,8 +578,6 @@ protected:
      * Mead): requires a non-empty population whose first individual carries at least one active
      * floating-point parameter (throws otherwise), and logs a note when integer/boolean parameters
      * ride along (they are left unchanged by such an algorithm).
-     * @param algorithm_name The calling algorithm's class name, used in the error/log texts
-     * @return The number of active floating-point parameters of the first individual
      */
     std::size_t requireFloatingPointGenome_(const std::string &algorithm_name) const;
 
@@ -704,7 +669,6 @@ protected:
      * On top of those two universal filters, an OPTIONAL per-algorithm age window is applied here via
      * the virtual lateReturnMaxAge() (default: no window). The remaining reaping policy (personality
      * re-stamping, neighborhood handling) stays in the calling algorithm.
-     * @return The integrable (clean, de-duplicated, in-age-window) late returns the consumer buffered
      */
     std::vector<std::unique_ptr<gen::GGenome>> getOldWorkItems() const;
 
@@ -775,7 +739,6 @@ protected:
     void setNRecordBestIndividuals(std::size_t n_record_best_individuals);
     /**
      * @brief Retrieve the number of best individuals to be recorded in each iteration.
-     * @return The number of best individuals recorded per iteration
      */
     std::size_t getNRecordBestIndividuals() const;
 
@@ -822,37 +785,31 @@ private:
 
     /**
      * @brief Retrieve the current iteration of the optimization run.
-     * @return The current iteration number
      */
     std::uint32_t getIteration_() const override;
 
     /**
      * @brief Retrieves the best individual found up to now.
-     * @return A sole-ownership pointer to a copy of the globally best individual
      */
     std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const final;
     /**
      * @brief Retrieves a list of the best individuals found.
-     * @return A vector of sole-ownership pointers to copies of the globally best individuals
      */
     std::vector<std::unique_ptr<gen::GGenome>>
     getBestGlobalIndividuals_() const final;
 
     /**
      * @brief Retrieves the best individual found in the iteration.
-     * @return A sole-ownership pointer to a copy of the best individual of the current iteration
      */
     std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
     /**
      * @brief Retrieves a list of the best individuals found in the current iteration.
-     * @return A vector of sole-ownership pointers to copies of the current iteration's best individuals
      */
     std::vector<std::unique_ptr<gen::GGenome>>
     getBestIterationIndividuals_() const final;
 
     /**
      * @brief Retrieve the number of processable items in the current iteration.
-     * @return The number of individuals to be evaluated in the current iteration
      */
     virtual std::size_t getNProcessableItems_() const;
 
@@ -904,82 +861,68 @@ private:
 
     /**
      * @brief This function returns true once the quality has passed a given threshold.
-     * @return true if the quality threshold has been reached, false otherwise
      */
     bool qualityHalt() const;
 
     /**
      * @brief This function returns true once a given number of stalls has been exceeded in a row.
-     * @return true if the maximum number of stalls has been exceeded, false otherwise
      */
     bool stallHalt() const;
 
     /**
      * @brief This function returns true once a maximum number of iterations has been exceeded.
-     * @return true if the maximum number of iterations has been exceeded, false otherwise
      */
     bool iterationHalt() const;
     /**
      * @brief This function returns true when the minimum number of iterations has been passed.
-     * @return true if the minimum number of iterations has been passed, false otherwise
      */
     bool minIterationPassed() const;
 
     /**
      * @brief This function returns true if a SIGHUP / CTRL_CLOSE_EVENT signal was sent.
-     * @return true if a termination signal was received, false otherwise
      */
     static bool sigHupHalt();
 
     /**
      * @brief Triggers termination of the optimization run when a user-defined file is modified.
-     * @return true if the termination file was modified after the run started, false otherwise
      */
     bool touchHalt() const;
 
     /**
      * @brief A wrapper for customHalt_ that allows to emit the termination reason.
-     * @return true if the custom halt criterion has been reached, false otherwise
      */
     bool customHalt() const;
     /**
      * @brief Custom setting of halt criteria.
-     * @return true if the custom halt criterion has been reached, false otherwise
      */
     virtual bool customHalt_() const;
 
     /**
      * @brief This function checks whether a halt criterion has been reached.
-     * @return true if any halt criterion has been reached, false otherwise
      */
     bool halt() const;
 
     /**
      * @brief Check whether the max-iteration halt is set.
-     * @return true if a maximum-iteration halt criterion is active, false otherwise
      */
     bool maxIterationHaltset() const;
     /**
      * @brief Check whether a halt criterion based on the number of stalls has been set.
-     * @return true if a stall-based halt criterion is active, false otherwise
      */
     bool stallHaltSet() const;
 
     /**
      * @brief Check whether the max_duration-halt criterion has been set.
-     * @return true if a maximum-duration halt criterion is active, false otherwise
      */
     bool maxDurationHaltSet() const;
 
     /**
      * @brief Check whether the quality-threshold halt-criterion has been set.
-     * @return true if a quality-threshold halt criterion is active, false otherwise
      */
     bool qualityThresholdHaltSet() const;
 
     /**
      * @brief Indicates whether the stall_counter_threshold_ has been exceeded.
-     * @return true if the stall-counter threshold has been exceeded, false otherwise
      */
     bool stallCounterThresholdExceeded() const;
 
@@ -1070,8 +1013,7 @@ private:
     );
 
     /** @brief Returns the one process-wide consumer (established by the setup layer if the process was
-     *  never given one) with this algorithm's late-return budget applied.
-     *  @return The shared consumer this algorithm submits through */
+     *  never given one) with this algorithm's late-return budget applied. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumerForSubmission_();
 };
 

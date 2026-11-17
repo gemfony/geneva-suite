@@ -96,14 +96,12 @@ public:
     /**
      * @brief The OA-owned Gauss adaption config authoring this genome's single shared group (used by the
      *  self-driven modify hook + the data-oriented adaption unit tests).
-     * @return A shared pointer to the Gauss adaption config describing this genome's group
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> getAdaptionConfig() const;
 
 protected:
     /**
      * @brief The evaluation hook: computes this individual's fitness.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
@@ -112,7 +110,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether a modification was actually carried out
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

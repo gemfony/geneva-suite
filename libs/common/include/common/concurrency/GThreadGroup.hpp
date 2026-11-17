@@ -105,8 +105,6 @@ public:
 
     /**
      * @brief Adds an already created thread to the group
-     *
-     * @param thread_p A shared pointer to the std::jthread that should be added to the group
      */
     void add_thread(const thread_ptr& thrd);
 
@@ -115,8 +113,6 @@ public:
 
     /**
      * @brief Returns the size of the current thread group
-     *
-     * @return The number of threads currently held in the group
      */
     std::size_t size() const;
 

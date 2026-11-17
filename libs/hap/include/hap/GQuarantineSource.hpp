@@ -62,8 +62,6 @@ namespace detail {
  * harmless (aligned-64-bit atomicity on x86-64 / AArch64, lock-free @f$\Rightarrow@f$ deadlock-free).
  * This is the library-private seam used by GRandomT<randomSource::QUARANTINE>; the implementation
  * lives in GQuarantineSource.cpp.
- *
- * @return Pointer to a QUARANTINE_CHUNK_WORDS-word span inside a shared pool
  */
 const std::uint64_t *quarantineClaimSpan();
 

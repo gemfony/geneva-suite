@@ -100,23 +100,17 @@ public:
 
     /**
          * @brief Retrieves the MPI communicator used by this individual to talk to its dedicated sub-client workers.
-         *
-         * @return The static communicator shared by all instances (MPI_COMM_NULL if none has been set yet).
          */
     static MPI_Comm getCommunicator();
 
 protected:
     /**
          * @brief Retrieves the status of the associated client in the communication group.
-         *
-         * @return The client status (RUNNING, FINISHED or ERROR), determined from the pending status request.
          */
     static ClientStatus getClientStatus();
 
     /**
          * @brief Retrieves the role of the current process within the MPI sub-group.
-         *
-         * @return The client mode of this process, either CLIENT or SUB_CLIENT.
          */
     static ClientMode getClientMode();
 
@@ -133,8 +127,6 @@ private:
 
     /**
          * @brief Sets the mode of this process to client or sub-client, so individuals can query this property.
-         *
-         * @param mode The role to record for the current process, either CLIENT or SUB_CLIENT.
          */
     static void setClientMode(const ClientMode &mode);
 

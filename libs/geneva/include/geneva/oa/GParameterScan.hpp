@@ -764,17 +764,14 @@ public:
 
     /** @brief Puts the class in "simple scan" mode */
     void setNSimpleScans(std::size_t simple_scan_items);
-    /** @brief Retrieves the number of simple scans (or 0, if disabled)
-     *  @return The configured number of simple scans */
+    /** @brief Retrieves the number of simple scans (or 0, if disabled) */
     std::size_t getNSimpleScans() const;
-    /** @brief Retrieves the number of scans performed so far
-     *  @return The number of scans processed so far */
+    /** @brief Retrieves the number of scans performed so far */
     std::size_t getNScansPerformed() const;
 
     /** @brief Allows to specify whether the parameter space should be scanned randomly or on a grid */
     void setScanRandomly(bool scan_randomly);
-    /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid
-     *  @return true if the space is scanned randomly, false if on a grid */
+    /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid */
     bool getScanRandomly() const;
 
 protected:
@@ -827,21 +824,18 @@ private:
     /***************************************************************************/
     // Virtual or overridden private functions
 
-    /** @brief The actual business logic to be performed during each iteration.
-     *  @return A tuple holding the best raw and transformed fitness achieved this iteration */
+    /** @brief The actual business logic to be performed during each iteration. */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Triggers fitness calculation of a number of individuals */
     void evaluatePopulation_() override;
 
 
-    /** @brief A custom halt criterion for the optimization, allowing to stop the loop when no items are left to be scanned
-     *  @return true if the optimization should be halted, false otherwise */
+    /** @brief A custom halt criterion for the optimization, allowing to stop the loop when no items are left to be scanned */
     bool customHalt_() const override;
 
     /** @brief Resizes the population to the desired level and does some error checks */
     void adjustPopulation_() override;
-    /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm
-     *  @return A shared_ptr to a personality-traits object for the parameter scan */
+    /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
     /***************************************************************************/
@@ -880,13 +874,10 @@ private:
     /** @brief Randomly re-initializes the work items (simple-scan mode) */
     void randomInitPopulation();
 
-    /** @brief Retrieves the next available parameter set
-     *  @param mode An out-parameter receiving the running index of the returned parameter set
-     *  @return A shared_ptr to the next parameter set to be evaluated */
+    /** @brief Retrieves the next available parameter set */
     std::shared_ptr<parSet> getParameterSet();
 
-    /** @brief Switches to the next parameter set
-     *  @return true if all parameter sets have been exhausted (warp-around), false otherwise */
+    /** @brief Switches to the next parameter set */
     bool switchToNextParameterSet();
 
     /** @brief Fills all parameter objects into the all_par_vec_ vector */

@@ -121,13 +121,11 @@ public:
 
     /**
      * @brief Access to the raw fitness
-     * @return The stored raw fitness value
      */
     [[nodiscard]] double rawFitness() const;
 
     /**
      * @brief Access to the transformed fitness
-     * @return The stored transformed fitness value
      */
     [[nodiscard]] double transformedFitness() const;
 
@@ -138,7 +136,6 @@ public:
 
     /**
      * @brief Sets the transformed fitness to a user-defined value
-     * @param transformed_fitness The transformed fitness value to store
      */
     void setTransformedFitnessTo(double transformed_fitness);
 
@@ -147,7 +144,6 @@ public:
 
     /**
      * @brief Checks whether the transformed fitness was set
-     * @return true if a transformed fitness value is available, false otherwise
      */
     [[nodiscard]] bool transformedFitnessSet() const;
 
@@ -158,8 +154,6 @@ public:
 
     /**
      * @brief Resets the object and stores a new raw and transformed value in the class
-     * @param raw_fitness The new raw fitness value to store
-     * @param transformed_fitness The new transformed fitness value to store
      */
     void reset(double raw_fitness, double transformed_fitness);
 

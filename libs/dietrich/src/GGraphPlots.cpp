@@ -78,7 +78,7 @@ using Gem::Common::to_string;
  * Adds arrows to the plots between consecutive points. Note that setting this
  * value to true will force "SCATTER" mode
  *
- * @param d_a The desired value of the draw_arrows_ variable
+ * @param d_a Whether arrows should be drawn between consecutive points (default true)
  */
 void GGraph2D::setDrawArrows(bool d_a) {
     draw_arrows_ = d_a;
@@ -88,7 +88,7 @@ void GGraph2D::setDrawArrows(bool d_a) {
 /**
  * Retrieves the value of the draw_arrows_ variable
  *
- * @return The value of the draw_arrows_ variable
+ * @return Whether arrows are drawn between consecutive points
  */
 bool GGraph2D::getDrawArrows() const {
     return draw_arrows_;
@@ -98,7 +98,7 @@ bool GGraph2D::getDrawArrows() const {
 /**
  * Determines whether a scatter plot or a curve is created
  *
- * @param p_m The desired plot mode
+ * @param p_m The plotting mode (scatter plot or connected curve) to be used
  */
 void GGraph2D::setPlotMode(graphPlotMode p_m) {
     p_m_ = p_m;
@@ -347,7 +347,7 @@ std::string GGraph2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std
 /**
  * Determines whether a scatter plot or a curve is created
  *
- * @param p_m The desired plot mode
+ * @param p_m The plotting mode (scatter plot or connected curve) to be used
  */
 void GGraph2ED::setPlotMode(graphPlotMode p_m) {
     p_m_ = p_m;
@@ -587,7 +587,7 @@ std::string GGraph2ED::rootLegendObject_(bool is_secondary, std::size_t p_id, st
 /**
  * Adds lines to the plots between consecutive points.
  *
- * @param d_l The desired value of the draw_lines_ variable
+ * @param d_l Whether lines should be drawn between consecutive points (default true)
  */
 void GGraph3D::setDrawLines(bool d_l) {
     draw_lines_ = d_l;
@@ -597,7 +597,7 @@ void GGraph3D::setDrawLines(bool d_l) {
 /**
  * Retrieves the value of the draw_lines_ variable
  *
- * @return The value of the draw_lines_ variable
+ * @return Whether lines are drawn between consecutive points
  */
 bool GGraph3D::getDrawLines() const {
     return draw_lines_;
@@ -1222,6 +1222,9 @@ GPlotSpec GGraph4D::plotSpec() const {
  * graph emits all of its ROOT code in the footer section.
  *
  * @return An empty string, as this 4D graph emits no header code
+ * @param is_secondary Whether this is a secondary plot drawn into an existing pad
+ * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
+ * @param indention The indention string prepended to each emitted line
  */
 std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     EmitStream const header_data; // NOLINT(cppcoreguidelines-init-variables)
@@ -1238,6 +1241,9 @@ std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_un
  * ROOT code in the footer section.
  *
  * @return An empty string, as this 4D graph emits no body data
+ * @param is_secondary Whether this is a secondary plot drawn into an existing pad
+ * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
+ * @param indention The indention string prepended to each emitted line
  */
 std::string GGraph4D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     EmitStream const body_data; // NOLINT(cppcoreguidelines-init-variables)
@@ -1418,6 +1424,7 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
  * as this 4D graph builds its draw commands entirely in the footer section.
  *
  * @return An empty string, as no generic draw-option string is used by this plotter
+ * @param is_secondary Whether this is a secondary plot drawn into an existing pad
  */
 std::string GGraph4D::drawingArguments([[maybe_unused]] bool is_secondary) const {
     std::string d_a;
@@ -1452,7 +1459,7 @@ std::string GGraph4D::rootLegendObject_(bool is_secondary, std::size_t p_id, std
  * The standard constructor. Some member variables may be initialized in the
  * class body.
  *
- * @param f_d The function description (a ROOT-style formula string) to be plotted
+ * @param f_d A textual description of the 1-d function to be plotted (in ROOT TF1 syntax)
  * @param x_extremes A tuple holding the lower (get<0>) and upper (get<1>) boundary of the x-axis range
  */
 GFunctionPlotter1D::GFunctionPlotter1D(
@@ -1544,6 +1551,9 @@ std::string GFunctionPlotter1D::headerData_(
  * parent id and indentation string) are unused, as a function plotter contributes no data points.
  *
  * @return The code to be added to the plot's data section for this function (always empty)
+ * @param is_secondary Whether this is a secondary plot drawn into an existing pad
+ * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
+ * @param indention The indention string prepended to each emitted line
  */
 std::string GFunctionPlotter1D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     // No data needs to be added for a function plotter
@@ -1636,7 +1646,7 @@ std::string GFunctionPlotter1D::rootLegendObject_(bool is_secondary, std::size_t
 /**
  * The standard constructor
  *
- * @param f_d The function description (a ROOT-style formula string) to be plotted
+ * @param f_d A textual description of the 2-d function to be plotted (in ROOT TF2 syntax)
  * @param x_extremes A tuple holding the lower (get<0>) and upper (get<1>) boundary of the x-axis range
  * @param y_extremes A tuple holding the lower (get<0>) and upper (get<1>) boundary of the y-axis range
  */
@@ -1751,6 +1761,9 @@ std::string GFunctionPlotter2D::headerData_(
  * parent id and indentation string) are unused, as a function plotter contributes no data points.
  *
  * @return The code to be added to the plot's data section for this function (always empty)
+ * @param is_secondary Whether this is a secondary plot drawn into an existing pad
+ * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
+ * @param indention The indention string prepended to each emitted line
  */
 std::string GFunctionPlotter2D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     // No data needs to be added for a function plotter

@@ -128,7 +128,6 @@ public:
     void setTDegradationStrength(double alpha);
     /**
      * @brief Retrieves the temperature degradation strength. This function is used for simulated annealing.
-     * @return The current value of the temperature degradation strength (alpha_)
      */
     double getTDegradationStrength() const;
 
@@ -138,12 +137,10 @@ public:
     void setT0(double t0);
     /**
      * @brief Retrieves the start temperature. This function is used for simulated annealing.
-     * @return The current value of the start temperature (t0_)
      */
     double getT0() const;
     /**
      * @brief Retrieves the current temperature. This function is used for simulated annealing.
-     * @return The current temperature (t_)
      */
     double getT() const;
 
@@ -169,7 +166,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -192,7 +188,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     * @return A shared_ptr to a freshly created GSimulatedAnnealing_PersonalityTraits object
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 

@@ -111,7 +111,7 @@ GTestIndividual3::~GTestIndividual3() { /* nothing */
  *
  * Computes the sum of the squares of all double parameters (a parabola).
  *
- * @return The value of this object (the parabola's value for the current parameters)
+ * @return The fitness as a one-element vector (single criterion)
  */
 std::vector<double> GTestIndividual3::evaluate() {
     // We just calculate the square of all double values

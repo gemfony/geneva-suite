@@ -175,7 +175,6 @@ public:
     void setCanvasDimensions(const std::tuple<std::uint32_t, std::uint32_t> & c_dim);
     /**
      * @brief Allows to retrieve the canvas dimensions
-     * @return A tuple holding the canvas width and height (in pixels)
      */
     std::tuple<std::uint32_t, std::uint32_t> getCanvasDimensions() const;
 
@@ -185,7 +184,6 @@ public:
     void setCanvasLabel(const std::string & canvas_label);
     /**
      * @brief Allows to retrieve the canvas label
-     * @return The current canvas label
      */
     std::string getCanvasLabel() const;
 
@@ -195,7 +193,6 @@ public:
     void setAddPrintCommand(bool add_print_command);
     /**
      * @brief Allows to retrieve the current value of the add_print_command_ variable
-     * @return Whether a print command is appended to the emitted script
      */
     bool getAddPrintCommand() const;
 
@@ -206,7 +203,6 @@ public:
     void setShowCanvasLabel(bool show_canvas_label);
     /**
      * @brief Whether the canvas label is shown
-     * @return true if the figure shows the canvas label as its title
      */
     bool getShowCanvasLabel() const;
 
@@ -220,13 +216,11 @@ public:
 
     /**
      * @brief Allows to retrieve the number spaces used for indention
-     * @return The number of spaces currently used for indention
      */
     std::size_t getNIndentionSpaces() const;
 
     /**
      * @brief Returns the current number of indention spaces as a string
-     * @return A string consisting of the configured number of indention spaces
      */
     std::string indent() const;
 

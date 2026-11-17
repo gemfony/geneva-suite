@@ -851,7 +851,11 @@ void GMPIListener::announceEndWithoutStart() {
 }
 
 /******************************************************************************/
-/** @return The number of client ranks; 0 before start() */
+/**
+ * @brief The number of client ranks (the peers made by start()). Any thread.
+ *
+ * @return The number of client ranks; 0 before start()
+ */
 std::size_t GMPIListener::nPeers() const noexcept {
     return n_peers_.load();
 }

@@ -651,7 +651,7 @@ void GOptimizationAlgorithmBase::informationUpdate(infoMode const &im) {
  * Checks whether a better solution was found. If so, the stall_counter_
  * variable will have been set to 0
  *
- * @return A boolean indicating whether a better solution was found
+ * @return true if the current iteration improved on the best known fitness, false otherwise
  */
 bool GOptimizationAlgorithmBase::progress() const {
     return (0 == stall_counter_);
@@ -800,7 +800,7 @@ void GOptimizationAlgorithmBase::setMaxStallIteration(std::uint32_t max_stall_it
  * Retrieves the maximum number of generations allowed in an optimization run without
  * improvement of the best individual.
  *
- * @return The maximum number of generations
+ * @return The maximum number of stalled iterations
  */
 std::uint32_t GOptimizationAlgorithmBase::getMaxStallIteration() const {
     return max_stall_iteration_;
@@ -957,7 +957,7 @@ std::uint32_t GOptimizationAlgorithmBase::getIteration_() const {
  * Returns the current offset used to calculate the current iteration. This
  * is identical to the iteration the optimization starts with.
  *
- * @return The current iteration offset
+ * @return The starting iteration offset (non-zero when chaining algorithms, e.g. in a Go2 chain)
  */
 std::uint32_t GOptimizationAlgorithmBase::getStartIteration() const {
     return offset_;
@@ -989,7 +989,7 @@ std::uint32_t GOptimizationAlgorithmBase::getReportIteration() const {
 /**
  * Retrieves the current number of failed optimization attempts
  *
- * @return The current number of failed optimization attempts
+ * @return The current stall counter (number of consecutive improvement-free iterations)
  */
 std::uint32_t GOptimizationAlgorithmBase::getStallCounter() const {
     return stall_counter_;
@@ -2163,6 +2163,8 @@ bool GOptimizationAlgorithmBase::sigHupHalt() {
  * that the function will silently return false if the file does not exist, as it
  * is assumed that users may "touch" the file for termination only, so that the
  * possibility exists that the file isn't there until that time.
+ *
+ * @return true if the termination file was modified after the run started, false otherwise
  */
 bool GOptimizationAlgorithmBase::touchHalt() const {
     // Create a suitable path object

@@ -168,7 +168,6 @@ public:
     void setProgramName(const std::string &program_name);
     /**
      * @brief Retrieves the name of the external evaluation program
-     * @return The name of the external evaluation program
      */
     std::string getProgramName() const;
 
@@ -178,7 +177,6 @@ public:
     void setCustomOptions(const std::string &custom_options);
     /**
      * @brief Retrieves any custom options that need to be passed to the external evaluation program
-     * @return The custom options string
      */
     std::string getCustomOptions() const;
 
@@ -188,7 +186,6 @@ public:
     void setExchangeBaseName(const std::string &parameter_file);
     /**
      * @brief Retrieves the current value of the parameter_file_base_name_ variable
-     * @return The base name of the data exchange file
      */
     std::string getExchangeBaseName() const;
 
@@ -198,7 +195,6 @@ public:
     void setNExpectedResults(const std::size_t &n_results);
     /**
      * @brief Retrieves the number of results to be expected from the external evaluation program
-     * @return The number of expected results
      */
     std::size_t getNExpectedResults() const;
 
@@ -219,7 +215,6 @@ public:
     void setRunId(const std::string& run_id);
     /**
      * @brief Allows to retrieve the run-id assigned to this individual
-     * @return The run-id assigned to this individual
      */
     std::string getRunId() const;
 
@@ -229,7 +224,6 @@ public:
     void setRemoveExecTemporaries(bool remove_exec_temporaries);
     /**
      * @brief Allows to check whether temporaries should be removed
-     * @return true if temporary files are removed, false otherwise
      */
     bool getRemoveExecTemporaries() const;
 
@@ -333,7 +327,6 @@ protected:
     /***************************************************************************/
     /**
      * @brief The evaluation hook: runs the external evaluation program and returns its per-criterion results.
-     * @return The full per-criterion raw result vector obtained from the external evaluation program
      */
     std::vector<double> evaluate() final;
 

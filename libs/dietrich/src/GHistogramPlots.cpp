@@ -264,7 +264,7 @@ std::size_t GHistogram1D::getNBinsX() const {
 /**
  * Retrieve the lower boundary of the plot
  *
- * @return The lower boundary of the plot
+ * @return The lower boundary of the histogram in x-direction
  */
 double GHistogram1D::getMinX() const {
     return min_x_;
@@ -274,7 +274,7 @@ double GHistogram1D::getMinX() const {
 /**
  * Retrieve the upper boundary of the plot
  *
- * @return The upper boundary of the plot
+ * @return The upper boundary of the histogram in x-direction
  */
 double GHistogram1D::getMaxX() const {
     return max_x_;
@@ -489,7 +489,7 @@ std::size_t GHistogram1I::getNBinsX() const {
 /**
  * Retrieve the lower boundary of the plot
  *
- * @return The lower boundary of the plot
+ * @return The lower boundary of the histogram in x-direction
  */
 double GHistogram1I::getMinX() const {
     return min_x_;
@@ -499,7 +499,7 @@ double GHistogram1I::getMinX() const {
 /**
  * Retrieve the upper boundary of the plot
  *
- * @return The upper boundary of the plot
+ * @return The upper boundary of the histogram in x-direction
  */
 double GHistogram1I::getMaxX() const {
     return max_x_;
@@ -891,7 +891,7 @@ std::size_t GHistogram2D::getNBinsY() const {
 /**
  * Retrieve the lower boundary of the plot in x-direction
  *
- * @return The lower boundary of the plot in x-direction
+ * @return The lower boundary in x-direction
  */
 double GHistogram2D::getMinX() const {
     return min_x_;
@@ -901,7 +901,7 @@ double GHistogram2D::getMinX() const {
 /**
  * Retrieve the upper boundary of the plot in x-direction
  *
- * @return The upper boundary of the plot in x-direction
+ * @return The upper boundary in x-direction
  */
 double GHistogram2D::getMaxX() const {
     return max_x_;

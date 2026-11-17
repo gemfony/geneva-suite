@@ -107,8 +107,6 @@ public:
     bool allClean(std::size_t & pos) const;
     /**
      * @brief Emits information about the "dirty flag" of all items
-     *
-     * @return A string describing the dirty-flag status of all items held by the queue
      */
     [[nodiscard]] std::string getCleanStatus() const;
 

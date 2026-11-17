@@ -519,7 +519,7 @@ std::string GDataEmitter::fileExtension() const {
 /**
  * The export format this emitter was constructed with.
  *
- * @return The current dataFormat
+ * @return The current dataFormat (CSV or NPZ)
  */
 dataFormat GDataEmitter::getDataFormat() const {
     return format_;

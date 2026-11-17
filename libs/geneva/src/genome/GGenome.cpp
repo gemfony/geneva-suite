@@ -280,6 +280,7 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
 /**
  * @brief Retrieves parameters relevant for the evaluation from another GGenome.
  * @param cp A reference to the foreign genome (a GGenome); it is moved-from and cleared
+ * @param cp_base The entity whose evaluation-relevant parameters are absorbed into this one
  */
 void GGenome::cannibalize(GGenome &cp_base) {
     auto &cp = dynamic_cast<GGenome &>(cp_base);
@@ -1263,6 +1264,8 @@ void GGenome::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
  * …) and the result store. Deliberately NOT copied: the genome value channels (absorbed separately, and
  * only for an `evaluated_and_modified` return) and the OA scratch. This mirrors the subset of load_()
  * that a return legitimately carries, minus the genome and scratch.
+ *
+ * @param src The returned, evaluated item whose results + lifecycle are absorbed
  */
 void GGenome::absorbResultsFrom_(const Gem::Courtier::GProcessable &src) {
     // The non-generic processing lifecycle (status / errors / timing / routing / correlation), keeping our
@@ -1293,6 +1296,9 @@ void GGenome::absorbResultsFrom_(const Gem::Courtier::GProcessable &src) {
  * population addresses stays valid). Delegates to load_() -- a full deep copy of genome + results +
  * scratch -- and returns true to signal the consumer that no clone-and-replace fallback is needed. The
  * caller mints a fresh lineage id afterwards (a refill is a new individual).
+ *
+ * @param src The source item to deep-copy in place
+ * @return true (the optimization individual supports in-place substitution)
  */
 bool GGenome::loadContentFrom_(const Gem::Courtier::GProcessable &src) {
     const auto *p_load = dynamic_cast<const GGenome *>(&src);

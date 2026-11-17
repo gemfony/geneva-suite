@@ -53,8 +53,6 @@ void sigHupHandler(int signum);
 /******************************************************************************/
 /**
  * @brief Checks whether a SIGHUP or CTRL_CLOSE_EVENT signal has been sent.
- *
- * @return A boolean indicating whether a SIGHUP / CTRL_CLOSE_EVENT signal was received
  */
 bool G_SIGHUP_SENT();
 

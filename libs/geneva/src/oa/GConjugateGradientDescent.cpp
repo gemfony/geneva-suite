@@ -307,7 +307,7 @@ void GConjugateGradientDescent::setErrorDefinition(double up) {
 /**
  * @brief Retrieves the error definition UP.
  *
- * @return The MINUIT error definition UP
+ * @return The MINUIT error definition UP value
  */
 double GConjugateGradientDescent::getErrorDefinition() const {
     return error_up_;
@@ -345,7 +345,7 @@ void GConjugateGradientDescent::resetToOptimizationStart_() {
  * still stored on the individuals), then the children are rebuilt around the
  * stepped parents and the whole population is re-evaluated.
  *
- * @return The value of the best individual found in this iteration
+ * @return A tuple holding the best achieved fitness (raw and transformed)
  */
 std::tuple<double, double> GConjugateGradientDescent::cycleLogic_() {
     if(afterFirstIteration()) {

@@ -110,8 +110,6 @@ public:
     void setCLParameterSpecs(std::string par_str);
     /**
      * @brief Allows to retrieve the command line parameter settings for variables to be scanned
-     *
-     * @return The current parameter specification string for the variables to be scanned.
      */
     std::string getCLParameterSpecs() const;
     /** @brief Allows to reset the command line parameter specs */

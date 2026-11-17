@@ -91,9 +91,6 @@ void prettyPrintJson(std::ostream &os, boost::json::value const &jv);
 /******************************************************************************/
 /**
  * @brief Returns @p jv as an indented JSON string (see the streaming overload).
- *
- * @param jv The JSON value to serialize
- * @return The indented JSON representation
  */
 std::string prettyPrintJson(boost::json::value const &jv);
 

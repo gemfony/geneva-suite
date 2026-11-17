@@ -366,7 +366,7 @@ int Go2::clientRun_() {
 /**
  * Checks whether this object is running in client mode
  *
- * @return A boolean which indicates whether the client mode has been set for this object
+ * @return True if the role of this process is client or bystander, false for the submitter
  */
 bool Go2::clientMode() const {
     // Most consumers take the role from --client, so it is already known after construction and
@@ -607,6 +607,9 @@ void Go2::registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<ge
  * Claims the single content-creator slot, enforcing that exactly one optimization problem (individual)
  * exists per process: whichever source registers first wins, and any second claim -- a compiled-in
  * registration when a plugin was already loaded, or a second plugin -- throws, naming both sources.
+ *
+ * @param cc_ptr The content-creator factory to install (must not be empty)
+ * @param source Where this content creator came from (for the diagnostic on a double claim)
  */
 void Go2::claimContentCreator_(
     const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
@@ -1199,7 +1202,11 @@ std::string Go2::getAlgorithmName_() const {
 }
 
 /******************************************************************************/
-/** @brief Returns one-word information about the type of optimization algorithm. */
+/**
+ * @brief Returns one-word information about the type of optimization algorithm.
+ *
+ * @return A short string identifying the algorithm personality type
+ */
 std::string Go2::getAlgorithmPersonalityType_() const {
     return {"PERSONALITY_NONE"};
 }

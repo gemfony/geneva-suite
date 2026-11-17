@@ -102,8 +102,6 @@ struct trainingSet {
 
     /**
      * @brief The constructor.
-     * @param nInputNodes The number of input nodes (size of the Input vector)
-     * @param nOutputNodes The number of output nodes (size of the Output vector)
      */
     trainingSet(const std::size_t & n_input, const std::size_t & n_output);
 
@@ -177,13 +175,11 @@ public:
     /***************************************************************************/
     /**
      * @brief Initialization with the amount of entries.
-     * @param nData The number of training sets this object will hold
      */
     explicit networkData(const std::size_t & array_size);
 
     /**
      * @brief Initialization with data from file.
-     * @param networkDataFile The path of the file the training data is loaded from
      */
     explicit networkData(const std::string & network_data_file);
     /**
@@ -212,12 +208,10 @@ public:
 
     /**
      * @brief Saves the data of this struct to disc.
-     * @param networkDataFile The path of the file the data is written to
      */
     void saveToDisk(const std::string & network_data_file) const;
     /**
      * @brief Loads training data from the disc.
-     * @param networkDataFile The path of the file the data is read from
      */
     void loadFromDisk(const std::string & network_data_file);
 
@@ -233,12 +227,10 @@ public:
 
     /**
      * @brief Retrieves the number of input nodes of this network.
-     * @return The number of input nodes (the first stored layer size)
      */
     std::size_t getNInputNodes() const;
     /**
      * @brief Retrieves the number of output nodes of this network.
-     * @return The number of output nodes (the last stored layer size)
      */
     std::size_t getNOutputNodes() const;
 
@@ -249,7 +241,6 @@ public:
 
     /**
      * @brief Allows to check whether an initialization range has been set.
-     * @return true if an initialization range has been set, false otherwise
      */
     bool initRangeSet() const;
     /**
@@ -258,19 +249,16 @@ public:
     void setInitRange(const std::vector<std::tuple<double, double>> &init_range);
     /**
      * @brief Allows to retrieve the initialization range.
-     * @return The per-dimension (lower, upper) initialization ranges
      */
     std::vector<std::tuple<double, double>> getInitRange() const;
 
     /**
      * @brief Allows to retrieve a string that describes the network geometry.
-     * @return A string describing the network geometry (layer sizes)
      */
     std::string getNetworkGeometryString() const;
 
     /**
      * @brief Creates a deep clone of this object.
-     * @return A deep clone of this object, wrapped in a shared_ptr
      */
     std::shared_ptr<networkData> clone() const;
 
@@ -281,8 +269,6 @@ private:
 
     /**
      * @brief Deep-copies the training sets of another networkData object (empty slots stay empty).
-     * @param cp The source object
-     * @return The deep copy of cp's training-set slots
      */
     static std::vector<std::shared_ptr<trainingSet>> deepCopyOfTrainingSets(const networkData &cp);
 
@@ -618,7 +604,6 @@ public:
     void setTransferFunction(transferFunction t_f);
     /**
      * @brief Retrieves the type of the transfer function.
-     * @return The transfer function currently in use
      */
     transferFunction getTransferFunction() const;
 
@@ -1011,7 +996,6 @@ protected:
     /***************************************************************************/
     /**
      * @brief The evaluation hook: the training error of the network encoded by this individual's weights.
-     * @return The training error as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
@@ -1031,7 +1015,6 @@ private:
 
     /**
      * @brief The semantic architecture (lazily built from n_d_; not serialised -- recoverable).
-     * @return A reference to the cached semantic architecture
      */
     const GNeuralNetworkArchitecture &architecture() const;
 

@@ -239,8 +239,6 @@ public:
 
     /**
      * @brief Retrieves the number of starting points of the algorithm.
-     *
-     * @return The number of starting positions in the parameter space
      */
     std::size_t getNStartingPoints() const;
     /**
@@ -258,8 +256,6 @@ public:
     void setFiniteStep(double finite_step);
     /**
      * @brief Retrieve the size of the finite step of the difference quotient.
-     *
-     * @return The difference-quotient step (per mill of the parameter range)
      */
     double getFiniteStep() const;
 
@@ -271,21 +267,15 @@ public:
     void setStepSize(double step_size);
     /**
      * @brief Retrieves the current step size.
-     *
-     * @return The multiplicative factor for the initial trial step
      */
     double getStepSize() const;
 
     /**
      * @brief Selects the search-direction rule (conjugate PR+ or plain steepest descent).
-     *
-     * @param gradientMethod The search-direction rule to use
      */
     void setGradientMethod(gradientMethod gm);
     /**
      * @brief Retrieves the search-direction rule currently in use.
-     *
-     * @return The search-direction rule currently configured
      */
     gradientMethod getGradientMethod() const;
 
@@ -299,8 +289,6 @@ public:
     void setCentralDifferences(bool central);
     /**
      * @brief Whether the central-difference gradient is in use.
-     *
-     * @return true if the central-difference gradient is enabled, false otherwise
      */
     [[nodiscard]] bool getCentralDifferences() const;
 
@@ -314,21 +302,15 @@ public:
     void setLBFGSMemory(std::size_t m);
     /**
      * @brief Retrieves the L-BFGS history size m.
-     *
-     * @return The L-BFGS history size m (number of (s, y) pairs kept)
      */
     [[nodiscard]] std::size_t getLBFGSMemory() const;
 
     /**
      * @brief Selects whether/how a MINUIT-style parameter-error estimate is computed at convergence.
-     *
-     * @param errorEstimationMode The error-estimation mode to use
      */
     void setErrorEstimation(errorEstimationMode em);
     /**
      * @brief Retrieves the error-estimation mode currently in use.
-     *
-     * @return The error-estimation mode currently configured
      */
     errorEstimationMode getErrorEstimation() const;
     /**
@@ -339,14 +321,10 @@ public:
     void setErrorDefinition(double up);
     /**
      * @brief Retrieves the error definition UP.
-     *
-     * @return The MINUIT error definition UP value
      */
     double getErrorDefinition() const;
     /**
      * @brief Retrieves the most recent convergence error estimate (valid only if one was requested).
-     *
-     * @return The most recent error estimate result
      */
     GHesseErrorResult getLastErrorEstimate() const;
 
@@ -424,12 +402,6 @@ protected:
 
     /**
      * @brief Builds the steepest-descent / conjugate-gradient-family search direction
-     * @param gradient The current proxy gradient
-     * @param prev_gradient The previous iteration's gradient (scratch-backed)
-     * @param prev_direction The previous iteration's search direction (scratch-backed)
-     * @param history_valid Whether the previous gradient/direction are valid
-     * @param periodic_restart Whether this iteration performs the classical periodic restart
-     * @return The search direction
      */
     std::vector<double> conjugateDirection_(
         const std::vector<double> &gradient,
@@ -450,8 +422,6 @@ private:
 
     /**
      * @brief The actual business logic to be performed during each iteration.
-     *
-     * @return A tuple holding the best achieved fitness (raw and transformed)
      */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Triggers fitness calculation of a number of individuals */
@@ -460,8 +430,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     *
-     * @return A shared pointer to a newly created personality-traits object for this algorithm
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
     /** @brief Resizes the population to the desired level and does some error checks */

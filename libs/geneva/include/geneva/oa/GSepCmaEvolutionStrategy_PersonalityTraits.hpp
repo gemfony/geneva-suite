@@ -91,12 +91,10 @@ public:
 
     /**
      * @brief Sets the offspring's selection rank in the current generation (0 == best).
-     * @param rank The selection rank to store
      */
     void setRank(std::size_t rank);
     /**
      * @brief Retrieves the offspring's selection rank in the current generation.
-     * @return The stored selection rank (0 == best)
      */
     [[nodiscard]] std::size_t getRank() const;
 
@@ -106,7 +104,6 @@ public:
 
     /**
      * @brief Retrieves the mnemonic of the optimization algorithm.
-     * @return The short mnemonic string identifying this personality
      */
     [[nodiscard]] std::string getMnemonic() const override;
 

@@ -143,7 +143,7 @@ void GSimulatedAnnealing::setTDegradationStrength(double alpha) {
 /**
   * @brief Retrieves the temperature degradation strength. This function is used for simulated annealing.
   *
-  * @return The temperature degradation strength
+  * @return The current value of the temperature degradation strength (alpha_)
   */
 double GSimulatedAnnealing::getTDegradationStrength() const {
     return alpha_;
@@ -171,7 +171,7 @@ void GSimulatedAnnealing::setT0(double t0) {
 /**
   * @brief Retrieves the start temperature. This function is used for simulated annealing.
   *
-  * @return The start temperature
+  * @return The current value of the start temperature (t0_)
   */
 double GSimulatedAnnealing::getT0() const {
     return t0_;
@@ -181,7 +181,7 @@ double GSimulatedAnnealing::getT0() const {
 /**
   * @brief Retrieves the current temperature. This function is used for simulated annealing.
   *
-  * @return The current temperature
+  * @return The current temperature (t_)
   */
 double GSimulatedAnnealing::getT() const {
     return t_;

@@ -785,6 +785,9 @@ GDrawStyle GBasePlotter::drawStyle() const {
  * drawStyle().
  *
  * @return An empty name
+ * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
+ * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
+ * @param own_id This plotter's own emit index, as footerData_() gets it
  */
 std::string GBasePlotter::rootLegendObject_(
     [[maybe_unused]] bool is_secondary,
@@ -1224,7 +1227,7 @@ void GPlotDesigner::setCanvasDimensions(const std::tuple<std::uint32_t, std::uin
 /**
  * Allows to retrieve the canvas dimensions
  *
- * @return A std::tuple holding the canvas dimensions
+ * @return A tuple holding the canvas width and height (in pixels)
  */
 std::tuple<std::uint32_t, std::uint32_t> GPlotDesigner::getCanvasDimensions() const {
     return std::tuple<std::uint32_t, std::uint32_t>{c_x_dim_, c_y_dim_};

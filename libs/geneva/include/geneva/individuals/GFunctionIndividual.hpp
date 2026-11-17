@@ -358,13 +358,11 @@ public:
     void setDemoFunction(solverFunction d_f);
     /**
      * @brief Allows retrieving the current demo function.
-     * @return The solverFunction currently selected for evaluation
      */
     solverFunction getDemoFunction() const;
 
     /**
      * @brief Allows to cross check the parameter size.
-     * @return The number of double parameters held by this individual's genome
      */
     std::size_t getParameterSize() const;
 
@@ -599,7 +597,6 @@ protected:
 
     /**
      * @brief The evaluation hook: evaluates the selected benchmark function on the individual's parameters.
-     * @return The raw fitness as a one-element vector (a single-criterion problem)
      */
     std::vector<double> evaluate() final;
 
@@ -607,7 +604,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether any modifications were made
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */
@@ -797,7 +793,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -835,7 +830,6 @@ public:
     GSphereConstraint() = default;
     /**
      * @brief Initialization with the diameter.
-     * @param cp The diameter of the sphere within which solutions are valid
      */
     explicit GSphereConstraint(const double &diameter);
     /**
@@ -871,7 +865,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 

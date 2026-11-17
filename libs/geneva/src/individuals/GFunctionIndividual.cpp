@@ -270,7 +270,7 @@ void GFunctionIndividual::setDemoFunction(solverFunction d_f) {
 /**
  * @brief Allows to retrieve the demo function.
  *
- * @return The id of the currently selected demo function
+ * @return The solverFunction currently selected for evaluation
  */
 solverFunction GFunctionIndividual::getDemoFunction() const {
     return demo_function_;

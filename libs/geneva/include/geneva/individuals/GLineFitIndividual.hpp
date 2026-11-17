@@ -110,13 +110,11 @@ public:
 
     /**
      * @brief Retrieves the tuple (a,b) of the line represented by this object.
-     * @return The line's (offset a, slope b) as a tuple
      */
     std::tuple<double, double> getLine() const;
 
     /**
      * @brief The OA-owned adaption config authoring this genome's two Gauss groups (offset + slope).
-     * @return A shared pointer to the populated adaption config
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> getAdaptionConfig() const;
 
@@ -136,8 +134,6 @@ public:
 
     /**
      * @brief Registers the config-file options, binding them to the passed Config.
-     * @param gpb The GParserBuilder the configurable values are registered on
-     * @param c The Config instance whose members are bound to the parser (written on parse)
      */
     static void describeConfig(Gem::Common::GParserBuilder & gpb, Config & c);
     /**
@@ -153,8 +149,6 @@ public:
     /**
      * @brief Per-object post-config hook: opens the config-named data file at runtime and loads the (x,y)
      * points into the produced individual. An empty path leaves the point set empty.
-     * @param ind The freshly produced individual to load the data points into
-     * @param c The configuration providing the data-file path
      */
     static void applyConfig(GLineFitIndividual & ind, const Config & c);
 
@@ -162,13 +156,11 @@ protected:
 
     /**
      * @brief The evaluation hook: the root-square deviation of the data points from the represented line.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether any modifications were made
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

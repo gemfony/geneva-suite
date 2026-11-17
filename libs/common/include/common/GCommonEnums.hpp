@@ -258,14 +258,11 @@ std::istream &operator>>(std::istream &i, serializationMode &x);
 
 /**
  * @brief The modes for a help text, from SERIALIZATIONMODES: "GEM_BINARY (3) or GEM_JSON (4)"
- * @return The names of the modes with their values
  */
 [[nodiscard]] std::string serializationModeChoices();
 
 /**
  * @brief Converts a serializationMode to a string representation for debugging purposes.
- * @param s The serializationMode value to be converted
- * @return A human-readable string representation of @p s
  */
 [[nodiscard]] std::string serModeToString(Gem::Common::serializationMode ser_mod);
 

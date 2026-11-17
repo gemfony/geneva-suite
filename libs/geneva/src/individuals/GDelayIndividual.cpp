@@ -92,7 +92,7 @@ GDelayIndividual::~GDelayIndividual() { /* nothing */
  * optionally throws with a configured likelihood, and returns a random value -- no real
  * optimization is performed.
  *
- * @return A random value in [0, 1); the result is not used for any actual optimization
+ * @return A one-element vector holding the random value
  */
 std::vector<double> GDelayIndividual::evaluate() {
     // The candidate holds no RNG of its own -- lease a proxy for this evaluation's random draws.

@@ -317,7 +317,8 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
  * returns only when none of them is still inside the creation of its CUDA resources; a thread that
  * merely draws starts nothing.
  *
- * @return A container of new raw random words, or an empty unique_ptr (see the declaration)
+ * @return A unique_ptr to a filled container, or a null pointer if none came within
+ *   DEFAULTFACTORYGETWAIT milliseconds
  */
 std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
     // Start the producer threads upon first access to this function

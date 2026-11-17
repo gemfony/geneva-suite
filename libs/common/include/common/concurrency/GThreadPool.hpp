@@ -104,10 +104,6 @@ public:
      * GThreadBudget under the given source name (holding the reservation for the pool's life)
      * and starts the granted number of workers. The plain constructor above stays unbudgeted,
      * so leaf tests/benchmarks are unaffected.
-     *
-     * @param source A short name identifying this pool in the budget (e.g. "oa:tp")
-     * @param n_threads The number of worker threads the pool wants (0 picks a hardware-based default)
-     * @param elasticity Whether the pool could correctly run with fewer workers than requested
      */
     GThreadPool(std::string_view source, unsigned int n_threads, ThreadElasticity elasticity);
     /** @brief The destructor drains the queue and joins all workers */
@@ -125,7 +121,6 @@ public:
     void setNThreads(unsigned int n_threads);
     /**
      * @brief Retrieves the current number of worker threads
-     * @return The live worker-thread count
      */
     [[nodiscard]] unsigned int getNThreads() const;
 

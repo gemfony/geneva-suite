@@ -110,7 +110,6 @@ public:
     /**
      * @brief The copy constructor. Deep-clones the constraint object so the copy and the original never
      * share one constraint instance. Defined in the .cpp, where the constraint type is complete.
-     * @param cp The policy to copy from
      */
     GProblemPolicy(GProblemPolicy const &cp);
 
@@ -119,8 +118,6 @@ public:
 
     /**
      * @brief The copy assignment operator. Deep-clones the constraint object. Defined in the .cpp.
-     * @param cp The policy to copy from
-     * @return A reference to this object
      */
     GProblemPolicy &operator=(GProblemPolicy const &cp);
 
@@ -213,7 +210,6 @@ public:
     /**
      * @brief Registers a constraint with this policy. The constraint is cloned, so the policy owns its
      * own copy and distinct policies never share one constraint object. Throws on an empty pointer.
-     * @param c_ptr The validity-check constraint to register (must not be empty)
      */
     void registerConstraint(const std::shared_ptr<GPreEvaluationValidityCheckT<GGenome>>& c_ptr);
 

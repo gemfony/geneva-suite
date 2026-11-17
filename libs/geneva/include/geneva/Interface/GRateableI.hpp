@@ -66,16 +66,12 @@ public:
 
     /**
      * @brief Returns all raw fitness results in a std::vector.
-     *
-     * @return A vector holding the raw (untransformed) fitness value of every criterion
      */
     //! [constraints:fitness-accessors#3]
     [[nodiscard]] std::vector<double> raw_fitness_vec() const;
     //! [constraints:fitness-accessors#3]
     /**
      * @brief Returns all transformed fitness results in a std::vector.
-     *
-     * @return A vector holding the transformed fitness value of every criterion
      */
     //! [constraints:fitness-accessors#4]
     [[nodiscard]] std::vector<double> transformed_fitness_vec() const;

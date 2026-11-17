@@ -132,7 +132,6 @@ public:
     void setXAxisLabel(std::string x_axis_label);
     /**
      * @brief Retrieve the x-axis label
-     * @return The current x-axis label
      */
     [[nodiscard]] std::string xAxisLabel() const;
     /**
@@ -141,7 +140,6 @@ public:
     void setYAxisLabel(std::string y_axis_label);
     /**
      * @brief Retrieve the y-axis label
-     * @return The current y-axis label
      */
     [[nodiscard]] std::string yAxisLabel() const;
     /**
@@ -150,7 +148,6 @@ public:
     void setZAxisLabel(std::string z_axis_label);
     /**
      * @brief Retrieve the z-axis label
-     * @return The current z-axis label
      */
     [[nodiscard]] std::string zAxisLabel() const;
 
@@ -162,7 +159,6 @@ public:
     void setXAxisLogarithmic(bool logarithmic);
     /**
      * @brief Whether the x-axis is logarithmic
-     * @return true if the x-axis of this plot's pad is drawn with a logarithmic scale
      */
     [[nodiscard]] bool xAxisLogarithmic() const;
     /**
@@ -172,7 +168,6 @@ public:
     void setYAxisLogarithmic(bool logarithmic);
     /**
      * @brief Whether the y-axis is logarithmic
-     * @return true if the y-axis of this plot's pad is drawn with a logarithmic scale
      */
     [[nodiscard]] bool yAxisLogarithmic() const;
 
@@ -181,12 +176,10 @@ public:
      * names this series in the legend. In ROOT a label longer than the legend's box at the smallest
      * text size widens the box up to the pad's frame; beyond that it is shortened at its end and
      * marked with "..." (see setLegendPosition()).
-     * @param plot_label The label for the entire plot
      */
     void setPlotLabel(std::string p_l);
     /**
      * @brief Allows to retrieve the plot label
-     * @return The current plot label
      */
     [[nodiscard]] std::string plotLabel() const;
 
@@ -198,12 +191,10 @@ public:
     void setPadTitle(std::string pad_title);
     /**
      * @brief The title set apart from the plot label
-     * @return The pad title, empty if none was set
      */
     [[nodiscard]] std::string padTitle() const;
     /**
      * @brief The title the pad shows: the pad title if one was set, otherwise the plot label
-     * @return The title of the pad
      */
     [[nodiscard]] std::string padTitleOrLabel() const;
     /**
@@ -226,14 +217,12 @@ public:
     void setLegendPosition(legendPosition position);
     /**
      * @brief Where the legend of this plotter's pad lies
-     * @return The legend position
      */
     [[nodiscard]] legendPosition getLegendPosition() const;
     /**
      * @brief Where the legend of this (primary) plotter's pad lies, as the backends place it: the
      * position that was set, with FREEST resolved from the pad's data (freestLegendCorner()); on a
      * 3-d pad FREEST is AUTO.
-     * @return The legend position, never FREEST
      */
     [[nodiscard]] legendPosition legendPlace() const;
     /**
@@ -248,7 +237,6 @@ public:
     void setLegendRoom(bool legend_room);
     /**
      * @brief Whether the frame of this plotter's pad leaves the legend a band of its own
-     * @return true if it does
      */
     [[nodiscard]] bool legendRoom() const;
     /**
@@ -258,7 +246,6 @@ public:
     void setLineWidth(std::uint32_t line_width);
     /**
      * @brief The width of the line this plotter draws
-     * @return The line width, 0 for the backend's default
      */
     [[nodiscard]] std::uint32_t lineWidth() const;
     /**
@@ -267,19 +254,16 @@ public:
     void setDataStructureMarker(std::string ds_marker);
     /**
      * @brief Allows to retrieve the data structure marker
-     * @return The current data-structure marker
      */
     [[nodiscard]] std::string dsMarker() const;
 
     /**
      * @brief Allows to add secondary plots to be added to the same sub-canvas
-     * @param secondary_plotter A plotter whose data should be emitted into the same canvas as this one
      */
     void registerSecondaryPlotter(const std::shared_ptr<GBasePlotter>& sp);
 
     /**
      * @brief Read-only access to the secondary plotters sharing this plotter's pad
-     * @return A const reference to the list of registered secondary plotters
      */
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
 
@@ -291,7 +275,6 @@ public:
      * space), the primary first, then the secondary plotters in their order; each entry's sample
      * shows how its series is drawn (legendSampleOf()). A pad with a single series, or with none
      * labelled, gets no legend at all, whatever its dimension.
-     * @return The entries; empty: the pad has no legend
      */
     [[nodiscard]] std::vector<GLegendEntry> legendEntries() const;
 
@@ -299,13 +282,11 @@ public:
      * @brief How this plotter's series is drawn, as every backend draws it and as its legend
      * sample shows it. The default resolves it from plotSpec() (drawStyleOf()); a plotter of its
      * own that draws otherwise overrides it.
-     * @return How the series is drawn
      */
     [[nodiscard]] virtual GDrawStyle drawStyle() const;
 
     /**
      * @brief Allows to retrieve the id of this object
-     * @return The id currently assigned to this plotter
      */
     [[nodiscard]] std::size_t id() const;
     /**
@@ -328,8 +309,6 @@ public:
      * base fills the common fields (name, labels, drawing args) and a default kind;
      * each concrete plotter overrides it to set its kind, its column names and (for
      * histograms) the bin counts.
-     *
-     * @return A GPlotSpec describing this plotter
      */
     [[nodiscard]] virtual GPlotSpec plotSpec() const;
 
@@ -345,8 +324,6 @@ public:
      * integer plotter exports its samples with their true dtype. The base returns an
      * empty list (a plotter that holds no exportable sample columns -- a function
      * plotter -- exports nothing this way).
-     *
-     * @return Type-tagged views of this plotter's per-axis value vectors, in storage order
      */
     [[nodiscard]] virtual std::vector<GPlotColumn> dataColumns() const;
 
@@ -438,10 +415,6 @@ protected:
      * 4-d graph: one of its markers; a 3-d curve: a sample object of its own, never drawn). The
      * default, an empty name, gives the series a sample object made from drawStyle() in the
      * pad's colour of the series -- the choice for a plotter of one's own.
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
-     * @param own_id This plotter's own emit index, as footerData_() gets it
-     * @return The name of the object, or empty
      */
     [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
 

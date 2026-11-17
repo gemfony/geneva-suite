@@ -83,7 +83,6 @@ public:
 
     /**
      * @brief Retrieves the mnemonic of the optimization algorithm.
-     * @return The short mnemonic string identifying the simulated annealing algorithm
      */
     [[nodiscard]] std::string getMnemonic() const override;
 

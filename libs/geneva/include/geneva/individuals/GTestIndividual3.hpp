@@ -89,21 +89,17 @@ public:
 
     /**
      * @brief Get all data members of this class as a plain array
-     * @return A shared pointer to a freshly allocated float array (with array deleter) holding all of this
-     *  individual's double parameters, narrowed to float in flat streamline order
      */
     std::shared_ptr<float[]> getPlainData() const;
 
 protected:
     /**
      * @brief The evaluation hook: computes this individual's fitness.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether a modification was actually carried out
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

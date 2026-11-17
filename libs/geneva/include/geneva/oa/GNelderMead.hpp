@@ -201,7 +201,6 @@ public:
 
     /**
      * @brief Retrieves the number of simultaneous simplices.
-     * @return The number of simplices run in parallel
      */
     std::size_t getNSimplices() const;
     /**
@@ -215,7 +214,6 @@ public:
     void setAlpha(double alpha);
     /**
      * @brief Retrieves the reflection coefficient (alpha).
-     * @return The current reflection coefficient
      */
     double getAlpha() const;
     /**
@@ -224,7 +222,6 @@ public:
     void setGamma(double gamma);
     /**
      * @brief Retrieves the expansion coefficient (gamma).
-     * @return The current expansion coefficient
      */
     double getGamma() const;
     /**
@@ -233,7 +230,6 @@ public:
     void setRho(double rho);
     /**
      * @brief Retrieves the contraction coefficient (rho).
-     * @return The current contraction coefficient
      */
     double getRho() const;
     /**
@@ -242,7 +238,6 @@ public:
     void setSigma(double sigma);
     /**
      * @brief Retrieves the shrink coefficient (sigma).
-     * @return The current shrink coefficient
      */
     double getSigma() const;
     /**
@@ -251,7 +246,6 @@ public:
     void setInitialEdge(double initial_edge);
     /**
      * @brief Retrieves the relative size of the initial simplex.
-     * @return The initial simplex edge length (as a fraction of the parameter range)
      */
     double getInitialEdge() const;
     /**
@@ -260,7 +254,6 @@ public:
     void setRestartThreshold(std::uint32_t restart_threshold);
     /**
      * @brief Retrieves the oriented-restart stall threshold.
-     * @return The stall count that triggers an oriented restart (0 = disabled)
      */
     std::uint32_t getRestartThreshold() const;
 
@@ -326,7 +319,6 @@ private:
 
     /**
      * @brief The actual business logic to be performed during each iteration.
-     * @return A tuple holding the best achieved fitness (raw, transformed) of this iteration
      */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Triggers fitness calculation of a number of individuals */
@@ -335,7 +327,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     * @return A shared pointer to a freshly created Nelder-Mead personality-traits object
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
     /** @brief Resizes the population to the desired level and does some error checks */
@@ -346,8 +337,6 @@ private:
     /**
      * @brief Rebuilds every simplex around its best vertex, oriented down the local descent
      *  direction. Used to escape a degenerate collapse once the run has stalled.
-     * @return true if at least one simplex was restarted (its vertices then need re-evaluation),
-     *  false otherwise
      */
     bool restartSimplices();
     /**
@@ -365,7 +354,6 @@ private:
     std::size_t trialPos(std::size_t s, std::size_t t) const;
     /**
      * @brief Number of population slots used per simplex.
-     * @return The block size per simplex (n+1 vertices plus the speculative trial slots)
      */
     std::size_t simplexBlockSize() const;
 

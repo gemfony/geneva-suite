@@ -311,7 +311,7 @@ void GParameterScan::resetToOptimizationStart_() {
 /**
  * @brief The actual business logic to be performed during each iteration. Returns the best achieved fitness.
  *
- * @return A tuple holding the raw and transformed fitness of the best individual found this iteration
+ * @return A tuple holding the best raw and transformed fitness achieved this iteration
  */
 std::tuple<double, double> GParameterScan::cycleLogic_() {
     std::tuple<double, double> best_fitness =

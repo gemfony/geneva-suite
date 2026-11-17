@@ -243,8 +243,7 @@ constexpr bool GCL_IMPLICIT_NOT_ALLOWED = false;
  */
 class commentLevel { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
-    /** @brief Enforce setting of the comment level
-     *  @param comment_level The id of the comment to be selected inside GParsableI */
+    /** @brief Enforce setting of the comment level */
     explicit commentLevel(std::size_t cl);
 
     /*************************************************************************/
@@ -260,8 +259,7 @@ public:
 
     /*************************************************************************/
 
-    /** @brief Retrieves the current commentLevel
-     *  @return The stored comment level id */
+    /** @brief Retrieves the current commentLevel */
     [[nodiscard]] std::size_t getCommentLevel() const;
 
 private:
@@ -290,14 +288,10 @@ public:
  */
 class GParsableI {
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this parameter
-     *  @param comment The single comment associated with this parameter */
+    /** @brief A constructor for individual items */
     GParsableI(std::string const &option_name_var, std::string const &comment_var);
 
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this parameter
-     *  @param comments The list of comments associated with this parameter */
+    /** @brief A constructor for vectors */
     GParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
 
     /** @brief The destructor */
@@ -314,14 +308,11 @@ public:
     [[nodiscard]] std::string optionName(std::size_t pos = 0) const;
     /** @brief Retrieves the comment that was assigned to this variable at a given position */
     [[nodiscard]] std::string comment(std::size_t pos = 0) const;
-    /** @brief Checks whether comments have indeed been registered
-     *  @return true if at least one non-empty comment is stored, false otherwise */
+    /** @brief Checks whether comments have indeed been registered */
     [[nodiscard]] bool hasComments() const;
-    /** @brief Retrieves the number of comments available
-     *  @return The number of comment entries stored */
+    /** @brief Retrieves the number of comments available */
     [[nodiscard]] std::size_t numberOfComments() const;
-    /** @brief Retrieves the number of option names registered for this parameter
-     *  @return The number of option-name entries stored */
+    /** @brief Retrieves the number of option names registered for this parameter */
     [[nodiscard]] std::size_t numberOfOptionNames() const;
 
     /***************************************************************************/
@@ -411,15 +402,9 @@ class GFileParsableI : public GParsableI {
     friend class GParserBuilder;
 
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this parameter
-     *  @param comment The single comment associated with this parameter
-     *  @param is_essential Whether this is an essential (true) or secondary (false) parameter */
+    /** @brief A constructor for individual items */
     GFileParsableI(std::string const &option_name_var, std::string const &comment_var, bool is_essential_var);
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this parameter
-     *  @param comments The list of comments associated with this parameter
-     *  @param is_essential Whether this is an essential (true) or secondary (false) parameter */
+    /** @brief A constructor for vectors */
     GFileParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec, bool is_essential_var);
 
     /** @brief The destructor */
@@ -432,8 +417,7 @@ public:
     GFileParsableI &operator=(GFileParsableI const &) = delete;
     GFileParsableI &operator=(GFileParsableI &&) = delete;
 
-    /** @brief Checks whether this is an essential variable at a given position
-     *  @return true if this parameter is essential, false if it is secondary */
+    /** @brief Checks whether this is an essential variable at a given position */
     [[nodiscard]] bool isEssential() const;
 
     /** @brief Executes a stored call-back function */
@@ -1577,13 +1561,9 @@ class GCLParsableI : public GParsableI {
     friend class GParserBuilder;
 
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this command-line parameter
-     *  @param comment The single comment associated with this command-line parameter */
+    /** @brief A constructor for individual items */
     GCLParsableI(std::string const &option_name_var, std::string const &comment_var);
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this command-line parameter
-     *  @param comments The list of comments associated with this command-line parameter */
+    /** @brief A constructor for vectors */
     GCLParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
 
     /** @brief The destructor */
@@ -1769,10 +1749,7 @@ public:
      *  missing file is created from defaults (also a success). Optionally hands the parsed JSON document
      *  back via the second argument so callers can cache it. */
     bool parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured = nullptr);
-    /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic.
-     *  @param root The already-parsed JSON document to apply to the registered options
-     *  @param config_path The originating file path, used only for diagnostic messages (may be empty)
-     *  @param run_unknown_key_check Whether to run the unknown-key diagnostic for this load */
+    /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic. */
     void loadFromDocument(
         boost::json::value const &root,
         std::filesystem::path const &config_path = {},
@@ -1791,37 +1768,29 @@ public:
     /** @brief Globally enables/disables update-in-place: when enabled, every successful parseConfigFile() that
      *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup. */
     static void setUpdateInPlace(bool enabled);
-    /** @brief Retrieves whether update-in-place is globally enabled
-     *  @return true if parseConfigFile rewrites the files it reads, false otherwise */
+    /** @brief Retrieves whether update-in-place is globally enabled */
     static bool updateInPlace();
     /** @brief Globally enables/disables the creation-timestamp line in a generated config's header (default:
      *  enabled). Disable it to produce byte-stable, reproducible output -- e.g. for a config set that is
      *  checked into version control (the config-reference tree), where a changing timestamp would show as a
      *  spurious diff on every regeneration. Call once at startup. */
     static void setEmitTimestamp(bool enabled);
-    /** @brief Retrieves whether the header creation-timestamp line is emitted
-     *  @return true if a generated config's header carries the creation timestamp, false otherwise */
+    /** @brief Retrieves whether the header creation-timestamp line is emitted */
     static bool emitTimestamp();
-    /** @brief Globally enables/disables the unknown-configuration-key diagnostic (default: enabled; warns on config keys no registered parameter consumes).
-     *  @param check Whether the unknown-key diagnostic should be enabled */
+    /** @brief Globally enables/disables the unknown-configuration-key diagnostic (default: enabled; warns on config keys no registered parameter consumes). */
     static void setCheckUnknownKeys(bool enabled);
-    /** @brief Retrieves whether the unknown-configuration-key diagnostic is enabled
-     *  @return true if the unknown-key diagnostic is enabled, false otherwise */
+    /** @brief Retrieves whether the unknown-configuration-key diagnostic is enabled */
     static bool checkUnknownKeys();
-    /** @brief Globally selects whether an unknown configuration-file key is an error (true) or a warning (false, the default). Only takes effect when the check is enabled. Call once at startup.
-     *  @param is_error Whether an unknown key should throw (true) instead of warning (false) */
+    /** @brief Globally selects whether an unknown configuration-file key is an error (true) or a warning (false, the default). Only takes effect when the check is enabled. Call once at startup. */
     static void setUnknownKeyIsError(bool is_error);
-    /** @brief Retrieves whether unknown configuration-file keys are treated as an error
-     *  @return true if unknown keys are treated as an error, false if they only warn */
+    /** @brief Retrieves whether unknown configuration-file keys are treated as an error */
     static bool unknownKeyIsError();
-    /** @brief Provides information on the number of file configuration options stored in this class
-     *  @return The number of registered file configuration options */
+    /** @brief Provides information on the number of file configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
     /** @brief Parses the commandline for options */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
-    /** @brief Provides information on the number of command line configuration options stored in this class
-     *  @return The number of registered command-line configuration options */
+    /** @brief Provides information on the number of command line configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfCLOptions() const;
 
     /***************************************************************************/

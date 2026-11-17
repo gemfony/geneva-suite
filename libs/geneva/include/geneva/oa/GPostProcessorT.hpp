@@ -215,8 +215,6 @@ public:
     void setOAConfigFile(const std::string &oa_config_file);
     /**
      * @brief Allows to retrieve the configuration file for the optimization algorithm
-     *
-     * @return The name of the configuration file for the evolutionary algorithm
      */
     [[nodiscard]] std::string getOAConfigFile() const;
 

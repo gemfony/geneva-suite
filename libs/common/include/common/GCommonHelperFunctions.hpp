@@ -73,8 +73,6 @@ std::filesystem::file_time_type touch_time(
 /******************************************************************************/
 /**
  * @brief Determines a suitable number of threads for the current architecture.
- *
- * @return A guess at a suitable number of hardware threads for this architecture
  */
 unsigned int getNHardwareThreads();
 
@@ -160,8 +158,6 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
 /******************************************************************************/
 /**
  * @brief Converts the current time to a string.
- *
- * @return The current local time, formatted as a human-readable string
  */
 std::string currentTimeAsString();
 
@@ -186,8 +182,6 @@ std::string currentTimeAsString();
 /******************************************************************************/
 /**
  * @brief Returns the number of milliseconds since 1.1.1970.
- *
- * @return The number of milliseconds elapsed since the Unix epoch, as a string
  */
 std::string getMSSince1970();
 

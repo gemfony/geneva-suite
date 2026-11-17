@@ -321,11 +321,9 @@ public:
     /** @brief The standard constructor -- assignment of the "raw" parameter property string */
     explicit GParameterPropertyParser(const std::string &rw);
 
-    /** @brief Retrieves the raw parameter description
-     *  @return The raw, unparsed parameter description string held by this object */
+    /** @brief Retrieves the raw parameter description */
     [[nodiscard]] std::string getRawParameterDescription() const;
-    /** @brief Allows to check whether parsing has already taken place
-     *  @return true if the raw string has already been parsed, false otherwise */
+    /** @brief Allows to check whether parsing has already taken place */
     [[nodiscard]] bool isParsed() const;
 
     /** @brief Allows to reset the internal structures and to parse a new parameter string */
@@ -344,8 +342,7 @@ private:
 
 public:
 
-    /** @brief Retrieve the number of "simple scan" items
-     *  @return The number of items requested for simple (fully random) parameter scans */
+    /** @brief Retrieve the number of "simple scan" items */
     [[nodiscard]] std::size_t getNSimpleScanItems() const;
 
     /***************************************************************************/

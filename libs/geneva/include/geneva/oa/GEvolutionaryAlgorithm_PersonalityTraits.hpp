@@ -89,7 +89,6 @@ public:
 
     /**
      * @brief Retrieves the mnemonic of the optimization algorithm.
-     * @return The short mnemonic string identifying the adaptive-evolutionary-algorithm personality
      */
     [[nodiscard]] std::string getMnemonic() const override;
 

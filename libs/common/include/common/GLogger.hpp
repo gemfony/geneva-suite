@@ -140,8 +140,6 @@ public:
 
     /**
      * @brief Implements the logging to the console
-     *
-     * @param message The log message to be written to the console
      */
     void log(std::string const &msg) const override;
 
@@ -161,8 +159,6 @@ class GFileLogger : public GBaseLogTarget {
 public:
     /**
      * @brief This constructor accepts a path to a log-file name as argument
-     *
-     * @param p The filesystem path of the log file to write to
      */
     explicit GFileLogger(std::filesystem::path const &p);
 
@@ -182,8 +178,6 @@ public:
 
     /**
      * @brief Implements logging to a file on disk
-     *
-     * @param message The log message to be appended to the file
      */
     void log(std::string const &msg) const override;
 
@@ -522,8 +516,6 @@ class GManipulator { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /**
      * @brief A constructor that stores the logging type only
-     *
-     * @param lt The type of logging event this manipulator triggers
      */
     explicit GManipulator(logType lt);
     /**
@@ -532,10 +524,6 @@ public:
     GManipulator(std::string const &accomp_info, logType lt);
     /**
      * @brief A constructor that additionally stores a process return code (for logType::EXIT)
-     *
-     * @param accomp_info Accompanying information (e.g. a call-site location string)
-     * @param lt The type of logging event this manipulator triggers
-     * @param return_code The process return code to be used by logType::EXIT
      */
     GManipulator(std::string const &accomp_info, logType lt, int return_code);
 
@@ -554,26 +542,18 @@ public:
 
     /**
      * @brief Retrieves the stored logging type
-     *
-     * @return The logging type stored in this manipulator
      */
     [[nodiscard]] logType getLogType() const;
     /**
      * @brief Retrieves stored accompanying information (if any)
-     *
-     * @return The accompanying information string (empty if none was stored)
      */
     [[nodiscard]] std::string getAccompInfo() const;
     /**
      * @brief Checks whether any accompanying information is available
-     *
-     * @return true if accompanying information was stored, false otherwise
      */
     [[nodiscard]] bool hasAccompInfo() const;
     /**
      * @brief Retrieves the stored process return code (meaningful for logType::EXIT)
-     *
-     * @return The stored process return code
      */
     [[nodiscard]] int getReturnCode() const;
 
@@ -650,8 +630,6 @@ public:
 
     /**
      * @brief Returns the content of the stream
-     *
-     * @return The accumulated streamed content as a string
      */
     std::string content() const;
     /** @brief Resets the stream content */
@@ -659,26 +637,18 @@ public:
 
     /**
      * @brief Checks whether an extension string has been registered
-     *
-     * @return true if a non-empty source-extension string was registered, false otherwise
      */
     bool hasExtension() const;
     /**
      * @brief The content of the extension_ string
-     *
-     * @return The registered source-extension string (empty if none)
      */
     std::string getExtension() const;
     /**
      * @brief Checks whether a log file name has been registered
-     *
-     * @return true if a one-time log file path was registered, false otherwise
      */
     bool hasOneTimeLogFile() const;
     /**
      * @brief The name of the manually specified file
-     *
-     * @return The registered one-time log file path (empty if none)
      */
     std::filesystem::path getOneTimeLogFile() const;
 

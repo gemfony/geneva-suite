@@ -128,7 +128,6 @@ public:
     void setFixedSleepTime(const std::chrono::duration<double> &sleep_time);
     /**
      * @brief Retrieval of the current value of the fixed_sleep_time_ variable
-     * @return The fixed sleep time as a duration in seconds
      */
     std::chrono::duration<double> getFixedSleepTime() const;
 
@@ -138,12 +137,10 @@ public:
     void setMayCrash(bool may_crash, double throw_likelihood);
     /**
      * @brief Check whether the fitness function may crash at the end of the sleep time
-     * @return true if the fitness function may throw, false otherwise
      */
     bool getMayCrash() const;
     /**
      * @brief Check the likelihood for a crash at the end of the sleep time
-     * @return The configured crash probability
      */
     double getCrashLikelihood() const;
 
@@ -153,12 +150,10 @@ public:
     void setRandomSleep(bool sleep_randomly, std::tuple<double, double> rand_sleep_boundaries);
     /**
      * @brief Checks whether the fitness function has a random sleep schedule
-     * @return true if random sleeps are enabled, false otherwise
      */
     bool getMaySleepRandomly() const;
     /**
      * @brief Retrieves the time window for random sleeps
-     * @return The (min, max) random-sleep window in seconds
      */
     std::tuple<double, double> getSleepWindow() const;
 
@@ -198,8 +193,6 @@ public:
     static std::vector<std::tuple<unsigned int, unsigned int>> parseSleepTimes(const Config &c);
     /**
      * @brief Converts a (seconds, milliseconds) tuple to a duration
-     * @param t The (seconds, milliseconds) tuple to convert
-     * @return The corresponding duration in seconds
      */
     static std::chrono::duration<double> tupleToTime(const std::tuple<unsigned int, unsigned int> &time_tuple);
     /**
@@ -244,7 +237,6 @@ protected:
     /**
      * @brief The evaluation hook: sleeps as configured (this individual measures framework overhead, not a
      *  real objective) and returns a random value in [0,1) that is not used for optimization.
-     * @return A one-element vector holding the random value
      */
     std::vector<double> evaluate() final;
 

@@ -38,7 +38,7 @@ namespace Gem::Geneva {
 /**
  * @brief Returns the MPI communicator shared by the sub-client group.
  *
- * @return The (static) intra-group communicator used by individuals to talk to their sub-clients.
+ * @return The static communicator shared by all instances (MPI_COMM_NULL if none has been set yet).
  */
 MPI_Comm GMPISubClientIndividual::getCommunicator() {
     return GMPISubClientIndividual::communicator_;

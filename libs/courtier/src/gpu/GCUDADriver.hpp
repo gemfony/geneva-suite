@@ -76,8 +76,6 @@ struct GCUDADriver {
  *
  * Throws a geneva_exception naming the reason if the driver library cannot be loaded or lacks a
  * function; a later call tries again.
- *
- * @return The driver's function table
  */
 const GCUDADriver &cudaDriver();
 

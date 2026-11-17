@@ -345,8 +345,7 @@ public:
      *  and waits for their answers, at most stopGrace() */
     void announceEndWithoutStart() override;
 
-    /** @brief The number of client ranks (the peers made by start()). Any thread.
-     *  @return The count; 0 before start() */
+    /** @brief The number of client ranks (the peers made by start()). Any thread. */
     [[nodiscard]] std::size_t nPeers() const noexcept;
     /** @brief What the poll has done; empty before start(). Any thread. @return The counts */
     [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;

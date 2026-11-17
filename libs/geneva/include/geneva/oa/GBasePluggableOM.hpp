@@ -111,8 +111,6 @@ public:
 
     /**
      * @brief Allows to retrieve the value of the use_raw_evaluation_ variable.
-     *
-     * @return true if the true (unmodified) evaluation is requested, false otherwise
      */
     [[nodiscard]] bool getUseRawEvaluation() const;
 
@@ -136,8 +134,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object. This is needed for testing purposes.
-     *
-     * @return true if the object was modified, false otherwise
      */
     bool modify_GUnitTests_();
     /***************************************************************************/

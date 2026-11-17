@@ -220,7 +220,7 @@ std::tuple<double, double> GLineFitIndividual::getLine() const {
  * @brief The actual fitness calculation takes place here; computes the root of the summed squared
  * deviation between the fitted line (a + b*x) and the stored data points.
  *
- * @return The fitness of this object: sqrt of the summed squared deviations of line and data points
+ * @return The fitness as a one-element vector (single criterion)
  */
 std::vector<double> GLineFitIndividual::evaluate() {
     double result = 0.;

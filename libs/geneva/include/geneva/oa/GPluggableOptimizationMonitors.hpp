@@ -181,7 +181,6 @@ public:
     void setResultFileName(const std::string &result_file);
     /**
      * @brief Allows to retrieve the current value of the result file name
-     * @return The current name of the result file
      */
     [[nodiscard]] std::string getResultFileName() const;
 
@@ -191,17 +190,14 @@ public:
     void setDims(const std::uint32_t &x_dim, const std::uint32_t &y_dim);
     /**
      * @brief Retrieve the dimensions as a tuple
-     * @return A tuple holding the canvas dimensions in x- and y-direction
      */
     [[nodiscard]] std::tuple<std::uint32_t, std::uint32_t> getDims() const;
     /**
      * @brief Retrieves the dimension of the canvas in x-direction
-     * @return The canvas dimension in x-direction
      */
     [[nodiscard]] std::uint32_t getXDim() const;
     /**
      * @brief Retrieves the dimension of the canvas in y-direction
-     * @return The canvas dimension in y-direction
      */
     [[nodiscard]] std::uint32_t getYDim() const;
 
@@ -211,7 +207,6 @@ public:
     void setNMonitorIndividuals(const std::size_t &n_monitor_inds);
     /**
      * @brief Retrieves the number of individuals that are being monitored
-     * @return The number of individuals that are being monitored
      */
     [[nodiscard]] std::size_t getNMonitorIndividuals() const;
 

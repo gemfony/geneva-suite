@@ -105,7 +105,6 @@ public:
 
     /**
      * @brief The ROOT-macro file extension
-     * @return The string ".C"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -134,7 +133,6 @@ public:
 
     /**
      * @brief The gnuplot-script file extension
-     * @return The string ".gp"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -163,7 +161,6 @@ public:
 
     /**
      * @brief The matplotlib-script file extension
-     * @return The string ".py"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -194,7 +191,6 @@ public:
 
     /**
      * @brief The Octave / MATLAB script file extension
-     * @return The string ".m"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -233,13 +229,11 @@ public:
 
     /**
      * @brief The file extension for the selected format
-     * @return ".csv" in CSV mode, ".npz" in NPZ mode
      */
     [[nodiscard]] std::string fileExtension() const override;
 
     /**
      * @brief The export format this emitter was constructed with
-     * @return The current dataFormat (CSV or NPZ)
      */
     [[nodiscard]] dataFormat getDataFormat() const;
 

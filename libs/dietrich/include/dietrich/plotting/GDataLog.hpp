@@ -127,8 +127,6 @@ public:
      * @brief Realizes the log into a GPlotDesigner: builds each series' plotter from its
      * spec (makePlotter) and fills it (appendRow), attaching overlays as secondary
      * plotters of their primary. The result renders through any backend.
-     *
-     * @return A populated GPlotDesigner ready to emit / write
      */
     [[nodiscard]] GPlotDesigner toDesigner() const;
 
@@ -139,7 +137,6 @@ public:
 
     /**
      * @brief The number of declared series (primaries + overlays)
-     * @return The series count
      */
     [[nodiscard]] std::size_t nSeries() const;
 

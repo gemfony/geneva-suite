@@ -128,20 +128,17 @@ public:
     /**
      * @brief The OA-owned Gauss adaption config authoring every double group of this genome (used by the
      *  self-driven StandaloneAdapter benchmark / manual-test sites).
-     * @return A shared pointer to the Gauss adaption config describing every double group of this genome
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> getAdaptionConfig() const;
 
 protected:
     /**
      * @brief The evaluation hook: computes this individual's fitness.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether a modification was actually carried out
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

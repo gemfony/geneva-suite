@@ -98,45 +98,37 @@ public:
 
     /**
      * @brief Allows to retrieve the current state of the success counter.
-     * @return The number of tests that have met the expectation so far
      */
     [[nodiscard]] std::size_t getSuccessCounter() const;
     /**
      * @brief Allows to retrieve the current state of the test counter.
-     * @return The total number of tests performed so far
      */
     [[nodiscard]] std::size_t getTestCounter() const;
 
     /**
      * @brief Allows to check whether the expectation was met.
-     * @return true if all recorded tests met the expectation, false otherwise
      */
     [[nodiscard]] bool expectationMet() const;
     /**
      * @brief Conversion to a boolean indicating whether the expectation was met.
-     * @return true if all recorded tests met the expectation, false otherwise
      */
     operator bool() const; // NOLINT
 
     /**
      * @brief Allows to retrieve the expectation token.
-     * @return The expectation (EQUALITY / FP_SIMILARITY / INEQUALITY) this token enforces
      */
     [[nodiscard]] Gem::Common::expectation getExpectation() const;
     /**
      * @brief Allows to retrieve the expectation token as a string.
-     * @return A human-readable string representation of the enforced expectation
      */
     [[nodiscard]] std::string getExpectationStr() const;
     /**
      * @brief Allows to retrieve the name of the caller.
-     * @return The name of the calling class passed to the constructor
      */
     [[nodiscard]] std::string getCallerName() const;
 
     /**
      * @brief Allows to register an error message e.g. obtained from a failed check.
-     * @param error_message The error message to append to this token's collection
      */
     void registerErrorMessage(std::string const &m);
     /**
@@ -146,13 +138,11 @@ public:
 
     /**
      * @brief Allows to retrieve the currently registered error messages.
-     * @return A concatenation of all error messages recorded for failed checks
      */
     [[nodiscard]] std::string getErrorMessages() const;
 
     /**
      * @brief Conversion to a string indicating success or failure.
-     * @return A human-readable summary of this token's success / failure state
      */
     [[nodiscard]] std::string toString() const;
 

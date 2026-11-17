@@ -96,8 +96,6 @@ public:
 protected:
     /**
          * @brief Triggers execution of the client job.
-         *
-         * @return An integer return value (suitable for the main function) indicating the execution status.
          */
     int clientRun_() override;
 
@@ -109,8 +107,6 @@ protected:
 private:
     /**
          * @brief Starts a non-blocking MPI barrier over the base communicator.
-         *
-         * @return The MPI request handle that completes once all participating processes reach the barrier.
          */
     MPI_Request startAsyncBarrier() const;
     /**
