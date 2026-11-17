@@ -250,8 +250,9 @@ bool flushed(const boost::asio::any_io_executor &executor) {
 /******************************************************************************/
 /**
  * Rule 1: nothing is reported before start(), and onOpen comes before any message. Messages that
- * reach an end before it is started are kept, not lost. After close() onOpen is not delivered, nor
- * is any message that arrived before.
+ * reach an end before it is started are kept, not lost. After a close() made before the end opened
+ * (on its strand, for these transports) onOpen is not delivered, nor is any message that arrived
+ * before (rule 6).
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEMPLATE_TEST_CASE(

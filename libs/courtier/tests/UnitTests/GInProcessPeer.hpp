@@ -412,9 +412,9 @@ private:
     }
 
     /** @brief Runs on the strand after start(): the end is open. The pending wait that owns it
-     *  is armed, the role is told (unless it has closed meanwhile: after close() onOpen is not
-     *  delivered, as by the websocket peer), and what arrived before is delivered (also after
-     *  close(): this end's close has not gone out yet, GPeerI.hpp rule 6). */
+     *  is armed, the role is told (unless it has closed meanwhile: the end opens on its strand,
+     *  so a close() before onOpen is a close before the open, GPeerI.hpp rule 6), and what arrived
+     *  before is delivered (also after close(): this end's close has not gone out yet, rule 6). */
     void opened_() {
         state_ = state::OPEN;
         pending_.expires_at(boost::asio::steady_timer::time_point::max());
@@ -428,10 +428,10 @@ private:
             }
         }
         else {
-            // The role asked for the close before it was told of the open: it is told nothing,
-            // and what has arrived waits until this end's close has gone out (beginClose_()), as
-            // with the websocket peer: an acknowledgement now would prove what no role received
-            // (GPeerI.hpp, rule 6)
+            // The role asked for the close before the end opened (on its strand, so before it was
+            // told of the open): it is told nothing, and what has arrived waits until this end's
+            // close has gone out (beginClose_()): an acknowledgement now would prove what no role
+            // received (GPeerI.hpp, rule 6)
             return;
         }
         while(not early_.empty() && state_ != state::ENDED) {

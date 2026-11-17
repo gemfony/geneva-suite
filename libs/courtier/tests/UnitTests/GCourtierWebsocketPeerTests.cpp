@@ -503,30 +503,45 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// The other end sends D and closes. Whether that close is answered -- confirmed -- depends on
-// whether the role under test gets D (GPeerI.hpp, rule 6), and so on when the role asks for its
-// own close:
-//  - before its end has opened (during the handshake): the role is told nothing, and the end reads
-//    nothing before its own close has gone out, so the two closes cross;
-//  - after its end has opened (the handshake has completed) but before the role has been told of
-//    the open (its handler strand, on a context of its own, does not run yet): the end reads from
-//    the open on, so it answers the other end's close, and the role is told of the open and of D.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+// The other end sends D. Whether a close is confirmed depends on whether the role under test gets
+// D (GPeerI.hpp, rule 6), and so on when the role asks for its own close. Its handler strand, on a
+// context of its own, does not run until the closes are over:
+//  - DURING_HANDSHAKE: the role closes before its end has opened; the other end sends D and
+//    closes. The role is told nothing, and the end reads nothing before its own close has gone
+//    out, so the two closes cross (both unconfirmed).
+//  - AFTER_THEIR_CLOSE: the end has opened; the other end sends D and closes, and the end, which
+//    reads from the open on, answers that close before the role has been told of anything. The
+//    role is then told of the open and of D, and the connection was closed there.
+//  - LIVE: the end has opened and has read D; the role closes on the live connection before it
+//    has been told of the open, and the other end answers that close. The close is confirmed, so
+//    the role must be told of the open and of D (a client that sees the close confirmed forgets
+//    what it sent before it).
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
     "GWebsocketPeer answers a close only for a role that is told what arrived before it",
     "[courtier][websocket][peer]"
 ) {
     using namespace std::chrono_literals;
-    const bool close_before_open = GENERATE(true, false);
+    enum class Moment : std::uint8_t {
+        DURING_HANDSHAKE,
+        AFTER_THEIR_CLOSE,
+        LIVE
+    };
+    const Moment moment =
+        GENERATE(Moment::DURING_HANDSHAKE, Moment::AFTER_THEIR_CLOSE, Moment::LIVE);
     INFO(
-        (close_before_open ? "the role closes during the handshake"
-                           : "the role closes after the open, before it is told of it")
+        (moment == Moment::DURING_HANDSHAKE
+             ? "the role closes during the handshake"
+             : (moment == Moment::AFTER_THEIR_CLOSE
+                    ? "the other end's close is answered before the role is told of the open"
+                    : "the role closes a live connection before it is told of the open"))
     );
     boost::asio::io_context ctx;     // the socket's executor
     boost::asio::io_context handler; // the handler strand's context: held until the role closes
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     GSeen server_seen;
     std::atomic<bool> shaken{false};
+    std::atomic<bool> written{false}; // D has been written
     const auto go = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     std::promise<std::uint16_t> their_view;
     boost::asio::io_context own;
@@ -538,7 +553,22 @@ TEST_CASE(
             shaken.store(true);
             sent->wait_for(10s);
             ws.write(boost::asio::buffer(std::string("D")));
-            ws.close(boost::beast::websocket::close_code::internal_error);
+            written.store(true);
+            if(moment == Moment::LIVE) {
+                // Waits for the server's close; Beast answers it, and the read ends with closed
+                boost::beast::flat_buffer buffer;
+                try {
+                    ws.read(buffer);
+                }
+                catch(const boost::system::system_error &e) {
+                    if(e.code() != boost::beast::websocket::error::closed) {
+                        throw;
+                    }
+                }
+            }
+            else {
+                ws.close(boost::beast::websocket::close_code::internal_error);
+            }
             their_view.set_value(ws.reason().code);
         }
         catch(...) {
@@ -552,7 +582,7 @@ TEST_CASE(
         handler.get_executor()
     );
     startRecording(server, server_seen);
-    if(close_before_open) {
+    if(moment == Moment::DURING_HANDSHAKE) {
         server->close(GPeerClose::NORMAL); // ordered after start()'s work, before the handshake
     }
     // Runs a context for a moment, also one that had run out of work before
@@ -567,13 +597,26 @@ TEST_CASE(
         run(ctx); // the handshake; the role is not told (its strand does not run)
     }
     REQUIRE(shaken.load());
-    go->count_down(); // D and the other end's close are on their way
+    go->count_down(); // D (and, but in LIVE, the other end's close) are on their way
     auto view = their_view.get_future();
+    if(moment == Moment::LIVE) {
+        while(not written.load() && std::chrono::steady_clock::now() < deadline) {
+            run(ctx);
+        }
+        // D is in the socket's buffer once it has been written (loopback): the end reads it now
+        const auto reading = std::chrono::steady_clock::now() + 300ms;
+        while(std::chrono::steady_clock::now() < reading) {
+            run(ctx);
+        }
+        server->close(GPeerClose::NORMAL); // live: the role closes before it was told of the open
+    }
     while(view.wait_for(0s) != std::future_status::ready &&
           std::chrono::steady_clock::now() < deadline) {
         run(ctx); // the close handshake, with the role's strand still held
     }
-    server->close(GPeerClose::NORMAL); // after the open: the role closes before it was told of it
+    if(moment == Moment::AFTER_THEIR_CLOSE) {
+        server->close(GPeerClose::NORMAL); // the connection has ended: this close changes nothing
+    }
     server.reset();
     while((server_seen.nClosed != 1 || view.wait_for(0s) != std::future_status::ready) &&
           std::chrono::steady_clock::now() < deadline) {
@@ -587,13 +630,20 @@ TEST_CASE(
     }
     REQUIRE(done);
     CHECK(server_seen.nClosed == 1);
-    if(close_before_open) {
+    if(moment == Moment::DURING_HANDSHAKE) {
         // Not answered: the other end read this end's own close (the server's code), and the role
         // heard nothing of D
         CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
         CHECK(server_seen.nOpen == 0);
         CHECK(server_seen.messages.empty());
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    }
+    else if(moment == Moment::LIVE) {
+        // Answered (the other end echoed the server's code): confirmed, and the role was handed D
+        CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+        CHECK(server_seen.nOpen == 1);
+        CHECK(server_seen.messages == std::vector<std::string>{"D"});
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
     }
     else {
         // Answered (the other end's own code came back), and the role was handed D
