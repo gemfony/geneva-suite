@@ -46,7 +46,7 @@
 #include <vector>
 #include <span>
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"

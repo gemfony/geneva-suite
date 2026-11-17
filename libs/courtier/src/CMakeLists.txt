@@ -30,7 +30,6 @@
 SET(COMMUNICATIONSOURCES
         GCourtierHelperFunctions.cpp
         GCourtierEnums.cpp
-        GDemoProcessingContainers.cpp
         GMPIPeerTransport.cpp
         GMPIPollCore.cpp
         GWebsocketPeer.cpp

@@ -59,7 +59,7 @@
 #include "GInProcessTestSupport.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp"

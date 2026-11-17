@@ -28,6 +28,7 @@
 ################################################################################
 
 SET(LIBRARIES_TO_LINK
+		courtier-test-support
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain)
@@ -116,7 +117,7 @@ geneva_courtier_test(GTcpRelayTests            S  GTcpRelayTests.cpp GTcpRelay.h
 # server runs in a process of its own (the helper below), because a server tells the items of
 # another process from its own by a salt drawn once per process
 ADD_EXECUTABLE(GCourtierHelperServer GCourtierHelperServer.cpp)
-TARGET_LINK_LIBRARIES(GCourtierHelperServer ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(GCourtierHelperServer courtier-test-support ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
 geneva_courtier_test(GCourtierForeignResultTests M GCourtierForeignResultTests.cpp GTcpRelay.hpp)
 TARGET_COMPILE_DEFINITIONS(GCourtierForeignResultTests
 	PRIVATE GCOURTIER_HELPER_SERVER="$<TARGET_FILE:GCourtierHelperServer>")
@@ -280,7 +281,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# ../CMakeLists.txt) -- and exports its symbols, so that its watch of MPI calls
 	# (GMPICallWatch.cpp) also sees the calls made inside courtier's MPI library.
 	ADD_EXECUTABLE(GCourtierMpiCascadeTest GCourtierMpiCascadeTest.cpp GMPICallWatch.cpp GMPICallWatch.hpp)
-	TARGET_LINK_LIBRARIES(GCourtierMpiCascadeTest ${COURTIER_MPI_LIBNAME} ${Boost_LIBRARIES} MPI::MPI_CXX)
+	TARGET_LINK_LIBRARIES(GCourtierMpiCascadeTest courtier-test-support ${COURTIER_MPI_LIBNAME} ${Boost_LIBRARIES}
+		MPI::MPI_CXX)
 	SET_TARGET_PROPERTIES(GCourtierMpiCascadeTest PROPERTIES ENABLE_EXPORTS TRUE)
 	INSTALL(TARGETS GCourtierMpiCascadeTest
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)

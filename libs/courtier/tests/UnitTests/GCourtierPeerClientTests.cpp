@@ -68,7 +68,7 @@
 #include "GInProcessTestSupport.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"

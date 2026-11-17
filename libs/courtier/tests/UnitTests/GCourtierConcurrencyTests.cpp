@@ -60,7 +60,7 @@
 #include <utility>
 #include <vector>
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"

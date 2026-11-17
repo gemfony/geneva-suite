@@ -35,7 +35,6 @@ SET ( COMMUNICATIONINCLUDES
     GConsumerSpec.hpp
     GCourtierEnums.hpp
     GCourtierHelperFunctions.hpp
-    GDemoProcessingContainers.hpp
     GProcessable.hpp
     GProcessingContainerT.hpp
     GProcessingOutcome.hpp

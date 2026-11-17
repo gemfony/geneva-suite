@@ -40,7 +40,7 @@
 #include <thread>
 #include <vector>
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 

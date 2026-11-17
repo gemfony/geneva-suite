@@ -49,7 +49,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"

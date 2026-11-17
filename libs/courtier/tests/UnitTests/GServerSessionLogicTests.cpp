@@ -38,7 +38,7 @@
 #include "common/GCommonEnums.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GServerSessionLogic.hpp"
 #include "courtier/GWireCodec.hpp"
 

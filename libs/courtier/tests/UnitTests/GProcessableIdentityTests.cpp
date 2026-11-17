@@ -32,7 +32,7 @@
 #include <sstream>
 
 
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "weft/GBinaryArchive.hpp" // Gem::Weft::GBinary[IO]Archive
 
 using namespace Gem::Courtier;

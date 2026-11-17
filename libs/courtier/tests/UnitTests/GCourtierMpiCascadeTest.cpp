@@ -72,7 +72,7 @@
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"

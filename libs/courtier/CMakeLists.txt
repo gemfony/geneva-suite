@@ -37,12 +37,15 @@
 #   courtier/src/mpi/, include/courtier/mpi/
 #                                          the gemfony-courtier-mpi target, built
 #                                          only under GENEVA_BUILD_WITH_MPI_CONSUMER
-#   courtier/tests/                        UnitTests
+#   courtier/tests/                        UnitTests, ManualTests
+#   courtier/tests/support/                the work items of the tests and the
+#                                          docprograms (courtier-test-support, a
+#                                          static library, not installed)
 #   courtier/examples/                     stub (no examples yet, the aggregate
 #                                          target lives here for symmetry)
 #   courtier/docprograms/                  compiled listings for the manual,
 #                                          each registered as an S-size test
-#   courtier/benchmarks/                   GBufferPortTTest, GConsumerPerformance
+#   courtier/benchmarks/                   stub (no benchmarks at the moment)
 #
 # Tests / examples / benchmarks gated on the top-level options. The
 # "courtier-all" aggregate is picked up by gemfony-build-all at top level.

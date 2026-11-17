@@ -27,6 +27,8 @@
 #
 ################################################################################
 
+# The work items of the tests, the manual tests and the documentation program (not part of the library)
+ADD_SUBDIRECTORY ( support )
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 

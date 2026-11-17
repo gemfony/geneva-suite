@@ -35,7 +35,7 @@
 #include "common/GCommonEnums.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GDemoProcessingContainers.hpp"
+#include "GDemoProcessingContainers.hpp"
 
 using namespace Gem::Courtier;
 

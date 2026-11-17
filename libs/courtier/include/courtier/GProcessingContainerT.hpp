@@ -77,11 +77,12 @@ namespace Gem::Courtier {
 	 *
 	 * This base is deliberately free of any dependency on the geneva optimization library, which keeps the
 	 * courtier consumer/transport machinery testable on its own (courtier sits BELOW geneva in the library
-	 * order): the geneva-free demo work items in GDemoProcessingContainers derive this and are what the
-	 * courtier unit tests submit. Geneva's own work item, Gem::Geneva::Genome::GGenome, is a
-	 * SPECIALIZED, standalone second implementation of the same contract -- it derives GProcessable directly
-	 * and provides its own result store + process() (folding in optimization-specific orchestration:
-	 * feasibility, the evaluation policy, multi-criterion fitness), so it does NOT derive this class.
+	 * order): the work items of courtier's test support (libs/courtier/tests/support:
+	 * GDemoProcessingContainers) derive this and are what courtier's tests submit. Geneva's own work
+	 * item, Gem::Geneva::Genome::GGenome, is a SPECIALIZED, standalone second implementation of the
+	 * same contract -- it derives GProcessable directly and provides its own result store + process()
+	 * (folding in optimization-specific orchestration: feasibility, the evaluation policy,
+	 * multi-criterion fitness), so it does NOT derive this class.
 	 *
 	 * @tparam processable_type The concrete type deriving GProcessingContainerT (CRTP)
 	 * @tparam processing_result_type The result type of the process_ call; should be copyable
