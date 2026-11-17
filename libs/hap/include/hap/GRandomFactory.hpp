@@ -349,8 +349,6 @@ public:
      * has finished its start, as the first getNewRandomContainer() does: without a time limit, with a
      * warning while it waits. If only some of the added threads can be created, those run and are
      * counted; if none can, the call throws and the count stays as it was.
-     *
-     * @param n_producer_threads The desired number of threads producing random number packages
      */
     //! [hap-factory-tuning#1]
     void setNProducerThreads(const std::uint16_t &n_producer_threads);
@@ -417,8 +415,6 @@ public:
      *
      * Returns a (possibly partially consumed) container to the factory so its
      * used entries can be refilled and the container reused.
-     *
-     * @param p A unique_ptr (moved-from) to the container being returned for recycling
      */
     void returnUsedPackage(std::unique_ptr<random_container> &&p);
 
@@ -459,23 +455,16 @@ private:
 
     /**
      * @brief Starts producer threads.
-     *
-     * @param n_new The number of producer threads to start
-     * @return The state of this start
      */
     std::shared_ptr<GProducerStart> startProducers(std::uint16_t n_new);
 
     /**
      * @brief Makes the producers' reservation in the thread budget fit the producers that run.
-     *
-     * @param n_running The number of producer threads that run
      */
     void accountProducers(std::uint16_t n_running);
 
     /**
      * @brief Returns when each producer of a start has finished its start; warns while it waits.
-     *
-     * @param start The state of the start
      */
     void awaitStart(GProducerStart &start);
 
@@ -484,9 +473,6 @@ private:
      *
      * Runs in a dedicated producer thread, continuously filling fresh containers
      * (and refilling recycled ones) until a stop is requested.
-     *
-     * @param seed The seed used to initialize this producer thread's engine
-     * @param start The state of the start this producer belongs to
      */
     void producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start);
 
@@ -597,10 +583,6 @@ enum class GpuSourceStartStage {
  * @p n_pass sources that reach the stage after it was held pass without waiting. Call it from one
  * thread only, and release every stage it held before the process ends. Only available in builds with
  * GEM_TESTING; otherwise it reports that the hook is unavailable.
- *
- * @param stage The stage to hold or to release
- * @param hold Whether starting sources should wait at that stage
- * @param n_pass How many sources may pass the held stage before the others wait
  */
 void holdGpuRandomSourceStartsForTests(
     GpuSourceStartStage stage,
@@ -615,9 +597,6 @@ void holdGpuRandomSourceStartsForTests(
  * The exception is a std::runtime_error; the producer whose source throws ends, as on any other
  * exception. START_FINISHED cannot be made to throw. Only available in builds with GEM_TESTING;
  * otherwise it reports that the hook is unavailable.
- *
- * @param stage The stage at which starting sources throw
- * @param fail Whether they throw there
  */
 void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
 
@@ -626,9 +605,6 @@ void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
  * began, including those held there (test hook).
  *
  * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
- *
- * @param stage The stage asked about
- * @return The number of sources that have reached the stage
  */
 [[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
 
