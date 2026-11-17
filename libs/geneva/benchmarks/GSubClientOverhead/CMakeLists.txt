@@ -94,21 +94,25 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 	# The websocket check again, with both client jobs on one Open MPI job id: they must not share
 	# Open MPI's shared memory, whose files are named after the job id (runWithClients.sh gives
 	# every job a directory of its own for them). The check places the launchers on pids whose
-	# job ids collide, by Open MPI's rule; so it is registered where the launcher is Open MPI's.
+	# job ids collide, by Open MPI's rule; so it is registered where the launcher is Open MPI's and
+	# the pids can be read from /proc. While the second launcher is placed, up to 16 racers run
+	# beside the 7 processes of the run: 23 processors. On a host whose pid_max is too small for the
+	# placement the check ends with 77 and is skipped (testSpeedupTools.py says why).
 	EXECUTE_PROCESS(COMMAND ${MPIEXEC_EXECUTABLE} --version
 		OUTPUT_VARIABLE LAUNCHER_VERSION ERROR_QUIET TIMEOUT 30)
-	IF (LAUNCHER_VERSION MATCHES "Open MPI")
+	IF (LAUNCHER_VERSION MATCHES "Open MPI" AND EXISTS /proc/sys/kernel/ns_last_pid)
 		GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME}SameJobId TIMEOUT 300
 			COMMAND ${SPEEDUP_TOOLS} samejobid $<TARGET_FILE:${EXECUTABLENAME}>
 				${CMAKE_CURRENT_BINARY_DIR}/check-same-job-id
 				${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
 		SET_TESTS_PROPERTIES(${EXECUTABLENAME}SameJobId PROPERTIES
-			LABELS "benchmark" PROCESSORS 7
+			LABELS "benchmark" PROCESSORS 23 SKIP_RETURN_CODE 77
 			FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
 		GENEVA_TEST_SIZE(${EXECUTABLENAME}SameJobId M)
 	ELSE ()
 		MESSAGE(STATUS
-			"${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's")
+			"${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's, or "
+			"there is no /proc/sys/kernel/ns_last_pid")
 	ENDIF ()
 
 	# runWithClients.sh, ended from outside while it measures (SIGINT, as Ctrl-C), ends the server,

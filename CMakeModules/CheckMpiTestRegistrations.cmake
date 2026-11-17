@@ -35,6 +35,10 @@
 # plus the margin the runner needs to end the command and remove the directory. The entries are
 # read from "ctest --show-only=json-v1".
 #
+# The check sees the launcher where an entry's command names it. A driver that found it at run
+# time (from PATH) would not be seen; the drivers of the tree are therefore given the launcher
+# (the speed-up checks refuse to run without MPIRUN, CheckJobEnds.cmake takes the whole command).
+#
 # Inputs (via -D): CTEST (the ctest program), BUILD_DIR (the build tree), MPIEXEC (the launcher),
 # RUNNER (GenevaRunMpiTest.sh), MARGIN (GENEVA_MPI_TEST_MARGIN of GenevaMpiTest.cmake).
 #
