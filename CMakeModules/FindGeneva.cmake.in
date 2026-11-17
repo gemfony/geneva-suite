@@ -361,12 +361,15 @@ IF (GENEVA_FOUND)
 		)
 	ENDIF ()
 
+	# The definition that picks the source of Gem::Hap::GRandom, as the libraries were compiled
+	# (generated; none for the default source)
 	IF (NOT TARGET Geneva::hap)
 		ADD_LIBRARY (Geneva::hap UNKNOWN IMPORTED)
 		SET_TARGET_PROPERTIES (Geneva::hap PROPERTIES
 			IMPORTED_LOCATION "${GENEVA_HAP_LIBRARY}"
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
 			INTERFACE_LINK_LIBRARIES "Geneva::common"
+			INTERFACE_COMPILE_DEFINITIONS "@GENEVA_HAP_PUBLIC_DEFINE@"
 		)
 	ENDIF ()
 

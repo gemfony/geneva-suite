@@ -91,11 +91,19 @@ set_property(CACHE GENEVA_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 #   staged     -> chunks from a shared, bulk-filled staging pool into a per-proxy double buffer
 #   quarantine -> read in place from N rotating, bulk-filled pools (benign-race, aligned-64-bit)
 # Every other source remains usable explicitly via GRandomT<randomSource::...>; this only
-# picks what the GRandom alias maps to. Consumed in libs/hap/src/CMakeLists.txt.
+# picks what the GRandom alias maps to.
 set(HAP_RANDOM_SOURCE "queue" CACHE STRING "Source for the default Gem::Hap::GRandom proxy: queue|local|staged|quarantine")
 set_property(CACHE HAP_RANDOM_SOURCE PROPERTY STRINGS queue local staged quarantine)
 if(NOT HAP_RANDOM_SOURCE MATCHES "^(queue|local|staged|quarantine)$")
 	message(FATAL_ERROR "HAP_RANDOM_SOURCE must be one of queue|local|staged|quarantine (got '${HAP_RANDOM_SOURCE}').")
+endif()
+# The compile definition that makes <hap/GRandomT.hpp> pick the source; none for queue, the header's
+# default. Every consumer of hap must see the same one (else GRandom differs between the library
+# and the program): hap's PUBLIC compile definition (libs/hap/src/CMakeLists.txt), and the one of
+# Geneva::hap in the installed FindGeneva.cmake (CMakeModules/CMakeLists.txt).
+set(GENEVA_HAP_PUBLIC_DEFINE "")
+if(NOT HAP_RANDOM_SOURCE STREQUAL "queue")
+	string(TOUPPER "HAP_DEFAULT_SOURCE_${HAP_RANDOM_SOURCE}=1" GENEVA_HAP_PUBLIC_DEFINE)
 endif()
 
 # Set ON to instrument the Common library and its tests with coverage flags
@@ -744,6 +752,7 @@ IF (GENEVA_BUILD_TESTS)
 				-DCATCH2_DIR=${Catch2_DIR}
 				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
 				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
+				-DHAP_DEFINE=${GENEVA_HAP_PUBLIC_DEFINE}
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)

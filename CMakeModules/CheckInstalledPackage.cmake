@@ -58,8 +58,9 @@
 #     same Boost version and components;
 #  6. both the config package and FindGeneva.cmake say whether the installation has
 #     the MPI consumer (GENEVA_MPI) and the GPU consumer (GENEVA_GPU), as the build
-#     was configured, and both keep the layers: Geneva::courtier does not link
-#     Geneva::hap, Geneva::geneva does.
+#     was configured, both give Geneva::hap the compile definition the libraries
+#     were compiled with (the source of Gem::Hap::GRandom), and both keep the
+#     layers: Geneva::courtier does not link Geneva::hap, Geneva::geneva does.
 # Configuring a project against the installation (steps 3, 5, 6) prints no CMake
 # warning.
 #
@@ -84,6 +85,7 @@
 #   CATCH2_DIR       Catch2's CMake package directory (a testing-enabled install needs it)
 #   WITH_MPI         ON if the build has the MPI consumer
 #   WITH_GPU         TRUE if the build has the GPU consumer
+#   HAP_DEFINE       hap's public compile definition (empty for the default source)
 #   JOBS             parallel build jobs for each probe
 # and, set by this script for a lane only: LANE, ROOT, GENERATOR.
 #
@@ -343,6 +345,12 @@ FUNCTION(gip_lane_flags _mode)
 		"  message(FATAL_ERROR \"${_mode}: GENEVA_MPI=\${_mpi} GENEVA_GPU=\${_gpu}, the build has "
 		"MPI=${_want_mpi} GPU=${_want_gpu}\")\n"
 		"endif()\n"
+		"get_target_property(_hap_defines Geneva::hap INTERFACE_COMPILE_DEFINITIONS)\n"
+		"if(NOT _hap_defines)\n  set(_hap_defines \"\")\nendif()\n"
+		"if(NOT \"\${_hap_defines}\" STREQUAL \"${HAP_DEFINE}\")\n"
+		"  message(SEND_ERROR \"${_mode}: Geneva::hap has the compile definitions "
+		"'\${_hap_defines}', the libraries were compiled with '${HAP_DEFINE}'\")\n"
+		"endif()\n"
 		"get_target_property(_courtier_links Geneva::courtier INTERFACE_LINK_LIBRARIES)\n"
 		"get_target_property(_geneva_links Geneva::geneva INTERFACE_LINK_LIBRARIES)\n"
 		"if(\"\${_courtier_links}\" MATCHES \"Geneva::hap\")\n"
@@ -424,7 +432,7 @@ ELSE()
 ENDIF()
 SET(_lane_args "")
 FOREACH(_var BUILD_DIR SOURCE_DIR CXX_COMPILER CXX_LAUNCHER BUILD_TYPE BOOST_DIR CATCH2_DIR
-		WITH_MPI WITH_GPU JOBS ROOT)
+		WITH_MPI WITH_GPU HAP_DEFINE JOBS ROOT)
 	STRING(APPEND _lane_args " '-D${_var}=${${_var}}'")
 ENDFOREACH()
 STRING(APPEND _lane_args " '-DGENERATOR=${_generator}' -P '${CMAKE_CURRENT_LIST_FILE}'")
