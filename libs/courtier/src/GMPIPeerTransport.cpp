@@ -580,8 +580,8 @@ GMPIListener::~GMPIListener() {
 /******************************************************************************/
 /**
  * Makes the poll and a peer for every other rank, starts the poll's thread, greets every client
- * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell:
- * on_peer is posted, once per rank, to the poll's thread, with the rank as the client's id.
+ * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell
+ * (handOver_()), with the rank as the client's id.
  * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer: one
  * that fails after the poll was set up ends the work as endWork() does, so every client rank is
  * told that the run has ended (its client would wait for ever otherwise), and the shell, which

@@ -516,6 +516,41 @@ TEST_CASE("MPI transport: the end of the listener's work tells the clients", "[c
 
 /******************************************************************************/
 /**
+ * A stop whose bound is hit, then the end of the listener's work: the calls of on_peer not yet
+ * made are dropped (the shell's threads have gone), and every client rank is still told that the
+ * run has ended. Rank 1's on_peer is held past the stop's bound and past the start of endWork(),
+ * so rank 2's call is the one that must not be made.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: the end of the listener's work after a stop whose bound was hit",
+    "[courtier][mpi]"
+) {
+    // Longer than the stop's bound of one second, with a second's margin for endWork() to stop
+    // the poll's context while rank 1's call still runs
+    constexpr auto ON_PEER_HOLD = 2s;
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    Master master(world);
+    Client client_one(world, 1);
+    Client client_two(world, 2);
+    master.start([&](Role &, GWirePeerId rank) {
+        if(rank == 1) {
+            std::this_thread::sleep_for(ON_PEER_HOLD);
+        }
+    });
+    master.listener().stop(); // the bound is hit: rank 1's call has not returned
+    master.pool().join();
+    master.listener().endWork(); // joins the poll's thread once rank 1's call has returned
+    CHECK(master.ranks() == std::set<GWirePeerId>{1});
+    REQUIRE(eventually([&] {
+        return client_one.role().nClosed() == 1 && client_two.role().nClosed() == 1;
+    }));
+    CHECK(client_one.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+    CHECK(client_two.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+}
+
+/******************************************************************************/
+/**
  * A rank whose session cannot be made (an exception in on_peer) is closed with an error at once,
  * also before its end was started; the other ranks are served.
  */
