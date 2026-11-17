@@ -541,7 +541,7 @@ TEST_CASE(
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     GSeen server_seen;
     std::atomic<bool> shaken{false};
-    std::atomic<bool> written{false}; // D has been written
+    std::atomic<bool> ponged{false}; // LIVE: the end has answered a ping sent after D
     const auto go = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     std::promise<std::uint16_t> their_view;
     boost::asio::io_context own;
@@ -553,9 +553,20 @@ TEST_CASE(
             shaken.store(true);
             sent->wait_for(10s);
             ws.write(boost::asio::buffer(std::string("D")));
-            written.store(true);
             if(moment == Moment::LIVE) {
-                // Waits for the server's close; Beast answers it, and the read ends with closed
+                // The end answers the ping only once it has read D, which precedes the ping on the
+                // wire: the pong proves that D has been read
+                ws.control_callback([&ponged](
+                                        boost::beast::websocket::frame_type kind,
+                                        [[maybe_unused]] boost::beast::string_view payload
+                                    ) {
+                    if(kind == boost::beast::websocket::frame_type::pong) {
+                        ponged.store(true);
+                    }
+                });
+                ws.ping({});
+                // Waits for the server's close (the pong arrives on the way); Beast answers the
+                // close, and the read ends with closed
                 boost::beast::flat_buffer buffer;
                 try {
                     ws.read(buffer);
@@ -597,17 +608,13 @@ TEST_CASE(
         run(ctx); // the handshake; the role is not told (its strand does not run)
     }
     REQUIRE(shaken.load());
-    go->count_down(); // D (and, but in LIVE, the other end's close) are on their way
+    go->count_down(); // D, then (LIVE) a ping or (else) the other end's close are on their way
     auto view = their_view.get_future();
     if(moment == Moment::LIVE) {
-        while(not written.load() && std::chrono::steady_clock::now() < deadline) {
-            run(ctx);
+        while(not ponged.load() && std::chrono::steady_clock::now() < deadline) {
+            run(ctx); // the end reads D and answers the ping
         }
-        // D is in the socket's buffer once it has been written (loopback): the end reads it now
-        const auto reading = std::chrono::steady_clock::now() + 300ms;
-        while(std::chrono::steady_clock::now() < reading) {
-            run(ctx);
-        }
+        CHECK(ponged.load()); // not REQUIRE: the other end still waits for the close below
         server->close(GPeerClose::NORMAL); // live: the role closes before it was told of the open
     }
     while(view.wait_for(0s) != std::future_status::ready &&
