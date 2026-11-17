@@ -1224,7 +1224,8 @@ GPlotSpec GGraph4D::plotSpec() const {
  * @return An empty string, as this 4D graph emits no header code
  * @param is_secondary Whether this is a secondary plot drawn into an existing pad
  * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
- * @param indention The indention string prepended to each emitted line
+ * @param own_id This plotter's own emit index
+ * @param indent The indentation string prepended to each emitted line
  */
 std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     EmitStream const header_data; // NOLINT(cppcoreguidelines-init-variables)
@@ -1243,7 +1244,8 @@ std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_un
  * @return An empty string, as this 4D graph emits no body data
  * @param is_secondary Whether this is a secondary plot drawn into an existing pad
  * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
- * @param indention The indention string prepended to each emitted line
+ * @param own_id This plotter's own emit index
+ * @param indent The indentation string prepended to each emitted line
  */
 std::string GGraph4D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     EmitStream const body_data; // NOLINT(cppcoreguidelines-init-variables)
@@ -1547,13 +1549,15 @@ std::string GFunctionPlotter1D::headerData_(
 
 /******************************************************************************/
 /**
- * Retrieves the actual data sets. The three positional parameters (is_secondary flag,
- * parent id and indentation string) are unused, as a function plotter contributes no data points.
+ * Retrieves the actual data sets. The four positional parameters (is_secondary flag,
+ * parent id, own id and indentation string) are unused, as a function plotter contributes no
+ * data points.
  *
  * @return The code to be added to the plot's data section for this function (always empty)
  * @param is_secondary Whether this is a secondary plot drawn into an existing pad
  * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
- * @param indention The indention string prepended to each emitted line
+ * @param own_id This plotter's own emit index
+ * @param indent The indentation string prepended to each emitted line
  */
 std::string GFunctionPlotter1D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     // No data needs to be added for a function plotter
@@ -1757,13 +1761,15 @@ std::string GFunctionPlotter2D::headerData_(
 
 /******************************************************************************/
 /**
- * Retrieves the actual data sets. The three positional parameters (is_secondary flag,
- * parent id and indentation string) are unused, as a function plotter contributes no data points.
+ * Retrieves the actual data sets. The four positional parameters (is_secondary flag,
+ * parent id, own id and indentation string) are unused, as a function plotter contributes no
+ * data points.
  *
  * @return The code to be added to the plot's data section for this function (always empty)
  * @param is_secondary Whether this is a secondary plot drawn into an existing pad
  * @param parent_id The id of the parent plotter (only meaningful for a secondary plot)
- * @param indention The indention string prepended to each emitted line
+ * @param own_id This plotter's own emit index
+ * @param indent The indentation string prepended to each emitted line
  */
 std::string GFunctionPlotter2D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
     // No data needs to be added for a function plotter

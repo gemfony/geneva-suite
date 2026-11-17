@@ -515,12 +515,12 @@ protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
 	 */
-    [[nodiscard]] std::string headerData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
@@ -530,7 +530,7 @@ protected:
     /**
 	 * @brief Retrieve the current drawing arguments
 	 */
-    [[nodiscard]] std::string drawingArguments(bool isSecondary) const override;
+    [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
@@ -629,7 +629,7 @@ protected:
     /**
 	 * @brief Retrieves the actual data sets
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
@@ -746,7 +746,7 @@ protected:
     /**
 	 * @brief Retrieves the actual data sets
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
