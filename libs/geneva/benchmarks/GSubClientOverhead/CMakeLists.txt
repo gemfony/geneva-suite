@@ -62,7 +62,7 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks
 # be done once, in a group of three, every process must end by itself, and both clients must use
 # the prefetch depth passed on the command line (testSpeedupTools.py beside
 # GParallelisationOverhead). The websocket run measures the serial reference the MPI run then
-# uses. A third check starts jobs that do not form whole groups, in both layouts: they must be
+# uses. Another check starts jobs that do not form whole groups, in both layouts: they must be
 # refused at once. Python 3 and the MPI launcher are dependencies of the tests only.
 FIND_PACKAGE(Python3 COMPONENTS Interpreter QUIET)
 IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
@@ -85,6 +85,24 @@ IF (Python3_Interpreter_FOUND AND MPIEXEC_EXECUTABLE)
 		LABELS "benchmark" TIMEOUT 300 PROCESSORS 7
 		FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
 	GENEVA_TEST_SIZE(${EXECUTABLENAME}MPI M)
+
+	# The websocket check again, with both client jobs on one Open MPI job id: they must not share
+	# Open MPI's shared memory, whose files are named after the job id (runWithClients.sh gives
+	# every job a directory of its own for them). The check places the launchers on pids whose
+	# job ids collide, by Open MPI's rule; so it is registered where the launcher is Open MPI's.
+	EXECUTE_PROCESS(COMMAND ${MPIEXEC_EXECUTABLE} --version
+		OUTPUT_VARIABLE LAUNCHER_VERSION ERROR_QUIET TIMEOUT 30)
+	IF (LAUNCHER_VERSION MATCHES "Open MPI")
+		ADD_TEST(NAME ${EXECUTABLENAME}SameJobId
+			COMMAND ${SPEEDUP_TOOLS} samejobid $<TARGET_FILE:${EXECUTABLENAME}>
+				${CMAKE_CURRENT_BINARY_DIR}/check-same-job-id ${CMAKE_CURRENT_BINARY_DIR}/check-websocket)
+		SET_TESTS_PROPERTIES(${EXECUTABLENAME}SameJobId PROPERTIES
+			LABELS "benchmark" TIMEOUT 300 PROCESSORS 7
+			FIXTURES_REQUIRED ${EXECUTABLENAME}Reference)
+		GENEVA_TEST_SIZE(${EXECUTABLENAME}SameJobId M)
+	ELSE ()
+		MESSAGE(STATUS "${EXECUTABLENAME}SameJobId not registered: the MPI launcher is not Open MPI's")
+	ENDIF ()
 
 	ADD_TEST(NAME ${EXECUTABLENAME}Groups
 		COMMAND ${SPEEDUP_TOOLS} groups $<TARGET_FILE:${EXECUTABLENAME}>

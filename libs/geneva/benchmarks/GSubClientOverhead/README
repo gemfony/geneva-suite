@@ -43,6 +43,14 @@ iterations.
 A group of one is started without --group and without a cascade: with mpi one
 mpirun of 1 + C processes, with websockets every client without mpirun.
 
+With websockets and groups, many independent MPI jobs run on one host. Open MPI
+5 names the files of its shared-memory transport after a job id that it derives
+from a 16-bit hash, so two such jobs can get the same files; they then use each
+other's memory and crash or hang. Start every job with a directory of its own
+for these files:
+  OMPI_MCA_btl_sm_backing_directory=$(mktemp -d /dev/shm/job.XXXXXX) mpirun ...
+and remove the directory when the job has ended (runWithClients.sh does both).
+
 As there, --waitForClients C makes the server wait for its C clients before its
 first run, with either consumer. runWithClients.sh beside
 GParallelisationOverhead starts both modes (GROUP=n in its environment), and

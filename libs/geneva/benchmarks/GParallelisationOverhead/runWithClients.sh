@@ -93,6 +93,14 @@
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients of
 # this run goes to clients.log.
+#
+# Every MPI job the script starts keeps the files of Open MPI's shared-memory
+# transport in a directory of its own (OMPI_MCA_btl_sm_backing_directory; other
+# MPI libraries ignore it), below /dev/shm, removed when the script ends. Open MPI
+# 5 names these files after the job's id, which it derives from a 16-bit hash, so
+# two independent jobs on one host can get the same names; they then use each
+# other's memory and crash or hang (SIGSEGV in mca_btl_sm_poll_handle_frag). With many
+# client jobs at once that is likely: about one run in four with 200 of them.
 ####################################################################
 
 set -u
@@ -110,6 +118,17 @@ if [ ! -x "$X" ]; then
     echo "Error: $X is not an executable"; exit 1
 fi
 mkdir -p "$W" && cd "$W" || exit 1
+
+# The directories of the MPI jobs' shared-memory files (see above), on a memory file system where
+# there is one
+SHM=/dev/shm
+if [ ! -d "$SHM" ] || [ ! -w "$SHM" ]; then
+    SHM=${TMPDIR:-/tmp}
+fi
+SMDIR=$(mktemp -d "$SHM/geneva-sm.XXXXXX") || exit 1
+trap 'rm -rf "$SMDIR"' EXIT
+# Prints the directory of the MPI job $1, created
+jobdir() { mkdir -p "$SMDIR/$1" && echo "$SMDIR/$1"; }
 rm -rf config && cp -r "$(dirname "$X")/config" config
 
 python3 - "$POP" "$ITER" "$DELAYS" "$REFDELAYS" "$NMEAS" "$GROUP" <<'P' || exit 1
@@ -157,7 +176,8 @@ if [ "$C" = mpi ]; then
     # The ranks take their roles from MPI (and with groups from the cascade); the options reach
     # every rank.
     # shellcheck disable=SC2086
-    ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
+    OMPI_MCA_btl_sm_backing_directory=$(jobdir job) \
+        ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
         "${GROUPOPT[@]}" "$@" > server.log 2>&1
     STATUS=$?
 else
@@ -194,7 +214,8 @@ else
             done
             sleep "$LAST_CLIENT_DELAY"
         fi
-        "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" "$@" \
+        OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
+            "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" $PORT "${GROUPOPT[@]}" "$@" \
             >> clients.log 2>&1 &
         PIDS+=($!)
     done

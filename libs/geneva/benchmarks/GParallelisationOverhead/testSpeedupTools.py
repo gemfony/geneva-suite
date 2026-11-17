@@ -43,6 +43,10 @@ Usage:
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
       group of three, every process ends by itself, and both clients used the prefetch depth the
       run passes
+  testSpeedupTools.py samejobid <GSubClientOverhead> <workdir> [<reference dir>]
+      as subclients with beast, but Open MPI gives both client jobs the same job id (their
+      launcher is placed on pids whose ids collide): the jobs must not share Open MPI's shared
+      memory (runWithClients.sh gives each job a directory of its own for it); Open MPI only
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group
@@ -63,6 +67,9 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
+import threading
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HEADER = ('# evaluation time [s]; serial run time [s] (fitted) and its error; parallel run time '
@@ -251,8 +258,9 @@ def check_run(program, workdir, consumer, reference_dir):
     print(f'{consumer}: speed-up {rows[0][5]} with two clients')
 
 
-def check_subclients(program, workdir, consumer, reference_dir):
-    """Two clients of two sub-clients each: every evaluation once, every process ends by itself."""
+def check_subclients(program, workdir, consumer, reference_dir, env=None):
+    """Two clients of two sub-clients each: every evaluation once, every process ends by itself;
+    env is added to the environment of runWithClients.sh."""
     os.makedirs(workdir, exist_ok=True)
     for name in ('shortDelayResults.txt', 'referenceLine.txt', 'reference.log', 'clients.log',
                  'server.log'):
@@ -271,7 +279,7 @@ def check_subclients(program, workdir, consumer, reference_dir):
                               # client because its first one was slow under load (an adaptive
                               # lease).
                               env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
-                                       TIMEOUT_TREATMENT='wait_indefinitely'))
+                                       TIMEOUT_TREATMENT='wait_indefinitely', **(env or {})))
     if status != 0:
         fail(f'runWithClients.sh exited with {status}: {out}')
     if 'clients that did not end by themselves: 0' not in out and consumer != 'mpi':
@@ -296,6 +304,161 @@ def check_subclients(program, workdir, consumer, reference_dir):
         fail(f'expected two clients with prefetch depth {depth}, found the depths {used} '
              '(depth: number of clients)')
     print(f'{consumer}: {expected} evaluations, each in a group of three; every process ended')
+
+
+def job_family(host, pid):
+    """The upper 16 bits of the job id Open MPI 5 gives the job of the mpirun with this pid: its
+    namespace "prterun-<host>-<pid>" hashed (Jenkins' one-at-a-time hash) and folded to 16 bits.
+    Open MPI names the files of its shared-memory transport after the job id, so two independent
+    jobs of one family on one host use the same files unless each has a directory of its own."""
+    value = 0
+    for char in f'prterun-{host}-{pid}'.encode():
+        value = (value + char) & 0xffffffff
+        value = (value + (value << 10)) & 0xffffffff
+        value ^= value >> 6
+    value = (value + (value << 3)) & 0xffffffff
+    value ^= value >> 11
+    value = (value + (value << 15)) & 0xffffffff
+    return ((value >> 16) ^ value) & 0xffff
+
+
+def last_pid():
+    """The pid this pid namespace gave last."""
+    with open('/proc/sys/kernel/ns_last_pid', encoding='ascii') as pid_file:
+        return int(pid_file.read())
+
+
+def start_on(command, expected=None):
+    """Starts command in a child process and returns its pid; with expected, only if the child
+    gets that pid (otherwise None)."""
+    child = os.fork()
+    if child == 0:
+        if expected is not None and os.getpid() != expected:
+            os._exit(99)  # pylint: disable=protected-access
+        try:
+            os.execvp(command[0], command)
+        finally:
+            os._exit(127)  # pylint: disable=protected-access
+    if expected is not None and child != expected:
+        os.waitpid(child, 0)
+        return None
+    return child
+
+
+def start_in_family(command, host, family, limit=120):
+    """Starts command (mpirun and its arguments) on the next pid whose job has the given family:
+    the pids before it are used up by threads that end at once. Gives up after limit seconds."""
+    with open('/proc/sys/kernel/pid_max', encoding='ascii') as pid_file:
+        pid_max = int(pid_file.read())
+    cycle = pid_max - 300  # past pid_max the pids start again at 300
+
+    def burn(count):
+        for _ in range(count):
+            thread = threading.Thread(target=int)
+            thread.start()
+            thread.join()
+
+    deadline = time.monotonic() + limit
+    start, candidates = None, []
+    while time.monotonic() < deadline:
+        current = last_pid()
+        if start is None or not candidates:
+            # The next pids of the family, in the order the kernel gives them
+            start, candidates, pid = current, [], current
+            for _ in range(600000):
+                pid = pid + 1 if pid + 1 < pid_max else 300
+                if job_family(host, pid) == family:
+                    candidates.append(pid)
+        position = (current - start) % cycle
+        candidates = [c for c in candidates if (c - start) % cycle > position]
+        if not candidates:
+            continue
+        distance = (candidates[0] - start) % cycle - position
+        if distance == 1:
+            child = start_on(command, candidates[0])
+            if child is not None:
+                return child
+        else:
+            burn(distance - 48 if distance > 64 else 1)
+    fail(f'no pid of the job family {family:04x} could be taken within {limit} s')
+    return None
+
+
+def launch_same_job_id(state, command):
+    """The launcher of the samejobid check (its MPIRUN): starts command, an mpirun with its
+    arguments, so that Open MPI gives its job the id of the first job started this way. The first
+    launcher writes its job's family to <state>.first, the later ones place their mpirun on a pid
+    of that family. Each launcher then looks for the job's shared-memory files under that id in
+    the job's directory for them and appends "<job id> seen" (or "unseen") to state, so that the
+    check knows the ids really were equal. Returns the exit code of the job."""
+    host = socket.gethostname().split('.')[0]
+    try:
+        first = os.open(state + '.first', os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        first = None
+    if first is not None:
+        child = start_on(command)
+        family = job_family(host, child)
+        os.write(first, f'{family}\n'.encode())
+        os.close(first)
+    else:
+        family = None
+        for _ in range(600):
+            with open(state + '.first', encoding='ascii') as first_file:
+                text = first_file.read()
+            if text.endswith('\n'):
+                family = int(text)
+                break
+            time.sleep(0.1)
+        if family is None:
+            fail('the first job did not say its job family')
+        child = start_in_family(command, host, family)
+    signal.signal(signal.SIGTERM, lambda *_: os.kill(child, signal.SIGTERM))
+    job_id = (family << 16) | 1
+    directory = os.environ.get('OMPI_MCA_btl_sm_backing_directory', '/dev/shm')
+    segment = os.path.join(directory, f'sm_segment.{host}.{os.getuid()}.{job_id:x}.0')
+    seen, status = False, None
+    for _ in range(600):
+        if os.path.exists(segment):
+            seen = True
+            break
+        ended, status = os.waitpid(child, os.WNOHANG)
+        if ended != 0:
+            break
+        status = None
+        time.sleep(0.1)
+    with open(state, 'a', encoding='ascii') as out:
+        out.write(f'{job_id:x} {"seen" if seen else "unseen"}\n')
+    if status is None:
+        status = os.waitpid(child, 0)[1]
+    code = os.waitstatus_to_exitcode(status)
+    return code if code >= 0 else 128 - code
+
+
+def check_same_job_id(program, workdir, reference_dir):
+    """As check_subclients() with beast, but both client jobs get the same Open MPI job id."""
+    os.makedirs(workdir, exist_ok=True)
+    state = os.path.join(workdir, 'jobids.txt')
+    for name in (state, state + '.first'):
+        if os.path.exists(name):
+            os.remove(name)
+    launcher = os.environ.get('MPIRUN', 'mpirun --oversubscribe -np')
+    # Open MPI keeps its session files below TMPDIR: a fresh one, so that no file of an earlier
+    # job with the same pid (in a pid namespace of a sandbox) is in the way; short, because it
+    # holds sockets
+    session = tempfile.mkdtemp(prefix='gsj')
+    try:
+        check_subclients(program, workdir, 'beast', reference_dir,
+                         {'MPIRUN': f'{sys.executable} -B {os.path.abspath(__file__)} '
+                                    f'launch-same-job-id {state} {launcher}',
+                          'TMPDIR': session})
+    finally:
+        shutil.rmtree(session, ignore_errors=True)
+    jobs = open(state, encoding='ascii').read().split('\n')[:-1]
+    if len(jobs) != 2 or len({j.split()[0] for j in jobs}) != 1 or \
+            any(not j.endswith(' seen') for j in jobs):
+        fail(f'the two client jobs did not run with one Open MPI job id: {jobs}')
+    print(f'two client jobs with the Open MPI job id {jobs[0].split()[0]} kept apart')
 
 
 def check_groups(program, workdir):
@@ -380,6 +543,11 @@ def main(args):
     elif len(args) >= 4 and args[0] == 'subclients':
         check_subclients(os.path.abspath(args[1]), os.path.abspath(args[2]), args[3],
                          os.path.abspath(args[4]) if len(args) > 4 else None)
+    elif len(args) >= 3 and args[0] == 'samejobid':
+        check_same_job_id(os.path.abspath(args[1]), os.path.abspath(args[2]),
+                          os.path.abspath(args[3]) if len(args) > 3 else None)
+    elif len(args) >= 3 and args[0] == 'launch-same-job-id':
+        sys.exit(launch_same_job_id(args[1], args[2:]))
     elif len(args) >= 3 and args[0] == 'groups':
         check_groups(os.path.abspath(args[1]), os.path.abspath(args[2]))
     elif len(args) >= 4 and args[0] == 'gate':

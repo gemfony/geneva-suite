@@ -116,7 +116,11 @@ public:
  * built afterwards finds rank 0 as SUBMITTER and every lead as CLIENT (mpiProcessRole() equals
  * role()). In GROUPS_ONLY no process takes part in courtier's MPI protocol (mpiProcessRole() is
  * BYSTANDER everywhere); a lead reaches its work by another transport, a websocket client for
- * example, or by none. A last group with fewer than g processes is allowed.
+ * example, or by none. A last group with fewer than g processes is allowed. GROUPS_ONLY usually
+ * means many independent MPI jobs on one host; Open MPI 5 can give two of them the same names for
+ * the files of its shared-memory transport (it derives them from a 16-bit hash of the job's
+ * name), and the two then crash or hang. Start each such job with a directory of its own for these
+ * files (OMPI_MCA_btl_sm_backing_directory).
  *
  * <b>Construction.</b> Every process of the base communicator constructs the cascade at the same
  * point (the splits are collective; a process that does not, keeps the others waiting), and before
