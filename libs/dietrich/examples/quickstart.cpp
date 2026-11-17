@@ -72,7 +72,7 @@ int main() {
     log.writeToFile("quickstart.gp",  plotBackend::GNUPLOT);    // a gnuplot script
     log.writeToFile("quickstart.py",  plotBackend::MATPLOTLIB); // a matplotlib script
     log.writeToFile("quickstart.m",   plotBackend::OCTAVE);     // an Octave / MATLAB script
-    log.writeToFile("quickstart.csv", plotBackend::DATA);       // the raw data (CSV + manifest)
+    log.writeToFile("quickstart.csv", plotBackend::DATA);       // CSV data + manifest
     //! [dietrich-quickstart#2]
 
     std::cout << "quickstart: wrote quickstart.{C,gp,py,m,csv}\n";
