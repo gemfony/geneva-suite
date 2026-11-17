@@ -37,10 +37,12 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 // Boost headers
 
@@ -138,7 +140,8 @@ class GProcessable {
 
     /**
      * @brief Serialises the non-generic lifecycle state (status, errors, routing ids, timing).
-     * The transient dispatch-scheduling state (dispatch_state_) is deliberately NOT serialised.
+     * The transient dispatch-scheduling state (dispatch_state_) and the transient end of the first
+     * half of the processing lifecycle (pre_processed_at_) are deliberately NOT serialised.
      *
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise the lifecycle state with
@@ -447,6 +450,12 @@ protected:
      * and post-processing is skipped. (This orchestration used to exist as two hand-synced copies in
      * courtier and geneva; the double-PROCESSED status bug lived in exactly that duplication.)
      *
+     * The lifecycle is the two halves beginProcessingLifecycle_() and
+     * completeProcessingLifecycle_() run back to back. An execution environment that evaluates a
+     * whole batch at once (a device) runs them apart: the first half for every item before the
+     * batch is built, so the batch holds the pre-processed values, and the second half for every
+     * item once the batch's results are in.
+     *
      * @param context The calling function's identity, used in the error texts (e.g. "GGenome::process()")
      * @param pre A callable running the class-specific pre-processing step
      * @param core A callable running the class-specific evaluation/processing
@@ -459,6 +468,26 @@ protected:
         core_fn_type &&core,
         post_fn_type &&post
     ) {
+        this->beginProcessingLifecycle_(context, std::forward<pre_fn_type>(pre));
+        this->completeProcessingLifecycle_(
+            context,
+            std::forward<core_fn_type>(core),
+            std::forward<post_fn_type>(post)
+        );
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief The first half of the processing lifecycle: the DO_PROCESS precondition, the
+     * error/result reset and the timed pre-processing step. On success the item stays DO_PROCESS
+     * and is ready for completeProcessingLifecycle_(); on an error the epilogue of
+     * funnelProcessingStep_() applies.
+     *
+     * @param context The calling function's identity, used in the error texts
+     * @param pre A callable running the class-specific pre-processing step
+     */
+    template <typename pre_fn_type>
+    void beginProcessingLifecycle_(std::string_view context, pre_fn_type &&pre) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
             throw geneva_exception(
@@ -472,14 +501,46 @@ protected:
         // Clear the error descriptions and nullify the result list
         stored_error_descriptions_.clear();
         this->clearStoredResults_();
+        pre_processed_at_.reset();
 
-        std::ostringstream error_description_stream; // NOLINT(cppcoreguidelines-init-variables)
-
-        try {
+        this->funnelProcessingStep_(context, [this, &pre] {
             const auto start_time = std::chrono::high_resolution_clock::now();
             pre();
             const auto after_pre_processing = std::chrono::high_resolution_clock::now();
+            pre_processing_time_ =
+                std::chrono::duration<double>(after_pre_processing - start_time).count();
+            pre_processed_at_ = after_pre_processing;
+        });
+    }
 
+    /***************************************************************************/
+    /**
+     * @brief The second half of the processing lifecycle: the timed core step, the PROCESSED
+     * status, the guarded post-processing step. The processing time runs from the end of the
+     * pre-processing step, so on a batch path it covers the batch's evaluation. Only an item whose
+     * first half has run (and that is still DO_PROCESS) is accepted.
+     *
+     * @param context The calling function's identity, used in the error texts
+     * @param core A callable running the class-specific evaluation/processing
+     * @param post A callable running the class-specific post-processing step
+     */
+    template <typename core_fn_type, typename post_fn_type>
+    void completeProcessingLifecycle_(
+        std::string_view context,
+        core_fn_type &&core,
+        post_fn_type &&post
+    ) {
+        if(processingStatus::DO_PROCESS != processing_status_ || not pre_processed_at_) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << context << ": Processing was completed without having been begun"
+                << " (processing_status_ is " << processing_status_ << ")" << '\n'
+            );
+        }
+        const auto after_pre_processing = *pre_processed_at_;
+        pre_processed_at_.reset();
+
+        this->funnelProcessingStep_(context, [this, &core, &post, after_pre_processing] {
             core();
 
             // The fitness has now been computed, so the work item is processed. Mark it PROCESSED
@@ -494,12 +555,29 @@ protected:
             const auto after_post_processing = std::chrono::high_resolution_clock::now();
 
             // Make a note of the time needed for each step
-            pre_processing_time_ =
-                std::chrono::duration<double>(after_pre_processing - start_time).count();
             processing_time_ =
                 std::chrono::duration<double>(after_processing - after_pre_processing).count();
             post_processing_time_ =
                 std::chrono::duration<double>(after_post_processing - after_processing).count();
+        });
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Runs one step of the processing lifecycle with its exception funneling and error
+     * epilogue: an exception out of @p step sets EXCEPTION_CAUGHT; if the item then has an error
+     * (a caught exception or one the user flagged), the timings are zeroed, the results cleared,
+     * the error descriptions stored and g_processing_exception raised.
+     *
+     * @param context The calling function's identity, used in the error texts
+     * @param step The step to run
+     */
+    template <typename step_fn_type>
+    void funnelProcessingStep_(std::string_view context, step_fn_type &&step) {
+        std::ostringstream error_description_stream; // NOLINT(cppcoreguidelines-init-variables)
+
+        try {
+            step();
         }
         catch(std::exception &e) {
             // Let the audience know we had an error
@@ -521,6 +599,7 @@ protected:
             pre_processing_time_ = 0.;
             processing_time_ = 0.;
             post_processing_time_ = 0.;
+            pre_processed_at_.reset();
 
             // Nullify the result list
             this->clearStoredResults_();
@@ -606,6 +685,10 @@ protected:
     double pre_processing_time_ = 0.;  ///< Time needed for pre-processing (seconds)
     double processing_time_ = 0.;      ///< Time needed for the actual processing step (seconds)
     double post_processing_time_ = 0.; ///< Time needed for post-processing (seconds)
+
+    /// Transient: when the first half of the processing lifecycle ended; engaged from then until
+    /// the second half starts. Deliberately NOT part of serialize(), like dispatch_state_.
+    std::optional<std::chrono::high_resolution_clock::time_point> pre_processed_at_;
 
     std::string
         stored_error_descriptions_; ///< Stores exceptions that may have occurred during processing

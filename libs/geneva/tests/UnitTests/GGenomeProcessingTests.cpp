@@ -42,6 +42,7 @@
 #include <functional>
 #include <memory>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -61,6 +62,10 @@
 
 #include "common/GSerializableFunctionObjectT.hpp"    // the pre-processor of process(evaluation)
 #include "geneva/individuals/GFunctionIndividual.hpp" // GSphereConstraint
+
+#include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/gpu/GGPUConsumer.hpp" // the GPU path, on a host stand-in backend
+#include "geneva/genome/GBaseGPUMarshallerT.hpp"
 
 using namespace Gem::Geneva;        // activityMode, serializationMode helpers
 using namespace Gem::Geneva::Genome;
@@ -654,5 +659,168 @@ TEST_CASE(
             return std::vector<double>{1.};
         }));
         CHECK(evaluation_calls == 0);
+    }
+}
+
+/******************************************************************************/
+// The GPU path: a batch is evaluated on a device in one launch, between the marshaller's flatten()
+// and scatter(). It keeps the processing contract of the CPU path: the pre-processor runs before
+// the device sees the values, the processing time covers the device evaluation, the post-processor
+// runs on the evaluated item, and an item whose processing fails fails alone.
+
+namespace Gem::Tests {
+
+/** @brief A host stand-in for a device backend: the fitness of an item is the sum of squares of its
+ *  row. It logs "device" and stays inside evaluate() for 20 ms. */
+class SumOfSquaresBackend final : public Gem::Courtier::GPU::GGPUDeviceBackendI<double> {
+public:
+    void initialize(const Gem::Courtier::GPU::KernelSpec & /*spec*/) override { /* nothing */
+    }
+
+    void evaluate(
+        const double *params,
+        int n_items,
+        int dim,
+        const std::byte * /*pconst*/,
+        std::size_t /*pconst_size*/,
+        double *fitness_out,
+        int /*threads_per_item*/
+    ) override {
+        suppliedEvaluationLog.order.emplace_back("device");
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        const std::span<const double> all(
+            params,
+            static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim)
+        );
+        for(int i = 0; i < n_items; ++i) {
+            double sum = 0.;
+            for(const double x :
+                all.subspan(static_cast<std::size_t>(i * dim), static_cast<std::size_t>(dim))) {
+                sum += x * x;
+            }
+            fitness_out[i] = sum;
+        }
+    }
+
+    [[nodiscard]] std::string name() const override {
+        return "sum-of-squares";
+    }
+};
+
+/** @brief A post-processor that logs "post" and whether the item was already processed. */
+class LoggingPostProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    LoggingPostProcessor() = default;
+
+protected:
+    bool process_(GGenome &p) override {
+        suppliedEvaluationLog.order.emplace_back(p.is_processed() ? "post" : "post-unprocessed");
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new LoggingPostProcessor(*this);
+    }
+};
+
+/** @brief A pre- or post-processor that throws. */
+class ThrowingProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    ThrowingProcessor() = default;
+
+protected:
+    bool process_(GGenome & /*p*/) override {
+        throw std::runtime_error("processor failed");
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new ThrowingProcessor(*this);
+    }
+};
+
+} // namespace Gem::Tests
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a section per lifecycle rule
+TEST_CASE(
+    "GGenome: the GPU path keeps the processing contract of the CPU path",
+    "[candidate][gpu]"
+) {
+    using Gem::Courtier::GSubmissionPolicy;
+    using Gem::Courtier::processingStatus;
+    using Gem::Courtier::GPU::GGPUConsumerT;
+    using Gem::Tests::CountingSphere;
+    using Gem::Tests::suppliedEvaluationLog;
+
+    suppliedEvaluationLog = {};
+    GGPUConsumerT<GGenome, double> consumer(
+        std::make_unique<Gem::Tests::SumOfSquaresBackend>(),
+        std::make_shared<GBaseGPUMarshallerT<double>>()
+    );
+
+    std::vector<std::unique_ptr<GGenome>> batch;
+    for(int i = 0; i < 3; ++i) {
+        batch.push_back(std::make_unique<CountingSphere>());
+    }
+
+    SECTION("the pre-processor runs before the device, the post-processor after it") {
+        for(auto &item : batch) {
+            item->registerPreProcessor(
+                std::make_shared<Gem::Tests::ParameterSettingPreProcessor>()
+            );
+            item->registerPostProcessor(std::make_shared<Gem::Tests::LoggingPostProcessor>());
+        }
+        consumer.processBatch(batch, GSubmissionPolicy::full_success_or_fatal());
+
+        CHECK(
+            suppliedEvaluationLog.order ==
+            std::vector<std::string>{"pre", "pre", "pre", "device", "post", "post", "post"}
+        );
+        for(const auto &item : batch) {
+            CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
+            CHECK(item->raw_fitness(0) == 12.); // the device saw the pre-processed 2.0, not 1.0
+            CHECK(std::get<1>(item->getProcessingTimes()) >= 0.02); // covers the device evaluation
+        }
+        CHECK(suppliedEvaluationLog.evaluateCalls == 0);
+    }
+
+    SECTION("an item whose pre- or post-processor throws fails alone") {
+        // On the marshaller directly: under a submission policy the consumer would end the run
+        // (fatal) or refill the failed slot with a clone, and the failure would not be visible.
+        batch[0]->registerPreProcessor(std::make_shared<Gem::Tests::ThrowingProcessor>());
+        batch[1]->registerPostProcessor(std::make_shared<Gem::Tests::ThrowingProcessor>());
+        for(auto &item : batch) {
+            item->set_processing_status(processingStatus::DO_PROCESS);
+        }
+        const GBaseGPUMarshallerT<double> marshaller;
+        std::vector<double> params;
+        CHECK_NOTHROW(marshaller.flatten(batch, params));
+        CHECK(params == std::vector<double>(9, 1.));
+        CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}));
+
+        CHECK(batch[0]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+        CHECK(batch[0]->getStoredErrorDescriptions().contains("processor failed"));
+        CHECK(batch[1]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+        CHECK(batch[1]->getStoredErrorDescriptions().contains("processor failed"));
+        CHECK(batch[2]->getProcessingStatus() == processingStatus::PROCESSED);
+        CHECK(batch[2]->raw_fitness(0) == 3.);
+    }
+
+    SECTION("a completion needs a beginning and results") {
+        GGenome &item = *batch[0];
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        const std::vector<individual_processing_result> res{individual_processing_result(3.)};
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        item.beginProcessing();
+        CHECK_THROWS_AS(item.completeProcessing({}), geneva_exception);
+        CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
+        CHECK_NOTHROW(item.completeProcessing(res));
+        CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception); // not twice
     }
 }

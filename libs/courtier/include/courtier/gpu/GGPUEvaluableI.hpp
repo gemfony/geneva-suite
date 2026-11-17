@@ -93,8 +93,10 @@ public:
      *  @return true if the problem constants are invariant across batches; false to rebuild/re-upload each batch */
     [[nodiscard]] virtual bool problemConstantsStatic() const { return true; }
 
-    /** @brief Writes the per-item fitness back into each item (typically via item->process(result),
-     *  which also leaves the item PROCESSED for the courtier reconciliation).
+    /** @brief Writes the per-item fitness back into each item, leaving it PROCESSED -- or failed,
+     *  with the failure recorded on it -- for the courtier reconciliation. Where the item type has
+     *  a pre-processing step, it runs before flatten(), so the device evaluates the pre-processed
+     *  values, and the rest of the item's processing runs here.
      *  @param items The batch span of items to write results into
      *  @param fitness The per-item fitness values produced by the device evaluation (one per item, in batch order) */
     virtual void scatter(std::span<const item_ptr> items, const std::vector<scalar_type> &fitness) const = 0;

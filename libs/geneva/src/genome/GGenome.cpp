@@ -746,41 +746,90 @@ individual_processing_result GGenome::processWith_(
 ) {
     // The full lifecycle (precondition, reset, timed pre -> core -> guarded post, exception funneling,
     // error epilogue) is stated ONCE, on GProcessable::runProcessingLifecycle_. Only the evaluation
-    // core is geneva-specific: it consults the process-global fault injector (no-op unless a
-    // GFaultInjector is registered -- a single null-pointer check on the default path), raises a THROW
-    // fault so it surfaces as EXCEPTION_CAUGHT, runs the actual evaluation, and applies a FLAG_ERROR
-    // fault after it, like a user flagging an error from within evaluate() (-> ERROR_FLAGGED).
+    // core is geneva-specific (processingCore_()).
     this->runProcessingLifecycle_(
         "GGenome::process()",
         [this] { this->preProcess_(); },
-        [this, &res_vec, evaluation] {
-            GFaultInjector::Fault injected_fault = GFaultInjector::Fault::NONE;
-            if(GFaultInjector *injector = GFaultInjectorRegistry::get(); injector != nullptr) {
-                // Rare (test-only) path: lease a proxy for the fault injector; the candidate holds no RNG.
-                auto lease = Gem::Hap::randomLeasePool().acquire();
-                injected_fault = injector->evaluate(*this, *lease);
-            }
-
-            if(injected_fault == GFaultInjector::Fault::THROW) {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "Fault injected during GGenome::process() (THROW)" << '\n'
-                );
-            }
-
-            this->runEvaluation_(res_vec, evaluation);
-
-            // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
-            if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
-                this->force_set_error(
-                    "Fault injected during GGenome::process() (FLAG_ERROR)\n");
-            }
-        },
+        [this, &res_vec, evaluation] { this->processingCore_(res_vec, evaluation); },
         [this] { this->postProcess_(); }
     );
 
     // This part of the code is only reached on success (the lifecycle throws on any error)
     return this->stored_results_cnt_.at(0);
+}
+
+/******************************************************************************/
+/**
+ * @brief Begins the processing of this candidate for an environment that evaluates a whole batch
+ * at once (see the header): the first half of the processing lifecycle, with the pre-processor.
+ */
+void GGenome::beginProcessing() {
+    this->beginProcessingLifecycle_("GGenome::beginProcessing()", [this] { this->preProcess_(); });
+}
+
+/******************************************************************************/
+/**
+ * @brief Completes the processing begun with beginProcessing() (see the header): the second half
+ * of the processing lifecycle, adopting @p res_vec.
+ * @param res_vec The raw results computed for this candidate; its size must match the criteria
+ *        count
+ * @return The first stored result after processing
+ * @throws geneva_exception if @p res_vec is empty (the candidate is left untouched)
+ */
+individual_processing_result
+GGenome::completeProcessing(const std::vector<individual_processing_result> &res_vec) {
+    if(res_vec.empty()) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GGenome::completeProcessing(): Error!" << '\n'
+            << "No results were given" << '\n'
+        );
+    }
+    this->completeProcessingLifecycle_(
+        "GGenome::completeProcessing()",
+        [this, &res_vec] { this->processingCore_(res_vec, nullptr); },
+        [this] { this->postProcess_(); }
+    );
+
+    // This part of the code is only reached on success (the lifecycle throws on any error)
+    return this->stored_results_cnt_.at(0);
+}
+
+/******************************************************************************/
+/**
+ * @brief The core step of the processing lifecycle. It consults the process-global fault injector
+ * (no-op unless a GFaultInjector is registered -- a single null-pointer check on the default path),
+ * raises a THROW fault so it surfaces as EXCEPTION_CAUGHT, runs the actual evaluation, and applies
+ * a FLAG_ERROR fault after it, like a user flagging an error from within evaluate()
+ * (-> ERROR_FLAGGED).
+ * @param res_vec Optional pre-computed raw results; if empty, the evaluation or evaluate() is
+ *        invoked
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
+ */
+void GGenome::processingCore_(
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
+) {
+    GFaultInjector::Fault injected_fault = GFaultInjector::Fault::NONE;
+    if(GFaultInjector *injector = GFaultInjectorRegistry::get(); injector != nullptr) {
+        // Rare (test-only) path: lease a proxy for the fault injector; the candidate holds no RNG.
+        auto lease = Gem::Hap::randomLeasePool().acquire();
+        injected_fault = injector->evaluate(*this, *lease);
+    }
+
+    if(injected_fault == GFaultInjector::Fault::THROW) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "Fault injected during GGenome::process() (THROW)" << '\n'
+        );
+    }
+
+    this->runEvaluation_(res_vec, evaluation);
+
+    // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
+    if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
+        this->force_set_error("Fault injected during GGenome::process() (FLAG_ERROR)\n");
+    }
 }
 
 /******************************************************************************/
@@ -916,8 +965,8 @@ void GGenome::finalizeFeasibleEvaluation_(
 
 /******************************************************************************/
 /**
- * @brief Sets the fitness from a vector of externally-computed raw values (the GPU consumer / external
- * evaluation), applying the feasibility check and evaluation-policy transform, then marking PROCESSED.
+ * @brief Sets the fitness from a vector of externally-computed raw values (the genome copy/move
+ * path), applying the feasibility check and evaluation-policy transform, then marking PROCESSED.
  * @param f_cnt A vector of raw fitness values (size must match the criteria count)
  */
 void GGenome::setFitness_(std::vector<double> const &f_cnt) {
