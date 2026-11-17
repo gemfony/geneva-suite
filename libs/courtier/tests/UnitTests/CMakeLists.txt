@@ -413,6 +413,15 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# A submitter that never confirms its role ends the job in its destructor
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
 		EXPECT "the role of the submitter was never confirmed" "The job is ended (MPI_Abort)")
+	# A submitter that throws before its MPI consumer exists, while its leads wait for the greeting,
+	# ends the job in its destructor; one that throws while its consumer exists does not: the
+	# consumer's end tells the leads, and the job ends by itself
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterThrows 4 M nonzero submitter-throws
+		EXPECT "an exception leaves the submitter before an MPI consumer was built"
+		"The job is ended (MPI_Abort)")
+	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterThrowsAfterConsumer 4 M zero
+		submitter-throws-after-consumer EXPECT "the submitter's exception reached the program"
+		REFUSE "MPI_Abort")
 	# ... and from inside setUp(), tearDown() or a member's serveRound()
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
 		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")

@@ -1860,6 +1860,66 @@ int mpiConsumerScenario(Report &report, bool confirm) {
     return report.failures();
 }
 
+/** The failure a scenario injects into the submitter, told apart from every other exception */
+class InjectedFailure final : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
+/**
+ * A submitter that fails while its leads wait for it (entries ...SubmitterThrows and
+ * ...SubmitterThrowsAfterConsumer): in SUBMITTER_AND_GROUPS rank 0 confirms its role and throws;
+ * every lead is an MPI client that waits for the greeting of the submitter's consumer without a
+ * limit, its members for their lead. The exception unwinds through the submitter's cascade.
+ * Without @p consumer_first no MPI consumer was built: nobody tells the leads, and MPI_Finalize on
+ * the submitter would wait for them, so the cascade must end the job. With @p consumer_first the
+ * submitter throws while its consumer exists, never started: the consumer's end tells the leads,
+ * they release their members, and every rank ends by itself with 0.
+ *
+ * @param consumer_first Whether the submitter builds its MPI consumer before it throws
+ */
+int submitterThrowsScenario(Report &report, bool consumer_first) {
+    ProbingMember member;
+    try {
+        Courtier::GMPICascade cascade([] {
+            return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
+        });
+        if(cascade.role() == processRole::BYSTANDER) {
+            std::ignore = cascade.serve(member);
+            std::println("member {} served {} rounds", report.rank(), member.rounds());
+            return report.failures();
+        }
+        cascade.requireRole(Courtier::mpiProcessRole());
+        if(cascade.role() == processRole::SUBMITTER) {
+            if(consumer_first) {
+                // Declared after the cascade: it goes before the cascade frees its communicators
+                const auto consumer =
+                    std::make_shared<Courtier::GMPIConsumerT<Courtier::GFaultyContainer>>(
+                        Courtier::mpiEnvironment()
+                    );
+                throw InjectedFailure("injected failure of the submitter, its consumer built");
+            }
+            throw InjectedFailure("injected failure of the submitter before its consumer");
+        }
+        std::atomic<int> led{0};
+        const MpiClientRun run = runAsMpiClient(cascade, 1, led, report);
+        report.check(not run.clientThrew, "the client's run threw");
+        report.check(led.load() == 0, std::format("the lead led {} rounds, not 0", led.load()));
+        std::println("lead led {} rounds", led.load());
+        return report.failures();
+    }
+    catch(const InjectedFailure &e) {
+        // On the submitter, after its cascade is gone
+        if(not consumer_first) {
+            report.fail("the job was not ended: {}", e.what());
+        }
+        else {
+            std::println("the submitter's exception reached the program: {}", e.what());
+        }
+        return report.failures();
+    }
+}
+
 /** The time of an empty round (entry ...EmptyRound): a number for a caption, not a gate. */
 int emptyRoundScenario(Report &report) {
     constexpr std::size_t ROUNDS = 1'000;
@@ -1949,6 +2009,9 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"mpi-consumer", [](Report &r) { return mpiConsumerScenario(r, true); }},
         {"mpi-consumer-not-confirmed", [](Report &r) { return mpiConsumerScenario(r, false); }},
         {"empty-round", emptyRoundScenario},
+        {"submitter-throws", [](Report &r) { return submitterThrowsScenario(r, false); }},
+        {"submitter-throws-after-consumer",
+         [](Report &r) { return submitterThrowsScenario(r, true); }},
     };
     for(const auto &[scenario_name, scenario] : scenarios) {
         if(scenario_name == name) {

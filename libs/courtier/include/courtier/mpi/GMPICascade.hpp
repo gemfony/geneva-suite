@@ -184,6 +184,15 @@ public:
  * ends the MPI job in the destructor (unless an exception is unwinding), the last safeguard for a
  * process that never uses the cascade.
  *
+ * <b>A submitter that fails.</b> In SUBMITTER_AND_GROUPS the leads wait for the greeting of the
+ * submitter's MPI consumer, without a limit by default, and their members for them. If an
+ * exception unwinds through the submitter's cascade before an MPI consumer was built on the
+ * submitter, nobody tells the leads, and MPI_Finalize on the submitter would wait for them: the
+ * destructor ends the MPI job. The exception's text is not known there; a program that wants it in
+ * the log catches the exception inside the cascade's scope, logs it and rethrows it. Once a
+ * consumer was built, its end tells the leads in every way it ends (GMPIConsumerT), and the
+ * destructor ends nothing; nor does it at a normal end.
+ *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with
  * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole optimization, in
@@ -197,7 +206,8 @@ class GMPICascade {
 public:
     /** @brief Splits @p base into the cascade's groups; collective on @p base (see the class) */
     explicit GMPICascade(std::function<GMPICascadeConfig()>, MPI_Comm = MPI_COMM_WORLD);
-    /** @brief Releases a lead's group, frees the communicators and lets go of the environment */
+    /** @brief Releases a lead's group, frees the communicators and lets go of the environment;
+     *  ends the job where the class says so */
     ~GMPICascade();
 
     GMPICascade(const GMPICascade &) = delete;

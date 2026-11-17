@@ -54,7 +54,6 @@
 // Standard header files go here
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <limits>
@@ -346,13 +345,12 @@ int runGroupProcess(
             return measure(go, settings);
         }
         catch(const std::exception &e) {
-            // The leads wait for this process's greeting without a limit, their members for them,
-            // and MPI_Finalize on the way out would wait for all of them: only an abort ends the
-            // job (an option only Go2 knows, refused here alone; a missing serial reference).
+            // An option only Go2 knows, refused here alone; a missing serial reference. The
+            // cascade ends the job as the exception leaves it (the leads wait for this process's
+            // greeting); the text is printed first, which the cascade cannot do.
             std::cerr << "GSubClientOverhead: " << e.what() << '\n';
             std::cerr.flush();
-            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-            return EXIT_FAILURE; // not reached: MPI_Abort does not return
+            throw;
         }
     }
 

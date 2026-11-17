@@ -207,9 +207,10 @@ GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI
  * finalized; a member that has neither served nor received the stop ends the job (its lead would
  * wait for ever); a lead releases its group; a lead or the submitter whose role was never
  * confirmed with requireRole() ends the job, unless an exception is unwinding (a lead that used
- * the cascade has ended it at the first use already); then the
- * communicators are freed and the environment is let go of, which finalizes MPI if it initialized
- * it and this was its last holder.
+ * the cascade has ended it at the first use already); the submitter ends the job if an exception is
+ * unwinding and no MPI consumer was built on it (nobody would tell the leads, which wait for its
+ * greeting); then the communicators are freed and the environment is let go of, which finalizes
+ * MPI if it initialized it and this was its last holder.
  */
 GMPICascade::~GMPICascade() {
     if(not environment_) {
@@ -236,6 +237,16 @@ GMPICascade::~GMPICascade() {
             "~GMPICascade()",
             std::string("the role of ") + std::string(roleName(role_)) + " was never confirmed. " +
                 std::string(confirmationAdvice())
+        );
+    }
+    if(role_ == processRole::SUBMITTER && std::uncaught_exceptions() > 0 &&
+       not environment_->consumerBuilt()) {
+        this->endJob_(
+            "~GMPICascade()",
+            "an exception leaves the submitter before an MPI consumer was built on it. The leads "
+            "wait for its greeting, and MPI_Finalize would wait for them. The exception's text is "
+            "not known here: a program that wants it in the log catches it inside the cascade's "
+            "scope, logs it and rethrows it."
         );
     }
     for(MPI_Comm *communicator : {&courtier_, &group_, &status_}) {
