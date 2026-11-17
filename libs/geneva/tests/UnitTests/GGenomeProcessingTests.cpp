@@ -49,9 +49,9 @@
 #include <tuple>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
-
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "geneva/genome/GGenome.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
@@ -726,6 +726,105 @@ private:
     }
 };
 
+/** @brief A backend whose device fails: evaluate() throws. */
+class FailingBackend final : public Gem::Courtier::GPU::GGPUDeviceBackendI<double> {
+public:
+    void initialize(const Gem::Courtier::GPU::KernelSpec & /*spec*/) override { /* nothing */
+    }
+
+    void evaluate(
+        const double * /*params*/,
+        int /*n_items*/,
+        int /*dim*/,
+        const std::byte * /*pconst*/,
+        std::size_t /*pconst_size*/,
+        double * /*fitness_out*/,
+        int /*threads_per_item*/
+    ) override {
+        throw std::runtime_error("device failed");
+    }
+
+    [[nodiscard]] std::string name() const override {
+        return "failing";
+    }
+};
+
+/** @brief A post-processor that stays inside for 200 ms. */
+class SlowPostProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    SlowPostProcessor() = default;
+
+protected:
+    bool process_(GGenome & /*p*/) override {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new SlowPostProcessor(*this);
+    }
+};
+
+/** @brief A pre-processor that installs a genome with one more parameter. */
+class GrowingPreProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    GrowingPreProcessor() = default;
+
+protected:
+    bool process_(GGenome &p) override {
+        GGenomeBuilder b;
+        b.addDoubleGroup(p.countParameters<double>() + 1, -10., 10.).init(1.0);
+        p.setGenome(b.build());
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new GrowingPreProcessor(*this);
+    }
+};
+
+/** @brief A pre-processor that takes its item out of processing. */
+class UnsubmittingPreProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
+public:
+    UnsubmittingPreProcessor() = default;
+
+protected:
+    bool process_(GGenome &p) override {
+        p.mark_as_ignorable();
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new UnsubmittingPreProcessor(*this);
+    }
+};
+
+/** @brief A marshaller that writes the device results back through process(result), as the GPU
+ *  interface once advised. */
+class ProcessWritingMarshaller final : public Gem::Geneva::GBaseGPUMarshallerT<double> {
+public:
+    void scatter(
+        std::span<const item_ptr> items,
+        const std::vector<double> &fitness,
+        double /*evaluation_time*/
+    ) const override {
+        for(auto const &[item, fit] : std::views::zip(items, fitness)) {
+            item->process(
+                std::vector<individual_processing_result>{individual_processing_result(fit)}
+            );
+        }
+    }
+};
+
 /** @brief A pre- or post-processor that throws. */
 class ThrowingProcessor : public Gem::Common::GSerializableFunctionObjectT<GGenome> {
 public:
@@ -789,6 +888,92 @@ TEST_CASE(
         CHECK(suppliedEvaluationLog.evaluateCalls == 0);
     }
 
+    SECTION("the processing time is the batch's evaluation, not the other items' processing") {
+        // Each post-processor takes 200 ms; a window per item from its own pre- to its own
+        // post-processing would count the post-processors of the items before it (0.2 s, 0.4 s).
+        for(auto &item : batch) {
+            item->registerPostProcessor(std::make_shared<Gem::Tests::SlowPostProcessor>());
+        }
+        consumer.processBatch(batch, GSubmissionPolicy::full_success_or_fatal());
+        for(const auto &item : batch) {
+            CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
+            CHECK(std::get<1>(item->getProcessingTimes()) >= 0.02);
+            CHECK(std::get<1>(item->getProcessingTimes()) < 0.15);
+            CHECK(std::get<2>(item->getProcessingTimes()) >= 0.2);
+        }
+    }
+
+    SECTION("a pre-processor that changes the dimension is refused before the buffer is written") {
+        batch[0]->registerPreProcessor(std::make_shared<Gem::Tests::GrowingPreProcessor>());
+        for(auto &item : batch) {
+            item->set_processing_status(processingStatus::DO_PROCESS);
+        }
+        const GBaseGPUMarshallerT<double> marshaller;
+        std::vector<double> params;
+        CHECK_THROWS_WITH(
+            marshaller.flatten(batch, params),
+            Catch::Matchers::ContainsSubstring("must not change the number of parameters")
+        );
+    }
+
+    SECTION("results written back through process() are refused on a begun item") {
+        for(auto &item : batch) {
+            item->registerPreProcessor(
+                std::make_shared<Gem::Tests::ParameterSettingPreProcessor>()
+            );
+            item->set_processing_status(processingStatus::DO_PROCESS);
+        }
+        const Gem::Tests::ProcessWritingMarshaller marshaller;
+        std::vector<double> params;
+        marshaller.flatten(batch, params);
+        CHECK_THROWS_AS(
+            marshaller.scatter(batch, std::vector<double>(3, 12.), 0.),
+            geneva_exception
+        );
+        CHECK(
+            suppliedEvaluationLog.order == std::vector<std::string>{"pre", "pre", "pre"}
+        ); // not run a second time
+        CHECK(batch[0]->getProcessingStatus() == processingStatus::DO_PROCESS);
+        CHECK_NOTHROW(batch[0]->completeProcessing({individual_processing_result(12.)}));
+    }
+
+    SECTION("a failing device reaches the submitter; the items are begun again when resubmitted") {
+        GGPUConsumerT<GGenome, double> failing(
+            std::make_unique<Gem::Tests::FailingBackend>(),
+            std::make_shared<GBaseGPUMarshallerT<double>>()
+        );
+        for(auto &item : batch) {
+            item->registerPreProcessor(
+                std::make_shared<Gem::Tests::ParameterSettingPreProcessor>()
+            );
+        }
+        CHECK_THROWS_WITH(
+            failing.processBatch(batch, GSubmissionPolicy::full_success_or_fatal()),
+            Catch::Matchers::ContainsSubstring("device failed")
+        );
+        for(const auto &item : batch) {
+            CHECK(item->getProcessingStatus() == processingStatus::DO_PROCESS); // begun, not done
+        }
+
+        // Un-submitted and submitted again, an item is not begun any more
+        batch[0]->set_processing_status(processingStatus::UNPROCESSED);
+        batch[0]->set_processing_status(processingStatus::DO_PROCESS);
+        CHECK_THROWS_AS(
+            batch[0]->completeProcessing({individual_processing_result(3.)}),
+            geneva_exception
+        );
+
+        // A working device processes the resubmitted batch: each item is begun anew
+        suppliedEvaluationLog = {};
+        consumer.processBatch(batch, GSubmissionPolicy::full_success_or_fatal());
+        CHECK(
+            suppliedEvaluationLog.order == std::vector<std::string>{"pre", "pre", "pre", "device"}
+        );
+        for(const auto &item : batch) {
+            CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
+        }
+    }
+
     SECTION("an item whose pre- or post-processor throws fails alone") {
         // On the marshaller directly: under a submission policy the consumer would end the run
         // (fatal) or refill the failed slot with a clone, and the failure would not be visible.
@@ -801,7 +986,7 @@ TEST_CASE(
         std::vector<double> params;
         CHECK_NOTHROW(marshaller.flatten(batch, params));
         CHECK(params == std::vector<double>(9, 1.));
-        CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}));
+        CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}, 0.));
 
         CHECK(batch[0]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
         CHECK(batch[0]->getStoredErrorDescriptions().contains("processor failed"));
@@ -822,5 +1007,35 @@ TEST_CASE(
         CHECK_NOTHROW(item.completeProcessing(res));
         CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
         CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception); // not twice
+
+        // A begun item that is un-submitted and submitted again must be begun again
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        item.beginProcessing();
+        item.set_processing_status(processingStatus::UNPROCESSED);
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+
+        // A clone of a begun item is not begun
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        item.beginProcessing();
+        auto copy = item.clone();
+        CHECK(copy->getProcessingStatus() == processingStatus::DO_PROCESS);
+        CHECK_THROWS_AS(copy->completeProcessing(res), geneva_exception);
+        CHECK_NOTHROW(item.completeProcessing(res));
     }
+}
+
+TEST_CASE(
+    "GGenome: a pre-processor that takes the item out of processing fails the processing",
+    "[candidate]"
+) {
+    // The processing of an item that is no longer due must not go on to PROCESSED; like any other
+    // failing step, it is recorded on the item.
+    using Gem::Courtier::processingStatus;
+    Gem::Tests::CountingSphere item;
+    item.registerPreProcessor(std::make_shared<Gem::Tests::UnsubmittingPreProcessor>());
+    item.set_processing_status(processingStatus::DO_PROCESS);
+    CHECK_THROWS_AS(item.process(), Gem::Courtier::g_processing_exception);
+    CHECK(item.getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+    CHECK(item.getStoredErrorDescriptions().contains("changed the processing status"));
 }

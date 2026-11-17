@@ -37,7 +37,6 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -102,6 +101,33 @@ struct LineageId {
     ~LineageId() = default;
 };
 
+/**
+ * @brief The mark that a work item's processing was begun (GProcessable::beginProcessing()) and not
+ * yet completed. It belongs to the object it was set on, and its value-semantics say so in ONE
+ * place, so the enclosing GProcessable can keep its special members defaulted:
+ *  - COPY construction / assignment -> the target is NOT begun (a clone is a new item, a load
+ *                                      replaces the content; neither may be completed without a
+ *                                      beginning of its own);
+ *  - move                           -> transferred, as usual;
+ *  - (de)serialization              -> not serialized (transient, like the dispatch state).
+ */
+struct ProcessingBegunMark {
+    bool begun = false; ///< Whether the processing was begun and not yet completed
+
+    ProcessingBegunMark() = default;
+    ProcessingBegunMark(const ProcessingBegunMark & /* cp */) noexcept { /* a copy is not begun */
+    }
+    ProcessingBegunMark(ProcessingBegunMark &&) noexcept = default;
+    ProcessingBegunMark &operator=(const ProcessingBegunMark &cp) noexcept {
+        if(this != &cp) {
+            begun = false; // a loaded item is not begun
+        }
+        return *this;
+    }
+    ProcessingBegunMark &operator=(ProcessingBegunMark &&) noexcept = default;
+    ~ProcessingBegunMark() = default;
+};
+
 } // namespace detail
 
 /******************************************************************************/
@@ -140,8 +166,8 @@ class GProcessable {
 
     /**
      * @brief Serialises the non-generic lifecycle state (status, errors, routing ids, timing).
-     * The transient dispatch-scheduling state (dispatch_state_) and the transient end of the first
-     * half of the processing lifecycle (pre_processed_at_) are deliberately NOT serialised.
+     * The transient dispatch-scheduling state (dispatch_state_) and the transient mark of a begun
+     * processing (processing_begun_) are deliberately NOT serialised.
      *
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise the lifecycle state with
@@ -210,8 +236,9 @@ public:
      * @brief Sets a given new processing state. Which new states are accepted depends on the current
      * state (see the body). Setting a new state of PROCESSED via this function is not allowed (it is
      * reached only by a successful process()/markAsProcessedWith()) and throws unless already set.
-     * Some transitions erase existing information (past error messages and any stored results, the
-     * latter via the clearStoredResults_() hook).
+     * Every accepted transition erases existing information (past error messages, any stored
+     * results -- the latter via the clearStoredResults_() hook -- and the mark of a begun
+     * processing, so a re-submitted item is begun again before it is completed).
      *
      * @param target_ps The desired new processing status
      */
@@ -259,17 +286,41 @@ public:
         }
 
         // Every accepted transition performs the same reset: adopt the state, forget past errors,
-        // drop any stored results (via the clearStoredResults_() hook of the result-bearing class).
+        // drop any stored results (via the clearStoredResults_() hook of the result-bearing class)
+        // and forget a begun processing.
         processing_status_ = target_ps;
         stored_error_descriptions_.clear();
         this->clearStoredResults_();
+        processing_begun_.begun = false;
     }
 
     /** @brief Marks this item as being due for processing (DO_PROCESS). */
     void mark_as_due_for_processing() { processing_status_ = processingStatus::DO_PROCESS; }
 
-    /** @brief Sets the UNPROCESSED flag so the item will not be processed. */
-    void mark_as_ignorable() { processing_status_ = processingStatus::UNPROCESSED; }
+    /** @brief Sets the UNPROCESSED flag so the item will not be processed (a begun processing is
+     *  forgotten). */
+    void mark_as_ignorable() {
+        processing_status_ = processingStatus::UNPROCESSED;
+        processing_begun_.begun = false;
+    }
+
+    /***************************************************************************/
+    // Processing in two halves (an execution environment that evaluates a whole batch at once)
+
+    /**
+     * @brief Begins the processing of this item for an execution environment that evaluates a
+     * whole batch at once (a device): the part of the processing before the evaluation. Only an
+     * item with the DO_PROCESS status is accepted; the item's pre-processor runs, so the batch is
+     * built from the pre-processed values. The result-bearing class's completeProcessing()
+     * finishes it with the results computed for the item (GProcessingContainerT, and geneva's
+     * GGenome; the completion lives there because it takes that class's typed results).
+     * @throws geneva_exception if the item is not due for processing (the item is left untouched)
+     * @throws g_processing_exception if the pre-processing fails; the failure is recorded on the
+     *         item (EXCEPTION_CAUGHT), as a full processing records it
+     */
+    void beginProcessing() {
+        this->beginProcessingLifecycle_("GProcessable::beginProcessing()");
+    }
 
     /***************************************************************************/
     // Transport routing
@@ -386,11 +437,12 @@ public:
      * setter would reject e.g. PROCESSED -> PROCESSED and would clear the very results the caller is about
      * to write. The item KEEPS its own lineage id (the consumer checks the outcome's uuid at
      * check-in, but a slot's identity is not redefined by a return); the transient dispatch state
-     * is likewise untouched.
+     * is likewise untouched. A begun processing is forgotten: the outcome ends it.
      * @param outcome The lifecycle record reported by the worker
      */
     void applyProcessingOutcome(const GProcessingOutcome &outcome) {
         processing_status_ = outcome.status;
+        processing_begun_.begun = false;
         stored_error_descriptions_ = outcome.error_descriptions;
         pre_processing_time_ = outcome.pre_processing_time;
         processing_time_ = outcome.processing_time;
@@ -442,35 +494,53 @@ protected:
      * GGenome::process) wrap: DO_PROCESS precondition, error/result reset, the timed
      * pre -> core -> (guarded) post sequence, exception funneling into EXCEPTION_CAUGHT, and the
      * error epilogue that zeroes the timings, clears the results and raises g_processing_exception.
-     * The three class-specific steps arrive as callables (no virtual indirection): @p pre runs the
-     * pre-processing step, @p core the actual evaluation/processing, @p post the post-processing
-     * step. The item is marked PROCESSED BEFORE post-processing runs -- a post-processor refines an
-     * ALREADY-EVALUATED item (e.g. by a short sub-optimization) and rejects a dirty one -- and an
-     * item that flagged an error (ERROR_FLAGGED) keeps its error status: PROCESSED is never assigned
-     * and post-processing is skipped. (This orchestration used to exist as two hand-synced copies in
-     * courtier and geneva; the double-PROCESSED status bug lived in exactly that duplication.)
+     * The pre-processing step is the preProcess_() hook (beginProcessing() on this class needs it);
+     * the other two class-specific steps arrive as callables: @p core the actual
+     * evaluation/processing, @p post the post-processing step. The item is marked PROCESSED BEFORE
+     * post-processing runs -- a post-processor refines an ALREADY-EVALUATED item (e.g. by a short
+     * sub-optimization) and rejects a dirty one -- and an item that flagged an error
+     * (ERROR_FLAGGED) keeps its error status: PROCESSED is never assigned and post-processing is
+     * skipped. (This orchestration used to exist as two hand-synced copies in courtier and geneva;
+     * the double-PROCESSED status bug lived in exactly that duplication.)
      *
      * The lifecycle is the two halves beginProcessingLifecycle_() and
      * completeProcessingLifecycle_() run back to back. An execution environment that evaluates a
-     * whole batch at once (a device) runs them apart: the first half for every item before the
-     * batch is built, so the batch holds the pre-processed values, and the second half for every
-     * item once the batch's results are in.
+     * whole batch at once (a device) runs them apart, through beginProcessing() and the
+     * result-bearing class's completeProcessing(): the first half for every item before the batch
+     * is built, so the batch holds the pre-processed values, and the second half for every item
+     * once the batch's results are in. Results given to an item whose processing was begun so are
+     * refused here: they were computed from the values after its pre-processor, which this
+     * lifecycle would run again before adopting them.
      *
      * @param context The calling function's identity, used in the error texts (e.g. "GGenome::process()")
-     * @param pre A callable running the class-specific pre-processing step
+     * @param results_given Whether the caller hands in results computed elsewhere (a non-empty
+     *        result vector) rather than evaluating the item in @p core
      * @param core A callable running the class-specific evaluation/processing
      * @param post A callable running the class-specific post-processing step
+     * @throws geneva_exception if @p results_given and the item's processing was begun with
+     *         beginProcessing() (the item is left untouched)
      */
-    template <typename pre_fn_type, typename core_fn_type, typename post_fn_type>
+    template <typename core_fn_type, typename post_fn_type>
     void runProcessingLifecycle_(
         std::string_view context,
-        pre_fn_type &&pre,
+        bool results_given,
         core_fn_type &&core,
         post_fn_type &&post
     ) {
-        this->beginProcessingLifecycle_(context, std::forward<pre_fn_type>(pre));
+        if(results_given && processing_begun_.begun) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << context << ": Results were given to an item whose processing was"
+                << " begun with beginProcessing()." << '\n'
+                << "Complete it with completeProcessing() instead; process() would run the"
+                << " pre-processor again before adopting results computed after the first run."
+                << '\n'
+            );
+        }
+        this->beginProcessingLifecycle_(context);
         this->completeProcessingLifecycle_(
             context,
+            0.,
             std::forward<core_fn_type>(core),
             std::forward<post_fn_type>(post)
         );
@@ -479,15 +549,16 @@ protected:
     /***************************************************************************/
     /**
      * @brief The first half of the processing lifecycle: the DO_PROCESS precondition, the
-     * error/result reset and the timed pre-processing step. On success the item stays DO_PROCESS
-     * and is ready for completeProcessingLifecycle_(); on an error the epilogue of
-     * funnelProcessingStep_() applies.
+     * error/result reset and the timed pre-processing step (the preProcess_() hook). On success
+     * the item stays DO_PROCESS, is marked as begun and is ready for
+     * completeProcessingLifecycle_(); on an error the epilogue of funnelProcessingStep_() applies.
+     * A pre-processing step that changes the processing status (e.g. through mark_as_ignorable())
+     * fails the processing like any other failing step: the item is not due any more, so neither
+     * the evaluation nor PROCESSED may follow.
      *
      * @param context The calling function's identity, used in the error texts
-     * @param pre A callable running the class-specific pre-processing step
      */
-    template <typename pre_fn_type>
-    void beginProcessingLifecycle_(std::string_view context, pre_fn_type &&pre) {
+    void beginProcessingLifecycle_(std::string_view context) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
             throw geneva_exception(
@@ -501,65 +572,97 @@ protected:
         // Clear the error descriptions and nullify the result list
         stored_error_descriptions_.clear();
         this->clearStoredResults_();
-        pre_processed_at_.reset();
+        processing_begun_.begun = false;
 
-        this->funnelProcessingStep_(context, [this, &pre] {
-            const auto start_time = std::chrono::high_resolution_clock::now();
-            pre();
-            const auto after_pre_processing = std::chrono::high_resolution_clock::now();
+        this->funnelProcessingStep_(context, [this] {
+            const auto start_time = std::chrono::steady_clock::now();
+            this->preProcess_();
             pre_processing_time_ =
-                std::chrono::duration<double>(after_pre_processing - start_time).count();
-            pre_processed_at_ = after_pre_processing;
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - start_time)
+                    .count();
+
+            // An error flagged during pre-processing is the funnel's to handle. Any other change
+            // of the status means the pre-processing step took the item out of processing.
+            if(processingStatus::DO_PROCESS != processing_status_ && not this->has_errors()) {
+                throw geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "The pre-processing step changed the processing status to "
+                    << processing_status_ << "; expected " << processingStatus::DO_PROCESS << '\n'
+                );
+            }
         });
+        processing_begun_.begun = true;
     }
 
     /***************************************************************************/
     /**
      * @brief The second half of the processing lifecycle: the timed core step, the PROCESSED
-     * status, the guarded post-processing step. The processing time runs from the end of the
-     * pre-processing step, so on a batch path it covers the batch's evaluation. Only an item whose
-     * first half has run (and that is still DO_PROCESS) is accepted.
+     * status, the guarded post-processing step. Only an item whose first half has run (and that
+     * is still DO_PROCESS) is accepted. The processing time is @p evaluation_time plus the time of
+     * the core step: on a batch path the results were computed elsewhere, in one evaluation of the
+     * whole batch, whose time each item of the batch reports.
      *
      * @param context The calling function's identity, used in the error texts
+     * @param evaluation_time The time in seconds it took to compute the results elsewhere (0 if
+     *        @p core computes them)
      * @param core A callable running the class-specific evaluation/processing
      * @param post A callable running the class-specific post-processing step
      */
     template <typename core_fn_type, typename post_fn_type>
     void completeProcessingLifecycle_(
         std::string_view context,
+        double evaluation_time,
         core_fn_type &&core,
         post_fn_type &&post
     ) {
-        if(processingStatus::DO_PROCESS != processing_status_ || not pre_processed_at_) {
+        if(processingStatus::DO_PROCESS != processing_status_ || not processing_begun_.begun) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << context << ": Processing was completed without having been begun"
                 << " (processing_status_ is " << processing_status_ << ")" << '\n'
             );
         }
-        const auto after_pre_processing = *pre_processed_at_;
-        pre_processed_at_.reset();
+        processing_begun_.begun = false;
 
-        this->funnelProcessingStep_(context, [this, &core, &post, after_pre_processing] {
+        this->funnelProcessingStep_(context, [this, &core, &post, evaluation_time] {
+            const auto start_time = std::chrono::steady_clock::now();
             core();
 
             // The fitness has now been computed, so the work item is processed. Mark it PROCESSED
             // BEFORE post-processing: a post-processor refines an ALREADY-EVALUATED item and rejects
             // a dirty one. If processing flagged an error (ERROR_FLAGGED), the error status is left
             // intact and post-processing is skipped.
-            const auto after_processing = std::chrono::high_resolution_clock::now();
+            const auto after_processing = std::chrono::steady_clock::now();
             if(not this->has_errors()) {
                 processing_status_ = processingStatus::PROCESSED;
                 post();
             }
-            const auto after_post_processing = std::chrono::high_resolution_clock::now();
+            const auto after_post_processing = std::chrono::steady_clock::now();
 
             // Make a note of the time needed for each step
-            processing_time_ =
-                std::chrono::duration<double>(after_processing - after_pre_processing).count();
+            processing_time_ = evaluation_time +
+                               std::chrono::duration<double>(after_processing - start_time).count();
             post_processing_time_ =
                 std::chrono::duration<double>(after_post_processing - after_processing).count();
         });
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief The precondition of a result-bearing class's completeProcessing(): results were
+     * given (a completion adopts results; it never evaluates the item itself).
+     * @param context The calling function's identity, used in the error text
+     * @param results_given Whether a non-empty result vector was given
+     * @throws geneva_exception if @p results_given is false (the item is left untouched)
+     */
+    static void requireResults_(std::string_view context, bool results_given) {
+        if(not results_given) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In " << context << ": Error!" << '\n'
+                << "No results were given" << '\n'
+            );
+        }
     }
 
     /***************************************************************************/
@@ -599,7 +702,7 @@ protected:
             pre_processing_time_ = 0.;
             processing_time_ = 0.;
             post_processing_time_ = 0.;
-            pre_processed_at_.reset();
+            processing_begun_.begun = false;
 
             // Nullify the result list
             this->clearStoredResults_();
@@ -623,6 +726,15 @@ protected:
      * overrides it to clear its result vector.
      */
     virtual void clearStoredResults_() { /* no result store in the base */ }
+
+    /**
+     * @brief Hook: the pre-processing step of the processing lifecycle -- runs the item's
+     * pre-processor, if it has one and pre-processing is allowed. The base has no pre-processor,
+     * so the default is a no-op; the result-bearing classes (GProcessingContainerT, geneva's
+     * GGenome) override it.
+     */
+    virtual void preProcess_() { /* no pre-processor in the base */
+    }
 
     /**
      * @brief Hook: re-attaches the OA-owned scratch from @p original (see graftOaScratchFrom()). The base
@@ -686,9 +798,10 @@ protected:
     double processing_time_ = 0.;      ///< Time needed for the actual processing step (seconds)
     double post_processing_time_ = 0.; ///< Time needed for post-processing (seconds)
 
-    /// Transient: when the first half of the processing lifecycle ended; engaged from then until
-    /// the second half starts. Deliberately NOT part of serialize(), like dispatch_state_.
-    std::optional<std::chrono::high_resolution_clock::time_point> pre_processed_at_;
+    /// Transient: set when the first half of the processing lifecycle has run, until the second
+    /// half starts or the status is changed from outside the lifecycle. Deliberately NOT part of
+    /// serialize(), like dispatch_state_, and never copied (see detail::ProcessingBegunMark).
+    detail::ProcessingBegunMark processing_begun_;
 
     std::string
         stored_error_descriptions_; ///< Stores exceptions that may have occurred during processing

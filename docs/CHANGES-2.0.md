@@ -318,6 +318,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
+- **The GPU path keeps the processing contract of a CPU consumer.** A marshaller begins each
+  item's processing in `flatten()` (`beginProcessing()`: the item's pre-processor runs before the
+  device sees its values) and completes it in `scatter()` (`completeProcessing(results,
+  evaluation_time)`: the post-processor runs after). `scatter()` takes the time of the batch's
+  device evaluation as a third argument, and each item reports it as its processing time; an item
+  whose processing fails fails alone. `process(results)` refuses an item whose processing was
+  begun so. `GBaseGPUMarshallerT` does all this for geneva's individuals.
 - **A batch may hold up to 2^24 items** (`GNetworkedConsumerT::maxBatchSize()`); a larger span
   is refused with a fatal error. Submit it in several batches.
 - **The EA post-optimizer always refines inline.** `GEvolutionaryAlgorithmPostOptimizer`

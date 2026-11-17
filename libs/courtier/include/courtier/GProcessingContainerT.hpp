@@ -33,12 +33,13 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <concepts>
 #include <exception>
 #include <functional>
 #include <optional>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -215,8 +216,9 @@ public:
         // Clear the error descriptions
         stored_error_descriptions_.clear();
 
-        // Mark as processed
+        // Mark as processed; a begun processing is over
         processing_status_ = processingStatus::PROCESSED;
+        processing_begun_.begun = false;
 
         // This part of the code should never be reached if an exception was thrown
         return this->stored_results_cnt_.at(0);
@@ -233,7 +235,9 @@ public:
 	  * to make sure to set the results (be it main- or secondary results) of the
 	  * process()-call. This function has no way to ensure that this is the case.
 	  *
-	  * @param res_vec Allows to inject an external evaluation
+	  * @param res_vec Allows to inject an external evaluation, handed to process_(). Results
+	  *        computed after a beginProcessing() are refused here: they belong to
+	  *        completeProcessing().
 	  * @return The first result of the processing calls
 	  */
     processing_result_type process(
@@ -243,7 +247,40 @@ public:
         // funneling, error epilogue) is stated ONCE, on GProcessable::runProcessingLifecycle_.
         this->runProcessingLifecycle_(
             "GProcessingContainerT<processable_type>::process()",
-            [this] { this->preProcess_(); },
+            not res_vec.empty(),
+            [this, &res_vec] { this->process_(res_vec); },
+            [this] { this->postProcess_(); }
+        );
+
+        // This part of the code is only reached on success (the lifecycle throws on any error)
+        return this->stored_results_cnt_.at(0);
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief Completes the processing begun with GProcessable::beginProcessing(), with the
+	  * results computed for this item since (e.g. by a device, for a whole batch at once): the
+	  * part of process(res_vec) after the pre-processor -- process_(res_vec), PROCESSED, the
+	  * post-processor. The processing time is @p evaluation_time plus the time of process_().
+	  *
+	  * @param res_vec The results computed for this item, handed to process_(); must not be empty
+	  * @param evaluation_time The time in seconds it took to compute @p res_vec (on a batch path
+	  *        the evaluation of the whole batch)
+	  * @return The first result after processing
+	  * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the item is
+	  *         left untouched)
+	  * @throws g_processing_exception as process() does
+	  */
+    processing_result_type completeProcessing(
+        const std::vector<processing_result_type> &res_vec,
+        double evaluation_time = 0.
+    ) {
+        static constexpr std::string_view context =
+            "GProcessingContainerT<processable_type>::completeProcessing()";
+        GProcessable::requireResults_(context, not res_vec.empty());
+        this->completeProcessingLifecycle_(
+            context,
+            evaluation_time,
             [this, &res_vec] { this->process_(res_vec); },
             [this] { this->postProcess_(); }
         );
@@ -492,8 +529,9 @@ private:
     /**
 		  * @brief Runs the registered pre-processor, if pre-processing is both permitted for this
 		  * object and configured. It resets nothing -- the permission flags are the caller's.
+		  * (The GProcessable hook of the lifecycle's pre-processing step.)
   		  */
-    void preProcess_() {
+    void preProcess_() override {
         if(this->mayBePreProcessed() && pre_processor_ptr_) {
             auto &p = dynamic_cast<processable_type &>(*this);
             (*pre_processor_ptr_)(p);

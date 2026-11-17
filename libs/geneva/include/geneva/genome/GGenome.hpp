@@ -845,9 +845,11 @@ public:
      * feasibility check and fitness calculation (or adopts pre-computed raw results from res_vec),
      * the evaluation-policy transform and the optional post-processor, measuring the time of each
      * step. On an exception the fitnesses are set to the worst case and a processing exception is
-     * rethrown. Only an item with the DO_PROCESS status is accepted. Results in res_vec were
-     * computed before the pre-processor ran here; an environment that computes them elsewhere uses
-     * beginProcessing() and completeProcessing().
+     * rethrown. Only an item with the DO_PROCESS status is accepted. Results in res_vec are
+     * adopted after the pre-processor has run here, so they must not depend on its effect; an
+     * environment that computes them from the pre-processed values begins the processing with
+     * beginProcessing() and completes it with completeProcessing(), and process(res_vec) refuses
+     * an item so begun (geneva_exception, the candidate is left untouched).
      */
     individual_processing_result process(
         const std::vector<individual_processing_result> &res_vec =
@@ -855,25 +857,19 @@ public:
     );
 
     /**
-     * @brief Begins the processing of this candidate for an execution environment that evaluates a
-     * whole batch at once (a device): the part of process() before the evaluation. Only an item
-     * with the DO_PROCESS status is accepted; the pre-processor runs, so the batch is built from
-     * the pre-processed values. completeProcessing() finishes it with the results computed for it.
-     * @throws g_processing_exception if the pre-processor fails (the candidate is left with the
-     *         EXCEPTION_CAUGHT status, as process() leaves it)
-     */
-    void beginProcessing();
-
-    /**
-     * @brief Completes the processing begun with beginProcessing(), with the raw results computed
-     * for this candidate since: the part of process(res_vec) after the pre-processor -- feasibility
-     * gate, adoption of the results, evaluation-policy transform, PROCESSED, post-processor. The
-     * processing time covers the time since the pre-processor finished.
-     * @throws geneva_exception if @p res_vec is empty or the processing was not begun
+     * @brief Completes the processing begun with GProcessable::beginProcessing(), with the raw
+     * results computed for this candidate since: the part of process(res_vec) after the
+     * pre-processor -- feasibility gate, adoption of the results, evaluation-policy transform,
+     * PROCESSED, post-processor. The processing time is @p evaluation_time plus the time of the
+     * adoption.
+     * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the
+     *         candidate is left untouched)
      * @throws g_processing_exception as process() does
      */
-    individual_processing_result
-    completeProcessing(const std::vector<individual_processing_result> &res_vec);
+    individual_processing_result completeProcessing(
+        const std::vector<individual_processing_result> &res_vec,
+        double evaluation_time = 0.
+    );
 
     /** @brief An evaluation a caller supplies to process(): it gets the candidate, read-only,
      *  and returns the raw results in the order evaluate() returns them (main criterion at
@@ -1397,7 +1393,7 @@ protected:
      * @brief Sets the fitness from a vector of externally-computed raw values, applying the feasibility
      * check and evaluation-policy transform, then marking the candidate PROCESSED. An internal helper (an
      * alternative to process(res_vec) used on the genome copy/move path); not a public API -- external
-     * results are injected through completeProcessing() (or process(res_vec)).
+     * results are injected through completeProcessing() or process(res_vec).
      */
     void setFitness_(std::vector<double> const &f_cnt);
 
@@ -1586,8 +1582,9 @@ private:
      *  runEvaluation_() and setFitness_() (formerly two identical copies). */
     void applyInvalidityPolicy_();
 
-    /** @brief Runs the registered pre-processor (if allowed) on this candidate */
-    void preProcess_();
+    /** @brief Runs the registered pre-processor (if allowed) on this candidate (the GProcessable
+     *  hook of the lifecycle's pre-processing step) */
+    void preProcess_() override;
     /** @brief Runs the registered post-processor (if allowed) on this candidate */
     void postProcess_();
 

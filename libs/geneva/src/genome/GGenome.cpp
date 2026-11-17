@@ -36,6 +36,7 @@
 #include <random>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -703,8 +704,9 @@ individual_processing_result GGenome::getStoredResult(const std::size_t id) cons
 /******************************************************************************/
 /**
  * @brief Performs the evaluation of this candidate (see the header for the full sequence).
- * @param res_vec Optional pre-computed raw results (e.g. from a remote/GPU evaluator); if empty,
- *   evaluate() is invoked. Its size must match the criteria count.
+ * @param res_vec Optional raw results computed elsewhere, adopted after the pre-processor has run
+ *   here; if empty, evaluate() is invoked. Its size must match the criteria count. A batch
+ *   evaluation of the pre-processed values uses beginProcessing() and completeProcessing() instead.
  * @return The first stored result after processing
  */
 individual_processing_result
@@ -749,7 +751,7 @@ individual_processing_result GGenome::processWith_(
     // core is geneva-specific (processingCore_()).
     this->runProcessingLifecycle_(
         "GGenome::process()",
-        [this] { this->preProcess_(); },
+        not res_vec.empty(),
         [this, &res_vec, evaluation] { this->processingCore_(res_vec, evaluation); },
         [this] { this->postProcess_(); }
     );
@@ -760,33 +762,25 @@ individual_processing_result GGenome::processWith_(
 
 /******************************************************************************/
 /**
- * @brief Begins the processing of this candidate for an environment that evaluates a whole batch
- * at once (see the header): the first half of the processing lifecycle, with the pre-processor.
- */
-void GGenome::beginProcessing() {
-    this->beginProcessingLifecycle_("GGenome::beginProcessing()", [this] { this->preProcess_(); });
-}
-
-/******************************************************************************/
-/**
- * @brief Completes the processing begun with beginProcessing() (see the header): the second half
- * of the processing lifecycle, adopting @p res_vec.
+ * @brief Completes the processing begun with GProcessable::beginProcessing() (see the header):
+ * the second half of the processing lifecycle, adopting @p res_vec.
  * @param res_vec The raw results computed for this candidate; its size must match the criteria
  *        count
+ * @param evaluation_time The time in seconds it took to compute @p res_vec (on a batch path the
+ *        evaluation of the whole batch)
  * @return The first stored result after processing
- * @throws geneva_exception if @p res_vec is empty (the candidate is left untouched)
+ * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the candidate
+ *         is left untouched)
  */
-individual_processing_result
-GGenome::completeProcessing(const std::vector<individual_processing_result> &res_vec) {
-    if(res_vec.empty()) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GGenome::completeProcessing(): Error!" << '\n'
-            << "No results were given" << '\n'
-        );
-    }
+individual_processing_result GGenome::completeProcessing(
+    const std::vector<individual_processing_result> &res_vec,
+    const double evaluation_time
+) {
+    static constexpr std::string_view context = "GGenome::completeProcessing()";
+    GProcessable::requireResults_(context, not res_vec.empty());
     this->completeProcessingLifecycle_(
-        "GGenome::completeProcessing()",
+        context,
+        evaluation_time,
         [this, &res_vec] { this->processingCore_(res_vec, nullptr); },
         [this] { this->postProcess_(); }
     );
@@ -820,7 +814,7 @@ void GGenome::processingCore_(
     if(injected_fault == GFaultInjector::Fault::THROW) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "Fault injected during GGenome::process() (THROW)" << '\n'
+            << "Fault injected into the processing of a GGenome (THROW)" << '\n'
         );
     }
 
@@ -828,7 +822,7 @@ void GGenome::processingCore_(
 
     // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
     if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
-        this->force_set_error("Fault injected during GGenome::process() (FLAG_ERROR)\n");
+        this->force_set_error("Fault injected into the processing of a GGenome (FLAG_ERROR)\n");
     }
 }
 

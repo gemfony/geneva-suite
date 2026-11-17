@@ -45,6 +45,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "common/concurrency/GCompletionLatchT.hpp"
@@ -141,8 +142,11 @@ public:
         }
     }
 
-    void
-    scatter(std::span<const item_ptr> items, const std::vector<double> &fitness) const override {
+    void scatter(
+        std::span<const item_ptr> items,
+        const std::vector<double> &fitness,
+        double /*evaluation_time*/
+    ) const override {
         for(std::size_t i = 0; i < items.size(); ++i) {
             if(fitness[i] != static_cast<double>(items[i]->get_stored_number())) {
                 seen_->mismatches.fetch_add(1);
@@ -218,7 +222,8 @@ public:
 
     void scatter(
         std::span<const item_ptr> items,
-        const std::vector<double> & /*fitness*/
+        const std::vector<double> & /*fitness*/,
+        double /*evaluation_time*/
     ) const override {
         for(const auto &item : items) {
             if(not item) {
@@ -240,6 +245,102 @@ public:
 private:
     std::size_t missing_;
     mutable std::set<std::size_t> marked_; ///< The stored numbers already given a result
+};
+
+/** @brief The order in which the lifecycle steps and the device saw a batch. Written on the
+ *  device thread, read by the test after processBatch() has returned. */
+std::vector<std::string> &lifecycleLog() {
+    static std::vector<std::string> log;
+    return log;
+}
+
+/** @brief A pre-processor of a GFaultyContainer that only logs "pre". */
+class LoggingPreProcessor final
+  : public Gem::Common::GSerializableFunctionObjectT<GFaultyContainer> {
+public:
+    LoggingPreProcessor() = default;
+
+protected:
+    bool process_(GFaultyContainer & /*p*/) override {
+        lifecycleLog().emplace_back("pre");
+        return true;
+    }
+
+private:
+    [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GFaultyContainer> *
+    clone_() const override {
+        // The raw return is the clone_() contract.
+        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+        return new LoggingPreProcessor(*this);
+    }
+};
+
+/** @brief A backend that logs "device", stays inside evaluate() for 20 ms and returns the first
+ *  parameter of each item. */
+class LoggingBackend final : public GGPUDeviceBackendI<double> {
+public:
+    void initialize(const KernelSpec & /*spec*/) override { /* nothing to compile */
+    }
+
+    void evaluate(
+        const double *params,
+        int n_items,
+        int dim,
+        const std::byte * /*pconst*/,
+        std::size_t /*pconst_size*/,
+        double *fitness_out,
+        int /*threads_per_item*/
+    ) override {
+        lifecycleLog().emplace_back("device");
+        std::this_thread::sleep_for(20ms);
+        for(int i = 0; i < n_items; ++i) {
+            fitness_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
+        }
+    }
+
+    [[nodiscard]] std::string name() const override {
+        return "logging";
+    }
+};
+
+/** @brief A marshaller that keeps the processing rule of GGPUEvaluableI for a
+ *  GProcessingContainerT item: flatten() begins each item, scatter() completes it. */
+class LifecycleMarshaller final : public GGPUEvaluableI<GFaultyContainer, double> {
+public:
+    [[nodiscard]] std::size_t itemDimension(const item_ptr & /*item*/) const override {
+        return 1;
+    }
+
+    void flatten(std::span<const item_ptr> items, std::vector<double> &params_out) const override {
+        params_out.resize(items.size());
+        for(std::size_t i = 0; i < items.size(); ++i) {
+            try {
+                items[i]->beginProcessing();
+            }
+            catch(const Gem::Courtier::g_processing_exception &) {
+                // recorded on the item; it fails alone
+            }
+            params_out[i] = static_cast<double>(items[i]->get_stored_number());
+        }
+    }
+
+    void scatter(
+        std::span<const item_ptr> items,
+        const std::vector<double> & /*fitness*/,
+        const double evaluation_time
+    ) const override {
+        for(const auto &item : items) {
+            if(not item->is_due_for_processing()) {
+                continue;
+            }
+            try {
+                item->completeProcessing({true}, evaluation_time);
+            }
+            catch(const Gem::Courtier::g_processing_exception &) {
+                // recorded on the item; it fails alone
+            }
+        }
+    }
 };
 
 std::vector<item_ptr> makeBatch(std::size_t n, std::size_t first_number) {
@@ -344,4 +445,49 @@ TEST_CASE(
             (slot == MISSING ? 2U : 1U)
         );
     }
+}
+
+TEST_CASE(
+    "courtier(gpu): a processing container keeps the processing contract on the GPU path",
+    "[courtier][gpu]"
+) {
+    // The processing can be split around a device evaluation for every processable item, not only
+    // for geneva's individuals: GProcessable::beginProcessing() and
+    // GProcessingContainerT::completeProcessing().
+    lifecycleLog().clear();
+    GGPUConsumerT<GFaultyContainer, double> consumer(
+        std::make_unique<LoggingBackend>(),
+        std::make_shared<LifecycleMarshaller>()
+    );
+    std::vector<item_ptr> batch = makeBatch(2, 1);
+    for(auto &item : batch) {
+        item->registerPreProcessor(std::make_shared<LoggingPreProcessor>());
+    }
+
+    consumer.processBatch(
+        std::span<item_ptr>(batch.data(), batch.size()),
+        GSubmissionPolicy::full_success_or_fatal()
+    );
+
+    CHECK(lifecycleLog() == std::vector<std::string>{"pre", "pre", "device"});
+    for(const auto &item : batch) {
+        CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
+        CHECK(item->getStoredResult() == true);
+        CHECK(std::get<1>(item->getProcessingTimes()) >= 0.02); // the device evaluation
+    }
+
+    GFaultyContainer &item = *batch[0];
+    item.set_processing_status(processingStatus::DO_PROCESS);
+    item.beginProcessing();
+
+    // A copy of a begun item is not begun
+    GFaultyContainer copy(item);
+    CHECK_THROWS_AS(copy.completeProcessing({true}), geneva_exception);
+
+    // Results given to a begun item belong to completeProcessing(): process() would run the
+    // pre-processor a second time.
+    CHECK_THROWS_AS(item.process({true}), geneva_exception);
+    CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
+    CHECK_NOTHROW(item.completeProcessing({true}));
+    CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
 }

@@ -56,6 +56,21 @@ namespace Gem::Courtier::GPU {
  * scalar_type defaults to double, so GGPUEvaluableI<MyProblem> is unchanged from before; pass float as
  * the second argument (GGPUEvaluableI<MyProblem, float>) for an FP32 device path.
  *
+ * The processing of an item on this path is the item's processing lifecycle split in two around the
+ * device evaluation, so the device path keeps the contract of a CPU consumer's process():
+ *  - flatten() BEGINS each item's processing (item->beginProcessing(): the DO_PROCESS check and the
+ *    item's pre-processor) before it reads the item's values, so the device evaluates the
+ *    pre-processed values. A pre-processor must not change the item's dimension.
+ *  - scatter() COMPLETES each item still due with the results computed for it
+ *    (item->completeProcessing(results, evaluation_time): adoption of the results, PROCESSED, the
+ *    post-processor). It does not write results back through process(results): that would run the
+ *    pre-processor a second time, and process() refuses an item whose processing was begun.
+ *  - An item whose processing fails (beginProcessing() or completeProcessing() throws
+ *    g_processing_exception) keeps the failure recorded on it and fails alone; the others of the
+ *    batch are completed, and the consumer's reconciliation applies the submission policy.
+ * Gem::Geneva::GBaseGPUMarshallerT implements this for geneva's individuals; a marshaller that
+ * overrides its flatten() or scatter() delegates to them.
+ *
  * @tparam processable_type The work-item type a batch is composed of
  * @tparam scalar_type The flat-buffer element type for parameters and fitness (double for parity, float for FP32); defaults to double
  */
@@ -76,8 +91,10 @@ public:
      *  @return The number of scalar_type values this item flattens to */
     [[nodiscard]] virtual std::size_t itemDimension(const item_ptr &item) const = 0;
 
-    /** @brief Flattens every item's parameters into a row-major buffer of n_items * dim scalar_type, where
-     *  dim == itemDimension(item) is the same for every item (the consumer has already validated this).
+    /** @brief Begins every item's processing and flattens its (pre-processed) parameters into a
+     *  row-major buffer of n_items * dim scalar_type, where dim == itemDimension(item) is the same
+     *  for every item (the consumer has validated this before; see the class comment for the
+     *  processing rule).
      *  @param items The batch span of items to flatten
      *  @param params_out Output buffer filled row-major with n_items * dim scalar_type (parameter j of item i at index i*dim + j) */
     virtual void flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const = 0;
@@ -93,13 +110,18 @@ public:
      *  @return true if the problem constants are invariant across batches; false to rebuild/re-upload each batch */
     [[nodiscard]] virtual bool problemConstantsStatic() const { return true; }
 
-    /** @brief Writes the per-item fitness back into each item, leaving it PROCESSED -- or failed,
-     *  with the failure recorded on it -- for the courtier reconciliation. Where the item type has
-     *  a pre-processing step, it runs before flatten(), so the device evaluates the pre-processed
-     *  values, and the rest of the item's processing runs here.
+    /** @brief Completes every item's processing with its fitness, leaving it PROCESSED -- or
+     *  failed, with the failure recorded on it -- for the courtier reconciliation (see the class
+     *  comment for the processing rule).
      *  @param items The batch span of items to write results into
-     *  @param fitness The per-item fitness values produced by the device evaluation (one per item, in batch order) */
-    virtual void scatter(std::span<const item_ptr> items, const std::vector<scalar_type> &fitness) const = 0;
+     *  @param fitness The per-item fitness values produced by the device evaluation (one per item, in batch order)
+     *  @param evaluation_time The time in seconds the device took to evaluate the whole batch; each
+     *         item reports it as its processing time (plus the time of its own completion) */
+    virtual void scatter(
+        std::span<const item_ptr> items,
+        const std::vector<scalar_type> &fitness,
+        double evaluation_time
+    ) const = 0;
 
     /** @brief How many GPU threads should cooperate on ONE item (intra-item / pixel-level parallelism).
      *  The default 1 means one thread per item (good when the population is large -- thousands of items

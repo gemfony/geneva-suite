@@ -30,6 +30,7 @@
 #pragma once
 
 // Standard headers
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -242,11 +243,17 @@ private:
         }
         fitness_.assign(static_cast<std::size_t>(n), scalar_type(0));
 
+        // The batch is evaluated in one launch, so its time is one window that every item of the
+        // batch reports as its processing time.
+        const auto evaluation_start = std::chrono::steady_clock::now();
         backend_->evaluate(
             params_.data(), n, dim, pconst_.data(), pconst_.size(), fitness_.data(),
             marshaller_->parallelWorkPerItem());
+        const double evaluation_time =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - evaluation_start)
+                .count();
 
-        marshaller_->scatter(items, fitness_);
+        marshaller_->scatter(items, fitness_, evaluation_time);
     }
 
     /***************************************************************************/
