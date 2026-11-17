@@ -59,16 +59,8 @@ rsyncList.sh
 sampleHostFile.hcfg
    A sample host file (one host per line) for sshList.sh and rsyncList.sh.
 
-Configuration & testing helpers
--------------------------------
-
-updateConfigFiles.sh
-   Regenerates/updates the JSON configuration files of all tests and examples in
-   the source tree from a fully built binary tree. (Running any Geneva binary in
-   a directory that contains an empty ./config folder auto-creates its default
-   configs; this script just automates that across the whole tree and copies the
-   results back into the source tree.)
-   Usage: ./updateConfigFiles.sh <GENEVA_SOURCE_DIR> <GENEVA_BUILD_DIR>
+Testing helpers
+---------------
 
 Testing/repeatedRun.sh
    Runs a given command N times and appends each run's output (with a timestamp)
