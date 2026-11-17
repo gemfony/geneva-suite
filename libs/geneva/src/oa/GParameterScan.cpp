@@ -863,12 +863,37 @@ std::size_t GParameterScan::getNScansPerformed() const {
 /******************************************************************************/
 /**
  * @brief Allows to specify whether the parameter space should be scanned randomly
- * or on a grid.
+ * or on a grid. The scan parameters already specified are rebuilt for the new mode (and start
+ * from their first position), so it does not matter whether this is called before or after
+ * setParameterSpecs().
  *
  * @param scan_randomly true to scan individual variables randomly, false to scan on a grid
  */
 void GParameterScan::setScanRandomly(bool scan_randomly) {
+    if(scan_randomly == scan_randomly_) {
+        return;
+    }
     scan_randomly_ = scan_randomly;
+
+    // The scan parameters already specified were built for the other mode (setParameterSpecs()
+    // builds them at once, and a configuration file applies parameter_options before
+    // scan_randomly): rebuild them, so the order of the two settings does not matter.
+    const auto rebuild =
+        [this]<typename scan_par_type>(std::vector<std::shared_ptr<scan_par_type>> &scan_par_cnt) {
+            for(auto &scan_par : scan_par_cnt) {
+                scan_par = std::make_shared<scan_par_type>(scan_par->getSpec(), scan_randomly_);
+            }
+        };
+    rebuild(b_cnt_);
+    rebuild(int32_cnt_);
+    rebuild(f_cnt_);
+    rebuild(d_cnt_);
+
+    // A run in progress holds the parameter objects in all_par_cnt_ as well
+    if(not all_par_cnt_.empty()) {
+        this->clearAllParVec();
+        this->fillAllParVec();
+    }
 }
 
 /******************************************************************************/

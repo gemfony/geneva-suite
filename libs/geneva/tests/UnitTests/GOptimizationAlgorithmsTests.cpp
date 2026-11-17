@@ -44,22 +44,23 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
-#include <utility>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <tuple>
+#include <utility>
 #include <vector>
 
-
+#include "common/GParserBuilder.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
@@ -304,6 +305,8 @@ std::mutex g_scan_probe_mutex;
 std::vector<std::int32_t> g_scan_int_samples;            ///< every int value the int probe was evaluated at
 std::vector<std::pair<double, double>> g_scan_pair_samples; ///< every (x, y) the 2-double probe was evaluated at
 std::vector<bool> g_scan_bool_samples;                      ///< every value the bool probe saw
+std::vector<std::pair<bool, double>>
+    g_scan_bool_double_samples; ///< every (b, x) the bool-and-double probe was evaluated at
 
 /** @brief A single-int32 probe (genome bound [-10, 10]) recording each evaluated int value. */
 class ScanIntProbe : public gen::GGenomeT<ScanIntProbe> {
@@ -350,6 +353,33 @@ protected:
             g_scan_bool_samples.push_back(v[0]);
         }
         return {v[0] ? 1. : 0.};
+    }
+};
+
+/** @brief A probe with one boolean and one double (bounds [-5, 5)) recording each evaluated pair. */
+class ScanBoolDoubleProbe : public gen::GGenomeT<ScanBoolDoubleProbe> {
+public:
+    using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
+public:
+    ScanBoolDoubleProbe() {
+        gen::GGenomeBuilder b;
+        b.addBoolGroup(1).init(false);
+        b.addDoubleGroup(1, -5., 5.).init(0.0);
+        this->setGenome(b.build());
+    }
+    ScanBoolDoubleProbe(const ScanBoolDoubleProbe &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<bool> b;
+        std::vector<double> x;
+        this->streamline<bool>(b);
+        this->streamline<double>(x);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_double_samples.emplace_back(b[0], x[0]);
+        }
+        return {x[0] * x[0] + (b[0] ? 1. : 0.)};
     }
 };
 
@@ -1288,6 +1318,97 @@ TEST_CASE("Parameter scan over a boolean visits each of its two values once", "[
         CHECK(g_scan_bool_samples.size() == 2);
         CHECK(std::ranges::count(g_scan_bool_samples, false) == 1);
         CHECK(std::ranges::count(g_scan_bool_samples, true) == 1);
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "Parameter scan over a boolean and a double visits their cross product",
+    "[flat][oa][ps]"
+) {
+    // The boolean is the fastest digit of the scan's odometer; with a second scanned variable its
+    // traversal must still wrap after its two values, or the scan reads past its grid.
+    {
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        g_scan_bool_double_samples.clear();
+    }
+
+    auto pop = std::make_shared<oa::GParameterScan>();
+    pop->setScanRandomly(false); // grid scan
+    pop->setParameterSpecs("b(0), d(0, -1., 1., 3)");
+    pop->setMaxIteration(100000);
+    pop->setMaxStallIteration(0);
+    pop->setReportIteration(100000);
+    pop->push_back(ScanBoolDoubleProbe().clone());
+    CHECK_NOTHROW(pop->optimize());
+
+    std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+    std::set<std::pair<bool, double>> const combos(
+        g_scan_bool_double_samples.begin(),
+        g_scan_bool_double_samples.end()
+    );
+    CHECK(g_scan_bool_double_samples.size() == 6); // 2 * 3, each once
+    CHECK(combos.size() == 6);
+    for(const bool b : {false, true}) {
+        for(const double x : {-1., 0., 1.}) {
+            CHECK(combos.count(std::make_pair(b, x)) == 1);
+        }
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "Parameter scan mode does not depend on the order of the two settings",
+    "[flat][oa][ps]"
+) {
+    // Regression: the scan objects were built when the specification was set, in the scan mode of
+    // that moment. A configuration file applies parameter_options before scan_randomly, so
+    // "scan_randomly": false came too late and the scan drew random values; the same happened on
+    // the API with setScanRandomly() after setParameterSpecs().
+    const auto run_and_count = [](const std::shared_ptr<oa::GParameterScan> &pop) {
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.clear();
+        }
+        pop->setMaxIteration(100000);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->push_back(ScanBoolProbe().clone());
+        CHECK_NOTHROW(pop->optimize());
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        CHECK(g_scan_bool_samples.size() == 2); // a grid: both values once (a random scan: 100)
+        CHECK(std::ranges::count(g_scan_bool_samples, false) == 1);
+        CHECK(std::ranges::count(g_scan_bool_samples, true) == 1);
+    };
+
+    SECTION("from a configuration file") {
+        const auto dir = std::filesystem::temp_directory_path() / "geneva_parameter_scan_tests";
+        std::filesystem::create_directories(dir);
+        const auto cfg = dir / "GParameterScan.json";
+        {
+            std::ofstream out(cfg);
+            out << R"json({
+                "parameter_options": { "value": "b(0)" },
+                "scan_randomly": { "value": false }
+            })json"
+                << '\n';
+        }
+        auto pop = std::make_shared<oa::GParameterScan>();
+        Gem::Common::GParserBuilder gpb;
+        pop->addConfigurationOptions(gpb);
+        REQUIRE(gpb.parseConfigFile(cfg));
+        std::filesystem::remove(cfg);
+        CHECK_FALSE(pop->getScanRandomly());
+        run_and_count(pop);
+    }
+
+    SECTION("on the API, the mode set after the specification") {
+        auto pop = std::make_shared<oa::GParameterScan>();
+        pop->setParameterSpecs("b(0)");
+        pop->setScanRandomly(false);
+        run_and_count(pop);
     }
 }
 

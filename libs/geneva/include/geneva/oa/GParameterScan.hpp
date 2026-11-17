@@ -295,6 +295,20 @@ public:
         return var_;
     }
 
+    /**
+     * @brief The specification this object was built from (variable address, boundaries, step
+     * count), so it can be rebuilt for the other scan mode.
+     * @return The parameter property specification of this object
+     */
+    gen::parPropSpec<T> getSpec() const {
+        gen::parPropSpec<T> spec;
+        spec.var = var_;
+        spec.lowerBoundary = lower_;
+        spec.upperBoundary = upper_;
+        spec.nSteps = n_steps_;
+        return spec;
+    }
+
     /***************************************************************************/
     /**
      * @brief Retrieves the current item position in the grid
@@ -783,7 +797,8 @@ public:
     /** @brief Retrieves the number of scans performed so far */
     std::size_t getNScansPerformed() const;
 
-    /** @brief Allows to specify whether the parameter space should be scanned randomly or on a grid */
+    /** @brief Allows to specify whether the parameter space should be scanned randomly or on a grid
+     *  (rebuilding the scan parameters already specified) */
     void setScanRandomly(bool scan_randomly);
     /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid */
     bool getScanRandomly() const;
