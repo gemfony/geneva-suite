@@ -98,9 +98,13 @@
  *     other end sent it before it knew of the close, and the role decides what it means (a
  *     session checks a late result in and answers nothing, a client starts no evaluation). What
  *     arrives after this end's close has gone out may be dropped. A role that asks for the close
- *     before it has been told of the open is told nothing (rule 1); its end reads nothing before
- *     its close has gone out, so that what arrived for it can never be confirmed to the other
- *     end. abort() is the exception: it ends at once and may cut what has not been sent.
+ *     before its end has opened is told nothing (rule 1); its end reads nothing before its close
+ *     has gone out, so that what arrived for it can never be confirmed to the other end. An end
+ *     that moves its bytes on threads of its own opens there and reads from then on, without
+ *     waiting for the role's executor, which may be busy for any time (rule 2; GWebsocketPeer:
+ *     when its handshake has completed); its role is then told of the open and of what was read
+ *     before its close went out, also when it asks for the close before onOpen has run. abort()
+ *     is the exception: it ends at once and may cut what has not been sent.
  *     **Confirmed** means: the other end answered this end's close -- it sent its own close only
  *     after this end's close had arrived there, and so after its role had been handed everything
  *     that arrived before. For the websocket transport that is a close frame, read after ours was

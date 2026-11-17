@@ -68,10 +68,13 @@ namespace Gem::Courtier::Consumers {
  *  - performs its side of the websocket handshake when it is started: the server's end waits for
  *    the client's handshake, the client's end (constructed with the server's host name) performs
  *    it. onOpen follows the handshake; a handshake that fails is reported as FAILED;
- *  - keeps one read outstanding from the moment the role has been told of the open to the end of
- *    the connection, so pings are answered and the idle limit is watched while the role does
- *    something else (a role that asked for the close before it was told of the open is told
- *    nothing, and nothing is read before this end's close has gone out: rule 6);
+ *  - keeps one read outstanding from the open (the completed handshake) to the end of the
+ *    connection, so pings are answered and the idle limit is watched while the role does
+ *    something else -- also before the role has been told of the open, which waits for the
+ *    role's strand. What is read is delivered: the role is told of the open and of every message
+ *    read before its close has gone out, also when it asks for the close before onOpen has run.
+ *    A role that asked for the close before the open is told nothing, and nothing is read before
+ *    this end's close has gone out (rule 6);
  *  - sends through a queue, because Beast allows one write at a time;
  *  - closes in the regular way after what was handed to send() before (rule 6): the close frame
  *    goes out when the write queue is empty, so a message of several frames is never cut. The
@@ -179,9 +182,6 @@ private:
     GOptions options_;
     std::string host_; ///< The server's name for the client's handshake; empty on the server's end
     GPeerHandlers handlers_; ///< Set by start(); on the handler strand; dropped once it is over
-    /// The role was told of the open (a close() before it suppresses it, and every message after
-    /// it); on the handler strand
-    bool role_open_ = false;
 
     boost::asio::any_io_executor io_executor_;    ///< The socket's executor (where the bytes move)
     boost::asio::any_io_executor handler_strand_; ///< Where the role's handlers run
