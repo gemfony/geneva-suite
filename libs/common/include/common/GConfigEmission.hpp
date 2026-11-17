@@ -95,10 +95,6 @@ inline constexpr std::string_view CONFIG_REFERENCE_ENV = "GENEVA_CONFIG_REFERENC
  * This is a side-effect-free scan of @p argv for CONFIG_EMISSION_FLAG, meant to be called before the
  * binary's own program-options parser runs (so an emit-only invocation need not carry a full, valid
  * option set).
- *
- * @param argc The argument count as passed to main()
- * @param argv The argument vector as passed to main()
- * @return true if the configuration-emission switch is present, false otherwise
  */
 bool configEmissionRequested(int argc, char **argv);
 

@@ -147,9 +147,6 @@ public:
 
     /**
      * @brief Writes a message to the console, prefixed with its source specifier
-     *
-     * @param message The log message to be written to the console
-     * @param extension An identifier of the logging source, emitted as a textual prefix
      */
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 };
@@ -192,9 +189,6 @@ public:
 
     /**
      * @brief Logs to a file whose name is extended with the source identifier
-     *
-     * @param message The log message to be appended to the file
-     * @param extension An identifier of the logging source, appended (with an underscore) to the file name
      */
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 
@@ -534,9 +528,6 @@ public:
     explicit GManipulator(logType lt);
     /**
      * @brief A constructor that stores both accompanying information and the logging type
-     *
-     * @param accomp_info Accompanying information (e.g. a call-site location string)
-     * @param lt The type of logging event this manipulator triggers
      */
     GManipulator(std::string const &accomp_info, logType lt);
     /**
@@ -607,15 +598,11 @@ class GLogStreamer {
 public:
     /**
      * @brief A constructor that adds an extension string to the output
-     *
-     * @param extension A source-identifier string attached to the streamed output
      */
     explicit GLogStreamer(std::string const &extension);
 
     /**
      * @brief A constructor that logs data to a file specified by a std::filesystem::path object
-     *
-     * @param log_file The path of the one-time log file this streamer writes to
      */
     explicit GLogStreamer(std::filesystem::path log_file);
 
@@ -639,27 +626,18 @@ public:
      * @brief Streams a std::ostream manipulator (e.g. std::endl) into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ostream manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ostream &(*val)(std::ostream &));
     /**
      * @brief Streams a std::ios manipulator into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ios manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ios &(*val)(std::ios &));
     /**
      * @brief Streams a std::ios_base manipulator into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ios_base manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ios_base &(*val)(std::ios_base &));
 
@@ -667,8 +645,6 @@ public:
      * @brief A GManipulator object triggers the actual logging procedure
      *
      * Intended to be the last element of a streaming chain; therefore it returns void.
-     *
-     * @param gm The manipulator whose log type dictates how the accumulated content is processed
      */
     void operator<<(GManipulator const &gm);
 

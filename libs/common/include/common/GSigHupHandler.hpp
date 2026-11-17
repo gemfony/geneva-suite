@@ -47,8 +47,6 @@ namespace Gem::Common {
  * for Windows and Unix systems. Register it with e.g.
  * `signal(G_SIGHUP, Gem::Common::sigHupHandler)` to allow interruption of an
  * optimization run without loss of data.
- *
- * @param signum The number of the signal that was raised
  */
 void sigHupHandler(int signum);
 

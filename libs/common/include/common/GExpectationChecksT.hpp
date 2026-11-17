@@ -75,9 +75,6 @@ class GToken // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /**
      * @brief The standard constructor -- initialization with class name and expectation.
-     *
-     * @param caller The name of the calling class, recorded for use in diagnostic messages
-     * @param e The expectation (EQUALITY / FP_SIMILARITY / INEQUALITY) all checks fed to this token must fulfill
      */
     GToken(std::string caller, Gem::Common::expectation e);
 
@@ -144,7 +141,6 @@ public:
     void registerErrorMessage(std::string const &m);
     /**
      * @brief Allows to register an exception obtained from a failed check.
-     * @param g The expectation-violation exception whose message is appended to this token's collection
      */
     void registerErrorMessage(g_expectation_violation const &g);
 
@@ -178,10 +174,6 @@ private:
 /******************************************************************************/
 /**
  * @brief This function facilitates the output of GToken objects, mostly for debugging purposes.
- *
- * @param s The output stream the token is written to
- * @param g The GToken object to be streamed
- * @return A reference to the (modified) output stream, for chaining
  */
 std::ostream &operator<<(std::ostream &s, GToken const &g);
 
@@ -1424,8 +1416,6 @@ void compare(
  * and the limit (the maximum allowed deviation of two floating point values; unused for tribool and
  * present only to match the common compare() signature). A g_expectation_violation exception is thrown
  * if the expectation is violated.
- *
- * @param limit The maximum allowed deviation of two floating point values (unused for tribool)
  */
 void compare(
     Gem::Common::tribool const &x,

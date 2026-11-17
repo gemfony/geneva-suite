@@ -181,7 +181,8 @@ bool GThreadPool::inWorkerThread() noexcept {
  * the loop then drains the remaining tasks and exits once the queue is closed and empty, so
  * pending futures are still satisfied (a graceful "drain and stop").
  *
- * @param st The cooperative stop token whose stop request closes the task queue
+ * @param st The jthread stop token; a stop request closes the task queue so the worker drains
+ *   the remaining tasks and then exits
  */
 void GThreadPool::worker_loop(const std::stop_token& st) {
     // A stop request (e.g. from GThreadGroup::join_all()) closes the task queue. The drain loop

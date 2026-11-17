@@ -310,13 +310,9 @@ public:
     GParsableI &operator=(GParsableI const &) = delete;
     GParsableI &operator=(GParsableI &&) = delete;
 
-    /** @brief Retrieves the option name at a given position
-     *  @param pos The index of the option name to retrieve (defaults to the first)
-     *  @return The option name stored at the given position */
+    /** @brief Retrieves the option name at a given position */
     [[nodiscard]] std::string optionName(std::size_t pos = 0) const;
-    /** @brief Retrieves the comment that was assigned to this variable at a given position
-     *  @param pos The index of the comment to retrieve (defaults to the first)
-     *  @return The comment stored at the given position */
+    /** @brief Retrieves the comment that was assigned to this variable at a given position */
     [[nodiscard]] std::string comment(std::size_t pos = 0) const;
     /** @brief Checks whether comments have indeed been registered
      *  @return true if at least one non-empty comment is stored, false otherwise */
@@ -378,32 +374,20 @@ public:
     }
 
     /***************************************************************************/
-    /** @brief Needed for std::ostringstream
-     *  @param val A stream manipulator (such as std::endl) to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ostream &(*val)(std::ostream &));
-    /** @brief Needed for std::ostringstream
-     *  @param val An std::ios manipulator to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ios &(*val)(std::ios &));
-    /** @brief Needed for std::ostringstream
-     *  @param val An std::ios_base manipulator to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ios_base &(*val)(std::ios_base &));
-    /** @brief Allows to indicate the current comment level
-     *  @param cl A commentLevel manipulator selecting the comment entry to append to
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Allows to indicate the current comment level */
     GParsableI &operator<<(commentLevel const &cl);
-    /** @brief Allows to switch to the next comment level
-     *  @param nc A nextComment manipulator that advances to the next comment entry
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Allows to switch to the next comment level */
     GParsableI &operator<<(nextComment const &nc);
 
 protected:
     /***************************************************************************/
-    /** @brief Splits a comment into sub-tokens
-     *  @param comment The comment string to split into sub-tokens
-     *  @return The list of sub-tokens extracted from the comment */
+    /** @brief Splits a comment into sub-tokens */
     static std::vector<std::string> splitComment(std::string const &comment);
 
 private:
@@ -1783,11 +1767,7 @@ public:
 
     /** @brief Reads and parses a configuration file, applying the values to the registered options. A
      *  missing file is created from defaults (also a success). Optionally hands the parsed JSON document
-     *  back via the second argument so callers can cache it.
-     *  @param config_file The path of the configuration file to read and parse
-     *  @param captured Optional output pointer; if non-null, receives a copy of the parsed JSON document for caching
-     *  @return true on success (the file was parsed, or a missing one was created from its defaults);
-     *          false if an error occurred (the exception is logged and swallowed) */
+     *  back via the second argument so callers can cache it. */
     bool parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured = nullptr);
     /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic.
      *  @param root The already-parsed JSON document to apply to the registered options
@@ -1798,10 +1778,7 @@ public:
         std::filesystem::path const &config_path = {},
         bool run_unknown_key_check = true
     );
-    /** @brief Writes out a configuration file
-     *  @param config_file The path of the configuration file to write
-     *  @param header A header comment to be placed at the top of the file
-     *  @param write_all Whether to also write secondary (non-essential) options */
+    /** @brief Writes out a configuration file */
     void
     writeConfigFile(std::filesystem::path const &config_file, std::string const &header = "", bool write_all = true) const;
     /** @brief Update-in-place: parse @p config_file (if it exists) into the registered options, then rewrite
@@ -1809,15 +1786,10 @@ public:
      *  preserved, newly-registered parameters emitted with their defaults, comments/order refreshed. A
      *  missing file is created from defaults (same as parseConfigFile). The rewrite is atomic (a temp sibling
      *  is written and then renamed over the target), and never runs during a build into the source tree
-     *  because it targets exactly the file it was given.
-     *  @param config_file The path of the configuration file to update in place
-     *  @param header An optional header comment; empty uses the standard auto-created header
-     *  @return true on success (the file was updated, or a missing one was created from its defaults);
-     *          false if an error occurred (the exception is logged and swallowed) */
+     *  because it targets exactly the file it was given. */
     bool updateConfigFile(std::filesystem::path const &config_file, std::string const &header = "");
     /** @brief Globally enables/disables update-in-place: when enabled, every successful parseConfigFile() that
-     *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup.
-     *  @param enabled Whether parseConfigFile should rewrite the files it reads */
+     *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup. */
     static void setUpdateInPlace(bool enabled);
     /** @brief Retrieves whether update-in-place is globally enabled
      *  @return true if parseConfigFile rewrites the files it reads, false otherwise */
@@ -1825,8 +1797,7 @@ public:
     /** @brief Globally enables/disables the creation-timestamp line in a generated config's header (default:
      *  enabled). Disable it to produce byte-stable, reproducible output -- e.g. for a config set that is
      *  checked into version control (the config-reference tree), where a changing timestamp would show as a
-     *  spurious diff on every regeneration. Call once at startup.
-     *  @param enabled Whether the header should carry the creation timestamp */
+     *  spurious diff on every regeneration. Call once at startup. */
     static void setEmitTimestamp(bool enabled);
     /** @brief Retrieves whether the header creation-timestamp line is emitted
      *  @return true if a generated config's header carries the creation timestamp, false otherwise */
@@ -1847,11 +1818,7 @@ public:
      *  @return The number of registered file configuration options */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
-    /** @brief Parses the commandline for options
-     *  @param argc The number of command-line arguments
-     *  @param argv The array of command-line argument strings
-     *  @param verbose Whether to print the parsed options to the log
-     *  @return true if parsing succeeded and execution should continue, false if help was requested */
+    /** @brief Parses the commandline for options */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
     /** @brief Provides information on the number of command line configuration options stored in this class
      *  @return The number of registered command-line configuration options */
@@ -2418,12 +2385,7 @@ private:
 
     /** @brief Shared implementation of parseConfigFile()/updateConfigFile(): reads @p config_file (creating
      *  it from defaults if absent), applies it to the registered options and, when @p do_rewrite is set and
-     *  the file already existed, rewrites it in canonical form.
-     *  @param config_file The configuration file to read (and, when do_rewrite, rewrite)
-     *  @param captured Optional output pointer receiving the parsed JSON document, or nullptr
-     *  @param do_rewrite Whether to rewrite the file in canonical form after reading it
-     *  @param rewrite_header The header for a rewrite; empty uses the standard auto-created header
-     *  @return true if the file already existed, false if it had to be created from defaults */
+     *  the file already existed, rewrites it in canonical form. */
     bool doParseConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value *captured,
@@ -2446,16 +2408,11 @@ private:
     );
     /** @brief Builds the canonical configuration document (header + one entry per registered file
      *  option: value = the current parsed/default value, default = the registered default). Shared by
-     *  writeConfigFile() and the update-in-place rewrite.
-     *  @param header The header comment (split on ';' into individual comment lines)
-     *  @param write_all Whether to also emit non-essential options
-     *  @return The assembled JSON document (a JSON object at the root) */
+     *  writeConfigFile() and the update-in-place rewrite. */
     [[nodiscard]] boost::json::value buildConfigDocument_(std::string const &header, bool write_all) const;
     /** @brief Atomically replaces @p config_file with the pretty-printed serialization of @p document
      *  (writes a temp sibling, then renames it over the target), bypassing the deliberate no-overwrite
-     *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file.
-     *  @param config_file The target configuration file (.json) to replace
-     *  @param document The JSON document to serialize */
+     *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file. */
     void atomicReplaceConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value const &document

@@ -713,7 +713,8 @@ void GParserBuilder::reportAndRewriteConfigFile(
  *
  * @param config_file The path of the configuration file to read and parse
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
- * @return true on success, false if an exception was caught
+ * @return true on success (the file was parsed, or a missing one was created from its defaults);
+ *   false if an error occurred (the exception is logged and swallowed)
  */
 bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured) {
     return this->doParseConfigFile_(config_file, captured, /* do_rewrite = */ update_in_place_);
@@ -728,7 +729,8 @@ bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, b
  *
  * @param config_file The path of the configuration file to update in place
  * @param header An optional header comment; empty uses the standard auto-created header
- * @return true on success, false if an exception was caught
+ * @return true on success (the file was updated, or a missing one was created from its defaults);
+ *   false if an error occurred (the exception is logged and swallowed)
  */
 bool GParserBuilder::updateConfigFile(std::filesystem::path const &config_file, std::string const &header) {
     return this->doParseConfigFile_(config_file, nullptr, /* do_rewrite = */ true, header);

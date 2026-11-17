@@ -225,9 +225,6 @@ inline bool indeterminate(tribool t) noexcept { return t == tribool::Indetermina
 
 /**
  * @brief Puts a Gem::Common::tribool into a stream.
- * @param o The output stream to write to
- * @param x The tribool value to be streamed out
- * @return A reference to the output stream
  */
 std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x);
 
@@ -256,9 +253,6 @@ template <> inline constexpr bool numeric_enum_io_v<serializationMode> = true;
  * @brief Reads a serializationMode as its numeric value; a value that names no mode (one of the
  * removed Boost archives, say) fails the stream, so that an option or a configuration that names
  * one is refused where it is read. Preferred over the generic numeric reader.
- * @param i The input stream to read from
- * @param x The mode read (unchanged if the stream fails)
- * @return A reference to the input stream
  */
 std::istream &operator>>(std::istream &i, serializationMode &x);
 
