@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 #include <fstream>
@@ -100,20 +101,12 @@ std::vector<T> fillWithData(
 
 /**
  * @brief Specialization of fillWithData() for type bool (yields the values false and true).
- * @param n_steps The requested number of steps (unused: a boolean grid always holds both values)
- * @param lower The lower boundary of the scanned range (unused)
- * @param upper The upper boundary of the scanned range (unused)
- * @return A vector holding the boolean grid points
  */
 template <>
 std::vector<bool> fillWithData<bool>(std::size_t n_steps, bool lower, bool upper);
 
 /**
  * @brief Specialization of fillWithData() for type std::int32_t.
- * @param n_steps The number of steps to generate, including the boundaries
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the integer grid points
  */
 template <>
 std::vector<std::int32_t> fillWithData<std::int32_t>(
@@ -124,20 +117,12 @@ std::vector<std::int32_t> fillWithData<std::int32_t>(
 
 /**
  * @brief Specialization of fillWithData() for type float.
- * @param n_steps The number of steps to generate, including the boundaries
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the floating point grid points
  */
 template <>
 std::vector<float> fillWithData<float>(std::size_t n_steps, float lower, float upper);
 
 /**
  * @brief Specialization of fillWithData() for type double.
- * @param n_steps The number of steps to generate, including the boundaries
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the floating point grid points
  */
 template <>
 std::vector<double> fillWithData<double>(std::size_t n_steps, double lower, double upper);
@@ -674,10 +659,7 @@ struct parSet {
 };
 
 /******************************************************************************/
-/** @brief A simple output operator for parSet object, mostly meant for debugging
- *  @param os The output stream to write to
- *  @param p_s The parameter set to be streamed
- *  @return A reference to the output stream, for chaining */
+/** @brief A simple output operator for parSet object, mostly meant for debugging */
 std::ostream &operator<<(std::ostream &os, const parSet &p_s);
 
 /******************************************************************************/

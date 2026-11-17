@@ -38,6 +38,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "geneva/GNamespaceAliases.hpp"
 #include "geneva/genome/GParameterPropertyParser.hpp"
 
 using namespace Gem::Geneva;

@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <functional>
@@ -81,8 +82,6 @@ constexpr bool GO2_DEF_COPYBESTINDIVIDUALSONLY = true;
 /******************************************************************************/
 /**
  * @brief Sets the number of producer threads of the random number factory.
- *
- * @param n_producer_threads The number of threads the random number factory should use to produce random numbers
  */
 void setRNFParameters(std::uint16_t n_producer_threads);
 

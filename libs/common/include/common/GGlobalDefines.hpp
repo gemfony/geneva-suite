@@ -60,7 +60,7 @@
 //-----------------------------------------------------------
 
 // Tell Boost not to compile std::auto_ptr compatibility functions — std::auto_ptr
-// was removed in C++17 and Geneva requires C++20.
+// was removed in C++17, and Geneva is built to a later standard.
 #define BOOST_NO_AUTO_PTR
 
 #include <boost/config.hpp>
@@ -133,20 +133,3 @@ template <typename T>
 #else
 #define G_DEPRECATED(message)
 #endif
-
-//-----------------------------------------------------------
-
-// Library-wide short namespace aliases. Defined here because virtually
-// every Geneva translation unit includes this header (directly or
-// transitively), so `oa::`, `gen::` and `gind::` resolve everywhere.
-// The target namespaces are forward-declared so no real dependency is
-// introduced. (The Gem::Geneva::Interface namespace has no short alias;
-// it is referenced by its full nested name.)
-namespace Gem::Geneva::OptimizationAlgorithms {}
-namespace Gem::Geneva::Genome {}
-namespace Gem::Geneva::Individuals {}
-namespace Gem::Geneva::Benchmarks {}
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
-namespace gen = Gem::Geneva::Genome;
-namespace gind = Gem::Geneva::Individuals;
-namespace gbm = Gem::Geneva::Benchmarks;

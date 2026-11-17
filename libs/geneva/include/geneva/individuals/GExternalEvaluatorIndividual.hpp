@@ -29,6 +29,10 @@
 
 #pragma once
 
+// Global checks, defines and includes needed for all of Geneva
+#include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
+
 // Standard header files go here
 #include <chrono>
 #include <cmath>

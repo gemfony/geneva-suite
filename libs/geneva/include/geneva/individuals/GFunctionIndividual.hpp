@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <cmath>
@@ -619,18 +620,12 @@ private:
 /******************************************************************************/
 /**
  * @brief Provides an easy way to print the individual's content.
- * @param os The output stream to write to
- * @param ind The individual whose content is written
- * @return A reference to the output stream
  */
 std::ostream &
 operator<<(std::ostream & s, const Gem::Geneva::Individuals::GFunctionIndividual & f);
 
 /**
  * @brief Provides an easy way to print the individual's content via an owning pointer.
- * @param os The output stream to write to
- * @param ind_ptr A sole-ownership pointer to the individual whose content is written
- * @return A reference to the output stream
  */
 std::ostream &
 operator<<(std::ostream & s, const std::unique_ptr<Gem::Geneva::Individuals::GFunctionIndividual>& f_ptr);

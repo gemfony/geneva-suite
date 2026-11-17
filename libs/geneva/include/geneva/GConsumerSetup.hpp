@@ -30,6 +30,7 @@
 #pragma once
 
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers
 #include <any>
@@ -208,10 +209,6 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
  * Fills both fields: the mnemonic, and the configuration the mnemonic's provider reads out of
  * @p vm (GConsumerProviderT::configFromCommandLine()). Keeps callers (Go2, the standalone
  * examples) free of per-consumer option knowledge.
- *
- * @param mnemonic The consumer mnemonic to build a spec for ("stc"|"beast"|"mpi").
- * @param vm The parsed program-options variables map to read consumer option values from.
- * @return The populated ConsumerSpec. An unknown mnemonic yields a spec carrying only the mnemonic.
  */
 Gem::Courtier::ConsumerSpec
 specFromCommandLine(const std::string &mnemonic, const boost::program_options::variables_map &vm);
@@ -269,9 +266,6 @@ void materializeConsumerConfigFiles();
  * Registers the options for beast/stc (and mpi when built). This is the single place that owns
  * the consumer option surface, so callers (Go2) register them without iterating a consumer store.
  * specFromCommandLine() reads the matching values back out of the parsed map.
- *
- * @param visible The options group that user-facing (help-listed) consumer options are added to.
- * @param hidden The options group that internal / non-listed consumer options are added to.
  */
 void addConsumerOptions(
     boost::program_options::options_description &visible,
@@ -280,16 +274,12 @@ void addConsumerOptions(
 /******************************************************************************/
 /**
  * @brief Whether a mnemonic names a consumer this layer can build (stc/beast/mpi).
- * @param mnemonic The consumer mnemonic to test.
- * @return true if the mnemonic is a known/buildable consumer, false otherwise.
  */
 bool isKnownConsumer(const std::string &mnemonic);
 
 /******************************************************************************/
 /**
  * @brief Whether a process selecting the given mnemonic can run as a networked client.
- * @param mnemonic The consumer mnemonic to test.
- * @return true if the mnemonic denotes a consumer with a client role (beast/mpi), false otherwise.
  */
 bool consumerNeedsClient(const std::string &mnemonic);
 
@@ -300,9 +290,6 @@ bool consumerNeedsClient(const std::string &mnemonic);
  * Generic drivers use this instead of naming a specific consumer: for a consumer that answers true,
  * the configuration must be finalized before consumerRole() can be asked, and --client must not be
  * rejected up front. See GConsumerProviderT::determinesRoleAtRuntime().
- *
- * @param mnemonic The consumer mnemonic to test.
- * @return true if the consumer self-assigns the role at runtime, false otherwise (incl. unknown mnemonics).
  */
 bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic);
 
