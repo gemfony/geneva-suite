@@ -160,10 +160,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -283,10 +279,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -371,8 +363,6 @@ public:
 	 * whose points have z equal to that minimum (FLOOR) or maximum (CEILING) is drawn on the map.
 	 * Only a primary plotter can be projected, and a projection decides the drawing itself: it
 	 * cannot be combined with custom drawing arguments.
-	 *
-	 * @param projection Where the colour map is shown
 	 */
     void setSurfaceProjection(surfaceProjection projection);
     /**
@@ -384,7 +374,6 @@ public:
     /**
 	 * @brief For a projected surface: whether the surface itself is drawn (the default), or only its
 	 * colour map on the floor or ceiling -- a map of the data under whatever the pad's overlays show.
-	 * @param draw_surface Whether the surface is drawn as well as its map
 	 */
     void setDrawSurface(bool draw_surface = true);
     /**
@@ -396,7 +385,6 @@ public:
     /**
 	 * @brief Draws every point a second time, small and grey, on the floor of the plot box -- its
 	 * shadow, which shows where in the x-y plane the points lie.
-	 * @param floor_shadow Whether the points' shadows are drawn
 	 */
     void setFloorShadow(bool floor_shadow = true);
     /**
@@ -454,10 +442,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -467,21 +451,12 @@ private:
 
     /**
 	 * @brief Emits the ROOT drawing of a projected surface (see setSurfaceProjection())
-	 * @param is_secondary Whether this plotter is a secondary plotter (a projection must be primary)
-	 * @param graph_name The name of the TGraph2D the footer has created
-	 * @param indent The indentation string prepended to every emitted line
-	 * @return The ROOT code drawing the projected surface
 	 */
     [[nodiscard]] std::string
     rootProjectedSurface_(bool is_secondary, const std::string &graph_name, const std::string &indent) const;
 
     /**
 	 * @brief Emits the ROOT drawing of the points' shadows on the floor (see setFloorShadow())
-	 * @param x_array_name The name of the array holding the points' x values
-	 * @param y_array_name The name of the array holding the points' y values
-	 * @param graph_name The name of the TGraph2D the shadows belong to
-	 * @param indent The indentation string prepended to every emitted line
-	 * @return The ROOT code drawing the shadows
 	 */
     [[nodiscard]] std::string rootFloorShadow_(
         const std::string &x_array_name, const std::string &y_array_name, const std::string &graph_name,
@@ -642,10 +617,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -774,10 +745,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -916,10 +883,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -952,9 +915,6 @@ private:
  * The function plotters (function_1d / function_2d) cannot be reconstructed from a
  * spec -- their formula and sampling range are not part of the GPlotSpec value -- so
  * those kinds throw a geneva_exception.
- *
- * @param spec The plot specification describing the plotter to build
- * @return A newly-allocated, empty plotter matching the spec
  */
 [[nodiscard]] std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec);
 

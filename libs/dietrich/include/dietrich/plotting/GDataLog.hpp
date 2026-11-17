@@ -68,33 +68,23 @@ public:
     /***************************************************************************/
     /**
      * @brief Constructs an empty log for a canvas with the given title and pad grid
-     * @param canvas_label The canvas title
-     * @param c_x_div The number of pad columns
-     * @param c_y_div The number of pad rows
      */
     GDataLog(std::string canvas_label, std::size_t c_x_div, std::size_t c_y_div);
 
     /***************************************************************************/
     /**
      * @brief Declares a primary series (occupying its own pad) from its plot spec
-     * @param spec The plot specification (kind, labels, columns, bins, plot mode)
-     * @return The id of the newly declared series
      */
     SeriesId declareSeries(GPlotSpec spec);
 
     /**
      * @brief Declares an overlay series sharing an existing primary series' pad
-     * @param primary The id of the primary series whose pad this overlays
-     * @param spec The plot specification for the overlay
-     * @return The id of the newly declared overlay series
      */
     SeriesId overlaySeries(SeriesId primary, GPlotSpec spec);
 
     /***************************************************************************/
     /**
      * @brief Appends one data row (one value per column, in column order) to a series
-     * @param id The series to append to
-     * @param row One value per column (size must match the series' column count)
      */
     void append(SeriesId id, std::span<const double> row);
     /** @brief Convenience append for a 2-column (x, y) series */
@@ -111,29 +101,24 @@ public:
     /**
      * @brief Marks a series so its data is sorted by the first column before rendering
      * (the GDataLog equivalent of GGraph2D::sortX()).
-     * @param id The series to sort
      */
     void sortByFirstColumn(SeriesId id);
 
     /***************************************************************************/
     /**
      * @brief Sets the canvas pixel dimensions (forwarded to the built GPlotDesigner)
-     * @param x_dim The canvas width in pixels
-     * @param y_dim The canvas height in pixels
      */
     void setCanvasDimensions(std::uint32_t x_dim, std::uint32_t y_dim);
 
     /**
      * @brief Forwards the "add a print command" flag to the built GPlotDesigner (only
      * applied when set, so an untouched log emits byte-identically to a plain designer)
-     * @param add_print_command Whether the designer should add a print / save command
      */
     void setAddPrintCommand(bool add_print_command);
 
     /**
      * @brief Forwards whether the canvas label is shown as the figure's title to the built
      * GPlotDesigner (only applied when set, so an untouched log emits as before)
-     * @param show_canvas_label Whether to show the canvas label
      */
     void setShowCanvasLabel(bool show_canvas_label);
 
@@ -149,8 +134,6 @@ public:
 
     /**
      * @brief Realizes the log and writes it to a file through the given backend
-     * @param path The output file path
-     * @param backend The rendering backend (defaults to ROOT)
      */
     void writeToFile(const std::filesystem::path &path, plotBackend backend = plotBackend::ROOT) const;
 

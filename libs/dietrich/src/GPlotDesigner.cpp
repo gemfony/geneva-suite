@@ -1081,7 +1081,7 @@ std::string GPlotDesigner::plot(const std::filesystem::path &plot_name) const {
  * Realizes the log and writes it to a file through the given backend.
  *
  * @param path The output file path
- * @param backend The rendering backend
+ * @param backend The rendering backend (defaults to ROOT)
  */
 void GDataLog::writeToFile(const std::filesystem::path &path, plotBackend backend) const {
     GPlotDesigner gpd = this->toDesigner();

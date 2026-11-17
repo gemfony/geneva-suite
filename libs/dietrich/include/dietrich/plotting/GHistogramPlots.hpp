@@ -172,10 +172,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -328,10 +324,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -490,7 +482,6 @@ public:
 
     /**
 	 * @brief Allows to specify 2d-drawing options
-	 * @param dropt The 2-d drawing option to be used for this histogram
 	 */
     void set2DOpt(tddropt dropt);
     /**
@@ -501,8 +492,6 @@ public:
     /**
      * @brief The 2-d drawing option whose ROOT draw option is @p name ("BOX", "SURF1", ...), as a
      * plot spec reports a histogram's set2DOpt() choice
-     * @param name A ROOT draw option
-     * @return The option, or nothing if no option draws as @p name
      */
     [[nodiscard]] static std::optional<tddropt> drawingOptionNamed(const std::string &name);
 
@@ -543,10 +532,6 @@ protected:
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 

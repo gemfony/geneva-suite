@@ -99,13 +99,10 @@ public:
 
     /**
      * @brief Copy constructor
-     * @param cp The plotter to copy from
      */
     GBasePlotter(GBasePlotter const &cp);
     /**
      * @brief Assignment operator
-     * @param cp The plotter to copy from
-     * @return A reference to this object
      */
     GBasePlotter &operator=(GBasePlotter const &cp);
 
@@ -126,13 +123,11 @@ public:
 
     /**
      * @brief Allows to set the drawing arguments for this plot
-     * @param drawing_arguments The drawing arguments (passed to the plotting backend) for this plot
      */
     void setDrawingArguments(std::string drawing_arguments);
 
     /**
      * @brief Sets the label for the x-axis
-     * @param x_axis_label The text to use as the x-axis label
      */
     void setXAxisLabel(std::string x_axis_label);
     /**
@@ -142,7 +137,6 @@ public:
     [[nodiscard]] std::string xAxisLabel() const;
     /**
      * @brief Sets the label for the y-axis
-     * @param y_axis_label The text to use as the y-axis label
      */
     void setYAxisLabel(std::string y_axis_label);
     /**
@@ -152,7 +146,6 @@ public:
     [[nodiscard]] std::string yAxisLabel() const;
     /**
      * @brief Sets the label for the z-axis
-     * @param z_axis_label The text to use as the z-axis label
      */
     void setZAxisLabel(std::string z_axis_label);
     /**
@@ -165,7 +158,6 @@ public:
      * @brief Chooses a logarithmic or a linear scale for the x-axis of this plot's pad. Every
      * backend honours it (matplotlib for two-dimensional plots only). The values plotted on a
      * logarithmic axis must be positive.
-     * @param logarithmic true for a logarithmic x-axis, false (the default) for a linear one
      */
     void setXAxisLogarithmic(bool logarithmic);
     /**
@@ -176,7 +168,6 @@ public:
     /**
      * @brief Chooses a logarithmic or a linear scale for the y-axis of this plot's pad (see
      * setXAxisLogarithmic())
-     * @param logarithmic true for a logarithmic y-axis, false (the default) for a linear one
      */
     void setYAxisLogarithmic(bool logarithmic);
     /**
@@ -203,7 +194,6 @@ public:
      * @brief Sets the title of the pad this (primary) plotter draws into, apart from its plot
      * label. Without one the plot label is the pad's title, as before; with one the plot label
      * names the series only (in the legend of a pad with several series).
-     * @param pad_title The title of the pad (empty: the plot label)
      */
     void setPadTitle(std::string pad_title);
     /**
@@ -232,7 +222,6 @@ public:
      * six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of LEGEND3DMAXROWS
      * rows says how many series are not shown. The other backends name the corner (AUTO on a 2-d
      * pad: their own placement; matplotlib's avoids data), and on a 3-d pad AUTO is the upper left.
-     * @param position A corner, FREEST, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);
     /**
@@ -255,7 +244,6 @@ public:
      * takes effect where the legend lies in a corner (set, or chosen by FREEST; not AUTO or the
      * middle of the right side), in ROOT; the other backends place the legend in the corner
      * without the room.
-     * @param legend_room true: leave the legend a band of its own
      */
     void setLegendRoom(bool legend_room);
     /**
@@ -266,7 +254,6 @@ public:
     /**
      * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
      * follows it
-     * @param line_width The width in the backend's units (0: the backend's default)
      */
     void setLineWidth(std::uint32_t line_width);
     /**
@@ -276,7 +263,6 @@ public:
     [[nodiscard]] std::uint32_t lineWidth() const;
     /**
      * @brief Allows to assign a marker to data structures
-     * @param ds_marker A marker that makes the origin of data structures clear in the output file
      */
     void setDataStructureMarker(std::string ds_marker);
     /**
@@ -324,7 +310,6 @@ public:
     [[nodiscard]] std::size_t id() const;
     /**
      * @brief Sets the id of the object
-     * @param id The id to be assigned to this plotter
      */
     void setId(const std::size_t &id);
 
@@ -374,8 +359,6 @@ public:
      * The base throws (a plotter that holds no double sample columns -- a function
      * plotter -- cannot accept rows this way); the columnar collectors override it. The
      * row size must equal the plotter's column count.
-     *
-     * @param row One value per axis, in column order (size must match the column count)
      */
     virtual void appendRow(std::span<const double> row);
 
@@ -392,22 +375,16 @@ public:
 
     /**
      * @brief Retrieve header settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined header section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string headerData(const std::string &indent) const;
 
     /**
      * @brief Retrieves body / data settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined body / data section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string bodyData(const std::string &indent) const;
 
     /**
      * @brief Retrieves footer / drawing settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined footer / drawing section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string footerData(const std::string &indent) const;
 
@@ -470,17 +447,11 @@ protected:
 
     /**
      * @brief Check that a given plotter is compatible with us
-     * @param other The other plotter whose compatibility with this one is checked
-     * @return true if the other plotter is compatible (by default, has the same plotter name)
      */
     [[nodiscard]] virtual bool isCompatible(std::shared_ptr<GBasePlotter> other) const;
 
     /**
      * @brief calculate a suffix from id and parent ids
-     * @param is_secondary true if a parent id should be folded into the suffix
-     * @param parent_id The id of the parent plotter (used only when is_secondary is true)
-     * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
-     * @return A suffix string built from this plotter's own id (and the parent id for secondary plotters)
      */
     [[nodiscard]] std::string suffix(bool is_secondary, std::size_t p_id, std::size_t own_id) const;
 

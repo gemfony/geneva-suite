@@ -100,8 +100,6 @@ class GRootEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete ROOT macro for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete ROOT macro source as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
@@ -131,8 +129,6 @@ class GnuplotEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete gnuplot script for a populated designer
-     * @param gpd The designer holding the graph plotters and canvas configuration
-     * @return The complete gnuplot script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
@@ -162,8 +158,6 @@ class MatplotlibEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete matplotlib (Python) script for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete matplotlib script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
@@ -195,8 +189,6 @@ class OctaveEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete Octave / MATLAB (.m) script for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete Octave / MATLAB script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
@@ -231,14 +223,11 @@ public:
     GDataEmitter() = default;
     /**
      * @brief Constructs the emitter in the requested export format
-     * @param format The on-disk format to export (CSV or NPZ)
      */
     explicit GDataEmitter(dataFormat format);
 
     /**
      * @brief Emits the raw series data for a populated designer
-     * @param gpd The designer holding the plotters
-     * @return In CSV mode the human-readable text; in NPZ mode the raw .npz bytes
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 

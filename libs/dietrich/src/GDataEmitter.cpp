@@ -501,7 +501,7 @@ std::vector<dataSeries> collectSeries(
 /**
  * Constructs the emitter in the requested export format (CSV or NPZ).
  *
- * @param format The on-disk format to export
+ * @param format The on-disk format to export (CSV or NPZ)
  */
 GDataEmitter::GDataEmitter(dataFormat format) : format_(format) { /* nothing */ }
 
