@@ -38,8 +38,10 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <future>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -188,14 +190,18 @@ private:
         return peer_weak_.lock();
     }
 
-    /** @brief @param what The action that needs the peer @return The peer; throws if there is none
-     *  (an action of the test before the client knows its end would silently go nowhere) */
+    /** @brief @param what The action that needs the peer @return The peer; if there is none, the
+     *  test program ends at once with a message (an action of the test before the client knows its
+     *  end would silently go nowhere). Not a throw: in a test that holds a batch in a std::async
+     *  future, the exception would unwind into the future's destructor, which waits for a batch
+     *  that only the server's stop ends, and the test would hang until ctest's timeout. (Catch2
+     *  has no death tests, so this path of a wrong test is not tested itself.) */
     std::shared_ptr<GPeerI> knownPeer_(std::string_view what) const {
         auto peer = this->peer_();
         if(not peer) {
-            throw std::logic_error(
-                "ScriptedClient::" + std::string(what) + ": the client does not know its end (yet)"
-            );
+            std::cerr << "ScriptedClient::" << what
+                      << ": the client does not know its end (yet); the test is wrong" << std::endl;
+            std::abort();
         }
         return peer;
     }
