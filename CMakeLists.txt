@@ -830,6 +830,28 @@ IF (GENEVA_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
 		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
 
+	# The runner of the tests that start MPI jobs (GenevaMpiTest.cmake) gives two runs at the same
+	# time two directories for Open MPI's shared-memory files and removes each, also after a
+	# failure and at its bound; and every entry that names the MPI launcher runs under it.
+	ADD_TEST(
+		NAME GenevaMpiTestDirectories
+		COMMAND ${CMAKE_COMMAND} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
+			-DWORK=${CMAKE_BINARY_DIR}/GenevaMpiTestDirectories
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestDirectories.cmake
+	)
+	SET_TESTS_PROPERTIES(GenevaMpiTestDirectories PROPERTIES LABELS "conventions" TIMEOUT 60)
+	GENEVA_TEST_SIZE(GenevaMpiTestDirectories S)
+	IF (MPIEXEC_EXECUTABLE)
+		ADD_TEST(
+			NAME GenevaMpiTestsRegistered
+			COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND} -DBUILD_DIR=${CMAKE_BINARY_DIR}
+				-DMPIEXEC=${MPIEXEC_EXECUTABLE} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestRegistrations.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaMpiTestsRegistered PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GENEVA_TEST_SIZE(GenevaMpiTestsRegistered S)
+	ENDIF ()
+
 	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
 	# external dependency of the test, not of the build, so it is registered only where configure
 	# finds one. -B and PYTHONDONTWRITEBYTECODE: no __pycache__ is written into the source tree.

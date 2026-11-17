@@ -533,8 +533,11 @@ def check_interrupt(program, workdir, reference_dir):
             time.sleep(0.1)
         else:
             fail('the run did not begin to measure within 60 s')
-        # The directory the script made for its MPI jobs (the client jobs' directories lie in it)
+        # The directory the script made for its MPI jobs (the client jobs' directories lie in it).
+        # Every process of the session also inherits the directory this check was given by ctest
+        # (GENEVA_ADD_MPI_TEST), if any; it is not the script's.
         job_dirs = backing_directories(session_processes(script.pid))
+        job_dirs.discard(os.environ.get('OMPI_MCA_btl_sm_backing_directory'))
         shm_dirs = {os.path.dirname(d) for d in job_dirs}
         if len(shm_dirs) != 1 or not os.path.basename(next(iter(shm_dirs))).startswith(
                 'geneva-sm.'):

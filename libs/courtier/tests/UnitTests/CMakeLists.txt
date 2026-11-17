@@ -176,17 +176,24 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 
 	# Helper: one entry of the exerciser
 	#
-	#     geneva_courtier_mpi_scenario(<entry-name> <ranks> <scenario> [<further arguments>...])
+	#     geneva_courtier_mpi_scenario(<entry-name> <ranks> <scenario> [TIMEOUT <seconds>]
+	#                                  [<further arguments>...])
+	#
+	# The entry runs under GENEVA_ADD_MPI_TEST, with a TIMEOUT of 120 s unless one is given.
 	#
 	# PROCESSORS tells the `ctest -j` scheduler what the entry really costs: one CTest slot but
 	# <ranks> live processes. Without it the scheduler counts it as one and oversubscribes the
 	# machine.
 	FUNCTION(geneva_courtier_mpi_scenario entry ranks scenario)
-		ADD_TEST(NAME ${entry}
+		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 3 arg "" "TIMEOUT" "")
+		IF(NOT arg_TIMEOUT)
+			SET(arg_TIMEOUT 120)
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME ${entry} TIMEOUT ${arg_TIMEOUT}
 				COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
 						${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiExerciser> --scenario=${scenario}
-						${ARGN} ${MPIEXEC_POSTFLAGS})
-		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks} TIMEOUT 120)
+						${arg_UNPARSED_ARGUMENTS} ${MPIEXEC_POSTFLAGS})
+		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks})
 		GENEVA_TEST_SIZE(${entry} M)
 	ENDFUNCTION()
 
@@ -197,8 +204,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_scenario(GCourtierMpiThrowingItemTest 3 throwing)
 	# A master consumer that is destroyed without ever starting its server tells its clients, which
 	# wait for its greeting without a limit: everyone ends at once.
-	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 3 never-started)
-	SET_TESTS_PROPERTIES(GCourtierMpiNeverStartedTest PROPERTIES TIMEOUT 30)
+	geneva_courtier_mpi_scenario(GCourtierMpiNeverStartedTest 3 never-started TIMEOUT 30)
 	# A program that initialized MPI itself, below MPI_THREAD_MULTIPLE, is refused. An MPI library
 	# that grants the full level whatever is asked for cannot be checked; the entry is then skipped.
 	geneva_courtier_mpi_scenario(GCourtierMpiThreadLevelTest 1 low-thread-level)
@@ -234,17 +240,17 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	TARGET_LINK_LIBRARIES(GCourtierMpiCallsExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME} MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiCallsExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
-	ADD_TEST(NAME GCourtierMpiCallsTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiCallsTest TIMEOUT 60
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS})
-	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 60)
+	SET_TESTS_PROPERTIES(GCourtierMpiCallsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiCallsTest M)
 	# Sends that are given up and never received do not keep MPI from finalizing: both ranks end.
-	ADD_TEST(NAME GCourtierMpiGivenUpSendsTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiGivenUpSendsTest TIMEOUT 35
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiCallsExerciser> ${MPIEXEC_POSTFLAGS}
 					--never-received)
-	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2 TIMEOUT 20)
+	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
 
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
@@ -256,12 +262,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	INSTALL(TARGETS GCourtierMpiPeerExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	FOREACH(scenario end-of-work session-fails)
-		ADD_TEST(NAME GCourtierMpiPeer_${scenario}
+		GENEVA_ADD_MPI_TEST(NAME GCourtierMpiPeer_${scenario} TIMEOUT 60
 				COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
 						${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiPeerExerciser> --scenario=${scenario}
 						${MPIEXEC_POSTFLAGS})
-		SET_TESTS_PROPERTIES(GCourtierMpiPeer_${scenario} PROPERTIES
-				LABELS "courtier" PROCESSORS 3 TIMEOUT 60)
+		SET_TESTS_PROPERTIES(GCourtierMpiPeer_${scenario} PROPERTIES LABELS "courtier" PROCESSORS 3)
 		GENEVA_TEST_SIZE(GCourtierMpiPeer_${scenario} M)
 	ENDFOREACH()
 
@@ -272,7 +277,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			MPI::MPI_CXX)
 	INSTALL(TARGETS GCourtierMpiLargePayloadExerciser
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
-	ADD_TEST(NAME GCourtierMpiLargePayloadTest
+	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiLargePayloadTest TIMEOUT 120
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3
 					${MPIEXEC_PREFLAGS} $<TARGET_FILE:GCourtierMpiLargePayloadExerciser> ${MPIEXEC_POSTFLAGS})
 	SET_TESTS_PROPERTIES(GCourtierMpiLargePayloadTest PROPERTIES LABELS "courtier" PROCESSORS 3)
@@ -318,7 +323,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 				ENDFOREACH()
 			ENDIF()
 		ENDIF()
-		ADD_TEST(NAME ${entry}
+		# Also the entry without the launcher (it makes no MPI call): one way to register them all
+		GENEVA_ADD_MPI_TEST(NAME ${entry} TIMEOUT 90
 				COMMAND ${CMAKE_COMMAND}
 					"-DCOMMAND=${_command}"
 					-DEXPECT_EXIT=${expect_exit}
@@ -327,7 +333,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 					-DLIMIT=60
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
 				WORKING_DIRECTORY ${_dir})
-		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" TIMEOUT 90 PROCESSORS ${ranks})
+		SET_TESTS_PROPERTIES(${entry} PROPERTIES LABELS "courtier" PROCESSORS ${ranks})
 		GENEVA_TEST_SIZE(${entry} ${size})
 	ENDFUNCTION()
 

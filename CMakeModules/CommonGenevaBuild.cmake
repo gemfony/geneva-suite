@@ -440,6 +440,11 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaTestSize.cmake)
 
 	###############################################################################
+	# The registration of a test that starts MPI jobs (GENEVA_ADD_MPI_TEST): a directory of its own
+	# for Open MPI's shared-memory files. In-tree only, like the size labels.
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaMpiTest.cmake)
+
+	###############################################################################
 	# The check that a library's programs link only the library's own closure
 	# (geneva_check_link_closure). In-tree only, like the size labels.
 	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaLinkClosure.cmake)
