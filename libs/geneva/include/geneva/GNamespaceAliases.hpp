@@ -34,7 +34,12 @@
  * Geneva's short namespace aliases: `oa` for the optimization algorithms, `gen` for the
  * genome, `gind` for the individuals and `gbm` for the benchmarks. Every Geneva header that
  * uses one of them includes this file, and so does the root of the genome classes
- * (genome/GGenome.hpp), so a program that includes a Geneva header can use them as well. The target namespaces are only declared here, which adds no dependency.
+ * (genome/GGenome.hpp). A header provides the aliases if it includes one of these, directly or
+ * through another header -- Go2.hpp and the headers of the individuals' and the algorithms'
+ * classes do. Not every Geneva header does (genome/GGenomeBuilder.hpp, GOptimizationEnums.hpp
+ * and oa/GLineSearch.hpp, for example): a program that uses an alias and includes only such
+ * headers includes this file itself. The target namespaces are only declared here, which adds
+ * no dependency.
  * (The namespace Gem::Geneva::Interface has no short alias; it is named in full.)
  *
  * The aliases are Geneva's alone: the lower libraries of the collection (weft, common, hap,
