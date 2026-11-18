@@ -601,7 +601,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has
   changed), else from the file `GENEVA_COMMIT`, which `git archive` fills in and a build that
   copies the sources without `.git` writes (the container build: the build argument
-  `GENEVA_COMMIT`); a tree without either does not configure. A client asks for one item with `PULL`, the
+  `GENEVA_COMMIT`); a tree without either does not configure. The `HELLO` names the identity of
+  the user's program as well (`Gem::Common::programIdentity()`): a client whose program has
+  another one ends in the same way; where one side has none, the program is not checked and the
+  client says so once in its log. `GENEVA_STAMP_PROGRAM(<target> [IDENTITY <text>])` of Geneva's
+  CMake support stamps an executable with the commit of the project's own sources or a text of
+  one's own; the quick start's template stamps its programs. A client asks for one item with `PULL`, the
   server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for
   nothing. The frame kinds `NO_WORK`, `RETURN` and `UNREADABLE` are gone, and so are the client's
   files of results it could not deliver (`--beast_undeliveredDir`, `--mpi_undeliveredDir`,

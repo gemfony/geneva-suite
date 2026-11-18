@@ -106,8 +106,10 @@ geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp 
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
-geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GCapturedLog.hpp
-	GInProcessPeer.hpp GInProcessTestSupport.hpp)
+geneva_courtier_test(GCourtierPeerClientTests  M  SPEC "~[programidentity]" GCourtierPeerClientTests.cpp
+	GCapturedLog.hpp GInProcessPeer.hpp GInProcessTestSupport.hpp)
+# The identity of the program is one per process and is set by the case this entry runs
+geneva_courtier_test_entry(GCourtierPeerClientProgramTests GCourtierPeerClientTests S "[programidentity]")
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 # run() returns only once no evaluation of the client runs any more, also when it is asked to close
 # while one runs

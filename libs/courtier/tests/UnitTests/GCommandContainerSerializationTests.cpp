@@ -115,14 +115,15 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.payloadEmpty());
         }
 
-        // --- the HELLO: a build and the keep-alive interval in the head ----------------------
+        // --- the HELLO: a build, a program and the keep-alive interval in the head -----------
         {
             test_container_type sent{GFrameKind::NONE};
-            sent.setHello("1.2.3-test", std::chrono::milliseconds(2500));
+            sent.setHello("1.2.3-test", "a program", std::chrono::milliseconds(2500));
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
             CHECK(got.kind() == GFrameKind::HELLO);
             CHECK(got.build() == "1.2.3-test");
+            CHECK(got.program() == "a program");
             CHECK(got.keepAlive() == std::chrono::milliseconds(2500));
             CHECK(got.payloadEmpty());
         }
@@ -220,7 +221,7 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
 
         // The highest kind there is still decodes.
         test_container_type last{GFrameKind::NONE};
-        last.setHello("build", std::chrono::milliseconds::zero());
+        last.setHello("build", "", std::chrono::milliseconds::zero());
         REQUIRE_NOTHROW(container_from_string(container_to_string(last, mode), got, mode));
         CHECK(got.kind() == GFrameKind::HELLO);
     }

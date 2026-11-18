@@ -97,8 +97,10 @@ struct GPeerClientOptions {
  * The link, on the client's one io thread:
  *  - CONNECTING: the connector's attempt, the peer's start, the wait for the server's HELLO. A
  *    HELLO whose build (the Geneva commit) differs from this client's ends the client (a terminal
- *    error; it does not come back). The HELLO is the contact with a server; it names the keep-alive
- *    interval, which the client hands to its end (GPeerI::setKeepAlive()).
+ *    error; it does not come back), and so does one whose program identity differs where both
+ *    sides have one; where one side has none, the client says so once per run in its log. The
+ *    HELLO is the contact with a server; it names the keep-alive interval, which the client hands
+ *    to its end (GPeerI::setKeepAlive()).
  *  - OPEN: the client keeps its items in flight -- PULLs without an answer, items held, items
  *    being evaluated -- at the prefetch depth by sending PULLs. Every finished item goes back as a
  *    RESULT, which asks for nothing; a PULL follows it if there is room.
@@ -539,14 +541,18 @@ private:
         }
         if(const std::string mismatch = helloMismatch(hello); not mismatch.empty()) {
             glogger << "In " << options_.name << ":" << '\n'
-                    << "The server was built from another commit: " << mismatch << '\n'
-                    << "Server and client must be built from the same commit. This will "
-                       "terminate the client."
-                    << '\n'
+                    << mismatch << '\n'
+                    << "This will terminate the client." << '\n'
                     << GLOGGING;
             this->flagTerminalError();
             this->beginEnding_(GPeerClose::ERROR);
             return;
+        }
+        if(not program_unchecked_told_) {
+            if(const std::string unchecked = helloProgramUnchecked(hello); not unchecked.empty()) {
+                glogger << "In " << options_.name << ":" << '\n' << unchecked << '\n' << GLOGGING;
+                program_unchecked_told_ = true;
+            }
         }
         // The server sets the keep-alive interval; this client's end takes it (on the executor)
         if(auto peer = peer_.lock()) {
@@ -828,6 +834,7 @@ private:
     bool peer_opened_ = false;           ///< The current peer has opened
     bool contact_on_connection_ = false; ///< The HELLO has arrived on the current connection
     bool contact_ever_ = false;          ///< A HELLO has arrived on some connection
+    bool program_unchecked_told_ = false; ///< The log has said that the program is not checked
     clock::time_point run_started_at_;   ///< When run_() began
     clock::time_point last_contact_end_; ///< The end of the last connection with contact
     std::chrono::milliseconds pause_length_ = GCLIENTRECONNECTPAUSEMIN; ///< The next pause, at most

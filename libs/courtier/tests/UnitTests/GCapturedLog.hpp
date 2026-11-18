@@ -30,6 +30,8 @@
 #pragma once
 
 // Standard headers go here
+#include <algorithm>
+#include <cstddef>
 #include <initializer_list>
 #include <mutex>
 #include <string>
@@ -64,17 +66,18 @@ public:
     }
     /** @return Whether a line logged so far contains all of @p parts */
     [[nodiscard]] bool hasLineWith(std::initializer_list<std::string_view> parts) const {
+        return this->countLinesWith(parts) > 0;
+    }
+    /** @return How many lines logged so far contain all of @p parts */
+    [[nodiscard]] std::size_t countLinesWith(std::initializer_list<std::string_view> parts) const {
         const std::scoped_lock lock(mutex_);
-        for(const auto &line : lines_) {
-            bool all = true;
-            for(const auto part : parts) {
-                all = all && line.contains(part);
-            }
-            if(all) {
-                return true;
-            }
-        }
-        return false;
+        return static_cast<std::size_t>(
+            std::ranges::count_if(lines_, [parts](const std::string &line) {
+                return std::ranges::all_of(parts, [&line](std::string_view part) {
+                    return line.contains(part);
+                });
+            })
+        );
     }
 
 private:

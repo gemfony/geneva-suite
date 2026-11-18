@@ -38,6 +38,7 @@ SET ( COMMONSOURCES
 	GLogger.cpp
 	GModuleLoader.cpp
 	GParserBuilder.cpp
+	GProgramIdentity.cpp
 	GSigHupHandler.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp

@@ -40,7 +40,7 @@
 // Geneva headers go here
 #include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
 #include "common/GErrorStreamer.hpp"
-#include "common/GGenevaCommit.hpp" // Gem::Common::genevaCommit()
+#include "common/GGenevaCommit.hpp" // Gem::Common::genevaCommit(), programIdentity()
 #include "common/GLogger.hpp"
 #include "common/GModuleManifest.hpp"             // GENEVA_VERSION_STRING
 #include "courtier/GCommandContainerT.hpp"        // GCommandContainerT, container_to/from_string
@@ -137,7 +137,8 @@ void wireDecodePayload(
 /******************************************************************************/
 /**
  * @brief Server side: the HELLO a session sends first on every connection: this build (the commit
- * of the Geneva sources, Gem::Common::genevaCommit()) and the keep-alive interval of the
+ * of the Geneva sources, Gem::Common::genevaCommit()), the identity of this program
+ * (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
  * connection, which the client takes.
  * @tparam processable_type The payload type of the command container
  * @param ser_mode The serialization format to use
@@ -147,14 +148,18 @@ void wireDecodePayload(
 template <typename processable_type>
 std::string buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
     GCommandContainerT<processable_type> hello{GFrameKind::NONE};
-    hello.setHello(std::string(Gem::Common::genevaCommit()), keep_alive);
+    hello.setHello(
+        std::string(Gem::Common::genevaCommit()),
+        std::string(Gem::Common::programIdentity()),
+        keep_alive
+    );
     return container_to_string(hello, ser_mode);
 }
 
 /******************************************************************************/
 /**
- * @brief Client side: whether a HELLO names the same build (the commit of the Geneva sources) as
- * this process.
+ * @brief Client side: whether a HELLO names the same build as this process -- first the commit of
+ * the Geneva sources, then the identity of the program, where both sides have one.
  * @tparam processable_type The payload type of the command container
  * @param hello A HELLO frame
  * @return Empty if they match; otherwise what differs, for the log
@@ -162,11 +167,43 @@ std::string buildHello(Gem::Common::serializationMode ser_mode, std::chrono::mil
 template <typename processable_type>
 std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
     const std::string_view own = Gem::Common::genevaCommit();
-    if(hello.build() == own) {
+    if(hello.build() != own) {
+        return "The server was built from another commit: the server's Geneva commit is " +
+               hello.build() + ", this client's (Geneva " + GENEVA_VERSION_STRING + ") is " +
+               std::string(own) + ". Server and client must be built from the same commit.";
+    }
+    const std::string_view own_program = Gem::Common::programIdentity();
+    if(own_program.empty() || hello.program().empty() || hello.program() == own_program) {
         return {};
     }
-    return "the server's Geneva commit is " + hello.build() + ", this client's (Geneva " +
-           GENEVA_VERSION_STRING + ") is " + std::string(own);
+    return "The server runs another program: the server's program is " + hello.program() +
+           ", this client's is " + std::string(own_program) +
+           ". Server and client must run the same build of the same program.";
+}
+
+/******************************************************************************/
+/**
+ * @brief Client side: whether the identity of the program cannot be checked against a HELLO,
+ * because one side or both have none (Gem::Common::programIdentity()).
+ * @tparam processable_type The payload type of the command container
+ * @param hello A HELLO frame
+ * @return Empty if both sides have an identity; otherwise which side has none, for the log
+ */
+template <typename processable_type>
+std::string helloProgramUnchecked(const GCommandContainerT<processable_type> &hello) {
+    const bool own_none = Gem::Common::programIdentity().empty();
+    const bool server_none = hello.program().empty();
+    if(not own_none && not server_none) {
+        return {};
+    }
+    std::string which = "the server's program has no identity";
+    if(own_none) {
+        which = server_none ? "neither the server's program nor this client's has an identity"
+                            : "this client's program has no identity";
+    }
+    return "The program is not checked against the server's: " + which +
+           " (Geneva's CMake support stamps a program with GENEVA_STAMP_PROGRAM; a program may "
+           "also call Gem::Common::setProgramIdentity()).";
 }
 
 /******************************************************************************/

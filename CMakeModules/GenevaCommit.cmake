@@ -48,20 +48,37 @@
 # Script mode:
 #   cmake -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<the C++ source to write> -P GenevaCommit.cmake
 #
+# The program mode (-DMODE=program) takes the identity of a user's program for GENEVA_STAMP_PROGRAM
+# (GenevaProgramStamp.cmake), by the same rule 1 applied to the program's sources; the file
+# GENEVA_COMMIT belongs to the Geneva sources and is not read. Without git the identity is empty
+# instead of a failure (the program is then not checked). -DIDENTITY=<text> gives the identity
+# instead of git. The source it writes holds one static object that calls
+# Gem::Common::setProgramIdentity() before main(), again only if its content changes. It says the
+# identity as a STATUS line unless -DQUIET=ON.
+#
 ################################################################################
 
 IF(NOT SOURCE_DIR OR NOT OUTPUT)
-	MESSAGE(FATAL_ERROR "GenevaCommit.cmake needs -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<file>")
+	MESSAGE(FATAL_ERROR "GenevaCommit.cmake needs -DSOURCE_DIR=<the sources> -DOUTPUT=<file>")
+ENDIF()
+IF(NOT MODE)
+	SET(MODE geneva)
+ENDIF()
+IF(NOT MODE MATCHES "^(geneva|program)$")
+	MESSAGE(FATAL_ERROR "GenevaCommit.cmake: MODE is geneva or program, not ${MODE}")
 ENDIF()
 FILE(REAL_PATH "${SOURCE_DIR}" _source_dir)
 
 SET(_id "")
+IF(MODE STREQUAL "program" AND NOT "${IDENTITY}" STREQUAL "")
+	SET(_id "${IDENTITY}")
+ENDIF()
 
 # 1. git: only if the source directory is the top of the work tree -- sources unpacked into another
 #    project's repository must not take that repository's commit. No optional locks: a build must
 #    not get in the way of a git command the user runs at the same time.
 FIND_PROGRAM(_git git)
-IF(_git)
+IF(_git AND _id STREQUAL "")
 	EXECUTE_PROCESS(
 		COMMAND ${_git} -C ${_source_dir} rev-parse --show-toplevel
 		RESULT_VARIABLE _rc OUTPUT_VARIABLE _top ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -87,8 +104,8 @@ IF(_git)
 	ENDIF()
 ENDIF()
 
-# 2. the file GENEVA_COMMIT
-IF(_id STREQUAL "" AND EXISTS "${_source_dir}/GENEVA_COMMIT")
+# 2. the file GENEVA_COMMIT (of the Geneva sources only)
+IF(_id STREQUAL "" AND MODE STREQUAL "geneva" AND EXISTS "${_source_dir}/GENEVA_COMMIT")
 	FILE(READ "${_source_dir}/GENEVA_COMMIT" _content)
 	STRING(STRIP "${_content}" _content)
 	IF(_content MATCHES "^[0-9a-f]+(-dirty)?$")
@@ -100,8 +117,8 @@ IF(_id STREQUAL "" AND EXISTS "${_source_dir}/GENEVA_COMMIT")
 	ENDIF()
 ENDIF()
 
-# 3. neither
-IF(_id STREQUAL "")
+# 3. neither: a Geneva build fails; a program is not stamped
+IF(_id STREQUAL "" AND MODE STREQUAL "geneva")
 	MESSAGE(FATAL_ERROR
 		"The Geneva sources in ${_source_dir} do not say which commit they are. A Geneva build must "
 		"know its commit (a server and its clients must be built from the same one). Give it in one "
@@ -123,6 +140,23 @@ std::string_view Gem::Common::genevaCommit() noexcept {
 }
 ]=])
 STRING(REPLACE "@ID@" "${_id}" _source "${_source}")
+IF(MODE STREQUAL "program")
+	# The identity as the text of a C++ string literal
+	STRING(REPLACE "\\" "\\\\" _literal "${_id}")
+	STRING(REPLACE "\"" "\\\"" _literal "${_literal}")
+	SET(_source [=[
+// Written by GenevaCommit.cmake for GENEVA_STAMP_PROGRAM (GenevaProgramStamp.cmake); do not edit.
+#include "common/GGenevaCommit.hpp"
+
+namespace {
+/// Sets the identity of this program before main(); an empty one leaves the program unchecked
+const struct GenevaProgramStamp {
+    GenevaProgramStamp() { Gem::Common::setProgramIdentity("@ID@"); }
+} genevaProgramStamp;
+} // namespace
+]=])
+	STRING(REPLACE "@ID@" "${_literal}" _source "${_source}")
+ENDIF()
 SET(_old "")
 IF(EXISTS "${OUTPUT}")
 	FILE(READ "${OUTPUT}" _old)
@@ -130,4 +164,8 @@ ENDIF()
 IF(NOT _old STREQUAL _source)
 	FILE(WRITE "${OUTPUT}" "${_source}")
 ENDIF()
-MESSAGE(STATUS "Geneva commit: ${_id}")
+IF(MODE STREQUAL "geneva")
+	MESSAGE(STATUS "Geneva commit: ${_id}")
+ELSEIF(NOT QUIET)
+	MESSAGE(STATUS "Program identity: ${_id}")
+ENDIF()

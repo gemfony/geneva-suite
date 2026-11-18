@@ -27,11 +27,13 @@
  *
  ********************************************************************************/
 
-// The commit the library was built from (common/GGenevaCommit.hpp) has the form of a git commit id.
+// The commit the library was built from (common/GGenevaCommit.hpp) has the form of a git commit id,
+// and the identity of the user's program is set once.
 // Where the build takes it from is tested on made-up source trees by GenevaCommitSources
 // (CMakeModules/CheckGenevaCommit.cmake).
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <regex>
 #include <string>
@@ -42,4 +44,19 @@ TEST_CASE("genevaCommit() is a commit id that may be marked dirty", "[common][co
     const std::string id{Gem::Common::genevaCommit()};
     INFO("genevaCommit(): " << id);
     CHECK(std::regex_match(id, std::regex("[0-9a-f]{40}(-dirty)?")));
+}
+
+// The identity of the user's program is set once per process: the same text again is accepted,
+// another one is refused, and the identity stays the first one.
+TEST_CASE("setProgramIdentity() takes one identity per process", "[common][commit]") {
+    CHECK(Gem::Common::programIdentity().empty());
+    REQUIRE_NOTHROW(Gem::Common::setProgramIdentity("program-one"));
+    CHECK(Gem::Common::programIdentity() == "program-one");
+    CHECK_NOTHROW(Gem::Common::setProgramIdentity("program-one"));
+    CHECK_THROWS_WITH(
+        Gem::Common::setProgramIdentity("program-two"),
+        Catch::Matchers::ContainsSubstring("program-one") &&
+            Catch::Matchers::ContainsSubstring("program-two")
+    );
+    CHECK(Gem::Common::programIdentity() == "program-one");
 }

@@ -327,6 +327,13 @@ recommended starting point: it is not built by the in-tree build, it locates
 Geneva only through the installed package, and it can be copied out of the tree
 as-is. Its README has the step-by-step standalone build.
 
+The package also brings GENEVA_STAMP_PROGRAM(<target> [IDENTITY <text>]), which
+stamps a program with the commit of your project's sources (taken from git at
+every build when the top of the project is the top of a git work tree;
+"-dirty" when a tracked file has changed) or with the text you give. A server
+of the networked consumers names it to its clients, and a client built from
+other sources ends; docs/writing-optimization-problems.md says more.
+
 
 Recommended software
 ====================

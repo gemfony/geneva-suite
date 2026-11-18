@@ -2354,30 +2354,43 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A server of another build: its HELLO names another commit. The client ends with a terminal
-// error, and asks for nothing.
+// A server of another build: its HELLO names another commit, or another program. The client ends
+// with a terminal error, and asks for nothing. Where one side's program has no identity, the client
+// goes on, and its log says so once per run.
 
 namespace {
 
 /// The commit a server of another build names in its HELLO (no build has it)
 constexpr std::string_view OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234567-dirty";
 
-/** @brief A listener whose server ends greet with a HELLO of another build, and count what their
- *  clients send; and its threads */
-class OtherBuildServer {
+/** @brief A listener whose server ends greet with a HELLO of a given build and program, and count
+ *  what their clients send; and its threads */
+class GreetingServer {
 public:
-    OtherBuildServer() {
+    /**
+     * @param build The Geneva commit the HELLO names @param program The program it names
+     * @param end_after 0: no connection is closed by the server; n: each connection is closed at the
+     * client's first message, with ERROR on the first n - 1 connections and RUN_ENDED on the n-th
+     */
+    GreetingServer(std::string build, std::string program, std::size_t end_after = 0) {
         listener_->start(
             io_.executor(),
-            [received = received_](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
+            [build = std::move(build),
+             program = std::move(program),
+             end_after,
+             received = received_,
+             connections = connections_](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
+                const std::size_t connection = connections->fetch_add(1) + 1;
+                const GPeerClose how =
+                    connection < end_after ? GPeerClose::ERROR : GPeerClose::RUN_ENDED;
                 const std::weak_ptr<GPeerI> weak = peer;
                 peer->start(
                     GPeerHandlers{
                         .onOpen =
-                            [weak] {
+                            [weak, build, program] {
                                 if(auto end = weak.lock()) {
                                     GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
-                                    hello.setHello(std::string(OTHER_COMMIT), 0ms);
+                                    hello.setHello(build, program, 0ms);
                                     end->send(
                                         Gem::Courtier::Consumers::makeMessage(
                                             Gem::Courtier::container_to_string(hello, BIN)
@@ -2386,7 +2399,13 @@ public:
                                 }
                             },
                         // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
-                        .onMessage = [received](std::string &&) { received->fetch_add(1); },
+                        .onMessage =
+                            [weak, received, end_after, how](std::string &&) {
+                                received->fetch_add(1);
+                                if(auto end = weak.lock(); end && end_after > 0) {
+                                    end->close(how);
+                                }
+                            },
                         .onClosed = [](GPeerEnd, GPeerClose, std::string_view) {},
                     }
                 );
@@ -2394,7 +2413,7 @@ public:
         );
     }
     /** @brief Stops the listener while its threads run */
-    ~OtherBuildServer() {
+    ~GreetingServer() {
         try {
             listener_->stop();
         }
@@ -2402,10 +2421,10 @@ public:
         }
         listener_->endWork();
     }
-    OtherBuildServer(const OtherBuildServer &) = delete;
-    OtherBuildServer(OtherBuildServer &&) = delete;
-    OtherBuildServer &operator=(const OtherBuildServer &) = delete;
-    OtherBuildServer &operator=(OtherBuildServer &&) = delete;
+    GreetingServer(const GreetingServer &) = delete;
+    GreetingServer(GreetingServer &&) = delete;
+    GreetingServer &operator=(const GreetingServer &) = delete;
+    GreetingServer &operator=(GreetingServer &&) = delete;
 
     /** @brief @return The listener (for a route) */
     [[nodiscard]] const std::shared_ptr<GInProcessListener> &listener() const {
@@ -2422,7 +2441,29 @@ private:
         std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     std::shared_ptr<std::atomic<std::size_t>> received_ =
         std::make_shared<std::atomic<std::size_t>>(0);
+    std::shared_ptr<std::atomic<std::size_t>> connections_ =
+        std::make_shared<std::atomic<std::size_t>>(0);
 };
+
+/**
+ * @brief Runs a client against @p server until it ends.
+ * @param server The server it connects to
+ * @return The client, which has ended (checked)
+ */
+std::shared_ptr<client_type> runClientAgainst(const GreetingServer &server) {
+    auto evaluations = std::make_shared<Evaluations>();
+    World world;
+    world.route().set(server.listener());
+    auto client = world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    CHECK(eventually([&] { return world.clientsDone(); }));
+    return client;
+}
 
 } /* anonymous namespace */
 
@@ -2459,7 +2500,7 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     // What the client logs goes here for the duration of this test.
     auto log = std::make_shared<CapturedLog>();
     glogger.addLogTarget(log);
-    const OtherBuildServer other;
+    const GreetingServer other{std::string(OTHER_COMMIT), ""};
     World world;
     world.route().set(other.listener());
     auto client = world.client(
@@ -2481,6 +2522,64 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
          Gem::Common::genevaCommit(),
          GENEVA_VERSION_STRING}
     ));
+    glogger.resetLogTargets();
+}
+
+// The identity of the program is one per process (Gem::Common::setProgramIdentity()), so this case
+// runs in a ctest entry of its own (GCourtierPeerClientProgramTests) and sets it half way: first
+// this client's program has none, then it has one.
+TEST_CASE(
+    "GPeerClientT: the program identity of the HELLO is checked where both sides have one",
+    "[courtier][peer][client][programidentity]"
+) {
+    REQUIRE(Gem::Common::programIdentity().empty());
+    const std::string own_commit{Gem::Common::genevaCommit()};
+    // What the clients log goes here for the duration of this test.
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
+
+    // This client's program has no identity: not checked; the client says so once, though it is
+    // greeted twice (the server ends the first connection with ERROR, the second with RUN_ENDED).
+    {
+        const GreetingServer server{own_commit, "the server's program", 2};
+        const auto client = runClientAgainst(server);
+        CHECK_FALSE(client->terminalErrorFlagged());
+        CHECK(client->connections() == 2);
+        CHECK(log->countLinesWith({"not checked", "this client's program has no identity"}) == 1);
+    }
+
+    Gem::Common::setProgramIdentity("this program");
+
+    // The server's program has no identity: the same, from the other side.
+    {
+        const GreetingServer server{own_commit, "", 2};
+        const auto client = runClientAgainst(server);
+        CHECK_FALSE(client->terminalErrorFlagged());
+        CHECK(client->connections() == 2);
+        CHECK(log->countLinesWith({"not checked", "the server's program has no identity"}) == 1);
+    }
+
+    // The server's program has another identity: the client ends, as for another Geneva commit,
+    // and the log names both identities.
+    {
+        const GreetingServer server{own_commit, "another program", 0};
+        const auto client = runClientAgainst(server);
+        CHECK(client->terminalErrorFlagged());
+        CHECK(client->connections() == 1); // it did not come back
+        CHECK(server.received() == 0);     // and asked for nothing
+        CHECK(
+            log->hasLineWith({"The server runs another program", "another program", "this program"})
+        );
+    }
+
+    // A server of this process names both texts, and a client of this process accepts them.
+    const std::string hello = Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms);
+    GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
+    REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));
+    CHECK(got.build() == own_commit);
+    CHECK(got.program() == "this program");
+    CHECK(Gem::Courtier::helloMismatch(got).empty());
+    CHECK(Gem::Courtier::helloProgramUnchecked(got).empty());
     glogger.resetLogTargets();
 }
 

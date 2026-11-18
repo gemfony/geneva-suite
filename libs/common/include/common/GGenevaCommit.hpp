@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <string>
 #include <string_view>
 
 namespace Gem::Common {
@@ -51,6 +52,32 @@ namespace Gem::Common {
  * @return The commit id; the text lives as long as the program
  */
 [[nodiscard]] std::string_view genevaCommit() noexcept;
+
+/******************************************************************************/
+/**
+ * @brief Sets the identity of the user's program: a text that names its build, by default the
+ * commit of the program's own sources.
+ *
+ * A server of the networked consumers names it in its HELLO beside genevaCommit(), and a client
+ * whose program has another identity ends; where one side has none, the program is not checked
+ * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GENEVA_STAMP_PROGRAM,
+ * CMakeModules/GenevaProgramStamp.cmake), which calls this function from a static object before
+ * main(); a program may also call it itself.
+ *
+ * The identity is one string per process and holds no lock: it is set before a consumer is made,
+ * and read only afterwards (by the consumer's threads). Setting it while a consumer runs is outside
+ * this contract.
+ *
+ * @param identity The identity; setting the same text again is accepted
+ * @throws geneva_exception if another identity has been set before (the text names both)
+ */
+void setProgramIdentity(std::string identity);
+
+/**
+ * @brief The identity of the user's program (setProgramIdentity())
+ * @return The identity; empty if none was set
+ */
+[[nodiscard]] std::string_view programIdentity() noexcept;
 
 /******************************************************************************/
 
