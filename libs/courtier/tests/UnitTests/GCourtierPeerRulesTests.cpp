@@ -513,16 +513,6 @@ TEMPLATE_TEST_CASE(
         REQUIRE(eventually([&] { return role_b->nClosed() == 1; }));
         CHECK(role_b->events().back() == "closed:CLOSED_THERE:ERROR");
     }
-
-    SECTION("setOwnerBusy() reaches the end") {
-        auto [a, b] = transport.pair();
-        std::promise<bool> busy;
-        boost::asio::post(a->executor(), [&, peer = a] {
-            peer->setOwnerBusy(true);
-            busy.set_value(peer->ownerBusy());
-        });
-        CHECK(busy.get_future().get());
-    }
 }
 /******************************************************************************/
 /** Rule 1, for the in-process pair: a peer that cannot be opened reports FAILED without onOpen. */
@@ -642,25 +632,6 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
         role_a->start(a);
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->nMessages() == 3);
-    }
-
-    SECTION("GPeerI's default of setOwnerBusy() ignores it") {
-        /** A peer that does not override setOwnerBusy() */
-        struct Minimal final : GPeerI {
-            void start(GPeerHandlers) override {
-            }
-            void send(Gem::Courtier::Consumers::GMessage) override {
-            }
-            void close(GPeerClose) override {
-            }
-            void abort() override {
-            }
-            boost::asio::any_io_executor executor() override {
-                return {};
-            }
-        };
-        Minimal minimal;
-        minimal.setOwnerBusy(true); // compiles and does nothing
     }
 }
 

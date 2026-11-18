@@ -66,9 +66,6 @@ struct GMPIPollTiming {
     std::chrono::microseconds pauseMin = GMPIPEERPOLLPAUSEMIN;
     /// The longest pause: without traffic the pause doubles up to it
     std::chrono::microseconds pauseMax = GMPIPEERPOLLPAUSEMAX;
-    /// The longest pause while the owner of every receiver that has not ended is busy
-    /// (receiverBusy()); not below pauseMax
-    std::chrono::microseconds pauseBusy = GMPIPEERPOLLPAUSEBUSY;
     /// How many messages one link of the chain receives before it lets other handlers run
     int rounds = GMPIPEERPOLLROUNDS;
     /// How long the chain waits, after the last receiver has ended, for sends to complete
@@ -143,13 +140,7 @@ public:
  * GMPIPollTiming::rounds messages through a post, so that other handlers of the executor get their
  * turn --, otherwise after a pause that grows from GMPIPollTiming::pauseMin to pauseMax. A
  * received message and a started send reset the pause, and a started send ends a pause that is
- * under way (the "kick"): the answer to a send is what the poll waits for. While the owner of every
- * receiver that has not ended is busy (receiverBusy(); a client whose evaluation slots are all
- * taken) and no send of this process is under way, the pause grows to GMPIPollTiming::pauseBusy
- * instead: nothing that may arrive is needed before an evaluation ends, and the end of a busy
- * spell is a kick too. (A send under way may need this process's MPI calls to make progress -- a
- * large message on a transport whose data moves only when its sender looks -- so it keeps the
- * short pause.)
+ * under way (the "kick"): the answer to a send is what the poll waits for.
  *
  * Where it runs is its owner's choice and makes no difference to it: on a master an io context of
  * its own with one thread (no handler of a session holds it up), on a client the client's io
@@ -230,10 +221,6 @@ public:
     /** @brief A receiver tells that it has ended and will send nothing more. Once per receiver,
      *  after its last startSend(). From any thread. */
     void receiverEnded(int);
-
-    /** @brief A receiver tells that its owner has become busy, or is busy no more; on changes only,
-     *  and a receiver that ends busy says so first. From any thread. */
-    void receiverBusy(bool);
 
     /** @brief Starts the ticks of the signs of life with the interval (see the class comment), or
      *  changes it; 0 stops them. From any thread; the ticks of a poll not started yet start with
@@ -322,11 +309,10 @@ private:
 
     /// Sends that were started and that the chain has not taken over yet
     Gem::Common::Concurrency::GMPMCQueueT<GStartedSend, 0> started_;
-    std::atomic<bool> kick_pending_{false};      ///< A kick is on its way to the strand
-    std::atomic<std::size_t> busy_receivers_{0}; ///< Receivers whose owner is busy (receiverBusy())
-    std::atomic<bool> started_chain_{false};     ///< start() has been called
-    std::atomic<bool> chain_ended_{false};       ///< No further link runs
-    std::atomic<bool> shut_down_{false};         ///< shutdown() has run
+    std::atomic<bool> kick_pending_{false};  ///< A kick is on its way to the strand
+    std::atomic<bool> started_chain_{false}; ///< start() has been called
+    std::atomic<bool> chain_ended_{false};   ///< No further link runs
+    std::atomic<bool> shut_down_{false};     ///< shutdown() has run
     std::atomic<int> sends_in_progress_{
         0
     }; ///< startSend() calls under way; shutdown() waits for them

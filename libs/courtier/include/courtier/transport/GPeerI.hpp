@@ -67,7 +67,7 @@
  *
  *  1. **Two phases.** Nothing is reported before GPeerI::start(); onOpen precedes any onMessage.
  *     A peer that cannot be opened reports onClosed (GPeerEnd::FAILED) without onOpen.
- *  2. **One executor, serialized.** send(), setOwnerBusy() and setKeepAlive() are called on the
+ *  2. **One executor, serialized.** send() and setKeepAlive() are called on the
  *     peer's executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
  *     after start() has returned is ordered after that work. On a server the handlers run on the
@@ -223,13 +223,6 @@ public:
      *  no limit. @return The length in bytes */
     [[nodiscard]] virtual std::size_t maxMessageBytes() const {
         return std::numeric_limits<std::size_t>::max();
-    }
-
-    /** @brief Tells the transport whether the owner of this peer (a client) is busy: every one of
-     *  its evaluation slots is taken, so that nothing that may arrive is needed before an
-     *  evaluation ends. On the executor. A polling transport may look less often while its owner is
-     *  busy; the default ignores it. */
-    virtual void setOwnerBusy(bool) { /* nothing */
     }
 
     /** @brief The keep-alive interval the other end has named (0: none): a client's role calls it

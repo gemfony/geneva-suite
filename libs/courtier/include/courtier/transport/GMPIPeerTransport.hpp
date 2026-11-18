@@ -117,8 +117,6 @@
  *    (GMPIListener::endWork() does: tell, drainSends(), shutdown()).
  *  - An end's state is touched on its strand, and off it only when no handler runs (abort(),
  *    discard(), endOfWork()).
- *  - The busy count of the poll must balance: an end tells it of changes only (busy_told_), and an
- *    end that ends busy says "not busy" first.
  *  - On a client the poll runs on the client's io thread: anything that blocks that thread (a
  *    decode, an evaluation) stops the poll, and with it the messages the submitter waits for.
  *  - A receive is a blocking MPI_Recv on the one poll thread. On the submitter a long message
@@ -152,7 +150,7 @@ struct GMPIPeerOptions {
  * (the client waits for its master as long as its own limit says, GPeerClientOptions). What arrives
  * before the end has been started waits for it.
  *
- * Threads: everything but start(), close(), executor() and the busy flag happens on the peer's
+ * Threads: everything but start(), close() and executor() happens on the peer's
  * strand; abort() and discard() when no handler of the peer runs any more. Ownership: the poll holds
  * the peer (as its receiver) until GMPIPollCore::shutdown(), and handlers posted to the strand hold
  * it too; the peer refers to the poll weakly. It is made with std::make_shared.
@@ -201,9 +199,6 @@ public:
     [[nodiscard]] std::size_t maxMessageBytes() const override;
     /** @brief The strand every handler of this end runs on (also the poll's receiver executor) */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
-    /** @brief Tells the poll whether the owner is busy (a client: every evaluation slot taken):
-     *  while every end it receives for has a busy owner, it looks less often. On the strand. */
-    void setOwnerBusy(bool) override;
     /** @brief The keep-alive interval the submitter named: the poll's ticks take it
      *  (GMPIPollCore::setKeepAlive()). On the strand. */
     void setKeepAlive(std::chrono::milliseconds) override;
@@ -223,8 +218,6 @@ public:
     /***************************************************************************/
     /** @brief The other end's rank. Any thread. @return The rank */
     [[nodiscard]] int rank() const noexcept;
-    /** @brief What the owner said last through setOwnerBusy(). Any thread. @return Whether busy */
-    [[nodiscard]] bool ownerBusy() const noexcept;
     /** @brief Whether the end has ended. Any thread. @return Whether it has */
     [[nodiscard]] bool ended() const noexcept;
     /** @brief The work of the transport ends: an end that has not ended tells the other rank, if
@@ -285,9 +278,7 @@ private:
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
     /// The end found before start()'s work ran (abort(), a failed poll), reported when it runs
     std::optional<GEndReport> unreported_;
-    std::atomic<bool> owner_busy_{false}; ///< What setOwnerBusy() was told last
-    bool busy_told_ = false;              ///< On the strand: the poll counts this end as busy
-    std::atomic<bool> ended_{false};      ///< The end has ended
+    std::atomic<bool> ended_{false}; ///< The end has ended
 };
 
 /******************************************************************************/

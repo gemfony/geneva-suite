@@ -309,14 +309,6 @@ public:
         return executor_;
     }
 
-    /** @brief Records what the owner said, for the test to read. @param busy Whether it is busy */
-    void setOwnerBusy(bool busy) override {
-        owner_busy_.store(busy);
-        if(busy) {
-            n_told_busy_.fetch_add(1);
-        }
-    }
-
     /** @brief Records the interval the role handed over, for the test to read
      *  @param interval The keep-alive interval */
     void setKeepAlive(std::chrono::milliseconds interval) override {
@@ -326,14 +318,6 @@ public:
     /***************************************************************************/
     // What a test may observe, from any thread
 
-    /** @brief @return What the owner said last through setOwnerBusy() */
-    [[nodiscard]] bool ownerBusy() const {
-        return owner_busy_.load();
-    }
-    /** @brief @return How often the owner said that it is busy */
-    [[nodiscard]] std::size_t nToldBusy() const {
-        return n_told_busy_.load();
-    }
     /** @brief @return The interval setKeepAlive() was told last; -1 ms if it was not called */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const {
         return std::chrono::milliseconds(keep_alive_ms_.load());
@@ -524,8 +508,6 @@ private:
 
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
-    std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
-    std::atomic<std::size_t> n_told_busy_{0};  ///< For the test: setOwnerBusy(true) calls
     std::atomic<std::chrono::milliseconds::rep> keep_alive_ms_{-1}; ///< For the test: setKeepAlive()
     std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role
 };

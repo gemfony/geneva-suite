@@ -82,15 +82,14 @@ GMPIPollCore::GMPIPollCore(
             << "No calls to MPI were given" << '\n'
         );
     }
-    if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin ||
-       timing_.pauseBusy < timing_.pauseMax || timing_.rounds < 1 ||
+    if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin || timing_.rounds < 1 ||
        timing_.drainGrace.count() < 0 || timing_.keepAlive.count() < 0) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "The timing is not usable: the shortest pause must be positive and not above the "
-            << "longest, the busy pause not below the longest, at least one round, and a drain "
-            << "grace and a keep-alive interval that are not negative" << '\n'
+            << "longest, at least one round, and a drain grace and a keep-alive interval that are "
+            << "not negative" << '\n'
         );
     }
 }
@@ -303,24 +302,6 @@ std::size_t GMPIPollCore::drainSends(std::chrono::milliseconds limit) {
 
 /******************************************************************************/
 /**
- * A receiver's owner has become busy, or is busy no more (see the class comment). The end of a busy
- * spell is a kick: the pause is reset and one under way ends. From any thread; on changes only.
- *
- * @param busy Whether the owner is busy now
- */
-void GMPIPollCore::receiverBusy(bool busy) {
-    if(busy) {
-        busy_receivers_.fetch_add(1);
-        return;
-    }
-    busy_receivers_.fetch_sub(1);
-    if(not shut_down_.load() && not kick_pending_.exchange(true)) {
-        boost::asio::post(strand_, [self = this->shared_from_this()] { self->kick_(); });
-    }
-}
-
-/******************************************************************************/
-/**
  * Ends the poll's work: no further link runs, the sends that have not completed by now are given
  * up (also after a failure of the chain), and every receiver is let go of (GMPIPollReceiverI::discard(), then dropped). A send that has
  * not completed goes to a rank that does not receive (it hangs, or it left without reading) and
@@ -495,13 +476,7 @@ void GMPIPollCore::link_() {
         pause_ = timing_.pauseMin;
     }
     timer_.expires_after(pause_);
-    // Every receiver that has not ended has a busy owner, and no send of this process is under
-    // way: the pause may grow further. A send under way may need this process's MPI calls to make
-    // progress (a large message whose data moves only when its sender looks), and its receiver
-    // waits for it.
-    const bool relaxed =
-        live_receivers_ > 0 && busy_receivers_.load() >= live_receivers_ && requests_.empty();
-    pause_ = std::min(2 * pause_, relaxed ? timing_.pauseBusy : timing_.pauseMax);
+    pause_ = std::min(2 * pause_, timing_.pauseMax);
     // The link runs whether the timer expired or was cancelled by a kick.
     timer_.async_wait([self]([[maybe_unused]] const boost::system::error_code &ec) {
         self->poll_();

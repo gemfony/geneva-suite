@@ -207,20 +207,6 @@ boost::asio::any_io_executor GMPIPeer::executor() {
 }
 
 /******************************************************************************/
-/** @param busy Whether the owner is busy (a client: every evaluation slot taken): the poll is
- *  told of a change, while this end has not ended (GMPIPollCore::receiverBusy()) */
-void GMPIPeer::setOwnerBusy(bool busy) {
-    owner_busy_.store(busy);
-    if(busy == busy_told_ || state_ == GState::ENDED) {
-        return;
-    }
-    busy_told_ = busy;
-    if(auto core = core_.lock()) {
-        core->receiverBusy(busy);
-    }
-}
-
-/******************************************************************************/
 /**
  * One message from the other rank, on the strand, in the order the other rank sent them. What
  * cannot be handled yet (the end has not been started, or its role asked for the close before it
@@ -283,11 +269,6 @@ void GMPIPeer::setKeepAlive(std::chrono::milliseconds interval) {
 /** @return The other end's rank */
 int GMPIPeer::rank() const noexcept {
     return rank_;
-}
-
-/** @return What the owner said last through setOwnerBusy() */
-bool GMPIPeer::ownerBusy() const noexcept {
-    return owner_busy_.load();
 }
 
 /** @return Whether the end has ended */
@@ -496,10 +477,6 @@ void GMPIPeer::finish_(GPeerEnd end, GPeerClose how, std::string_view detail) {
     ended_.store(true);
     waiting_.clear();
     if(auto core = core_.lock()) {
-        if(busy_told_) {
-            busy_told_ = false;
-            core->receiverBusy(false); // an end that has ended is nobody's busy end
-        }
         core->receiverEnded(rank_);
     }
     if(not started) {
