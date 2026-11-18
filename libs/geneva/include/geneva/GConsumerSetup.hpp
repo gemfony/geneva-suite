@@ -251,6 +251,20 @@ buildConsumerClient(const config_type &config) {
 }
 
 /******************************************************************************/
+/** @brief What buildClientFromCommandLine() gives a process: its role and, for a CLIENT, its
+ *  client. */
+struct GCommandLineClient {
+    Gem::Courtier::processRole role; ///< The consumer's role of this process
+    /// The client; null unless the role is CLIENT
+    std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>> client;
+};
+
+/** @brief Builds the client of a process that runs without Go2 -- the lead of a group of an MPI
+ *  cascade (courtier/mpi/GMPICascade.hpp) -- from the consumer options of its command line. The
+ *  rework of the program launcher replaces this function. */
+[[nodiscard]] GCommandLineClient buildClientFromCommandLine(int, char **);
+
+/******************************************************************************/
 /**
  * @brief Writes the configuration files that consumer providers own alone, for --update-configs.
  *

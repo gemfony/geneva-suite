@@ -71,6 +71,7 @@
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
+#include "hap/GRandomFactory.hpp"
 
 namespace gen = Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -456,6 +457,43 @@ TEST_CASE(
     CHECK(reg.consumer() == stc);
 
     reg.clear();
+}
+
+// ---------------------------------------------------------------------------
+// A process that runs without Go2 (the lead of an MPI cascade) builds its client from the consumer
+// options of its command line: a client only where the consumer gives it the role CLIENT.
+TEST_CASE(
+    "buildClientFromCommandLine builds a client for the role CLIENT only",
+    "[consumer][setup]"
+) {
+    using Gem::Courtier::processRole;
+    const auto build = [](std::vector<std::string> args) {
+        args.insert(args.begin(), "program");
+        args.emplace_back("--unknownOptionIsIgnored");
+        std::vector<char *> argv;
+        for(auto &arg : args) {
+            argv.push_back(arg.data());
+        }
+        return Gem::Geneva::buildClientFromCommandLine(static_cast<int>(argv.size()), argv.data());
+    };
+    const bool gpu_allowed = Gem::Hap::gpuRandomNumbersAllowed();
+    Gem::Hap::setGpuRandomNumbersAllowed(true);
+
+    const auto submitter = build({"-c", "beast"});
+    CHECK(submitter.role == processRole::SUBMITTER);
+    CHECK(submitter.client == nullptr);
+    const auto local = build({"--consumer", "stc", "--client"});
+    CHECK(local.role == processRole::SUBMITTER);
+    CHECK(local.client == nullptr);
+    CHECK(Gem::Hap::gpuRandomNumbersAllowed());
+
+    const auto client = build({"-c", "beast", "--client"});
+    CHECK(client.role == processRole::CLIENT);
+    CHECK(client.client != nullptr);
+    CHECK_FALSE(Gem::Hap::gpuRandomNumbersAllowed());
+
+    CHECK_THROWS_AS(build({"-c", "does_not_exist"}), geneva_exception);
+    Gem::Hap::setGpuRandomNumbersAllowed(gpu_allowed);
 }
 
 // ---------------------------------------------------------------------------

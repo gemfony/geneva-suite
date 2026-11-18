@@ -78,7 +78,6 @@
 #include "courtier/mpi/GMPICascadeConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
-#include "hap/GRandomFactory.hpp"
 
 #include "GSleepGroup.hpp"
 #include "GSleepGroupIndividual.hpp"
@@ -263,47 +262,6 @@ Gem::Courtier::GMPICascadeConfig cascadeConfig(unsigned int group, GMPICascadeLa
 }
 
 /******************************************************************************/
-/** @brief What the consumer of the command line gives a lead: its role and, for a CLIENT, its
- *  client. */
-struct LeadClient {
-    processRole role; ///< The consumer's role of this process
-    /// The client; null unless the role is CLIENT
-    std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>> client;
-};
-
-/**
- * The one place that builds a lead's client, from the consumer options of the command line,
- * through Geneva's consumer setup (as Go2 does for a client, without Go2). Called on a lead only,
- * after the cascade exists: on a member it would load the consumers and parse their options, and
- * a member runs no Geneva code.
- *
- * @param argc The number of arguments
- * @param argv The arguments
- * @param role What readRole() found
- * @return The consumer's role of this process and, for a CLIENT, its client
- */
-LeadClient buildLeadClient(int argc, char **argv, const Role &role) {
-    Gem::Hap::setGpuRandomNumbersAllowed(false); // as Go2 for a client: no CUDA context per lead
-    boost::program_options::options_description options;
-    boost::program_options::options_description hidden;
-    addConsumerOptions(options, hidden);
-    boost::program_options::variables_map vm;
-    boost::program_options::store(
-        boost::program_options::command_line_parser(argc, argv)
-            .options(options.add(hidden))
-            .allow_unregistered()
-            .run(),
-        vm
-    );
-    const Gem::Courtier::ConsumerSpec spec = specFromCommandLine(role.consumer, vm);
-    const processRole consumer_role = consumerRole(spec, role.client);
-    return {
-        .role = consumer_role,
-        .client = consumer_role == processRole::CLIENT ? buildConsumerClient(spec) : nullptr
-    };
-}
-
-/******************************************************************************/
 /**
  * A process of a job that is laid out in groups (GMPICascade): a member serves its lead; the
  * submitter (only with -c mpi) measures through Go2; a lead runs its client and evaluates every
@@ -347,7 +305,9 @@ int runGroupProcess(
     }
 
     // A lead. The client is declared after the cascade: it goes before the cascade's communicators.
-    const auto [consumer_role, client] = buildLeadClient(argc, argv, role);
+    // It is built only here: on a member it would load the consumers, and a member runs no Geneva
+    // code.
+    const auto [consumer_role, client] = buildClientFromCommandLine(argc, argv);
     cascade.requireRole(consumer_role);
     lead_log.setPauses(pause_min, pause_max);
     cascade.lead(lead_log);
