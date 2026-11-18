@@ -94,9 +94,6 @@ SET ( GPU_INCLUDES
 
 # MPI consumer/transport is optional, only build it when requested
 IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-    SET( COMMUNICATIONINCLUDES
-            ${COMMUNICATIONINCLUDES}
-            GMPIHelperFunctions.hpp)
     SET( CONSUMER_INCLUDES
             ${CONSUMER_INCLUDES}
             consumers/GMPIConsumerT.hpp)

@@ -36,8 +36,8 @@ SET(COMMUNICATIONSOURCES
         GWebsocketPeerTransport.cpp
         )
 
-# The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp,
-# GMPIHelperFunctions.hpp): this library links no MPI. It is instantiated in Geneva's MPI module
+# The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp):
+# this library links no MPI. It is instantiated in Geneva's MPI module
 # (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start. What
 # must exist once per process and calls MPI lives in courtier's MPI library (below). The MPI poll
 # and the transport's peers (GMPIPollCore.cpp, GMPIPeerTransport.cpp) are compiled here all the

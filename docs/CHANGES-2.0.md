@@ -180,7 +180,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   lead's item processor (`setItemProcessor()` of the client, built with
   `buildClientFromCommandLine()` of `geneva/GConsumerSetup.hpp`) evaluates it in a round,
   `cascade.round()`; `sub_client_group_size` is the same key in `config/GMPICascade.json`
-  (`GMPICascadeConfig::load()`). Example 16 shows it.
+  (`GMPICascadeConfig::load()`). Example 16 shows it. `courtier/GMPIHelperFunctions.hpp`
+  (`mpiScatterWhile()`, `mpiGatherWhile()`, `MPICompletionStatus`, ...) is removed with them; its
+  replacement is `courtier/mpi/GMPIPolledCalls.hpp` (`mpiScatter()`, `mpiGather()`,
+  `waitPolled()`, `probePolled()`).
 - **A program that builds its consumer without Go2 passes the configuration struct of the
   consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
   `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
