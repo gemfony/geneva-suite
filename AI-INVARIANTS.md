@@ -90,6 +90,11 @@ Review has a stopping rule, because a fresh reader always finds something:
   the same series or in a small package of their own, but they start no further round of review.
 - The supervisor's verification from scratch (AI-5) is run for a state that is about to be pushed,
   not for intermediate states; between pushes the executing agent's gates carry the work.
+- **Repeated runs need an occasion.** A test is run many times only when a failure has appeared
+  -- to reproduce it, and then to show that its fix holds -- or when a merge is about to be made
+  (the verification above). Between those every test runs once per commit: repeating without an
+  occasion costs hours of machine time and waiting for no known reason. (Maintainer decision,
+  2026-11-18.)
 - This composes with Invariant 29: a thin slice gets a review of its design before depth is added,
   and its one full review when the depth is in.
 
