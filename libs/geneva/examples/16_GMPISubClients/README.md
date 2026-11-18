@@ -1,20 +1,25 @@
 # MPI Sub-Clients
 
+This example shows parallelism inside one evaluation: the processes of an MPI job share the
+evaluation of an individual. It uses courtier's MPI cascade, `Gem::Courtier::GMPICascade`
+(`courtier/mpi/GMPICascade.hpp`, library `gemfony-courtier-mpi`).
 
-This example shows how to use the GMPISubClientOptimizer.
-It offers all functionality of Go2 but additionally adds the functionality of
-creating MPI-sub-clients, which can be used to parallelize computation on the level of individuals in a user-defined fashion.
+Rank 0 of the job is the submitter: it runs the optimization through `Go2`. The other processes
+form groups of `sub_client_group_size` processes, set in `config/GMPICascade.json` (4 by
+default). The first process of a group is its lead, a client of the MPI consumer; the others are
+its members (sub-clients), which run no Geneva code. A lead evaluates every individual in a round
+of its group: it scatters the 64 parameter values over the group, every process squares its part
+(each square stands for 50 ms of work) and the lead gathers the sums. Where the group size does not
+divide the number of parameters, the lead also takes the rest. The individual itself knows nothing
+of MPI; with `--consumer stc` it is evaluated in one process.
 
-You can set the size of the sub-client networks via the `sub_client_group_size` parameter in the
-`GMPISubClientOptimizer.json` config file.
+The roles follow the rank r in the job, with the group size g:
 
-In the following Figure we see how the network looks like when using a `sub_client_group_size` of n.  
-The rounded rectangles represent the MPI-communicators:
-- Black: The base communicator. This defaults to MPI_COMM_WORLD. However, the user can set this communicator to a sub-communicator if the user himself uses MPI in his application specific code apart from Geneva.
-- Blue: The Geneva communicator. This is the communicator which is used for transmitting individuals between master node and worker nodes.
-- Orange: The sub-client communicators 1-m. The subgroups have a size of n which can be configured through the configuration file of `GMPISubClientOptimizer`. The number of subgroups will be calculated based on the size of the subgroups and the number of processes in the base communicator. Each subgroup can use MPI in a user-defined fashion in order to parallelize at the level of individuals (i.e. parallelize the `evaluate()` function).
+- r = 0: the submitter;
+- r > 0 with (r - 1) % g == 0: a lead (a client), the first of group (r - 1) / g;
+- every other r > 0: a member of group (r - 1) / g.
 
-<img src="./images/mpi-sub-clients.png">
+A last group with fewer than g processes is allowed.
 
 The executable can be started as follows:
 
@@ -28,7 +33,12 @@ For example to run this example with 1 server, 4 clients and 3 sub-clients for e
 mpirun -np 17 ./GMPISubClients --consumer mpi
 ```
 
+The shipped `config/GEvolutionaryAlgorithm.json` has a small population of 8, so that a run is
+short.
+
 Note: if you request more ranks than your machine has cores, Open MPI additionally needs the
 `--oversubscribe` flag. MPICH/Hydra (where `mpirun` is `mpiexec.hydra`) does not know that flag and
 oversubscribes by default, so the plain commands above work there as-is.
 
+The cascade has a second layout, in which the leads are clients of a networked consumer (websockets)
+and each group is an MPI job of its own; the benchmark `GSubClientOverhead` shows it.

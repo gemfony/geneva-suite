@@ -31,36 +31,6 @@
 # consumer is built (geneva/tests/CMakeLists.txt), which implies FIND_PACKAGE(MPI), so
 # MPIEXEC_EXECUTABLE is a real, configure-time-detected dependency here.
 
-SET ( EXAMPLE16_DIR ${PROJECT_SOURCE_DIR}/libs/geneva/examples/16_GMPISubClients )
-
-# A cascade on a base communicator whose rank 0 is not rank 0 of MPI_COMM_WORLD; it reuses the
-# individual of example 16.
-ADD_EXECUTABLE ( GMPISubClientBaseCommTest
-	GMPISubClientBaseCommTest.cpp
-	${EXAMPLE16_DIR}/GMPISubClientParaboloidIndividualMultiD.cpp
-)
-TARGET_INCLUDE_DIRECTORIES ( GMPISubClientBaseCommTest PRIVATE ${EXAMPLE16_DIR} )
-TARGET_LINK_LIBRARIES ( GMPISubClientBaseCommTest
-	${GENEVA_MPI_LIBNAME}
-	${GENEVA_LIBRARIES}
-	${Boost_LIBRARIES}
-	MPI::MPI_CXX
-)
-
-# The configuration comes from code, with groups of two and a small population (Inv 22); nothing
-# is installed.
-GENEVA_MATERIALIZE_CONFIGS ( GMPISubClientBaseCommTest "" )
-
-# Five ranks: the submitter and two groups of (one geneva client + one sub-client).
-GENEVA_ADD_MPI_TEST ( NAME GMPISubClientBaseCommTest TIMEOUT 120
-	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 5
-			${MPIEXEC_PREFLAGS} $<TARGET_FILE:GMPISubClientBaseCommTest> ${MPIEXEC_POSTFLAGS}
-			--consumer mpi --eaMaxIterations 1
-	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
-SET_TESTS_PROPERTIES ( GMPISubClientBaseCommTest PROPERTIES
-	LABELS "geneva;example" PROCESSORS 5 )
-GENEVA_TEST_SIZE ( GMPISubClientBaseCommTest L )
-
 # An MPI cascade on a base communicator whose rank 0 is not rank 0 of MPI_COMM_WORLD: the roles of
 # the cascade and of Geneva's MPI module, loaded at run time, follow the base ranks; then one
 # iteration with groups of two. Five ranks, each in a directory of its own.
