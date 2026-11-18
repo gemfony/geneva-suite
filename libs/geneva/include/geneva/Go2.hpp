@@ -329,6 +329,10 @@ public:
         return update_configs_mode_;
     }
 
+    /** @brief Whether @p argv asks for the help text, which the constructor prints before it ends
+     *  the process; for a program that would otherwise start MPI first (an MPI cascade) */
+    [[nodiscard]] static bool helpRequested(int, char **);
+
     /**
      * @brief Registers an OA-owned adaption configuration for an algorithm type. When an
      * algorithm of the given personality type (e.g. "PERSONALITY_EA") runs in the chain, Go2 hands it this

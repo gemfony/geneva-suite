@@ -63,6 +63,7 @@
 #include <print>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Gem::Geneva {
@@ -1391,6 +1392,25 @@ void Go2::parseCommandLine(
             << e.what() << '\n'
         );
     }
+}
+
+/******************************************************************************/
+/**
+ * @brief Whether the command line asks for the help text (--help, -h or --showAll, the options
+ * of parseCommandLine() that emitHelpIfRequested() answers); a scan without side effects.
+ *
+ * @param argc The number of arguments
+ * @param argv The arguments
+ * @return Whether one of the three options is given
+ */
+bool Go2::helpRequested(int argc, char **argv) {
+    for(int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if(arg == "--help" or arg == "-h" or arg == "--showAll") {
+            return true;
+        }
+    }
+    return false;
 }
 
 /******************************************************************************/

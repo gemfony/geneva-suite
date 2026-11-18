@@ -76,7 +76,8 @@
 # GENEVA_COURTIER_MPI_LIBRARY - Path to courtier's MPI library (MPI installations only)
 # GENEVA_GENEVA_MPI_LIBRARY   - Path to Geneva's MPI module (MPI installations only)
 # GENEVA_LIBRARIES            - The Geneva imported targets, in linking order
-# GENEVA_LIBS                 - The bare library names (not paths) that were found
+# GENEVA_LIBS                 - The bare library names (not paths) that were found, for
+#                               linking (the MPI module, loaded at run time, is not one)
 # GENEVA_VERSION              - The Geneva version found by this module
 # GENEVA_TESTING              - TRUE if the libraries were built with testing support
 #                               (the same build-flavor variable the config package exports)
@@ -163,8 +164,9 @@ FIND_PATH (
 # Note: libraries are listed in order of decreasing dependencies, which
 # allows to use the GENEVA_LIBRARIES variable for linking with all of
 # them as a block without linking order issues (hopefully)
-# The two MPI libraries exist only in an installation built with the MPI consumer; they are
-# searched for like the others, but not required.
+# courtier's MPI library and Geneva's MPI module exist only in an installation built with the MPI
+# consumer; they are searched for like the others, but not required. The module is searched for
+# only to decide GENEVA_MPI: no program links it, so it is not added to GENEVA_LIBS.
 SET ( _GENEVA_LIB_NAMES
 	"geneva-mpi"
 	"geneva"
@@ -196,7 +198,7 @@ FOREACH ( name IN LISTS _GENEVA_LIB_NAMES )
 		PATHS ${_INSTALL_DIRS_LIB}
 	)
 
-	IF (GENEVA_${ucname}_LIBRARY)
+	IF (GENEVA_${ucname}_LIBRARY AND NOT name STREQUAL "geneva-mpi")
 		SET (GENEVA_LIBS ${GENEVA_LIBS} "gemfony-${name}")
 	ENDIF ()
 ENDFOREACH ()

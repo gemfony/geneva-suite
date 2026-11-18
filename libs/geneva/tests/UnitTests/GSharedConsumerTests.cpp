@@ -486,6 +486,7 @@ TEST_CASE(
     CHECK(local.role == processRole::SUBMITTER);
     CHECK(local.client == nullptr);
     CHECK(Gem::Hap::gpuRandomNumbersAllowed());
+    CHECK(build({}).role == processRole::SUBMITTER); // no --consumer: the default consumer's role
 
     const auto client = build({"-c", "beast", "--client"});
     CHECK(client.role == processRole::CLIENT);

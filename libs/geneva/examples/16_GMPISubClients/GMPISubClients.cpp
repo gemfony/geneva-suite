@@ -150,6 +150,10 @@ int main(int argc, char **argv) {
     // An error nobody handles ends the program with a message and the exit code 1; the leads and
     // the members construct no Go2, which would install this
     Gem::Common::installFatalReport();
+    if(Go2::helpRequested(argc, argv)) {
+        // Go2 prints the help text and ends the process, before the cascade would start MPI
+        const Go2 go(argc, argv, "./config/Go2.json");
+    }
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         // --update-configs: the cascade makes no MPI call, its callable writes its file
         Gem::Common::beginConfigEmission();

@@ -346,7 +346,7 @@ int main(int argc, char **argv) {
     Gem::Common::installFatalReport();
     const Role role = readRole(argc, argv);
     Settings settings;
-    if(not role.updateConfigs and role.group > 1) {
+    if(not role.updateConfigs and not Go2::helpRequested(argc, argv) and role.group > 1) {
         if(role.consumer == "mpi") {
             return runGroupProcess(
                 argc,
@@ -361,7 +361,7 @@ int main(int argc, char **argv) {
         }
     }
     // Everything without a cascade: the serial reference, a websocket server, a group of one,
-    // --update-configs
+    // --update-configs, a help request (Go2 prints the text and ends the process)
     Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
     if(not role.updateConfigs and go.clientMode()) {
         return go.clientRun();

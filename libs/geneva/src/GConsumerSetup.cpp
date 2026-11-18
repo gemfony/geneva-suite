@@ -582,6 +582,7 @@ buildConsumerClient(const c2::ConsumerSpec &spec) {
 /**
  * @brief Builds the client of a process that runs without Go2, from the consumer options of its
  * command line (--consumer, --client and the options of the consumers; others are ignored).
+ * Without --consumer the consumer is Gem::Courtier::GDEFAULTCONSUMERMNEMONIC, as in Go2.
  *
  * @param argc The number of arguments
  * @param argv The arguments
@@ -592,7 +593,7 @@ buildConsumerClient(const c2::ConsumerSpec &spec) {
  */
 GCommandLineClient buildClientFromCommandLine(int argc, char **argv) {
     namespace po = boost::program_options;
-    std::string mnemonic;
+    std::string mnemonic{Gem::Courtier::GDEFAULTCONSUMERMNEMONIC}; // as Go2 without --consumer
     bool client_requested = false;
     po::options_description options;
     po::options_description hidden;
