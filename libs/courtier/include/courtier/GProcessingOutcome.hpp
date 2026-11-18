@@ -44,7 +44,7 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /**
  * The processing LIFECYCLE a worker reports back for one dispatched slot -- courtier's own half of a
- * RETURN frame.
+ * RESULT frame.
  *
  * Everything here is transport/scheduling state that courtier itself acts on: the status decides whether
  * the reconciliation loop sees a slot as processed, failed or missing; the error text is what a failure
@@ -61,8 +61,8 @@ struct GProcessingOutcome {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De)serialises the outcome. Written only for RETURN and RESULT frames (see
-     * GCommandContainerT).
+     * @brief (De)serialises the outcome. Written in the head of WORK and RESULT frames (see
+     * GFrameHead), where it names the item.
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
      * @param version The (unused) serialization version number

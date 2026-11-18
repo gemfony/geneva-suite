@@ -1738,11 +1738,11 @@ TEST_CASE("An evaluation return is small and does not scale with the individual"
     const std::size_t bulky_item_size = bulky->toString(mode::GEM_BINARY).size();
     REQUIRE(bulky_item_size > 10 * lean_item_size); // the leaf data really does dominate
 
-    // Build the RETURN frame each of them produces, exactly as a worker client does.
+    // Build the RESULT frame each of them produces, exactly as a worker client does.
     auto frame_size = [](std::unique_ptr<GGenome> item) {
         c2::GCommandContainerT<GGenome> frame{c2::GFrameKind::WORK, std::move(item)};
         c2::makeReturnFrame(frame);
-        CHECK(frame.kind() == c2::GFrameKind::RETURN);
+        CHECK(frame.kind() == c2::GFrameKind::RESULT);
         CHECK(frame.tag() ==
               static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::evaluation));
         CHECK(frame.item() == nullptr);          // no individual travels back
@@ -2509,7 +2509,6 @@ TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][p
     CHECK(config.clientPrefetchDepth == defaults.clientPrefetchDepth);
     CHECK(config.clientParallelEvaluations == defaults.clientParallelEvaluations);
     CHECK(config.clientFirstContactLimit == defaults.clientFirstContactLimit);
-    CHECK(config.clientUndeliveredDir == defaults.clientUndeliveredDir);
 }
 #endif
 

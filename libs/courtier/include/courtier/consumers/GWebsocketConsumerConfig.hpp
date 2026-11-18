@@ -87,9 +87,6 @@ struct GWebsocketConsumerConfig {
     /// Client: seconds it tries to reach the server again after it has lost its connection (0: for
     /// as long as it runs)
     std::size_t clientReconnectLimit = static_cast<std::size_t>(GCLIENTRECONNECTLIMIT.count());
-    /// Client: where a finished result that can no longer be delivered is saved (its evaluated
-    /// item, one file each; see GPeerClientT)
-    std::string clientUndeliveredDir = ".";
 };
 
 /******************************************************************************/

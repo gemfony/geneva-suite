@@ -76,7 +76,7 @@
  *     time in a handler without its connection, or another, falling silent, and without a client
  *     that connects meanwhile waiting for it. A client's handlers run on the executor given to the
  *     connector, which the transport shares: a client keeps its handlers short
- *     (GPrefetchingClientT encodes and decodes on its compute pool).
+ *     (GPeerClientT encodes and decodes on its compute pool).
  *  3. **No handler runs inside a call** of GPeerI, abort() excepted (see there). A failure found in
  *     send() is posted to the executor, not reported inline: the role's member function that
  *     called send() is still on the stack.

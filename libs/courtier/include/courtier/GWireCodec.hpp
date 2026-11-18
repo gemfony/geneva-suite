@@ -34,11 +34,13 @@
 
 // Standard headers go here
 #include <string>
+#include <string_view>
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
 #include "common/GErrorStreamer.hpp"
 #include "common/GLogger.hpp"
+#include "common/GModuleManifest.hpp"             // GENEVA_VERSION_STRING
 #include "courtier/GCommandContainerT.hpp"        // GCommandContainerT, container_to/from_string
 #include "courtier/GCourtierEnums.hpp"            // GFrameKind
 #include "courtier/GCourtierHelperFunctions.hpp"  // fkToStr
@@ -90,7 +92,8 @@ std::string wireEncode(
 
 /******************************************************************************/
 /**
- * @brief De-serializes a frame under the given wire context (blob send-once).
+ * @brief De-serializes a frame under the given wire context (blob send-once): its head, then its
+ * payload.
  * @tparam processable_type The payload type of the command container
  * @param descr The serialized representation to load from
  * @param container The frame to fill (reset before loading)
@@ -99,13 +102,66 @@ std::string wireEncode(
  */
 template <typename processable_type>
 void wireDecode(
-    const std::string &descr,
+    std::string_view descr,
     GCommandContainerT<processable_type> &container,
     const GWireSerializationContext *ctx,
     Gem::Common::serializationMode serMode
 ) {
     GWireSerializationScope const scope(ctx);
     container_from_string(descr, container, serMode);
+}
+
+/******************************************************************************/
+/**
+ * @brief De-serializes the payload of a frame whose head has been read (frameHeadFromString()),
+ * under the given wire context (blob send-once).
+ * @tparam processable_type The payload type of the command container
+ * @param payload The payload part of the message
+ * @param container The frame whose head has been read
+ * @param ctx The wire context to engage for the duration (may be nullptr for "no context")
+ * @param serMode The serialization format the message was produced with
+ */
+template <typename processable_type>
+void wireDecodePayload(
+    std::string_view payload,
+    GCommandContainerT<processable_type> &container,
+    const GWireSerializationContext *ctx,
+    Gem::Common::serializationMode serMode
+) {
+    GWireSerializationScope const scope(ctx);
+    framePayloadFromString(payload, container, serMode);
+}
+
+/******************************************************************************/
+/**
+ * @brief Server side: the HELLO a session sends first on every connection: this build of the
+ * collection (GENEVA_VERSION_STRING) and the number of the frame protocol (GFRAMEPROTOCOL).
+ * @tparam processable_type The payload type of the command container
+ * @param ser_mode The serialization format to use
+ * @return The serialized HELLO
+ */
+template <typename processable_type>
+std::string buildHello(Gem::Common::serializationMode ser_mode) {
+    GCommandContainerT<processable_type> hello{GFrameKind::NONE};
+    hello.setHello(GENEVA_VERSION_STRING, GFRAMEPROTOCOL);
+    return container_to_string(hello, ser_mode);
+}
+
+/******************************************************************************/
+/**
+ * @brief Client side: whether a HELLO names the same build and protocol as this process.
+ * @tparam processable_type The payload type of the command container
+ * @param hello A HELLO frame
+ * @return Empty if they match; otherwise what differs, for the log
+ */
+template <typename processable_type>
+std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
+    if(hello.build() == GENEVA_VERSION_STRING && hello.protocol() == GFRAMEPROTOCOL) {
+        return {};
+    }
+    return "the server runs Geneva " + hello.build() + " with frame protocol " +
+           std::to_string(hello.protocol()) + ", this client Geneva " + GENEVA_VERSION_STRING +
+           " with frame protocol " + std::to_string(GFRAMEPROTOCOL);
 }
 
 /******************************************************************************/
@@ -141,10 +197,7 @@ std::string buildBlobRequest(const GWireBlobId &id, Gem::Common::serializationMo
  * @return The serialized blob, or an empty string on failure / frame mismatch
  */
 template <typename processable_type>
-std::string parseBlobReply(
-    const std::string &reply_str,
-    Gem::Common::serializationMode serMode
-) {
+std::string parseBlobReply(const std::string &reply_str, Gem::Common::serializationMode serMode) {
     GWireSerializationScope const no_scope(nullptr);
     GCommandContainerT<processable_type> reply{GFrameKind::NONE};
     container_from_string(reply_str, reply, serMode);

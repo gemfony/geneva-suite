@@ -80,7 +80,7 @@ enum class geneva_command : std::uint32_t {
  * and -- unlike that encoding -- its size does not grow with whatever data a derived individual happens
  * to carry.
  *
- * Courtier never reads this: it is the library payload of a RETURN frame, relayed as opaque content.
+ * Courtier never reads this: it is the library payload of a RESULT frame, relayed as opaque content.
  *
  * `results` holds one {raw, transformed, set} entry per criterion; `validity_level` is the computed
  * feasibility level (<= 1 means feasible).

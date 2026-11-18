@@ -47,7 +47,8 @@
  *   low-thread-level -- the program initializes MPI itself, below MPI_THREAD_MULTIPLE (single
  *                     rank). The consumer must refuse to be built.
  *   undecodable    -- each worker fails to load the first such item it is sent. The workers must
- *                     survive; the master puts back what they held.
+ *                     survive: each returns the item as failed (the tolerant policy refills its
+ *                     slot), and no item is put back.
  *   refusal        -- (two ranks) the client tries to build the consumer and the submitter tries
  *                     to build the client; each must be refused.
  *   client-limits  -- (three ranks) rank 1 has an item limit of 5 and a depth of 1: it processes
@@ -293,7 +294,7 @@ int stopCase(consumer_type &consumer, const std::string &scenario, std::size_t w
     }
     else if(scenario == "stop-evaluating") {
         // One fast item per client, then slow ones: when the master stops, every client is in
-        // an evaluation of 3 s (and holds a second item, with look-ahead).
+        // an evaluation of 3 s (and holds a second item, at depth 2).
         submitter = std::jthread([&consumer, workers] {
             std::vector<std::unique_ptr<GFaultyContainer>> items;
             for(std::size_t i = 0; i < 3 * workers; ++i) {
@@ -381,12 +382,11 @@ int runClient(
         client->setProcessMax(5);
         client->run();
         return verdict(
-            client->getNProcessed() == 5 && client->resultsSaved() == 0 &&
+            client->getNProcessed() == 5 &&
                 client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE,
             std::format(
-                "rank 1 processed {} items with an item limit of 5, saved {} result(s)",
-                client->getNProcessed(),
-                client->resultsSaved()
+                "rank 1 processed {} items with an item limit of 5",
+                client->getNProcessed()
             )
         );
     }
@@ -398,7 +398,7 @@ int runClient(
         // the end of the run (CLOSED_THERE): an event, not a duration
         return verdict(
             client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE &&
-                client->getNProcessed() > 0 && client->resultsSaved() == 0,
+                client->getNProcessed() > 0,
             std::format(
                 "rank 1 ended by its time limit (its own confirmed close: {}), having processed {} "
                 "items",
@@ -580,8 +580,9 @@ int main(int argc, char **argv) {
     const std::size_t processed = runBatch(
         *consumer,
         items,
-        scenario == "throwing" ? c2::GSubmissionPolicy::clone_on_partial_return()
-                               : c2::GSubmissionPolicy::full_success_or_fatal()
+        scenario == "throwing" || scenario == "undecodable"
+            ? c2::GSubmissionPolicy::clone_on_partial_return()
+            : c2::GSubmissionPolicy::full_success_or_fatal()
     );
     batch_done.store(true);
     if(sampler.joinable()) {
@@ -590,8 +591,8 @@ int main(int argc, char **argv) {
     const auto requeued = consumer->requeuedCount();
     consumer->stopServer();
 
-    if(scenario == "undecodable" && requeued == 0) {
-        return verdict(false, "no item was put back, so no worker failed to load one");
+    if(scenario == "undecodable" && requeued != 0) {
+        return verdict(false, std::format("{} item(s) were put back, not failed", requeued));
     }
     if(scenario == "client-limits" && requeued != 0) {
         return verdict(false, std::format("{} item(s) were put back: a result was lost", requeued));

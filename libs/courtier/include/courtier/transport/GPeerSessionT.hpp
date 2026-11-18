@@ -41,9 +41,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
-#include <variant>
 
 // Boost headers go here
 #include <boost/asio/post.hpp>
@@ -56,8 +54,9 @@
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp" // fkToStr, describeException()
-#include "courtier/GServerSessionLogic.hpp" // the shared server decisions (absorb, serve, refuse)
-#include "courtier/GWireCodec.hpp"          // scope-wrapped (de)serialization
+#include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
+#include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
+#include "courtier/GWireProtocolT.hpp"           // the WORK tag
 #include "courtier/GWireSerializationContext.hpp"
 #include "courtier/transport/GPeerI.hpp" // the connection
 
@@ -71,54 +70,41 @@ namespace Gem::Courtier::Consumers {
  * shell starts one session for every peer its listener makes; the session lasts as long as the
  * connection.
  *
- * A request for work (PULL, or the pull a RETURN carries) that cannot be met is not answered with
- * NO_WORK: the session is parked with the consumer and answers when it is woken for an item that
- * has become available (see GNetworkedConsumerT::checkoutOrPark()). While it is parked a session
- * only counts the requests it owes an answer to. A RESULT is a returned result that asks for
- * nothing: it is checked in and no answer is owed. The client sees NO_WORK only when a request had
- * to be refused.
+ * The protocol (GFrameKind). The session greets its client with HELLO when the connection opens.
+ * It answers every PULL with one WORK, in order; a PULL that cannot be met at once is counted, the
+ * session is parked with the consumer and answers when it is woken for an item that has become
+ * available (see GNetworkedConsumerT::checkoutOrPark()). A RESULT is checked in by the ids in its
+ * head and asks for nothing. A BLOB_REQUEST is answered at once.
  *
- * An item whose answer cannot be encoded (its serialization throws) ends as failed through the
- * consumer (failPayloadItem): it is that item's failure, and the session knows which item it is. The
- * client's other items stay with it, the request is still owed, and the session goes on with the
- * next item. The client's blob state is forgotten (the failed encoding may have counted a blob as
- * sent). A failure that is not the item's -- the checkout itself throws -- is a refusal (below).
+ * Messages that cannot be read. The head of a message is read first and by itself. A head that
+ * cannot be read, or that names a kind a client does not send, ends the connection
+ * (GPeerClose::ERROR); the lease gives back what the client held. A RESULT whose payload cannot be
+ * read fails its item (failPayloadItem), which the item's retry budget and the submission policy
+ * then treat like any failure. A RESULT that carries no result (the client could not read its item,
+ * or could not return it) and a payload that cannot be read both make the session forget the
+ * client's blob state: its blobs are sent in full again.
  *
- * Messages that cannot be read. A message from the client that cannot be decoded is attributed by
- * its kind, which is read first (the frame is reset to NONE before each decode). A RESULT is not
- * answered (it asked for nothing); a request (PULL, RETURN, UNREADABLE) is answered with NO_WORK,
- * and so is a frame of a kind a client does not send (WORK, say). A message whose kind could not
- * be read either ends the connection (GPeerClose::ERROR): it may have been a RESULT, which asks for
- * no answer, or a request, which does, and a client counts the answers to its requests -- an
- * answer too many or too few would make it lose track of what the server has read. The client
- * connects again. In every case the session gives back what it holds: it can no longer tell which
- * items the client still works on. An UNREADABLE from
- * the client says that it could not read the session's last answer: the session forgets which
- * blobs the client holds (they are sent in full again), gives back what it holds, and owes the
- * client the next item.
+ * An item whose answer cannot be encoded ends as failed through the consumer (failPayloadItem): it
+ * is that item's failure. The request is still owed, and the client's blob state is forgotten.
  *
  * The end of the run. Once the server has been stopped, the session no longer answers: it closes
- * the connection with GPeerClose::RUN_ENDED, also when it still owes answers (the client need not
- * ask again), and sends no NO_WORK. It looks at the stop before it answers owed requests.
+ * the connection with GPeerClose::RUN_ENDED, also when it still owes answers. It looks at the stop
+ * before it answers owed requests.
  *
  * Threads. Every handler of the session runs on its peer's executor (a strand: one at a time), and
  * a wake-up is posted there. That executor runs nothing but the roles' handlers: the transport
  * moves the bytes on threads of its own (GPeerI.hpp, rule 2), so the session may take as long as
- * it needs to decode a request, check an item out and encode it. send() hands the message over and
- * returns; the session assumes nothing about when, or on which thread, it is written.
+ * it needs to decode a message, check an item out and encode it.
  *
  * Ownership. The session is owned by its peer (through the peer's handlers), so it lives exactly as
  * long as its connection; it refers to the peer weakly. It releases what it holds in its
  * destructor, never in its onClosed handler: a peer that is discarded with its executor's context
  * ends without onClosed (rule 5). The destructor forgets the client's blob state and signs the
- * session off (serverSignOn(false)); the hooks themselves (and whatever the shell keeps in them,
- * such as the lease of the client's items) are destroyed with the session.
+ * session off; the hooks (and the lease of the client's items the shell keeps in them) go with it.
  *
  * Signing on. The session signs on (serverSignOn(true)) in start(), after its peer's start() has
- * returned, and not before: whoever learns of the session through the sign-on (the shell, which
- * closes every signed-on peer at the end of a run) can then only close a peer that has been
- * started (GPeerI.hpp, rule 2: start() before anything else). A session that is never started
- * never signs on, and does not sign off.
+ * returned: whoever learns of the session through the sign-on can then only close a peer that has
+ * been started (GPeerI.hpp, rule 2).
  *
  * @tparam processable_type The work-item type exchanged with the client (must be processable)
  */
@@ -126,19 +112,17 @@ template <typename processable_type>
 class GPeerSessionT final : public std::enable_shared_from_this<GPeerSessionT<processable_type>> {
 public:
     //-------------------------------------------------------------------------
-    /** @brief The session's server-side hooks: how it pulls work, returns results, gives back what
-     *  it holds, checks for a stopped server, and signs itself on/off. */
+    /** @brief The session's server-side hooks: how it pulls work, returns results, fails an item,
+     *  checks for a stopped server, and signs itself on/off. */
     struct SessionHooks {
         /// Checks an item out or parks the session; the argument is how a parked session is woken
         std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> getPayloadItem;
         /// Checks a returned frame in
         std::move_only_function<void(GCommandContainerT<processable_type> &&)> putPayloadItem;
-        /// Ends an item that getPayloadItem handed out as failed (its answer could not be
-        /// encoded): its correlation id, and why
+        /// Ends an item that getPayloadItem handed out as failed (its answer could not be encoded,
+        /// or its RESULT could not be read): its correlation id, and why
         std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, const std::string &)>
             failPayloadItem;
-        /// Puts every item back that this session has handed out and not seen return
-        std::move_only_function<void()> abandonItems;
         /// Whether the server has been stopped
         std::move_only_function<bool()> checkServerStopped;
         /// Called with true by start(), after the peer has been started, and with false by the
@@ -169,22 +153,14 @@ public:
         Gem::Courtier::GWireBlobRegistry *wire_registry = nullptr,
         Gem::Courtier::GWirePeerId peer_id = 0
     )
-      : get_payload_item_(std::move(hooks.getPayloadItem))
-      , put_payload_item_(std::move(hooks.putPayloadItem))
-      , fail_payload_item_(std::move(hooks.failPayloadItem))
-      , abandon_items_(std::move(hooks.abandonItems))
-      , check_server_stopped_(std::move(hooks.checkServerStopped))
-      , server_sign_on_(std::move(hooks.serverSignOn))
-      , connection_ended_(std::move(hooks.connectionEnded))
-      , client_spoke_(std::move(hooks.clientSpoke))
+      : hooks_(std::move(hooks))
       , serialization_mode_(serialization_mode)
       , wire_registry_(wire_registry)
       , peer_id_(peer_id) {
-        // Engage the blob send-once wire form for this session's peer: the server sends a given
-        // blob in full only on the first work item to this peer and references it by content id
-        // thereafter. Every connection is a peer of its own, so a client that connects again
-        // receives its blobs afresh. Disabled (-> self-contained full-payload form) when no
-        // registry is supplied.
+        // Blob send-once for this session's peer: a blob is sent in full only on the first work
+        // item to this peer and referenced by content id thereafter. Every connection is a peer of
+        // its own, so a client that connects again receives its blobs afresh. Disabled (every
+        // blob in full) when no registry is supplied.
         wire_ctx_.enabled = (wire_registry_ != nullptr);
         wire_ctx_.peer = peer_id_;
         wire_ctx_.registry = wire_registry_;
@@ -194,12 +170,9 @@ public:
     //-------------------------------------------------------------------------
     /** @brief The destructor. Forgets the client's blob state and signs the session off. */
     ~GPeerSessionT() {
-        // The shared blob store is left intact for the other peers.
-        if(wire_registry_ != nullptr) {
-            wire_registry_->forgetPeer(peer_id_);
-        }
+        this->forgetBlobs_(); // the shared blob store is left intact for the other peers
         if(signed_on_) {
-            this->server_sign_on_(false);
+            hooks_.serverSignOn(false);
         }
     }
 
@@ -217,7 +190,7 @@ public:
         max_message_bytes_ = peer->maxMessageBytes();
         peer->start(
             GPeerHandlers{
-                .onOpen = {},
+                .onOpen = [self] { self->when_open_(); },
                 .onMessage =
                     [self](std::string &&message) { self->when_message_(std::move(message)); },
                 .onClosed =
@@ -227,7 +200,7 @@ public:
             }
         );
         // Only now may anyone who learns of this session close its peer.
-        this->server_sign_on_(true);
+        hooks_.serverSignOn(true);
         signed_on_ = true;
     }
 
@@ -241,9 +214,18 @@ public:
 
 private:
     //-------------------------------------------------------------------------
+    /** @brief The connection is open: the client is greeted with HELLO first. */
+    void when_open_() {
+        if(auto peer = peer_.lock()) {
+            peer->send(
+                makeMessage(Gem::Courtier::buildHello<processable_type>(serialization_mode_))
+            );
+        }
+    }
+
+    //-------------------------------------------------------------------------
     /**
-     * @brief Called for every message from the client: checks a returned result in and answers,
-     * or notes that the client is owed a work item and serves what can be served. A message that
+     * @brief Called for every message from the client (see the class comment). A message that
      * arrives after the session has closed its connection (the client sent it before it knew of
      * the close; GPeerI.hpp, rule 6) is still read -- a result in it is checked in -- but nothing
      * is answered or served any more.
@@ -257,51 +239,133 @@ private:
         }
         if(not spoke_) {
             spoke_ = true;
-            if(client_spoke_) {
-                client_spoke_();
+            if(hooks_.clientSpoke) {
+                hooks_.clientSpoke();
             }
         }
-        auto absorbed = this->absorb_(message);
-        if(stopping_) {
-            return; // the session has closed the connection
+        command_container_.reset();
+        std::string_view payload;
+        try {
+            payload = Gem::Courtier::frameHeadFromString(
+                std::string_view{message},
+                command_container_,
+                serialization_mode_
+            );
         }
-        if(auto *answer = std::get_if<std::string>(&absorbed)) {
-            peer->send(makeMessage(std::move(*answer)));
+        catch(...) {
+            this->protocolError_(*peer, Gem::Courtier::describeException(std::current_exception()));
+            return;
         }
-        else if(std::holds_alternative<Gem::Courtier::GPullDue>(absorbed)) {
+        switch(command_container_.kind()) {
+        case GFrameKind::PULL:
             ++owed_replies_;
+            break;
+        case GFrameKind::RESULT:
+            this->checkIn_(payload);
+            break;
+        case GFrameKind::BLOB_REQUEST:
+            this->answerBlobRequest_(*peer, payload);
+            break;
+        default:
+            this->protocolError_(
+                *peer,
+                "a frame of a kind a client does not send: " +
+                    Gem::Courtier::fkToStr(command_container_.kind())
+            );
+            return;
         }
-        // GNothingDue: a RESULT, which asks for nothing
-        this->serve_(*peer);
+        if(not stopping_) {
+            this->serve_(*peer);
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Checks a RESULT in: its payload is read under the session's wire scope (a blob
+     * referenced by id in it resolves against the server's registry) and the frame goes to the
+     * consumer. A payload that cannot be read fails the item the head names (see the class
+     * comment).
+     *
+     * @param payload The payload part of the message
+     */
+    void checkIn_(std::string_view payload) {
+        const Gem::Courtier::CORRELATION_ID_TYPE id = command_container_.outcome().correlation_id;
+        try {
+            Gem::Courtier::wireDecodePayload(
+                payload,
+                command_container_,
+                wire_ctx_.enabled ? &wire_ctx_ : nullptr,
+                serialization_mode_
+            );
+        }
+        catch(...) {
+            const std::string what =
+                "The result of client " + std::to_string(peer_id_) +
+                " could not be read: " + Gem::Courtier::describeException(std::current_exception());
+            glogger << "GPeerSessionT<processable_type>: " << what << '\n' << GLOGGING;
+            this->forgetBlobs_();
+            hooks_.failPayloadItem(id, what);
+            return;
+        }
+        if(command_container_.payloadEmpty()) {
+            this->forgetBlobs_(); // the client returned no result; it may lack a blob
+        }
+        hooks_.putPayloadItem(std::move(command_container_));
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief Answers a blob request from the shared registry (an empty blob on a miss)
+     *  @param peer The connection @param payload The payload part of the message */
+    void answerBlobRequest_(GPeerI &peer, std::string_view payload) {
+        Gem::Courtier::GWireBlobId id{0, 0};
+        try {
+            Gem::Courtier::framePayloadFromString(payload, command_container_, serialization_mode_);
+            if(const auto *request = command_container_.blobRequest()) {
+                id = request->id;
+            }
+        }
+        catch(...) {
+            // an empty reply: the client treats the fetch as failed
+        }
+        peer.send(makeMessage(
+            Gem::Courtier::buildBlobReply<processable_type>(id, wire_registry_, serialization_mode_)
+        ));
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief A message that cannot be handled ends the connection (see the class comment)
+     *  @param peer The connection @param what Why */
+    void protocolError_(GPeerI &peer, const std::string &what) {
+        glogger << "GPeerSessionT<processable_type>: client " << peer_id_ << ": " << what << '\n'
+                << "The connection is closed." << '\n'
+                << GLOGGING;
+        if(not stopping_) { // a connection that is closing already keeps what its close said
+            peer.close(GPeerClose::ERROR);
+            closed_with_error_ = true;
+            stopping_ = true; // nothing more is served on this connection
+        }
     }
 
     //-------------------------------------------------------------------------
     /**
      * @brief Answers the requests this session owes an answer to, for as long as there are items.
      * When there are none it stays parked until it is woken. Once the server has been stopped the
-     * connection is closed instead, with the word that the run has ended; owed requests are then
-     * not answered (the client need not ask again).
+     * connection is closed instead, with the word that the run has ended.
      *
      * @param peer The connection of this session
      */
     void serve_(GPeerI &peer) {
-        if(this->check_server_stopped_()) {
-            peer.close(GPeerClose::RUN_ENDED);
-            stopping_ = true; // nothing more is served on this connection
-            return;
-        }
-
-        while(owed_replies_ > 0 && not parked_ && not stopping_) {
+        while(owed_replies_ > 0 && not parked_ && not stopping_ &&
+              not hooks_.checkServerStopped()) {
             if(auto answer = this->answer_pull_()) {
                 --owed_replies_;
                 peer.send(makeMessage(std::move(*answer)));
             }
         }
-
         // The stop may have come while the loop ran (the consumer then hands out neither an item
         // nor a promise, see answer_pull_()); a session that was not parked then is not woken
         // for it.
-        if(stopping_ || this->check_server_stopped_()) {
+        if(not closed_with_error_ && (stopping_ || hooks_.checkServerStopped())) {
             peer.close(GPeerClose::RUN_ENDED);
             stopping_ = true;
         }
@@ -313,8 +377,7 @@ private:
      * thread made work available, so it only posts to the session's executor. It holds the
      * session weakly and no executor: the consumer's list of parked callers must neither keep a
      * session alive nor hold a strand beyond the life of its io context. It reports whether the
-     * session was still there, so that a wake-up meant for an item is not spent on a session that
-     * has ended.
+     * session was still there.
      *
      * @return The wake function handed to the consumer with every request for an item
      */
@@ -326,47 +389,33 @@ private:
                 return false;
             }
             // The handler keeps the connection as well as the session, so that the session can
-            // take its item in any case (see when_woken_()).
+            // take its item in any case: the wake-up stands for an item that another parked
+            // session did not get. If the connection has ended meanwhile, the answer is dropped,
+            // the item is among those the lease gives back, and that wakes the next one.
             auto executor = peer->executor();
             boost::asio::post(executor, [self = std::move(self), peer = std::move(peer)] {
-                self->when_woken_(*peer);
+                self->parked_ = false;
+                self->serve_(*peer);
             });
             return true;
         };
     }
 
     //-------------------------------------------------------------------------
-    /** @brief Runs on the session's executor after a wake-up: an item has become available (or the
-     * server stops), so the session asks again. Others may have been faster; then it is parked
-     * once more.
-     *
-     * The wake-up stands for an item that another parked session did not get, so the session
-     * takes it even if its connection has ended in the meantime. The answer is then not sent (the
-     * peer drops it), the item is among those the session gives back at its end, and that wakes
-     * the next one.
-     *
-     * @param peer The connection of this session */
-    void when_woken_(GPeerI &peer) {
-        parked_ = false;
-        this->serve_(peer);
-    }
-
-    //-------------------------------------------------------------------------
     /**
      * @brief Called once when the connection is over. A confirmed close of either end and the end
-     * of the server are no news; anything else is logged, a close of this end that the client did
-     * not confirm among it. The shell hears how it ended (connectionEnded).
+     * of the server are no news; anything else is logged. The shell hears how it ended.
      *
      * @param end Why the connection ended
      * @param how What the other end said, if it closed in the regular way
      * @param detail The transport's own words about it
      */
     void when_closed_(GPeerEnd end, [[maybe_unused]] GPeerClose how, std::string_view detail) {
-        if(connection_ended_) {
-            connection_ended_(end, closed_with_error_);
+        if(hooks_.connectionEnded) {
+            hooks_.connectionEnded(end, closed_with_error_);
         }
         if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
-           not this->check_server_stopped_()) {
+           not hooks_.checkServerStopped()) {
             glogger << "GPeerSessionT<processable_type>: the connection to client " << peer_id_
                     << " has ended: " << detail << '\n'
                     << GLOGGING;
@@ -375,277 +424,92 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Reads an incoming message and acts on all of it but the request for an item: a RETURN
-     * or a RESULT is checked in, and a RETURN, like a PULL, leaves the client owed a work item; an
-     * UNREADABLE does too, after the session has forgotten the client's blobs and given back what
-     * it holds. A message that cannot be read or handled is refused by its kind (see the class
-     * comment).
+     * @brief Answers one PULL: checks an item out and encodes it as WORK under this session's wire
+     * scope (blob send-once), its ids in the head; or parks the session if nothing is pending.
      *
-     * @param message One complete message from the client
-     * @return The answer if the message is answered by it (NO_WORK if it had to be refused);
-     * GPullDue if the client is now owed a work item; GNothingDue if it is owed nothing
+     * @return The answer; nothing if the session is parked instead, if the server is stopping, or
+     * if the item could not be encoded (it has then ended as failed, and the request is still owed)
      */
-    Gem::Courtier::GAbsorbResult absorb_(const std::string &message) {
-        // A decode that fails leaves the kind it has read (the kind is archived first), or NONE.
-        command_container_.reset();
-        GFrameKind kind = GFrameKind::NONE;
+    std::optional<std::string> answer_pull_() {
+        auto result = hooks_.getPayloadItem(this->wake_function_());
+        if(result.parked) {
+            parked_ = true;
+            return std::nullopt;
+        }
+        if(not result.item) {
+            stopping_ = true; // neither an item nor a promise: the server is stopping
+            return std::nullopt;
+        }
+        const Gem::Courtier::CORRELATION_ID_TYPE id = result.item->getCorrelationId();
+        command_container_.reset(GFrameKind::WORK);
+        command_container_.setTag(Gem::Courtier::GWireProtocolT<processable_type>::workTag());
+        command_container_.setOutcome(result.item->processingOutcome());
+        command_container_.setItem(std::move(result.item));
         try {
-            // De-serialize the object (under the wire scope, so an id-referenced blob in a returned
-            // result resolves against this server's registry).
-            Gem::Courtier::wireDecode(
-                message,
+            std::string bytes = Gem::Courtier::wireEncode(
                 command_container_,
                 wire_ctx_.enabled ? &wire_ctx_ : nullptr,
                 serialization_mode_
-            ); // may throw
-            kind = command_container_.kind();
-
-            if(kind == GFrameKind::UNREADABLE) {
-                return this->unreadableAnswer_();
-            }
-            if(kind != GFrameKind::PULL && kind != GFrameKind::RETURN &&
-               kind != GFrameKind::RESULT && kind != GFrameKind::BLOB_REQUEST) {
-                // A frame a client does not send: it cannot be handled, whatever it was meant to be
-                glogger << "GPeerSessionT<processable_type>: client " << peer_id_
-                        << " sent a frame of a kind a client does not send: "
-                        << Gem::Courtier::fkToStr(kind) << '\n'
-                        << GLOGGING;
-                return this->refused_(kind);
-            }
-            return Gem::Courtier::absorbServerRequest(
-                command_container_,
-                put_payload_item_,
-                wire_registry_,
-                serialization_mode_
             );
-        }
-        catch(...) {
-            if(kind == GFrameKind::NONE) {
-                kind = command_container_.kind(); // what the failed decode had read
-            }
-            logRefusal_(std::current_exception());
-            return this->refused_(kind);
-        }
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-     * @brief The client could not read the last answer of this session: it is sent its blobs in
-     * full again, what it held is given back, and it is owed the next item.
-     *
-     * @return GPullDue
-     */
-    Gem::Courtier::GAbsorbResult unreadableAnswer_() {
-        glogger << "GPeerSessionT<processable_type>: client " << peer_id_
-                << " could not read an answer; it gets its blobs in full again and what it held "
-                   "is put back"
-                << '\n'
-                << GLOGGING;
-        if(wire_registry_ != nullptr) {
-            wire_registry_->forgetPeer(peer_id_);
-        }
-        abandon_items_();
-        return Gem::Courtier::GPullDue{};
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-     * @brief What a message gets that could not be read or handled, by its kind: a RESULT asked
-     * for nothing and is not answered; a message whose kind could not be read ends the connection;
-     * anything else is answered with NO_WORK. The session gives back what it holds in every case.
-     *
-     * @param kind The kind the message was read as; NONE if not even that could be read
-     * @return GNothingDue for a RESULT and for a message without a kind, the NO_WORK answer
-     * otherwise
-     */
-    Gem::Courtier::GAbsorbResult refused_(GFrameKind kind) {
-        try {
-            return this->refusal_(kind);
-        }
-        catch(...) {
-            // Not even the refusal could be made (out of memory, say): no exception may leave a
-            // session thread, and the client cannot be answered, so the connection ends. The
-            // session's lease gives back what it holds when the session goes. (No test: only a
-            // failing allocation gets here; the harness has no allocator to make one fail.)
-            logRefusal_(std::current_exception());
-            if(auto peer = peer_.lock()) {
-                peer->close(GPeerClose::ERROR);
-            }
-            closed_with_error_ = true;
-            stopping_ = true; // nothing more is served on this connection
-            return Gem::Courtier::GNothingDue{};
-        }
-    }
-
-    /** @brief The body of refused_(), which may throw @param kind See refused_()
-     *  @return See refused_() */
-    Gem::Courtier::GAbsorbResult refusal_(GFrameKind kind) {
-        // Messages keep their boundaries, so the connection is still usable: closing it instead
-        // would end the client. The session cannot tell any more which of its items are still
-        // being worked on, so it gives back all it holds; a result that arrives for one of them
-        // later is still accepted.
-        abandon_items_();
-        if(kind == GFrameKind::RESULT) {
-            return Gem::Courtier::GNothingDue{};
-        }
-        if(kind == GFrameKind::NONE) {
-            glogger
-                << "GPeerSessionT<processable_type>: not even the kind of the message of client "
-                << peer_id_ << " could be read; the connection is closed" << '\n'
-                << GLOGGING;
-            if(auto peer = peer_.lock()) {
-                peer->close(GPeerClose::ERROR);
-            }
-            closed_with_error_ = true;
-            stopping_ = true; // nothing more is served on this connection
-            return Gem::Courtier::GNothingDue{};
-        }
-        return Gem::Courtier::refusalReply<processable_type>(serialization_mode_);
-    }
-
-    //-------------------------------------------------------------------------
-    /** @brief Logs why a request was refused @param failure The exception that refused it */
-    static void logRefusal_(const std::exception_ptr &failure) {
-        glogger << "GPeerSessionT<processable_type>: a request was refused: "
-                << Gem::Courtier::describeException(failure) << '\n'
-                << GLOGGING;
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-     * @brief Answers one request: checks an item out and encodes it under this session's wire
-     * scope (blob send-once), or parks the session if nothing is pending.
-     *
-     * @return The answer (WORK; NO_WORK only if the request had to be refused); nothing if the
-     * session is parked instead, if the server is stopping, or if the item could not be encoded
-     * (it has then ended as failed, and the request is still owed)
-     */
-    std::optional<std::string> answer_pull_() {
-        return this->refusing_([&]() -> std::optional<std::string> {
-            auto result = get_payload_item_(this->wake_function_());
-            if(result.parked) {
-                parked_ = true;
-                return std::nullopt;
-            }
-            if(not result.item) {
-                // Neither an item nor a promise: the server is stopping. The request is not
-                // answered; the connection is closed with RUN_ENDED instead (serve_()).
-                stopping_ = true;
-                return std::nullopt;
-            }
-            const Gem::Courtier::CORRELATION_ID_TYPE id = result.item->getCorrelationId();
-            Gem::Courtier::serveWorkItem(command_container_, [&result] {
-                return std::move(result.item);
-            });
-            try {
-                std::string bytes = Gem::Courtier::wireEncode(
-                    command_container_,
-                    wire_ctx_.enabled ? &wire_ctx_ : nullptr,
-                    serialization_mode_
+            // An item the transport cannot carry fails here, and only it: handed to the peer,
+            // it would end the connection, and the next client would meet it again.
+            if(bytes.size() > max_message_bytes_) {
+                throw geneva_exception(
+                    g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+                    << "the message of " << bytes.size()
+                    << " bytes is longer than the transport can carry (" << max_message_bytes_
+                    << " bytes)" << '\n'
                 );
-                // An item the transport cannot carry fails here, and only it: handed to the peer,
-                // it would end the connection, and the next client would meet it again.
-                if(bytes.size() > max_message_bytes_) {
-                    throw geneva_exception(
-                        g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-                        << "the message of " << bytes.size()
-                        << " bytes is longer than the transport can carry (" << max_message_bytes_
-                        << " bytes)" << '\n'
-                    );
-                }
-                return bytes;
             }
-            catch(...) {
-                this->itemFailed_(id, std::current_exception());
-            }
-            return std::nullopt;
-        });
+            return bytes;
+        }
+        catch(...) {
+            const std::string what = "The work item could not be encoded for client " +
+                                     std::to_string(peer_id_) + ": " +
+                                     Gem::Courtier::describeException(std::current_exception());
+            command_container_.reset();
+            this->forgetBlobs_(); // the failed encoding may have counted a blob as sent
+            hooks_.failPayloadItem(id, what);
+        }
+        return std::nullopt;
     }
 
     //-------------------------------------------------------------------------
-    /**
-     * @brief An item could not be encoded: it ends as failed through the consumer, and the
-     * client's blob state is forgotten (see the class comment).
-     *
-     * @param id The item's correlation id
-     * @param failure Why it could not be encoded
-     */
-    void itemFailed_(Gem::Courtier::CORRELATION_ID_TYPE id, const std::exception_ptr &failure) {
-        const std::string what = "The work item could not be encoded for client " +
-                                 std::to_string(peer_id_) + ": " +
-                                 Gem::Courtier::describeException(failure);
-        command_container_.reset();
+    /** @brief Forgets which blobs the client holds: they are sent in full again */
+    void forgetBlobs_() {
         if(wire_registry_ != nullptr) {
             wire_registry_->forgetPeer(peer_id_);
         }
-        fail_payload_item_(id, what);
-    }
-
-    //-------------------------------------------------------------------------
-    /**
-     * @brief Runs the answer to a request and turns a failure into a refusal (NO_WORK), so that
-     * no exception reaches the executor's thread. The item of the answer may have been checked
-     * out before the failure, so the session gives back all it holds (refused_()).
-     *
-     * @tparam step_fn_type A callable () -> std::optional<std::string>
-     * @param step The step to run
-     * @return What @p step returns, or the NO_WORK answer if it threw
-     */
-    template <typename step_fn_type>
-    std::optional<std::string> refusing_(step_fn_type &&step) {
-        try {
-            return std::forward<step_fn_type>(step)();
-        }
-        catch(...) {
-            logRefusal_(std::current_exception());
-        }
-        auto refusal = this->refused_(GFrameKind::PULL);
-        if(auto *answer = std::get_if<std::string>(&refusal)) {
-            return std::move(*answer);
-        }
-        return std::nullopt; // not even the refusal could be made; the connection ends
     }
 
     //-------------------------------------------------------------------------
     // Data
 
     std::weak_ptr<GPeerI> peer_; ///< The connection (it owns this session, not the reverse)
-
-    std::move_only_function<GCheckoutResult<processable_type>(GWakeFn)> get_payload_item_;
-    std::move_only_function<void(GCommandContainerT<processable_type> &&)> put_payload_item_;
-    std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, const std::string &)>
-        fail_payload_item_;
-    std::move_only_function<void()> abandon_items_;
-    std::move_only_function<bool()> check_server_stopped_;
-    std::move_only_function<void(bool)> server_sign_on_;
-    std::move_only_function<void(GPeerEnd, bool)> connection_ended_;
-    std::move_only_function<void()> client_spoke_;
+    SessionHooks hooks_;         ///< How the session reaches the server
 
     Gem::Common::serializationMode serialization_mode_ = Gem::Common::serializationMode::GEM_BINARY;
 
-    GCommandContainerT<processable_type> command_container_{
-        GFrameKind::NONE
-    }; ///< Holds the current frame and its payload (if any)
+    /// The frame being read or written
+    GCommandContainerT<processable_type> command_container_{GFrameKind::NONE};
 
-    std::size_t owed_replies_ = 0; ///< Requests of the client that have no answer yet
+    std::size_t owed_replies_ = 0; ///< PULLs of the client that have no answer yet
     bool parked_ = false; ///< The consumer holds this session's wake function; nothing is served
-    /// The session closes its connection (an error, or the end of the run: the consumer said it is
-    /// stopping): nothing is answered or served any more
+    /// The session closes its connection (an error, or the end of the run): nothing is answered or
+    /// served any more
     bool stopping_ = false;
     bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
     bool spoke_ = false;     ///< A message of the client has been read (clientSpoke was called)
     bool closed_with_error_ = false; ///< The session has closed its connection with ERROR
 
     /// The shared (consumer-owned) blob registry and this session's peer id, plus the wire scope
-    /// installed around (de)serialisation so a work item's blob is sent to this peer only once
-    /// (blob send-once). wire_registry_ is null when the feature is disabled.
+    /// installed around (de)serialisation (blob send-once). wire_registry_ is null when the
+    /// feature is disabled.
     Gem::Courtier::GWireBlobRegistry *wire_registry_ = nullptr;
     Gem::Courtier::GWirePeerId peer_id_ = 0;
     /// The longest message the peer's transport carries (GPeerI::maxMessageBytes()); set by start()
     std::size_t max_message_bytes_ = std::numeric_limits<std::size_t>::max();
     Gem::Courtier::GWireSerializationContext wire_ctx_;
-
-    //-------------------------------------------------------------------------
 };
 
 /******************************************************************************/

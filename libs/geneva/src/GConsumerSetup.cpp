@@ -178,9 +178,6 @@ public:
         if(vm.contains("beast_reconnectLimit")) {
             config.clientReconnectLimit = vm["beast_reconnectLimit"].as<std::size_t>();
         }
-        if(vm.contains("beast_undeliveredDir")) {
-            config.clientUndeliveredDir = vm["beast_undeliveredDir"].as<std::string>();
-        }
         return config;
     }
 
@@ -233,11 +230,7 @@ public:
             "beast_reconnectLimit",
             po::value<std::size_t>()->default_value(defaults.clientReconnectLimit),
             "\t[beast] Seconds a client that has lost its connection tries to reach its server "
-            "again (0 == for as long as it runs)")(
-            "beast_undeliveredDir",
-            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
-            "\t[beast] Where a client saves a finished result it can no longer deliver (the "
-            "evaluated item, one file each)");
+            "again (0 == for as long as it runs)");
     }
 };
 

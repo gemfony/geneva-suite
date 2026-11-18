@@ -200,7 +200,6 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK(mpi.clientPrefetchDepth == 2);
     CHECK(mpi.clientParallelEvaluations == 1);
     CHECK(mpi.clientFirstContactLimit == 0);
-    CHECK(mpi.clientUndeliveredDir == ".");
 }
 
 /******************************************************************************/

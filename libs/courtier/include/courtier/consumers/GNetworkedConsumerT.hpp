@@ -56,7 +56,7 @@
 #include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the per-session in-flight store (CheckoutLease)
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCommandContainerT.hpp"  // the RETURN frame checkin() consumes
+#include "courtier/GCommandContainerT.hpp"  // the RESULT frame checkin() consumes
 #include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
 #include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
@@ -196,7 +196,7 @@ public:
      * by it:
      * @li A late return that CARRIES its work item is parked as it came, with the retained state
      *     the wire strips grafted back from the retained original.
-     * @li A PAYLOAD-ONLY late return (a RETURN frame with only a library payload, no work item) is
+     * @li A PAYLOAD-ONLY late return (a RESULT frame with only a library payload, no work item) is
      *     applied TO the retained clone, which is then parked like a full return.
      *
      * A late return with NO matching retained original is DROPPED and counted in
@@ -351,8 +351,7 @@ protected:
         std::optional<std::uint64_t> remove(Gem::Courtier::CORRELATION_ID_TYPE id) {
             return in_flight.take(id);
         }
-        /** @brief Puts back everything the session still holds: at its end, or when it can no
-         *  longer tell which of its items are being worked on (a request it had to refuse). */
+        /** @brief Puts back everything the session still holds, at its end. */
         void abandonAll() {
             // Atomically take everything still in flight; requeue outside the set's lock.
             if(on_abandon) {
@@ -412,7 +411,7 @@ protected:
     }
 
     /***************************************************************************/
-    /** @brief Accepts a returned RETURN frame and writes it into its slot. The frame's (batch_id, slot)
+    /** @brief Accepts a returned RESULT frame and writes it into its slot. The frame's (batch_id, slot)
      *  is decoded from the correlation id in its processing outcome. A return whose batch is no
      *  longer active (timed out / finished) takes the late-return path; a return for a slot that
      *  is already DONE (a duplicate) or does not take part in its batch is dropped and counted. A
@@ -425,7 +424,7 @@ protected:
      *  to the GWireProtocolT seam, which knows what an evaluation RESULT means. Courtier never inspects
      *  the latter.
      *
-     *  @param frame The deserialized RETURN frame (ownership transferred)
+     *  @param frame The deserialized RESULT frame (ownership transferred)
      *  @param count_return_time Whether the time from checkout to this return is a sample of the
      *         adaptive lease and give-up window. A transport passes false for a result that arrives
      *         on another connection than the one its item was handed out on (a client that sends
@@ -521,14 +520,14 @@ protected:
 
     /***************************************************************************/
     /** @brief Convenience overload for callers that already hold a processed work item rather than a
-     *  wire frame (the local consumers and the test harnesses): wraps it in the RETURN frame its own
+     *  wire frame (the local consumers and the test harnesses): wraps it in the RESULT frame its own
      *  outcome describes and checks that in.
      *  @param p The processed work item (ownership transferred); null is ignored */
     void checkin(item_ptr p) {
         if(not p) {
             return;
         }
-        GCommandContainerT<processable_type> frame{Gem::Courtier::GFrameKind::RETURN};
+        GCommandContainerT<processable_type> frame{Gem::Courtier::GFrameKind::RESULT};
         frame.setOutcome(p->processingOutcome());
         frame.setItem(std::move(p));
         checkin(std::move(frame));
@@ -792,7 +791,7 @@ private:
      *  in time, an original past its ttl, or buffering disabled: cap == 0, the default) the drop is
      *  merely COUNTED. A parked item is later reaped by the submitter via getLateReturns(). Caller
      *  holds mtx_.
-     *  @param frame The late-arriving RETURN frame (its outcome routes it; its payload is applied)
+     *  @param frame The late-arriving RESULT frame (its outcome routes it; its payload is applied)
      *  @param p The work item the frame carried, or null for a payload-only return */
     void bufferLateReturn_locked(const GCommandContainerT<processable_type> &frame, item_ptr p) {
         const Gem::Courtier::CORRELATION_ID_TYPE id = frame.outcome().correlation_id;

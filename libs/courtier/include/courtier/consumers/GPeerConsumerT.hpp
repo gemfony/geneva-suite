@@ -438,7 +438,7 @@ private:
                         auto result = this->checkoutOrPark(std::move(wake));
                         if(result.item) {
                             // An item that cannot enter the lease would be in flight with nobody
-                            // to give it back: it goes back at once, and the request is refused.
+                            // to give it back: it goes back at once.
                             // (No test: only a failing allocation gets here.)
                             try {
                                 lease->add(result.item, result.checkout);
@@ -452,8 +452,8 @@ private:
                     },
                 // A hook that has taken an item out of the lease gives it back (requeue) if the
                 // consumer's call that follows throws anything: the item would otherwise stay in
-                // flight with nobody to give it back. The exception goes on to the session, which
-                // refuses the request. (The consumer fails a slot whose result or clone throws
+                // flight with nobody to give it back. The exception goes on through the session.
+                // (The consumer fails a slot whose result or clone throws
                 // itself; what is left is a failure of the consumer's own work. No test: only a
                 // failing allocation gets there.)
                 .putPayloadItem =
@@ -492,7 +492,6 @@ private:
                             }
                         }
                     },
-                .abandonItems = [lease] { lease->abandonAll(); },
                 .checkServerStopped = [this]() -> bool { return this->stopped(); },
                 .serverSignOn =
                     [this, peer_id, weak_peer](bool sign_on) {

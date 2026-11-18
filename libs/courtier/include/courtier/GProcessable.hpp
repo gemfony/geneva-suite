@@ -418,7 +418,7 @@ public:
     /**
      * @brief Snapshots this item's processing lifecycle into a transportable outcome record.
      *
-     * Taken on the worker once an evaluation has finished, so the RETURN frame carries the status,
+     * Taken on the worker once an evaluation has finished, so the RESULT frame carries the status,
      * error text, timings and routing ids even when the frame ships a small library payload instead of
      * the whole work item.
      * @return The lifecycle snapshot of this work item

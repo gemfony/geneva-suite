@@ -31,6 +31,7 @@
 // against a stand-in for the consumer (the hooks), with a test role at the client's end.
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <atomic>
 #include <chrono>
@@ -171,7 +172,6 @@ public:
                     lease->held.erase(id);
                     ++n_failed_;
                 },
-            .abandonItems = [lease] { lease->giveBack(); },
             .checkServerStopped =
                 [this] {
                     const std::scoped_lock lock(mutex_);
@@ -284,6 +284,11 @@ public:
                         GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
                         Gem::Courtier::wireDecode(bytes, frame, nullptr, self->mode_);
                         const std::scoped_lock lock(self->mutex_);
+                        if(frame.kind() == GFrameKind::HELLO) {
+                            self->hello_first_ = self->kinds_.empty() && self->n_hellos_ == 0;
+                            ++self->n_hellos_;
+                            return; // the greeting is counted apart from the answers
+                        }
                         self->kinds_.push_back(frame.kind());
                     },
                 .onClosed =
@@ -301,12 +306,15 @@ public:
         mode_ = mode;
     }
 
-    /** @brief @param kind A frame kind @return A frame of it, encoded (a RETURN or a RESULT
-     *  carries item 0) */
-    [[nodiscard]] std::string encode(GFrameKind kind) const {
+    /** @brief @param kind A frame kind @param id The item a RESULT names @return A frame of it,
+     *  encoded (a RESULT carries the item @p id) */
+    [[nodiscard]] std::string encode(GFrameKind kind, std::size_t id = 0) const {
         GCommandContainerT<GFaultyContainer> frame{kind};
-        if(kind == GFrameKind::RETURN || kind == GFrameKind::RESULT) {
-            frame.reset(kind, std::make_unique<GFaultyContainer>(0));
+        if(kind == GFrameKind::RESULT) {
+            frame.reset(kind, std::make_unique<GFaultyContainer>(id));
+            Gem::Courtier::GProcessingOutcome outcome;
+            outcome.correlation_id = id;
+            frame.setOutcome(outcome);
         }
         return Gem::Courtier::wireEncode(frame, nullptr, mode_);
     }
@@ -341,10 +349,20 @@ public:
         }
         return n;
     }
-    /** @brief @return How many frames have arrived */
+    /** @brief @return How many frames have arrived, the HELLO not counted */
     [[nodiscard]] std::size_t nFrames() const {
         const std::scoped_lock lock(mutex_);
         return kinds_.size();
+    }
+    /** @brief @return How many HELLOs have arrived */
+    [[nodiscard]] std::size_t nHellos() const {
+        const std::scoped_lock lock(mutex_);
+        return n_hellos_;
+    }
+    /** @brief @return Whether the first frame that arrived was a HELLO */
+    [[nodiscard]] bool helloFirst() const {
+        const std::scoped_lock lock(mutex_);
+        return hello_first_;
     }
     /** @brief @return "<end>:<how>" once the connection has ended, empty before */
     [[nodiscard]] std::string closed() const {
@@ -354,7 +372,9 @@ public:
 
 private:
     mutable std::mutex mutex_;
-    std::vector<GFrameKind> kinds_; ///< The kinds of the frames that arrived, in order
+    std::vector<GFrameKind> kinds_; ///< The kinds of the frames that arrived, in order (no HELLO)
+    std::size_t n_hellos_ = 0;      ///< HELLOs that arrived
+    bool hello_first_ = false;      ///< The first frame that arrived was a HELLO
     std::string closed_;            ///< How the connection ended
     std::weak_ptr<GPeerI> peer_;    ///< The client's end, weakly (rule 4)
     Gem::Common::serializationMode mode_ = BIN; ///< The wire format
@@ -500,11 +520,6 @@ TEST_CASE("GPeerSessionT: a RESULT is checked in and owes nothing", "[courtier][
         CHECK(connection.client->count(GFrameKind::WORK) == 1);
         CHECK(consumer.nPending() == 1);
 
-        // A RETURN is checked in and, like a PULL, is answered.
-        connection.client->send(GFrameKind::RETURN);
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
-        CHECK(consumer.nCheckedIn() == 2);
-
         connection.client->close(GPeerClose::NORMAL);
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
     }
@@ -513,7 +528,7 @@ TEST_CASE("GPeerSessionT: a RESULT is checked in and owes nothing", "[courtier][
 /******************************************************************************/
 /**
  * When the server stops, a session that owes answers does not give them: it closes its connection
- * with the word that the run has ended, and sends no NO_WORK.
+ * with the word that the run has ended.
  */
 TEST_CASE(
     "GPeerSessionT: at the stop a session with owed requests closes with RUN_ENDED",
@@ -539,11 +554,11 @@ TEST_CASE(
 /******************************************************************************/
 /**
  * The stop can come between the session's look at it and its checkout: the consumer then hands out
- * neither an item nor a promise. The request is not answered with NO_WORK; the connection is closed
- * with RUN_ENDED.
+ * neither an item nor a promise. The request is not answered; the connection is closed with
+ * RUN_ENDED.
  */
 TEST_CASE(
-    "GPeerSessionT: a stop that comes during the checkout closes with RUN_ENDED and no NO_WORK",
+    "GPeerSessionT: a stop that comes during the checkout closes with RUN_ENDED and answers nothing",
     "[courtier][peer][session]"
 ) {
     FakeConsumer consumer;
@@ -586,12 +601,73 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+/** A session greets its client with HELLO, the first message of the connection, before any answer. */
+TEST_CASE("GPeerSessionT: a session greets its client with HELLO first", "[courtier][peer][session]") {
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        consumer.offer({1});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        CHECK(connection.client->nHellos() == 1);
+        CHECK(connection.client->helloFirst());
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
 /**
- * A client that could not read an answer says so with UNREADABLE: the session forgets which blobs
- * the client holds, gives back what it holds, and serves the next item.
+ * A RESULT whose payload cannot be read fails the item its head names; nothing is answered (it
+ * asked for nothing), the connection goes on, and the client's blob state is forgotten: its blobs
+ * are sent in full again. Under JSON as under the binary codec.
  */
 TEST_CASE(
-    "GPeerSessionT: UNREADABLE resets the client's blobs and items and asks again",
+    "GPeerSessionT: a RESULT whose payload cannot be read fails its item and resets the blobs",
+    "[courtier][peer][session]"
+) {
+    const auto mode = GENERATE(BIN, Gem::Common::serializationMode::GEM_JSON);
+    constexpr GWirePeerId PEER = 1;
+    FakeConsumer consumer;
+    GWireBlobRegistry registry;
+    const GWireBlobId blob{17, 4};
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection =
+            connect(consumer, server.executor(), client.executor(), &registry, PEER, mode);
+        consumer.offer({1, 2});
+        connection.client->send(GFrameKind::PULL);
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
+        registry.markPeerHasBlob(PEER, blob);
+
+        const std::string result = connection.client->encode(GFrameKind::RESULT, 1);
+        connection.client->sendBytes(result.substr(0, result.size() - 8)); // the payload is cut
+        REQUIRE(eventually([&] { return consumer.nFailed() == 1; }));
+        CHECK(consumer.nCheckedIn() == 0);
+        CHECK_FALSE(registry.peerHasBlob(PEER, blob));
+
+        connection.client->send(GFrameKind::PULL); // the connection goes on
+        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
+        CHECK(connection.client->nFrames() == 2);
+        CHECK(connection.client->closed().empty());
+
+        connection.client->close(GPeerClose::NORMAL);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+    }
+}
+
+/******************************************************************************/
+/**
+ * A RESULT without a result -- a client that could not read its item, or could not return it,
+ * sends the outcome alone -- is checked in, and the client's blobs are sent in full again: the item
+ * it could not read may have carried one.
+ */
+TEST_CASE(
+    "GPeerSessionT: a RESULT without a result is checked in and resets the blobs",
     "[courtier][peer][session]"
 ) {
     constexpr GWirePeerId PEER = 1;
@@ -602,16 +678,20 @@ TEST_CASE(
     IoThreads client;
     {
         auto connection = connect(consumer, server.executor(), client.executor(), &registry, PEER);
-        consumer.offer({1, 2});
+        consumer.offer({1});
         connection.client->send(GFrameKind::PULL);
         REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
         registry.markPeerHasBlob(PEER, blob);
 
-        connection.client->send(GFrameKind::UNREADABLE);
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
-        CHECK(connection.client->nFrames() == 2);
+        GCommandContainerT<GFaultyContainer> failed{GFrameKind::WORK};
+        Gem::Courtier::GProcessingOutcome outcome;
+        outcome.correlation_id = 1;
+        failed.setOutcome(outcome);
+        Gem::Courtier::makeFailedResult(failed, failed.outcome(), "it could not be read");
+        connection.client->sendBytes(Gem::Courtier::wireEncode(failed, nullptr, BIN));
+        REQUIRE(eventually([&] { return consumer.nCheckedIn() == 1; }));
         CHECK_FALSE(registry.peerHasBlob(PEER, blob));
-        CHECK(consumer.nPending() == 1); // the item it held is back; one of the two is served
+        CHECK(consumer.nFailed() == 0);
 
         connection.client->close(GPeerClose::NORMAL);
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
@@ -620,96 +700,28 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * A RESULT that cannot be read past its kind asked for nothing: it is not answered (the client
- * would count one request too few), and what the client held is put back at once.
+ * A message whose head cannot be read is the one protocol error: the session does not know what it
+ * was, answers nothing, ends the connection with ERROR, and the lease gives back what the client
+ * held. Under JSON, a message that is not JSON at all is such a message.
  */
 TEST_CASE(
-    "GPeerSessionT: a RESULT that cannot be read is not answered and its items come back",
+    "GPeerSessionT: a message whose head cannot be read ends the connection with ERROR",
     "[courtier][peer][session]"
 ) {
+    const auto mode = GENERATE(BIN, Gem::Common::serializationMode::GEM_JSON);
     FakeConsumer consumer;
     IoThreads server;
     IoThreads client;
     {
-        auto connection = connect(consumer, server.executor(), client.executor());
+        auto connection = connect(consumer, server.executor(), client.executor(), nullptr, 1, mode);
         consumer.offer({1});
         connection.client->send(GFrameKind::PULL);
         REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
         REQUIRE(consumer.nPending() == 0);
 
-        const std::string result = connection.client->encode(GFrameKind::RESULT);
-        connection.client->sendBytes(result.substr(0, result.size() / 2));
-        REQUIRE(eventually([&] { return consumer.nPending() == 1; }));
-        std::this_thread::sleep_for(QUIET);
-        CHECK(connection.client->nFrames() == 1);
-        CHECK(consumer.nCheckedIn() == 0);
-
-        connection.client->close(GPeerClose::NORMAL);
-        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
-    }
-}
-
-/******************************************************************************/
-/**
- * The same under the JSON codec, where the whole document is parsed before anything is read: a
- * RESULT that is a JSON document but cannot be loaded has its kind read and is not answered; a
- * message that is not JSON at all has no kind and ends the connection with ERROR. Either way what
- * the client held comes back.
- */
-TEST_CASE(
-    "GPeerSessionT: under JSON a RESULT whose payload cannot be loaded is not answered",
-    "[courtier][peer][session]"
-) {
-    constexpr auto JSON = Gem::Common::serializationMode::GEM_JSON;
-    FakeConsumer consumer;
-    IoThreads server;
-    IoThreads client;
-    {
-        auto connection = connect(consumer, server.executor(), client.executor(), nullptr, 1, JSON);
-        consumer.offer({1});
-        connection.client->send(GFrameKind::PULL);
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
-
-        std::string result = connection.client->encode(GFrameKind::RESULT);
-        const auto at = result.find("\"outcome_\"");
-        REQUIRE(at != std::string::npos);
-        result.replace(at, 10, "\"unknown_\"");
-        connection.client->sendBytes(result);
-        REQUIRE(eventually([&] { return consumer.nPending() == 1; }));
-        std::this_thread::sleep_for(QUIET);
-        CHECK(connection.client->nFrames() == 1);
-
-        connection.client->send(GFrameKind::PULL);
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 2; }));
-        connection.client->sendBytes("this is not JSON");
-        REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
-        CHECK(connection.client->count(GFrameKind::NO_WORK) == 0);
-        CHECK(consumer.nPending() == 1);
-        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
-    }
-}
-
-/******************************************************************************/
-/**
- * A message whose kind cannot be read may have been a RESULT (no answer) or a request (one
- * answer): the session answers neither way, ends the connection with ERROR and gives back what the
- * client held. The client counts the answers to its requests, so a guess would put it out of step.
- */
-TEST_CASE(
-    "GPeerSessionT: a message whose kind cannot be read ends the connection with ERROR",
-    "[courtier][peer][session]"
-) {
-    FakeConsumer consumer;
-    IoThreads server;
-    IoThreads client;
-    {
-        auto connection = connect(consumer, server.executor(), client.executor());
-        consumer.offer({1});
-        connection.client->send(GFrameKind::PULL);
-        REQUIRE(eventually([&] { return connection.client->count(GFrameKind::WORK) == 1; }));
-        REQUIRE(consumer.nPending() == 0);
-
-        connection.client->sendBytes("x");
+        connection.client->sendBytes(
+            mode == BIN ? std::string("x") : std::string("this is not JSON")
+        );
         REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
         CHECK(connection.client->nFrames() == 1); // no answer
         CHECK(consumer.nPending() == 1);          // what the client held is back
@@ -738,7 +750,7 @@ TEST_CASE(
         auto server_end = connection.serverPeer.lock();
         REQUIRE(server_end);
 
-        // The strand of the session's end is held while the client sends a message whose kind
+        // The strand of the session's end is held while the client sends a message whose head
         // cannot be read (the session closes with ERROR on it), a RESULT and a PULL: all three
         // have arrived before the session's close goes out.
         const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
@@ -777,7 +789,8 @@ TEST_CASE(
     {
         auto [server_end, client_end] = GInProcessPeer::makePair(
             server.executor(),
-            {.maxMessageBytes = 8}, // below every WORK
+            // the HELLO fits, every WORK is longer
+            {.maxMessageBytes = Gem::Courtier::buildHello<GFaultyContainer>(BIN).size()},
             client.executor(),
             {},
             CLOSE_GRACE

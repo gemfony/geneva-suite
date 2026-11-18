@@ -61,44 +61,37 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * @brief The CLOSED frame vocabulary of the networked consumer/worker session protocol -- the part of a
  * message courtier itself acts on.
  *
- * A frame says what the message does to the *transport*: pull for work, hand work out, check a result
- * back in, fetch a blob. What the message MEANS to the using library (evaluate this,
- * here are the results, …) is not expressed here: it rides the frame as an opaque library tag plus a
+ * A frame says what the message does to the *transport*: greet, pull for work, hand work out, check
+ * a result back in, fetch a blob. What the message MEANS to the using library (evaluate this, here
+ * are the results, ...) is not expressed here: it rides the frame as an opaque library tag plus a
  * library-defined payload that courtier relays without interpreting (see GCommandContainerT).
  *
- * BLOB_REQUEST / BLOB_REPLY form the blob-send-once cache-miss fetch: a worker that receives a work item
- * referencing a blob id it does not hold asks the server for it (BLOB_REQUEST), and the server answers
- * from its own registry (BLOB_REPLY). Both are served entirely inside courtier, hence frames rather than
- * library tags.
- *
- * PULL asks for work; RETURN carries a processed slot's outcome (with the item, or the library's
- * payload) and asks for the next item, as a PULL would. BLOB_REPLY is empty if the server's
- * registry misses the blob.
- *
- * RESULT is a RETURN that asks for nothing: a client that has a request unanswered already sends a
- * finished result as RESULT, so that it never has more than one request with the server. The server
- * checks it in and owes no answer.
- *
- * UNREADABLE says that the last answer the server sent could not be read. It replaces the request
- * whose answer was lost: the server owes the next item. As the item that could not be read may have
- * carried a blob the client now lacks, the server sends the client its blobs afresh, and it puts
- * back what the client held (what identifies the item travels inside the item).
+ * Every message has a head, which is read first and by itself, and may have a payload:
+ *  - HELLO is the first message of every connection, from the server: its build (the collection's
+ *    version string) and the number of this protocol (GFRAMEPROTOCOL). A client whose own differ
+ *    ends.
+ *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
+ *    work answers when work is there.
+ *  - WORK carries an item; its head names the item (correlation id and lineage id, in the outcome),
+ *    so that a client that cannot read the payload can still return the item as failed.
+ *  - RESULT carries a processed item's outcome in its head and the item, or the library's payload,
+ *    in its payload. It asks for nothing.
+ *  - BLOB_REQUEST / BLOB_REPLY form the blob-send-once cache-miss fetch, served inside courtier.
+ *    BLOB_REPLY is empty if the server's registry misses the blob.
  *
  * NONE is the cleared/default state of a frame container, never a transmitted frame. The values are
- * part of the wire format and stay as they are; 5 is not used. The end of a run is not a frame: the
- * transport's close says it (GPeerClose::RUN_ENDED).
+ * part of the wire format; the gaps are kinds of earlier protocols. The end of a run is not a
+ * frame: the transport's close says it (GPeerClose::RUN_ENDED).
  */
 //! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     NONE = 0,         ///< Cleared / not yet filled in -- never sent
-    PULL = 1,         ///< worker -> server: "give me work"
-    NO_WORK = 2,      ///< server -> worker: "nothing available right now"
+    PULL = 1,         ///< worker -> server: "give me one item"
     WORK = 3,         ///< server -> worker: a work item to process
-    RETURN = 4,       ///< worker -> server: an outcome that asks for more
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob
-    RESULT = 8,       ///< worker -> server: an outcome asking for nothing
-    UNREADABLE = 9    ///< worker -> server: "I could not read your answer"
+    RESULT = 8,       ///< worker -> server: a processed item's outcome
+    HELLO = 10        ///< server -> worker: the first message, the server's build
 };
 //! [courtier-frame-kind]
 
@@ -108,17 +101,19 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     switch(kind) {
     case GFrameKind::NONE:
     case GFrameKind::PULL:
-    case GFrameKind::NO_WORK:
     case GFrameKind::WORK:
-    case GFrameKind::RETURN:
     case GFrameKind::BLOB_REQUEST:
     case GFrameKind::BLOB_REPLY:
     case GFrameKind::RESULT:
-    case GFrameKind::UNREADABLE:
+    case GFrameKind::HELLO:
         return true;
     }
     return false;
 }
+
+/// The number of the frame protocol, sent with HELLO; a client of another number ends. Raised
+/// whenever the frames change.
+constexpr std::uint32_t GFRAMEPROTOCOL = 2;
 
 /******************************************************************************/
 /**
@@ -191,28 +186,16 @@ constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:
  */
-/// A worker of any transport that is answered with NO_WORK waits a random time between these two
-/// bounds, in milliseconds, before it asks again. Random, so that workers that were sent away together do
-/// not come back together. (A websocket client is rarely answered with NO_WORK: its request waits
-/// at the server instead.)
-constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
-constexpr std::uint32_t GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC = 200;
-/// How often a socket client looks at its halt conditions (maximum run time, a close request), at
-/// its limits without a server and at the contact time of its connection.
+/// How often a networked client looks at its halt conditions (maximum run time, a close request)
+/// and at its limits without a server.
 constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
-/// How long a networked client tries to reach a server before its first contact with one; 0: for
-/// as long as it runs (the batch system bounds it).
+/// How long a networked client tries to reach a server before its first contact with one (its
+/// HELLO); 0: for as long as it runs (the batch system bounds it).
 constexpr std::chrono::seconds GCLIENTFIRSTCONTACTLIMIT{0};
 /// How long a networked client tries to reach a server again after it has lost its connection,
-/// counted from the end of the last connection on which it had contact; 0: for as long as it runs.
+/// counted from the end of the last connection on which it had contact (a HELLO); 0: for as long
+/// as it runs.
 constexpr std::chrono::seconds GCLIENTRECONNECTLIMIT{600};
-/// How often a networked client sends a result on a connection that is lost before the result is
-/// known to have arrived; a result lost so often is given up (the server hands its item out again).
-constexpr std::uint8_t GCLIENTRESENDLIMIT = 2;
-/// A connection on which no answer has arrived counts as contact with a server once it has been
-/// open this long: a session that has no work for the client answers nothing, and a connection
-/// that is not alive is cut by the keep-alive (twice the ping interval) before this.
-constexpr std::chrono::seconds GCLIENTCONTACTTIME{60};
 /// The pause of a networked client before it tries to connect again starts at the first value
 /// and doubles with every failed attempt up to the second; the wait is drawn at random from its
 /// second half. Contact with a server sets it back to the first value.
@@ -396,13 +379,11 @@ template <>
 inline constexpr auto numeric_enum_values_v<Gem::Courtier::GFrameKind> = std::array{
     Gem::Courtier::GFrameKind::NONE,
     Gem::Courtier::GFrameKind::PULL,
-    Gem::Courtier::GFrameKind::NO_WORK,
     Gem::Courtier::GFrameKind::WORK,
-    Gem::Courtier::GFrameKind::RETURN,
     Gem::Courtier::GFrameKind::BLOB_REQUEST,
     Gem::Courtier::GFrameKind::BLOB_REPLY,
     Gem::Courtier::GFrameKind::RESULT,
-    Gem::Courtier::GFrameKind::UNREADABLE
+    Gem::Courtier::GFrameKind::HELLO
 };
 template <>
 inline constexpr auto numeric_enum_values_v<Gem::Courtier::consumerType> = numeric_enum_range<

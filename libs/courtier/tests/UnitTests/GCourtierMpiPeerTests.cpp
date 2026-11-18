@@ -897,7 +897,6 @@ TEST_CASE(
     CHECK(
         limited->connectionEnd() == Gem::Courtier::Consumers::GPeerEnd::CLOSED_THERE
     ); // told the end
-    CHECK(limited->resultsSaved() == 0);
     CHECK_FALSE(limited->terminalErrorFlagged());
     CHECK(unlimited->getNProcessed() > 0);
 }
@@ -950,10 +949,9 @@ TEST_CASE(
             client->run();
             returned.store(true);
         });
-        REQUIRE(eventually([&] { return client->connections() == 1; }));
-        // Past the limit, and past the halt poll that looks at it, the client still waits
-        const auto polls = client->haltPolls();
-        REQUIRE(eventually([&] { return client->haltPolls() >= polls + 2; }));
+        REQUIRE(eventually([&] { return shell.connectedClients() == 1U; })); // greeted, it asks
+        // Past the limit, and past two halt polls that look at it, the client still waits
+        std::this_thread::sleep_for(1s + 2 * Gem::Courtier::GCLIENTHALTPOLLINTERVAL + 500ms);
         CHECK_FALSE(returned.load());
         shell.stopServer();
         CHECK(eventually([&] { return returned.load(); }));

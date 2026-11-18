@@ -62,12 +62,5 @@ std::string fkToStr(const GFrameKind &fk);
 std::string describeException(const std::exception_ptr &failure);
 
 /******************************************************************************/
-/**
- * @brief A number that tells apart the files a process writes for results that a client could not
- * deliver (GPeerClientT): every call in a process returns another one.
- */
-std::uint64_t nextUndeliveredFileNumber();
-
-/******************************************************************************/
 
 } /* namespace Gem::Courtier */

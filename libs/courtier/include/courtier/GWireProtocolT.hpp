@@ -101,7 +101,7 @@ struct GWireProtocolT {
      * returned to the server.
      *
      * @param item The processed work item (never null)
-     * @param tag Receives the library tag to put on the RETURN frame
+     * @param tag Receives the library tag to put on the RESULT frame
      * @param payload Receives the library payload, iff the return does not
      *        ship the item
      * @return true if the work item itself must travel in the frame, false

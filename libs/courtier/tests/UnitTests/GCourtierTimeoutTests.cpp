@@ -190,10 +190,10 @@ void deliver_late(LateNetConsumer &consumer, std::size_t stored, c2::CORRELATION
     consumer.checkin(std::move(p));
 }
 
-/** @brief Delivers a single late PAYLOAD-ONLY return: a RETURN frame that names a slot by its
+/** @brief Delivers a single late PAYLOAD-ONLY return: a RESULT frame that names a slot by its
  *  correlation id but carries no work item, so the consumer must apply it to the retained original. */
 void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE corr) {
-    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
     c2::GProcessingOutcome outcome;
     outcome.status = c2::processingStatus::PROCESSED;
     outcome.correlation_id = corr;
@@ -531,7 +531,7 @@ TEST_CASE(
         const auto dropped_before = consumer.lateReturnDroppedCount();
 
         // The same result arrives again, carrying its item, after its batch has ended.
-        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
         frame.setOutcome(kept_outcome);
         frame.setItem(std::move(kept_item));
         consumer.checkin(std::move(frame));
@@ -943,7 +943,7 @@ TEST_CASE(
         foreign.processing_time = FOREIGN_TIME;
         foreign_item->applyProcessingOutcome(foreign); // the item reports the foreign value, too
         foreign.submission_uuid = foreign_uuid;
-        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
         frame.setOutcome(foreign);
         frame.setItem(std::move(foreign_item));
         consumer.checkin(std::move(frame));
@@ -953,7 +953,7 @@ TEST_CASE(
         c2::GProcessingOutcome foreign = p->processingOutcome();
         foreign.processing_time = FOREIGN_TIME;
         foreign.submission_uuid = foreign_uuid;
-        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+        c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
         frame.setOutcome(foreign);
         frame.setLibraryPayload({});
         consumer.checkin(std::move(frame));
@@ -1000,7 +1000,7 @@ TEST_CASE(
     }
     first->process();
     std::this_thread::sleep_for(100ms);
-    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RETURN};
+    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
     frame.setOutcome(first->processingOutcome());
     frame.setItem(std::move(first));
     consumer.checkin(std::move(frame), /*count_return_time=*/false);

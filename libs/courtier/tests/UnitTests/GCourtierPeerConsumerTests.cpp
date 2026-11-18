@@ -123,8 +123,8 @@ public:
 /******************************************************************************/
 /**
  * A client that sends its requests by hand: some PULLs when the connection is open, and for every
- * WORK either a RETURN of the evaluated item (which asks for the next) or nothing (it holds the
- * item). It records what it got and how its connection ended.
+ * WORK either the RESULT of the evaluated item and a PULL for the next, or nothing (it holds the
+ * item). It records what it got (the server's HELLO not counted) and how its connection ended.
  */
 class ScriptedClient : public std::enable_shared_from_this<ScriptedClient> {
 public:
@@ -238,9 +238,12 @@ private:
     /** @brief A message from the server, on the peer's executor @param message Its bytes */
     void received_(std::string &&message) {
         const std::string bytes{std::move(message)};
-        n_frames_.fetch_add(1);
         GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
         Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+        if(frame.kind() == GFrameKind::HELLO) {
+            return;
+        }
+        n_frames_.fetch_add(1);
         if(frame.kind() != GFrameKind::WORK) {
             return;
         }
@@ -254,6 +257,7 @@ private:
                 frame.setOutcome(std::move(outcome));
             }
             this->send_(frame);
+            this->send_(GCommandContainerT<GFaultyContainer>{GFrameKind::PULL});
         }
     }
 

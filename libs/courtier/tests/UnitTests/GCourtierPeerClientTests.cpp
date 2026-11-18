@@ -28,8 +28,9 @@
  ********************************************************************************/
 
 // The client over any connector (GPeerClientT), against the server's shell (GPeerConsumerT) on the
-// in-process transport: look-ahead, RESULT, the halt with an item limit, the end of the run with
-// held items, the parallel evaluations, the item processor, the busy signal, and scarce work.
+// in-process transport: the requirements of the client -- its halts and the end of the run, the
+// parallel evaluations and the item processor, items that cannot be read, processed or encoded,
+// connecting and its limits, lost connections and the resend of results, its own close.
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -38,14 +39,11 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cstdlib>
 #include <cstddef>
-#include <filesystem>
-#include <fstream>
+#include <cstdlib>
 #include <functional>
 #include <future>
 #include <iostream>
-#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -61,14 +59,11 @@
 
 #include <boost/asio/any_io_executor.hpp>
 
-#include <unistd.h> // getpid()
-
-#include "GInProcessPeer.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
-#include "GInProcessTestSupport.hpp"
-#include "common/GSerializationHelperFunctionsT.hpp"
-#include "courtier/GCommandContainerT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "GInProcessPeer.hpp"
+#include "GInProcessTestSupport.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
+#include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
@@ -175,16 +170,16 @@ private:
 
 /******************************************************************************/
 /**
- * What the server's ends of all connections saw: requests (PULL and RETURN) that have no answer
- * (WORK or NO_WORK) yet, per connection and at most, and the RESULTs that arrived.
+ * What the server's ends of all connections saw: PULLs that have no answer (WORK) yet, per
+ * connection and at most, the RESULTs that arrived, and the frames of other kinds a client sent.
  */
 struct ServerCounts {
-    std::atomic<std::size_t> maxUnanswered{0}; ///< The most requests without an answer, anywhere
+    std::atomic<std::size_t> maxUnanswered{0}; ///< The most PULLs without an answer, anywhere
+    std::atomic<std::size_t> nPulls{0};        ///< PULL frames received
     std::atomic<std::size_t> nResults{0};      ///< RESULT frames received
-    std::atomic<std::size_t> nReturns{0};      ///< RETURN frames received
-    std::atomic<GFrameKind> lastResult{GFrameKind::NONE}; ///< The kind of the last result received
-    std::atomic<std::size_t> nWork{0};                    ///< WORK frames sent
-    std::atomic<std::size_t> overAnswered{0}; ///< Answers sent beyond the requests received
+    std::atomic<std::size_t> nOther{0};        ///< Frames of any other kind received
+    std::atomic<std::size_t> nWork{0};         ///< WORK frames sent
+    std::atomic<std::size_t> overAnswered{0};  ///< WORKs sent beyond the PULLs received
 
     /** @brief Notes the unanswered requests of one connection @param n Their number */
     void unanswered(std::size_t n) {
@@ -194,10 +189,10 @@ struct ServerCounts {
     }
 };
 
-/** @brief @param bytes An encoded frame @return Its kind */
+/** @brief @param bytes An encoded frame @return Its kind (read from its head) */
 GFrameKind kindOf(const std::string &bytes) {
     GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
-    Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+    std::ignore = Gem::Courtier::frameHeadFromString(std::string_view{bytes}, frame, BIN);
     return frame.kind();
 }
 
@@ -232,18 +227,16 @@ public:
                     [self,
                      on_message = std::move(handlers.onMessage)](std::string &&message) mutable {
                         const GFrameKind kind = kindOf(message);
-                        if(kind == GFrameKind::PULL || kind == GFrameKind::RETURN ||
-                           kind == GFrameKind::UNREADABLE) {
+                        if(kind == GFrameKind::PULL) {
                             ++self->requests_;
+                            self->counts_->nPulls.fetch_add(1);
                             self->counts_->unanswered(self->requests_ - self->answers_);
                         }
-                        if(kind == GFrameKind::RETURN) {
-                            self->counts_->nReturns.fetch_add(1);
-                            self->counts_->lastResult.store(kind);
-                        }
-                        if(kind == GFrameKind::RESULT) {
+                        else if(kind == GFrameKind::RESULT) {
                             self->counts_->nResults.fetch_add(1);
-                            self->counts_->lastResult.store(kind);
+                        }
+                        else {
+                            self->counts_->nOther.fetch_add(1);
                         }
                         on_message(std::move(message));
                     },
@@ -254,13 +247,11 @@ public:
     /** @brief Counts an answer and forwards @param message The message */
     void send(Gem::Courtier::Consumers::GMessage message) override {
         const GFrameKind kind = kindOf(*message);
-        if(kind == GFrameKind::WORK || kind == GFrameKind::NO_WORK) {
+        if(kind == GFrameKind::WORK) {
             ++answers_;
             if(answers_ > requests_) {
                 counts_->overAnswered.fetch_add(1);
             }
-        }
-        if(kind == GFrameKind::WORK) {
             counts_->nWork.fetch_add(1);
         }
         if(auto inner = inner_.lock()) {
@@ -286,11 +277,11 @@ public:
     }
 
 private:
-    std::weak_ptr<GPeerI> inner_;          ///< The wrapped end
+    std::weak_ptr<GPeerI> inner_;           ///< The wrapped end
     boost::asio::any_io_executor executor_; ///< The wrapped end's executor, kept
-    std::shared_ptr<ServerCounts> counts_; ///< Where it reports
-    std::size_t requests_ = 0;             ///< Requests received (on the strand)
-    std::size_t answers_ = 0;              ///< Answers sent (on the strand)
+    std::shared_ptr<ServerCounts> counts_;  ///< Where it reports
+    std::size_t requests_ = 0;              ///< PULLs received (on the strand)
+    std::size_t answers_ = 0;               ///< WORKs sent (on the strand)
 };
 
 /** @brief A listener that wraps every server end in a CountingPeer; otherwise the in-process one */
@@ -509,59 +500,12 @@ std::vector<std::unique_ptr<GFaultyContainer>> makeBatch(std::size_t n, std::siz
 /** @brief A client set up without anything more */
 constexpr auto AS_IS = [](client_type &) {};
 
-/** @brief @return The options of a look-ahead client: depth 2, one evaluation at a time */
-GPeerClientOptions lookAhead() {
-    return GPeerClientOptions{
-        .name = "look-ahead client",
-        .mode = BIN,
-        .prefetchDepth = 2,
-        .parallelEvaluations = 1,
-        .lookAhead = true
-    };
-}
-
 } /* anonymous namespace */
 
 /******************************************************************************/
-/** With look-ahead a client never has more than one request without an answer. */
-TEST_CASE(
-    "GPeerClientT: with look-ahead at most one request is unanswered",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    World world;
-    world.client(lookAhead(), evaluations, 5ms, nullptr, AS_IS);
-    auto items = makeBatch(20);
-    REQUIRE(world.runBatch(items));
-    CHECK(evaluations->total.load() == 20);
-    CHECK(world.counts().maxUnanswered.load() == 1);
-    CHECK(evaluations->mostAtOnce() == 1);
-}
-
-/******************************************************************************/
 /**
- * A result that is finished while the client's request is unanswered (the server has no item for
- * it) asks for nothing: it travels as a RESULT.
- */
-TEST_CASE(
-    "GPeerClientT: a result finished while a request is unanswered is a RESULT",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    World world;
-    world.client(lookAhead(), evaluations, 50ms, nullptr, AS_IS);
-    auto items = makeBatch(1);
-    REQUIRE(world.runBatch(items));
-    CHECK(world.counts().nResults.load() == 1);
-    CHECK(world.counts().nReturns.load() == 0);
-    CHECK(world.counts().maxUnanswered.load() == 1);
-}
-
-/******************************************************************************/
-/**
- * A client with an item limit sends its last result -- as a RESULT, it asks for nothing more -- and
- * closes; the server has every result. The client (depth 1, no look-ahead) expects to ask with its
- * results, so its last one is encoded as a RETURN and must be encoded once more.
+ * A client with an item limit sends its last result and closes; the server has every result. Every
+ * result is a RESULT, and none asks for anything: the client asks with PULLs.
  */
 TEST_CASE(
     "GPeerClientT: a client with an item limit sends its last result and closes",
@@ -581,9 +525,8 @@ TEST_CASE(
     REQUIRE(world.runBatch(items));
     REQUIRE(eventually([&] { return world.clientsDone(); }));
     CHECK(evaluations->total.load() == LIMIT);
-    CHECK(world.counts().nReturns.load() == LIMIT - 1);
-    CHECK(world.counts().nResults.load() == 1);
-    CHECK(world.counts().lastResult.load() == GFrameKind::RESULT);
+    CHECK(world.counts().nResults.load() == LIMIT);
+    CHECK(world.counts().nOther.load() == 0);
     CHECK(client->connectionEnd() == GPeerEnd::CLOSED_HERE);
 }
 
@@ -669,302 +612,6 @@ TEST_CASE(
     CHECK(n_by_processor == 24);
 }
 
-/******************************************************************************/
-/** A client tells its peer that it is busy while it evaluates an item, and when it is not. */
-TEST_CASE(
-    "GPeerClientT: the client tells its peer while it evaluates",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    World world;
-    world.client(lookAhead(), evaluations, 400ms, watch, AS_IS);
-    // The client's end is looked at only briefly: it must not outlive the client's io context.
-    const auto told = [&watch](bool busy) {
-        const auto end = watch->last();
-        return end != nullptr && end->ownerBusy() == busy;
-    };
-    REQUIRE(eventually([&] { return watch->last() != nullptr; }));
-    CHECK(told(false));
-
-    auto items = makeBatch(1);
-    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
-    REQUIRE(eventually([&] { return evaluations->total.load() == 1; }));
-    // The flag is set on the io thread after the evaluation has been handed to the pool, so it may
-    // come a little after the evaluation has begun; the evaluation lasts 400 ms, and the flag is
-    // cleared only after it.
-    CHECK(eventually([&] { return told(true); }));
-    REQUIRE(batch.get());
-    REQUIRE(eventually([&] { return told(false); }));
-}
-
-/******************************************************************************/
-/** A client with an evaluation slot free is not busy: it waits for its next item, and a polling
- *  transport must not look less often for it. Only with every slot taken is it busy. */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
-TEST_CASE(
-    "GPeerClientT: a client is busy only while every evaluation slot is taken",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    World world;
-    world.client(
-        GPeerClientOptions{
-            .name = "two slots",
-            .mode = BIN,
-            .prefetchDepth = 2,
-            .parallelEvaluations = 2
-        },
-        evaluations,
-        200ms,
-        watch,
-        AS_IS
-    );
-    // The client's end is looked at only briefly: it must not outlive the client's io context.
-    const auto told_busy = [&watch] {
-        const auto end = watch->last();
-        return end == nullptr ? std::size_t{0} : end->nToldBusy();
-    };
-    REQUIRE(eventually([&] { return watch->last() != nullptr; }));
-
-    // One item: one slot is taken, one is free -- never busy
-    auto one = makeBatch(1);
-    REQUIRE(world.runBatch(one));
-    CHECK(told_busy() == 0);
-
-    // Two items: both slots taken -- busy
-    auto two = makeBatch(2);
-    REQUIRE(world.runBatch(two));
-    CHECK(evaluations->mostAtOnce() == 2);
-    CHECK(told_busy() >= 1);
-}
-
-/******************************************************************************/
-/** Scarce work: two items, four look-ahead clients, each waiting with one request. Each client has
- *  at most one request unanswered, so a woken session hands its client one item, and each item is
- *  evaluated once. Which clients get the items is not fixed: a wake-up does not hand an item over,
- *  it makes a parked session ask again, and a client that got the first item asks at once (its
- *  look-ahead PULL); its session may take the second item before the other woken session has
- *  asked. */
-TEST_CASE(
-    "GPeerClientT: with look-ahead scarce work is evaluated once and one request at a time",
-    "[courtier][peer][client]"
-) {
-    World world;
-    std::vector<std::shared_ptr<Evaluations>> evaluations;
-    for(int c = 0; c < 4; ++c) {
-        evaluations.push_back(std::make_shared<Evaluations>());
-        world.client(lookAhead(), evaluations.back(), 20ms, nullptr, AS_IS);
-    }
-    REQUIRE(eventually([&] { return world.shell().getNActiveSessions() == 4; }));
-    std::this_thread::sleep_for(100ms); // every client has asked
-    auto items = makeBatch(2);
-    REQUIRE(world.runBatch(items));
-    std::size_t n_evaluated = 0;
-    for(std::size_t i = 0; i < items.size(); ++i) {
-        for(const auto &e : evaluations) {
-            n_evaluated += e->of(i);
-        }
-    }
-    CHECK(n_evaluated == 2);
-    CHECK(world.counts().nWork.load() == 2);
-    CHECK(world.counts().maxUnanswered.load() == 1);
-}
-
-/******************************************************************************/
-// A result whose RETURN may no longer ask by the time its bytes reach the io thread, because a
-// refill PULL went out meanwhile (from the back-off timer after a NO_WORK). The server's end is a
-// script here, so that it can answer NO_WORK, which the server's shell never does for a request it
-// can park.
-
-namespace {
-
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<bool> noWorkSent{false}; ///< The scripted server has answered with NO_WORK
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-
-/// How long the client takes to encode its evaluated item: longer than the longest back-off after
-/// a NO_WORK (GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC)
-constexpr auto SLOW_ENCODE = 800ms;
-/// How long an evaluation waits, once the client has counted the NO_WORK, before it ends: the
-/// client has published that it may ask again by then, and its refill PULL comes after the
-/// shortest back-off (GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC, 50 ms) at the earliest
-constexpr auto AFTER_NO_WORK = 5ms;
-
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-/// How often an evaluated GSlowReturnItem was encoded (the second encoding is the point of the case)
-std::atomic<std::size_t> slowEncodes{0};
-/// The NO_WORK count of the client under test; set before it runs
-std::function<std::uint64_t()> noWorkSeenByClient;
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-
-/**
- * A work item that is encoded slowly once it has been evaluated (on its way back), and whose
- * evaluation ends only after the scripted server has sent its NO_WORK.
- */
-class GSlowReturnItem final : public Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool> {
-    friend struct Gem::Weft::access;
-
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<
-            Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool>>(
-            ar,
-            "GProcessingContainerT_GSlowReturnItem",
-            *this
-        );
-        if constexpr(Gem::Common::archive_is_saving_v<archive_type>) {
-            if(this->is_processed()) {
-                slowEncodes.fetch_add(1);
-                std::this_thread::sleep_for(SLOW_ENCODE);
-            }
-        }
-    }
-
-public:
-    /** @brief The default constructor (also for loading) */
-    GSlowReturnItem()
-      : Gem::Courtier::GProcessingContainerT<GSlowReturnItem, bool>(1) { /* nothing */
-    }
-
-private:
-    /** @brief Ends after the client has counted the NO_WORK */
-    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
-        while(not noWorkSent.load() || noWorkSeenByClient() == 0) {
-            std::this_thread::sleep_for(1ms);
-        }
-        std::this_thread::sleep_for(AFTER_NO_WORK);
-    }
-};
-
-using slow_client_type = Gem::Courtier::Consumers::GPeerClientT<GSlowReturnItem>;
-
-/**
- * The server's end as a script: the first request is answered with an item, the second with
- * NO_WORK, every later one is kept waiting. It counts the requests without an answer and the
- * results.
- */
-class ScriptedServer final : public std::enable_shared_from_this<ScriptedServer> {
-public:
-    /** @brief Starts @p peer with this script as its role @param peer The server's end */
-    void start(const std::shared_ptr<GPeerI> &peer) {
-        peer_ = peer;
-        auto self = this->shared_from_this();
-        peer->start(
-            GPeerHandlers{
-                .onOpen = {},
-                .onMessage = [self](std::string &&message) { self->received_(std::move(message)); },
-                .onClosed = [](GPeerEnd, GPeerClose, std::string_view) {},
-            }
-        );
-    }
-    /** @brief Ends the run for the client */
-    void endRun() {
-        if(auto peer = peer_.lock()) {
-            peer->close(GPeerClose::RUN_ENDED);
-        }
-    }
-
-    std::atomic<std::size_t> maxUnanswered{0}; ///< The most requests without an answer
-    std::atomic<std::size_t> nReturns{0};      ///< RETURN frames received
-    std::atomic<std::size_t> nResults{0};      ///< RESULT frames received
-
-private:
-    /** @brief On the end's strand @param message A message of the client */
-    void received_(std::string &&message) {
-        const std::string bytes = std::move(message);
-        GCommandContainerT<GSlowReturnItem> frame{GFrameKind::NONE};
-        Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
-        const GFrameKind kind = frame.kind();
-        if(kind == GFrameKind::RETURN) {
-            nReturns.fetch_add(1);
-        }
-        if(kind == GFrameKind::RESULT) {
-            nResults.fetch_add(1);
-        }
-        if(kind != GFrameKind::PULL && kind != GFrameKind::RETURN) {
-            return;
-        }
-        ++requests_;
-        maxUnanswered.store(std::max(maxUnanswered.load(), requests_ - answers_));
-        auto peer = peer_.lock();
-        if(not peer || requests_ > 2) {
-            return; // kept waiting
-        }
-        ++answers_;
-        if(requests_ == 1) {
-            auto item = std::make_unique<GSlowReturnItem>();
-            item->mark_as_due_for_processing();
-            const GCommandContainerT<GSlowReturnItem> work{GFrameKind::WORK, std::move(item)};
-            peer->send(
-                Gem::Courtier::Consumers::makeMessage(Gem::Courtier::wireEncode(work, nullptr, BIN))
-            );
-            return;
-        }
-        const GCommandContainerT<GSlowReturnItem> no_work{GFrameKind::NO_WORK};
-        peer->send(
-            Gem::Courtier::Consumers::makeMessage(Gem::Courtier::wireEncode(no_work, nullptr, BIN))
-        );
-        noWorkSent.store(true);
-    }
-
-    std::weak_ptr<GPeerI> peer_; ///< The server's end
-    std::size_t requests_ = 0;   ///< Requests received (on the strand)
-    std::size_t answers_ = 0;    ///< Answers sent (on the strand)
-};
-
-} /* anonymous namespace */
-
-/**
- * With look-ahead, a NO_WORK leaves the client without a request; its result is then encoded as a
- * RETURN. While that encoding takes its time, the back-off timer sends a refill PULL. The RETURN
- * may no longer ask: it is encoded once more and arrives as a RESULT, so that the server never has
- * two requests of this client without an answer.
- */
-TEST_CASE(
-    "GPeerClientT: a result whose request a refill PULL took over arrives as a RESULT",
-    "[courtier][peer][client]"
-) {
-    noWorkSent.store(false);
-    auto server = std::make_shared<ScriptedServer>();
-    {
-        IoThreads io{2};
-        auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
-        listener->start(io.executor(), [server](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
-            server->start(peer);
-        });
-        auto client = std::make_shared<slow_client_type>(
-            std::make_unique<GInProcessConnector>(std::make_shared<GInProcessRoute>(listener)),
-            GPeerClientOptions{
-                .name = "slowly returning client",
-                .mode = BIN,
-                .prefetchDepth = 2,
-                .parallelEvaluations = 2,
-                .lookAhead = true
-            }
-        );
-        slowEncodes.store(0);
-        // a plain pointer: the evaluation ends before the client does (run() returns after it)
-        noWorkSeenByClient = [c = client.get()] { return c->noWorkCount(); };
-        std::jthread runner([client] { client->run(); });
-        REQUIRE(eventually([&] { return server->nResults.load() + server->nReturns.load() > 0; }));
-        std::this_thread::sleep_for(100ms); // anything that would follow the result
-        CHECK(server->nResults.load() == 1);
-        CHECK(server->nReturns.load() == 0);
-        CHECK(server->maxUnanswered.load() == 1);
-        CHECK(slowEncodes.load() == 2); // encoded as a RETURN first, then once more as a RESULT
-        server->endRun();
-        runner.join();
-        listener->stop();
-        listener->endWork();
-    }
-}
-
-/******************************************************************************/
-// The decoding of the item a look-ahead client holds ahead. A watched item says when it is decoded
-// and can be made slow to decode; its evaluation can wait for the second item to be decoded.
-
 namespace {
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -1041,14 +688,13 @@ private:
     }
 };
 
-/** @brief @return The options of the look-ahead client of a WatchWorld */
+/** @brief @return The options of the client of a WatchWorld: depth 2, one evaluation at a time */
 GPeerClientOptions watchedClient() {
     return GPeerClientOptions{
         .name = "watched client",
         .mode = BIN,
         .prefetchDepth = 2,
-        .parallelEvaluations = 1,
-        .lookAhead = true
+        .parallelEvaluations = 1
     };
 }
 
@@ -1120,28 +766,6 @@ private:
 
 /******************************************************************************/
 /**
- * A look-ahead client (one evaluation at a time, depth 2) decodes the item it holds ahead while it
- * evaluates the other one, so that the item is ready when the evaluation ends; it still evaluates
- * one item at a time.
- */
-TEST_CASE(
-    "GPeerClientT: with look-ahead the next item is decoded while one is evaluated",
-    "[courtier][peer][client]"
-) {
-    resetWatch(0, true);
-    {
-        WatchWorld<GWatchedItem> world;
-        auto batch = world.submit(2);
-        REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
-        batch.get();
-    }
-    CHECK(decodedMeanwhile.load());
-    CHECK(nEvaluated.load() == 2);
-    CHECK(evaluatingMost.load() == 1);
-}
-
-/******************************************************************************/
-/**
  * When the server announces the end of the run while an item is still being decoded, that item is
  * not evaluated once it is decoded.
  */
@@ -1162,10 +786,6 @@ TEST_CASE(
     CHECK(decodesDone.load() == 2);
     CHECK(nEvaluated.load() == 1);
 }
-
-/******************************************************************************/
-// A work item that carries a blob (a layout, as a genome does) and can be made to fail its first
-// load on the client before the blob is read.
 
 namespace {
 
@@ -1256,10 +876,10 @@ private:
 
 /******************************************************************************/
 /**
- * A client that cannot load an item tells the server (UNREADABLE) and stays. The server puts the
- * item back at once and sends the blob in full again: the item's blob never reached the client, and
- * an item that referred to it by id could not be loaded either. Every item is processed; exactly one
- * load failed.
+ * A client that cannot load an item returns it as failed -- a RESULT of the ids in the head of its
+ * WORK, without a result -- and stays. The server fails that slot (the policy fills it) and sends the
+ * client its blobs in full again: the item's blob never reached the client, and an item that
+ * referred to it by id could not be loaded either. The batch is done; exactly one load failed.
  */
 TEST_CASE(
     "GPeerClientT: an item the client cannot load comes back and the next brings its blob",
@@ -1282,9 +902,6 @@ TEST_CASE(
     CHECK(done);
     CHECK(failedLoads.load() == 1);
 }
-
-/******************************************************************************/
-// Items that cannot be encoded: by the server on their way out, or by the client on their way back.
 
 namespace {
 
@@ -1399,8 +1016,14 @@ TEST_CASE(
     auto items = makeBatch(8);
     auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
     const bool limited_done = eventually([&] { return world.clientsDone(); });
-    const std::size_t n_results = world.counts().nResults.load() + world.counts().nReturns.load();
-    world.client(GPeerClientOptions{.name = "other client", .mode = BIN}, other, 5ms, nullptr, AS_IS);
+    const std::size_t n_results = world.counts().nResults.load();
+    world.client(
+        GPeerClientOptions{.name = "other client", .mode = BIN},
+        other,
+        5ms,
+        nullptr,
+        AS_IS
+    );
     REQUIRE(batch.get());
     REQUIRE(limited_done);
     CHECK(limited->total.load() == 3);
@@ -1509,25 +1132,6 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** The test double that counts on the server's side answers executor() also once the end it wraps
- *  has gone (GPeerI: from any thread; a wake-up may post to it then). */
-TEST_CASE(
-    "GPeerClientT tests: the counting server end keeps its executor",
-    "[courtier][peer][client]"
-) {
-    IoThreads io{1};
-    auto ends = Gem::Courtier::Tests::GInProcessPeer::makePair(io.executor(), {}, io.executor(), {}, 1s);
-    auto counting = std::make_shared<CountingPeer>(ends.first, std::make_shared<ServerCounts>());
-    ends.first.reset();
-    ends.second.reset(); // neither end was started: they are gone
-    const auto executor = counting->executor();
-    REQUIRE(static_cast<bool>(executor));
-    const auto ran = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-    boost::asio::post(executor, [ran] { ran->count_down(); });
-    CHECK(ran->wait_for(PATIENCE));
-}
-
-/******************************************************************************/
 // Connecting: a client may start before its server; it gives up at its first-contact limit, also
 // inside an attempt that never completes; an open connection is not held against the limit.
 
@@ -1619,10 +1223,6 @@ TEST_CASE(
     CHECK_FALSE(client->terminalErrorFlagged());
 }
 
-/******************************************************************************/
-// A lost connection: the client connects again, sends what the server may not have read, and goes
-// on; what it holds is evaluated and delivered on the next connection.
-
 namespace {
 
 /** @brief A gate an item processor waits at until the test opens it */
@@ -1668,71 +1268,27 @@ auto withGate(const std::shared_ptr<Evaluations> &evaluations, const std::shared
     };
 }
 
-/** @brief A directory of its own for the files of one test; removed with what is in it */
-class UndeliveredDir {
-public:
-    UndeliveredDir()
-      : path_(
-            std::filesystem::temp_directory_path() /
-            ("geneva-undelivered-test-" + std::to_string(::getpid()) + "-" +
-             std::to_string(counter().fetch_add(1)))
-        ) {
-        std::filesystem::create_directories(path_);
-    }
-    ~UndeliveredDir() {
-        std::error_code ignored;
-        std::filesystem::remove_all(path_, ignored);
-    }
-    UndeliveredDir(const UndeliveredDir &) = delete;
-    UndeliveredDir(UndeliveredDir &&) = delete;
-    UndeliveredDir &operator=(const UndeliveredDir &) = delete;
-    UndeliveredDir &operator=(UndeliveredDir &&) = delete;
-
-    /** @brief @return Its path */
-    [[nodiscard]] const std::filesystem::path &path() const {
-        return path_;
-    }
-    /** @brief @return The files in it */
-    [[nodiscard]] std::vector<std::filesystem::path> files() const {
-        std::vector<std::filesystem::path> found;
-        for(const auto &entry : std::filesystem::directory_iterator(path_)) {
-            found.push_back(entry.path());
-        }
-        return found;
-    }
-
-private:
-    /** @brief @return A count that tells the directories of one process apart */
-    static std::atomic<int> &counter() {
-        static std::atomic<int> n{0};
-        return n;
-    }
-    std::filesystem::path path_; ///< Where it is
-};
-
-/** @brief Whether @p bytes are a RETURN frame (a close's payload is not a frame)
- *  @param bytes What an in-process end hands over @return true for a RETURN */
-bool isReturn(std::string_view bytes) {
-    try {
-        return kindOf(std::string(bytes)) == GFrameKind::RETURN;
-    }
-    catch(...) {
-        return false;
-    }
-}
-
 /** @brief A listener whose server ends close every connection as soon as it is open, and its
  *  threads. It refers to nothing else. */
 class DroppingServer {
 public:
-    /** @brief @param how What the close says; NORMAL: closed at once, ERROR: closed with ERROR on
-     *  the first message */
+    /** @brief @param how What the close says; NORMAL: closed at once (no HELLO), ERROR: greeted with
+     *  a HELLO and closed with ERROR on the client's first message */
     explicit DroppingServer(GPeerClose how = GPeerClose::NORMAL) {
         listener_->start(io_.executor(), [how](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
             const std::weak_ptr<GPeerI> weak = peer;
             peer->start(
                 GPeerHandlers{
-                    .onOpen = {},
+                    .onOpen =
+                        [weak, how] {
+                            if(auto end = weak.lock(); end && how == GPeerClose::ERROR) {
+                                end->send(
+                                    Gem::Courtier::Consumers::makeMessage(
+                                        Gem::Courtier::buildHello<GFaultyContainer>(BIN)
+                                    )
+                                );
+                            }
+                        },
                     .onMessage =
                         // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
                     [weak, how](std::string &&) {
@@ -1802,12 +1358,12 @@ TEST_CASE(
     REQUIRE(eventually([&] { return client->losses() == 1; }));
     gate->open(); // the result is finished while every attempt is refused
     std::this_thread::sleep_for(300ms);
-    CHECK(client->connections() == 1);
+    CHECK(world.listener()->nConnections() == 1);
 
     world.route().set(world.listener());
     REQUIRE(batch.get());
     CHECK(evaluations->of(0) == 1);
-    CHECK(client->connections() == 2);
+    CHECK(world.listener()->nConnections() == 2);
     CHECK(client->resultsResent() == 0); // it had never been sent
 }
 
@@ -1828,10 +1384,9 @@ TEST_CASE(
         watch,
         AS_IS
     );
-    REQUIRE(eventually([&] { return client->connections() == 1; }));
-    std::this_thread::sleep_for(100ms); // its PULL waits at the server
+    REQUIRE(eventually([&] { return world.shell().parkedCount() == 1; })); // its PULL waits
     watch->last()->sever();
-    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    REQUIRE(eventually([&] { return world.listener()->nConnections() == 2; }));
 
     auto items = makeBatch(3);
     REQUIRE(world.runBatch(items));
@@ -1839,79 +1394,7 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** The new peer of a client that evaluates is told so. */
-TEST_CASE(
-    "GPeerClientT: a new connection is told that the client is busy",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    World world;
-    auto client = world.client(
-        GPeerClientOptions{.name = "busy client", .mode = BIN},
-        evaluations,
-        0ms,
-        watch,
-        withGate(evaluations, gate)
-    );
-    auto items = makeBatch(1);
-    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
-    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-    auto first = watch->last();
-    REQUIRE(first);
-    CHECK(eventually([&] { return first->ownerBusy(); }));
-
-    first->sever();
-    REQUIRE(eventually([&] { return client->connections() == 2; }));
-    auto second = watch->last();
-    REQUIRE(second);
-    CHECK(second != first);
-    CHECK(eventually([&] { return second->ownerBusy(); }));
-
-    gate->open();
-    REQUIRE(batch.get());
-    CHECK(evaluations->of(0) == 1);
-}
-
-/******************************************************************************/
-/** A RETURN that ends every connection it is sent on is given up after the resend limit; the server
- *  hands its item out again, and the batch is done. */
-TEST_CASE(
-    "GPeerClientT: a result lost on every connection is given up at the resend limit",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    auto cuts = std::make_shared<std::atomic<int>>(0);
-    watch->setOnMade([cuts](Gem::Courtier::Tests::GInProcessPeer &end) {
-        end.setTransmitHook([&end, cuts](std::string_view bytes) {
-            if(isReturn(bytes) && cuts->load() < Gem::Courtier::GCLIENTRESENDLIMIT) {
-                cuts->fetch_add(1);
-                end.sever(); // the RETURN is not delivered
-            }
-        });
-    });
-    const UndeliveredDir dir;
-    World world;
-    auto client = world.client(
-        GPeerClientOptions{.name = "unlucky client", .mode = BIN, .undeliveredDir = dir.path()},
-        evaluations,
-        1ms,
-        watch,
-        AS_IS
-    );
-    auto items = makeBatch(1);
-    REQUIRE(world.runBatch(items));
-    CHECK(cuts->load() == Gem::Courtier::GCLIENTRESENDLIMIT);
-    CHECK(client->resultsGivenUp() == 1);
-    CHECK(client->losses() == Gem::Courtier::GCLIENTRESENDLIMIT);
-    CHECK(evaluations->of(0) == 2); // handed out again by the server
-    CHECK(dir.files().size() == 1); // the result given up is saved
-}
-
-/******************************************************************************/
-/** A server that closes with ERROR (a message whose kind it could not read) ends the connection,
+/** A server that closes with ERROR (a message whose head it could not read) ends the connection,
  *  not the client: it connects again. */
 TEST_CASE(
     "GPeerClientT: a connection the server closes with ERROR is a loss",
@@ -1938,7 +1421,7 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * Contact. A server that accepts and drops at once gives no contact: the pause grows, and the
+ * Contact. A server that accepts and drops at once sends no HELLO, so gives no contact: the pause grows, and the
  * reconnect limit, counted from the end of the last connection that had contact, ends the client.
  */
 TEST_CASE(
@@ -1948,27 +1431,18 @@ TEST_CASE(
     auto evaluations = std::make_shared<Evaluations>();
     auto watch = std::make_shared<GInProcessPeerWatch>();
     const DroppingServer dropping;
-    // The last RETURN waited at the server for an answer: the client cannot know that it arrived,
-    // sends it again, gives it up at the resend limit and saves it
-    const UndeliveredDir dir;
     World world;
     auto client = world.client(
-        GPeerClientOptions{
-            .name = "limited client",
-            .mode = BIN,
-            .reconnectLimit = 3s,
-            .contactTime = 300ms,
-            .undeliveredDir = dir.path()
-        },
+        GPeerClientOptions{.name = "limited client", .mode = BIN, .reconnectLimit = 3s},
         evaluations,
         1ms,
         watch,
         AS_IS
     );
     auto items = makeBatch(1);
-    REQUIRE(world.runBatch(items)); // an answer: contact
+    REQUIRE(world.runBatch(items)); // a HELLO: contact
 
-    world.route().set(dropping.listener());
+    world.route().set(dropping.listener()); // no HELLO there
     const auto lost = std::chrono::steady_clock::now();
     watch->last()->sever();
     REQUIRE(eventually([&] { return world.clientsDone(); }));
@@ -2000,57 +1474,27 @@ TEST_CASE(
         AS_IS
     );
     auto first = makeBatch(1);
-    REQUIRE(world.runBatch(first));      // an answer: contact
+    REQUIRE(world.runBatch(first));      // a HELLO: contact
     std::this_thread::sleep_for(2500ms); // parked for longer than the limit
 
     world.route().clear();
     watch->last()->sever();
     std::this_thread::sleep_for(500ms);
     world.route().set(world.listener());
-    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    REQUIRE(eventually([&] { return world.listener()->nConnections() == 2; }));
     CHECK_FALSE(world.clientsDone());
     auto second = makeBatch(1, 1);
     REQUIRE(world.runBatch(second));
     CHECK_FALSE(client->terminalErrorFlagged());
 }
 
-/******************************************************************************/
-/**
- * At most one answer per request read: with RESULTs (look-ahead), parked requests, a lost
- * connection and the end of the run. (UNREADABLE cannot be made here: the counting server end
- * decodes every message itself, which would use up the load fault that makes a client's load fail.)
- */
-TEST_CASE("GPeerClientT: the server answers no message twice", "[courtier][peer][client]") {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::shared_ptr<ServerCounts> counts;
-    {
-        World world;
-        counts = world.sharedCounts();
-        auto client = world.client(lookAhead(), evaluations, 5ms, watch, AS_IS);
-        auto items = makeBatch(6, 0);
-        REQUIRE(world.runBatch(items));
-        std::this_thread::sleep_for(100ms); // parked
-        watch->last()->sever();
-        REQUIRE(eventually([&] { return client->connections() == 2; }));
-        auto more = makeBatch(4, 10);
-        REQUIRE(world.runBatch(more));
-        CHECK(world.counts().nResults.load() + world.counts().nReturns.load() >= 10);
-    }
-    CHECK(counts->overAnswered.load() == 0);
-}
-
-/******************************************************************************/
-// The order of a loss: an answer that arrived before the connection was lost, and is decoded only
-// afterwards, is booked against the lost connection first.
-
 namespace {
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<std::size_t> gatedDecodes{0}; ///< Work items whose decoding on a client has begun
-std::atomic<std::size_t> heldDecode{1};   ///< Which decode waits (0: the first)
-std::atomic<bool> decodeHeld{false};      ///< That decode waits while this is set
-std::atomic<bool> decodeWaits{false};     ///< That decode has begun to wait
+std::atomic<std::size_t> gatedDecodes{0};   ///< Work items whose decoding on a client has begun
+std::atomic<std::size_t> heldDecode{1};     ///< Which decode waits (0: the first)
+std::atomic<bool> decodeHeld{false};        ///< That decode waits while this is set
+std::atomic<bool> decodeWaits{false};       ///< That decode has begun to wait
 std::atomic<std::size_t> processedSaves{0}; ///< Encodings of an evaluated item so far
 /// Which encoding of an evaluated item waits (0: the first); none by default
 std::atomic<std::size_t> heldSave{std::numeric_limits<std::size_t>::max()};
@@ -2142,78 +1586,6 @@ private:
 } /* anonymous namespace */
 
 /**
- * The client returns its first result as a RETURN; the server answers it with the second item, and
- * the connection is lost while that answer is being decoded. The answer proves the RETURN: it is
- * not sent again on the next connection, and the second item is evaluated and delivered there.
- * The decode is held for longer than the halt poll's interval: the limits are not looked at while
- * the lost connection's messages are decoded (a client with contact gave up at its first loss
- * when the poll fell into the drain, because the end of its last contact was not yet noted).
- */
-TEST_CASE(
-    "GPeerClientT: an answer decoded after a loss is booked against the lost connection",
-    "[courtier][peer][client]"
-) {
-    const HeldStateReset held_state;
-    heldDecode.store(1);
-    decodeHeld.store(true);
-    using held_client_type = Gem::Courtier::Consumers::GPeerClientT<GHeldDecodeItem>;
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::vector<std::unique_ptr<GHeldDecodeItem>> items;
-    items.push_back(std::make_unique<GHeldDecodeItem>());
-    items.push_back(std::make_unique<GHeldDecodeItem>());
-    std::shared_ptr<held_client_type> client;
-    bool done = false;
-    {
-        Gem::Courtier::GPeerConsumerT<GHeldDecodeItem>
-            shell("Shell", std::make_unique<GInProcessListenerRef>(listener), 2, BIN);
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        shell.applyTimeoutConfig(config);
-        shell.startServer();
-        client = std::make_shared<held_client_type>(
-            std::make_unique<GInProcessConnector>(
-                std::make_shared<GInProcessRoute>(listener),
-                true,
-                watch
-            ),
-            GPeerClientOptions{.name = "held client", .mode = BIN}
-        );
-        const std::jthread runner([client] { client->run(); });
-        auto batch = std::async(std::launch::async, [&] {
-            shell.processBatch(
-                std::span(items.data(), items.size()),
-                Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
-            );
-        });
-
-        REQUIRE(eventually([] { return decodeWaits.load(); }));
-        watch->last()->sever();
-        REQUIRE(eventually([&] { return client->losses() == 1; }));
-        // The loss waits for the decode: no new attempt is made meanwhile (the first pause would
-        // be over long before the halt poll runs), and the halt poll, which runs during the
-        // drain, finds no limit run out.
-        const auto polls = client->haltPolls();
-        REQUIRE(eventually([&] { return client->haltPolls() > polls; }));
-        CHECK(client->connections() == 1);
-        CHECK_FALSE(client->terminalErrorFlagged());
-        decodeHeld.store(false);
-
-        done = batch.wait_for(PATIENCE) == std::future_status::ready;
-        if(not done) {
-            shell.stopServer();
-        }
-        batch.get();
-        shell.stopServer();
-    }
-    CHECK(done);
-    CHECK(client->connections() == 2);
-    CHECK(client->resultsResent() == 0);
-    CHECK(gatedDecodes.load() == 2);
-    CHECK_FALSE(client->terminalErrorFlagged());
-}
-
-/**
  * A second loss long after the first: the reconnect limit counts from the end of the connection
  * that was just lost, also while its messages are still being decoded -- not from the end of the
  * first one, which lies further back than the limit.
@@ -2260,7 +1632,7 @@ TEST_CASE(
             Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
         );
         watch->last()->sever(); // the first loss, of a connection with contact
-        REQUIRE(eventually([&] { return client->connections() == 2; }));
+        REQUIRE(eventually([&] { return listener->nConnections() == 2; }));
         std::this_thread::sleep_for(2500ms); // longer than the limit since the first loss
 
         auto batch = std::async(std::launch::async, [&] {
@@ -2272,8 +1644,8 @@ TEST_CASE(
         REQUIRE(eventually([] { return decodeWaits.load(); }));
         watch->last()->sever(); // the second loss, while an answer of it is decoded
         REQUIRE(eventually([&] { return client->losses() == 2; }));
-        const auto polls = client->haltPolls();
-        REQUIRE(eventually([&] { return client->haltPolls() > polls; })); // during the drain
+        // The halt poll looks at the limits while the decode is held
+        std::this_thread::sleep_for(Gem::Courtier::GCLIENTHALTPOLLINTERVAL + 500ms);
         CHECK_FALSE(client->terminalErrorFlagged());
         decodeHeld.store(false);
 
@@ -2288,11 +1660,6 @@ TEST_CASE(
     CHECK(client->connections() == 3);
     CHECK_FALSE(client->terminalErrorFlagged());
 }
-
-/******************************************************************************/
-// An answer of a connection is booked against that connection only, and the client that halts
-// without a connection books the answers still being decoded before it removes anything: an
-// answer decoded later must not take a result off the list that nothing has proven.
 
 namespace {
 
@@ -2404,11 +1771,10 @@ public:
         inner->start(
             GPeerHandlers{
                 .onOpen = std::move(handlers.onOpen),
-                .onMessage =
-                    [self = this->shared_from_this(),
-                     on_message = std::move(handlers.onMessage)](std::string &&message) mutable {
-                        on_message(std::move(message));
-                    },
+                .onMessage = [self = this->shared_from_this(),
+                              on_message = std::move(handlers.onMessage)](
+                                 std::string &&message
+                             ) mutable { on_message(std::move(message)); },
                 .onClosed = std::move(handlers.onClosed),
             }
         );
@@ -2417,9 +1783,8 @@ public:
     void send(Gem::Courtier::Consumers::GMessage message) override {
         if(sent_->fetch_add(1) == at_) {
             const GCommandContainerT<GHeldDecodeItem> bad{GFrameKind::RESULT};
-            message = Gem::Courtier::Consumers::makeMessage(
-                Gem::Courtier::wireEncode(bad, nullptr, BIN)
-            );
+            message =
+                Gem::Courtier::Consumers::makeMessage(Gem::Courtier::wireEncode(bad, nullptr, BIN));
             corrupted_->store(true);
         }
         if(auto inner = inner_.lock()) {
@@ -2555,17 +1920,23 @@ public:
 
     /** @brief @param items A batch @return It, running; not fatal if it cannot be completed */
     BatchRun batch(std::vector<std::unique_ptr<GHeldDecodeItem>> &items) {
-        return {std::async(std::launch::async, [this, &items] {
-            auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
-            policy.fatal_on_none_returned = false;
-            auto clone_template = std::make_unique<GHeldDecodeItem>();
-            clone_template->markAsProcessedWith({true});
-            shell_.processBatch(
-                std::span(items.data(), items.size()),
-                policy,
-                std::move(clone_template)
-            );
-        }), [this] { shell_.stopServer(); }};
+        return {
+            std::async(
+                std::launch::async,
+                [this, &items] {
+                    auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+                    policy.fatal_on_none_returned = false;
+                    auto clone_template = std::make_unique<GHeldDecodeItem>();
+                    clone_template->markAsProcessedWith({true});
+                    shell_.processBatch(
+                        std::span(items.data(), items.size()),
+                        policy,
+                        std::move(clone_template)
+                    );
+                }
+            ),
+            [this] { shell_.stopServer(); }
+        };
     }
 
     [[nodiscard]] held_client_type &client() {
@@ -2620,628 +1991,85 @@ std::vector<std::unique_ptr<GHeldDecodeItem>> heldItems(std::size_t n) {
 
 } /* anonymous namespace */
 
-/**
- * Look-ahead, depth 2: item A is evaluated while the request P is with the server, so A goes out
- * as a RESULT behind P. The server answers P with B, and the connection is lost while B is being
- * decoded. The client halts during the drain; the attempt it then makes waits. When B's decode
- * is booked it proves P and nothing after it: A is still unproven and is saved when the last
- * attempt fails. (The answer used to be decoded after the halt had removed P from the list, and
- * took A instead.)
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: an answer decoded after a halt during the drain proves only its request",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    const HeldStateReset held_state;
-    heldDecode.store(1); // B
-    decodeHeld.store(true);
-    {
-        HeldWorld world(GPeerClientOptions{
-            .name = "look-ahead client",
-            .mode = BIN,
-            .prefetchDepth = 2,
-            .parallelEvaluations = 1,
-            .lookAhead = true,
-            .undeliveredDir = dir.path()
-        });
-        auto first = heldItems(1);
-        world.batch(first).get(); // A, a RESULT; P waits at the server
-        auto second = heldItems(1);
-        auto batch = world.batch(second); // B answers P
-        REQUIRE(eventually([] { return decodeWaits.load(); }));
-        GatedConnector::hold(world.gate()); // (no attempt runs now)
-        world.route().clear();
-        world.watch().last()->sever();
-        REQUIRE(eventually([&] { return world.client().losses() == 1; }));
-        world.client().flagCloseRequested();
-        const auto polls = world.client().haltPolls();
-        // The halt poll has run during the drain
-        REQUIRE(eventually([&] { return world.client().haltPolls() > polls; }));
-        const auto booked = world.client().messagesBooked();
-        decodeHeld.store(false);
-        REQUIRE(eventually([&] { return world.client().messagesBooked() > booked; })); // B
-        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); })); // the last attempt
-        GatedConnector::release(world.gate());
-        REQUIRE(eventually([&] { return world.clientDone(); }));
-        world.shell().stopServer();
-        batch.get();
-    }
-    CHECK(dir.files().size() == 1);
-}
-
-/**
- * Depth 3, two evaluations at a time: A and C are evaluated, B's decode is held (it answers the
- * third request P). The client halts; the first of A and C to finish goes out as a RESULT behind
- * P. The connection is lost; the client winds up without a connection. B's decode, booked only
- * now, proves P and nothing after it: both results are saved when the last attempt fails.
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: an answer decoded after a loss while halting proves only its request",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    const HeldStateReset held_state;
-    heldDecode.store(2); // B, the third item
-    decodeHeld.store(true);
-    auto permits = std::make_shared<std::counting_semaphore<4>>(0);
-    auto started = std::make_shared<std::atomic<int>>(0);
-    {
-        HeldWorld world(
-            GPeerClientOptions{
-                .name = "wide client",
-                .mode = BIN,
-                .prefetchDepth = 3,
-                .parallelEvaluations = 2,
-                .undeliveredDir = dir.path()
-            },
-            [permits, started](GHeldDecodeItem &item) {
-                started->fetch_add(1);
-                permits->acquire();
-                item.markAsProcessedWith({true});
-            }
-        );
-        auto items = heldItems(3);
-        auto batch = world.batch(items);
-        REQUIRE(eventually([&] { return started->load() == 2 && decodeWaits.load(); }));
-        world.client().flagCloseRequested();
-        const auto server_end = world.serverEnd();
-        REQUIRE(server_end);
-        const std::size_t delivered = server_end->nDelivered();
-        permits->release(); // the first result: a RESULT behind P
-        REQUIRE(eventually([&] { return server_end->nDelivered() > delivered; }));
-        GatedConnector::hold(world.gate());
-        world.route().clear();
-        const auto client_end = world.watch().last();
-        REQUIRE(client_end);
-        client_end->sever(); // halted: the client winds up without a connection
-        REQUIRE(eventually([&] { return client_end->ended(); }));
-        const auto booked = world.client().messagesBooked();
-        decodeHeld.store(false);
-        REQUIRE(eventually([&] { return world.client().messagesBooked() > booked; })); // B
-        permits->release(); // the second result
-        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
-        GatedConnector::release(world.gate());
-        REQUIRE(eventually([&] { return world.clientDone(); }));
-        world.shell().stopServer();
-        batch.get();
-    }
-    CHECK(dir.files().size() == 2);
-}
-
-/******************************************************************************/
-// A halt while a connection is being opened is a halt without a connection.
-
-namespace {
-
-/** @brief A peer that never opens, and whose close is confirmed at once (CLOSED_HERE): a
- *  connection that a client gives up while it is being opened. It counts what is sent on it. */
-class NeverOpenPeer final
-  : public GPeerI
-  , public std::enable_shared_from_this<NeverOpenPeer> {
-public:
-    /** @brief @param executor The client's executor */
-    explicit NeverOpenPeer(boost::asio::any_io_executor executor)
-      : executor_(std::move(executor)) { /* nothing */
-    }
-    /** @brief Keeps the handlers; never opens @param handlers The role's */
-    void start(GPeerHandlers handlers) override {
-        handlers_ = std::move(handlers);
-        work_.emplace(boost::asio::make_work_guard(executor_));
-        started_->store(true);
-    }
-    /** @brief Counts @param message Dropped */
-    void send([[maybe_unused]] Gem::Courtier::Consumers::GMessage message) override {
-        n_sent_->fetch_add(1);
-    }
-    /** @brief The other end confirms at once @param how What the close says */
-    void close(GPeerClose how) override {
-        if(closed_.exchange(true)) {
-            return;
-        }
-        boost::asio::post(executor_, [self = this->shared_from_this(), how] {
-            self->end_(how);
-        });
-    }
-    /** @brief Ends at once */
-    void abort() override {
-        this->end_(GPeerClose::NORMAL);
-    }
-    /** @brief @return The client's executor */
-    [[nodiscard]] boost::asio::any_io_executor executor() override {
-        return executor_;
-    }
-    /** @brief @return Whether it was started */
-    [[nodiscard]] std::shared_ptr<std::atomic<bool>> started() const {
-        return started_;
-    }
-    /** @brief @return How many messages were sent on it */
-    [[nodiscard]] std::shared_ptr<std::atomic<int>> nSent() const {
-        return n_sent_;
-    }
-
-private:
-    void end_(GPeerClose how) {
-        auto handlers = std::move(handlers_);
-        handlers_ = GPeerHandlers{};
-        work_.reset();
-        if(handlers.onClosed) {
-            handlers.onClosed(GPeerEnd::CLOSED_HERE, how, "closed and confirmed");
-        }
-    }
-
-    boost::asio::any_io_executor executor_;
-    GPeerHandlers handlers_;
-    std::optional<boost::asio::executor_work_guard<boost::asio::any_io_executor>> work_;
-    std::atomic<bool> closed_{false};
-    std::shared_ptr<std::atomic<bool>> started_ = std::make_shared<std::atomic<bool>>(false);
-    std::shared_ptr<std::atomic<int>> n_sent_ = std::make_shared<std::atomic<int>>(0);
-};
-
-/** @brief The second connection is a NeverOpenPeer (the connector keeps it, as a transport keeps
- *  its peers); every other one goes to the in-process server */
-class SecondNeverOpens final : public Gem::Courtier::Consumers::GConnectorI {
-public:
-    /** @brief @param inner The connector of the other connections */
-    explicit SecondNeverOpens(std::unique_ptr<GInProcessConnector> inner)
-      : inner_(std::move(inner)) { /* nothing */
-    }
-    /** @brief @param executor Where it runs @param done What is told the outcome */
-    void connect(boost::asio::any_io_executor executor, done_type done) override {
-        if(n_connects_++ != 1) {
-            inner_->connect(std::move(executor), std::move(done));
-            return;
-        }
-        peer_ = std::make_shared<NeverOpenPeer>(executor);
-        made_->store(peer_);
-        boost::asio::post(executor, [peer = peer_, done = std::move(done)]() mutable {
-            done(peer, {});
-        });
-    }
-    /** @brief Gives up the inner connector's attempt */
-    void cancel() override {
-        inner_->cancel();
-    }
-    /** @brief @return true */
-    [[nodiscard]] bool reconnectable() const override {
-        return true;
-    }
-    /** @brief @return Where the NeverOpenPeer made is shown (from any thread) */
-    [[nodiscard]] std::shared_ptr<std::atomic<std::shared_ptr<NeverOpenPeer>>> made() const {
-        return made_;
-    }
-
-private:
-    std::unique_ptr<GInProcessConnector> inner_;
-    std::size_t n_connects_ = 0;
-    std::shared_ptr<NeverOpenPeer> peer_;
-    std::shared_ptr<std::atomic<std::shared_ptr<NeverOpenPeer>>> made_ =
-        std::make_shared<std::atomic<std::shared_ptr<NeverOpenPeer>>>();
-};
-
-} /* anonymous namespace */
-
-/**
- * A result is sent on a connection whose server end loses it, and the connection is then lost.
- * The client halts while its next connection is being opened: that is a halt without a
- * connection. The client gives the opening connection up (nothing is sent on it) and winds up --
- * its evaluations have ended -- with one last attempt, which delivers the result. (The client
- * used to close the opening connection and end with its close: the result was saved although a
- * connection to deliver it on could be made, and a halt while opening was a second way to end
- * without a connection.)
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: a halt while a connection is being opened winds up with a last attempt",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    // A server's end loses what comes after its first message: on the first connection the
-    // result (after the request), on the last attempt nothing (the result comes first)
-    World world(GInProcessListener::Options{
-        .serverFaults = Gem::Courtier::Tests::GInProcessFaults{.deliverAtMost = 1}
-    });
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    auto returned = std::make_shared<std::atomic<bool>>(false);
-    watch->setOnMade([returned](GInProcessPeer &end) {
-        end.setTransmitHook([returned](std::string_view bytes) {
-            if(isReturn(bytes)) {
-                returned->store(true);
-            }
-        });
-    });
-    auto connector = std::make_unique<SecondNeverOpens>(std::make_unique<GInProcessConnector>(
-        std::make_shared<GInProcessRoute>(world.listener()),
-        true,
-        watch
-    ));
-    auto made = connector->made();
-    auto client = std::make_shared<client_type>(
-        std::move(connector),
-        GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()}
-    );
-    client->setItemProcessor(countingProcessor(evaluations, 0ms));
-    auto done = std::make_shared<std::atomic<bool>>(false);
-    {
-        const std::jthread runner([client, done] {
-            client->run();
-            done->store(true);
-        });
-        auto items = makeBatch(1);
-        auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
-        REQUIRE(eventually([&] { return returned->load(); })); // sent, and lost there
-        watch->last()->sever();
-        REQUIRE(eventually([&] {
-            const auto peer = made->load();
-            return peer != nullptr && peer->started()->load();
-        }));
-        client->flagCloseRequested(); // while the second connection is being opened
-        REQUIRE(eventually([&] { return done->load(); }));
-        CHECK(made->load()->nSent()->load() == 0);
-        CHECK(batch.get()); // the last attempt delivered the result
-    }
-    CHECK(evaluations->of(0) == 1);
-    CHECK(client->connections() == 2); // the first, and the last attempt
-    CHECK(dir.files().empty());
-}
-
-/******************************************************************************/
-// One way to end without a connection: a close that waited for a result to be encoded once more,
-// and a protocol error found while the lost connection's messages are decoded, end the client by
-// the same rule as a halt without a connection (a last attempt, then the results are saved).
-
-/**
- * A halt while a result is evaluated: the result was encoded as a RETURN and is encoded once more
- * as a RESULT (held here), and the close waits for it. The connection is lost meanwhile. When the
- * result is ready, the client has no connection: it makes its last attempt (refused here) and
- * saves the result. (The close used to survive the loss; the client then ended without saving.)
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: a close that waits for a result does not survive the loss of its connection",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    const HeldStateReset held_state;
-    heldSave.store(1); // the second encoding of the processed item: the RESULT
-    saveHeld.store(true);
-    auto permits = std::make_shared<std::counting_semaphore<4>>(0);
-    auto started = std::make_shared<std::atomic<int>>(0);
-    {
-        HeldWorld world(
-            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
-            [permits, started](GHeldDecodeItem &item) {
-                started->fetch_add(1);
-                permits->acquire();
-                item.markAsProcessedWith({true});
-            }
-        );
-        auto items = heldItems(1);
-        auto batch = world.batch(items);
-        REQUIRE(eventually([&] { return started->load() == 1; }));
-        // The io thread publishes the kind the result is to be encoded with (a RETURN: the client
-        // may still ask) only after it has handed the item to the compute pool; a close requested
-        // before that would make it a RESULT from the start, encoded once. The io thread is one
-        // thread, so a halt poll that ends after the evaluation has begun ends after that
-        // publication.
-        const auto polls_before_close = world.client().haltPolls();
-        REQUIRE(eventually([&] { return world.client().haltPolls() > polls_before_close; }));
-        world.client().flagCloseRequested(); // the compute thread still encodes a RETURN
-        permits->release();
-        REQUIRE(eventually([] { return saveWaits.load(); }));
-        const auto polls = world.client().haltPolls();
-        // The halt poll has seen the halt: the close waits for the result
-        REQUIRE(eventually([&] { return world.client().haltPolls() > polls; }));
-        GatedConnector::hold(world.gate());
-        const auto client_end = world.watch().last();
-        REQUIRE(client_end);
-        client_end->sever();
-        REQUIRE(eventually([&] { return client_end->ended(); }));
-        saveHeld.store(false);
-        // The result has come: the client, without a connection, makes its last attempt
-        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
-        GatedConnector::release(world.gate());
-        REQUIRE(eventually([&] { return world.clientDone(); }));
-        world.shell().stopServer();
-        batch.get();
-    }
-    CHECK(dir.files().size() == 1);
-}
-
-/**
- * Depth 2: A is evaluated and returned, B's decode is held, and the server's answer to A's RETURN
- * is a frame a client cannot accept (a protocol error), which is decoded after B. The connection
- * is lost while B is held. The protocol error is found while the lost connection's messages are
- * decoded: the client ends without a connection by the same rule -- A's result (unproven: the
- * answer to its request was the bad frame) and B's are saved when the last attempt is refused.
- * (The client used to end at once and drop A.)
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: a protocol error found in the drain ends the client by the rule of a halt",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    const HeldStateReset held_state;
-    heldDecode.store(1); // B
-    decodeHeld.store(true);
-    {
-        HeldWorld world(
-            GPeerClientOptions{
-                .name = "client",
-                .mode = BIN,
-                .prefetchDepth = 2,
-                .undeliveredDir = dir.path()
-            },
-            {},
-            2 // the server's third message (the answer to A's RETURN) is a bad frame
-        );
-        auto items = heldItems(3);
-        auto batch = world.batch(items);
-        REQUIRE(eventually([] { return decodeWaits.load(); }));
-        REQUIRE(eventually([&] { return world.corrupted(); }));
-        // The bad frame (the server's third message) waits behind B
-        const auto client_end = world.watch().last();
-        REQUIRE(client_end);
-        REQUIRE(eventually([&] { return client_end->nDelivered() == 3; }));
-        GatedConnector::hold(world.gate());
-        client_end->sever();
-        REQUIRE(eventually([&] { return world.client().losses() == 1; }));
-        decodeHeld.store(false);
-        // The protocol error is found in the drain: the client makes its last attempt
-        REQUIRE(eventually([&] { return GatedConnector::waiting(world.gate()); }));
-        GatedConnector::release(world.gate());
-        REQUIRE(eventually([&] { return world.clientDone(); }));
-        world.shell().stopServer();
-        batch.get();
-    }
-    CHECK(dir.files().size() == 2);
-}
-
 /******************************************************************************/
 /**
  * After its own close with ERROR (here: a frame a client cannot accept) the client starts nothing
  * new: of the items it holds (depth 3, one evaluation at a time) only the one being evaluated is
- * evaluated, and its result is saved; the held one is dropped (the server puts it back), and no
- * file is written for it.
+ * evaluated; the held one is dropped (the server puts it back).
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
 TEST_CASE(
     "GPeerClientT: after its close with ERROR a client starts no evaluation",
     "[courtier][peer][client]"
 ) {
-    const UndeliveredDir dir;
     const HeldStateReset held_state;
     auto permits = std::make_shared<std::counting_semaphore<4>>(0);
     auto started = std::make_shared<std::atomic<int>>(0);
     {
         HeldWorld world(
-            GPeerClientOptions{
-                .name = "client",
-                .mode = BIN,
-                .prefetchDepth = 3,
-                .undeliveredDir = dir.path()
-            },
+            GPeerClientOptions{.name = "client", .mode = BIN, .prefetchDepth = 3},
             [permits, started](GHeldDecodeItem &item) {
                 started->fetch_add(1);
                 permits->acquire();
                 item.markAsProcessedWith({true});
             },
-            2 // the server's third message is a bad frame
+            3 // the server's fourth message (after the HELLO and two WORKs) is a bad frame
         );
         auto items = heldItems(3);
         auto batch = world.batch(items);
         REQUIRE(eventually([&] { return started->load() == 1 && world.corrupted(); }));
-        // The bad frame (the server's third message) is decoded: the client closes
-        REQUIRE(eventually([&] { return world.client().messagesBooked() >= 3; }));
+        // The bad frame is decoded (in-process, at once): the client ends
+        std::this_thread::sleep_for(300ms);
         permits->release(3);
         REQUIRE(eventually([&] { return world.clientDone(); }));
         world.shell().stopServer();
         batch.get();
     }
     CHECK(started->load() == 1);
-    CHECK(dir.files().size() == 1);
 }
-
-/******************************************************************************/
-// A finished result that can no longer be delivered is saved: the evaluated item, one file each,
-// in the client's undeliveredDir. Evaluations are never cut; a client that halts without a
-// connection makes one last attempt to deliver what it has finished.
 
 namespace {
-
-/** @brief @param file A saved item @return The item it holds, loaded as the type loads; empty if it
- *  cannot be loaded */
-std::shared_ptr<GFaultyContainer> loadSaved(const std::filesystem::path &file) {
-    std::ifstream in(file, std::ios::binary);
-    const std::string bytes{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-    return Gem::Common::sharedPtrFromString<GFaultyContainer>(bytes, BIN);
-}
 
 /** @brief A batch that may end without its results: its slots are then filled with clones of a
  *  template (not fatal) @param world Where it runs @param items Its items @return It, running */
 BatchRun openBatch(World &world, std::vector<std::unique_ptr<GFaultyContainer>> &items) {
-    return {std::async(std::launch::async, [&world, &items] {
-        auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
-        policy.fatal_on_none_returned = false;
-        auto clone_template = std::make_unique<GFaultyContainer>(99);
-        clone_template->markAsProcessedWith({true});
-        world.shell()
-            .processBatch(std::span(items.data(), items.size()), policy, std::move(clone_template));
-    }), [&world] { world.shell().stopServer(); }};
+    return {
+        std::async(
+            std::launch::async,
+            [&world, &items] {
+                auto policy = Gem::Courtier::GSubmissionPolicy::clone_on_partial_return();
+                policy.fatal_on_none_returned = false;
+                auto clone_template = std::make_unique<GFaultyContainer>(99);
+                clone_template->markAsProcessedWith({true});
+                world.shell().processBatch(
+                    std::span(items.data(), items.size()),
+                    policy,
+                    std::move(clone_template)
+                );
+            }
+        ),
+        [&world] { world.shell().stopServer(); }
+    };
 }
 
 } /* anonymous namespace */
 
-/** A client that halts while it has no connection and evaluates an item lets the evaluation end and
- *  delivers its result with one last attempt; nothing is saved. */
-TEST_CASE(
-    "GPeerClientT: a halt without a connection delivers the running evaluation with a last attempt",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    World world;
-    auto client = world.client(
-        GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
-        evaluations,
-        0ms,
-        watch,
-        withGate(evaluations, gate)
-    );
-    auto items = makeBatch(1);
-    auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
-    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-    world.route().clear();
-    watch->last()->sever();
-    REQUIRE(eventually([&] { return client->losses() == 1; }));
-    client->flagCloseRequested();
-    // From here on no attempt is made, whether the halt poll has run or not: an attempt is made
-    // only by the retry timer, which looks at the halt itself, and an attempt under way was
-    // refused (the route is cleared) long before the route is set again. The wait is not
-    // load-bearing.
-    std::this_thread::sleep_for(1500ms);
-    const std::size_t attempts_before = world.listener()->nConnections();
-    world.route().set(world.listener());
-    std::this_thread::sleep_for(500ms);
-    CHECK(world.listener()->nConnections() == attempts_before); // it does not try while it halts
-
-    gate->open();
-    REQUIRE(batch.get());
-    REQUIRE(eventually([&] { return world.clientsDone(); }));
-    CHECK(evaluations->of(0) == 1);
-    CHECK(client->connections() == 2); // the last attempt
-    CHECK(dir.files().empty());
-}
-
-/** The same, and the last attempt fails: the evaluated item is saved, and it loads back. */
-TEST_CASE(
-    "GPeerClientT: a result that cannot be delivered after a halt is saved as the evaluated item",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(41));
-    {
-        World world;
-        auto client = world.client(
-            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
-            evaluations,
-            0ms,
-            watch,
-            withGate(evaluations, gate)
-        );
-        auto batch = openBatch(world, items);
-        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-        world.route().clear();
-        watch->last()->sever();
-        REQUIRE(eventually([&] { return client->losses() == 1; }));
-        client->flagCloseRequested();
-        std::this_thread::sleep_for(1500ms);
-        gate->open();
-        REQUIRE(eventually([&] { return world.clientsDone(); }));
-        CHECK(client->connections() == 1); // the last attempt was refused
-        world.shell().stopServer();
-        batch.get();
-    }
-    const auto files = dir.files();
-    REQUIRE(files.size() == 1);
-    INFO("saved as " << files.front().string());
-    const auto saved = loadSaved(files.front());
-    REQUIRE(saved);
-    CHECK(saved->get_stored_number() == 41);
-    CHECK(saved->is_processed());
-}
-
-/** A client halts while connected and sends its last result before its close; the server reads
- *  neither and does not confirm the close. Only a confirmed close proves the result (GPeerI.hpp,
- *  rule 6): it is saved, and it loads back. */
-TEST_CASE(
-    "GPeerClientT: a result sent before a close the server does not confirm is saved",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(23));
-    {
-        // The server's end reads the client's first message (its request) and nothing after it,
-        // and ignores the client's close.
-        World world(GInProcessListener::Options{
-            .serverFaults =
-                Gem::Courtier::Tests::GInProcessFaults{.deliverAtMost = 1, .acknowledgeClose = false},
-            .closeGrace = 300ms
-        });
-        auto client = world.client(
-            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
-            evaluations,
-            0ms,
-            nullptr,
-            withGate(evaluations, gate)
-        );
-        auto batch = openBatch(world, items);
-        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-        client->flagCloseRequested(); // a halt while connected: the result goes out, then the close
-        gate->open();
-        REQUIRE(eventually([&] { return world.clientsDone(); }));
-        CHECK(client->connectionEnd() == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
-        CHECK(client->connections() == 1);
-        CHECK(client->resultsSaved() == 1);
-        world.shell().stopServer();
-        batch.get();
-    }
-    const auto files = dir.files();
-    REQUIRE(files.size() == 1);
-    INFO("saved as " << files.front().string());
-    const auto saved = loadSaved(files.front());
-    REQUIRE(saved);
-    CHECK(saved->get_stored_number() == 23);
-    CHECK(saved->is_processed());
-}
-
-/** The server's end closes with ERROR (as a session does after a message it cannot read) while a
- *  client that halts sends the result of its last evaluation and closes. A result that arrives
- *  after the server's end was closed, but before its close went out, is handed to the session
- *  and checked in; one that arrives after the server's close went out is dropped there -- and
- *  then the two closes have crossed, which confirms neither (GPeerI.hpp, rule 6), so the client
- *  saves it. Either way the result is not lost, and it is evaluated once. */
+/**
+ * The server's end closes with ERROR (as a session does after a message it cannot read) while a
+ * client that halts sends the result of its last evaluation and closes. A result that arrives
+ * after the server's end was closed, but before its close went out, is handed to the session and
+ * checked in; one that arrives after the server's close went out is dropped there. The client
+ * does not know which (delivery is best effort) and ends; a dropped result is not lost to the run:
+ * the server hands the item out again when the connection ends, and another client evaluates it.
+ */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario in two orders; Catch2's macros count
 TEST_CASE(
     "GPeerClientT: a result is not lost when the server's end closes as the client closes",
     "[courtier][peer][client]"
 ) {
     const bool server_close_out_first = GENERATE(true, false);
-    const UndeliveredDir dir;
     auto evaluations = std::make_shared<Evaluations>();
+    auto second = std::make_shared<Evaluations>();
     auto gate = std::make_shared<Gate>();
     auto watch = std::make_shared<GInProcessPeerWatch>();
     auto client_close_out = std::make_shared<std::atomic<bool>>(false);
@@ -3254,11 +2082,12 @@ TEST_CASE(
     });
     std::vector<std::unique_ptr<GFaultyContainer>> items;
     items.push_back(std::make_unique<GFaultyContainer>(17));
+    bool done_by_first = false;
     bool batch_done = false;
     {
         World world;
         auto client = world.client(
-            GPeerClientOptions{.name = "halting client", .mode = BIN, .undeliveredDir = dir.path()},
+            GPeerClientOptions{.name = "halting client", .mode = BIN},
             evaluations,
             0ms,
             watch,
@@ -3272,9 +2101,7 @@ TEST_CASE(
         // The strand of the server's end is held: what the client sends waits there, and so does
         // the server's own close, in the order of the calls.
         const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(server_end->executor(), [held = release]() {
-            held->wait_for(PATIENCE);
-        });
+        boost::asio::post(server_end->executor(), [held = release]() { held->wait_for(PATIENCE); });
         if(server_close_out_first) {
             server_end->close(GPeerClose::ERROR); // goes out before the result arrives
         }
@@ -3286,188 +2113,35 @@ TEST_CASE(
         }
         release->count_down();
         REQUIRE(eventually([&] { return world.clientsDone(); }));
-        // Done at once when the session checked the result in; never done when it was dropped
-        batch_done = batch.wait_for(server_close_out_first ? 0s : PATIENCE) ==
-                     std::future_status::ready;
+        // Done at once when the session checked the result in; not done when it was dropped
+        done_by_first =
+            batch.wait_for(server_close_out_first ? 0s : PATIENCE) == std::future_status::ready;
+        if(not done_by_first) { // the item is handed out again, to a second client
+            world.client(
+                GPeerClientOptions{.name = "second client", .mode = BIN},
+                second,
+                0ms,
+                nullptr,
+                AS_IS
+            );
+        }
+        batch_done = batch.wait_for(PATIENCE) == std::future_status::ready;
         world.shell().stopServer();
         batch.get();
     }
+    CHECK(batch_done);
     CHECK(evaluations->of(17) == 1);
-    if(server_close_out_first) {
-        CHECK_FALSE(batch_done);
-        REQUIRE(dir.files().size() == 1); // the closes crossed: the result is saved
-        const auto saved = loadSaved(dir.files().front());
-        REQUIRE(saved);
-        CHECK(saved->get_stored_number() == 17);
-    }
-    else {
-        CHECK(batch_done); // the session was handed the result after its close and checked it in
-        CHECK(dir.files().empty());
-    }
+    CHECK(done_by_first == not server_close_out_first);
+    CHECK(second->of(17) == (server_close_out_first ? 1U : 0U));
 }
-
-/** The reconnect limit runs out while the client holds a finished result: it is saved. */
-TEST_CASE(
-    "GPeerClientT: a result held when the reconnect limit runs out is saved",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(7));
-    {
-        World world;
-        auto client = world.client(
-            GPeerClientOptions{
-                .name = "limited client",
-                .mode = BIN,
-                .reconnectLimit = 1s,
-                .contactTime = 300ms,
-                .undeliveredDir = dir.path()
-            },
-            evaluations,
-            0ms,
-            watch,
-            withGate(evaluations, gate)
-        );
-        auto batch = openBatch(world, items);
-        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-        std::this_thread::sleep_for(1200ms); // open for the contact time: contact
-        world.route().clear();
-        watch->last()->sever();
-        gate->open(); // finished while there is no connection
-        REQUIRE(eventually([&] { return world.clientsDone(); }));
-        CHECK(client->terminalErrorFlagged());
-        world.shell().stopServer();
-        batch.get();
-    }
-    const auto files = dir.files();
-    REQUIRE(files.size() == 1);
-    const auto saved = loadSaved(files.front());
-    REQUIRE(saved);
-    CHECK(saved->get_stored_number() == 7);
-}
-
-/**
- * A result counts its sends only where it was handed to an open connection: one that finished
- * while there was no connection is sent on the next one for the first time, and a loss of that
- * connection does not bring it to the resend limit. Here it is sent on a second connection, which
- * is lost before anything answers it, and delivered on a third.
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; Catch2's macros count
-TEST_CASE(
-    "GPeerClientT: a result is counted as sent only on an open connection",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(11));
-    World world;
-    auto client = world.client(
-        GPeerClientOptions{.name = "client", .mode = BIN},
-        evaluations,
-        0ms,
-        watch,
-        withGate(evaluations, gate)
-    );
-    auto batch = openBatch(world, items);
-    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-    world.route().clear();
-    watch->last()->sever();
-    REQUIRE(eventually([&] { return client->losses() == 1; }));
-    gate->open(); // finished while there is no connection: appended, not sent
-    std::this_thread::sleep_for(200ms);
-    world.route().set(world.listener());
-    REQUIRE(eventually([&] { return client->connections() == 2; }));
-    REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready); // the server has the result
-    batch.get();
-    watch->last()->sever(); // nothing has answered the result's request on this connection
-    REQUIRE(eventually([&] { return client->losses() == 2 && client->connections() == 3; }));
-    CHECK(client->resultsGivenUp() == 0);
-    CHECK(client->resultsResent() == 1); // on the third connection only
-    CHECK(evaluations->of(11) == 1);
-    client->flagCloseRequested();
-}
-
-/** After the server has announced the end of the run nobody needs the result: nothing is saved. */
-TEST_CASE(
-    "GPeerClientT: a result finished after the end of the run is not saved",
-    "[courtier][peer][client]"
-) {
-    const UndeliveredDir dir;
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(3));
-    {
-        World world;
-        world.client(
-            GPeerClientOptions{.name = "late client", .mode = BIN, .undeliveredDir = dir.path()},
-            evaluations,
-            0ms,
-            nullptr,
-            withGate(evaluations, gate)
-        );
-        auto batch = openBatch(world, items);
-        REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-        world.shell().stopServer(); // RUN_ENDED while the item is evaluated
-        batch.get();
-        gate->open();
-        REQUIRE(eventually([&] { return world.clientsDone(); }));
-    }
-    CHECK(dir.files().empty());
-}
-
-/** A directory that cannot be written: a warning, and the client ends as it would. */
-TEST_CASE(
-    "GPeerClientT: a result that cannot be saved is reported and the client ends",
-    "[courtier][peer][client]"
-) {
-    auto evaluations = std::make_shared<Evaluations>();
-    auto gate = std::make_shared<Gate>();
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(5));
-    World world;
-    auto client = world.client(
-        GPeerClientOptions{
-            .name = "client",
-            .mode = BIN,
-            .undeliveredDir = "/proc/geneva-cannot-be-written-here"
-        },
-        evaluations,
-        0ms,
-        watch,
-        withGate(evaluations, gate)
-    );
-    auto batch = openBatch(world, items);
-    REQUIRE(eventually([&] { return gate->waiting.load() == 1; }));
-    world.route().clear();
-    watch->last()->sever();
-    REQUIRE(eventually([&] { return client->losses() == 1; }));
-    client->flagCloseRequested();
-    gate->open();
-    CHECK(eventually([&] { return world.clientsDone(); }));
-    CHECK(client->resultsUnsaved() == 1);
-    world.shell().stopServer();
-    batch.get();
-}
-
-/******************************************************************************/
-// WORK that arrives after the client's own close (and before the end of the connection: GPeerI.hpp,
-// rule 6 lets it through) starts nothing, and the server hands its item out again.
 
 namespace {
 
 /** @brief What a LateWorkPeer shares with the test */
 struct LateWork {
-    std::atomic<std::size_t> nWork{0};      ///< WORK frames that reached the end
-    std::atomic<bool> held{false};          ///< The second WORK frame is held back
-    std::atomic<bool> delivered{false};     ///< ... and was handed to the client after its close()
+    std::atomic<std::size_t> nWork{0};  ///< WORK frames that reached the end
+    std::atomic<bool> held{false};      ///< The second WORK frame is held back
+    std::atomic<bool> delivered{false}; ///< ... and was handed to the client after its close()
 };
 
 /** @brief A client's end that holds the second WORK frame back and hands it to the client right
@@ -3490,8 +2164,9 @@ public:
         if(not inner) {
             return;
         }
-        on_message_ =
-            std::make_shared<std::move_only_function<void(std::string &&)>>(std::move(handlers.onMessage));
+        on_message_ = std::make_shared<std::move_only_function<void(std::string &&)>>(
+            std::move(handlers.onMessage)
+        );
         inner->start(
             GPeerHandlers{
                 .onOpen = std::move(handlers.onOpen),
@@ -3566,9 +2241,7 @@ public:
             [late = late_, done = std::move(done)](
                 const std::shared_ptr<GPeerI> &peer,
                 std::string_view error
-            ) mutable {
-                done(peer ? std::make_shared<LateWorkPeer>(peer, late) : nullptr, error);
-            }
+            ) mutable { done(peer ? std::make_shared<LateWorkPeer>(peer, late) : nullptr, error); }
         );
     }
     /** @brief Forwards */
@@ -3634,7 +2307,13 @@ TEST_CASE(
         gate->open();
         REQUIRE(eventually([&] { return late->delivered.load(); })); // B, after the close()
         REQUIRE(eventually([&] { return done->load(); }));
-        world.client(GPeerClientOptions{.name = "second client", .mode = BIN}, second, 0ms, nullptr, AS_IS);
+        world.client(
+            GPeerClientOptions{.name = "second client", .mode = BIN},
+            second,
+            0ms,
+            nullptr,
+            AS_IS
+        );
         batch_done = batch.wait_for(PATIENCE) == std::future_status::ready;
         world.shell().stopServer();
         batch.get();
@@ -3646,4 +2325,213 @@ TEST_CASE(
         INFO("item " << i);
         CHECK(first->of(i) + second->of(i) == 1);
     }
+}
+
+/******************************************************************************/
+/**
+ * A result is always a RESULT, and it asks for nothing: the client asks for every item with a PULL,
+ * and the server answers each PULL with one WORK. The client keeps no more PULLs unanswered than
+ * its depth.
+ */
+TEST_CASE(
+    "GPeerClientT: every result is a RESULT and every item is asked for with a PULL",
+    "[courtier][peer][client]"
+) {
+    constexpr std::size_t N_ITEMS = 20;
+    auto evaluations = std::make_shared<Evaluations>();
+    std::shared_ptr<ServerCounts> counts;
+    {
+        World world;
+        counts = world.sharedCounts();
+        world.client(
+            GPeerClientOptions{.name = "client", .mode = BIN, .prefetchDepth = 2},
+            evaluations,
+            5ms,
+            nullptr,
+            AS_IS
+        );
+        auto items = makeBatch(N_ITEMS);
+        REQUIRE(world.runBatch(items));
+    }
+    CHECK(evaluations->total.load() == N_ITEMS);
+    CHECK(counts->nResults.load() == N_ITEMS);
+    CHECK(counts->nWork.load() == N_ITEMS);
+    CHECK(counts->nOther.load() == 0);
+    CHECK(counts->maxUnanswered.load() <= 2);
+    CHECK(counts->overAnswered.load() == 0);
+}
+
+/******************************************************************************/
+// A server of another build: its HELLO names another version. The client ends with a terminal
+// error, and asks for nothing.
+
+namespace {
+
+/** @brief A listener whose server ends greet with a HELLO of another build, and count what their
+ *  clients send; and its threads */
+class OtherBuildServer {
+public:
+    OtherBuildServer() {
+        listener_->start(
+            io_.executor(),
+            [received = received_](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
+                const std::weak_ptr<GPeerI> weak = peer;
+                peer->start(
+                    GPeerHandlers{
+                        .onOpen =
+                            [weak] {
+                                if(auto end = weak.lock()) {
+                                    GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
+                                    hello.setHello("0.0.0-another", Gem::Courtier::GFRAMEPROTOCOL);
+                                    end->send(
+                                        Gem::Courtier::Consumers::makeMessage(
+                                            Gem::Courtier::container_to_string(hello, BIN)
+                                        )
+                                    );
+                                }
+                            },
+                        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+                        .onMessage = [received](std::string &&) { received->fetch_add(1); },
+                        .onClosed = [](GPeerEnd, GPeerClose, std::string_view) {},
+                    }
+                );
+            }
+        );
+    }
+    /** @brief Stops the listener while its threads run */
+    ~OtherBuildServer() {
+        try {
+            listener_->stop();
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) -- it does not throw here
+        }
+        listener_->endWork();
+    }
+    OtherBuildServer(const OtherBuildServer &) = delete;
+    OtherBuildServer(OtherBuildServer &&) = delete;
+    OtherBuildServer &operator=(const OtherBuildServer &) = delete;
+    OtherBuildServer &operator=(OtherBuildServer &&) = delete;
+
+    /** @brief @return The listener (for a route) */
+    [[nodiscard]] const std::shared_ptr<GInProcessListener> &listener() const {
+        return listener_;
+    }
+    /** @brief @return How many messages the clients sent */
+    [[nodiscard]] std::size_t received() const {
+        return received_->load();
+    }
+
+private:
+    IoThreads io_{2};
+    std::shared_ptr<GInProcessListener> listener_ =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    std::shared_ptr<std::atomic<std::size_t>> received_ =
+        std::make_shared<std::atomic<std::size_t>>(0);
+};
+
+} /* anonymous namespace */
+
+TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier][peer][client]") {
+    auto evaluations = std::make_shared<Evaluations>();
+    const OtherBuildServer other;
+    World world;
+    world.route().set(other.listener());
+    auto client = world.client(
+        GPeerClientOptions{.name = "client", .mode = BIN},
+        evaluations,
+        1ms,
+        nullptr,
+        AS_IS
+    );
+    REQUIRE(eventually([&] { return world.clientsDone(); }));
+    CHECK(client->terminalErrorFlagged());
+    CHECK(client->losses() == 0);
+    CHECK(client->connections() == 1); // it did not come back
+    CHECK(other.received() == 0);      // and asked for nothing
+}
+
+/******************************************************************************/
+// No exception of any type leaves a compute thread: when what follows the evaluation throws
+// something that is not a std::exception (here the library's return seam, GWireProtocolT::
+// buildReturn()), the item is returned to the server as failed and the client goes on.
+
+namespace {
+
+/** @brief A work item whose return seam (GWireProtocolT::buildReturn(), below) throws something
+ *  that is not a std::exception: what follows its evaluation fails on the compute thread. */
+class GReturnThrowsItem final
+  : public Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>>(
+            ar,
+            "GProcessingContainerT_GReturnThrowsItem",
+            *this
+        );
+    }
+
+public:
+    /** @brief The default constructor (also for loading) */
+    GReturnThrowsItem()
+      : Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>(1) { /* nothing */
+    }
+
+private:
+    /** @brief Nothing to evaluate */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
+};
+
+} /* anonymous namespace */
+
+namespace Gem::Courtier {
+/** @brief The wire seam of GReturnThrowsItem: the default one, except that building the return
+ *  throws something that is not a std::exception. */
+template <>
+struct GWireProtocolT<GReturnThrowsItem> {
+    using payload_type = GNoLibraryPayload;
+    static std::uint32_t workTag() {
+        return 0;
+    }
+    static bool buildReturn(
+        [[maybe_unused]] const GReturnThrowsItem &item,
+        [[maybe_unused]] std::uint32_t &tag,
+        [[maybe_unused]] payload_type &payload
+    ) {
+        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
+    }
+    static void applyReturn(
+        GReturnThrowsItem &slot,
+        [[maybe_unused]] std::uint32_t tag,
+        [[maybe_unused]] const payload_type *payload,
+        const GReturnThrowsItem *item
+    ) {
+        if(item != nullptr) {
+            slot.absorbResultsFrom(*item);
+        }
+    }
+};
+} /* namespace Gem::Courtier */
+
+TEST_CASE(
+    "GPeerClientT: an item that cannot be returned is returned as failed",
+    "[courtier][peer][client]"
+) {
+    bool done = false;
+    {
+        WatchWorld<GReturnThrowsItem> world(
+            GPeerClientOptions{.name = "client", .mode = BIN, .prefetchDepth = 1}
+        );
+        auto batch = world.submit(2); // both fail; the policy fills their slots
+        done = batch.wait_for(PATIENCE) == std::future_status::ready;
+        if(not done) {
+            world.shell().stopServer();
+        }
+        batch.get();
+        CHECK(world.shell().requeuedCount() == 0); // failed, not handed out again
+    }
+    CHECK(done);
 }

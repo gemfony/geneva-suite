@@ -30,7 +30,6 @@
 #include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GProcessable.hpp" // detail::lineageSalt
-#include <atomic>
 #include <cstdint>
 #include <random>
 #include <string>
@@ -84,14 +83,8 @@ std::string fkToStr(const GFrameKind &fk) {
     case PULL:
         return "PULL";
 
-    case NO_WORK:
-        return "NO_WORK";
-
     case WORK:
         return "WORK";
-
-    case RETURN:
-        return "RETURN";
 
     case BLOB_REQUEST:
         return "BLOB_REQUEST";
@@ -99,11 +92,11 @@ std::string fkToStr(const GFrameKind &fk) {
     case BLOB_REPLY:
         return "BLOB_REPLY";
 
+    case HELLO:
+        return "HELLO";
+
     case RESULT:
         return "RESULT";
-
-    case UNREADABLE:
-        return "UNREADABLE";
     }
 
     // Make the compiler happy
@@ -146,18 +139,6 @@ std::string describeException(const std::exception_ptr &failure) {
     catch(...) {
         return "an exception that is not a std::exception";
     }
-}
-
-/******************************************************************************/
-/**
- * @brief A number that tells apart the files a process writes for results that a client could not
- * deliver: every call in a process returns another one. From any thread.
- *
- * @return The next number
- */
-std::uint64_t nextUndeliveredFileNumber() {
-    static std::atomic<std::uint64_t> next{0};
-    return next.fetch_add(1);
 }
 
 /******************************************************************************/

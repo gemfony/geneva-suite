@@ -202,8 +202,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
-  a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result /
-  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on,
+  a closed frame vocabulary (`GFrameKind`: hello / pull / work / result / blob-request /
+  blob-reply) plus the per-slot `GProcessingOutcome` it reconciles on,
   and nothing else. The end of a run is said by the transport's close, not by a frame: the
   `shutdown` frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What
   a message *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
@@ -232,8 +232,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   clients now do the same (next item).
 - **The MPI consumer works as the websocket consumer does.** Its client waits at the submitter when
   there is no work (the pause of 50 to 200 ms after NO_WORK, and the cost it added to every
-  iteration, are gone) and fetches the next item while it evaluates the current one, with at most
-  one request unanswered. A client opens when the submitter's consumer has started: the consumer
+  iteration, are gone) and fetches the next item while it evaluates the current one. A client opens when the submitter's consumer has started: the consumer
   greets every client rank, and `--mpi_firstContactLimit` (seconds, default 0: as long as it runs)
   bounds the wait for it. A submitter without a client rank (a program started as one process, with
   or without the launcher) refuses to start, says how the program is started, and ends with a
@@ -242,12 +241,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   run and leaves; the submitter goes on with the others and hands out again what it held. At the end
   of a run every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and
   a second); a send that is still under way when the work ends (a large item for a rank that has
-  left, say) is waited for up to 2 s more (`GMPIPEERDRAINGRACE`) and then given up. A result a
-  client can no longer deliver is saved (`--mpi_undeliveredDir`). The consumer answers
+  left, say) is waited for up to 2 s more (`GMPIPEERDRAINGRACE`) and then given up. The consumer answers
   `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
-  `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket: an MPI
-  client has at most one request unanswered, so an idle client never has two items asked for while
-  others wait, as a websocket client at depth 2 would. The submitter serves waiting requests oldest
+  `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket. The submitter serves waiting requests oldest
   first and does not ask whether their client is evaluating. While items are pending no request
   waits, and one sent ahead takes an item nobody waits for; but when fewer items become available
   than requests wait (between iterations, or when items are put back), or a new request comes while
@@ -261,18 +257,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   it builds its consumer), waits until the job is ended. Before 1.99, a worker ended after 120 s
   without word from its master. A message is limited to INT_MAX bytes (about 2 GiB): an item that
   would be longer fails where it is handed out, a result that would be longer comes back flagged;
-  the connection, and the run, go on. While every evaluation slot of a client is taken, its poll
-  looks for messages less often (at most every 50 ms, `GMPIPEERPOLLPAUSEBUSY`, instead of every 1
-  ms); what it sends goes out at once, so this costs no time per item, and a stop that reaches a
-  client during an evaluation may take that much longer. Options: `--mpi_asyncReq` is removed --
+  the connection, and the run, go on. Options: `--mpi_asyncReq` is removed --
   `true` is now `--mpi_prefetchDepth 2` (the default), `false` is `--mpi_prefetchDepth 1`;
   `--mpi_parallelEvaluations` (default 1) says how many of the items held are evaluated at once;
   `--mpi_nHandlerThreads` is the number of threads the submitter's sessions run on, default 2 (it
   was one per hardware thread; 0 still means that), and one more thread polls MPI for every client;
   `--mpi_cleanSessInterval` is removed. In `MPIConsumerConfig`, `useAsyncReq`,
   `masterCleanSessIntervalMSec` and `nHandlerThreadsRecommendation()` are replaced by
-  `clientPrefetchDepth`, `clientParallelEvaluations`, `clientFirstContactLimit` and
-  `clientUndeliveredDir`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a
+  `clientPrefetchDepth`, `clientParallelEvaluations` and `clientFirstContactLimit`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a
   `std::shared_ptr`.
 - **One keep-alive for both ends of a websocket connection.** `--beast_pingInterval` (default
   15 s) applies to the server and to the client: after that much silence a ping is sent, and after
@@ -307,18 +299,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   announced peer id (`GCommandContainerT::setPeerId()` / `peerId()`) are gone with it.
 - **A websocket client connects again.** It may be started before its server: a failed attempt
   is followed by another after a pause that grows from 0.25 to 30 s, until
-  `--beast_firstContactLimit` seconds (default 0: no limit) pass without contact (an answer, or a
-  connection open for 60 s). A client whose connection is lost (reset, closed by the server, or cut
+  `--beast_firstContactLimit` seconds (default 0: no limit) pass without contact (the server's
+  greeting). A client whose connection is lost (reset, closed by the server, or cut
   by the keep-alive) connects again until `--beast_reconnectLimit` seconds (default 600; 0: no
   limit) pass since the end of the last connection that had contact; a limit that runs out ends it
-  with an error. It sends again what the server may not have read, evaluates what it holds, and
-  delivers the results on the next connection; the server drops a result it already has, or one
-  of another server process. An evaluation is never cut short: a client that has to end without
-  a connection makes one last attempt and saves each finished result it still cannot deliver --
-  the evaluated item, one file each, in `--beast_undeliveredDir` (default: the working
-  directory); the log names the file. Nothing is saved after the server has announced the end of
-  the run. A message whose kind a server cannot read now ends the connection (the client connects
-  again) instead of being answered with NO_WORK.
+  with an error. It sends again, once, the results the server may not have read, evaluates what it
+  holds, and delivers the results on the next connection; the server drops a result it already
+  has, or one of another server process. This is best effort: a result a client still holds when
+  it ends is dropped, and the server hands its item out again.
 - **A websocket client evaluates one item at a time unless told otherwise.** It has two
   numbers: `--beast_prefetchDepth` n, how many items it holds at once (those evaluated and those
   fetched ahead, so that the transfer of the next item overlaps the evaluation of the current
@@ -342,11 +330,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   4002 (end of the run). The two ends never begin a close with the same code: an end counts the
   other end's close as the confirmation of its own only when it echoes its code.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
-  longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
-  handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
-  does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
-  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts
-  back what the client held and sends it its blobs anew; the client stays. A result that cannot be
+  longer ends the worker's rank; the item comes back flagged. Every message has a head that is
+  read first and names the item; a message whose head cannot be read ends the connection. A
+  client that cannot read an item returns it as failed and stays; the server sends it its blobs
+  anew. A server that cannot read a result fails its item. A result that cannot be
   applied to its item marks the item as failed, and so does an item that the server cannot encode
   for a client, or whose result the client cannot encode or return (the client then sends the
   outcome alone, marked as failed, and stays). In each case the submission policy decides what
@@ -591,15 +578,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   full; its single behavioral effect is a warning (at most three per process) when the
   reserved thread total crosses 2x the hardware ceiling, naming the largest reservations —
   previously oversubscription was silent.
-- **courtier: one name for the pause of a worker after NO_WORK.**
-  `GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC` are
-  **removed**; the pause is the same for every transport and is
-  `GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC` / `...UPPERBOUNDARYMSEC`. The other pauses, time limits
-  and defaults of the networked consumers are named constants in `courtier/GCourtierEnums.hpp`
-  as well.
+- **courtier: no pause of a worker after NO_WORK.** A worker's request waits at the server, so
+  there is no NO_WORK and no pause after it: `GMPICONSUMERWORKERNODERETRYINTERVALLOWERBOUNDARYMSEC`
+  / `...UPPERBOUNDARYMSEC` are **removed**. The pauses, time limits and defaults of the networked
+  consumers are named constants in `courtier/GCourtierEnums.hpp`.
+- **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
+  collection's version and the number of the frame protocol, `GFRAMEPROTOCOL`); a client of
+  another build ends with a message that says so. A client asks for one item with `PULL`, the
+  server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for
+  nothing. The frame kinds `NO_WORK`, `RETURN` and `UNREADABLE` are gone, and so are the client's
+  files of results it could not deliver (`--beast_undeliveredDir`, `--mpi_undeliveredDir`,
+  `clientUndeliveredDir`) and the option `lookAhead` of `GPeerClientOptions`.
 - **courtier: the websocket consumer and client gained shared bases** — `GWebsocketConsumerT`
   derives from `GPeerConsumerT` (the server's shell over any transport) and `GWebsocketClientT`
-  from `GPeerClientT`, which derives from `GPrefetchingClientT` (the prefetch/compute pipeline).
+  from `GPeerClientT` (the client over any transport, on `GBaseClientT`).
   Public construction and options are unchanged; only code naming the old direct base classes is
   affected.
 - **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
