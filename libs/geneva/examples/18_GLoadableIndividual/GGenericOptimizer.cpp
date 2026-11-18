@@ -48,14 +48,13 @@
 #include <ranges>
 
 // Geneva headers
-#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFactory.hpp"
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     // Go2 parses the config file + command line and, if --individual (or the config key) was given, loads
     // the individual plugin right here -- before any population is built or, on a client, any work item is
     // deserialized. No problem-specific code is compiled into this launcher.
@@ -116,7 +115,4 @@ int main(int argc, char **argv) try {
         std::cout << "  x[" << i << "] = " << x << '\n';
     }
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

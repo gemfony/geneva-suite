@@ -27,18 +27,26 @@
  *
  ********************************************************************************/
 
-// A process that ends on a configuration error ends the whole MPI job, also when other processes
+// A process that ends on an error nobody handles ends the whole MPI job, also when other processes
 // wait for it. Run on three ranks under mpirun: every rank initializes MPI through courtier's
-// environment (as a Go2 program asks for its role), rank 1 then applies a configuration with an
-// entry of the wrong form, and the other ranks wait for rank 1 at a barrier, as a submitter's
-// clients wait for its greeting. main() hands the error to Gem::Common::reportFatal(), which
-// prints it and calls the end hook courtier's MPI side registered: the job ends with the exit code
-// 1 at once. A return without the hook would leave the waiting ranks, and with them the job,
-// hanging; an uncaught exception would abort with a core dump instead of the message (the test
-// that runs this checks the exit code, the message and a time limit).
+// environment (as a Go2 program asks for its role), rank 1 then fails, and the other ranks wait for
+// rank 1 at a barrier, as a submitter's clients wait for its greeting. main() installs the fatal
+// report (Gem::Common::installFatalReport()) first, as Go2 does: the exception reaches it without
+// unwinding, it prints the message and ends rank 1 with the exit code 1, and the launcher ends the
+// job. The scenario is the first argument:
+//  - "config": rank 1 applies a configuration entry of the wrong form; the environment is kept
+//    without a holder in main();
+//  - "holder": the same, while a local of main() holds the environment -- an unwinding would
+//    finalize MPI there and wait for the other ranks;
+//  - "thread": a thread of rank 1 throws, which no handler of main() could catch.
+// The test that runs this checks the exit code, the message and a time limit.
 
 // Standard headers go here
 #include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <thread>
 #include <tuple>
 
 // Boost headers go here
@@ -52,18 +60,37 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 
-int main() try {
-    // MPI is initialized, and the environment kept, without a holder in main()
+namespace {
+
+/** @brief Applies a configuration entry of the wrong form, which throws */
+void applyWrongEntry() {
+    Gem::Common::GParserBuilder gpb;
+    bool scan_randomly = true;
+    gpb.registerFileParameter<bool>("scan_randomly", scan_randomly, true);
+    gpb.loadFromDocument(boost::json::parse(R"({ "scan_randomly": false })"));
+}
+
+} // namespace
+
+int main(int argc, char **argv) {
+    Gem::Common::installFatalReport();
+    const std::string scenario = argc > 1 ? argv[1] : "config";
+
+    // MPI is initialized; the environment is kept by courtier, and by main() for "holder"
     std::ignore = Gem::Courtier::mpiProcessRole();
+    const auto holder = scenario == "holder" ? Gem::Courtier::mpiEnvironment() : nullptr;
     int rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if(rank == 1) {
-        Gem::Common::GParserBuilder gpb;
-        bool scan_randomly = true;
-        gpb.registerFileParameter<bool>("scan_randomly", scan_randomly, true);
-        gpb.loadFromDocument(boost::json::parse(R"({ "scan_randomly": false })"));
-        std::cout << "FAIL: rank 1 applied an entry of the wrong form\n";
+        if(scenario == "thread") {
+            std::thread failing([] { throw std::runtime_error("a thread of rank 1 failed"); });
+            failing.join();
+        }
+        else {
+            applyWrongEntry();
+        }
+        std::cout << "FAIL: rank 1 went on after its error\n";
         return 0;
     }
 
@@ -71,7 +98,4 @@ int main() try {
     MPI_Barrier(MPI_COMM_WORLD);
     std::cout << "FAIL: rank " << rank << " passed the barrier without rank 1\n";
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

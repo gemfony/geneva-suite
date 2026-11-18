@@ -33,41 +33,31 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
-#include <functional>
+#include <exception>
+#include <string>
 
 namespace Gem::Common {
 
 /******************************************************************************/
 /*
- * How a program ends on an error it does not handle: with a clear message on std::cerr and the
- * exit code EXIT_FAILURE (1), instead of std::terminate()'s abort and core dump (exit code 134),
- * which reads as an internal fault although the cause is most often the user's (a configuration
- * file that cannot be applied, say). A main() takes it up with a function-try-block, which leaves
- * the body of main() as it is:
+ * How a program ends on an error nobody handles: with a clear message on std::cerr and the exit
+ * code EXIT_FAILURE (1), instead of std::terminate()'s abort and core dump (exit code 134), which
+ * reads as an internal fault although the cause is most often the user's (a configuration file that
+ * cannot be applied, say). installFatalReport() makes this the terminate handler of the process.
+ * An exception that no handler catches -- in main() or in any other thread -- reaches it without
+ * unwinding the stack, so no destructor runs on the way: in particular none that would finalize
+ * MPI and wait for other processes. The process ends with std::_Exit(), and an MPI launcher ends
+ * the whole job when one of its processes ends that way.
  *
- * @code
- * int main(int argc, char **argv) try {
- *     Gem::Geneva::Go2 go(argc, argv, "./config/Go2.json");
- *     // ...
- * }
- * catch(...) {
- *     return Gem::Common::reportFatal();
- * }
- * @endcode
- *
- * Before reportFatal() returns, it calls the end hooks that libraries registered at run time
- * (addFatalEndHook()), in the order of their registration. They exist for what a plain return
- * cannot end: courtier's MPI side registers one when it initializes MPI, which ends the whole MPI
- * job, so that a rank that returns cannot leave the others waiting for it. common knows nothing
- * of such libraries; without a hook, reportFatal() just returns.
+ * Go2's constructor installs it; a program without Go2 calls installFatalReport() in the first line
+ * of main(). A program that wants a terminate handler of its own sets it afterwards.
  */
 
-/** @brief Registers a function that reportFatal() calls, with the exit code, before it returns */
-void addFatalEndHook(std::function<void(int)>);
+/** @brief Makes the fatal report the terminate handler of the process; idempotent */
+void installFatalReport() noexcept;
 
-/** @brief Reports the exception in flight on std::cerr, calls the end hooks and returns
- *  EXIT_FAILURE; for the handler of a function-try-block on main() */
-[[nodiscard]] int reportFatal() noexcept;
+/** @brief The text the fatal report prints for @p error (an empty pointer: no exception) */
+[[nodiscard]] std::string fatalMessage(const std::exception_ptr &error);
 
 /******************************************************************************/
 

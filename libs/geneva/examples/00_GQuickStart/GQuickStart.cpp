@@ -53,7 +53,6 @@
 #include <string_view>
 #include <vector>
 
-#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -110,7 +109,7 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 /******************************************************************************/
 
 //! [quickstart-tour-main]
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     // Reads the command line and ./config/Go2.json (written with defaults if absent).
     geneva::Go2 go(argc, argv, "./config/Go2.json");
     if(go.clientMode()) {
@@ -145,8 +144,5 @@ int main(int argc, char **argv) try {
         std::cerr << "GQuickStart: the search did not get close enough to (1, -2)\n";
     }
     return close_enough ? 0 : 1;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }
 //! [quickstart-tour-main]

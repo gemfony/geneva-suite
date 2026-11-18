@@ -37,7 +37,6 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/Go2.hpp"
 
@@ -47,7 +46,7 @@
 using namespace Gem::Geneva;
 
 //! [go2-main-quickstart]
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     Go2 go(argc, argv, "./config/Go2.json");
 
     //---------------------------------------------------------------------
@@ -99,8 +98,5 @@ int main(int argc, char **argv) try {
     // Do something with the best result. Here we simply print the result to stdout.
     std::cout << bestIndividual_ptr << '\n';
     //! [results-harvest]
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }
 //! [go2-main-quickstart]

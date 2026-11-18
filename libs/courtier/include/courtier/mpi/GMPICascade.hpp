@@ -196,14 +196,13 @@ public:
  *    exception inside the cascade's scope, logs it and rethrows it;
  *  - or it catches the exception and calls abortJob() with an exit code and the reason: the
  *    reason is logged and the job ends at once with that code.
- * A submitter that catches the exception and returns without either leaves the leads waiting, and
- * MPI_Finalize on the submitter waits for them: the job does not end. The cascade cannot tell such
- * a return from the normal end of a submitter without a consumer, whose leads call round()
- * themselves. A main() that hands the exception to Gem::Common::reportFatal()
- * (common/GFatalReport.hpp) returns safely: the end hook that courtier's MPI environment registers
- * with it ends the MPI job (MPI_Abort) while MPI is in use. Once a consumer was built, its end
- * tells the leads in every way it ends (GMPIConsumerT), and the destructor ends nothing; nor does
- * it at a normal end.
+ * An exception that nobody catches unwinds nothing: std::terminate() ends the process, and the MPI
+ * launcher ends the job with it. A submitter that catches the exception and returns without either
+ * leaves the leads waiting, and MPI_Finalize on the submitter waits for them: the job does not
+ * end. The cascade cannot tell such a return from the normal end of a submitter without a
+ * consumer, whose leads call round() themselves. Once a consumer was built, its end tells the
+ * leads in every way it ends (GMPIConsumerT), and the destructor ends nothing; nor does it at a
+ * normal end.
  *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with

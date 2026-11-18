@@ -253,10 +253,11 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
 
-	# A process that ends on a configuration error ends the whole MPI job, at once and with the exit
-	# code 1, while the other ranks wait for it (reportFatal() and the end hook of courtier's MPI side;
-	# ../CheckJobEnds.cmake: exit code, message, a bound of 30 s). Without the hook the waiting ranks
-	# would keep the job from ending.
+	# A process that ends on an error nobody handles ends the whole MPI job, at once and with the
+	# exit code 1, while the other ranks wait for it (the fatal report, common/GFatalReport.hpp;
+	# ../CheckJobEnds.cmake: exit code, message, a bound of 30 s): an error in a configuration, the
+	# same while main() holds the MPI environment (an unwinding would finalize MPI and wait for the
+	# other ranks), and an exception out of a thread other than main's.
 	ADD_EXECUTABLE(GCourtierMpiFatalEndExerciser GCourtierMpiFatalEndExerciser.cpp)
 	TARGET_LINK_LIBRARIES(GCourtierMpiFatalEndExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME}
 		${Boost_LIBRARIES} MPI::MPI_CXX)
@@ -264,17 +265,28 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/fatal-end)
 	FILE(MAKE_DIRECTORY ${_dir})
-	GENEVA_ADD_MPI_TEST(NAME GCourtierMpiFatalEndTest TIMEOUT 60
-			COMMAND ${CMAKE_COMMAND}
-				"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiFatalEndExerciser>;${MPIEXEC_POSTFLAGS}"
-				-DEXPECT_EXIT=1
-				"-DEXPECT=Error: ;has the wrong form: false;The program ends with the exit code 1"
-				"-DREFUSE=terminate called"
-				-DLIMIT=30
-				-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
-			WORKING_DIRECTORY ${_dir})
-	SET_TESTS_PROPERTIES(GCourtierMpiFatalEndTest PROPERTIES LABELS "courtier" PROCESSORS 3)
-	GENEVA_TEST_SIZE(GCourtierMpiFatalEndTest M)
+	FOREACH(_scenario config holder thread)
+		IF(_scenario STREQUAL "thread")
+			SET(_expect "Error: ;a thread of rank 1 failed (a standard exception)")
+		ELSE()
+			SET(_expect "Error: ;has the wrong form: false")
+		ENDIF()
+		SET(_name GCourtierMpiFatalEndTest)
+		IF(NOT _scenario STREQUAL "config")
+			STRING(APPEND _name "_${_scenario}")
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME ${_name} TIMEOUT 60
+				COMMAND ${CMAKE_COMMAND}
+					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiFatalEndExerciser>;${MPIEXEC_POSTFLAGS};${_scenario}"
+					-DEXPECT_EXIT=1
+					"-DEXPECT=${_expect};The program ends with the exit code 1"
+					"-DREFUSE=terminate called;FAIL"
+					-DLIMIT=30
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
+				WORKING_DIRECTORY ${_dir})
+		SET_TESTS_PROPERTIES(${_name} PROPERTIES LABELS "courtier" PROCESSORS 3)
+		GENEVA_TEST_SIZE(${_name} M)
+	ENDFOREACH()
 
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
 	# ends without a close of its role (the end of the listener's work, a session that cannot be

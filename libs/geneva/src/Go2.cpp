@@ -32,6 +32,7 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
+#include "common/GFatalReport.hpp"
 #include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations (boot-time completeness self-check)
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
@@ -89,7 +90,9 @@ std::once_flag fArchiveCheck; // NOLINT(cppcoreguidelines-avoid-non-const-global
 /**
  * A constructor that first parses the command line for relevant parameters and then
  * loads data from a configuration file. The user may pass additional configuration
- * parameters. This is the only allowed constructor.
+ * parameters. This is the only allowed constructor. It first installs the fatal report
+ * (Gem::Common::installFatalReport()), so that the program ends on an error nobody handles with a
+ * message and the exit code 1.
  *
  * @param argc The number of command line arguments
  * @param argv An array with the arguments
@@ -103,6 +106,9 @@ Go2::Go2(
     boost::program_options::options_description const &user_descriptions
 )
   : config_filename_(config_filename) {
+    // An error nobody handles ends the program with a message and the exit code 1, not an abort
+    Gem::Common::installFatalReport();
+
     //--------------------------------------------
     // --update-configs: detected here, before this constructor parses Go2.json (so Go2's own config is
     // refreshed too), through the shared config-emission facility -- the same switch, argv detection and

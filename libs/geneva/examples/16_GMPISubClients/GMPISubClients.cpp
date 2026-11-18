@@ -41,7 +41,6 @@
 #include <mpi.h>
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "courtier/GMPIHelperFunctions.hpp"
 #include "geneva/GMPISubClientOptimizer.hpp"
 
@@ -50,7 +49,7 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     GMPISubClientOptimizer optimizer(argc, argv, "config/GMPISubClientOptimizer.json");
 
     // register the sub-client job which is executed by sub-clients who need to communicate with geneva clients inside a subgroup
@@ -95,7 +94,4 @@ int main(int argc, char **argv) try {
     );
 
     // Do something with the best result
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

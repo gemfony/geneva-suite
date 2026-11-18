@@ -494,7 +494,9 @@ void writeMeans(
 
 /******************************************************************************/
 
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
+    // An error nobody handles ends the program with a message and the exit code 1
+    Gem::Common::installFatalReport();
     const auto args = parseArguments(argc, argv);
     if(not args) {
         return 0;
@@ -525,7 +527,4 @@ int main(int argc, char **argv) try {
         writeMeans(args->meansFile, series);
     }
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

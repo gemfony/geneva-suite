@@ -40,7 +40,6 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -53,9 +52,7 @@ using namespace Gem::Geneva;
 
 /******************************************************************************/
 
-// A failure (no reference to read, a reference that was not serial) ends the program with its
-// message and a non-zero status instead of an abort.
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     // The serial reference and the parallel measurement are two runs of this program. An
     // algorithm submits through the one consumer of its process, so a reference taken next to
     // the parallel measurement would run on the same workers and be no reference at all.
@@ -130,7 +127,4 @@ int main(int argc, char **argv) try {
         gate
     );
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

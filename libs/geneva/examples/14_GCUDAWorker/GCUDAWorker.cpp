@@ -86,7 +86,6 @@
 #include <vector>
 
 // Geneva headers
-#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/Go2.hpp"
@@ -237,7 +236,7 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
 } // anonymous namespace
 
 // NOLINTNEXTLINE(readability-function-size) -- example 14's main(): the launcher's linear setup script (config parsing, --update-configs, target-image load, client mode, parity-check dispatch, monitor + adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     // ---- example-specific settings, read from a Geneva config file ----------------------------
     // Ordinary config-file parameters parsed through the standard GParserBuilder (which also writes the file
     // with documented defaults on first run). Edit config/GImageGeneral.json and re-run -- no rebuild.
@@ -356,7 +355,4 @@ int main(int argc, char **argv) try {
     glogger << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n' << GLOGGING;
 
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

@@ -41,7 +41,6 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include <geneva/Go2.hpp>
 
 // The individual that should be optimized
@@ -59,7 +58,7 @@ namespace po = boost::program_options;
 /**
  * The main function
  */
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // We want to add additional command line options
 
@@ -143,7 +142,4 @@ int main(int argc, char **argv) try {
     // Perform the actual optimization
     auto const p =
         go.optimize()->getBestGlobalIndividual<gind::GDelayIndividual>();
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

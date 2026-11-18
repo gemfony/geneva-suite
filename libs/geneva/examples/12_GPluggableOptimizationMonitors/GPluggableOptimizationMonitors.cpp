@@ -38,7 +38,6 @@
 #include <boost/program_options.hpp>
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/Go2.hpp"
 
@@ -53,7 +52,7 @@ namespace po = boost::program_options;
  * The main function
  */
 // NOLINTNEXTLINE(readability-function-size) -- single example main: additional CLI options, pluggable-monitor registration, Go2 setup and the optimization run all belong to one driver
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // We want to add additional command line options
 
@@ -263,7 +262,4 @@ int main(int argc, char **argv) try {
     // We simply print its content here, by means of an operator<< implemented
     // in the GFunctionIndividual code.
     std::cout << "Best result found:" << '\n' << p << '\n';
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

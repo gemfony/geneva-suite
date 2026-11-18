@@ -54,10 +54,10 @@
 // Standard header files go here
 #include <chrono>
 #include <cstdint>
-#include <exception>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -338,21 +338,12 @@ int runGroupProcess(
         return cascade.serve(member);
     }
     if(cascade.role() == processRole::SUBMITTER) {
-        try {
-            cascade.requireRole(
-                consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer})
-            );
-            Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
-            return measure(go, settings);
-        }
-        catch(const std::exception &e) {
-            // An option only Go2 knows, refused here alone; a missing serial reference. The
-            // cascade ends the job as the exception leaves it (the leads wait for this process's
-            // greeting); the text is printed first, which the cascade cannot do.
-            std::cerr << "GSubClientOverhead: " << e.what() << '\n';
-            std::cerr.flush();
-            throw;
-        }
+        // An error here (an option only Go2 knows, refused here alone; a missing serial
+        // reference) is caught by nobody: the fatal report prints it and ends this process, and
+        // with it the job, whose leads wait for this process's greeting.
+        cascade.requireRole(consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer}));
+        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
+        return measure(go, settings);
     }
 
     // A lead. The client is declared after the cascade: it goes before the cascade's communicators.
@@ -390,8 +381,9 @@ int runGroupProcess(
 
 /******************************************************************************/
 
-// A failure ends the program with its message and a non-zero status instead of an abort.
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
+    // An error nobody handles ends the program with a message and the exit code 1
+    Gem::Common::installFatalReport();
     const Role role = readRole(argc, argv);
     Settings settings;
     if(not role.updateConfigs and role.group > 1) {
@@ -415,7 +407,4 @@ int main(int argc, char **argv) try {
         return go.clientRun();
     }
     return measure(go, settings);
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

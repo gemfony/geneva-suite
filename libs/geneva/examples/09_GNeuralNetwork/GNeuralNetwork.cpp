@@ -41,7 +41,6 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -60,7 +59,7 @@ namespace po = boost::program_options;
  * The main function.
  */
 // NOLINTNEXTLINE(readability-function-size) -- single example main: additional CLI options, training-data setup, Go2 setup and the optimization run all belong to one driver
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // Assemble additional command line options to be passed to Go2
     // clang-format off
@@ -174,9 +173,6 @@ int main(int argc, char **argv) try {
 
     // Terminate Geneva
     return 0;
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }
 
 /******************************************************************************/

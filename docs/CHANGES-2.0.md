@@ -139,13 +139,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
   `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
   applied ran on its defaults. Code that tested the result drops the test.
-- **A program ends on an error it does not handle with a message and the exit code 1**, not
-  with an abort and a core dump: every example, benchmark and the quick start hand it to
-  `Gem::Common::reportFatal()` (`common/GFatalReport.hpp`) from a function-try-block on
-  `main()` -- `int main(int argc, char **argv) try { ... } catch(...) { return
-  Gem::Common::reportFatal(); }` -- and a program of your own does the same. Under MPI the
-  whole job ends (courtier's MPI side registers an end hook with the reporter), so a rank that
-  fails cannot leave the others waiting.
+- **A Geneva program ends on an error nobody handles with a message and the exit code 1**, not
+  with an abort and a core dump: Go2's constructor makes `Gem::Common::installFatalReport()`
+  (`common/GFatalReport.hpp`) the terminate handler of the process; a program without Go2 calls it
+  in the first line of `main()`. Nothing is unwound on the way, so under MPI no process finalizes
+  MPI while others wait for it, and the launcher ends the whole job. A program that wants its own
+  terminate handler sets it after constructing Go2.
 
 ## 5. Parallelization and consumers
 

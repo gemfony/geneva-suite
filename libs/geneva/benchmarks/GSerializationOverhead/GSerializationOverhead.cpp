@@ -41,7 +41,6 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/individuals/GTestIndividual2.hpp"
 #include "geneva/oa/GAdaption.hpp"
@@ -65,7 +64,7 @@ using namespace Gem::Geneva;
 using namespace Gem::Geneva::Individuals;
 
 // NOLINTNEXTLINE(readability-function-size) -- single benchmark main measuring adaption and serialization timings for one individual across the configured measurement sweep
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     std::string const caption =
         "Times for adaption and serialization (" + Gem::Common::to_string(NMEASUREMENTS) +
         " measurements each; serialization in " +
@@ -221,7 +220,4 @@ int main(int argc, char **argv) try {
 
     // Emit the result file
     gpd.writeToFile("result.C");
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

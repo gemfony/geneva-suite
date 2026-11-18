@@ -69,7 +69,6 @@
 #include <vector>
 
 // Geneva headers
-#include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
@@ -206,7 +205,7 @@ int runParityCheck(int n, const std::string &consumerConfig) {
 } // anonymous namespace
 
 /******************************************************************************/
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     // ---- example-specific settings, read from a Geneva config file ----------------------------
     std::string consumerConfig;
     int parityCheckN = 0;
@@ -275,7 +274,4 @@ int main(int argc, char **argv) try {
     auto p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     std::cout << "Best result found:" << '\n' << p << '\n';
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

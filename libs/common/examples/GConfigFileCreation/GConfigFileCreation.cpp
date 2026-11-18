@@ -94,7 +94,9 @@ void setGlobalStdArray(std::array<int, ARRAYSIZE> par) {
  * This example illustrates the usage options of the GParserBuilder class
  */
 // NOLINTNEXTLINE(readability-function-size) -- example main walking through the GParserBuilder registration patterns (examples 1-7) sequentially; splitting would fragment a single linear demonstration
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
+    // An error nobody handles ends the program with a message and the exit code 1
+    Gem::Common::installFatalReport();
     int creationSwitcher = 0;
     bool useOperator = false;
     std::string fileName;
@@ -355,7 +357,4 @@ int main(int argc, char **argv) try {
     if(emit_configs) {
         Gem::Common::finishConfigEmission();
     }
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

@@ -46,7 +46,6 @@
 #include <iostream>
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual to be optimized (compiled in). The algorithm comes from --module.
@@ -54,7 +53,7 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
     Go2 go(argc, argv, "./config/Go2.json");
 
     //---------------------------------------------------------------------------
@@ -92,7 +91,4 @@ int main(int argc, char **argv) try {
         go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     std::cout << "Best result found:" << '\n' << best << '\n';
-}
-catch(...) {
-    return Gem::Common::reportFatal();
 }

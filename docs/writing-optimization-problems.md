@@ -118,20 +118,10 @@ There are three ways to give an algorithm its adaption config:
   adapter.adapt(genome);                              // mutates in place
   ```
 
-An error the program does not handle -- a configuration file that cannot be applied, say -- reaches
-`main()` as an exception. Hand it to `Gem::Common::reportFatal()` (`common/GFatalReport.hpp`) from a
-function-try-block, as every example does: the program prints the message and ends with the exit
-code 1 instead of aborting, and under MPI the whole job ends.
-
-```cpp
-int main(int argc, char **argv) try {
-    Go2 go(argc, argv, "./config/Go2.json");
-    // ...
-}
-catch(...) {
-    return Gem::Common::reportFatal();
-}
-```
+An error the program does not handle -- a configuration file that cannot be applied, say -- ends
+the program with its message and the exit code 1, also under MPI, where the launcher then ends the
+whole job: Go2's constructor installs `Gem::Common::installFatalReport()` (`common/GFatalReport.hpp`)
+as the terminate handler. A program without Go2 calls it in the first line of `main()`.
 
 ## 5. Adapting without a config is a hard error
 

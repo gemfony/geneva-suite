@@ -104,6 +104,10 @@ public:
 
     /**
      * @brief A constructor that first parses the command line for relevant parameters and allows to specify a default config file name.
+     *
+     * It first installs the fatal report (Gem::Common::installFatalReport(), common/GFatalReport.hpp):
+     * a program ends on an error nobody handles with a message and the exit code 1. A program that
+     * wants a terminate handler of its own sets it after constructing Go2.
      */
     Go2(int argc,
         char **argv,
