@@ -1045,3 +1045,34 @@ TEST_CASE("GParserBuilder::parseConfigFile throws on a file it cannot apply and 
     CHECK_THROWS_AS(gpb.updateConfigFile(cfg), geneva_exception);
     std::filesystem::remove(cfg);
 }
+
+// ---------------------------------------------------------------------------
+// Regression: a boolean that was not "true" or "1" read as false, and a number that did not read
+// as its type was read as far as it went ("2.5" as 2) or left indeterminate ("two"). Such a value
+// is refused, naming the key; the all-strings form of a valid value still reads.
+
+TEST_CASE("GParserBuilder: a value that does not read as its type is refused with its key named",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    OneOfEachKind k;
+
+    CHECK_THROWS_WITH(
+        k.load(R"({ "flag": { "value": "yes" } })"),
+        ContainsSubstring(R"("flag" has the value "yes", which is not a boolean)")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "group": { "alpha": { "value": 2.5 } } })"),
+        ContainsSubstring(R"("group/alpha" has the value)")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "list": { "value": [1, "two"] } })"),
+        ContainsSubstring(R"("list" has the value "two", which is not a number)")
+    );
+    CHECK_THROWS_WITH(k.load(R"({ "pair": { "value": [1, "x"] } })"), ContainsSubstring(R"("pair")"));
+
+    k.load(R"({ "flag": { "value": "false" }, "group": { "beta": { "value": "1e-3" } },
+                "list": { "value": [" 4 ", 5] } })");
+    CHECK_FALSE(k.flag);
+    CHECK(k.beta == 1e-3);
+    CHECK(k.list == std::vector<int>{4, 5});
+}

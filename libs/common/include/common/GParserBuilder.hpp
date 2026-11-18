@@ -110,25 +110,65 @@ std::string cfgScalarToString(T const &v) {
 }
 
 /******************************************************************************/
+/** @brief Reads a number from the whole of @p s: anything that is not a number of type T (text,
+ *  a trailing remainder such as the ".5" of "2.5" for an integer) is refused rather than read as
+ *  far as it goes, or as an indeterminate value.
+ *  @tparam T The arithmetic type to read
+ *  @param s The string to parse
+ *  @param key The configuration key the value belongs to (named in the error text)
+ *  @return The parsed value
+ *  @throws geneva_exception if @p s is not a number of type T */
+template <typename T>
+T cfgNumberFromString(std::string const &s, std::string const &key) {
+    T val{};
+    std::istringstream iss(s);
+    iss >> val;
+    if(iss.fail() || not(iss >> std::ws).eof()) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "The configuration entry \"" << key << "\" has the value \"" << s
+            << "\", which is not a number of its type" << '\n'
+        );
+    }
+    return val;
+}
+
+/******************************************************************************/
 /** @brief Parses an on-disk scalar string back into its parameter type (inverse of
- *  cfgScalarToString). Booleans accept both "true"/"false" and "1"/"0".
+ *  cfgScalarToString). Booleans accept "true"/"false" and "1"/"0"; a boolean or a number that does
+ *  not read as one is refused (it used to read as false, or as an indeterminate number).
  *  @tparam T The scalar parameter type
  *  @param s The string to parse
- *  @return The parsed value */
+ *  @param key The configuration key the value belongs to (named in the error text)
+ *  @return The parsed value
+ *  @throws geneva_exception if @p s is not a value of a boolean or numeric T */
 template <typename T>
-T cfgScalarFromString(std::string const &s) {
+T cfgScalarFromString(std::string const &s, std::string const &key) {
     if constexpr(std::is_same_v<T, std::string>) {
         return s;
     }
     else if constexpr(std::is_same_v<T, bool>) {
-        return (s == "true" || s == "1");
+        if(s == "true" || s == "1") {
+            return true;
+        }
+        if(s == "false" || s == "0") {
+            return false;
+        }
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "The configuration entry \"" << key << "\" has the value \"" << s
+            << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
+        );
     }
     else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
         // (u)int8_t is a character type: a stream extraction of "1" would read the character '1'
         // (value 49), not the number 1. Parse through a wider integer so small enums/counts stored in
         // an 8-bit field round-trip by value.
         using wider = std::conditional_t<std::is_signed_v<T>, int, unsigned int>;
-        return static_cast<T>(Gem::Common::from_string<wider>(s));
+        return static_cast<T>(cfgNumberFromString<wider>(s, key));
+    }
+    else if constexpr(std::is_arithmetic_v<T>) {
+        return cfgNumberFromString<T>(s, key);
     }
     else {
         return Gem::Common::from_string<T>(s);
@@ -689,8 +729,10 @@ private:
         // An absent key keeps the value seeded from the default in the constructor; a present one
         // of the wrong form is refused.
         if(auto const *v = detail::cfgEntryValue(root, GParsableI::optionName(0), false)) {
-            GSingleParmT<parameter_type>::par_ =
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(*v));
+            GSingleParmT<parameter_type>::par_ = detail::cfgScalarFromString<parameter_type>(
+                detail::cfgValueToString(*v),
+                GParsableI::optionName(0)
+            );
         }
     }
 
@@ -986,12 +1028,16 @@ private:
             return;
         }
         if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(0), false, label)) {
-            GCombinedParT<par0_type, par1_type>::par0_ =
-                detail::cfgScalarFromString<par0_type>(detail::cfgValueToString(*v));
+            GCombinedParT<par0_type, par1_type>::par0_ = detail::cfgScalarFromString<par0_type>(
+                detail::cfgValueToString(*v),
+                label + "/" + GParsableI::optionName(0)
+            );
         }
         if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(1), false, label)) {
-            GCombinedParT<par0_type, par1_type>::par1_ =
-                detail::cfgScalarFromString<par1_type>(detail::cfgValueToString(*v));
+            GCombinedParT<par0_type, par1_type>::par1_ = detail::cfgScalarFromString<par1_type>(
+                detail::cfgValueToString(*v),
+                label + "/" + GParsableI::optionName(1)
+            );
         }
     }
 
@@ -1257,7 +1303,10 @@ private:
         GVectorParT<parameter_type>::par_cnt_.clear();
         for(auto const &v : values->get_array()) {
             GVectorParT<parameter_type>::par_cnt_.push_back(
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(v))
+                detail::cfgScalarFromString<parameter_type>(
+                    detail::cfgValueToString(v),
+                    GParsableI::optionName(0)
+                )
             );
         }
     }
@@ -1519,7 +1568,10 @@ private:
             i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values.size();
             ++i) {
             GArrayParT<parameter_type, N>::par_arr_.at(i) =
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(values[i]));
+                detail::cfgScalarFromString<parameter_type>(
+                    detail::cfgValueToString(values[i]),
+                    GParsableI::optionName(0)
+                );
         }
         // Elements beyond the on-disk array length keep their defaults.
     }
