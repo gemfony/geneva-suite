@@ -73,8 +73,8 @@ namespace Gem::Courtier::Consumers {
  *    something else -- also before the role has been told of the open, which waits for the
  *    role's strand. What is read is delivered: the role is told of the open and of every message
  *    read before its close has gone out, also when it asks for the close before onOpen has run.
- *    A role that asked for the close before the open is told nothing, and nothing is read before
- *    this end's close has gone out (rule 6);
+ *    A role that asked for the close before the open is told nothing but the end (rule 1), and
+ *    nothing is read for it;
  *  - sends through a queue, because Beast allows one write at a time;
  *  - closes in the regular way after what was handed to send() before (rule 6): the close frame
  *    goes out when the write queue is empty, so a message of several frames is never cut. The
@@ -87,14 +87,10 @@ namespace Gem::Courtier::Consumers {
  *    Once the connection is over Beast's limits are switched off (Beast leaves its timer armed
  *    after a failed read, which would keep an io context busy). abort() ends at once and may cut.
  *
- * What a close says (GPeerClose) travels as the websocket close code. The client's end begins
- * its closes with NORMAL as 1000, ERROR as 1011 and RUN_ENDED as GCONSUMERCLOSECODECLIENTRUNENDED;
- * the server's end with codes of its own (GCONSUMERCLOSECODESERVERNORMAL,
- * GCONSUMERCLOSECODESERVERERROR, and RUN_ENDED as GCONSUMERCLOSECODERUNENDED). onClosed reports
- * the code received from the other end as what it says (an acknowledgement echoes this end's own
- * code). Since the two ends never begin a close with the same code, a close frame read after this
- * end's own is an answer to it exactly when it carries this end's code; the other end's own close,
- * crossing ours, does not confirm it (GPeerI.hpp, rule 6).
+ * What a close says (GPeerClose) travels as the websocket close code, the same at both ends:
+ * NORMAL as 1000, ERROR as 1011, RUN_ENDED as GCONSUMERCLOSECODERUNENDED. onClosed reports the code
+ * received from the other end as what it says. An end that began the close reports CLOSED_HERE,
+ * however the close handshake ended: a close proves nothing (GPeerI.hpp, rule 6).
  *
  * Threads. The peer works on two executors. The stream lives on the socket's executor, which must
  * serialize the handlers it runs (a strand, or a context with one thread): reading, writing, the
@@ -175,7 +171,6 @@ private:
     void writeDone_(const boost::system::error_code &ec);
     void beginClose_(GPeerClose);
     void closeWhenSent_();
-    [[nodiscard]] bool answersOurClose_() const;
     void finish_(const boost::system::error_code &cause, bool report_inline = false);
 
     boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws_; ///< The connection
@@ -205,10 +200,6 @@ private:
     bool close_sent_ = false; ///< async_close has been issued
     bool local_close_ = false;                 ///< This end began the close
     bool close_received_ = false;              ///< The other end's close frame has arrived
-    /// The other end's close frame arrived after ours was written and answers it: the close is
-    /// confirmed
-    bool close_confirmed_ = false;
-    bool abort_unclosed_ = false; ///< abort() ended a peer whose close() had not been called
     boost::system::error_code close_error_; ///< How the close handshake ended, for the log
     GPeerEnd end_ = GPeerEnd::FAILED;       ///< The end decided by finish_() (once finished_)
     GPeerClose end_how_ = GPeerClose::NORMAL; ///< What the other end's close said (once finished_)

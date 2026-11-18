@@ -154,16 +154,6 @@ constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
 /// The websocket close code that tells a client that the run has ended and it need not come back
 /// (GPeerClose::RUN_ENDED): the first code free for applications.
 constexpr std::uint16_t GCONSUMERCLOSECODERUNENDED = 4000;
-/// The websocket close codes of the closes a server's end begins with GPeerClose::NORMAL and
-/// GPeerClose::ERROR. A client's end begins them with the standard codes (1000, 1011) and
-/// GPeerClose::RUN_ENDED with GCONSUMERCLOSECODECLIENTRUNENDED: the two ends of a connection never
-/// begin a close with the same code, so that an end can tell an answer to its close (which echoes
-/// its code) from the other end's own close crossing it (GWebsocketPeer, GPeerI.hpp rule 6).
-constexpr std::uint16_t GCONSUMERCLOSECODESERVERNORMAL = 4001;
-/// See GCONSUMERCLOSECODESERVERNORMAL
-constexpr std::uint16_t GCONSUMERCLOSECODECLIENTRUNENDED = 4002;
-/// See GCONSUMERCLOSECODESERVERNORMAL
-constexpr std::uint16_t GCONSUMERCLOSECODESERVERERROR = 4003;
 /// The largest websocket message accepted, in bytes; 0 means no limit. A work item or a result
 /// travels as one message, and its size is the user's business (the MPI transport has no cap
 /// either).
@@ -179,8 +169,8 @@ constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 /// and is closed by its own idle limit if the pause lasts two ping intervals.
 constexpr std::size_t GWEBSOCKETMAXUNHANDLEDMESSAGES = 1024;
 /// How long a stopping websocket server waits, after it has told every client that the run has
-/// ended, for the clients to confirm (GListenerI::stopGrace()). A client that has not confirmed by
-/// then is cut off and sees a loss.
+/// ended, for the connections to end (GListenerI::stopGrace()). A connection that has not ended by
+/// then is cut off, and its client sees a loss.
 constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
 
 /******************************************************************************
@@ -247,16 +237,12 @@ constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
 /// The rank of the submitter in courtier's communicator
 constexpr int RANK_MASTER_NODE = 0;
 /// The message tags of the MPI transport's ends (GMPIPeer): the greeting of the submitter's
-/// listener, a message of the role, a close (with what it says), and the answer to a close.
+/// listener, a message of the role, and a close (with what it says).
 constexpr int TAG_PEER_OPEN = 46;
 constexpr int TAG_PEER_MESSAGE = 47;
 constexpr int TAG_PEER_CLOSE = 48;
-constexpr int TAG_PEER_CLOSE_ACK = 49;
 /// The number of threads the sessions of the MPI consumer run on, by default (MPIConsumerConfig)
 constexpr std::uint32_t GMPICONSUMERSESSIONTHREADS = 2;
-/// How long a closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its
-/// close; the MPI consumer's stop grace is this and a second (GMPIListener::stopGrace()).
-constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 
 /******************************************************************************
  * Constants of the MPI poll core (transport/GMPIPollCore.hpp), the defaults of GMPIPollTiming:

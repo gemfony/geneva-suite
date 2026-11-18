@@ -566,7 +566,7 @@ TEST_CASE(
     boost::system::error_code ec;
     peer.ws.read(buffer, ec);
     CHECK(ec == Websocket::error::closed); // the session closed the connection
-    CHECK(peer.ws.reason().code == Gem::Courtier::GCONSUMERCLOSECODESERVERERROR);
+    CHECK(peer.ws.reason().code == Websocket::close_code::internal_error); // GPeerClose::ERROR
     REQUIRE(eventually([&] { return consumer->requeuedCount() == 1; })); // the item is back
 
     // Another client can now evaluate the item.

@@ -90,8 +90,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr auto PATIENCE = 5s;       // how long a test waits for something that is due at once
-constexpr auto CLOSE_GRACE = 300ms; // the ends' wait for an answer, where it matters
+constexpr auto PATIENCE = 5s; // how long a test waits for something that is due at once
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
 template <typename condition_type>
@@ -99,10 +98,10 @@ bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 
-/** @brief @param grace The close grace @return The options of the tests' ends: the drain at the
- *  end of the work is short too (some tests have ranks that never receive) */
-GMPIPeerOptions optionsWith(std::chrono::milliseconds grace = CLOSE_GRACE) {
-    GMPIPeerOptions options{.name = "test", .closeGrace = grace};
+/** @brief @return The options of the tests' ends: the drain at the end of the work is short (some
+ *  tests have ranks that never receive) */
+GMPIPeerOptions optionsWith() {
+    GMPIPeerOptions options{.name = "test"};
     options.poll.drainGrace = 300ms;
     return options;
 }
@@ -346,66 +345,25 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * A client whose role closes before the greeting has arrived: the close is answered by a master
- * that starts within the grace (CLOSED_HERE, without onOpen); without one it is unconfirmed at the
- * grace.
+ * A client whose role closes before the greeting has arrived ends at once, without onOpen, with
+ * CLOSED_HERE (whether a master is there or not); a master that starts later sees that rank's end
+ * closed.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a close before the greeting", "[courtier][mpi]") {
     auto world = std::make_shared<GMPIFakeWorld>(2);
-
-    SECTION("a master that starts answers it") {
-        Master master(world, optionsWith(5s));
-        Client client(world, 1, optionsWith(5s));
-        REQUIRE(eventually([&] { return world->counts(1).probes > 0; })); // the poll runs
-        client.role().close(GPeerClose::NORMAL);
-        REQUIRE(eventually([&] { return world->counts(1).sends == 1; })); // the close is out
-        master.start();
-        REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-        CHECK(client.role().events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
-        REQUIRE(eventually([&] {
-            const auto role = master.role(1);
-            REQUIRE(role != nullptr);
-            return role != nullptr && role->nClosed() == 1;
-        }));
-    }
-
-    SECTION("without a master it is not confirmed") {
-        Client client(world, 1);
-        REQUIRE(eventually([&] { return world->counts(1).probes > 0; }));
-        const auto begin = std::chrono::steady_clock::now();
-        client.role().close(GPeerClose::NORMAL);
-        REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-        const auto took = std::chrono::steady_clock::now() - begin;
-        CHECK(took >= CLOSE_GRACE);
-        CHECK(
-            client.role().events() ==
-            std::vector<std::string>{"closed:CLOSED_HERE_UNCONFIRMED:NORMAL"}
-        );
-    }
-}
-
-/******************************************************************************/
-/** A close that the other end never answers ends unconfirmed at the grace (rule 6). */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
-TEST_CASE("MPI transport: a close that is never answered", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(2); // rank 1 never receives: nobody polls there
-    Master master(world);
+    Master master(world, optionsWith());
+    Client client(world, 1, optionsWith());
+    REQUIRE(eventually([&] { return world->counts(1).probes > 0; })); // the poll runs
+    client.role().close(GPeerClose::NORMAL);
+    REQUIRE(eventually([&] { return client.role().nClosed() == 1; })); // at once, without a master
+    CHECK(client.role().events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
+    REQUIRE(eventually([&] { return world->counts(1).sends == 1; })); // the close is out
     master.start();
-    REQUIRE(eventually([&] { return master.role(1) != nullptr; }));
-    const auto role = master.role(1);
-    REQUIRE(role != nullptr);
-    REQUIRE(eventually([&] { return role->events().size() == 1; }));
-
-    const auto begin = std::chrono::steady_clock::now();
-    role->close(GPeerClose::RUN_ENDED);
-    REQUIRE(eventually([&] { return role->nClosed() == 1; }));
-    const auto took = std::chrono::steady_clock::now() - begin;
-    CHECK(took >= CLOSE_GRACE);
-    CHECK(took < CLOSE_GRACE + 2s);
-    CHECK(role->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
-    CHECK(master.listener().stopGrace() == CLOSE_GRACE + 1s);
-    CHECK_FALSE(master.listener().detectsLoss());
+    REQUIRE(eventually([&] {
+        const auto role = master.role(1);
+        return role != nullptr && role->nClosed() == 1;
+    }));
 }
 
 /******************************************************************************/
@@ -600,6 +558,8 @@ TEST_CASE("MPI transport: the listener's stop and end", "[courtier][mpi]") {
     master.pool().join();
     master.listener().endWork();
     CHECK(master.rolesLetGo());
+    CHECK(master.listener().stopGrace() == 1s); // a constant: nothing waits for an answer
+    CHECK_FALSE(master.listener().detectsLoss());
 }
 
 /******************************************************************************/
@@ -691,15 +651,14 @@ TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
 /******************************************************************************/
 /**
  * The poll of the submitter runs on a thread of its own: a session that takes longer over a message
- * than the poll's drain grace changes nothing for its client, whose close is answered (not ended by
- * its timer).
+ * than the poll's drain grace changes nothing for its client.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a slow session does not hold up the poll", "[courtier][mpi]") {
     // One session thread, held by rank 1's session while it handles a message: the poll has a
-    // thread of its own, so rank 2's message is received meanwhile, and rank 1's close is answered.
+    // thread of its own, so rank 2's message is received meanwhile, and rank 1's close arrives.
     auto world = std::make_shared<GMPIFakeWorld>(3);
-    GMPIPeerOptions options = optionsWith(5s);
+    GMPIPeerOptions options = optionsWith();
     Master master(world, options, 1);
     Client one(world, 1, options);
     Client two(world, 2, options);
@@ -809,8 +768,8 @@ TEST_CASE("MPI transport: a busy owner makes its poll look less often", "[courti
 /******************************************************************************/
 /**
  * A submitter that never starts tells the clients that wait for its greeting that the run has ended;
- * they end without having been opened. A rank that does not answer is waited for at most the stop
- * grace.
+ * they end without having been opened. Nothing waits for an answer: the announcement returns before
+ * the stop grace, also when a rank never receives.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a listener that never starts announces the end", "[courtier][mpi]") {
@@ -832,13 +791,9 @@ TEST_CASE("MPI transport: a listener that never starts announces the end", "[cou
     if(all_there) {
         REQUIRE(eventually([&] { return two->role().nClosed() == 1; }));
         CHECK(two->role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-        CHECK(took < listener->stopGrace());
     }
-    else {
-        // rank 2 never receives: its answer does not come; its end gives up at the close grace
-        CHECK(took >= CLOSE_GRACE);
-        CHECK(took < listener->stopGrace() + 2s);
-    }
+    // rank 2, if it is not there, never receives: nothing waits for it beyond the drain
+    CHECK(took < listener->stopGrace());
 }
 
 /******************************************************************************/

@@ -91,8 +91,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr auto PATIENCE = 5s;       // how long a test waits for something that is due at once
-constexpr auto CLOSE_GRACE = 300ms; // the ends' wait for an acknowledgement, where it matters
+constexpr auto PATIENCE = 5s; // how long a test waits for something that is due at once
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
 template <typename condition_type>
@@ -104,10 +103,9 @@ bool eventually(condition_type condition) {
 auto pairOn(
     const boost::asio::any_io_executor &executor,
     GInProcessFaults first = {},
-    GInProcessFaults second = {},
-    std::chrono::milliseconds grace = CLOSE_GRACE
+    GInProcessFaults second = {}
 ) {
-    return GInProcessPeer::makePair(executor, first, executor, second, grace);
+    return GInProcessPeer::makePair(executor, first, executor, second);
 }
 
 /******************************************************************************/
@@ -127,10 +125,9 @@ public:
         return io_.executor();
     }
 
-    /** @brief @param grace How long a close waits for its answer @return The two ends */
-    std::pair<std::shared_ptr<GInProcessPeer>, std::shared_ptr<GInProcessPeer>>
-    pair(std::chrono::milliseconds grace = CLOSE_GRACE) {
-        auto [a, b] = pairOn(io_.executor(), {}, {}, grace);
+    /** @brief @return The two ends */
+    std::pair<std::shared_ptr<GInProcessPeer>, std::shared_ptr<GInProcessPeer>> pair() {
+        auto [a, b] = pairOn(io_.executor());
         auto handed_over = std::make_shared<std::atomic<std::size_t>>(0);
         handed_over_ = handed_over;
         a->setTransmitHook([handed_over](std::string_view) { handed_over->fetch_add(1); });
@@ -181,12 +178,11 @@ public:
         return ctx_.get_executor();
     }
 
-    /** @brief @param grace How long a close waits for its answer @return The two ends: rank 0's
-     *  end of the connection to rank 1, and rank 1's end of the connection to rank 0 */
-    std::pair<std::shared_ptr<GMPIPeer>, std::shared_ptr<GMPIPeer>>
-    pair(std::chrono::milliseconds grace = CLOSE_GRACE) {
+    /** @brief @return The two ends: rank 0's end of the connection to rank 1, and rank 1's end of
+     *  the connection to rank 0 */
+    std::pair<std::shared_ptr<GMPIPeer>, std::shared_ptr<GMPIPeer>> pair() {
         world_ = std::make_shared<GMPIFakeWorld>(2);
-        const GMPIPeerOptions options{.name = "MPI pair", .closeGrace = grace};
+        const GMPIPeerOptions options{.name = "MPI pair"};
         auto first_core = std::make_shared<GMPIPollCore>(world_->calls(0), ctx_.get_executor());
         auto second_core = std::make_shared<GMPIPollCore>(world_->calls(1), ctx_.get_executor());
         auto a = std::make_shared<GMPIPeer>(
@@ -399,9 +395,7 @@ TEMPLATE_TEST_CASE(
 /**
  * Rule 6: a close sends what was handed to send() before it, and what the close says reaches the
  * other end; a send() after close() is dropped; what arrives after close() is delivered until this
- * end's close has gone out, and not after; only an answer confirms a close, the other end's own
- * close crossing it does not; an end whose role closed before it was told of the open confirms
- * nothing.
+ * end's close has gone out, and not after; abort() reports at once; the first close decides.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEMPLATE_TEST_CASE(
@@ -434,8 +428,7 @@ TEMPLATE_TEST_CASE(
         }
         expected.emplace_back("closed:CLOSED_THERE:RUN_ENDED");
         CHECK(role_b->events() == expected);
-        // The other end answered the close: confirmed (rule 6)
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE:RUN_ENDED");
+        CHECK(role_a->events().back() == "closed:CLOSED_HERE:NORMAL");
     }
 
     SECTION("what arrives after close() and before this end's close has gone out is delivered") {
@@ -485,56 +478,6 @@ TEMPLATE_TEST_CASE(
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
         CHECK(role_b->events() ==
               std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
-    }
-
-    SECTION("an end whose role closed before it was told of the open confirms nothing") {
-        // a sends D and closes before b is started: both wait at b. b's role then asks for the
-        // close before it is told of the open. b's role never sees D, so a's close must not be
-        // confirmed: b's close goes out before b reads what has arrived, and the two cross.
-        auto [a, b] = transport.pair();
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->whenOpen = [](Role &role) {
-            role.send("D");
-            role.close(GPeerClose::NORMAL);
-        };
-        role_a->start(a);
-        REQUIRE(eventually([&] { return transport.arrived(2); })); // D and the close
-        // what a sent has reached b (b's strand has run it)
-        const auto arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(b->executor(), [arrived] { arrived->count_down(); });
-        REQUIRE(arrived->wait_for(PATIENCE));
-
-        const auto release = holdStrand(b->executor());
-        role_b->start(b);
-        role_b->close(GPeerClose::NORMAL); // before start()'s work has run
-        release->count_down();
-        REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
-        CHECK(role_b->events() ==
-              std::vector<std::string>{"closed:CLOSED_HERE_UNCONFIRMED:NORMAL"});
-    }
-
-    SECTION("two closes that cross confirm neither") {
-        auto [a, b] = transport.pair();
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->start(a);
-        role_b->start(b);
-        REQUIRE(eventually([&] {
-            return role_a->events().size() == 1 && role_b->events().size() == 1;
-        }));
-        // Both strands are held, so that each end's close has gone out before the other's
-        // arrives.
-        const auto release_a = holdStrand(a->executor());
-        const auto release_b = holdStrand(b->executor());
-        role_a->close(GPeerClose::NORMAL);
-        role_b->close(GPeerClose::ERROR);
-        release_a->count_down();
-        release_b->count_down();
-        REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:ERROR");
-        CHECK(role_b->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
     }
 
     SECTION("abort() reports at once; the other end hears a close") {
@@ -678,53 +621,12 @@ TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
 
 /******************************************************************************/
 /**
- * The close protocol of the in-process pair: a close that is never acknowledged ends at the grace,
- * and is not confirmed (rule 6); abort() of an end whose close was under way reports
- * CLOSED_HERE_UNCONFIRMED; an end that loses messages after a number of them still hears the close.
- * (abort() of an end that had not been closed, and the first close's word, are cases of rule 6 for
- * every transport.)
+ * The switches of the in-process pair: an end that loses messages after a number of them still
+ * hears the close. (abort(), and the first close's word, are cases of rule 6 for every transport.)
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[courtier][peer]") {
     IoThreads io;
-
-    SECTION("a close that is never acknowledged ends at the grace") {
-        auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.acknowledgeClose = false});
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->start(a);
-        role_b->start(b);
-        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
-
-        const auto begin = std::chrono::steady_clock::now();
-        role_a->close(GPeerClose::RUN_ENDED);
-        REQUIRE(eventually([&] { return role_a->nClosed() == 1; }));
-        const auto took = std::chrono::steady_clock::now() - begin;
-        CHECK(took >= CLOSE_GRACE);
-        CHECK(took < CLOSE_GRACE + 2s);
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
-        CHECK_FALSE(b->ended()); // it is let go with the context, without onClosed (rule 5)
-    }
-
-    SECTION("abort() of an end whose close is not confirmed reports it so") {
-        auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.acknowledgeClose = false});
-        auto role_a = makeRole();
-        auto role_b = makeRole();
-        role_a->start(a);
-        role_b->start(b);
-        REQUIRE(eventually([&] { return role_b->events().size() == 1; }));
-
-        std::promise<int> closed_in_abort;
-        boost::asio::post(a->executor(), [&, peer = a] {
-            peer->close(GPeerClose::NORMAL);
-            boost::asio::post(peer->executor(), [&, peer] { // after the close has gone out
-                peer->abort();
-                closed_in_abort.set_value(role_a->nClosed());
-            });
-        });
-        CHECK(closed_in_abort.get_future().get() == 1);
-        CHECK(role_a->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
-    }
 
     SECTION("an end that loses what comes after three messages") {
         auto [a, b] = pairOn(io.executor(), {}, GInProcessFaults{.deliverAtMost = 3});
@@ -871,7 +773,7 @@ TEST_CASE(
     IoThreads server;
     auto client_ctx = std::make_unique<boost::asio::io_context>();
     auto [server_end, client_end] =
-        GInProcessPeer::makePair(server.executor(), {}, client_ctx->get_executor(), {}, CLOSE_GRACE);
+        GInProcessPeer::makePair(server.executor(), {}, client_ctx->get_executor(), {});
 
     const auto in_hook = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
@@ -913,13 +815,7 @@ TEST_CASE(
     "[courtier][peer]"
 ) {
     boost::asio::io_context ctx; // no thread runs it yet
-    auto [end, other] = GInProcessPeer::makePair(
-        ctx.get_executor(),
-        {},
-        ctx.get_executor(),
-        {},
-        CLOSE_GRACE
-    );
+    auto [end, other] = GInProcessPeer::makePair(ctx.get_executor(), {}, ctx.get_executor(), {});
     std::size_t n_opened = 0; // on ctx's thread, which is this one
     std::size_t n_closed = 0;
     end->start(

@@ -257,12 +257,12 @@ int soak(consumer_type &consumer, std::size_t workers) {
     const double stop = secondsSince(t1);
     const bool ok = bad.load() == 0 && consumer.requeuedCount() == 0 &&
                     consumer.droppedReturnCount() == 0 && consumer.lateReturnDroppedCount() == 0 &&
-                    stop < 2.0 && all_parked && consumer.clientsUnconfirmedAtStop() == 0;
+                    stop < 2.0 && all_parked;
     return verdict(
         ok,
         std::format(
             "soak: {} items in {} batches, {} not processed, requeued={} dropped={} late={} "
-            "parked at the end={} unconfirmed at the stop={} time={:.2f}s stop={:.2f}s ({} ranks)",
+            "parked at the end={} time={:.2f}s stop={:.2f}s ({} ranks)",
             total.load(),
             3 * ROUNDS,
             bad.load(),
@@ -270,7 +270,6 @@ int soak(consumer_type &consumer, std::size_t workers) {
             consumer.droppedReturnCount(),
             consumer.lateReturnDroppedCount(),
             consumer.parkedCount(),
-            consumer.clientsUnconfirmedAtStop(),
             dt,
             stop,
             workers + 1
@@ -279,7 +278,7 @@ int soak(consumer_type &consumer, std::size_t workers) {
 }
 
 /** The stop cases: what the master does before it stops differs, the check is the same --
- *  stopServer() returns within a bound, and every client confirms the end of the run. */
+ *  stopServer() returns within a bound (every client is told the end of the run: runClient()). */
 int stopCase(consumer_type &consumer, const std::string &scenario, std::size_t workers) {
     consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     consumer.startServer();
@@ -323,7 +322,7 @@ int stopCase(consumer_type &consumer, const std::string &scenario, std::size_t w
         const auto processed = runBatch(consumer, items);
         ok = processed == 40;
         std::println("stop-late-rank: {}/40 items processed without the late rank", processed);
-        // The late rank confirms when it has built its client, within the grace.
+        // The late rank hears the end when it has built its client.
         stop_bound = 13.0;
     }
     else if(scenario == "stop-client-left") {
@@ -353,16 +352,10 @@ int stopCase(consumer_type &consumer, const std::string &scenario, std::size_t w
     if(submitter.joinable()) {
         submitter.join();
     }
-    ok = ok && stop < stop_bound && consumer.clientsUnconfirmedAtStop() == 0;
+    ok = ok && stop < stop_bound;
     return verdict(
         ok,
-        std::format(
-            "{}: stopServer() took {:.3f} s (bound {:.1f} s), {} client(s) did not confirm",
-            scenario,
-            stop,
-            stop_bound,
-            consumer.clientsUnconfirmedAtStop()
-        )
+        std::format("{}: stopServer() took {:.3f} s (bound {:.1f} s)", scenario, stop, stop_bound)
     );
 }
 
@@ -394,13 +387,13 @@ int runClient(
         const auto client = std::make_shared<client_type>(environment, config);
         client->setMaxTime(std::chrono::seconds(1));
         client->run();
-        // It closed the connection itself (CLOSED_HERE, answered by the master), and was not told
+        // It closed the connection itself (CLOSED_HERE), and was not told
         // the end of the run (CLOSED_THERE): an event, not a duration
         return verdict(
             client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE &&
                 client->getNProcessed() > 0,
             std::format(
-                "rank 1 ended by its time limit (its own confirmed close: {}), having processed {} "
+                "rank 1 ended by its time limit (its own close: {}), having processed {} "
                 "items",
                 client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_HERE,
                 client->getNProcessed()
@@ -428,7 +421,7 @@ int runClient(
     }
     client->run();
     if(scenario.starts_with("stop-") || scenario == "soak" || scenario == "never-started") {
-        // Every client of these is told the end of the run, and confirms it
+        // Every client of these is told the end of the run
         return verdict(
             client->connectionEnd() == c2::Consumers::GPeerEnd::CLOSED_THERE,
             std::format("rank {} was told the end of the run", rank)
@@ -507,7 +500,7 @@ int main(int argc, char **argv) {
 
     if(scenario == "never-started") {
         // The consumer's destructor stops the server, which never ran: it tells the clients that
-        // wait for it, at once, and they confirm
+        // wait for it, at once, and they end
         const auto t0 = clock_type::now();
         consumer.reset();
         const double took = secondsSince(t0);

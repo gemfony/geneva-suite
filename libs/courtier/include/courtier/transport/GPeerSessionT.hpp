@@ -128,10 +128,9 @@ public:
         /// Called with true by start(), after the peer has been started, and with false by the
         /// destructor of a session that signed on
         std::move_only_function<void(bool)> serverSignOn;
-        /// Called once, in onClosed, with how the connection ended and whether the session itself
-        /// had closed it with GPeerClose::ERROR (may be empty): the shell counts the clients that
-        /// did not confirm the end of the run
-        std::move_only_function<void(GPeerEnd, bool)> connectionEnded;
+        /// Called once, in onClosed (may be empty): the shell counts the clients that are
+        /// connected
+        std::move_only_function<void()> connectionEnded;
         /// Called once, when the first message of the client has been read (may be empty): the
         /// shell counts the clients that are connected (on the session's executor, before
         /// connectionEnded)
@@ -403,8 +402,8 @@ private:
 
     //-------------------------------------------------------------------------
     /**
-     * @brief Called once when the connection is over. A confirmed close of either end and the end
-     * of the server are no news; anything else is logged. The shell hears how it ended.
+     * @brief Called once when the connection is over. A close of either end and the end of the
+     * server are no news; anything else is logged. The shell hears that it ended.
      *
      * @param end Why the connection ended
      * @param how What the other end said, if it closed in the regular way
@@ -412,7 +411,7 @@ private:
      */
     void when_closed_(GPeerEnd end, [[maybe_unused]] GPeerClose how, std::string_view detail) {
         if(hooks_.connectionEnded) {
-            hooks_.connectionEnded(end, closed_with_error_);
+            hooks_.connectionEnded();
         }
         if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
            not hooks_.checkServerStopped()) {

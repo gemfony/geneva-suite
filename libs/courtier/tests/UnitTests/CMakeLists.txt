@@ -227,7 +227,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_scenario(GCourtierMpiSoakTest 5 soak)
 	# The end of a run: the master stops while every client waits at it, while every client
 	# evaluates, before the last client has started, and after a client has left. Each time every
-	# client still there is told and confirms, within a bound.
+	# client still there is told and ends, within a bound.
 	geneva_courtier_mpi_scenario(GCourtierMpiStopParkedTest 3 stop-parked)
 	geneva_courtier_mpi_scenario(GCourtierMpiStopEvaluatingTest 3 stop-evaluating)
 	geneva_courtier_mpi_scenario(GCourtierMpiStopLateRankTest 3 stop-late-rank --lateMs=3000)

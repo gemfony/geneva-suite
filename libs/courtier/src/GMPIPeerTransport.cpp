@@ -37,7 +37,6 @@
 
 // Boost headers go here
 #include <boost/asio/post.hpp>
-#include <boost/system/error_code.hpp>
 
 // Geneva headers go here
 #include "common/GErrorStreamer.hpp"
@@ -54,9 +53,10 @@ namespace {
 /// of the stop grace, so that a stop takes one grace (the shell's wait for its clients), not two.
 constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
 
-/// What the listener's stop grace adds to the peers' close grace: a peer whose close is not
-/// answered ends by itself (CLOSED_HERE_UNCONFIRMED) before the shell stops waiting for it.
-constexpr std::chrono::milliseconds STOP_GRACE_MARGIN{1000};
+/// How long the shell waits for the ends at the end of a run (GMPIListener::stopGrace()): an end
+/// finishes as soon as its close has been handed to the poll, so this bounds no more than the
+/// handlers of the sessions that are still under way.
+constexpr std::chrono::milliseconds STOP_GRACE{1000};
 
 /** @brief @param how What a close says @return It, as the payload of a close */
 std::string encodeClose(GPeerClose how) {
@@ -64,8 +64,8 @@ std::string encodeClose(GPeerClose how) {
     return payload;
 }
 
-/** @brief @param payload The payload of a close or of its answer @return What it says; NORMAL if
- *  it says nothing this end knows */
+/** @brief @param payload The payload of a close @return What it says; NORMAL if it says nothing
+ *  this end knows */
 GPeerClose decodeClose(const std::string &payload) {
     if(payload.empty()) {
         return GPeerClose::NORMAL;
@@ -93,7 +93,7 @@ GPeerClose decodeClose(const std::string &payload) {
  * @param executor The executor this end makes its strand on
  * @param rank The other end's rank
  * @param opening When this end opens (see the class comment)
- * @param options The close grace, the longest message and the name for the log
+ * @param options The longest message and the name for the log
  */
 GMPIPeer::GMPIPeer(
     std::weak_ptr<GMPIPollCore> core,
@@ -105,10 +105,8 @@ GMPIPeer::GMPIPeer(
   : core_(std::move(core))
   , strand_(boost::asio::make_strand(executor))
   , executor_(strand_)
-  , close_timer_(strand_)
   , rank_(rank)
   , opening_(opening)
-  , close_grace_(options.closeGrace)
   , max_message_bytes_(std::min(options.maxMessageBytes, static_cast<std::size_t>(INT_MAX)))
   , name_(options.name) { /* nothing */
 }
@@ -169,25 +167,23 @@ void GMPIPeer::close(GPeerClose how) {
 /******************************************************************************/
 /**
  * Ends at once (GPeerI::abort()), for teardown: when no handler of this end runs. The other end is
- * told with a close if it has not been told (it answers nothing that is waited for). Reports
- * CLOSED_HERE, or CLOSED_HERE_UNCONFIRMED if close() had been called before; to a start() whose
- * work has not run yet, when it runs.
+ * told with a close if it has not been told. Reports CLOSED_HERE, whatever was called before; to a
+ * start() whose work has not run yet, when it runs.
  */
 void GMPIPeer::abort() {
     if(state_ == GState::ENDED) {
         return;
     }
-    const GPeerEnd end =
-        close_requested_.exchange(true) ? GPeerEnd::CLOSED_HERE_UNCONFIRMED : GPeerEnd::CLOSED_HERE;
+    close_requested_.store(true);
     this->tellOther_(GPeerClose::NORMAL);
-    this->finish_(end, GPeerClose::NORMAL, "aborted");
+    this->finish_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
 }
 
 /******************************************************************************/
 /**
  * The work of the transport ends (the listener's endWork(), the connector's destructor): an end that
  * has not ended tells the other rank, if that rank does not know yet that the connection is over,
- * so that it does not wait for ever (it answers into the void). The poll then lets go of the end
+ * so that it does not wait for ever. The poll then lets go of the end
  * (discard()). When no handler of the end runs any more, before the poll's shutdown().
  *
  * @param word What the other rank is told: the end of the run on the submitter, NORMAL on a client
@@ -309,7 +305,7 @@ void GMPIPeer::started_(GPeerHandlers handlers) {
 }
 
 /******************************************************************************/
-/** The end is open; the role is told, unless it has asked for the close already (rule 6). */
+/** The end is open; the role is told, unless it has asked for the close already (rule 1). */
 void GMPIPeer::open_() {
     state_ = GState::OPEN;
     if(not close_requested_.load()) {
@@ -323,7 +319,8 @@ void GMPIPeer::open_() {
 /******************************************************************************/
 /**
  * @return Whether what arrives can be handled now: not before the start; not for a role that asked
- * for the close before it was told of the open, until its own close has been sent (rule 6)
+ * for the close before it was told of the open, which is told nothing but its end (rule 1): what
+ * waits for it is dropped when its close has been sent
  */
 bool GMPIPeer::mayHandle_() const {
     switch(state_) {
@@ -333,7 +330,6 @@ bool GMPIPeer::mayHandle_() const {
         return not close_requested_.load();
     case GState::OPEN:
         return role_open_;
-    case GState::CLOSING:
     case GState::ENDED:
         return true;
     }
@@ -366,10 +362,10 @@ void GMPIPeer::handle_(int tag, std::string &&bytes) {
         if(state_ == GState::WAITING) {
             this->open_();
         }
-        return; // otherwise late (this end closes already) or meant for an end that is open
+        return; // otherwise meant for an end that is open
 
     case TAG_PEER_MESSAGE:
-        // Delivered until this end's close has been sent (OPEN), also after close() (rule 6)
+        // Delivered until this end's close has been sent (it then ends), also after close() (rule 6)
         if(state_ == GState::OPEN && role_open_ && handlers_.onMessage) {
             handlers_.onMessage(std::move(bytes));
         }
@@ -380,31 +376,9 @@ void GMPIPeer::handle_(int tag, std::string &&bytes) {
         }
         return;
 
-    case TAG_PEER_CLOSE: {
-        const GPeerClose how = decodeClose(bytes);
-        other_told_ = true; // it has closed: it knows
-        if(state_ == GState::CLOSING) {
-            // The two closes crossed: the other end's own close is no answer to this end's (what
-            // this end sent may have arrived there after its close had gone out)
-            this->finish_(
-                GPeerEnd::CLOSED_HERE_UNCONFIRMED,
-                how,
-                "the other end's own close crossed this end's"
-            );
-            return;
-        }
-        // Everything that arrived before the close has been handed to the role: the answer
-        // confirms it (it echoes what the close said)
-        this->sendControl_(TAG_PEER_CLOSE_ACK, std::move(bytes));
-        this->finish_(GPeerEnd::CLOSED_THERE, how, "closed by the other end");
-        return;
-    }
-
-    case TAG_PEER_CLOSE_ACK:
-        other_told_ = true;
-        if(state_ == GState::CLOSING) {
-            this->finish_(GPeerEnd::CLOSED_HERE, decodeClose(bytes), "closed");
-        }
+    case TAG_PEER_CLOSE:
+        other_told_ = true; // it has closed: it knows; it is answered nothing (rule 6)
+        this->finish_(GPeerEnd::CLOSED_THERE, decodeClose(bytes), "closed by the other end");
         return;
 
     default:
@@ -417,36 +391,20 @@ void GMPIPeer::handle_(int tag, std::string &&bytes) {
 
 /******************************************************************************/
 /**
- * Begins the close on the strand: the close is sent (after everything sent before) and its answer
- * waited for, at most the close grace. What has waited for a role that asked for the close before
- * it was told of the open is handled now: a message is dropped, a close of the other end has
- * crossed this one.
+ * The close, on the strand: the close is sent (after everything sent before) and the end finishes
+ * at once (rule 6: nothing waits for an answer). What has waited for a role that asked for the
+ * close before it was told of the open is dropped.
  *
  * @param how What the other end is told
  */
 void GMPIPeer::beginClose_(GPeerClose how) {
-    if(state_ == GState::CLOSING || state_ == GState::ENDED) {
-        return; // closing already, or ended
+    if(state_ == GState::ENDED) {
+        return;
     }
     // An end that was never started (NEW: the listener closes the end of a rank whose session
     // could not be made) closes all the same: its rank must not wait for ever.
-    state_ = GState::CLOSING;
     this->tellOther_(how);
-    close_timer_.expires_after(close_grace_);
-    close_timer_.async_wait([self = this->shared_from_this()](const boost::system::error_code &ec) {
-        if(ec || self->state_ != GState::CLOSING) {
-            return;
-        }
-        glogger << self->name_ << ": rank " << self->rank_ << " did not confirm the close within "
-                << self->close_grace_.count() << " ms" << '\n'
-                << GWARNING;
-        self->finish_(
-            GPeerEnd::CLOSED_HERE_UNCONFIRMED,
-            GPeerClose::NORMAL,
-            "the other end did not confirm the close in time"
-        );
-    });
-    this->handleWaiting_();
+    this->finish_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "closed");
 }
 
 /******************************************************************************/
@@ -473,7 +431,7 @@ void GMPIPeer::failSend_(std::size_t size) {
 /******************************************************************************/
 /**
  * Tells the other rank that this end is over (a close that says @p word), unless it knows already:
- * it was sent this end's close or an answer, or it closed itself. On the strand, or when no handler
+ * it was sent this end's close, or it closed itself. On the strand, or when no handler
  * of the end runs.
  *
  * @param word What the close says
@@ -490,7 +448,7 @@ void GMPIPeer::tellOther_(GPeerClose word) {
 /**
  * Sends a message of the protocol of the ends through the poll.
  *
- * @param tag TAG_PEER_CLOSE or TAG_PEER_CLOSE_ACK
+ * @param tag TAG_PEER_CLOSE
  * @param payload Its bytes
  */
 void GMPIPeer::sendControl_(int tag, std::string payload) {
@@ -518,7 +476,6 @@ void GMPIPeer::finish_(GPeerEnd end, GPeerClose how, std::string_view detail) {
     close_requested_.store(true);
     ended_.store(true);
     waiting_.clear();
-    close_timer_.cancel();
     if(auto core = core_.lock()) {
         if(busy_told_) {
             busy_told_ = false;
@@ -806,10 +763,10 @@ void GMPIListener::endWork() {
 }
 
 /******************************************************************************/
-/** @return How long the shell waits for its clients at the end of a run: the peers' close grace
- *  and a margin */
+/** @return How long the shell waits for its clients at the end of a run: STOP_GRACE (an end
+ *  finishes when its close has been handed to the poll) */
 std::chrono::milliseconds GMPIListener::stopGrace() const {
-    return options_.closeGrace + STOP_GRACE_MARGIN;
+    return STOP_GRACE;
 }
 
 /******************************************************************************/
@@ -821,10 +778,11 @@ bool GMPIListener::detectsLoss() const {
 /******************************************************************************/
 /**
  * For a submitter whose consumer was never started (GListenerI::announceEndWithoutStart()): makes an
- * end for every client rank on the poll's own context, closes each with GPeerClose::RUN_ENDED -- no
- * greeting goes out, and a client's end that waits for one answers the close and ends -- and waits
- * for the ends, at most stopGrace(). Then the poll's thread is joined and the poll ended. A rank that
- * does not answer (it has ended, or never receives) is logged. Not after start().
+ * end for every client rank on the poll's own context and closes each with GPeerClose::RUN_ENDED --
+ * no greeting goes out, and a client's end that waits for one ends on the close. The ends finish as
+ * soon as their closes have been handed to the poll (waited for, at most stopGrace()); then the
+ * poll's thread is joined, the closes get the drain grace to arrive, and the poll is ended. Nothing
+ * waits for an answer. Not after start().
  */
 void GMPIListener::announceEndWithoutStart() {
     {
@@ -851,11 +809,12 @@ void GMPIListener::announceEndWithoutStart() {
     }
     if(not ended->wait_for(this->stopGrace())) {
         glogger << "In " << options_.name << ": " << ended->remaining() << " of " << peers.size()
-                << " client rank(s) did not answer the end of a run that never started within "
-                << this->stopGrace().count() << " ms" << '\n'
+                << " end(s) did not close within " << this->stopGrace().count() << " ms" << '\n'
                 << GWARNING;
     }
     this->joinPoll_();
+    // The closes just sent get the drain grace to arrive (a rank that never receives is given up)
+    std::ignore = core->drainSends(options_.poll.drainGrace);
     std::ignore = core->shutdown();
     poll_context_.shutdown();
 }

@@ -70,8 +70,8 @@ namespace {
 /** The longest a bystander's clientRun() may take. */
 constexpr std::chrono::seconds BYSTANDERLIMIT{1};
 
-/** The longest the end of the run may take on the submitter: well below the shutdown grace. */
-constexpr auto SHUTDOWNLIMIT = Gem::Courtier::GMPICONSUMERSHUTDOWNGRACE / 2;
+/** The longest the end of the run may take on the submitter. */
+constexpr std::chrono::seconds SHUTDOWNLIMIT{5};
 
 /** @brief The submitter's part: one iteration of a small population.
  *  @param go The Go2 object */

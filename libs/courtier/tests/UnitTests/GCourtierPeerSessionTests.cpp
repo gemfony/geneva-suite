@@ -82,9 +82,8 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr auto PATIENCE = 5s;    // how long a test waits for something that is due at once
-constexpr auto QUIET = 300ms;    // how long a test watches for something that must not come
-constexpr auto CLOSE_GRACE = 1s; // the ends' wait for an acknowledgement
+constexpr auto PATIENCE = 5s; // how long a test waits for something that is due at once
+constexpr auto QUIET = 300ms; // how long a test watches for something that must not come
 constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
 using session_type = Gem::Courtier::Consumers::GPeerSessionT<GFaultyContainer>;
@@ -407,7 +406,7 @@ Connection connect(
     Gem::Common::serializationMode mode = BIN
 ) {
     auto [server_end, client_end] =
-        GInProcessPeer::makePair(server_executor, {}, client_executor, {}, CLOSE_GRACE);
+        GInProcessPeer::makePair(server_executor, {}, client_executor, {});
     Connection connection;
     connection.clientPeer = client_end;
     connection.serverPeer = server_end;
@@ -792,8 +791,7 @@ TEST_CASE(
             // the HELLO fits, every WORK is longer
             {.maxMessageBytes = Gem::Courtier::buildHello<GFaultyContainer>(BIN).size()},
             client.executor(),
-            {},
-            CLOSE_GRACE
+            {}
         );
         Connection connection;
         connection.clientPeer = client_end;

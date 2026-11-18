@@ -77,13 +77,13 @@ namespace Gem::Courtier {
  * refused there, with a text that says how the program is started: an MPI job keeps the ranks it
  * was started with, so its work would wait for ever.
  *
- * The end of a run (stopServer()): every client is told that the run has ended and the server
- * waits for the clients to confirm, at most the stop grace (GMPICONSUMERSHUTDOWNGRACE and a
- * second); see GPeerConsumerT. A send that is still under way when the work ends (a large item for
- * a rank that has left without receiving it, say) is waited for up to the drain grace more
- * (GMPIPEERDRAINGRACE, 2 s) and then given up, so stopServer() may take that much longer than the
- * stop grace. A client that leaves by its own limits during the run is let go;
- * what it held is handed out again.
+ * The end of a run (stopServer()): every client is told that the run has ended; the server's ends
+ * finish as soon as their closes have been handed to the poll, and nothing waits for an answer
+ * (the stop grace, a second, bounds that); see GPeerConsumerT. A send that is still under way when
+ * the work ends (a large item for a rank that has left without receiving it, say) is waited for up
+ * to the drain grace more (GMPIPEERDRAINGRACE, 2 s) and then given up, so stopServer() may take
+ * that much longer than the stop grace. A client that leaves by its own limits during the run is
+ * let go; what it held is handed out again.
  *
  * Lost clients: a rank that dies ends the job -- the launcher (mpirun) aborts every rank when one
  * exits abnormally; MPI's errors being fatal on courtier's communicator only ends a rank whose own

@@ -239,9 +239,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   non-zero code; it used to wait for ever. A client honours its time and item limits and a close
   request, which had no effect on an MPI client before: it sends the results of the evaluations that
   run and leaves; the submitter goes on with the others and hands out again what it held. At the end
-  of a run every client is told and confirms, within the stop grace (`GMPICONSUMERSHUTDOWNGRACE` and
-  a second); a send that is still under way when the work ends (a large item for a rank that has
-  left, say) is waited for up to 2 s more (`GMPIPEERDRAINGRACE`) and then given up. The consumer answers
+  of a run every client is told; nothing waits for an answer to that close (a close proves
+  nothing; what a client held is put back by the lease). A send that is still under way when the
+  work ends (a large item for a rank that has left, say) is waited for up to 2 s
+  (`GMPIPEERDRAINGRACE`) and then given up. The consumer answers
   `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
   `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket. The submitter serves waiting requests oldest
   first and does not ask whether their client is evaluating. While items are pending no request
@@ -320,15 +321,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   tears down the server; `stopServer()` joins the io threads and frees the listening port.
 - **A websocket server tells its clients that the run has ended.** `stopServer()` closes every
   connection with the close code 4000 (`GCONSUMERCLOSECODERUNENDED`), also those of clients that
-  evaluate or wait for work, and waits for the clients to confirm, at most a grace
+  evaluate or wait for work, and waits for the connections to end, at most a grace
   (`GWEBSOCKETCONSUMERSTOPGRACE`, 10 s; the second argument of the consumer's constructor). A
   client that is told so ends. A client that reaches a time or an item limit starts no further
   evaluation, sends the results of those that run as they finish, and closes when none runs; the
   server keeps these results (the processed count may pass an item limit by them). A client that
-  is still connecting when a limit is reached gives the attempt up. The other closes of a server
-  carry codes of their own (4001 normal, 4003 error); a client's end closes with 1000, 1011 or
-  4002 (end of the run). The two ends never begin a close with the same code: an end counts the
-  other end's close as the confirmation of its own only when it echoes its code.
+  is still connecting when a limit is reached gives the attempt up. Both ends close with 1000
+  (normal), 1011 (error) or 4000 (end of the run); a close proves nothing about what the other
+  end received, and nothing waits for an answer to it.
 - **A failure stays with the item it belongs to.** An evaluation that throws on an MPI worker no
   longer ends the worker's rank; the item comes back flagged. Every message has a head that is
   read first and names the item; a message whose head cannot be read ends the connection. A

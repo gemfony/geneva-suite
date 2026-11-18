@@ -71,7 +71,7 @@
  * server and its clients can run in one process without a socket or MPI.
  *
  * A test can make an end misbehave (GInProcessFaults): lose what arrives after a number of
- * messages, never acknowledge a close, or fail to start. It can cut a connection as a reset would
+ * messages, lose a close that arrives, or fail to start. It can cut a connection as a reset would
  * (GInProcessPeer::sever()), and point the connectors of a client at another listener, or at none
  * (GInProcessRoute).
  */
@@ -83,8 +83,8 @@ namespace Gem::Courtier::Tests {
 struct GInProcessFaults {
     /// Messages that arrive at this end after this many have been delivered are lost
     std::size_t deliverAtMost = std::numeric_limits<std::size_t>::max();
-    /// false: a close that arrives at this end is ignored (neither acknowledged nor reported)
-    bool acknowledgeClose = true;
+    /// true: a close that arrives at this end is lost (not reported)
+    bool ignoreClose = false;
     /// true: start() fails; onClosed (FAILED) is reported, onOpen never
     bool failStart = false;
     /// The longest message this end carries (maxMessageBytes()); a longer one handed to send()
@@ -96,14 +96,12 @@ struct GInProcessFaults {
 /**
  * One end of an in-process connection. Everything but start(), close() and executor() happens on
  * the end's strand. The close protocol is the one a real transport has: a close is a message to
- * the other end, which reports CLOSED_THERE and acknowledges; the closing end reports CLOSED_HERE
- * on the acknowledgement (the close is confirmed, GPeerI.hpp rule 6), or CLOSED_HERE_UNCONFIRMED
- * after its grace if none comes. As the websocket peer, an end delivers what arrives after close()
- * until its own close has gone out (then it drops what arrives), and two ends whose closes cross
- * both report CLOSED_HERE_UNCONFIRMED: the other end's own close is no acknowledgement. Messages
- * that arrive before start() has opened the end are kept and delivered after onOpen; an end whose
- * role asked for the close before it was told of the open handles nothing that arrived before its
- * own close has gone out (GPeerI.hpp, rule 6).
+ * the other end, which reports CLOSED_THERE and answers nothing; the closing end reports
+ * CLOSED_HERE as soon as its close has gone out (a close proves nothing, GPeerI.hpp rule 6). An end
+ * delivers what arrives after close() until its own close has gone out (then it drops what
+ * arrives). Messages that arrive before start() has opened the end are kept and delivered after
+ * onOpen; an end whose role asked for the close before it was told of the open is told nothing but
+ * its end (GPeerI.hpp, rule 1).
  *
  * While it is open, an end has a wait pending on its strand (a timer that never expires on its
  * own); that pending work owns the end and keeps the executor's context running (rule 4). It is
@@ -139,24 +137,16 @@ public:
      * @param first_faults How the first end misbehaves
      * @param second_executor The executor the second end makes its strand on
      * @param second_faults How the second end misbehaves
-     * @param close_grace How long a closing end waits for the acknowledgement
      * @return The first and the second end
      */
     static std::pair<peer_ptr, peer_ptr> makePair(
         const boost::asio::any_io_executor &first_executor,
         GInProcessFaults first_faults,
         const boost::asio::any_io_executor &second_executor,
-        GInProcessFaults second_faults,
-        std::chrono::milliseconds close_grace
+        GInProcessFaults second_faults
     ) {
-        auto first =
-            std::make_shared<GInProcessPeer>(PassKey{}, first_executor, first_faults, close_grace);
-        auto second = std::make_shared<GInProcessPeer>(
-            PassKey{},
-            second_executor,
-            second_faults,
-            close_grace
-        );
+        auto first = std::make_shared<GInProcessPeer>(PassKey{}, first_executor, first_faults);
+        auto second = std::make_shared<GInProcessPeer>(PassKey{}, second_executor, second_faults);
         auto link = std::make_shared<Link>();
         link->ends = {first.get(), second.get()};
         first->link_ = link;
@@ -214,20 +204,16 @@ public:
      * @param key Only makePair() has one
      * @param executor The executor this end makes its strand on
      * @param faults How this end misbehaves
-     * @param close_grace How long a closing end waits for the acknowledgement
      */
     GInProcessPeer(
         [[maybe_unused]] PassKey key,
         const boost::asio::any_io_executor &executor,
-        GInProcessFaults faults,
-        std::chrono::milliseconds close_grace
+        GInProcessFaults faults
     )
       : strand_(boost::asio::make_strand(executor))
       , executor_(strand_)
       , pending_(strand_)
-      , close_timer_(strand_)
-      , faults_(faults)
-      , close_grace_(close_grace) { /* nothing */
+      , faults_(faults) { /* nothing */
     }
 
     /***************************************************************************/
@@ -243,7 +229,7 @@ public:
                     auto ended = std::move(self->handlers_);
                     self->handlers_ = Gem::Courtier::Consumers::GPeerHandlers{};
                     if(ended.onClosed) {
-                        ended.onClosed(self->aborted_end_, GPeerClose::NORMAL, "aborted");
+                        ended.onClosed(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
                     }
                     return;
                 }
@@ -304,20 +290,18 @@ public:
         });
     }
 
-    /** @brief Tells the other end and ends at once, reporting onClosed inline: CLOSED_HERE, or
-     *  CLOSED_HERE_UNCONFIRMED if close() had been called before (GPeerI::abort()). Beyond GPeerI's
-     *  teardown, this test pair also allows it on its strand: the tests lose a connection so. */
+    /** @brief Tells the other end and ends at once, reporting onClosed inline: CLOSED_HERE,
+     *  whatever was called before (GPeerI::abort()). Beyond GPeerI's teardown, this test pair also
+     *  allows it on its strand: the tests lose a connection so. */
     void abort() override {
         if(state_ == state::ENDED) {
             return;
         }
-        if(close_requested_.exchange(true)) {
-            aborted_end_ = GPeerEnd::CLOSED_HERE_UNCONFIRMED; // a close that had not been confirmed
-        }
+        close_requested_.store(true);
         if(state_ == state::OPEN) {
             this->transmit_(wire::CLOSE, encode_(GPeerClose::NORMAL));
         }
-        this->finish_(aborted_end_, GPeerClose::NORMAL, "aborted");
+        this->finish_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "aborted");
     }
 
     /** @brief @return The strand of this end */
@@ -358,14 +342,12 @@ private:
     enum class state : std::uint8_t {
         NEW,
         OPEN,
-        CLOSING,
         ENDED
     };
     /** @brief What travels between the two ends */
     enum class wire : std::uint8_t {
         MESSAGE,
-        CLOSE,
-        CLOSE_ACK
+        CLOSE
     };
 
     /** @brief One thing that arrived before this end was opened */
@@ -413,7 +395,7 @@ private:
 
     /** @brief Runs on the strand after start(): the end is open. The pending wait that owns it
      *  is armed, the role is told (unless it has closed meanwhile: the end opens on its strand,
-     *  so a close() before onOpen is a close before the open, GPeerI.hpp rule 6), and what arrived
+     *  so a close() before onOpen is a close before the open, GPeerI.hpp rule 1), and what arrived
      *  before is delivered (also after close(): this end's close has not gone out yet, rule 6). */
     void opened_() {
         state_ = state::OPEN;
@@ -429,9 +411,8 @@ private:
         }
         else {
             // The role asked for the close before the end opened (on its strand, so before it was
-            // told of the open): it is told nothing, and what has arrived waits until this end's
-            // close has gone out (beginClose_()): an acknowledgement now would prove what no role
-            // received (GPeerI.hpp, rule 6)
+            // told of the open): it is told nothing but the end (GPeerI.hpp, rule 1); what has
+            // arrived is dropped when this end's close goes out (beginClose_())
             return;
         }
         while(not early_.empty() && state_ != state::ENDED) {
@@ -457,14 +438,13 @@ private:
         case state::ENDED: // nothing is handled any more
             return;
         case state::OPEN:
-        case state::CLOSING:
             break;
         }
 
         switch(kind) {
         case wire::MESSAGE:
-            // Delivered until this end's close has gone out (CLOSING), also after close() (rule 6)
-            // -- but never to a role that was not told of the open (rule 1)
+            // Delivered until this end's close has gone out (it then ends), also after close()
+            // (rule 6) -- but never to a role that was not told of the open (rule 1)
             if(state_ == state::OPEN && role_open_ && n_delivered_.load() < faults_.deliverAtMost &&
                handlers_.onMessage) {
                 n_delivered_.fetch_add(1);
@@ -473,60 +453,22 @@ private:
             break;
 
         case wire::CLOSE:
-            if(not faults_.acknowledgeClose) {
-                break;
-            }
-            if(state_ == state::CLOSING) {
-                // The two closes crossed: the other end's own close is no acknowledgement of ours
-                // (what this end sent may have arrived there after its close went out)
-                this->finish_(
-                    GPeerEnd::CLOSED_HERE_UNCONFIRMED,
-                    decode_(payload),
-                    "the other end's own close crossed ours"
-                );
-            }
-            else {
-                this->transmit_(wire::CLOSE_ACK, payload); // echoes what the close said
+            if(not faults_.ignoreClose) {
                 this->finish_(GPeerEnd::CLOSED_THERE, decode_(payload), "closed by the other end");
-            }
-            break;
-
-        case wire::CLOSE_ACK:
-            if(state_ == state::CLOSING) {
-                this->finish_(GPeerEnd::CLOSED_HERE, decode_(payload), "closed");
             }
             break;
         }
     }
 
-    /** @brief Begins the close on the strand: tells the other end (after everything sent before)
-     *  and waits for its acknowledgement, at most the grace.
+    /** @brief The close on the strand: tells the other end (after everything sent before) and
+     *  ends at once; what arrived for a role that closed before it was told of the open is dropped.
      *  @param how What the other end is told */
     void beginClose_(GPeerClose how) {
         if(state_ != state::OPEN) {
-            return; // never opened (start() failed), closing already, or ended
+            return; // never opened (start() failed), or ended
         }
-        state_ = state::CLOSING;
         this->transmit_(wire::CLOSE, encode_(how));
-        close_timer_.expires_after(close_grace_);
-        close_timer_.async_wait(
-            [self = this->shared_from_this()](const boost::system::error_code &ec) {
-                if(not ec && self->state_ == state::CLOSING) {
-                    self->finish_(
-                        GPeerEnd::CLOSED_HERE_UNCONFIRMED,
-                        GPeerClose::NORMAL,
-                        "the other end did not confirm the close in time"
-                    );
-                }
-            }
-        );
-        // What arrived for a role that closed before it was told of the open meets this end's close
-        // now: a message is dropped, a close of the other end has crossed this one
-        while(not early_.empty() && state_ == state::CLOSING) {
-            Arrival arrival = std::move(early_.front());
-            early_.pop_front();
-            this->received_(arrival.kind, std::move(arrival.payload));
-        }
+        this->finish_(GPeerEnd::CLOSED_HERE, GPeerClose::NORMAL, "closed");
     }
 
     /** @brief The end, whatever led to it; runs its body once. Tells the role and drops the
@@ -540,7 +482,6 @@ private:
         state_ = state::ENDED;
         close_requested_.store(true);
         early_.clear();
-        close_timer_.cancel();
         pending_.cancel();
         ended_.store(true);
 
@@ -555,9 +496,7 @@ private:
     boost::asio::strand<boost::asio::any_io_executor> strand_; ///< Serializes this end
     boost::asio::any_io_executor executor_; ///< The strand, as executor() hands it out
     boost::asio::steady_timer pending_;     ///< The wait that owns this end while it is open
-    boost::asio::steady_timer close_timer_; ///< Bounds the wait for an acknowledgement
     GInProcessFaults faults_;               ///< How this end misbehaves
-    std::chrono::milliseconds close_grace_; ///< How long a close waits for its acknowledgement
     /** @brief What the two ends of a pair share: where each one is, while it exists */
     struct Link {
         std::mutex mutex;                        ///< Guards ends, and every post to an end
@@ -574,9 +513,6 @@ private:
     std::deque<Arrival> early_;                        ///< On the strand: what came before onOpen
 
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
-    /// What abort() reports, also to a start() whose work runs after it; where abort() runs (the
-    /// strand, or a teardown when nothing runs)
-    GPeerEnd aborted_end_ = GPeerEnd::CLOSED_HERE;
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
     std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
     std::atomic<std::size_t> n_told_busy_{0};  ///< For the test: setOwnerBusy(true) calls
@@ -598,7 +534,6 @@ public:
     struct Options {
         GInProcessFaults serverFaults{};            ///< How the server ends misbehave
         GInProcessFaults clientFaults{};            ///< How the client ends misbehave
-        std::chrono::milliseconds closeGrace{1000}; ///< The ends' wait for an acknowledgement
         std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
         bool detectsLoss = true;                    ///< What detectsLoss() answers
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
@@ -703,8 +638,7 @@ public:
             executor_,
             options_.serverFaults,
             client_executor,
-            options_.clientFaults,
-            options_.closeGrace
+            options_.clientFaults
         );
         const Gem::Courtier::GWirePeerId id = next_id_.fetch_add(1);
         last_server_end_ = server_end;

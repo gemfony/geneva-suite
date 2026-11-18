@@ -29,7 +29,7 @@
 
 // The end of a run on the websocket transport: the server tells every client that the run has
 // ended, and waits for them, bounded (GPeerConsumerT::stopServer(), GPeerI.hpp rule 8). Clients that
-// evaluate, clients that wait for work, clients that confirm at once, and a connection that never
+// evaluate, clients that wait for work, clients that end at once, and a connection that never
 // reads.
 
 #include <catch2/catch_test_macros.hpp>
@@ -228,9 +228,9 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** T7.3: forty clients that confirm at once: the stop takes far less than the grace. */
+/** T7.3: forty clients that end at once: the stop takes far less than the grace. */
 TEST_CASE(
-    "courtier(websocket): a stop whose clients confirm takes far less than the grace",
+    "courtier(websocket): a stop whose clients end at once takes far less than the grace",
     "[courtier][websocket][stop]"
 ) {
     constexpr std::size_t N = 40;
