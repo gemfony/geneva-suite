@@ -95,8 +95,10 @@ namespace Gem::Courtier {
  * batch's vector is BORROWED for the duration of dispatch_; the consumer reads/serializes/schedules
  * through it but never takes ownership. It writes into the items in place -- a returned result in
  * checkin() (applyProcessingOutcome(), then GWireProtocolT::applyReturn()), a failure, and each
- * item's dispatch state -- but never replaces, frees or moves one: the submitter stays the sole
- * owner of its items, and their addresses do not change.
+ * item's dispatch state -- but never replaces, frees or moves one during dispatch_: the submitter
+ * stays the sole owner of its items, and their addresses do not change there. (Under the clone
+ * policy the inherited reconciliation may replace an item whose type cannot load content in place,
+ * see GBaseConsumerT::processBatch().)
  *
  * Timeout / death-detection (per batch, user-selectable via applyTimeoutConfig()): each dispatch_ waits
  * until its batch is DONE or progress stalls past a give-up window; items left DO_PROCESS == MISSING are

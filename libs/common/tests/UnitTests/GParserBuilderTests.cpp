@@ -1026,7 +1026,7 @@ TEST_CASE("GParserBuilder: a known key of the wrong form is refused with its key
 
 // ---------------------------------------------------------------------------
 // Regression: parseConfigFile() returned false on any error, and most callers ignored the
-// result (every optimization algorithm's readConfigFile() among them), so a file that could not
+// result (a direct readConfigFile() of an optimization algorithm among them), so a file that could not
 // be applied left the defaults in force without a word. It throws, naming the file and the cause.
 
 TEST_CASE("GParserBuilder::parseConfigFile throws on a file it cannot apply and names file and key",

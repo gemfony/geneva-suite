@@ -94,38 +94,45 @@ GCUDAOptBenchmark options:
 ### Top-level config: `config/GCUDAOptBenchmark.json`
 
 The file is read through `Gem::Common::GParserBuilder`, the same configuration facility the rest of
-Geneva uses, so it is created with defaults if absent and each key is wrapped in a `comment`/`default`/
-`value` object (only the `value` fields are shown below for brevity). The set of algorithms to compare
-is described by three equal-length, parallel string arrays — the `i`-th element of each defines one
-algorithm entry.
+Geneva uses, so it is created with defaults if absent. Every key is an object that holds its value
+under `value` (the `comment` and `default` beside it are written for the reader and not read back);
+a flat entry such as `"n_runs": 30` is refused with an error that names the key. Two entries of the
+default file in full:
 
 ```json
 {
-    "benchmark_function": "PARABOLA",
-    "n_runs":             "30",
-    "n_dimensions":       "10",
-    "individual_config":  "config/GFunctionIndividual.json",
-    "output_dir":         ".",
-    "batch_size":         "0",
-    "flush_timeout_ms":   "50",
-    "algo_tags":          ["ea_default", "sa_default", "swarm_default"],
-    "algo_mnemonics":     ["ea", "sa", "swarm"],
-    "algo_config_files":  ["config/GEvolutionaryAlgorithm.json", "config/GSimulatedAnnealing.json", "config/GSwarmAlgorithm.json"]
+    "n_runs": {
+        "comment": [
+            "The number of independent runs per algorithm entry"
+        ],
+        "default": 30,
+        "value": 30
+    },
+    "algo_mnemonics": {
+        "comment": [
+            "Algorithm mnemonics, one per entry: ea, sa, swarm, gd or cgd"
+        ],
+        "default": ["ea", "sa", "swarm"],
+        "value": ["ea", "sa", "swarm"]
+    }
 }
 ```
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `benchmark_function` | string | Name of the objective function (see [Supported functions](#supported-functions)) |
-| `n_runs` | integer | Number of independent optimization runs per algorithm tag |
-| `n_dimensions` | integer | Parameter-space dimensionality passed to `GFunctionIndividual` |
-| `individual_config` | string | Path to `GFunctionIndividual` JSON config (relative to CWD) |
-| `output_dir` | string | Directory for output CSV files; created automatically if absent |
-| `batch_size` | integer | GPU batch size. `0` = flush by timeout; `>0` = flush when exactly that many individuals have arrived. Setting this to the population size gives the most predictable GPU utilization. |
-| `flush_timeout_ms` | integer | When `batch_size == 0`: flush the GPU batch this many milliseconds after the first individual arrives in a new generation |
-| `algo_tags` | string array | Free labels used in output file names and the summary table, one per algorithm entry |
-| `algo_mnemonics` | string array | Algorithm types, one per entry: `"ea"`, `"sa"`, `"swarm"`, `"gd"` or `"cgd"` |
-| `algo_config_files` | string array | Paths to the algorithm-specific JSON configs (relative to CWD), one per entry |
+The set of algorithms to compare is described by three equal-length, parallel string arrays — the
+`i`-th element of each defines one algorithm entry. The keys, with the values of the default file:
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `benchmark_function` | string | `"PARABOLA"` | Name of the objective function (see [Supported functions](#supported-functions)) |
+| `n_runs` | integer | `30` | Number of independent optimization runs per algorithm tag |
+| `n_dimensions` | integer | `10` | Parameter-space dimensionality passed to `GFunctionIndividual` |
+| `individual_config` | string | `"config/GFunctionIndividual.json"` | Path to `GFunctionIndividual` JSON config (relative to CWD) |
+| `output_dir` | string | `"."` | Directory for output CSV files; created automatically if absent |
+| `batch_size` | integer | `0` | GPU batch size. `0` = flush by timeout; `>0` = flush when exactly that many individuals have arrived. Setting this to the population size gives the most predictable GPU utilization. |
+| `flush_timeout_ms` | integer | `50` | When `batch_size == 0`: flush the GPU batch this many milliseconds after the first individual arrives in a new generation |
+| `algo_tags` | string array | `["ea_default", "sa_default", "swarm_default"]` | Free labels used in output file names and the summary table, one per algorithm entry |
+| `algo_mnemonics` | string array | `["ea", "sa", "swarm"]` | Algorithm types, one per entry: `"ea"`, `"sa"`, `"swarm"`, `"gd"` or `"cgd"` |
+| `algo_config_files` | string array | `["config/GEvolutionaryAlgorithm.json", "config/GSimulatedAnnealing.json", "config/GSwarmAlgorithm.json"]` | Paths to the algorithm-specific JSON configs (relative to CWD), one per entry |
 
 The three `algo_*` arrays must all have the same length; the benchmark aborts with a diagnostic if
 they do not.

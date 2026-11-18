@@ -1890,7 +1890,9 @@ public:
         std::filesystem::path const &config_file,
         boost::json::value *captured = nullptr
     );
-    /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic. */
+    /** @brief Applies an already-parsed configuration document to the registered options (no file
+     *  access); runs the optional unknown-key diagnostic. Throws if an entry has the wrong form or
+     *  a value does not read as its type. */
     void loadFromDocument(
         boost::json::value const &root,
         std::filesystem::path const &config_path = {},

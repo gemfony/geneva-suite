@@ -442,6 +442,9 @@ GParserBuilder::GParserBuilder() {
  * @param root The already-parsed JSON document to apply to the registered options
  * @param config_path The originating file path, used only for diagnostic messages (may be empty)
  * @param run_unknown_key_check Whether to run the unknown-key diagnostic for this load
+ * @throws geneva_exception if the document is not an object, if the entry of a known key does not
+ *         have the form its parameter needs, or if a value does not read as its parameter's type
+ *         (the error names the key)
  */
 void GParserBuilder::loadFromDocument(
     boost::json::value const &root,
@@ -563,10 +566,11 @@ void GParserBuilder::doParseConfigFile_(
     }
     catch(std::exception const &e) {
         // A failed parse is never reported by a return value alone: a caller that ignored it ran
-        // on its defaults while the file said otherwise.
+        // on its defaults while the file said otherwise. The cause has been logged where it was
+        // thrown; this only adds the file, and is not logged a second time. It names no function,
+        // as parseConfigFile() and updateConfigFile() both come here.
         throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
             << "The configuration file " << config_path.string()
             << " could not be read or applied:" << '\n'
             << e.what() << '\n'

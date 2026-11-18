@@ -136,8 +136,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
 - **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `geneva_exception`
   that names the file and the cause when the file cannot be read or applied, and return
-  `void`. They used to log the error and return `false`, which most callers ignored -- every
-  optimization algorithm's `readConfigFile()` among them -- so a configuration that could not be
+  `void`. They used to log the error and return `false`, which most callers ignored -- a direct
+  `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
   applied ran on its defaults. Code that tested the result drops the test.
 
 ## 5. Parallelization and consumers
