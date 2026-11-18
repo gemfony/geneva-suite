@@ -238,13 +238,16 @@ public:
      * reached only by a successful process()/markAsProcessedWith()) and throws unless already set.
      * Every accepted transition erases existing information (past error messages, any stored
      * results -- the latter via the clearStoredResults_() hook -- and the mark of a begun
-     * processing, so a re-submitted item is begun again before it is completed).
+     * processing, so a re-submitted item is begun again before it is completed). Setting the state
+     * the item has already changes nothing but that mark, which it erases as well.
      *
      * @param target_ps The desired new processing status
      */
     void set_processing_status(processingStatus target_ps = processingStatus::UNPROCESSED) {
-        // Do nothing if the new state is equal to the old one
+        // The state it has already: nothing else changes, but a begun processing is forgotten all
+        // the same (a re-submission with DO_PROCESS must be begun again before it is completed)
         if(target_ps == processing_status_) {
+            this->assignStatus_(target_ps);
             return;
         }
 

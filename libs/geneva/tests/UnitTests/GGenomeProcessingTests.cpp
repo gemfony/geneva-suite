@@ -1048,6 +1048,11 @@ TEST_CASE(
         item.set_processing_status(processingStatus::DO_PROCESS);
         CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
 
+        // So does a submission of a begun item that is due already (DO_PROCESS to DO_PROCESS)
+        item.beginProcessing();
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+
         // A clone of a begun item is not begun
         item.set_processing_status(processingStatus::DO_PROCESS);
         item.beginProcessing();
