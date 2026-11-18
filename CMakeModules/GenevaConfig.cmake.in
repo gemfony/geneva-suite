@@ -46,8 +46,7 @@
 #   Geneva::courtier-mpi - courtier's MPI library: the process's one MPI
 #                          environment (courtier/mpi/); carries MPI::MPI_CXX
 #   Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
-#                          libgemfony-geneva; linked only by a program that
-#                          uses GMPISubClientOptimizer
+#                          libgemfony-geneva; programs do not link it
 #
 # None of the five targets above needs MPI.
 #

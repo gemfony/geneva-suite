@@ -34,9 +34,8 @@
  * libgemfony-geneva, it kept every Geneva program from starting where no MPI library is installed
  * -- even for a run on the thread-pool consumer. Here, its provider lives in a library that Geneva
  * loads at run time when it is present next to libgemfony-geneva (see loadOptionalConsumerModules()
- * in GConsumerSetup.cpp); the consumer "mpi" exists exactly when that load succeeds. The library
- * also carries GMPISubClientOptimizer and GMPISubClientIndividual, which a program that uses them
- * links directly. The process's one MPI environment is not defined here but in courtier's MPI
+ * in GConsumerSetup.cpp); the consumer "mpi" exists exactly when that load succeeds. The process's
+ * one MPI environment is not defined here but in courtier's MPI
  * library (libgemfony-courtier-mpi), which this module links: the module, the program and any other
  * library of the process share it.
  */

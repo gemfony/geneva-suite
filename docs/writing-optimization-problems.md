@@ -120,8 +120,9 @@ There are three ways to give an algorithm its adaption config:
 
 An error the program does not handle -- a configuration file that cannot be applied, say -- ends
 the program with its message and the exit code 1, also under MPI, where the launcher then ends the
-whole job: Go2's constructor installs `Gem::Common::installFatalReport()` (`common/GFatalReport.hpp`)
-as the terminate handler. A program without Go2 calls it in the first line of `main()`.
+whole job: Go2's constructor installs `Gem::Common::installFatalReport()`
+(`common/GFatalReport.hpp`) as the terminate handler. A program without Go2 calls it in the first
+line of `main()`.
 
 ## 5. Adapting without a config is a hard error
 

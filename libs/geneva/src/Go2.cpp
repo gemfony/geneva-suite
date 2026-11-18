@@ -334,7 +334,7 @@ int Go2::clientRun() {
 /**
  * @brief Implementation of the client loop, according to the role of this process.
  *
- * A bystander (a process that takes no part in the consumer's protocol, e.g. an MPI sub-client)
+ * A bystander (a process that takes no part in the consumer's protocol, e.g. a member of an MPI cascade)
  * returns at once. A client builds the client of the chosen consumer (a socket client, or the MPI
  * client) and runs its processing loop.
  *

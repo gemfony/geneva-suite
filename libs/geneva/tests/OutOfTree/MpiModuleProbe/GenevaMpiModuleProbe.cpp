@@ -44,7 +44,6 @@
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "geneva/GConsumerSetup.hpp"
-#include "geneva/GMPISubClientOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 
 // The MPI consumer is a class template in an installed header: it must be there for a program
@@ -53,11 +52,9 @@
 static_assert(std::is_polymorphic_v<Gem::Courtier::GMPIConsumerT<Gem::Geneva::Genome::GGenome>>);
 
 int main(int argc, char **argv) {
-    // Linked: the sub-client optimizer from libgemfony-geneva-mpi and the environment's functions
-    // from libgemfony-courtier-mpi. Neither is called here -- that would initialize MPI -- but the
-    // references make the links real.
-    if(argc > 1000) {
-        Gem::Geneva::GMPISubClientOptimizer const optimizer(argc, argv, "./config/Go2.json");
+    // Linked: the environment's functions from libgemfony-courtier-mpi. Not called here -- that
+    // would initialize MPI -- but the reference makes the link real.
+    if(argc > 1000 && argv != nullptr) {
         return static_cast<int>(Gem::Courtier::mpiProcessRole());
     }
 

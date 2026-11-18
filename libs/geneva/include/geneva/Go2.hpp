@@ -105,9 +105,10 @@ public:
     /**
      * @brief A constructor that first parses the command line for relevant parameters and allows to specify a default config file name.
      *
-     * It first installs the fatal report (Gem::Common::installFatalReport(), common/GFatalReport.hpp):
-     * a program ends on an error nobody handles with a message and the exit code 1. A program that
-     * wants a terminate handler of its own sets it after constructing Go2.
+     * It first installs the fatal report (Gem::Common::installFatalReport(),
+     * common/GFatalReport.hpp): a program ends on an error nobody handles with a message and the
+     * exit code 1. A program that wants a terminate handler of its own sets it after constructing
+     * Go2.
      */
     Go2(int argc,
         char **argv,
@@ -319,8 +320,8 @@ public:
      *
      * In that mode Go2 only refreshes the configuration files it owns and then exits without optimizing;
      * it also forces the local thread-pool consumer so no networked / GPU / MPI consumer is built. A
-     * subclass that would otherwise insist on a particular consumer (e.g. GMPISubClientOptimizer requiring
-     * the MPI consumer) uses this to relax that requirement during a pure config-refresh run.
+     * subclass or a program that would otherwise insist on a particular consumer uses this to relax that
+     * requirement during a pure config-refresh run.
      *
      * @return true if the binary was invoked with --update-configs, false otherwise
      */
