@@ -207,7 +207,8 @@ GMPICascade::GMPICascade(std::function<GMPICascadeConfig()> config_on_rank0, MPI
  * finalized; a member that has neither served nor received the stop ends the job (its lead would
  * wait for ever); a lead releases its group; a lead or the submitter whose role was never
  * confirmed with requireRole() ends the job, unless an exception unwinds through the cascade
- * (unwinding_(); a lead that used the cascade has ended it at the first use already); the
+ * (std::uncaught_exceptions() > 0: the class rules out a cascade constructed during an unwinding;
+ * a lead that used the cascade has ended it at the first use already); the
  * submitter ends the job if an exception unwinds through the cascade and no MPI consumer was built
  * on it (nobody would tell the leads, which wait for its greeting); then the communicators are
  * freed and the environment is let go of, which finalizes MPI if it initialized it and this was its
@@ -233,14 +234,15 @@ GMPICascade::~GMPICascade() {
     if(role_ == processRole::CLIENT) {
         this->release();
     }
-    if(role_ != processRole::BYSTANDER && not role_confirmed_ && not this->unwinding_()) {
+    const bool unwinding = std::uncaught_exceptions() > 0; // through the cascade (see the class)
+    if(role_ != processRole::BYSTANDER && not role_confirmed_ && not unwinding) {
         this->endJob_(
             "~GMPICascade()",
             std::string("the role of ") + std::string(roleName(role_)) + " was never confirmed. " +
                 std::string(confirmationAdvice())
         );
     }
-    if(role_ == processRole::SUBMITTER && this->unwinding_() && not environment_->consumerBuilt()) {
+    if(role_ == processRole::SUBMITTER && unwinding && not environment_->consumerBuilt()) {
         this->endJob_(
             "~GMPICascade()",
             "an exception leaves the submitter before an MPI consumer was built on it. The leads "
@@ -916,24 +918,13 @@ void GMPICascade::endJob_(
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job with EXIT_FAILURE (see the overload with an exit code).
- *
- * @param where The function that was running
- * @param reason Why
- */
-void GMPICascade::endJob_(std::string_view where, std::string_view reason) const noexcept {
-    this->endJob_(where, reason, EXIT_FAILURE);
-}
-
-/******************************************************************************/
-/**
  * @brief Ends the MPI job: logs @p reason and calls MPI_Abort on the base communicator with
  * @p code, which ends every process of the job (in SUBMITTER_AND_GROUPS the whole run, in
  * GROUPS_ONLY one client job).
  *
  * @param where The function that was running
  * @param reason Why
- * @param code The exit code of the job (the error code of MPI_Abort)
+ * @param code The exit code of the job (the error code of MPI_Abort); EXIT_FAILURE by default
  */
 void GMPICascade::endJob_(
     std::string_view where,
@@ -952,17 +943,6 @@ void GMPICascade::endJob_(
     std::cerr.flush();
     std::ignore = MPI_Abort(base_, code); // does not return; nothing to do if it did
     std::abort();                         // not reached: MPI_Abort does not return
-}
-
-/******************************************************************************/
-/**
- * @brief Whether an exception unwinds through the cascade: more exceptions unwind now than when
- * it was constructed. A plain std::uncaught_exceptions() > 0 would also count an unrelated
- * exception during whose unwinding the whole cascade lives, inside a destructor.
- * @return Whether an exception unwinds through the cascade
- */
-bool GMPICascade::unwinding_() const noexcept {
-    return std::uncaught_exceptions() > uncaught_at_construction_;
 }
 
 /******************************************************************************/
