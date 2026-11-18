@@ -61,6 +61,28 @@ SET_TESTS_PROPERTIES ( GMPISubClientBaseCommTest PROPERTIES
 	LABELS "geneva;example" PROCESSORS 5 )
 GENEVA_TEST_SIZE ( GMPISubClientBaseCommTest L )
 
+# An MPI cascade on a base communicator whose rank 0 is not rank 0 of MPI_COMM_WORLD: the roles of
+# the cascade and of Geneva's MPI module, loaded at run time, follow the base ranks; then one
+# iteration with groups of two. Five ranks, each in a directory of its own.
+ADD_EXECUTABLE ( GMPICascadeBaseCommTest GMPICascadeBaseCommTest.cpp )
+TARGET_LINK_LIBRARIES ( GMPICascadeBaseCommTest
+	GFunctionIndividual-obj
+	${COURTIER_MPI_LIBNAME}
+	${GENEVA_LIBRARIES}
+	${Boost_LIBRARIES}
+	MPI::MPI_CXX
+)
+ADD_DEPENDENCIES ( GMPICascadeBaseCommTest ${GENEVA_MPI_LIBNAME} )
+SET ( CASCADE_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/cascade-base-comm )
+FILE ( MAKE_DIRECTORY ${CASCADE_WORKDIR} )
+GENEVA_ADD_MPI_TEST ( NAME GMPICascadeBaseCommTest TIMEOUT 60
+	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 5 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GMPICascadeBaseCommTest> ${MPIEXEC_POSTFLAGS} --consumer mpi
+	WORKING_DIRECTORY ${CASCADE_WORKDIR} )
+SET_TESTS_PROPERTIES ( GMPICascadeBaseCommTest PROPERTIES LABELS "geneva" PROCESSORS 5 )
+GENEVA_TEST_SIZE ( GMPICascadeBaseCommTest M )
+
 # A bystander in a plain Go2 program: three ranks, of which the MPI consumer's communicator holds
 # two. The third must be in client mode, and its clientRun() must return at once. Each rank runs in
 # a directory of its own, because the program writes its configuration files where it starts. The
