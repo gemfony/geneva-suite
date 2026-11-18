@@ -123,6 +123,41 @@ packages and reviews of a work stream); an entry links to them instead of repeat
 until nobody could say from one place what was decided, what was running and what was done.
 (Maintainer decision, 2026-11-17.)
 
+## AI-8. When work grows beyond its plan, the maintainer decides whether it goes on
+
+Every package states beforehand what it may cost: the expected code lines added and removed, and
+the shared state it adds (atomics, locks, threads, kinds of messages, options, callbacks). The
+numbers are not the goal -- the code is to stay simple, correct and maintainable, and to follow a
+clear architecture -- they are what makes growth visible in time.
+
+The work stops, and the maintainer is asked, as soon as one of these holds:
+
+- A defect that the same work introduced can only be fixed by a new mechanism, not by correcting
+  the lines that are there.
+- A fix needs a fix: the second round at the same place.
+- The package exceeds its stated size by more than half, or takes more than twice the time it was
+  estimated at.
+- A library gets more shared state than the package stated.
+
+The question is a single question with the numbers: what was planned, what it has become, and the
+ways on -- continue, a simpler form, or drop it. Nothing is added at that place until the answer
+is there.
+
+- **The root cause is fixed, not its symptom.** A fix on a fix on a fix that brings new defects is
+  not wanted. Fixing the root cause may mean revising the original decision about how a feature is
+  built, when that decision does not carry; that revision is put to the maintainer with the
+  question.
+- **Every review finding is first asked whether it disappears by leaving something out** -- a
+  mechanism, a case, a guarantee nobody needs -- before code is added to close it.
+- This composes with AI-6 (which bounds the rounds of review) and with Invariant 29 (the thin
+  slice that ends with a decision): those two limit how work is checked; this one limits how far it
+  may grow unasked.
+
+*Why:* in the courtier rework of November 2026 a week of packages, each reviewed and tested, grew
+the library's code by two thirds and its atomics threefold. Much of that served one optional
+guarantee and the corner cases of earlier fixes; every step was right by itself, and nobody was
+asked whether the whole was still wanted. (Maintainer decision, 2026-11-18.)
+
 ---
 
 *Add new AI invariants below as the maintainer establishes them. Keep each rule short, mandatory, and
