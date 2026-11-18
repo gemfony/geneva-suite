@@ -525,6 +525,22 @@ ELSE()
 ENDIF()
 
 ################################################################################
+# The commit of the sources (CMakeModules/GenevaCommit.cmake): taken here once, so that a tree that
+# does not say which commit it is does not configure, and again at every build, before the common
+# library is compiled (libs/common/src/CMakeLists.txt), so that a commit made after the configure is
+# seen. The one source it writes defines Gem::Common::genevaCommit().
+SET(GENEVA_COMMIT_SOURCE ${CMAKE_BINARY_DIR}/libs/common/src/GGenevaCommit.cpp)
+EXECUTE_PROCESS(
+	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GENEVA_COMMIT_SOURCE}
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+	RESULT_VARIABLE _geneva_commit_rc
+	ERROR_VARIABLE _geneva_commit_error
+)
+IF(NOT _geneva_commit_rc EQUAL 0)
+	MESSAGE(FATAL_ERROR "${_geneva_commit_error}")
+ENDIF()
+
+################################################################################
 # Include directories, libraries
 
 INCLUDE_DIRECTORIES (
@@ -848,6 +864,22 @@ IF (GENEVA_BUILD_TESTS)
 	ENDFOREACH()
 	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
 		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
+
+	# Where a build takes the commit of the sources from (GenevaCommit.cmake), on made-up source
+	# trees. Needs git, to make the work tree among them.
+	FIND_PACKAGE(Git QUIET)
+	IF (GIT_FOUND)
+		ADD_TEST(
+			NAME GenevaCommitSources
+			COMMAND ${CMAKE_COMMAND} -DSCRIPT=${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+				-DGIT=${GIT_EXECUTABLE} -DWORK=${CMAKE_BINARY_DIR}/GenevaCommitSources
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaCommit.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaCommitSources PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GENEVA_TEST_SIZE(GenevaCommitSources S)
+	ELSE ()
+		MESSAGE(STATUS "GenevaCommitSources not registered: git not found")
+	ENDIF ()
 
 	# The runner of the tests that start MPI jobs (GenevaMpiTest.cmake) gives two runs at the same
 	# time two directories for Open MPI's shared-memory files and removes each, also after a

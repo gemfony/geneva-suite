@@ -67,10 +67,10 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * library-defined payload that courtier relays without interpreting (see GCommandContainerT).
  *
  * Every message has a head, which is read first and by itself, and may have a payload:
- *  - HELLO is the first message of every connection, from the server: its build (the collection's
- *    version string), the number of this protocol (GFRAMEPROTOCOL) and the keep-alive interval of
- *    the connection in milliseconds (0: none), which the server alone sets. A client whose build or
- *    protocol differ ends; one that matches takes the interval (GPeerI::setKeepAlive()).
+ *  - HELLO is the first message of every connection, from the server: its build (the commit of the
+ *    Geneva sources, Gem::Common::genevaCommit()) and the keep-alive interval of the connection in
+ *    milliseconds (0: none), which the server alone sets. A client built from another commit ends;
+ *    one that matches takes the interval (GPeerI::setKeepAlive()).
  *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
  *    work answers when work is there.
  *  - WORK carries an item; its head names the item (correlation id and lineage id, in the outcome),
@@ -111,10 +111,6 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     }
     return false;
 }
-
-/// The number of the frame protocol, sent with HELLO; a client of another number ends. Raised
-/// whenever the frames change.
-constexpr std::uint32_t GFRAMEPROTOCOL = 3;
 
 /******************************************************************************/
 /**

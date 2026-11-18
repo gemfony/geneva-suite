@@ -96,8 +96,8 @@ struct GPeerClientOptions {
  *
  * The link, on the client's one io thread:
  *  - CONNECTING: the connector's attempt, the peer's start, the wait for the server's HELLO. A
- *    HELLO whose build or protocol differs from this client's ends the client (a terminal error;
- *    it does not come back). The HELLO is the contact with a server; it names the keep-alive
+ *    HELLO whose build (the Geneva commit) differs from this client's ends the client (a terminal
+ *    error; it does not come back). The HELLO is the contact with a server; it names the keep-alive
  *    interval, which the client hands to its end (GPeerI::setKeepAlive()).
  *  - OPEN: the client keeps its items in flight -- PULLs without an answer, items held, items
  *    being evaluated -- at the prefetch depth by sending PULLs. Every finished item goes back as a
@@ -539,8 +539,8 @@ private:
         }
         if(const std::string mismatch = helloMismatch(hello); not mismatch.empty()) {
             glogger << "In " << options_.name << ":" << '\n'
-                    << "The server was built from another revision: " << mismatch << '\n'
-                    << "Server and client must be built from the same revision. This will "
+                    << "The server was built from another commit: " << mismatch << '\n'
+                    << "Server and client must be built from the same commit. This will "
                        "terminate the client."
                     << '\n'
                     << GLOGGING;

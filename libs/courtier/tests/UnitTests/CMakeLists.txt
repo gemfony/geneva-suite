@@ -106,8 +106,8 @@ geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp 
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
-geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GInProcessPeer.hpp
-	GInProcessTestSupport.hpp)
+geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GCapturedLog.hpp
+	GInProcessPeer.hpp GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 # run() returns only once no evaluation of the client runs any more, also when it is asked to close
 # while one runs
@@ -131,7 +131,7 @@ geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp 
 geneva_courtier_test(GCourtierMpiPeerTests     M  GCourtierMpiPeerTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp GPeerTestRole.hpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp
-	GTcpRelay.hpp)
+	GCapturedLog.hpp GTcpRelay.hpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
 geneva_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")

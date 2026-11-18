@@ -68,7 +68,7 @@ namespace Gem::Courtier {
  *  - every frame: its kind;
  *  - WORK and RESULT: the library's tag and the GProcessingOutcome, which names the item (its
  *    correlation id and lineage id) and, on a RESULT, says how its processing ended;
- *  - HELLO: the server's build, the number of the frame protocol and the keep-alive interval.
+ *  - HELLO: the server's build (the commit of its Geneva sources) and the keep-alive interval.
  */
 struct GFrameHead {
     ///////////////////////////////////////////////////////////////////////
@@ -100,7 +100,6 @@ struct GFrameHead {
         }
         else if(kind == GFrameKind::HELLO) {
             archive_named(ar, "build", build);
-            archive_named(ar, "protocol", protocol);
             archive_named(ar, "keepAlive", keepAlive);
         }
     }
@@ -109,8 +108,7 @@ struct GFrameHead {
     GFrameKind kind{GFrameKind::NONE}; ///< What the frame does to the transport (courtier's own)
     std::uint32_t tag{0};              ///< What it means to the using library (relayed only)
     GProcessingOutcome outcome;        ///< The item it names, and how it ended (WORK, RESULT)
-    std::string build;                 ///< HELLO: the server's build
-    std::uint32_t protocol{0};         ///< HELLO: the number of the frame protocol
+    std::string build;                 ///< HELLO: the server's build (its Geneva commit)
     std::uint64_t keepAlive{0};        ///< HELLO: the keep-alive interval in ms (0: none)
 };
 
@@ -233,22 +231,17 @@ public:
         return head_.outcome;
     }
 
-    /** @brief Makes the frame a HELLO with a build, a protocol number and a keep-alive interval
-     *  @param build The server's build @param protocol The number of the frame protocol
+    /** @brief Makes the frame a HELLO with a build and a keep-alive interval
+     *  @param build The server's build (the commit of its Geneva sources)
      *  @param keep_alive The keep-alive interval of the connection (0: none) */
-    void setHello(std::string build, std::uint32_t protocol, std::chrono::milliseconds keep_alive) {
+    void setHello(std::string build, std::chrono::milliseconds keep_alive) {
         reset(GFrameKind::HELLO);
         head_.build = std::move(build);
-        head_.protocol = protocol;
         head_.keepAlive = keep_alive.count() > 0 ? static_cast<std::uint64_t>(keep_alive.count()) : 0;
     }
     /** @brief @return The build a HELLO announces */
     [[nodiscard]] const std::string &build() const noexcept {
         return head_.build;
-    }
-    /** @brief @return The protocol number a HELLO announces */
-    [[nodiscard]] std::uint32_t protocol() const noexcept {
-        return head_.protocol;
     }
     /** @brief @return The keep-alive interval a HELLO names (0: none) */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const noexcept {

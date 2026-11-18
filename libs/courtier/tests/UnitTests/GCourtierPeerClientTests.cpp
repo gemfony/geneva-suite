@@ -59,9 +59,13 @@
 
 #include <boost/asio/any_io_executor.hpp>
 
+#include "GCapturedLog.hpp"
 #include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
+#include "common/GGenevaCommit.hpp"
+#include "common/GLogger.hpp"
+#include "common/GModuleManifest.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessingContainerT.hpp"
@@ -81,6 +85,7 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::CapturedLog;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessListenerRef;
@@ -2349,10 +2354,13 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A server of another build: its HELLO names another version. The client ends with a terminal
+// A server of another build: its HELLO names another commit. The client ends with a terminal
 // error, and asks for nothing.
 
 namespace {
+
+/// The commit a server of another build names in its HELLO (no build has it)
+constexpr std::string_view OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234567-dirty";
 
 /** @brief A listener whose server ends greet with a HELLO of another build, and count what their
  *  clients send; and its threads */
@@ -2369,11 +2377,7 @@ public:
                             [weak] {
                                 if(auto end = weak.lock()) {
                                     GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
-                                    hello.setHello(
-                                        "0.0.0-another",
-                                        Gem::Courtier::GFRAMEPROTOCOL,
-                                        0ms
-                                    );
+                                    hello.setHello(std::string(OTHER_COMMIT), 0ms);
                                     end->send(
                                         Gem::Courtier::Consumers::makeMessage(
                                             Gem::Courtier::container_to_string(hello, BIN)
@@ -2439,8 +2443,22 @@ TEST_CASE(
     }));
 }
 
+// The HELLO a server sends names the commit of its Geneva sources, and a client of the same build
+// accepts it.
+TEST_CASE("GPeerClientT: the HELLO names the Geneva commit of the server", "[courtier][peer][client]") {
+    const std::string hello = Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms);
+    GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
+    REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));
+    CHECK(got.kind() == GFrameKind::HELLO);
+    CHECK(got.build() == Gem::Common::genevaCommit());
+    CHECK(Gem::Courtier::helloMismatch(got).empty());
+}
+
 TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier][peer][client]") {
     auto evaluations = std::make_shared<Evaluations>();
+    // What the client logs goes here for the duration of this test.
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
     const OtherBuildServer other;
     World world;
     world.route().set(other.listener());
@@ -2456,6 +2474,14 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(client->losses() == 0);
     CHECK(client->connections() == 1); // it did not come back
     CHECK(other.received() == 0);      // and asked for nothing
+    // The log names both commits, and this build's version for the reader.
+    CHECK(log->hasLineWith(
+        {"The server was built from another commit",
+         OTHER_COMMIT,
+         Gem::Common::genevaCommit(),
+         GENEVA_VERSION_STRING}
+    ));
+    glogger.resetLogTargets();
 }
 
 /******************************************************************************/

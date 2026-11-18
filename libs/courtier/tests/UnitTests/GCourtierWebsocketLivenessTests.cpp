@@ -66,6 +66,7 @@
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
+#include "GCapturedLog.hpp"
 #include "GTcpRelay.hpp"
 
 namespace {
@@ -196,6 +197,7 @@ using Gem::Courtier::GSubmissionPolicy;
 using Gem::Courtier::GWebsocketConsumerT;
 using Gem::Courtier::Consumers::GWebsocketClientT;
 using namespace std::chrono_literals;
+using Gem::Courtier::Tests::CapturedLog;
 namespace Websocket = boost::beast::websocket;
 
 namespace {
@@ -278,40 +280,6 @@ struct HandDrivenPeer {
         ws.handshake("127.0.0.1", "/");
         ws.binary(true);
     }
-};
-
-/** @brief A log target that keeps what is logged, so that a test can look at it. */
-class CapturedLog final : public Gem::Common::GBaseLogTarget {
-public:
-    /** @brief Keeps @p message */
-    void log(std::string const &message) const override {
-        const std::scoped_lock lock(mutex_);
-        lines_.push_back(message);
-    }
-    /** @brief Keeps @p message, preceded by @p extension */
-    void logWithSource(std::string const &message, std::string const &extension) const override {
-        std::string line = extension;
-        line.append(": ").append(message);
-        this->log(line);
-    }
-    /** @return Whether a line logged so far contains all of @p parts */
-    [[nodiscard]] bool hasLineWith(std::initializer_list<std::string_view> parts) const {
-        const std::scoped_lock lock(mutex_);
-        for(const auto &line : lines_) {
-            bool all = true;
-            for(const auto part : parts) {
-                all = all && line.contains(part);
-            }
-            if(all) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-private:
-    mutable std::mutex mutex_; ///< Guards lines_ (the logger may call from any thread)
-    mutable std::vector<std::string> lines_; ///< What was logged, in order
 };
 
 } /* anonymous namespace */

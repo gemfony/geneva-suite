@@ -41,6 +41,20 @@ SET ( COMMONSOURCES
 	GSigHupHandler.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp
+	${GENEVA_COMMIT_SOURCE}
+)
+
+# The commit of the sources, taken again before every build of the library (the top-level
+# CMakeLists.txt says why). The script rewrites GENEVA_COMMIT_SOURCE only when the id changes, so
+# that otherwise nothing is compiled or linked again. A changed id (a commit, or the first change of
+# a tracked file after one: "-dirty") costs one compile and the relink of the library and of every
+# target that links it -- intended, not a defect.
+ADD_CUSTOM_TARGET ( geneva-commit
+	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GENEVA_COMMIT_SOURCE}
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+	BYPRODUCTS ${GENEVA_COMMIT_SOURCE}
+	COMMENT "Taking the commit of the Geneva sources"
+	VERBATIM
 )
 
 
@@ -51,6 +65,7 @@ set_source_files_properties(
 )
 
 ADD_LIBRARY ( ${COMMON_LIBNAME} SHARED ${COMMONSOURCES} )
+ADD_DEPENDENCIES ( ${COMMON_LIBNAME} geneva-commit )
 
 SET_TARGET_PROPERTIES(
     ${COMMON_LIBNAME}

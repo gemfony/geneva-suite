@@ -89,6 +89,7 @@ geneva_common_test(GExpectationChecksTTests       S  GExpectationChecksTTests.cp
 geneva_common_test(GFactoryTTests                 S  GFactoryTTests.cpp)
 geneva_common_test(GFatalReportTests              S  GFatalReportTests.cpp)
 geneva_common_test(GFixedSizePriorityQueueTTests  S  GFixedSizePriorityQueueTTests.cpp)
+geneva_common_test(GGenevaCommitTests             S  GGenevaCommitTests.cpp)
 geneva_common_test(GGlobalDefinesTests            S  GGlobalDefinesTests.cpp)
 geneva_common_test(GGlobalOptionsTTests           S  GGlobalOptionsTTests.cpp)
 geneva_common_test(GJsonIOTests                   S  GJsonIOTests.cpp)

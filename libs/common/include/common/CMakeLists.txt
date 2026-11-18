@@ -53,6 +53,7 @@ SET ( GENEVACOMMONINCLUDES
 	GFactoryT.hpp
 	GFatalReport.hpp
 	GFixedSizePriorityQueueT.hpp
+	GGenevaCommit.hpp
 	GGlobalDefines.hpp
 	GGlobalOptionsT.hpp
 	GJsonIO.hpp

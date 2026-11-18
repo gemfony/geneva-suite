@@ -40,6 +40,7 @@
 // Geneva headers go here
 #include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
 #include "common/GErrorStreamer.hpp"
+#include "common/GGenevaCommit.hpp" // Gem::Common::genevaCommit()
 #include "common/GLogger.hpp"
 #include "common/GModuleManifest.hpp"             // GENEVA_VERSION_STRING
 #include "courtier/GCommandContainerT.hpp"        // GCommandContainerT, container_to/from_string
@@ -135,9 +136,9 @@ void wireDecodePayload(
 
 /******************************************************************************/
 /**
- * @brief Server side: the HELLO a session sends first on every connection: this build of the
- * collection (GENEVA_VERSION_STRING), the number of the frame protocol (GFRAMEPROTOCOL) and the
- * keep-alive interval of the connection, which the client takes.
+ * @brief Server side: the HELLO a session sends first on every connection: this build (the commit
+ * of the Geneva sources, Gem::Common::genevaCommit()) and the keep-alive interval of the
+ * connection, which the client takes.
  * @tparam processable_type The payload type of the command container
  * @param ser_mode The serialization format to use
  * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive(); 0: none)
@@ -146,25 +147,26 @@ void wireDecodePayload(
 template <typename processable_type>
 std::string buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
     GCommandContainerT<processable_type> hello{GFrameKind::NONE};
-    hello.setHello(GENEVA_VERSION_STRING, GFRAMEPROTOCOL, keep_alive);
+    hello.setHello(std::string(Gem::Common::genevaCommit()), keep_alive);
     return container_to_string(hello, ser_mode);
 }
 
 /******************************************************************************/
 /**
- * @brief Client side: whether a HELLO names the same build and protocol as this process.
+ * @brief Client side: whether a HELLO names the same build (the commit of the Geneva sources) as
+ * this process.
  * @tparam processable_type The payload type of the command container
  * @param hello A HELLO frame
  * @return Empty if they match; otherwise what differs, for the log
  */
 template <typename processable_type>
 std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
-    if(hello.build() == GENEVA_VERSION_STRING && hello.protocol() == GFRAMEPROTOCOL) {
+    const std::string_view own = Gem::Common::genevaCommit();
+    if(hello.build() == own) {
         return {};
     }
-    return "the server runs Geneva " + hello.build() + " with frame protocol " +
-           std::to_string(hello.protocol()) + ", this client Geneva " + GENEVA_VERSION_STRING +
-           " with frame protocol " + std::to_string(GFRAMEPROTOCOL);
+    return "the server's Geneva commit is " + hello.build() + ", this client's (Geneva " +
+           GENEVA_VERSION_STRING + ") is " + std::string(own);
 }
 
 /******************************************************************************/

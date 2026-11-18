@@ -596,8 +596,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   / `...UPPERBOUNDARYMSEC` are **removed**. The pauses, time limits and defaults of the networked
   consumers are named constants in `courtier/GCourtierEnums.hpp`.
 - **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
-  collection's version and the number of the frame protocol, `GFRAMEPROTOCOL`); a client of
-  another build ends with a message that says so. A client asks for one item with `PULL`, the
+  commit of the server's Geneva sources, `Gem::Common::genevaCommit()`, and the keep-alive
+  interval); a client built from another commit ends with a message that names both commits.
+  Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has
+  changed), else from the file `GENEVA_COMMIT`, which `git archive` fills in and a build that
+  copies the sources without `.git` writes (the container build: the build argument
+  `GENEVA_COMMIT`); a tree without either does not configure. A client asks for one item with `PULL`, the
   server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for
   nothing. The frame kinds `NO_WORK`, `RETURN` and `UNREADABLE` are gone, and so are the client's
   files of results it could not deliver (`--beast_undeliveredDir`, `--mpi_undeliveredDir`,

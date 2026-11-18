@@ -70,6 +70,14 @@ Prerequisites
  - The Git version control tool, only if you build from the version-control
    tree rather than from a released tarball.
 
+ - A Geneva build must know the commit of its sources: a server of the
+   networked consumers and its clients must be built from the same one. It is
+   taken from git when the sources are a git checkout (with "-dirty" appended
+   when a tracked file has changed), else from the file GENEVA_COMMIT at the top
+   of the sources, which "git archive" fills in. Sources copied without .git
+   need the id written into that file (the container build takes it as the
+   build argument GENEVA_COMMIT); without it the configure stops and says so.
+
 Optional:
 
  - A CUDA toolkit, for the GPU consumer and/or the CUDA random-number backend.
