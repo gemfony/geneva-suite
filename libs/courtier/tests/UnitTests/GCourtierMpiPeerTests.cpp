@@ -82,6 +82,7 @@ using Gem::Courtier::Consumers::GMPIListener;
 using Gem::Courtier::Consumers::GMPIPeerOptions;
 using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::ExecutorHold;
 using Gem::Courtier::Tests::GMPIFakeWorld;
 using Gem::Courtier::Tests::makeRole;
 using Gem::Courtier::Tests::Role;
@@ -393,8 +394,8 @@ TEST_CASE("MPI transport: a message longer than the limit", "[courtier][mpi]") {
 /******************************************************************************/
 /**
  * A poll that fails ends every end of the process as FAILED, also one not started yet -- and every
- * client rank is told (a close that says ERROR): MPI has no keep-alive, and a client that is not
- * told waits for ever.
+ * client rank is told (a close that says ERROR): a client that is not told waits until its
+ * keep-alive finds the submitter silent, or for ever without one.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a failed poll ends every end", "[courtier][mpi]") {
@@ -995,4 +996,60 @@ TEST_CASE("MPI transport: a start that throws tells the clients", "[courtier][mp
     CHECK(one.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
     CHECK(two.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
     world->delayReceives(0ms);
+}
+
+/******************************************************************************/
+/**
+ * The signs of life on the ends: the submitter's end of a rank that has been heard from and then
+ * neither sends nor receives ends as SILENT after more than two intervals and at most three (and a
+ * margin); the loss is noted with the calls, and the rank is sent a close that says ERROR, which it
+ * reads when it runs again.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE("MPI transport: the end of a rank that falls silent ends as SILENT", "[courtier][mpi]") {
+    constexpr auto INTERVAL = 100ms;
+    constexpr auto MARGIN = 300ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    GMPIPeerOptions options = optionsWith();
+    options.poll.keepAlive = INTERVAL;
+    Master master(world, options);
+    Client client(world, 1); // without an interval of its own: it sends nothing by itself
+    master.start();
+    REQUIRE(eventually([&] {
+        const auto role = master.role(1);
+        return role != nullptr && role->events().size() == 1 &&
+               client.role().events().size() == 1;
+    }));
+    const auto role = master.role(1);
+
+    // The client's role says one thing and then nothing; then its rank does not run at all
+    const auto spoke_at = std::chrono::steady_clock::now();
+    boost::asio::post(client.executor(), [&client] { client.role().send("a last word"); });
+    ExecutorHold stopped(client.executor());
+    REQUIRE(eventually([&] { return role->nClosed() == 1; }));
+    const auto silent_after = std::chrono::steady_clock::now() - spoke_at;
+    CHECK(role->events() == std::vector<std::string>{"open", "msg:a last word", "closed:SILENT:NORMAL"});
+    CHECK(silent_after > 2 * INTERVAL);
+    CHECK(silent_after <= 3 * INTERVAL + MARGIN);
+    CHECK(world->lostRanks(0) == std::vector<int>{1});
+    const auto tags = world->waitingTags(1);
+    CHECK(std::ranges::find(tags, Gem::Courtier::TAG_PEER_CLOSE) != tags.end());
+
+    stopped.release();
+    REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
+    CHECK(client.role().events().back() == "closed:CLOSED_THERE:ERROR");
+}
+
+/******************************************************************************/
+/** The listener notices a loss, and names an interval to its clients, only with a keep-alive. */
+TEST_CASE("MPI transport: the listener's keep-alive decides whether it detects a loss", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    const GMPIListener without(world->calls(0), optionsWith());
+    CHECK_FALSE(without.detectsLoss());
+    CHECK(without.keepAlive() == 0ms);
+    GMPIPeerOptions options = optionsWith();
+    options.poll.keepAlive = 1500ms;
+    const GMPIListener with(world->calls(0), options);
+    CHECK(with.detectsLoss());
+    CHECK(with.keepAlive() == 1500ms);
 }

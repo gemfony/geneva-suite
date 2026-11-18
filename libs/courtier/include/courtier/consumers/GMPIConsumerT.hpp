@@ -36,6 +36,7 @@
 // have (see courtier/mpi/GMPIEnvironment.hpp).
 
 // Standard headers
+#include <chrono>
 #include <memory>
 #include <utility>
 
@@ -87,18 +88,25 @@ namespace Gem::Courtier {
  *
  * Lost clients: a rank that dies ends the job -- the launcher (mpirun) aborts every rank when one
  * exits abnormally; MPI's errors being fatal on courtier's communicator only ends a rank whose own
- * MPI call fails. The items of a rank that hangs come back by the time lease.
+ * MPI call fails. A rank that hangs (stopped, or on a host that no longer answers) is noticed by
+ * the signs of life of the transport (pingInterval, 15 s by default; GMPIPollCore): a client not
+ * heard from for more than two intervals is lost, its session ends, and what it held is put back,
+ * so the run finishes with the other clients. MPI_Finalize would then wait for the lost rank, so
+ * the environment ends the job (MPI_Abort, exit code EXIT_FAILURE) where it would finalize MPI
+ * (GMPIEnvironment). With an interval of 0 a client that hangs is not noticed, and its items come
+ * back by the time lease.
  *
  * Size: MPI carries a message of at most INT_MAX bytes (about 2 GiB). A work item whose message
  * would be longer fails where the submitter hands it out, and a result that would be longer comes
  * back flagged from its client; the run goes on with the other items and clients.
  *
- * Silence: there is no keep-alive between the ranks, and no limit on how long a client waits for
- * its submitter once it has been greeted. A client whose submitter hangs, or ends without having
- * started its consumer and without telling it, waits until the job is ended (by the batch system
- * or the user); --mpi_firstContactLimit bounds only the wait for the greeting. Every way in which
- * the submitter's side of a client ends tells that client (a close of the run's end, or of an
- * error), so a client is not left waiting by a submitter that ends in any regular or failing way.
+ * Silence: the submitter names its keep-alive interval to every client in the HELLO, and a client's
+ * poll keeps the same signs of life: a client whose submitter falls silent ends its run, and its
+ * environment ends the job. A client whose submitter ends without having started its consumer and
+ * without telling it waits until the job is ended (by the batch system or the user);
+ * --mpi_firstContactLimit bounds the wait for the greeting. Every way in which the submitter's side
+ * of a client ends tells that client (a close of the run's end, or of an error), so a client is not
+ * left waiting by a submitter that ends in any regular or failing way.
  *
  * @tparam processable_type The work-item type distributed to the client ranks and collected back
  */
@@ -113,8 +121,9 @@ public:
      *
      *  @param environment The process's MPI environment; the consumer keeps it for as long as it
      *         exists and notes in it that it was built. Must not be null.
-     *  @param config Reads nHandlerThreads (the session threads; 0: one per hardware thread) and
-     *         serializationMode. The client members are ignored.
+     *  @param config Reads nHandlerThreads (the session threads; 0: one per hardware thread),
+     *         pingInterval (the keep-alive interval in seconds; 0: off) and serializationMode. The
+     *         client members are ignored.
      *  @throws geneva_exception if @p environment is null or the role of this process is not
      *          SUBMITTER */
     explicit GMPIConsumerT(
@@ -125,7 +134,10 @@ public:
             CONSUMER_NAME,
             std::make_unique<Consumers::GMPIListener>(
                 std::make_shared<Consumers::GMPICalls>(requireSubmitter_(environment)),
-                Consumers::GMPIPeerOptions{.name = CONSUMER_NAME}
+                Consumers::GMPIPeerOptions{
+                    .name = CONSUMER_NAME,
+                    .poll = {.keepAlive = std::chrono::seconds(config.pingInterval)}
+                }
             ),
             config.nHandlerThreads,
             config.serializationMode

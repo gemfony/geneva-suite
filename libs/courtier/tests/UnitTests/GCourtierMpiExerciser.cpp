@@ -69,6 +69,12 @@
  *                     late; the master has stopped by then, and the late client is told at once.
  *   stop-client-left -- rank 1 leaves after --leaveAfter items (an item limit); the batches
  *                     complete without it, then the master stops.
+ *   client-stops   -- (three ranks, a keep-alive of 1 s) rank 1 stops itself (SIGSTOP) in the
+ *                     middle of the batch: the master finds it silent, puts back what it held and
+ *                     finishes the batch with rank 2; the job is then ended (MPI_Finalize would
+ *                     wait for the stopped rank), with a non-zero exit code.
+ *   submitter-stops -- (three ranks, a keep-alive of 1 s) the master stops itself in the middle of
+ *                     the batch: every client finds it silent and ends, and the job is ended.
  */
 
 #include "common/GGlobalDefines.hpp"
@@ -78,6 +84,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -86,6 +93,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -409,6 +417,18 @@ int runClient(
     if(scenario == "stop-late-rank" && rank == environment->size() - 1) {
         std::this_thread::sleep_for(std::chrono::milliseconds(late_ms));
     }
+    if(scenario == "client-stops" && rank == 1) {
+        // The process stops in the middle of the batch. It runs again only while the launcher ends
+        // the job (Open MPI continues a stopped process before it ends it): it then reads the
+        // master's close and returns; what it does then is not judged.
+        const auto client = std::make_shared<client_type>(environment, config);
+        const std::jthread stopper([] {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::ignore = std::raise(SIGSTOP);
+        });
+        client->run();
+        return 0;
+    }
 
     if(scenario == "undecodable") {
         // the first such item this rank is sent fails to load
@@ -420,6 +440,12 @@ int runClient(
         client->setItemProcessor([](GFaultyContainer &item) { item.markAsProcessedWith({false}); });
     }
     client->run();
+    if(scenario == "submitter-stops") {
+        return verdict(
+            client->connectionEnd() == c2::Consumers::GPeerEnd::SILENT,
+            std::format("rank {} found its submitter silent", rank)
+        );
+    }
     if(scenario.starts_with("stop-") || scenario == "soak" || scenario == "never-started") {
         // Every client of these is told the end of the run
         return verdict(
@@ -445,7 +471,7 @@ int main(int argc, char **argv) {
         std::string("clean"),
         "what to exercise: clean | throwing | never-started | low-thread-level | undecodable"
         " | refusal | client-limits | client-time-limit | item-processor | soak | stop-parked"
-        " | stop-evaluating | stop-late-rank | stop-client-left"
+        " | stop-evaluating | stop-late-rank | stop-client-left | client-stops | submitter-stops"
     );
     gpb.registerCLParameter(
         "lateMs",
@@ -480,7 +506,9 @@ int main(int argc, char **argv) {
         "stop-parked",
         "stop-evaluating",
         "stop-late-rank",
-        "stop-client-left"
+        "stop-client-left",
+        "client-stops",
+        "submitter-stops"
     };
     if(std::ranges::find(SCENARIOS, scenario) == SCENARIOS.end()) {
         std::println(stderr, "Unknown scenario: {}", scenario);
@@ -496,7 +524,12 @@ int main(int argc, char **argv) {
         return runClient(environment, scenario, late_ms, leave_after);
     }
 
-    auto consumer = std::make_shared<consumer_type>(environment);
+    // The keep-alive of the scenarios of a lost rank is short, so that the loss is found at once
+    c2::Consumers::MPIConsumerConfig consumer_config{};
+    if(scenario == "client-stops" || scenario == "submitter-stops") {
+        consumer_config.pingInterval = 1;
+    }
+    auto consumer = std::make_shared<consumer_type>(environment, consumer_config);
 
     if(scenario == "never-started") {
         // The consumer's destructor stops the server, which never ran: it tells the clients that
@@ -545,6 +578,17 @@ int main(int argc, char **argv) {
         n_items = 60;
         ms = 5;
     }
+    else if(scenario == "client-stops" || scenario == "submitter-stops") {
+        // A batch of about three seconds; a rank stops itself after one
+        n_items = 120;
+        ms = 50;
+        if(scenario == "submitter-stops") {
+            sampler = std::jthread([] {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                std::ignore = std::raise(SIGSTOP);
+            });
+        }
+    }
     else if(scenario == "client-time-limit") {
         // Rank 1 leaves after one to two seconds of a batch of about five.
         n_items = 120;
@@ -589,6 +633,12 @@ int main(int argc, char **argv) {
     }
     if(scenario == "client-limits" && requeued != 0) {
         return verdict(false, std::format("{} item(s) were put back: a result was lost", requeued));
+    }
+    if(scenario == "submitter-stops") {
+        return verdict(false, "the submitter ran on after it had stopped itself");
+    }
+    if(scenario == "client-stops" && requeued == 0) {
+        return verdict(false, "nothing of the stopped rank was put back");
     }
     if(scenario == "client-time-limit" && (fewest_connected != 1 || requeued == 0)) {
         return verdict(

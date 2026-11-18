@@ -89,16 +89,20 @@
  * afterwards reaches an end that has finished and is dropped. A peer whose role asked for the close
  * before it was told of the open is told nothing but its end (rule 1).
  *
- * **Ends.** There is no keep-alive: a rank that dies ends the job (the communicator has
- * MPI_ERRORS_ARE_FATAL), and the items of a rank that hangs come back by the consumer's time lease
- * (GMPIListener::detectsLoss() is false). A failure of the poll ends every peer of the process with
- * GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
+ * **Ends.** The poll keeps the signs of life (GMPIPollCore, its class comment): with a keep-alive
+ * interval -- the submitter's comes with its options (GMPIPollTiming::keepAlive), a client takes the
+ * submitter's from the HELLO (setKeepAlive()) -- a rank that has been heard from and then not for
+ * more than two intervals is silent: its end tells it with a close (GPeerClose::ERROR) and reports
+ * GPeerEnd::SILENT, and the job is ended where MPI would be finalized (GMPIEnvironment), since
+ * MPI_Finalize would wait for that rank. GMPIListener::detectsLoss() says whether there is an
+ * interval. A rank that dies ends the job (the communicator has MPI_ERRORS_ARE_FATAL). A failure
+ * of the poll ends every peer of the process with GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
  * ends with GPeerEnd::FAILED, reported on its executor, and tells the other end with a close
  * (GPeerClose::ERROR).
  *
  * **Rules a change of this file must keep** (each is relied on elsewhere):
- *  - Every message between two ranks -- the role's, the greeting, a close, and any kind
- *    added later (a ping, say) -- is started through GMPIPollCore::startSend() from a context
+ *  - Every message between two ranks -- the role's, the greeting, a close, the poll's ping, and
+ *    any kind added later -- is started through GMPIPollCore::startSend() from a context
  *    that serializes the sender (an end's strand; the listener's start() before it posts on_peer),
  *    and received only by the poll. That one ordered path is what makes "the close comes after
  *    everything sent before it" and "nothing arrived since" true; a message sent another way could
@@ -107,7 +111,7 @@
  *    hands the ends to the shell); a client's end drops a message of the role that comes before it,
  *    with a warning, and stays open (GPeerI.hpp, rule 1: nothing reaches the role before onOpen).
  *  - Every way an end ends tells the other rank once (tellOther_()), unless it knows: a client
- *    has no keep-alive and would otherwise wait for ever. A new way to end must go through
+ *    without a keep-alive would otherwise wait for ever. A new way to end must go through
  *    finish_() after tellOther_(), or through endOfWork() before the poll's shutdown(). After
  *    shutdown() a send is dropped, so what must arrive is sent and drained before it
  *    (GMPIListener::endWork() does: tell, drainSends(), shutdown()).
@@ -200,6 +204,9 @@ public:
     /** @brief Tells the poll whether the owner is busy (a client: every evaluation slot taken):
      *  while every end it receives for has a busy owner, it looks less often. On the strand. */
     void setOwnerBusy(bool) override;
+    /** @brief The keep-alive interval the submitter named: the poll's ticks take it
+     *  (GMPIPollCore::setKeepAlive()). On the strand. */
+    void setKeepAlive(std::chrono::milliseconds) override;
 
     /***************************************************************************/
     // GMPIPollReceiverI
@@ -210,6 +217,8 @@ public:
     void discard() override;
     /** @brief The poll has failed: the end reports GPeerEnd::FAILED */
     void pollFailed(const std::string &) override;
+    /** @brief The other rank has fallen silent: the end tells it and reports GPeerEnd::SILENT */
+    void silent() override;
 
     /***************************************************************************/
     /** @brief The other end's rank. Any thread. @return The rank */
@@ -297,8 +306,11 @@ private:
  * and joins the poll's thread, ends the poll (GMPIPollCore::shutdown(): sends that have not
  * completed are given up, the peers are let go) and shuts the poll's context down.
  *
- * Loss of a client: not noticed (detectsLoss() is false): a rank that dies ends the whole job, and
- * the items of a rank that hangs come back by the consumer's time lease.
+ * Loss of a client: with a keep-alive interval (GMPIPollTiming::keepAlive of the options; keepAlive()
+ * names it, and the sessions name it to their clients) a client rank that falls silent ends its
+ * end as GPeerEnd::SILENT, and the shell's lease puts back what it held (detectsLoss() is true).
+ * Without one a client that hangs is not noticed, and its items come back by the consumer's time
+ * lease. A rank that dies ends the whole job.
  *
  * A submitter whose consumer is stopped without having been started has never greeted its clients,
  * which wait for that without a limit by default: announceEndWithoutStart() closes every client
@@ -327,8 +339,10 @@ public:
     void endWork() override;
     /** @brief A constant bound: an end finishes as soon as its close has been handed to the poll */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override;
-    /** @brief false: the time lease reclaims the items of a rank that hangs */
+    /** @brief Whether there is a keep-alive interval: a silent rank's end then ends by itself */
     [[nodiscard]] bool detectsLoss() const override;
+    /** @brief The keep-alive interval of the poll (GMPIPollTiming::keepAlive; 0: none) */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override;
     /** @brief For a submitter that never started: tells every client rank that the run has ended
      *  and drains the sends; waits for no answer */
     void announceEndWithoutStart() override;
@@ -374,7 +388,9 @@ private:
  * (RANK_MASTER_NODE), made at once and once -- an MPI client has one connection for the whole run
  * (reconnectable() is false). The poll runs on the executor given to connect(), the client's io
  * thread, and so does the peer (GPeerI.hpp, rule 7); the poll's chain ends by itself once the peer
- * has ended and its sends have completed, which lets the client's io context run out of work.
+ * has ended and its sends have completed, which lets the client's io context run out of work. The
+ * poll's ticks start when the client's role hands the end the submitter's keep-alive interval
+ * (GMPIPeer::setKeepAlive()), unless the options name one already.
  * The destructor ends the poll (GMPIPollCore::shutdown()).
  */
 class GMPIConnector final : public GConnectorI {

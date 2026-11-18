@@ -68,8 +68,9 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  *
  * Every message has a head, which is read first and by itself, and may have a payload:
  *  - HELLO is the first message of every connection, from the server: its build (the collection's
- *    version string) and the number of this protocol (GFRAMEPROTOCOL). A client whose own differ
- *    ends.
+ *    version string), the number of this protocol (GFRAMEPROTOCOL) and the keep-alive interval of
+ *    the connection in milliseconds (0: none), which the server alone sets. A client whose build or
+ *    protocol differ ends; one that matches takes the interval (GPeerI::setKeepAlive()).
  *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
  *    work answers when work is there.
  *  - WORK carries an item; its head names the item (correlation id and lineage id, in the outcome),
@@ -91,7 +92,7 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob
     RESULT = 8,       ///< worker -> server: a processed item's outcome
-    HELLO = 10        ///< server -> worker: the first message, the server's build
+    HELLO = 10        ///< server -> worker: the first message, the server's build and keep-alive
 };
 //! [courtier-frame-kind]
 
@@ -113,7 +114,7 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
 
 /// The number of the frame protocol, sent with HELLO; a client of another number ends. Raised
 /// whenever the frames change.
-constexpr std::uint32_t GFRAMEPROTOCOL = 2;
+constexpr std::uint32_t GFRAMEPROTOCOL = 3;
 
 /******************************************************************************/
 /**
@@ -144,9 +145,11 @@ const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
 const Gem::Common::serializationMode GCONSUMERSERIALIZATIONMODE =
     Gem::Common::serializationMode::GEM_BINARY;
-/// Websocket keep-alive, in seconds, for both ends of a connection: after this much silence a ping
-/// is sent, and after twice as much without any inbound data the connection is closed. The same
-/// limit (twice the interval) bounds the websocket handshake and the close handshake.
+/// The keep-alive interval, in seconds, a server names in its HELLO by default (websocket and MPI;
+/// --beast_pingInterval, --mpi_pingInterval). Websocket: after this much silence a ping is sent,
+/// and after twice as much without any inbound data the connection is closed; the same limit
+/// bounds the websocket handshake and the close handshake. On a client the value holds until its
+/// server has named its own in the HELLO.
 constexpr std::size_t GBEASTCONSUMERPINGINTERVAL = 15;
 /// The limit on the websocket handshake and the close handshake when the keep-alive is switched off
 /// (a ping interval of 0), so that neither can wait forever.
@@ -237,10 +240,13 @@ constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
 /// The rank of the submitter in courtier's communicator
 constexpr int RANK_MASTER_NODE = 0;
 /// The message tags of the MPI transport's ends (GMPIPeer): the greeting of the submitter's
-/// listener, a message of the role, and a close (with what it says).
+/// listener, a message of the role, and a close (with what it says); and the empty sign of life the
+/// poll sends every rank once per keep-alive interval (GMPIPollCore), which the receiving poll
+/// takes and hands to nobody.
 constexpr int TAG_PEER_OPEN = 46;
 constexpr int TAG_PEER_MESSAGE = 47;
 constexpr int TAG_PEER_CLOSE = 48;
+constexpr int TAG_PEER_PING = 49;
 /// The number of threads the sessions of the MPI consumer run on, by default (MPIConsumerConfig)
 constexpr std::uint32_t GMPICONSUMERSESSIONTHREADS = 2;
 

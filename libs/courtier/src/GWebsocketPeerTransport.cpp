@@ -339,6 +339,12 @@ bool GWebsocketListener::detectsLoss() const {
 }
 
 /******************************************************************************/
+/** @return The ping interval of the server's ends, named to their clients in the HELLO */
+std::chrono::milliseconds GWebsocketListener::keepAlive() const {
+    return options_.pingInterval;
+}
+
+/******************************************************************************/
 /** @return The port asked for before start(), the bound one afterwards */
 unsigned short GWebsocketListener::getPort() const noexcept {
     return port_.load();

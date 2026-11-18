@@ -64,6 +64,10 @@ struct MPIConsumerConfig {
     /// 0: as many as the machine has hardware threads. The poll that receives for every session
     /// runs on a thread of its own besides them.
     std::uint32_t nHandlerThreads{GMPICONSUMERSESSIONTHREADS};
+    /// Server: the keep-alive interval in seconds (0: off). Every rank is sent a sign of life that
+    /// often; a rank not heard from for more than twice that long is lost, and the job is ended
+    /// where MPI would be finalized. The clients take it from the HELLO.
+    std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;
     /// Client: n, how many work items it holds at once -- the one(s) being evaluated and those
     /// fetched ahead, so that the transfer of the next item overlaps the evaluation of the
     /// current one (1: it asks for the next item when it returns the current one). How many items

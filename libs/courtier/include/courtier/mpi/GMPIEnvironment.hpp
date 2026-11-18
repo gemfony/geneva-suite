@@ -38,7 +38,11 @@
 
 // Standard headers go here
 #include <atomic>
+#include <cstdlib>
 #include <functional>
+#include <iostream>
+#include <string_view>
+#include <tuple>
 
 // MPI headers go here
 #include <mpi.h>
@@ -46,9 +50,32 @@
 // Geneva headers go here
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 #include "courtier/GCourtierEnums.hpp"
 
 namespace Gem::Courtier::Consumers {
+
+/******************************************************************************/
+/**
+ * @brief Ends the MPI job: logs @p text as a warning, flushes the program's streams and calls
+ * MPI_Abort on @p communicator with @p code, which ends every process of the job. Does not
+ * return. The one way courtier ends a job (GMPICascade, ~GMPIEnvironment()).
+ *
+ * @param communicator The communicator whose processes are ended
+ * @param text What is logged
+ * @param code The exit code of the job (the error code of MPI_Abort)
+ */
+[[noreturn]] inline void endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
+    try {
+        glogger << text << '\n' << GWARNING;
+    }
+    catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
+    }
+    std::cout.flush();
+    std::cerr.flush();
+    std::ignore = MPI_Abort(communicator, code); // does not return; nothing to do if it did
+    std::abort();                                // not reached: MPI_Abort does not return
+}
 
 /******************************************************************************/
 /**
@@ -79,6 +106,13 @@ namespace Gem::Courtier::Consumers {
  * The destructor frees the duplicate and finalizes MPI if this object initialized it. A program
  * that initialized MPI itself finalizes it itself, and must let go of its consumer or client
  * before it does: the destructor does nothing once MPI is finalized.
+ *
+ * A rank that the transport's keep-alive has found silent (noteLostRank()) would keep MPI_Finalize
+ * waiting for ever: the destructor then ends the job (MPI_Abort on the base communicator, exit code
+ * EXIT_FAILURE) instead of finalizing, after the program's own output -- on the submitter after the
+ * run has finished with the other clients, on a client after its run() has returned. A program
+ * that initialized MPI itself is told in the log that its MPI_Finalize will wait for the lost
+ * ranks.
  *
  * MPI errors: the duplicate gets MPI_ERRORS_ARE_FATAL, whatever the base communicator has. The
  * transport does not check the return values of its MPI calls.
@@ -185,6 +219,23 @@ public:
         if(finalized != 0) {
             return;
         }
+        if(lost_rank_.load() && i_initialized_mpi_) {
+            endMpiJob(
+                base_,
+                "ranks were lost during the run; MPI_Finalize would wait for them: the job is ended",
+                EXIT_FAILURE
+            );
+        }
+        if(lost_rank_.load()) {
+            try {
+                glogger << "ranks were lost during the run: the program's MPI_Finalize will wait "
+                           "for them"
+                        << '\n'
+                        << GWARNING;
+            }
+            catch(...) { // NOLINT(bugprone-empty-catch): nothing to do about a log line
+            }
+        }
         if(communicator_ != MPI_COMM_NULL) {
             MPI_Comm_free(&communicator_);
         }
@@ -236,6 +287,12 @@ public:
         consumer_built_ = true;
     }
 
+    /** @brief Notes that a rank of courtier's communicator was lost (it fell silent): the
+     *  destructor ends the job instead of finalizing MPI (see the class comment). Any thread. */
+    void noteLostRank() noexcept {
+        lost_rank_.store(true);
+    }
+
     /** @brief Whether a consumer was built on this process (noteConsumer()). Any thread.
      *  @return true once noteConsumer() was called */
     [[nodiscard]] bool consumerBuilt() const noexcept {
@@ -272,6 +329,8 @@ private:
     bool i_initialized_mpi_ = false;        ///< Whether the constructor initialized MPI
     /// A consumer was built in this process (noteConsumer())
     std::atomic<bool> consumer_built_{false};
+    /// A rank was lost during the run (noteLostRank())
+    std::atomic<bool> lost_rank_{false};
 };
 
 /******************************************************************************/

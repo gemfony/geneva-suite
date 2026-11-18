@@ -252,11 +252,16 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   client waits for the next one. A submitter whose consumer is destroyed without having been started
   tells its clients that the run has ended, and they end at once; so does a submitter whose side of
   a client fails (a failed MPI poll, a session that cannot be made, the end of its work before a
-  close went out): no client is left waiting for a submitter that has gone. There is no keep-alive
-  and no limit on a client's wait once it has been greeted: a client whose submitter hangs, or whose
-  submitter ends without starting its consumer and without telling it (a program that exits before
-  it builds its consumer), waits until the job is ended. Before 1.99, a worker ended after 120 s
-  without word from its master. A message is limited to INT_MAX bytes (about 2 GiB): an item that
+  close went out): no client is left waiting for a submitter that has gone. The ranks keep signs of
+  life: `--mpi_pingInterval` (seconds, default 15; 0: off) is set on the submitter and named to
+  every client when it is greeted; each side sends an empty message to the other that often, and a
+  rank not heard from for more than twice that long is lost. A lost
+  client's items are handed out again and the run finishes with the others; a client whose
+  submitter is lost ends. MPI_Finalize would wait for a lost rank, so the job is then ended
+  (MPI_Abort, exit code 1) where MPI would be finalized; a program that initialized MPI itself is
+  told so in the log. A client whose submitter ends without starting its consumer and without
+  telling it (a program that exits before it builds its consumer) waits until the job is ended.
+  Before 1.99, a worker ended after 120 s without word from its master. A message is limited to INT_MAX bytes (about 2 GiB): an item that
   would be longer fails where it is handed out, a result that would be longer comes back flagged;
   the connection, and the run, go on. Options: `--mpi_asyncReq` is removed --
   `true` is now `--mpi_prefetchDepth 2` (the default), `false` is `--mpi_prefetchDepth 1`;
@@ -267,9 +272,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `masterCleanSessIntervalMSec` and `nHandlerThreadsRecommendation()` are replaced by
   `clientPrefetchDepth`, `clientParallelEvaluations` and `clientFirstContactLimit`. `GMPIConsumerWorkerNodeT` is a `GPeerClientT` and must be held by a
   `std::shared_ptr`.
-- **One keep-alive for both ends of a websocket connection.** `--beast_pingInterval` (default
-  15 s) applies to the server and to the client: after that much silence a ping is sent, and after
-  twice as much without any inbound data the connection is closed. The same limit bounds the
+- **One keep-alive for both ends of a websocket connection, set by the server.**
+  `--beast_pingInterval` (default 15 s) applies to the server and to the client; the server names
+  its value in its first message, and on a client the value holds until its server has named its
+  own: after that much silence a ping is sent, and after twice as much without any inbound data the
+  connection is closed. The same limit bounds the
   websocket handshake and the close handshake, so a peer that has stopped answering cannot hold
   a connection or a thread. A client answers pings while it evaluates, and both ends answer them
   while they encode or decode a message (neither does that on the thread that moves the

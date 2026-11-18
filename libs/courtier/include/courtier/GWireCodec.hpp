@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <chrono>
 #include <string>
 #include <string_view>
 
@@ -135,15 +136,17 @@ void wireDecodePayload(
 /******************************************************************************/
 /**
  * @brief Server side: the HELLO a session sends first on every connection: this build of the
- * collection (GENEVA_VERSION_STRING) and the number of the frame protocol (GFRAMEPROTOCOL).
+ * collection (GENEVA_VERSION_STRING), the number of the frame protocol (GFRAMEPROTOCOL) and the
+ * keep-alive interval of the connection, which the client takes.
  * @tparam processable_type The payload type of the command container
  * @param ser_mode The serialization format to use
+ * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive(); 0: none)
  * @return The serialized HELLO
  */
 template <typename processable_type>
-std::string buildHello(Gem::Common::serializationMode ser_mode) {
+std::string buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
     GCommandContainerT<processable_type> hello{GFrameKind::NONE};
-    hello.setHello(GENEVA_VERSION_STRING, GFRAMEPROTOCOL);
+    hello.setHello(GENEVA_VERSION_STRING, GFRAMEPROTOCOL, keep_alive);
     return container_to_string(hello, ser_mode);
 }
 

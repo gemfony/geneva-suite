@@ -67,8 +67,8 @@
  *
  *  1. **Two phases.** Nothing is reported before GPeerI::start(); onOpen precedes any onMessage.
  *     A peer that cannot be opened reports onClosed (GPeerEnd::FAILED) without onOpen.
- *  2. **One executor, serialized.** send() and setOwnerBusy() are called on the peer's
- *     executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
+ *  2. **One executor, serialized.** send(), setOwnerBusy() and setKeepAlive() are called on the
+ *     peer's executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
  *     after start() has returned is ordered after that work. On a server the handlers run on the
  *     executor the shell hands to the listener, and the transport moves the bytes, and makes and
@@ -231,6 +231,14 @@ public:
      *  busy; the default ignores it. */
     virtual void setOwnerBusy(bool) { /* nothing */
     }
+
+    /** @brief The keep-alive interval the other end has named (0: none): a client's role calls it
+     *  when its server's HELLO has named the interval (GListenerI::keepAlive()), which the server
+     *  alone sets. On the executor. A transport with signs of life of its own uses it from then on
+     *  (a websocket end its ping interval and idle limit, an MPI end its poll's ticks); one without
+     *  ignores it, as the default does. */
+    virtual void setKeepAlive(std::chrono::milliseconds) { /* nothing */
+    }
 };
 
 /******************************************************************************/
@@ -289,6 +297,11 @@ public:
      *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
      *  time lease. */
     [[nodiscard]] virtual bool detectsLoss() const = 0;
+
+    /** @brief The keep-alive interval of the server's ends (0: none). The sessions name it to
+     *  their clients in the HELLO, and a client's end takes it (GPeerI::setKeepAlive()): the
+     *  server alone sets it. */
+    [[nodiscard]] virtual std::chrono::milliseconds keepAlive() const = 0;
 
     /** @brief Tells the clients that are waiting for a server which will never start that the run
      *  has ended (GPeerClose::RUN_ENDED), and waits for them, at most stopGrace(). Called once, by

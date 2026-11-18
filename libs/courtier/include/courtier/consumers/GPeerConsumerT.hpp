@@ -34,6 +34,7 @@
 
 // Standard headers go here
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <exception>
 #include <memory>
@@ -102,6 +103,9 @@ namespace Gem::Courtier {
  * say) can still be asked of it. A session cut off by the grace lives until the shell is destroyed;
  * the items it held are put back then, but after stopServer() the consumer serves nothing anyway.
  *
+ * The keep-alive interval is the listener's (GListenerI::keepAlive()); every session names it to its
+ * client in the HELLO, and the client's end takes it: the server alone sets it.
+ *
  * Lost clients. Whether items of a lost client come back by the time lease is the listener's
  * answer (detectsLoss()): a transport that notices the loss of a client by itself needs no time
  * lease. A session's CheckoutLease is used in either case: when a connection ends, by a close or by
@@ -147,6 +151,7 @@ public:
       , n_threads_(n_threads == 0 ? defaultThreads_() : n_threads)
       , serialization_mode_(serialization_mode)
       , detects_loss_(listener ? listener->detectsLoss() : false)
+      , keep_alive_(listener ? listener->keepAlive() : std::chrono::milliseconds::zero())
       , listener_(std::move(listener)) {
         if(not listener_) {
             throw geneva_exception(
@@ -489,7 +494,8 @@ private:
             },
             serialization_mode_,
             &wire_registry_,
-            peer_id
+            peer_id,
+            keep_alive_
         );
         session->start(peer);
 
@@ -508,6 +514,8 @@ private:
     std::size_t n_threads_;     ///< The number of session threads
     Gem::Common::serializationMode serialization_mode_; ///< The wire format
     bool detects_loss_; ///< The listener's answer to detectsLoss(), asked once
+    /// The listener's answer to keepAlive(), asked once: what the sessions name in the HELLO
+    std::chrono::milliseconds keep_alive_;
 
     /// The blob send-once registry shared by all of this server's sessions
     Gem::Courtier::GWireBlobRegistry wire_registry_;

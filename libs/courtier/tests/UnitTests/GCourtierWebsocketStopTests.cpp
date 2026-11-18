@@ -313,6 +313,10 @@ public:
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
     }
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
+    }
     /** @brief @return The port the websocket listener has bound */
     [[nodiscard]] unsigned short getPort() const {
         return listener_->getPort();

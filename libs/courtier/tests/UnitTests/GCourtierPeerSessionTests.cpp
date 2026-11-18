@@ -789,7 +789,7 @@ TEST_CASE(
         auto [server_end, client_end] = GInProcessPeer::makePair(
             server.executor(),
             // the HELLO fits, every WORK is longer
-            {.maxMessageBytes = Gem::Courtier::buildHello<GFaultyContainer>(BIN).size()},
+            {.maxMessageBytes = Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms).size()},
             client.executor(),
             {}
         );

@@ -931,18 +931,15 @@ void GMPICascade::endJob_(
     std::string_view reason,
     int code
 ) const noexcept {
+    std::string text;
     try {
-        glogger << "In GMPICascade (base rank " << base_rank_ << "), " << where << ": " << reason
-                << '\n'
-                << "The job is ended (MPI_Abort)." << '\n'
-                << GWARNING;
+        text = "In GMPICascade (base rank " + std::to_string(base_rank_) + "), " +
+               std::string(where) + ": " + std::string(reason) +
+               "\nThe job is ended (MPI_Abort).";
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }
-    std::cout.flush();
-    std::cerr.flush();
-    std::ignore = MPI_Abort(base_, code); // does not return; nothing to do if it did
-    std::abort();                         // not reached: MPI_Abort does not return
+    Consumers::endMpiJob(base_, text, code);
 }
 
 /******************************************************************************/

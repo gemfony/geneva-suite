@@ -1077,3 +1077,46 @@ TEST_CASE(
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::FAILED);
 }
+
+/******************************************************************************/
+// A client's end starts with its own interval and takes the server's when it is told
+// (GPeerI::setKeepAlive(), from the HELLO): Beast's limits change on the live stream and hold from
+// its next timer event on. Here the end starts with 2 s (an idle limit of 4 s) and is told 100 ms
+// when it opens; the other end completes the handshake and then never reads (it answers no ping).
+// The end must report SILENT after Beast's first timer event (2 s) and the new limit, well before
+// the 4 s of the old one.
+TEST_CASE(
+    "GWebsocketPeer takes the interval it is told on the live stream",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    // The other end: the server's side of the handshake, then nothing until the test ends
+    const auto test_over = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    std::jthread other([socket = std::move(accepted), test_over]() mutable {
+        boost::beast::websocket::stream<tcp::socket> ws(std::move(socket));
+        boost::system::error_code ec;
+        ws.accept(ec);
+        test_over->wait();
+    });
+
+    auto client = clientEnd(std::move(connecting), {.name = "client end", .pingInterval = 2s});
+    const std::weak_ptr<GWebsocketPeer> client_weak = client;
+    GSeen seen;
+    std::chrono::steady_clock::time_point opened_at;
+    startRecording(client, seen, [&opened_at, client_weak] {
+        opened_at = std::chrono::steady_clock::now();
+        if(auto peer = client_weak.lock()) {
+            peer->setKeepAlive(100ms); // on the executor, as the client's role calls it
+        }
+    });
+    client.reset();
+    CHECK(runsDry(ctx));
+    const auto took = std::chrono::steady_clock::now() - opened_at;
+    test_over->count_down();
+
+    CHECK(seen.nOpen == 1);
+    CHECK(seen.nClosed == 1);
+    CHECK(seen.end == GPeerEnd::SILENT);
+    CHECK(took < 3s);
+}

@@ -261,6 +261,25 @@ void GMPIPeer::pollFailed(const std::string &reason) {
 }
 
 /******************************************************************************/
+/** The other rank has fallen silent (the poll's keep-alive): it is told with a close, in case it
+ *  still receives, and this end ends as SILENT. On the strand. */
+void GMPIPeer::silent() {
+    if(state_ == GState::ENDED) {
+        return;
+    }
+    this->tellOther_(GPeerClose::ERROR);
+    this->finish_(GPeerEnd::SILENT, GPeerClose::NORMAL, "the other rank has fallen silent");
+}
+
+/******************************************************************************/
+/** @param interval The keep-alive interval the submitter named: the poll ticks with it */
+void GMPIPeer::setKeepAlive(std::chrono::milliseconds interval) {
+    if(auto core = core_.lock()) {
+        core->setKeepAlive(interval);
+    }
+}
+
+/******************************************************************************/
 /** @return The other end's rank */
 int GMPIPeer::rank() const noexcept {
     return rank_;
@@ -770,9 +789,16 @@ std::chrono::milliseconds GMPIListener::stopGrace() const {
 }
 
 /******************************************************************************/
-/** @return false: the loss of a rank is not noticed (see the class comment) */
+/** @return Whether the loss of a rank is noticed: with a keep-alive interval (see the class
+ *  comment) */
 bool GMPIListener::detectsLoss() const {
-    return false;
+    return options_.poll.keepAlive > std::chrono::milliseconds::zero();
+}
+
+/******************************************************************************/
+/** @return The keep-alive interval of the poll, which the sessions name to their clients */
+std::chrono::milliseconds GMPIListener::keepAlive() const {
+    return options_.poll.keepAlive;
 }
 
 /******************************************************************************/

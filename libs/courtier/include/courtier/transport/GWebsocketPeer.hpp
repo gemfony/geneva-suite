@@ -124,7 +124,8 @@ public:
             Gem::Common::serializationMode::GEM_BINARY; ///< Binary or text frames
         bool verboseControlFrames = false; ///< Whether every close/ping/pong frame is logged
         /// The silence after which a ping is sent; the connection is closed after twice that time
-        /// without inbound data. Zero switches the idle limit off.
+        /// without inbound data. Zero switches the idle limit off. On a client the value holds
+        /// until its server has named its own in the HELLO (setKeepAlive()).
         std::chrono::milliseconds pingInterval{std::chrono::seconds(GBEASTCONSUMERPINGINTERVAL)};
     };
 
@@ -158,6 +159,9 @@ public:
     void abort() override;
     /** @brief The strand all handlers of this peer run on. Any thread. */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
+    /** @brief Takes the ping interval the server named: Beast's time limits are set anew on the
+     *  socket's executor; they hold from Beast's next timer event or the next read on. */
+    void setKeepAlive(std::chrono::milliseconds) override;
 
 private:
     void configure_();

@@ -670,6 +670,10 @@ public:
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
     }
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
+    }
 
 private:
     std::shared_ptr<GInProcessListener> listener_; ///< The in-process listener

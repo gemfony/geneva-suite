@@ -97,7 +97,8 @@ struct GPeerClientOptions {
  * The link, on the client's one io thread:
  *  - CONNECTING: the connector's attempt, the peer's start, the wait for the server's HELLO. A
  *    HELLO whose build or protocol differs from this client's ends the client (a terminal error;
- *    it does not come back). The HELLO is the contact with a server.
+ *    it does not come back). The HELLO is the contact with a server; it names the keep-alive
+ *    interval, which the client hands to its end (GPeerI::setKeepAlive()).
  *  - OPEN: the client keeps its items in flight -- PULLs without an answer, items held, items
  *    being evaluated -- at the prefetch depth by sending PULLs. Every finished item goes back as a
  *    RESULT, which asks for nothing; a PULL follows it if there is room.
@@ -546,6 +547,10 @@ private:
             this->flagTerminalError();
             this->beginEnding_(GPeerClose::ERROR);
             return;
+        }
+        // The server sets the keep-alive interval; this client's end takes it (on the executor)
+        if(auto peer = peer_.lock()) {
+            peer->setKeepAlive(hello.keepAlive());
         }
         state_ = LinkState::OPEN;
         contact_on_connection_ = true;

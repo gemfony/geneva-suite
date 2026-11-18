@@ -76,7 +76,8 @@ struct GMPIProbed {
  * where they are always made together). Every call refers to that one communicator.
  *
  * Threads: startSend() may be called from several threads at once (MPI_THREAD_MULTIPLE); probe(),
- * receive(), testSome() and giveUp() are called by one thread at a time (the poll's strand). A
+ * receive(), testSome(), giveUp() and noteLostRank() are called by one thread at a time (the poll's
+ * strand). A
  * probe() that reports a message is followed by the receive() of exactly that message, before any
  * other probe() or receive(): only one caller receives on the communicator, so a probe and the
  * receive that follows it always mean the same message.
@@ -121,6 +122,11 @@ public:
     /** @brief Gives up a send that has not completed (MPI_Cancel, then MPI_Request_free) and takes
      *  its bytes, which the binding keeps for as long as the transport may still read them */
     virtual void giveUp(GMPIRequest, std::unique_ptr<std::string>) = 0;
+
+    /** @brief Notes that a rank has fallen silent (the poll's keep-alive): MPI_Finalize would wait
+     *  for it, so the binding has the job ended instead (GMPIEnvironment). Called by the poll's
+     *  thread; no MPI call. */
+    virtual void noteLostRank(int) = 0;
 };
 
 /******************************************************************************/

@@ -32,6 +32,7 @@
 // Standard headers go here
 #include <chrono>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -40,16 +41,18 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
 
 // Geneva headers go here
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 /******************************************************************************/
 /**
  * @file
  * What the tests of the roles over the in-process transport (GInProcessPeer.hpp) share: an io
- * context with threads of its own, a bounded wait for a condition, and the names of the ends and
- * closes for messages.
+ * context with threads of its own, a hold on the one thread of an executor, a bounded wait for a
+ * condition, and the names of the ends and closes for messages.
  */
 
 namespace Gem::Courtier::Tests {
@@ -85,6 +88,43 @@ private:
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard_ =
         boost::asio::make_work_guard(ctx_); ///< Keeps the threads in run() until the end
     std::vector<std::jthread> threads_;     ///< The threads
+};
+
+/******************************************************************************/
+/** @brief Holds the thread of an executor with one thread (a process that does not run) from its
+ *  construction until release() or its destruction: a handler posted there waits. */
+class ExecutorHold {
+public:
+    /** @brief Returns when the thread is held @param executor The executor (one thread) */
+    explicit ExecutorHold(const boost::asio::any_io_executor &executor) {
+        boost::asio::post(executor, [held = held_, released = released_] {
+            held->count_down();
+            released->wait();
+        });
+        held_->wait();
+    }
+    /** @brief Releases the thread, if release() has not */
+    ~ExecutorHold() {
+        this->release();
+    }
+    ExecutorHold(const ExecutorHold &) = delete;
+    ExecutorHold(ExecutorHold &&) = delete;
+    ExecutorHold &operator=(const ExecutorHold &) = delete;
+    ExecutorHold &operator=(ExecutorHold &&) = delete;
+
+    /** @brief Lets the thread go on; once */
+    void release() {
+        if(not done_) {
+            done_ = true;
+            released_->count_down();
+        }
+    }
+
+private:
+    using latch_type = Gem::Common::Concurrency::GCompletionLatchT;
+    std::shared_ptr<latch_type> held_ = std::make_shared<latch_type>(1);     ///< The thread is held
+    std::shared_ptr<latch_type> released_ = std::make_shared<latch_type>(1); ///< It may go on
+    bool done_ = false; ///< release() was called
 };
 
 /******************************************************************************/

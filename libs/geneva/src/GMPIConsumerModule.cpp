@@ -128,6 +128,9 @@ public:
         if(vm.contains("mpi_nHandlerThreads")) {
             config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
         }
+        if(vm.contains("mpi_pingInterval")) {
+            config.pingInterval = vm["mpi_pingInterval"].as<std::size_t>();
+        }
         if(vm.contains("mpi_prefetchDepth")) {
             config.clientPrefetchDepth = vm["mpi_prefetchDepth"].as<std::size_t>();
         }
@@ -179,6 +182,12 @@ public:
             po::value<std::size_t>()->default_value(defaults.clientParallelEvaluations),
             "\t[mpi] m: how many of the items a client holds (--mpi_prefetchDepth) it evaluates "
             "at the same time; from 1 to the prefetch depth"
+        )(
+            "mpi_pingInterval",
+            po::value<std::size_t>()->default_value(defaults.pingInterval),
+            "\t[mpi] Keep-alive of the submitter: every rank is sent a sign of life this often (in "
+            "seconds); a rank not heard from for more than twice that time is lost, and the job is "
+            "ended when the run is over (0 == off). The clients take it from the submitter"
         )(
             "mpi_firstContactLimit",
             po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),

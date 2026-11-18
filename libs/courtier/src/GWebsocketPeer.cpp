@@ -492,6 +492,26 @@ boost::asio::any_io_executor GWebsocketPeer::executor() {
 
 /******************************************************************************/
 /**
+ * Takes the ping interval the server named in its HELLO (GPeerI::setKeepAlive()): on the socket's
+ * executor, Beast's time limits are set for it, and the interval is kept for this end's close
+ * timer and log. Beast only stores the limits (it arms its timer when a read starts, and re-arms it
+ * when it fires), so the new limits hold from its next timer event or the next read on; until then
+ * the old ones do. An end that has finished keeps its limits off.
+ *
+ * @param interval The ping interval (0: no idle limit)
+ */
+void GWebsocketPeer::setKeepAlive(std::chrono::milliseconds interval) {
+    boost::asio::post(io_executor_, [self = this->shared_from_this(), interval] {
+        if(self->finished_) {
+            return;
+        }
+        self->options_.pingInterval = interval;
+        self->ws_.set_option(limitsFor(interval));
+    });
+}
+
+/******************************************************************************/
+/**
  * The end of the connection, whatever led to it. Runs its body once: switches Beast's time limits
  * off (Beast leaves its timer armed after a failed read, which would keep the io context busy),
  * closes the socket, and tells the role on its strand -- after the messages handed to it before,

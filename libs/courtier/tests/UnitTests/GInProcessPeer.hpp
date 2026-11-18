@@ -317,6 +317,12 @@ public:
         }
     }
 
+    /** @brief Records the interval the role handed over, for the test to read
+     *  @param interval The keep-alive interval */
+    void setKeepAlive(std::chrono::milliseconds interval) override {
+        keep_alive_ms_.store(interval.count());
+    }
+
     /***************************************************************************/
     // What a test may observe, from any thread
 
@@ -327,6 +333,10 @@ public:
     /** @brief @return How often the owner said that it is busy */
     [[nodiscard]] std::size_t nToldBusy() const {
         return n_told_busy_.load();
+    }
+    /** @brief @return The interval setKeepAlive() was told last; -1 ms if it was not called */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const {
+        return std::chrono::milliseconds(keep_alive_ms_.load());
     }
     /** @brief @return How many messages have been delivered to the role */
     [[nodiscard]] std::size_t nDelivered() const {
@@ -516,6 +526,7 @@ private:
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
     std::atomic<bool> owner_busy_{false};      ///< For the test: the last setOwnerBusy()
     std::atomic<std::size_t> n_told_busy_{0};  ///< For the test: setOwnerBusy(true) calls
+    std::atomic<std::chrono::milliseconds::rep> keep_alive_ms_{-1}; ///< For the test: setKeepAlive()
     std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role
 };
 
@@ -536,6 +547,7 @@ public:
         GInProcessFaults clientFaults{};            ///< How the client ends misbehave
         std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
         bool detectsLoss = true;                    ///< What detectsLoss() answers
+        std::chrono::milliseconds keepAlive{0};     ///< What keepAlive() answers
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
         /// How long stop() waits for the calls of on_peer under way
         std::chrono::milliseconds stopBound{1000};
@@ -613,6 +625,11 @@ public:
     /** @brief @return What the options say */
     [[nodiscard]] bool detectsLoss() const override {
         return options_.detectsLoss;
+    }
+
+    /** @brief @return What the options say */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return options_.keepAlive;
     }
 
     /** @brief Counts the call: this transport has no clients that wait for a server */
@@ -759,6 +776,10 @@ public:
     /** @brief Forwards @return What the listener says */
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
+    }
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
     }
     /** @brief Forwards */
     void announceEndWithoutStart() override {

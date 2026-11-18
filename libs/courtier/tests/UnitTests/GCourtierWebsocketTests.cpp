@@ -293,7 +293,12 @@ TEST_CASE(
             return;
         }
         ws.binary(true);
-        ws.write(boost::asio::buffer(c2::buildHello<GFaultyContainer>(BIN)), ec);
+        ws.write(
+            boost::asio::buffer(
+                c2::buildHello<GFaultyContainer>(BIN, std::chrono::milliseconds::zero())
+            ),
+            ec
+        );
         boost::beast::flat_buffer buf;
         ws.read(buf, ec); // the client's first PULL frame
         std::ignore = acceptor.close(ec); // the server process is gone: connects are refused

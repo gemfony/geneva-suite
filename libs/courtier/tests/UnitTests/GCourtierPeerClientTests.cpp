@@ -322,6 +322,10 @@ public:
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
     }
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
+    }
 
 private:
     std::shared_ptr<GInProcessListener> listener_; ///< The in-process listener
@@ -1284,7 +1288,7 @@ public:
                             if(auto end = weak.lock(); end && how == GPeerClose::ERROR) {
                                 end->send(
                                     Gem::Courtier::Consumers::makeMessage(
-                                        Gem::Courtier::buildHello<GFaultyContainer>(BIN)
+                                        Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms)
                                     )
                                 );
                             }
@@ -1856,6 +1860,10 @@ public:
     [[nodiscard]] bool detectsLoss() const override {
         return listener_->detectsLoss();
     }
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
+    }
 
 private:
     std::shared_ptr<GInProcessListener> listener_;
@@ -2382,7 +2390,11 @@ public:
                             [weak] {
                                 if(auto end = weak.lock()) {
                                     GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
-                                    hello.setHello("0.0.0-another", Gem::Courtier::GFRAMEPROTOCOL);
+                                    hello.setHello(
+                                        "0.0.0-another",
+                                        Gem::Courtier::GFRAMEPROTOCOL,
+                                        0ms
+                                    );
                                     end->send(
                                         Gem::Courtier::Consumers::makeMessage(
                                             Gem::Courtier::container_to_string(hello, BIN)
@@ -2430,6 +2442,23 @@ private:
 };
 
 } /* anonymous namespace */
+
+/******************************************************************************/
+// The server alone sets the keep-alive interval: it names it in the HELLO, and the client hands it
+// to its end (GPeerI::setKeepAlive()), which the in-process pair records.
+TEST_CASE(
+    "GPeerClientT: the client hands the keep-alive interval of the HELLO to its end",
+    "[courtier][peer][client]"
+) {
+    auto evaluations = std::make_shared<Evaluations>();
+    auto watch = std::make_shared<GInProcessPeerWatch>();
+    World world(GInProcessListener::Options{.keepAlive = 250ms});
+    world.client(GPeerClientOptions{.name = "client", .mode = BIN}, evaluations, 1ms, watch, AS_IS);
+    REQUIRE(eventually([&] {
+        const auto end = watch->last();
+        return end != nullptr && end->keepAlive() == 250ms;
+    }));
+}
 
 TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier][peer][client]") {
     auto evaluations = std::make_shared<Evaluations>();

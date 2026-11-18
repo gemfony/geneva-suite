@@ -33,6 +33,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -63,6 +64,7 @@ using Gem::Courtier::Consumers::GMPIPollCore;
 using Gem::Courtier::Consumers::GMPIPollReceiverI;
 using Gem::Courtier::Consumers::GMPIPollTiming;
 using Gem::Courtier::Tests::eventually;
+using Gem::Courtier::Tests::ExecutorHold;
 using Gem::Courtier::Tests::GMPIFakeWorld;
 
 using namespace std::chrono_literals;
@@ -179,6 +181,15 @@ public:
         messages_at_failure_ = messages_.size();
     }
 
+    void silent() override {
+        silents_.fetch_add(1);
+    }
+
+    /** @brief @return How often silent() was called */
+    int silents() const {
+        return silents_.load();
+    }
+
     /** @brief @return The reasons pollFailed() was called with */
     std::vector<std::string> failures() const {
         const std::scoped_lock lock(mutex_);
@@ -216,6 +227,7 @@ private:
     std::vector<std::string> failures_;
     std::size_t messages_at_failure_ = 0;
     std::atomic<int> discards_{0};
+    std::atomic<int> silents_{0};
 };
 
 } /* anonymous namespace */
@@ -880,4 +892,170 @@ TEST_CASE("The poll counts the time it spends in receives") {
     CHECK(counts.longestReceive >= 5ms);
     CHECK(counts.longestReceive <= counts.receiving);
     std::ignore = finish(core, {&threads});
+}
+
+/******************************************************************************/
+// The signs of life (GMPIPollCore, its class comment): short intervals, so that every case takes
+// well under a second.
+
+namespace {
+
+/** @brief Ends the polls of two ranks as finish() ends one: no handler of either runs any more
+ *  before either is shut down (a poll that ran on alone could find the other silent) */
+void finishTwo(
+    std::shared_ptr<GMPIPollCore> &first,
+    std::shared_ptr<GMPIPollCore> &second,
+    Threads &first_threads,
+    Threads &second_threads
+) {
+    first_threads.join();
+    second_threads.join();
+    std::ignore = first->shutdown();
+    std::ignore = second->shutdown();
+    first_threads.shutdown();
+    second_threads.shutdown();
+    first.reset();
+    second.reset();
+}
+
+/** @brief @param tags Tags @param tag A tag @return How often @p tag is among @p tags */
+std::size_t countOf(const std::vector<int> &tags, int tag) {
+    return static_cast<std::size_t>(std::ranges::count(tags, tag));
+}
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+TEST_CASE("Signs of life: two ends that send nothing stay open over several intervals by pings") {
+    constexpr auto INTERVAL = 50ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads zero_threads(1);
+    Threads one_threads(1);
+    const GMPIPollTiming timing{.keepAlive = INTERVAL};
+    auto zero = std::make_shared<GMPIPollCore>(world->calls(0), zero_threads.executor(), timing);
+    auto one = std::make_shared<GMPIPollCore>(world->calls(1), one_threads.executor(), timing);
+    auto from_one = std::make_shared<Receiver>(zero_threads.executor());
+    auto from_zero = std::make_shared<Receiver>(one_threads.executor());
+    zero->addReceiver(1, from_one);
+    one->addReceiver(0, from_zero);
+    zero->start();
+    one->start();
+
+    std::this_thread::sleep_for(8 * INTERVAL);
+    finishTwo(zero, one, zero_threads, one_threads);
+    CHECK(from_one->silents() == 0);
+    CHECK(from_zero->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    CHECK(world->lostRanks(1).empty());
+    // Each was sent a ping about every interval, and none reached a receiver
+    CHECK(world->counts(0).receives >= 4);
+    CHECK(world->counts(1).receives >= 4);
+    CHECK(from_one->count() == 0);
+    CHECK(from_zero->count() == 0);
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("Signs of life: a rank that was never heard from is not judged") {
+    constexpr auto INTERVAL = 30ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(
+        world->calls(0),
+        threads.executor(),
+        GMPIPollTiming{.keepAlive = INTERVAL}
+    );
+    auto from_one = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(1, from_one); // rank 1 has no poll: it never sends
+    core->start();
+
+    std::this_thread::sleep_for(10 * INTERVAL);
+    const auto pings = countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING);
+    std::ignore = finish(core, {&threads});
+    CHECK(from_one->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    CHECK(pings >= 5); // it was sent signs of life all the same
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("Signs of life: a late tick judges nobody and starts every rank's time afresh") {
+    constexpr auto INTERVAL = 100ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads zero_threads(1);
+    Threads one_threads(1);
+    const GMPIPollTiming timing{.keepAlive = INTERVAL};
+    auto zero = std::make_shared<GMPIPollCore>(world->calls(0), zero_threads.executor(), timing);
+    auto one = std::make_shared<GMPIPollCore>(world->calls(1), one_threads.executor(), timing);
+    auto from_one = std::make_shared<Receiver>(zero_threads.executor());
+    zero->addReceiver(1, from_one);
+    one->addReceiver(0, std::make_shared<Receiver>(one_threads.executor()));
+    zero->start();
+    one->start();
+    REQUIRE(eventually([&] { return world->counts(0).receives >= 1; }, 5s)); // rank 1 was heard
+
+    {
+        const ExecutorHold one_stopped(one_threads.executor()); // rank 1 falls silent for good
+        std::size_t pings_before = 0;
+        {
+            // Rank 0 does not run for longer than one and a half intervals: its tick comes late,
+            // when rank 1 has been silent for more than two intervals
+            const ExecutorHold zero_stopped(zero_threads.executor());
+            std::this_thread::sleep_for(3 * INTERVAL);
+            pings_before = countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING);
+        }
+        // The late tick has run when its ping is there (a rank judged silent gets none): it has
+        // judged nobody
+        REQUIRE(eventually(
+            [&] {
+                return countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING) > pings_before;
+            },
+            5s
+        ));
+        CHECK(from_one->silents() == 0);
+        const auto released = clock_type::now();
+        // Its time began afresh: it is judged after two more intervals without anything
+        REQUIRE(eventually([&] { return from_one->silents() == 1; }, 5s));
+        CHECK(clock_type::now() - released > 2 * INTERVAL - 30ms);
+    }
+    finishTwo(zero, one, zero_threads, one_threads);
+    CHECK(world->lostRanks(0) == std::vector<int>{1});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("Signs of life: a message other than a ping counts as a sign of life") {
+    constexpr auto INTERVAL = 100ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(
+        world->calls(0),
+        threads.executor(),
+        GMPIPollTiming{.keepAlive = INTERVAL}
+    );
+    auto from_one = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(1, from_one);
+    core->start();
+
+    // Rank 1 has no poll of its own, so it sends no pings: it is heard once by a ping (injected),
+    // then only by other messages, more often than the interval
+    world->inject(1, 0, Gem::Courtier::TAG_PEER_PING, std::string{});
+    const auto until = clock_type::now() + 6 * INTERVAL;
+    while(clock_type::now() < until) {
+        world->inject(1, 0, Gem::Courtier::TAG_PEER_MESSAGE, "a sign of life");
+        std::this_thread::sleep_for(INTERVAL / 10);
+    }
+    const auto tags = world->waitingTags(1);
+    std::ignore = finish(core, {&threads});
+    CHECK(from_one->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    // Rank 0 pinged it at every tick all the same
+    CHECK(countOf(tags, Gem::Courtier::TAG_PEER_PING) >= 4);
+    // The messages reached the receiver; the ping did not
+    const auto messages = from_one->messages();
+    CHECK(messages.size() >= 20);
+    CHECK(std::ranges::all_of(messages, [](const auto &message) {
+        return message.first == Gem::Courtier::TAG_PEER_MESSAGE;
+    }));
+    CHECK(world->violations().empty());
 }

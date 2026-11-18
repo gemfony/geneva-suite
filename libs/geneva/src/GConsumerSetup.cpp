@@ -210,7 +210,8 @@ public:
             po::value<std::size_t>()->default_value(defaults.pingInterval),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "
             "sent; the connection is closed after twice that time without any inbound data "
-            "(0 == off)")(
+            "(0 == off). The server names its value to its clients; on a client the value holds "
+            "until its server has named its own in the HELLO")(
             "beast_verboseControlFrames",
             po::value<bool>()->default_value(defaults.verboseControlFrames)->implicit_value(true),
             "\t[beast] Announce ping/pong/close frames")(

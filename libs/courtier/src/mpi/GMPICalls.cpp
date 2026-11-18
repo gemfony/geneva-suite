@@ -285,5 +285,12 @@ void GMPICalls::giveUp(GMPIRequest handle, std::unique_ptr<std::string> bytes) {
 }
 
 /******************************************************************************/
+/** @param rank A rank that has fallen silent: the environment ends the job where it would finalize
+ *  MPI (GMPIEnvironment::noteLostRank()) */
+void GMPICalls::noteLostRank([[maybe_unused]] int rank) {
+    environment_->noteLostRank();
+}
+
+/******************************************************************************/
 
 } /* namespace Gem::Courtier::Consumers */

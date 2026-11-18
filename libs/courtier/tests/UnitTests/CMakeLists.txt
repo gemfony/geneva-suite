@@ -294,6 +294,32 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		GENEVA_TEST_SIZE(${_name} M)
 	ENDFOREACH()
 
+	# Signs of life over real MPI (a keep-alive of 1 s; ../CheckJobEnds.cmake: a non-zero end, what
+	# the job must say, a bound of 30 s): a client rank that stops itself (SIGSTOP) in the middle of
+	# a run is found silent, the submitter finishes the run with the other client, and the job is
+	# ended where MPI would be finalized (MPI_Finalize would wait for the stopped rank); a submitter
+	# that stops itself is found silent by its clients, which end the job the same way.
+	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/silent-end)
+	FILE(MAKE_DIRECTORY ${_dir})
+	FOREACH(_scenario client-stops submitter-stops)
+		IF(_scenario STREQUAL "client-stops")
+			SET(_expect "OK: 120/120 items processed")
+		ELSE()
+			# The first client that ends the job may end the other before it says so
+			SET(_expect "found its submitter silent")
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME GCourtierMpiSilent_${_scenario} TIMEOUT 60
+				COMMAND ${CMAKE_COMMAND}
+					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiExerciser>;--scenario=${_scenario};${MPIEXEC_POSTFLAGS}"
+					-DEXPECT_EXIT=nonzero
+					"-DEXPECT=${_expect};MPI_Finalize would wait for them: the job is ended"
+					-DLIMIT=30
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
+				WORKING_DIRECTORY ${_dir})
+		SET_TESTS_PROPERTIES(GCourtierMpiSilent_${_scenario} PROPERTIES LABELS "courtier" PROCESSORS 3)
+		GENEVA_TEST_SIZE(GCourtierMpiSilent_${_scenario} M)
+	ENDFOREACH()
+
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
 	# ends without a close of its role (the end of the listener's work, a session that cannot be
 	# made). A client that is not told waits for ever: the time limit ends the entry then.

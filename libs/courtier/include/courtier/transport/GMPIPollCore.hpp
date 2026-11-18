@@ -73,6 +73,8 @@ struct GMPIPollTiming {
     int rounds = GMPIPEERPOLLROUNDS;
     /// How long the chain waits, after the last receiver has ended, for sends to complete
     std::chrono::milliseconds drainGrace = GMPIPEERDRAINGRACE;
+    /// The keep-alive interval the ticks start with (0: none; see setKeepAlive())
+    std::chrono::milliseconds keepAlive{0};
 };
 
 /******************************************************************************/
@@ -122,6 +124,11 @@ public:
      *  received() follows. Once, on executor(), after every message received before the failure.
      *  The connection to the rank is lost; its peer reports GPeerEnd::FAILED. */
     virtual void pollFailed(const std::string &) = 0;
+
+    /** @brief The receiver's rank has been heard from and then not for more than two keep-alive
+     *  intervals (GMPIPollCore::setKeepAlive()): the connection to it is lost; its peer reports
+     *  GPeerEnd::SILENT. Once, on executor(), after every message received from the rank. */
+    virtual void silent() = 0;
 };
 
 /******************************************************************************/
@@ -166,6 +173,18 @@ public:
  * client this is what lets io_context::run() return. shutdown() ends the poll in any case and gives
  * up the sends that have not completed; its owner calls it when no handler of the executors runs
  * any more.
+ *
+ * Signs of life (setKeepAlive(); the interval I comes with the timing or later, 0: none). A timer of
+ * the chain's strand ticks every I. A tick receives what is there first, then sends an empty
+ * TAG_PEER_PING to every rank with a live receiver, and calls a rank silent that has been heard
+ * from (any message of it, a ping too) and then not for more than 2 I: it is logged, noted with the
+ * calls (GMPICallsI::noteLostRank()) and its receiver is told (GMPIPollReceiverI::silent()), once.
+ * Every tick pings, whatever else was sent, so something arrives from a healthy rank at least every
+ * I plus the jitter of the timers; neither end answers a ping, so a verdict needs more than two
+ * intervals without anything. A rank never heard from is not judged. A tick
+ * that runs more than I/2 after it was due (the process did not run: a suspended job, a starved
+ * host) judges nobody and starts every rank's time afresh. A ping that arrives counts as heard and
+ * goes no further. All of this is state of the strand.
  *
  * Sends that must arrive (the last closes of the ends) are drained before shutdown()
  * (drainSends()): shutdown() gives up what has not completed, and a given-up send may be taken back
@@ -216,6 +235,11 @@ public:
      *  and a receiver that ends busy says so first. From any thread. */
     void receiverBusy(bool);
 
+    /** @brief Starts the ticks of the signs of life with the interval (see the class comment), or
+     *  changes it; 0 stops them. From any thread; the ticks of a poll not started yet start with
+     *  start(). */
+    void setKeepAlive(std::chrono::milliseconds);
+
     /***************************************************************************/
     /** @brief Waits, at most the given time, for the sends under way to complete -- the last closes
      *  of the ends, say, which shutdown() would otherwise give up at once. When no handler of the
@@ -247,6 +271,13 @@ private:
         std::unique_ptr<std::string> bytes; ///< Must stay where they are until the send is over
     };
 
+    /** @brief What the keep-alive knows of one rank; on the strand */
+    struct GLife {
+        std::chrono::steady_clock::time_point heard{}; ///< When it was last heard from
+        bool everHeard = false;                        ///< Whether it has been heard from at all
+        bool silent = false; ///< It was judged silent (and is not judged again)
+    };
+
     /***************************************************************************/
     /** @brief One link of the chain; no exception leaves it */
     void poll_();
@@ -262,6 +293,12 @@ private:
     void reap_();
     /** @brief A send was started: no pause */
     void kick_();
+    /** @brief Sets the interval and (re)arms the ticks; on the strand */
+    void keepAlive_(std::chrono::milliseconds);
+    /** @brief Arms the next tick; on the strand */
+    void armTick_();
+    /** @brief One tick of the signs of life; on the strand */
+    void tick_();
     /** @brief Counts one receiver as ended */
     void ended_(int);
     /** @brief Whether a rank is one of the communicator's */
@@ -275,6 +312,7 @@ private:
     int size_;                          ///< The number of ranks of the communicator
     boost::asio::strand<boost::asio::any_io_executor> strand_; ///< The chain's own strand
     boost::asio::steady_timer timer_;                          ///< The pause between two links
+    boost::asio::steady_timer tick_timer_; ///< The ticks of the signs of life
 
     /// The receiver of every rank, by rank (empty for the others), and the executor it is posted
     /// to. Filled before the chain starts and not changed afterwards (until shutdown()), so it is
@@ -308,6 +346,9 @@ private:
     std::size_t live_receivers_ = 0;                    ///< Receivers that have not ended
     /// Set when the last receiver has ended
     std::optional<std::chrono::steady_clock::time_point> drain_deadline_;
+    std::chrono::milliseconds keep_alive_; ///< The interval of the ticks (0: none)
+    std::vector<GLife> life_;              ///< What the keep-alive knows, by rank
+    std::uint64_t n_pings_ = 0; ///< Pings sent; read by shutdown(), when the chain no longer runs
 
     mutable std::mutex failure_mutex_;   ///< Guards failure_
     std::optional<std::string> failure_; ///< Why the chain failed, if it did

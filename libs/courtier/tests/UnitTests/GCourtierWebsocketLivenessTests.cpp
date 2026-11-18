@@ -44,6 +44,7 @@
 #include <future>
 #include <initializer_list>
 #include <memory>
+#include <utility>
 #include <mutex>
 #include <span>
 #include <stdexcept>
@@ -216,6 +217,29 @@ std::shared_ptr<GWebsocketConsumerT<item_type>> startedServer(std::size_t n_thre
     consumer->startServer();
     return consumer;
 }
+
+/** @brief Asks a client to close when it goes, however the test leaves its scope: a client that
+ *  is not asked goes on (it connects again) and the thread that runs it is never joined. Declared
+ *  after that thread, so that it goes first. */
+template <typename client_type>
+class ClosesAtEnd {
+public:
+    /** @brief @param client The client */
+    explicit ClosesAtEnd(std::shared_ptr<client_type> client)
+      : client_(std::move(client)) { /* nothing */
+    }
+    /** @brief Asks the client to close */
+    ~ClosesAtEnd() {
+        client_->flagCloseRequested();
+    }
+    ClosesAtEnd(const ClosesAtEnd &) = delete;
+    ClosesAtEnd(ClosesAtEnd &&) = delete;
+    ClosesAtEnd &operator=(const ClosesAtEnd &) = delete;
+    ClosesAtEnd &operator=(ClosesAtEnd &&) = delete;
+
+private:
+    std::shared_ptr<client_type> client_; ///< The client
+};
 
 /** @brief A client for @p port with the same keep-alive as the servers of these tests. */
 template <typename item_type>
@@ -935,6 +959,7 @@ TEST_CASE(
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GFaultyContainer>(relay.port());
     const std::jthread client_thread([client] { client->run(); });
+    const ClosesAtEnd close_at_end(client); // also when a REQUIRE below fails
     REQUIRE(eventually([&] { return consumer->connectedClients() == 1U; })); // it has asked
 
     relay.freeze(); // half-open at both ends: nothing passes, nothing is closed
@@ -958,5 +983,4 @@ TEST_CASE(
         consumer->stopServer();
         batch.wait();
     }
-    client->flagCloseRequested();
 }

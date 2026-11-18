@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <chrono>
 #include <cstddef>
 #include <exception>
 #include <functional>
@@ -70,7 +71,8 @@ namespace Gem::Courtier::Consumers {
  * shell starts one session for every peer its listener makes; the session lasts as long as the
  * connection.
  *
- * The protocol (GFrameKind). The session greets its client with HELLO when the connection opens.
+ * The protocol (GFrameKind). The session greets its client with HELLO when the connection opens;
+ * it names the keep-alive interval of the server's ends, which the client takes.
  * It answers every PULL with one WORK, in order; a PULL that cannot be met at once is counted, the
  * session is parked with the consumer and answers when it is woken for an item that has become
  * available (see GNetworkedConsumerT::checkoutOrPark()). A RESULT is checked in by the ids in its
@@ -145,17 +147,21 @@ public:
      * @param serialization_mode Which serialization format (binary or JSON) the wire protocol uses
      * @param wire_registry The consumer's blob send-once registry, or nullptr to send every blob in full
      * @param peer_id This connection's id in that registry
+     * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive()),
+     *        named in the HELLO
      */
     GPeerSessionT(
         SessionHooks hooks,
         Gem::Common::serializationMode serialization_mode,
         Gem::Courtier::GWireBlobRegistry *wire_registry = nullptr,
-        Gem::Courtier::GWirePeerId peer_id = 0
+        Gem::Courtier::GWirePeerId peer_id = 0,
+        std::chrono::milliseconds keep_alive = std::chrono::milliseconds::zero()
     )
       : hooks_(std::move(hooks))
       , serialization_mode_(serialization_mode)
       , wire_registry_(wire_registry)
-      , peer_id_(peer_id) {
+      , peer_id_(peer_id)
+      , keep_alive_(keep_alive) {
         // Blob send-once for this session's peer: a blob is sent in full only on the first work
         // item to this peer and referenced by content id thereafter. Every connection is a peer of
         // its own, so a client that connects again receives its blobs afresh. Disabled (every
@@ -216,9 +222,9 @@ private:
     /** @brief The connection is open: the client is greeted with HELLO first. */
     void when_open_() {
         if(auto peer = peer_.lock()) {
-            peer->send(
-                makeMessage(Gem::Courtier::buildHello<processable_type>(serialization_mode_))
-            );
+            peer->send(makeMessage(
+                Gem::Courtier::buildHello<processable_type>(serialization_mode_, keep_alive_)
+            ));
         }
     }
 
@@ -506,6 +512,7 @@ private:
     /// feature is disabled.
     Gem::Courtier::GWireBlobRegistry *wire_registry_ = nullptr;
     Gem::Courtier::GWirePeerId peer_id_ = 0;
+    std::chrono::milliseconds keep_alive_; ///< Named in the HELLO
     /// The longest message the peer's transport carries (GPeerI::maxMessageBytes()); set by start()
     std::size_t max_message_bytes_ = std::numeric_limits<std::size_t>::max();
     Gem::Courtier::GWireSerializationContext wire_ctx_;

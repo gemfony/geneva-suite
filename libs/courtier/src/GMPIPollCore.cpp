@@ -68,10 +68,13 @@ GMPIPollCore::GMPIPollCore(
   , size_(calls_ ? calls_->size() : 0)
   , strand_(boost::asio::make_strand(executor))
   , timer_(strand_)
+  , tick_timer_(strand_)
   , receivers_(static_cast<std::size_t>(std::max(size_, 0)))
   , receiver_executors_(receivers_.size())
   , pause_(timing.pauseMin)
-  , ended_ranks_(receivers_.size(), false) {
+  , ended_ranks_(receivers_.size(), false)
+  , keep_alive_(timing.keepAlive)
+  , life_(receivers_.size()) {
     if(not calls_) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -81,13 +84,13 @@ GMPIPollCore::GMPIPollCore(
     }
     if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin ||
        timing_.pauseBusy < timing_.pauseMax || timing_.rounds < 1 ||
-       timing_.drainGrace.count() < 0) {
+       timing_.drainGrace.count() < 0 || timing_.keepAlive.count() < 0) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "The timing is not usable: the shortest pause must be positive and not above the "
             << "longest, the busy pause not below the longest, at least one round, and a drain "
-            << "grace that is not negative" << '\n'
+            << "grace and a keep-alive interval that are not negative" << '\n'
         );
     }
 }
@@ -146,14 +149,40 @@ void GMPIPollCore::addReceiver(int rank, std::shared_ptr<GMPIPollReceiverI> rece
 
 /******************************************************************************/
 /**
- * Starts the chain: its first link is posted to the strand. Once, after the receivers have been
- * added. From any thread. A second call does nothing.
+ * Starts the chain: its first link is posted to the strand, and the ticks of the signs of life
+ * start with it if there is an interval. Once, after the receivers have been added. From any
+ * thread. A second call does nothing.
  */
 void GMPIPollCore::start() {
     if(started_chain_.exchange(true)) {
         return;
     }
-    boost::asio::post(strand_, [self = this->shared_from_this()] { self->poll_(); });
+    boost::asio::post(strand_, [self = this->shared_from_this()] {
+        self->keepAlive_(self->keep_alive_);
+        self->poll_();
+    });
+}
+
+/******************************************************************************/
+/**
+ * Starts the ticks of the signs of life with @p interval, or changes it (see the class comment);
+ * 0 stops them. Posted to the strand; a poll that has not been started keeps the interval for
+ * start(). From any thread.
+ *
+ * @param interval The keep-alive interval
+ */
+void GMPIPollCore::setKeepAlive(std::chrono::milliseconds interval) {
+    if(shut_down_.load()) {
+        return;
+    }
+    boost::asio::post(strand_, [self = this->shared_from_this(), interval] {
+        if(self->started_chain_.load()) {
+            self->keepAlive_(interval);
+        }
+        else {
+            self->keep_alive_ = interval; // start() starts the ticks
+        }
+    });
 }
 
 /******************************************************************************/
@@ -315,6 +344,7 @@ std::size_t GMPIPollCore::shutdown() {
     }
     chain_ended_.store(true);
     timer_.cancel();
+    tick_timer_.cancel();
 
     // One more look at the sends. A look that fails leaves the sends under way, to be given up.
     try {
@@ -360,6 +390,7 @@ std::size_t GMPIPollCore::shutdown() {
             << " us)"
             << (n_given_up > 0 ? ", " + std::to_string(n_given_up) + " sends given up"
                                : std::string{})
+            << (n_pings_ > 0 ? ", " + std::to_string(n_pings_) + " pings sent" : std::string{})
             << '\n'
             << GLOGGING;
     return n_given_up;
@@ -448,6 +479,7 @@ void GMPIPollCore::link_() {
         }
         if(requests_.empty() || now >= *drain_deadline_) {
             chain_ended_.store(true); // what may be left, shutdown() gives up
+            tick_timer_.cancel();     // a tick would keep the executor busy
             return;
         }
     }
@@ -491,16 +523,24 @@ bool GMPIPollCore::receiveOne_() {
     }
     const auto receive_began = std::chrono::steady_clock::now();
     std::string message = calls_->receive(*probed);
-    const std::int64_t took = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  std::chrono::steady_clock::now() - receive_began
-    )
-                                  .count();
+    const auto received_at = std::chrono::steady_clock::now();
+    const std::int64_t took =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(received_at - receive_began).count();
     receiving_ns_.fetch_add(took, std::memory_order_relaxed);
     if(took > longest_receive_ns_.load(std::memory_order_relaxed)) {
         longest_receive_ns_.store(took, std::memory_order_relaxed); // only the chain writes it
     }
     n_received_.fetch_add(1, std::memory_order_relaxed);
 
+    // Every message is a sign of life of its rank; a ping is nothing else and goes no further
+    if(this->validRank_(probed->source)) {
+        GLife &life = life_[static_cast<std::size_t>(probed->source)];
+        life.heard = received_at;
+        life.everHeard = true;
+    }
+    if(probed->tag == TAG_PEER_PING) {
+        return true;
+    }
     if(this->validRank_(probed->source) && receivers_[static_cast<std::size_t>(probed->source)]) {
         const auto index = static_cast<std::size_t>(probed->source);
         boost::asio::post(
@@ -538,6 +578,7 @@ void GMPIPollCore::fail_(const std::exception_ptr &cause) noexcept {
             failure_ = reason;
         }
         timer_.cancel();
+        tick_timer_.cancel();
         glogger << "GMPIPollCore (rank " << calls_->rank()
                 << "): the poll has failed and receives nothing more: " << reason << '\n'
                 << GWARNING;
@@ -614,6 +655,98 @@ void GMPIPollCore::kick_() {
     pause_ = timing_.pauseMin;
     try {
         timer_.cancel();
+    }
+    catch(...) {
+        this->fail_(std::current_exception());
+    }
+}
+
+/******************************************************************************/
+/**
+ * Sets the keep-alive interval and (re)arms the ticks with it; 0 stops them. On the strand. A
+ * failure ends the chain (fail_()).
+ *
+ * @param interval The keep-alive interval
+ */
+void GMPIPollCore::keepAlive_(std::chrono::milliseconds interval) {
+    keep_alive_ = std::max(interval, std::chrono::milliseconds::zero());
+    if(chain_ended_.load()) {
+        return;
+    }
+    try {
+        if(keep_alive_.count() == 0) {
+            tick_timer_.cancel();
+        }
+        else {
+            this->armTick_();
+        }
+    }
+    catch(...) {
+        this->fail_(std::current_exception());
+    }
+}
+
+/******************************************************************************/
+/** Arms the next tick, one interval from now; a wait under way is cancelled (its handler does
+ *  nothing). On the strand. */
+void GMPIPollCore::armTick_() {
+    tick_timer_.expires_after(keep_alive_);
+    tick_timer_.async_wait([self = this->shared_from_this()](const boost::system::error_code &ec) {
+        if(not ec) {
+            self->tick_();
+        }
+    });
+}
+
+/******************************************************************************/
+/**
+ * One tick of the signs of life (see the class comment), on the strand: what has arrived is
+ * received first; then every rank with a live receiver that has been heard from and not for more
+ * than two intervals is called silent -- unless the tick is late by more than half an interval,
+ * which judges nobody and starts every rank's time afresh --, and every other one gets a ping. A
+ * call that throws ends the chain (fail_()).
+ */
+void GMPIPollCore::tick_() {
+    if(chain_ended_.load() || keep_alive_.count() == 0) {
+        return;
+    }
+    try {
+        const bool late = std::chrono::steady_clock::now() - tick_timer_.expiry() > keep_alive_ / 2;
+        for(int round = 0; round < timing_.rounds; ++round) {
+            if(not this->receiveOne_()) {
+                break;
+            }
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        for(std::size_t index = 0; index < life_.size(); ++index) {
+            GLife &life = life_[index];
+            if(not receivers_[index] || ended_ranks_[index] || life.silent) {
+                continue;
+            }
+            const int rank = static_cast<int>(index);
+            if(late) {
+                life.heard = now; // this process did not run: nobody can be judged
+            }
+            else if(life.everHeard && now - life.heard > 2 * keep_alive_) {
+                life.silent = true;
+                glogger << "GMPIPollCore (rank " << calls_->rank() << "): rank " << rank
+                        << " has not been heard from for "
+                        << std::chrono::duration_cast<std::chrono::milliseconds>(now - life.heard)
+                               .count()
+                        << " ms (keep-alive interval " << keep_alive_.count()
+                        << " ms): it is silent" << '\n'
+                        << GWARNING;
+                calls_->noteLostRank(rank);
+                boost::asio::post(receiver_executors_[index], [receiver = receivers_[index]] {
+                    receiver->silent();
+                });
+                continue;
+            }
+            this->startSend(rank, TAG_PEER_PING, std::string{});
+            ++n_pings_;
+        }
+        this->armTick_();
     }
     catch(...) {
         this->fail_(std::current_exception());
