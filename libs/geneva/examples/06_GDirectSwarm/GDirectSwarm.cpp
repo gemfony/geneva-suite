@@ -53,6 +53,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp"
@@ -260,7 +261,7 @@ bool parseCommandLine(
  * The main function.
  */
 // NOLINTNEXTLINE(readability-function-size) -- single example main: CLI parsing, Go2 setup and the optimization run all belong to one driver
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     consumerType cType;
     bool clientMode = false;
     std::string ip;
@@ -449,4 +450,7 @@ int main(int argc, char **argv) {
     /****************************************************************************/
     // Terminate
     return 0;
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

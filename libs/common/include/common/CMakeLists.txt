@@ -51,6 +51,7 @@ SET ( GENEVACOMMONINCLUDES
 	GExceptions.hpp
 	GExpectationChecksT.hpp
 	GFactoryT.hpp
+	GFatalReport.hpp
 	GFixedSizePriorityQueueT.hpp
 	GGlobalDefines.hpp
 	GGlobalOptionsT.hpp

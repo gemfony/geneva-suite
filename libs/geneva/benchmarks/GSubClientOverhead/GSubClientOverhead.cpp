@@ -70,6 +70,7 @@
 #include <mpi.h>
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerSpec.hpp"
 #include "courtier/GCourtierEnums.hpp"
@@ -415,7 +416,6 @@ int main(int argc, char **argv) try {
     }
     return measure(go, settings);
 }
-catch(const std::exception &e) {
-    std::cerr << "GSubClientOverhead: " << e.what() << '\n';
-    return 1;
+catch(...) {
+    return Gem::Common::reportFatal();
 }

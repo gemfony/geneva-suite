@@ -37,6 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -46,7 +47,7 @@ using namespace Gem::Geneva;
 namespace po = boost::program_options;
 
 // NOLINTNEXTLINE(readability-function-size) -- example 13's main(): a single linear setup script (CLI options, Go2 construction, constraint-combiner wiring, adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     //---------------------------------------------------------------------------
     // We want to add additional command line options
 
@@ -168,4 +169,7 @@ int main(int argc, char **argv) {
     // We simply print its content here, by means of an operator<< implemented
     // in the GFunctionIndividual code.
     std::cout << "Best result found:" << '\n' << p << '\n';
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

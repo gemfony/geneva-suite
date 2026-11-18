@@ -40,6 +40,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -130,7 +131,6 @@ int main(int argc, char **argv) try {
     );
     return 0;
 }
-catch(const std::exception &e) {
-    std::cerr << "GParallelisationOverhead: " << e.what() << '\n';
-    return 1;
+catch(...) {
+    return Gem::Common::reportFatal();
 }

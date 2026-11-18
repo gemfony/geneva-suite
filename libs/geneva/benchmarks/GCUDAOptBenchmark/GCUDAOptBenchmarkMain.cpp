@@ -52,6 +52,7 @@
 #include <boost/program_options.hpp>
 
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
@@ -137,7 +138,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
 
 /******************************************************************************/
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     std::string configFile = "config/GCUDAOptBenchmark.json";
 
     // --update-configs: materialize every config this benchmark owns -- its own config, each configured
@@ -171,14 +172,9 @@ int main(int argc, char **argv) {
     }
 
     // A missing config file is created with defaults by GParserBuilder (the Geneva idiom), so there is
-    // no need to guard against its absence here.
-    BenchmarkConfig cfg;
-    try {
-        cfg = loadConfig(configFile);
-    } catch (const std::exception &e) {
-        std::cerr << "Failed to parse config '" << configFile << "': " << e.what() << std::endl;
-        return 1;
-    }
+    // no need to guard against its absence here; one that cannot be applied ends the program
+    // through the handler of main(), with a message that names the file.
+    BenchmarkConfig cfg = loadConfig(configFile);
 
     if (cfg.algorithms.empty()) {
         std::cerr << "No algorithm entries in config. Nothing to do." << std::endl;
@@ -218,4 +214,7 @@ int main(int argc, char **argv) {
     GBenchmarkResultWriter::printSummary(results);
 
     return 0;
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

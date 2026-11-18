@@ -37,6 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized (reused from the Geneva library)
@@ -51,7 +52,7 @@ using namespace Gem::Geneva;
  * algorithm to the next. A common pattern is a global explorer (evolutionary
  * algorithm) followed by a local refiner (gradient descent).
  ********************************************************************************/
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     Go2 go(argc, argv, "./config/Go2.json");
 
     //---------------------------------------------------------------------------
@@ -97,4 +98,7 @@ int main(int argc, char **argv) {
     //! [go2-chain#2]
 
     std::cout << "Best result found:" << '\n' << p << '\n';
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

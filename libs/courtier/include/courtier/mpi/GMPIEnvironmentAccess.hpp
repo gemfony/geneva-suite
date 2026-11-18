@@ -50,6 +50,11 @@
  * tree: the target Geneva::courtier-mpi), a shared library, and so exists once in a process: the
  * program, Geneva's MPI module and any other library that call these functions share it, whatever
  * links what. A program that names them links that library.
+ *
+ * The first environment of a process registers an end hook with Gem::Common::reportFatal()
+ * (common/GFatalReport.hpp): a main() that ends on an error through it ends the whole MPI job
+ * (MPI_Abort on MPI_COMM_WORLD) while MPI is in use, instead of finalizing MPI while the other
+ * processes wait for it.
  */
 namespace Gem::Courtier {
 
@@ -67,5 +72,8 @@ mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base);
 /** The role of this process, without keeping the environment (builds it on MPI_COMM_WORLD if
  *  none exists). */
 [[nodiscard]] processRole mpiProcessRole();
+
+/** Whether MPI can be used in this process now: it is initialized and not finalized. */
+[[nodiscard]] bool mpiUsable() noexcept;
 
 } /* namespace Gem::Courtier */

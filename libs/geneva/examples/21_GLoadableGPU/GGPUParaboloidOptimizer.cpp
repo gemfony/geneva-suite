@@ -49,6 +49,7 @@
 #include <vector>
 
 // Geneva headers
+#include "common/GFatalReport.hpp"
 #include "courtier/gpu/GGPUConsumerConfig.hpp" // materialize the GPU config under --update-configs
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -56,7 +57,7 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     // Go2 parses config + command line and loads the --module here, in its constructor: the module
     // contributes BOTH the individual (claimed as the optimization problem) AND its GPU marshaller
     // (registered under the "cuda" device target), so `--consumer gpu` can build the GPU consumer around it.
@@ -114,4 +115,7 @@ int main(int argc, char **argv) {
         std::cout << "  x[" << i << "] = " << x << '\n';
     }
     return 0;
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

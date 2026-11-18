@@ -65,6 +65,7 @@
 #include <boost/program_options.hpp>
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 
 namespace {
@@ -525,7 +526,6 @@ int main(int argc, char **argv) try {
     }
     return 0;
 }
-catch(const std::exception &e) {
-    std::cerr << e.what() << '\n';
-    return 1;
+catch(...) {
+    return Gem::Common::reportFatal();
 }

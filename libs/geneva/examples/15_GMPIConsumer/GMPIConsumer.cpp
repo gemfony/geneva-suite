@@ -71,6 +71,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp" // processRole
@@ -200,7 +201,7 @@ bool parseCommandLine(
  * The main function.
  */
 // NOLINTNEXTLINE(readability-function-size) -- example 15's main(): a single linear setup script (config parsing, role query, client/submitter branch, MPI-consumer setup, population + adaption-config wiring, run); splitting would scatter tightly sequential one-shot setup steps
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     std::uint16_t nProducerThreads = 0;
     std::size_t populationSize = 0;
     std::size_t nParents = 0;
@@ -319,4 +320,7 @@ int main(int argc, char **argv) {
     std::cout << "Best result found:" << '\n' << p << '\n';
 
     return 0;
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

@@ -42,6 +42,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <tuple>
 
 // MPI headers go here
 #include <mpi.h>
@@ -49,6 +50,7 @@
 // Geneva headers go here
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GFatalReport.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/mpi/GMPIEnvironment.hpp"
 
@@ -120,8 +122,23 @@ public:
     Building &operator=(Building &&) = delete;
 };
 
+/** @brief The end hook of Gem::Common::reportFatal() for a process that uses MPI: ends the whole
+ *  MPI job with @p code (MPI_Abort on MPI_COMM_WORLD) while MPI is usable. A process that ends on
+ *  an error with a return from main() would otherwise finalize MPI while the other processes wait
+ *  for it -- a submitter's clients for its greeting, say -- and the job would not end.
+ *  @param code The exit code of the job */
+void endJobOnFatalError(int code) {
+    if(mpiUsable()) {
+        std::ignore = MPI_Abort(MPI_COMM_WORLD, code); // does not return
+    }
+}
+
+/// Registers endJobOnFatalError() with reportFatal() once per process.
+std::once_flag fatalEndHookRegistered; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 /** @brief The living environment, or a new one on @p make_base (anchored). Call with
- *  environmentMutex held.
+ *  environmentMutex held. The first environment of the process registers the end hook of
+ *  reportFatal() (endJobOnFatalError()), once MPI is initialized.
  *  @param make_base Returns the base communicator once MPI is initialized
  *  @return The environment */
 std::shared_ptr<environment_type> obtainLocked(const std::function<MPI_Comm()> &make_base) {
@@ -131,6 +148,9 @@ std::shared_ptr<environment_type> obtainLocked(const std::function<MPI_Comm()> &
         current = std::make_shared<environment_type>(nullptr, nullptr, make_base);
         environment = current;
         anchor = current;
+        std::call_once(fatalEndHookRegistered, [] {
+            Gem::Common::addFatalEndHook(endJobOnFatalError);
+        });
     }
     return current;
 }
@@ -189,6 +209,20 @@ processRole mpiProcessRole() {
     refuseWhileBuilding("mpiProcessRole()");
     const std::scoped_lock lock(environmentMutex);
     return obtainLocked(worldCommunicator)->role();
+}
+
+/******************************************************************************/
+/**
+ * @brief Whether MPI can be used in this process now.
+ * @return Whether MPI is initialized and not finalized
+ */
+bool mpiUsable() noexcept {
+    int initialized = 0;
+    int finalized = 0;
+    // both may be called at any time and report nothing but their flag
+    std::ignore = MPI_Initialized(&initialized);
+    std::ignore = MPI_Finalized(&finalized);
+    return initialized != 0 && finalized == 0;
 }
 
 /******************************************************************************/

@@ -140,20 +140,6 @@ std::string_view confirmationAdvice() {
            "members idle.";
 }
 
-/******************************************************************************/
-/**
- * @brief Whether MPI can be used in this process now.
- * @return Whether MPI is initialized and not finalized
- */
-bool mpiUsable() noexcept {
-    int initialized = 0;
-    int finalized = 0;
-    // both may be called at any time and report nothing but their flag
-    std::ignore = MPI_Initialized(&initialized);
-    std::ignore = MPI_Finalized(&finalized);
-    return initialized != 0 && finalized == 0;
-}
-
 } // namespace
 
 /******************************************************************************/

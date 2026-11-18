@@ -37,6 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -44,7 +45,7 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     Go2 go(argc, argv, "config/Go2.json");
 
     //---------------------------------------------------------------------
@@ -72,4 +73,7 @@ int main(int argc, char **argv) {
         go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
 
     // Do something with the best result
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

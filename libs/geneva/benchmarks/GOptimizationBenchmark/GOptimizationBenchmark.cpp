@@ -40,6 +40,7 @@
 
 // Geneva header files go here
 #include "common/GCommonHelperFunctionsT.hpp"
+#include "common/GFatalReport.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/Go2.hpp"
 
@@ -56,7 +57,7 @@ using namespace Gem::Geneva::Benchmarks;
 using xyWE = std::tuple<double, double, double, double>; // xy-values with errors
 
 // NOLINTNEXTLINE(readability-function-size) -- single benchmark main: Go2 setup, the benchmark sweep and the resulting plotting all belong to one run
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     // Create the algorithm container
     Go2 go(argc, argv, "./config/Go2.json");
 
@@ -215,4 +216,7 @@ int main(int argc, char **argv) {
 
     // Emit the result file
     gpd.writeToFile(gbc.getResultFileName());
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }

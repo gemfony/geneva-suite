@@ -37,6 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -44,7 +45,7 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     Go2 go(argc, argv, "./config/Go2.json");
 
     //---------------------------------------------------------------------
@@ -98,4 +99,7 @@ int main(int argc, char **argv) {
     // the --finalize switch (via GExternalEvaluatorIndividual::finalize, the factory's teardown hook)
 
     //---------------------------------------------------------------------------
+}
+catch(...) {
+    return Gem::Common::reportFatal();
 }
