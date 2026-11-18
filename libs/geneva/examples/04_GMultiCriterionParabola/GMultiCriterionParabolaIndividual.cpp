@@ -67,12 +67,12 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::GMultiCriterionPara
     f.streamline(parVec);
 
     for(std::size_t i = 0; i < f.getNStoredResults(); i++) {
-        std::cout << "Raw fitness " << i << ": " << f.raw_fitness(i) << '\n';
+        s << "Raw fitness " << i << ": " << f.raw_fitness(i) << '\n';
     }
 
     std::vector<double>::iterator it;
     for(it = parVec.begin(); it != parVec.end(); ++it) {
-        std::cout << std::distance(parVec.begin(), it) << ": " << *it << '\n';
+        s << std::distance(parVec.begin(), it) << ": " << *it << '\n';
     }
 
     return s;
@@ -80,12 +80,16 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::GMultiCriterionPara
 
 /******************************************************************************/
 /**
-     * Provide an easy way to print the individual's content through a smart-pointer
+     * Provide an easy way to print the individual's content through a smart-pointer (an empty one
+     * prints as "(null)")
      */
 std::ostream &operator<<(
     std::ostream &s,
     const std::unique_ptr<Gem::Geneva::GMultiCriterionParabolaIndividual> &f_ptr
 ) {
+    if(not f_ptr) {
+        return s << "(null)" << '\n';
+    }
     return operator<<(s, *f_ptr);
 }
 
