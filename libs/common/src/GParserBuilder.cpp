@@ -513,9 +513,11 @@ void GParserBuilder::loadFromDocument(
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
  * @param do_rewrite Whether to rewrite the file in canonical form after applying it
  * @param rewrite_header The header for a rewrite; empty uses the standard auto-created header
- * @return true on success (parsed or created without error), false if an exception was caught
+ * @throws geneva_exception if the file cannot be resolved, read, parsed or applied (a value of the
+ *         wrong form, an unknown key while unknown keys are errors, a call-back that throws) or
+ *         rewritten; the message names the file and the cause
  */
-bool GParserBuilder::doParseConfigFile_(
+void GParserBuilder::doParseConfigFile_(
     std::filesystem::path const &config_file,
     boost::json::value *captured,
     bool do_rewrite,
@@ -529,7 +531,7 @@ bool GParserBuilder::doParseConfigFile_(
 
     boost::json::value root; // holds the parsed configuration document
 
-    std::filesystem::path config_path;
+    std::filesystem::path config_path = config_file; // the resolved path, once it is known
 
     try {
         // Resolve the path (creating the base directory if needed) and ensure the file exists.
@@ -558,28 +560,17 @@ bool GParserBuilder::doParseConfigFile_(
         if(do_rewrite && file_existed) {
             this->reportAndRewriteConfigFile(root, config_path, rewrite_header);
         }
-
-        return true; // Success! (a caller reads this as "parsed/created without error", not "existed")
-    }
-    catch(geneva_exception const &e) {
-        glogger << "Caught geneva_exception when parsing configuration file "
-                << config_path.string() << ":" << '\n'
-                << e.what() << '\n'
-                << GLOGGING;
-        return false;
     }
     catch(std::exception const &e) {
-        glogger << "Caught std::exception when parsing configuration file " << config_path.string()
-                << ":" << '\n'
-                << e.what() << '\n'
-                << GLOGGING;
-        return false;
-    }
-    catch(...) {
-        glogger << "Unknown error while parsing the configuration file " << config_path.string()
-                << '\n'
-                << GLOGGING;
-        return false;
+        // A failed parse is never reported by a return value alone: a caller that ignored it ran
+        // on its defaults while the file said otherwise.
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+            << "The configuration file " << config_path.string()
+            << " could not be read or applied:" << '\n'
+            << e.what() << '\n'
+        );
     }
 }
 
@@ -723,11 +714,13 @@ void GParserBuilder::reportAndRewriteConfigFile(
  *
  * @param config_file The path of the configuration file to read and parse
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
- * @return true on success (the file was parsed, or a missing one was created from its defaults);
- *   false if an error occurred (the exception is logged and swallowed)
+ * @throws geneva_exception if the file cannot be read or applied (see doParseConfigFile_())
  */
-bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured) {
-    return this->doParseConfigFile_(config_file, captured, /* do_rewrite = */ update_in_place_);
+void GParserBuilder::parseConfigFile(
+    std::filesystem::path const &config_file,
+    boost::json::value *captured
+) {
+    this->doParseConfigFile_(config_file, captured, /* do_rewrite = */ update_in_place_);
 }
 
 /******************************************************************************/
@@ -739,11 +732,13 @@ bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, b
  *
  * @param config_file The path of the configuration file to update in place
  * @param header An optional header comment; empty uses the standard auto-created header
- * @return true on success (the file was updated, or a missing one was created from its defaults);
- *   false if an error occurred (the exception is logged and swallowed)
+ * @throws geneva_exception if the file cannot be read, applied or rewritten (see doParseConfigFile_())
  */
-bool GParserBuilder::updateConfigFile(std::filesystem::path const &config_file, std::string const &header) {
-    return this->doParseConfigFile_(config_file, nullptr, /* do_rewrite = */ true, header);
+void GParserBuilder::updateConfigFile(
+    std::filesystem::path const &config_file,
+    std::string const &header
+) {
+    this->doParseConfigFile_(config_file, nullptr, /* do_rewrite = */ true, header);
 }
 
 /******************************************************************************/

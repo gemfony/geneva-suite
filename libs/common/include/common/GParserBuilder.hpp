@@ -1792,9 +1792,12 @@ public:
     GParserBuilder &operator=(GParserBuilder &&) = delete;
 
     /** @brief Reads and parses a configuration file, applying the values to the registered options. A
-     *  missing file is created from defaults (also a success). Optionally hands the parsed JSON document
-     *  back via the second argument so callers can cache it. */
-    bool parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured = nullptr);
+     *  missing file is created from defaults. Optionally hands the parsed JSON document back via the
+     *  second argument so callers can cache it. Throws if the file cannot be read or applied. */
+    void parseConfigFile(
+        std::filesystem::path const &config_file,
+        boost::json::value *captured = nullptr
+    );
     /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic. */
     void loadFromDocument(
         boost::json::value const &root,
@@ -1809,8 +1812,9 @@ public:
      *  preserved, newly-registered parameters emitted with their defaults, comments/order refreshed. A
      *  missing file is created from defaults (same as parseConfigFile). The rewrite is atomic (a temp sibling
      *  is written and then renamed over the target), and never runs during a build into the source tree
-     *  because it targets exactly the file it was given. */
-    bool updateConfigFile(std::filesystem::path const &config_file, std::string const &header = "");
+     *  because it targets exactly the file it was given. Throws if the file cannot be read, applied or
+     *  rewritten. */
+    void updateConfigFile(std::filesystem::path const &config_file, std::string const &header = "");
     /** @brief Globally enables/disables update-in-place: when enabled, every successful parseConfigFile() that
      *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup. */
     static void setUpdateInPlace(bool enabled);
@@ -2400,8 +2404,8 @@ private:
 
     /** @brief Shared implementation of parseConfigFile()/updateConfigFile(): reads @p config_file (creating
      *  it from defaults if absent), applies it to the registered options and, when @p do_rewrite is set and
-     *  the file already existed, rewrites it in canonical form. */
-    bool doParseConfigFile_(
+     *  the file already existed, rewrites it in canonical form; throws on any failure. */
+    void doParseConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value *captured,
         bool do_rewrite,

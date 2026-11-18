@@ -1750,12 +1750,8 @@ void Go2::parseConfigFile(std::filesystem::path const &config_filename) {
     // Add local configuration options
     this->addConfigurationOptions(gpb);
 
-    // Do the actual parsing
-    if(not gpb.parseConfigFile(config_filename)) {
-        glogger << "In Go2::parseConfigFile: Error!" << '\n'
-                << "Could not parse configuration file " << config_filename.string() << '\n'
-                << LOGEXIT(EXIT_FAILURE);
-    }
+    // Do the actual parsing (throws if the file cannot be read or applied)
+    gpb.parseConfigFile(config_filename);
 }
 
 /******************************************************************************/

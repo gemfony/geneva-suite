@@ -324,13 +324,7 @@ GDelayIndividual::Config GDelayIndividual::readConfig(std::filesystem::path cons
     Gem::Common::GParserBuilder gpb;
     describeConfig(gpb, c);
 
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GDelayIndividual::readConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     return c;
 }

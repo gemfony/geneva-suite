@@ -147,14 +147,7 @@ struct GMPICascadeConfig {
             "The longest pause in microseconds between two looks of a waiting process of the MPI "
             "cascade; at least sub_client_poll_pause_min_us"
         );
-        if(not gpb.parseConfigFile(config_file)) {
-            throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GMPICascadeConfig::load(): Error!" << '\n'
-                << "The configuration file " << config_file << " of the MPI cascade could not be "
-                << "read or parsed" << '\n'
-            );
-        }
+        gpb.parseConfigFile(config_file);
         pauseMin = std::chrono::microseconds(pause_min_us);
         pauseMax = std::chrono::microseconds(pause_max_us);
     }

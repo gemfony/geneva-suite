@@ -129,6 +129,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   known key in another form (the flat `"scan_randomly": false`, an object without `"value"`, a
   list where one value belongs) was skipped without a word, leaving the default in force; it is
   now an error that names the key and the form it needs. An absent key keeps its default.
+- **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `geneva_exception`
+  that names the file and the cause when the file cannot be read or applied, and return
+  `void`. They used to log the error and return `false`, which most callers ignored -- every
+  optimization algorithm's `readConfigFile()` among them -- so a configuration that could not be
+  applied ran on its defaults. Code that tested the result drops the test.
 
 ## 5. Parallelization and consumers
 

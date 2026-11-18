@@ -112,9 +112,7 @@ GSleepGroupIndividual::readConfig(const std::filesystem::path &config_file) {
         << " the pause doubles up to poll_pause_max";
     gpb.registerFileParameter("poll_pause_max", c.poll_pause_max, c.poll_pause_max)
         << "Microseconds: the longest pause between two looks for a message";
-    if(not gpb.parseConfigFile(config_file)) {
-        throw std::runtime_error("could not parse " + config_file.string());
-    }
+    gpb.parseConfigFile(config_file);
     return c;
 }
 

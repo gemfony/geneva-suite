@@ -115,13 +115,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
     gpb.registerFileParameter("algo_config_files", algoConfigFiles, algoConfigFiles)
         << "Algorithm-specific config file paths, one per entry";
 
-    if (not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GCUDAOptBenchmark loadConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     if (algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
         throw geneva_exception(

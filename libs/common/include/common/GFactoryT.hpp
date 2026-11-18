@@ -394,13 +394,7 @@ protected:
         boost::json::value const &config_document =
             config_document_cell_.getOrCompute([this, &gpb, &this_call_parsed]() {
                 boost::json::value parsed;
-                if(not gpb.parseConfigFile(config_path_, &parsed)) {
-                    throw geneva_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                        << "In GFactoryT<prod_type>::operator(): Error!" << '\n'
-                        << "Could not parse configuration file " << config_path_.string() << '\n'
-                    );
-                }
+                gpb.parseConfigFile(config_path_, &parsed);
                 this_call_parsed = true;
                 return parsed;
             });

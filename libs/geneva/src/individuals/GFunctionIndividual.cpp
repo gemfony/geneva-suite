@@ -653,13 +653,7 @@ GFunctionIndividual::Config GFunctionIndividual::readConfig(std::filesystem::pat
     Gem::Common::GParserBuilder gpb;
     describeConfig(gpb, c);
 
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFunctionIndividual::readConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     return c;
 }
@@ -687,13 +681,7 @@ GFunctionIndividual::buildConfigured(const Config &c, std::filesystem::path cons
     Config sink;
     describeConfig(gpb, sink);          // bind the genome-shaping keys (suppresses unknown-key noise)
     ind->addConfigurationOptions(gpb);  // bind the base GGenome options to this individual
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFunctionIndividual::buildConfigured(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     ind->setGenome(buildGenome(c));
     applyConfig(*ind, c);

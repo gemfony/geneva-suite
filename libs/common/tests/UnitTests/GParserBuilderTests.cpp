@@ -85,7 +85,7 @@ TEST_CASE("GParserBuilder: writeConfigFile + parseConfigFile round-trip "
 
         // First parse: file is absent, so GParserBuilder writes one with
         // defaults; parsing then returns the defaults.
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
         CHECK(answer == 42);
         CHECK(scale  == 3.14);
         REQUIRE(std::filesystem::exists(cfg));
@@ -99,7 +99,7 @@ TEST_CASE("GParserBuilder: writeConfigFile + parseConfigFile round-trip "
         double scale  = -1.0;
         gpb.registerFileParameter<int>   ("answer", answer, 0,   VAR_IS_ESSENTIAL);
         gpb.registerFileParameter<double>("scale",  scale,  0.0, VAR_IS_ESSENTIAL);
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
         CHECK(answer == 42);
         CHECK(scale  == 3.14);
     }
@@ -162,7 +162,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (callback form) fires after par
         VAR_IS_ESSENTIAL,
         "via callback"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == 99);
 
     std::filesystem::remove(cfg);
@@ -211,7 +211,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (reference + non-empty comment)
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 11, VAR_IS_ESSENTIAL, "a numeric value");
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(v == 11);
     std::filesystem::remove(cfg);
 }
@@ -230,7 +230,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (callback + non-empty comment)"
         VAR_IS_SECONDARY,
         "comment-text"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == 13);
     std::filesystem::remove(cfg);
 }
@@ -253,7 +253,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (two-parameter combined form)",
         "combined_label",
         VAR_IS_ESSENTIAL
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(captured_int == 17);
     CHECK(captured_dbl == 2.5);
     std::filesystem::remove(cfg);
@@ -277,7 +277,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (vector callback form)",
         VAR_IS_ESSENTIAL,
         "a vector"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(received == def_val);
     std::filesystem::remove(cfg);
 }
@@ -293,7 +293,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (vector reference form)",
     gpb.registerFileParameter<double>(
         "vals", sink, def_val, VAR_IS_ESSENTIAL, "doubles"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == def_val);
     std::filesystem::remove(cfg);
 }
@@ -318,7 +318,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (std::array callback form)",
         VAR_IS_ESSENTIAL,
         "array via callback"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(received == def_val);
     std::filesystem::remove(cfg);
 }
@@ -336,7 +336,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (std::array reference form)",
     gpb.registerFileParameter<double, N>(
         "arr", sink, def_val, VAR_IS_ESSENTIAL, "array ref"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == def_val);
     std::filesystem::remove(cfg);
 }
@@ -402,7 +402,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (single value)",
     gpb.registerFileParameter<int>("k", v, 1);
     gpb.resetFileParameterDefaults<int>("k", 77);
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(v == 77);
     std::filesystem::remove(cfg);
 }
@@ -417,7 +417,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (vector value)",
     gpb.registerFileParameter<int>("vs", sink, std::vector<int>{1, 2});
     gpb.resetFileParameterDefaults<int>("vs", std::vector<int>{10, 20, 30});
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == std::vector<int>{10, 20, 30});
     std::filesystem::remove(cfg);
 }
@@ -433,7 +433,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (array value)",
     gpb.registerFileParameter<int, N>("ar", sink, std::array<int, N>{1, 1});
     gpb.resetFileParameterDefaults<int, N>("ar", std::array<int, N>{42, 43});
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == std::array<int, N>{42, 43});
     std::filesystem::remove(cfg);
 }
@@ -474,7 +474,7 @@ TEST_CASE("GParserBuilder::writeConfigFile produces a parseable JSON",
     double b = 0.0;
     gpb2.registerFileParameter<int>   ("a", a, 99);
     gpb2.registerFileParameter<double>("b", b, 0.0);
-    REQUIRE(gpb2.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb2.parseConfigFile(cfg));
     CHECK(a == 1);
     CHECK(b == 2.5);
     std::filesystem::remove(cfg);
@@ -577,7 +577,7 @@ TEST_CASE("GParserBuilder::writeConfigFile with writeAll=false omits secondary p
     int s2 = 0;
     gpb2.registerFileParameter<int>("essential_p", e2, 0);
     gpb2.registerFileParameter<int>("secondary_p", s2, 0);
-    REQUIRE(gpb2.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb2.parseConfigFile(cfg));
     CHECK(e2 == 42);
     CHECK(s2 == 0);
     std::filesystem::remove(cfg);
@@ -586,17 +586,17 @@ TEST_CASE("GParserBuilder::writeConfigFile with writeAll=false omits secondary p
 // ---------------------------------------------------------------------------
 // parseConfigFile: error branches
 
-TEST_CASE("GParserBuilder::parseConfigFile returns false when path is an existing directory",
+TEST_CASE("GParserBuilder::parseConfigFile throws when path is an existing directory",
           "[common][parser-builder]") {
-    // Any existing directory makes is_regular_file() return false → internal
-    // throw is caught → parseConfigFile returns false.
+    // Any existing directory makes is_regular_file() return false -> parseConfigFile throws
+    // (it used to return false, which a caller could ignore and run on its defaults).
     auto dir = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
     std::filesystem::create_directories(dir);
 
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_FALSE(gpb.parseConfigFile(dir));
+    CHECK_THROWS_AS(gpb.parseConfigFile(dir), geneva_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -665,7 +665,7 @@ TEST_CASE(
     gpb.registerFileParameter<double>("scale",  scale,  3.14, VAR_IS_ESSENTIAL, "the double");
     gpb.registerFileParameter<int>   ("fresh",  fresh,  7,    VAR_IS_ESSENTIAL, "new in v2");
 
-    REQUIRE(gpb.updateConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.updateConfigFile(cfg));
 
     // Applied (in-memory) values: existing preserved, new defaulted.
     CHECK(answer == 13);   // preserved from disk (not reset to the 42 default)
@@ -712,7 +712,7 @@ TEST_CASE("GParserBuilder: a config missing a registered vector parameter keeps 
     gpb.registerFileParameter<int>("vints", vints, std::vector<int>{10, 20, 30}, VAR_IS_ESSENTIAL, "a vector");
 
     // Before the fix a missing vector key aborted the parse; now it keeps the registered defaults.
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(other == 5);
     CHECK(vints == std::vector<int>{10, 20, 30}); // the registered defaults survive
 
@@ -745,7 +745,7 @@ TEST_CASE("GParserBuilder: a multi-element vector round-trips as a JSON array (n
     GParserBuilder reader;
     std::vector<int> vec_in;
     reader.registerFileParameter<int>("vec", vec_in, std::vector<int>{1, 1, 1, 1}, VAR_IS_ESSENTIAL, "a vector");
-    REQUIRE(reader.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(vec_in == std::vector<int>{7, 8, 9, 10});
 
     std::filesystem::remove(cfg);
@@ -776,7 +776,7 @@ TEST_CASE(
         gpb.registerFileParameter<double>     ("d", d, 3.5,                 VAR_IS_ESSENTIAL, "a double");
         gpb.registerFileParameter<bool>       ("b", b, true,                VAR_IS_ESSENTIAL, "a bool");
         gpb.registerFileParameter<std::string>("s", s, std::string("hi"),   VAR_IS_ESSENTIAL, "a string");
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
 
     const json::value doc = Gem::Common::parseJsonFile(cfg);
@@ -807,7 +807,7 @@ TEST_CASE(
     reader.registerFileParameter<double>     ("d", d2, 3.5,               VAR_IS_ESSENTIAL, "a double");
     reader.registerFileParameter<bool>       ("b", b2, true,              VAR_IS_ESSENTIAL, "a bool");
     reader.registerFileParameter<std::string>("s", s2, std::string("hi"), VAR_IS_ESSENTIAL, "a string");
-    REQUIRE(reader.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(i2 == 33);
     CHECK(d2 == 9.5);
     CHECK_FALSE(b2);
@@ -835,7 +835,7 @@ TEST_CASE(
         GParserBuilder gpb;
         std::uint8_t code = 1;
         gpb.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(1), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
     {
         const json::value doc = Gem::Common::parseJsonFile(cfg);
@@ -847,7 +847,7 @@ TEST_CASE(
         GParserBuilder reader;
         std::uint8_t code = 0;
         reader.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(0), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(reader.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
         CHECK(int(code) == 1);
     }
 
@@ -859,7 +859,7 @@ TEST_CASE(
         GParserBuilder reader;
         std::uint8_t code = 0;
         reader.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(0), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(reader.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
         CHECK(int(code) == 1);
     }
 
@@ -1019,4 +1019,29 @@ TEST_CASE("GParserBuilder: a known key of the wrong form is refused with its key
         CHECK_THROWS_WITH(k.load(R"({ "pair": [5, 6] })"), ContainsSubstring(R"("pair" has the wrong form)"));
         CHECK(k.pair == std::array<int, 2>{});
     }
+}
+
+// ---------------------------------------------------------------------------
+// Regression: parseConfigFile() returned false on any error, and most callers ignored the
+// result (every optimization algorithm's readConfigFile() among them), so a file that could not
+// be applied left the defaults in force without a word. It throws, naming the file and the cause.
+
+TEST_CASE("GParserBuilder::parseConfigFile throws on a file it cannot apply and names file and key",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    auto cfg = scratch("flat_entry");
+    {
+        std::ofstream out(cfg);
+        out << R"({ "scan_randomly": false })" << '\n';
+    }
+
+    GParserBuilder gpb;
+    bool scan_randomly = true;
+    gpb.registerFileParameter<bool>("scan_randomly", scan_randomly, true);
+    CHECK_THROWS_WITH(
+        gpb.parseConfigFile(cfg),
+        ContainsSubstring(cfg.string()) && ContainsSubstring(R"("scan_randomly" has the wrong form)")
+    );
+    CHECK_THROWS_AS(gpb.updateConfigFile(cfg), geneva_exception);
+    std::filesystem::remove(cfg);
 }

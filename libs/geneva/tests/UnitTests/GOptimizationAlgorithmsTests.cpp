@@ -1399,7 +1399,7 @@ TEST_CASE(
         auto pop = std::make_shared<oa::GParameterScan>();
         Gem::Common::GParserBuilder gpb;
         pop->addConfigurationOptions(gpb);
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
         std::filesystem::remove(cfg);
         CHECK_FALSE(pop->getScanRandomly());
         run_and_count(pop);
