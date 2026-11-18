@@ -77,33 +77,26 @@ public:
 
     /**
      * @brief Initialization with a raw fitness
-     * @param raw_fitness The raw fitness value to store
      */
     explicit individual_processing_result(double raw_fitness);
 
     /**
      * @brief Initialization with a raw and transformed fitness
-     * @param raw_fitness The raw fitness value to store
-     * @param transformed_fitness The transformed fitness value to store
      */
     individual_processing_result(double raw_fitness, double transformed_fitness);
 
     /**
      * @brief Initialization with a raw fitness and recalculation of the transformed fitness
-     * @param raw_fitness The raw fitness value to store
-     * @param f The function used to derive the transformed fitness from the raw value
      */
     individual_processing_result(double raw_fitness, const std::function<double(double)>& f);
 
     /**
      * @brief Copy construction
-     * @param cp The other object to copy from
      */
     individual_processing_result(individual_processing_result const &) = default;
 
     /**
      * @brief Move construction
-     * @param cp The other object to move from
      */
     individual_processing_result(individual_processing_result &&) = default;
 
@@ -112,39 +105,33 @@ public:
 
     /**
      * @brief Assignment
-     * @param cp The other object to copy-assign from
      * @return A reference to this object
      */
     individual_processing_result &operator=(individual_processing_result const &) = default;
 
     /**
      * @brief Move assignment
-     * @param cp The other object to move-assign from
      * @return A reference to this object
      */
     individual_processing_result &operator=(individual_processing_result &&) = default;
 
     /**
      * @brief Access to the raw fitness
-     * @return The stored raw fitness value
      */
     [[nodiscard]] double rawFitness() const;
 
     /**
      * @brief Access to the transformed fitness
-     * @return The stored transformed fitness value
      */
     [[nodiscard]] double transformedFitness() const;
 
     /**
      * @brief Updates the transformed fitness using an external function
-     * @param f The function applied to the raw fitness to obtain the transformed fitness
      */
     void setTransformedFitnessWith(const std::function<double(double)>& f);
 
     /**
      * @brief Sets the transformed fitness to a user-defined value
-     * @param transformed_fitness The transformed fitness value to store
      */
     void setTransformedFitnessTo(double transformed_fitness);
 
@@ -153,27 +140,21 @@ public:
 
     /**
      * @brief Checks whether the transformed fitness was set
-     * @return true if a transformed fitness value is available, false otherwise
      */
     [[nodiscard]] bool transformedFitnessSet() const;
 
     /**
      * @brief Resets the object and stores a new raw value in the class
-     * @param raw_fitness The new raw fitness value to store
      */
     void reset(double raw_fitness);
 
     /**
      * @brief Resets the object and stores a new raw and transformed value in the class
-     * @param raw_fitness The new raw fitness value to store
-     * @param transformed_fitness The new transformed fitness value to store
      */
     void reset(double raw_fitness, double transformed_fitness);
 
     /**
      * @brief Resets the object and stores a new raw value in the class and triggers recalculation of the transformed value
-     * @param raw_fitness The new raw fitness value to store
-     * @param f The function used to derive the transformed fitness from the raw value
      */
     void reset(double raw_fitness, const std::function<double(double)>& f);
 

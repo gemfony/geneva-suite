@@ -33,6 +33,7 @@ SET ( COMMONSOURCES
     GConfigEmission.cpp
     GExceptions.cpp
 	GExpectationChecksT.cpp
+	GFatalReport.cpp
 	GJsonIO.cpp
 	GLogger.cpp
 	GModuleLoader.cpp

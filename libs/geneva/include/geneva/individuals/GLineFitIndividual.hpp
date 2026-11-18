@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <algorithm> // for std::sort
@@ -66,6 +67,7 @@ namespace Gem::Geneva::Individuals {
  * This individual takes a vector of 2D double-tuples and calculates the
  * root-square deviation from the line defined by its two parameters
  */
+// clang-format off
 //! [ind-member-list#2]
 class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
   : public gen::GGenomeT<GLineFitIndividual>
@@ -79,7 +81,9 @@ class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
     /** @brief Single declaration of this class'es local data members */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(Gem::Common::make_member("data_points_", self.data_points_));
+        return std::make_tuple(
+            Gem::Common::make_member("data_points_", self.data_points_)
+        );
     }
     ///////////////////////////////////////////////////////////////////////
 
@@ -87,6 +91,7 @@ public:
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GLineFitIndividual";
 //! [ind-member-list#2]
+    // clang-format on
 
     /**
      * @brief The default constructor. Produces a genome-less shell; it is only meaningful after a genome is
@@ -98,12 +103,10 @@ public:
     /**
      * @brief The standard constructor (the compile-in / test path). Builds the two-parameter genome and
      * stores the (x,y) data points directly, in memory.
-     * @param data_points The (x,y) data points the fitted line is evaluated against
      */
     GLineFitIndividual(const std::vector<std::tuple<double, double>> & data_points);
     /**
      * @brief The copy constructor.
-     * @param cp A constant reference to another GLineFitIndividual object
      */
     GLineFitIndividual(const GLineFitIndividual & cp);
 
@@ -112,13 +115,11 @@ public:
 
     /**
      * @brief Retrieves the tuple (a,b) of the line represented by this object.
-     * @return The line's (offset a, slope b) as a tuple
      */
     std::tuple<double, double> getLine() const;
 
     /**
      * @brief The OA-owned adaption config authoring this genome's two Gauss groups (offset + slope).
-     * @return A shared pointer to the populated adaption config
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> getAdaptionConfig() const;
 
@@ -138,30 +139,21 @@ public:
 
     /**
      * @brief Registers the config-file options, binding them to the passed Config.
-     * @param gpb The GParserBuilder the configurable values are registered on
-     * @param c The Config instance whose members are bound to the parser (written on parse)
      */
     static void describeConfig(Gem::Common::GParserBuilder & gpb, Config & c);
     /**
      * @brief Builds the flat genome's structure: two unbounded doubles (the line's offset a and slope b),
      * each its own Gauss group. Independent of the data points.
-     * @param c The configuration (unused for the genome structure; the data path drives applyConfig instead)
-     * @return The structure-only genome data
      */
     static gen::GenomeData buildGenome(const Config & c);
     /**
      * @brief The OA-owned adaption config: the offset a and slope b each get the line-fit Gauss settings.
-     * @param sample A sample flat genome whose group structure the config mirrors
-     * @param c The configuration (unused; the Gauss settings are the individual's fixed defaults)
-     * @return A shared pointer to the populated adaption config
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome & sample, const Config & c);
     /**
      * @brief Per-object post-config hook: opens the config-named data file at runtime and loads the (x,y)
      * points into the produced individual. An empty path leaves the point set empty.
-     * @param ind The freshly produced individual to load the data points into
-     * @param c The configuration providing the data-file path
      */
     static void applyConfig(GLineFitIndividual & ind, const Config & c);
 
@@ -169,13 +161,11 @@ protected:
 
     /**
      * @brief The evaluation hook: the root-square deviation of the data points from the represented line.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether any modifications were made
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

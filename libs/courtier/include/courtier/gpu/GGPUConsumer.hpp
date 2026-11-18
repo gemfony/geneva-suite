@@ -30,6 +30,7 @@
 #pragma once
 
 // Standard headers
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <span>
@@ -67,24 +68,24 @@ namespace Gem::Courtier::GPU {
  * The two things that used to be hard-wired per CUDA consumer are now decoupled and configurable:
  *   - the device-programming model (CUDA) -- chosen at run time from the config file, served by a
  *     swappable GGPUDeviceBackendI; the GPU consumer is DEVICE-ONLY (a CPU run uses a CPU consumer
- *     such as --consumer stc, which evaluates via the individual's own evaluate());
+ *     such as --consumer stc, which runs the work item's own process());
  *   - the kernel code -- a path in the config file, runtime-compiled (NVRTC) or loaded as a prebuilt
  *     module.
- * The problem-specific marshalling (how a batch of individuals becomes flat device buffers and how
+ * The problem-specific marshalling (how a batch of items becomes flat device buffers and how
  * results are written back) is supplied as a GGPUEvaluableI, so one consumer serves any problem.
  *
  * GPU evaluation is deterministic and all-or-nothing, so a batch should be submitted under
  * GSubmissionPolicy::full_success_or_fatal.
  *
- * Several algorithms may submit to the one process consumer at the same time (the fan-in case, e.g.
- * a meta-optimization). Every submitter may call in; ONE thread owns the device. A batch is queued
- * to that device thread and its submitter waits for it, so batches reach the device one after
- * another, in the order they were submitted, and always from the same thread -- whatever a
+ * Several submitters may submit to the one process consumer at the same time (the fan-in case, e.g.
+ * Geneva's meta-optimization). Every submitter may call in; ONE thread owns the device. A batch is
+ * queued to that device thread and its submitter waits for it, so batches reach the device one
+ * after another, in the order they were submitted, and always from the same thread -- whatever a
  * backend's rules about threads and device contexts are. The host buffers and the backend are
  * touched by the device thread only and need no lock.
  *
  * @tparam processable_type The work-item type evaluated on the device
- * @tparam scalar_type The genome/fitness flat-buffer element type and device ABI type (default double)
+ * @tparam scalar_type The parameter/result flat-buffer element and device ABI type (default double)
  */
 template <typename processable_type, typename scalar_type = double>
 class GGPUConsumerT final : public Gem::Courtier::GBaseConsumerT<processable_type> {
@@ -140,7 +141,7 @@ protected:
      *  Safe to call from several threads at once; an exception thrown while the batch is evaluated
      *  is rethrown here, in the submitter.
      *
-     *  @param items The whole round's batch span of work items, evaluated in place (fitness written back) */
+     *  @param items The whole round's batch span of work items, evaluated in place (results written back) */
     void dispatch_(std::span<item_ptr> items) override {
         if(items.empty()) {
             return;
@@ -156,7 +157,7 @@ private:
      *  pointers are moved into a scratch vector, evaluated there and moved back to their slots (the
      *  items themselves stay where they are), also when the evaluation throws.
      *
-     *  @param items The round's batch of work items, evaluated in place (fitness written back) */
+     *  @param items The round's batch of work items, evaluated in place (results written back) */
     void evaluateBatch_(std::span<item_ptr> items) {
         const auto is_due = [](const item_ptr &item) {
             return item &&
@@ -200,19 +201,19 @@ private:
 
     /***************************************************************************/
     /** @brief Evaluates a batch of due items in one bulk launch: flatten -> backend -> scatter.
-     *  Runs on the device thread. Requires a uniform genome geometry across the batch (rejects
+     *  Runs on the device thread. Requires a uniform item geometry across the batch (rejects
      *  mixed geometries loudly).
      *
-     *  @param items Non-null DO_PROCESS work items, evaluated in place (fitness written back) */
+     *  @param items Non-null DO_PROCESS work items, evaluated in place (results written back) */
     void evaluateDue_(std::span<item_ptr> items) {
         ensureBackend_();
 
         const int n = static_cast<int>(items.size());
 
-        // Enforce a UNIFORM genome geometry across the batch. The GPU evaluates the batch as a single
-        // [n_items * dim] grid in one launch, so every individual must contribute the same number of
+        // Enforce a UNIFORM item geometry across the batch. The GPU evaluates the batch as a single
+        // [n_items * dim] grid in one launch, so every item must contribute the same number of
         // parameters. This keeps the bulk-batch capability while making the (previously implicit)
-        // uniform-geometry assumption an explicit, checked contract: a batch mixing individuals of
+        // uniform-geometry assumption an explicit, checked contract: a batch mixing items of
         // different geometries (e.g. different problems sharing one GPU consumer) is rejected loudly
         // instead of silently corrupting the flattened buffer.
         const std::size_t dim_sz = marshaller_->itemDimension(items.front());
@@ -234,19 +235,25 @@ private:
         const int dim = static_cast<int>(dim_sz);
 
         // Build the problem-constant blob ONCE when it is static (e.g. a fixed target image), rather
-        // than rebuilding it every generation. The backend likewise skips re-uploading an unchanged
+        // than rebuilding it for every batch. The backend likewise skips re-uploading an unchanged
         // blob (it sees the same stable pointer).
         if(not pconst_built_ || not marshaller_->problemConstantsStatic()) {
             pconst_ = marshaller_->problemConstants();
             pconst_built_ = true;
         }
-        fitness_.assign(static_cast<std::size_t>(n), scalar_type(0));
+        results_.assign(static_cast<std::size_t>(n), scalar_type(0));
 
+        // The batch is evaluated in one launch, so its time is one window that every item of the
+        // batch reports as its processing time.
+        const auto evaluation_start = std::chrono::steady_clock::now();
         backend_->evaluate(
-            params_.data(), n, dim, pconst_.data(), pconst_.size(), fitness_.data(),
+            params_.data(), n, dim, pconst_.data(), pconst_.size(), results_.data(),
             marshaller_->parallelWorkPerItem());
+        const double evaluation_time =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - evaluation_start)
+                .count();
 
-        marshaller_->scatter(items, fitness_);
+        marshaller_->scatter(items, results_, evaluation_time);
     }
 
     /***************************************************************************/
@@ -266,7 +273,7 @@ private:
                 << "The '" << toString(kind) << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'
                 << "The GPU consumer is device-only; to run on the CPU use a CPU consumer instead"
-                << " (e.g. --consumer stc), which evaluates via the individual's own evaluate()." << '\n');
+                << " (e.g. --consumer stc), which runs the work item's own process()." << '\n');
         }
         backend_ = makeBackend<scalar_type>(kind);
         backend_->initialize(cfg_.kernelSpec());
@@ -281,7 +288,7 @@ private:
     std::unique_ptr<GGPUDeviceBackendI<scalar_type>> backend_;    ///< The device backend (lazy)
 
     std::vector<scalar_type> params_;     ///< Reused host parameter buffer (avoids per-round reallocation)
-    std::vector<scalar_type> fitness_;    ///< Reused host fitness buffer
+    std::vector<scalar_type> results_;    ///< Reused host result buffer
     std::vector<std::size_t> due_slots_;  ///< Reused: the batch positions of the due slots
     std::vector<item_ptr> due_items_;     ///< Reused: the due items of a partial batch
     // A value plus a "has it been built" flag, kept as two members rather than folded into a

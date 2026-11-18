@@ -88,46 +88,32 @@ public:
 
     /**
      * @brief Marks the individual as a parent (incrementing its parent re-election counter).
-     *
-     * @return true if the individual was a child before this call (i.e. the status changed)
      */
     bool setIsParent();
     /**
      * @brief Marks the individual as a child (resetting its parent re-election counter).
-     *
-     * @return true if the individual was a parent before this call (i.e. the status changed)
      */
     bool setIsChild();
 
     /**
      * @brief Checks whether this is a parent individual.
-     *
-     * @return true if the individual is currently a parent, false if it is a child
      */
     [[nodiscard]] bool isParent() const;
     /**
      * @brief Retrieves the current value of the parent_counter_ variable.
-     *
-     * @return The number of consecutive generations this individual has been re-elected as parent (0 if it is a child)
      */
     [[nodiscard]] std::uint32_t getParentCounter() const;
 
     /**
      * @brief Stores the parent's id with this object.
-     *
-     * @param parent_id The population position of the parent this individual descended from
      */
     void setParentId(const std::size_t &parent_id);
     /**
      * @brief Retrieves the parent id's value.
-     *
-     * @return The stored parent id (throws if no parent id has been set)
      */
     [[nodiscard]] std::size_t getParentId() const;
     /**
      * @brief Checks whether a parent id has been set.
-     *
-     * @return true if a parent id has been recorded, false otherwise
      */
     [[nodiscard]] bool parentIdSet() const;
     /** @brief Marks the parent id as unset. */
@@ -135,8 +121,6 @@ public:
 
     /**
      * @brief Retrieves the mnemonic of the optimization algorithm.
-     *
-     * @return The short mnemonic string identifying this personality's optimization algorithm
      */
     [[nodiscard]] std::string getMnemonic() const override;
 
@@ -147,8 +131,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object. This is needed for testing purposes.
-     *
-     * @return true if at least one modification was made
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes. */

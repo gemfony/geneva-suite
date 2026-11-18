@@ -35,6 +35,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <chrono>
@@ -490,7 +491,9 @@ private:
     /***************************************************************************/
     /**
      * @brief Creates an algorithm object of this type.
-     * @param gpb A reference to the parser-builder used to register the object's configuration options
+     *
+     * The argument is the parser builder used to register the object's configuration options.
+     *
      * @return A shared pointer to a freshly created algorithm object
      */
     std::shared_ptr<oa_type> getObject_(Gem::Common::GParserBuilder &) override = 0;

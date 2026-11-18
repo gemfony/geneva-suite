@@ -28,16 +28,21 @@
  ********************************************************************************/
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <functional>
+#include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <boost/json.hpp>
 
+#include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GJsonIO.hpp"
 #include "common/GParserBuilder.hpp"
@@ -83,7 +88,7 @@ TEST_CASE("GParserBuilder: writeConfigFile + parseConfigFile round-trip "
 
         // First parse: file is absent, so GParserBuilder writes one with
         // defaults; parsing then returns the defaults.
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
         CHECK(answer == 42);
         CHECK(scale  == 3.14);
         REQUIRE(std::filesystem::exists(cfg));
@@ -97,7 +102,7 @@ TEST_CASE("GParserBuilder: writeConfigFile + parseConfigFile round-trip "
         double scale  = -1.0;
         gpb.registerFileParameter<int>   ("answer", answer, 0,   VAR_IS_ESSENTIAL);
         gpb.registerFileParameter<double>("scale",  scale,  0.0, VAR_IS_ESSENTIAL);
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
         CHECK(answer == 42);
         CHECK(scale  == 3.14);
     }
@@ -160,7 +165,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (callback form) fires after par
         VAR_IS_ESSENTIAL,
         "via callback"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == 99);
 
     std::filesystem::remove(cfg);
@@ -209,7 +214,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (reference + non-empty comment)
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 11, VAR_IS_ESSENTIAL, "a numeric value");
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(v == 11);
     std::filesystem::remove(cfg);
 }
@@ -228,7 +233,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (callback + non-empty comment)"
         VAR_IS_SECONDARY,
         "comment-text"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == 13);
     std::filesystem::remove(cfg);
 }
@@ -251,7 +256,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (two-parameter combined form)",
         "combined_label",
         VAR_IS_ESSENTIAL
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(captured_int == 17);
     CHECK(captured_dbl == 2.5);
     std::filesystem::remove(cfg);
@@ -275,7 +280,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (vector callback form)",
         VAR_IS_ESSENTIAL,
         "a vector"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(received == def_val);
     std::filesystem::remove(cfg);
 }
@@ -291,7 +296,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (vector reference form)",
     gpb.registerFileParameter<double>(
         "vals", sink, def_val, VAR_IS_ESSENTIAL, "doubles"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == def_val);
     std::filesystem::remove(cfg);
 }
@@ -316,7 +321,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (std::array callback form)",
         VAR_IS_ESSENTIAL,
         "array via callback"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(received == def_val);
     std::filesystem::remove(cfg);
 }
@@ -334,7 +339,7 @@ TEST_CASE("GParserBuilder::registerFileParameter (std::array reference form)",
     gpb.registerFileParameter<double, N>(
         "arr", sink, def_val, VAR_IS_ESSENTIAL, "array ref"
     );
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == def_val);
     std::filesystem::remove(cfg);
 }
@@ -400,7 +405,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (single value)",
     gpb.registerFileParameter<int>("k", v, 1);
     gpb.resetFileParameterDefaults<int>("k", 77);
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(v == 77);
     std::filesystem::remove(cfg);
 }
@@ -415,7 +420,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (vector value)",
     gpb.registerFileParameter<int>("vs", sink, std::vector<int>{1, 2});
     gpb.resetFileParameterDefaults<int>("vs", std::vector<int>{10, 20, 30});
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == std::vector<int>{10, 20, 30});
     std::filesystem::remove(cfg);
 }
@@ -431,7 +436,7 @@ TEST_CASE("GParserBuilder::resetFileParameterDefaults (array value)",
     gpb.registerFileParameter<int, N>("ar", sink, std::array<int, N>{1, 1});
     gpb.resetFileParameterDefaults<int, N>("ar", std::array<int, N>{42, 43});
 
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(sink == std::array<int, N>{42, 43});
     std::filesystem::remove(cfg);
 }
@@ -472,7 +477,7 @@ TEST_CASE("GParserBuilder::writeConfigFile produces a parseable JSON",
     double b = 0.0;
     gpb2.registerFileParameter<int>   ("a", a, 99);
     gpb2.registerFileParameter<double>("b", b, 0.0);
-    REQUIRE(gpb2.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb2.parseConfigFile(cfg));
     CHECK(a == 1);
     CHECK(b == 2.5);
     std::filesystem::remove(cfg);
@@ -575,7 +580,7 @@ TEST_CASE("GParserBuilder::writeConfigFile with writeAll=false omits secondary p
     int s2 = 0;
     gpb2.registerFileParameter<int>("essential_p", e2, 0);
     gpb2.registerFileParameter<int>("secondary_p", s2, 0);
-    REQUIRE(gpb2.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb2.parseConfigFile(cfg));
     CHECK(e2 == 42);
     CHECK(s2 == 0);
     std::filesystem::remove(cfg);
@@ -584,17 +589,17 @@ TEST_CASE("GParserBuilder::writeConfigFile with writeAll=false omits secondary p
 // ---------------------------------------------------------------------------
 // parseConfigFile: error branches
 
-TEST_CASE("GParserBuilder::parseConfigFile returns false when path is an existing directory",
+TEST_CASE("GParserBuilder::parseConfigFile throws when path is an existing directory",
           "[common][parser-builder]") {
-    // Any existing directory makes is_regular_file() return false → internal
-    // throw is caught → parseConfigFile returns false.
+    // Any existing directory makes is_regular_file() return false -> parseConfigFile throws
+    // (it used to return false, which a caller could ignore and run on its defaults).
     auto dir = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
     std::filesystem::create_directories(dir);
 
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_FALSE(gpb.parseConfigFile(dir));
+    CHECK_THROWS_AS(gpb.parseConfigFile(dir), geneva_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -663,7 +668,7 @@ TEST_CASE(
     gpb.registerFileParameter<double>("scale",  scale,  3.14, VAR_IS_ESSENTIAL, "the double");
     gpb.registerFileParameter<int>   ("fresh",  fresh,  7,    VAR_IS_ESSENTIAL, "new in v2");
 
-    REQUIRE(gpb.updateConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.updateConfigFile(cfg));
 
     // Applied (in-memory) values: existing preserved, new defaulted.
     CHECK(answer == 13);   // preserved from disk (not reset to the 42 default)
@@ -710,7 +715,7 @@ TEST_CASE("GParserBuilder: a config missing a registered vector parameter keeps 
     gpb.registerFileParameter<int>("vints", vints, std::vector<int>{10, 20, 30}, VAR_IS_ESSENTIAL, "a vector");
 
     // Before the fix a missing vector key aborted the parse; now it keeps the registered defaults.
-    REQUIRE(gpb.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     CHECK(other == 5);
     CHECK(vints == std::vector<int>{10, 20, 30}); // the registered defaults survive
 
@@ -743,7 +748,7 @@ TEST_CASE("GParserBuilder: a multi-element vector round-trips as a JSON array (n
     GParserBuilder reader;
     std::vector<int> vec_in;
     reader.registerFileParameter<int>("vec", vec_in, std::vector<int>{1, 1, 1, 1}, VAR_IS_ESSENTIAL, "a vector");
-    REQUIRE(reader.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(vec_in == std::vector<int>{7, 8, 9, 10});
 
     std::filesystem::remove(cfg);
@@ -774,7 +779,7 @@ TEST_CASE(
         gpb.registerFileParameter<double>     ("d", d, 3.5,                 VAR_IS_ESSENTIAL, "a double");
         gpb.registerFileParameter<bool>       ("b", b, true,                VAR_IS_ESSENTIAL, "a bool");
         gpb.registerFileParameter<std::string>("s", s, std::string("hi"),   VAR_IS_ESSENTIAL, "a string");
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
 
     const json::value doc = Gem::Common::parseJsonFile(cfg);
@@ -805,7 +810,7 @@ TEST_CASE(
     reader.registerFileParameter<double>     ("d", d2, 3.5,               VAR_IS_ESSENTIAL, "a double");
     reader.registerFileParameter<bool>       ("b", b2, true,              VAR_IS_ESSENTIAL, "a bool");
     reader.registerFileParameter<std::string>("s", s2, std::string("hi"), VAR_IS_ESSENTIAL, "a string");
-    REQUIRE(reader.parseConfigFile(cfg));
+    REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(i2 == 33);
     CHECK(d2 == 9.5);
     CHECK_FALSE(b2);
@@ -833,7 +838,7 @@ TEST_CASE(
         GParserBuilder gpb;
         std::uint8_t code = 1;
         gpb.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(1), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(gpb.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
     {
         const json::value doc = Gem::Common::parseJsonFile(cfg);
@@ -845,7 +850,7 @@ TEST_CASE(
         GParserBuilder reader;
         std::uint8_t code = 0;
         reader.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(0), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(reader.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
         CHECK(int(code) == 1);
     }
 
@@ -857,7 +862,7 @@ TEST_CASE(
         GParserBuilder reader;
         std::uint8_t code = 0;
         reader.registerFileParameter<std::uint8_t>("code", code, std::uint8_t(0), VAR_IS_ESSENTIAL, "8-bit code");
-        REQUIRE(reader.parseConfigFile(cfg));
+        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
         CHECK(int(code) == 1);
     }
 
@@ -935,4 +940,222 @@ TEST_CASE("GParserBuilder: comment-less registration honors is_essential",
     CHECK(text.find("secondary_option") == std::string::npos);
 
     std::filesystem::remove(path);
+}
+
+// ---------------------------------------------------------------------------
+// Regression: a known key whose entry is not an object with a "value" was skipped without a
+// word, so the registered default applied while the file said otherwise (a flat
+// "scan_randomly": false). It is refused, naming the key and the form it needs, for every
+// parameter kind; an absent key still keeps its default.
+
+namespace {
+
+// One parameter of each kind (single, combined, vector, array), loaded from a JSON text.
+struct OneOfEachKind {
+    bool flag = true;
+    int alpha = 0;
+    double beta = 0.;
+    std::vector<int> list;
+    std::array<int, 2> pair{};
+    GParserBuilder gpb;
+
+    OneOfEachKind() {
+        gpb.registerFileParameter<bool>("flag", flag, true);
+        gpb.registerFileParameter<int, double>(
+            "alpha", "beta", 1, 2.5, [this](int a, double b) { alpha = a; beta = b; }, "group"
+        );
+        gpb.registerFileParameter<int>("list", list, std::vector<int>{1, 2});
+        gpb.registerFileParameter<int, 2>("pair", pair, std::array<int, 2>{3, 4});
+    }
+
+    void load(std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); }
+};
+
+} // namespace
+
+TEST_CASE("GParserBuilder: a known key of the wrong form is refused with its key and form named",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    OneOfEachKind k;
+
+    SECTION("the object form is read; an absent key keeps its default") {
+        k.load(R"({ "flag": { "value": false }, "group": { "alpha": { "value": 7 } },
+                    "list": { "value": [5, 6, 7] } })");
+        CHECK_FALSE(k.flag);
+        CHECK(k.alpha == 7);
+        CHECK(k.beta == 2.5);
+        CHECK(k.list == std::vector<int>{5, 6, 7});
+        CHECK(k.pair == std::array<int, 2>{3, 4});
+    }
+
+    SECTION("a single parameter") {
+        CHECK_THROWS_WITH(
+            k.load(R"({ "flag": false })"),
+            ContainsSubstring(R"("flag" has the wrong form: false)")
+                && ContainsSubstring(R"(e.g. "flag": { "value": ... })")
+        );
+        CHECK_THROWS_WITH(k.load(R"({ "flag": { "default": false } })"), ContainsSubstring(R"("flag")"));
+        CHECK_THROWS_WITH(k.load(R"({ "flag": { "value": [false] } })"), ContainsSubstring(R"("flag")"));
+        CHECK(k.flag);
+    }
+
+    SECTION("a combined parameter") {
+        CHECK_THROWS_WITH(k.load(R"({ "group": 7 })"), ContainsSubstring(R"("group" has the wrong form)"));
+        CHECK_THROWS_WITH(
+            k.load(R"({ "group": { "alpha": 7 } })"),
+            ContainsSubstring(R"("group/alpha" has the wrong form)")
+        );
+        CHECK(k.alpha == 0);
+    }
+
+    SECTION("a vector parameter") {
+        CHECK_THROWS_WITH(
+            k.load(R"({ "list": [5, 6] })"),
+            ContainsSubstring(R"("list" has the wrong form)")
+                && ContainsSubstring(R"(e.g. "list": { "value": [ ... ] })")
+        );
+        CHECK_THROWS_WITH(k.load(R"({ "list": { "value": 5 } })"), ContainsSubstring(R"("list")"));
+        CHECK(k.list.empty());
+    }
+
+    SECTION("an array parameter") {
+        CHECK_THROWS_WITH(k.load(R"({ "pair": [5, 6] })"), ContainsSubstring(R"("pair" has the wrong form)"));
+        CHECK(k.pair == std::array<int, 2>{});
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Regression: parseConfigFile() returned false on any error, and most callers ignored the
+// result (a direct readConfigFile() of an optimization algorithm among them), so a file that could not
+// be applied left the defaults in force without a word. It throws, naming the file and the cause.
+
+TEST_CASE("GParserBuilder::parseConfigFile throws on a file it cannot apply and names file and key",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    auto cfg = scratch("flat_entry");
+    {
+        std::ofstream out(cfg);
+        out << R"({ "scan_randomly": false })" << '\n';
+    }
+
+    GParserBuilder gpb;
+    bool scan_randomly = true;
+    gpb.registerFileParameter<bool>("scan_randomly", scan_randomly, true);
+    CHECK_THROWS_WITH(
+        gpb.parseConfigFile(cfg),
+        ContainsSubstring(cfg.string()) && ContainsSubstring(R"("scan_randomly" has the wrong form)")
+    );
+    CHECK_THROWS_AS(gpb.updateConfigFile(cfg), geneva_exception);
+    std::filesystem::remove(cfg);
+}
+
+// ---------------------------------------------------------------------------
+// Regression: a boolean that was not "true" or "1" read as false, and a number that did not read
+// as its type was read as far as it went ("2.5" as 2) or left indeterminate ("two"). Such a value
+// is refused, naming the key; the all-strings form of a valid value still reads.
+
+TEST_CASE("GParserBuilder: a value that does not read as its type is refused with its key named",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    OneOfEachKind k;
+
+    CHECK_THROWS_WITH(
+        k.load(R"({ "flag": { "value": "yes" } })"),
+        ContainsSubstring(R"("flag" has the value "yes", which is not a boolean)")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "group": { "alpha": { "value": 2.5 } } })"),
+        ContainsSubstring(R"("group/alpha" has the value)")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "list": { "value": [1, "two"] } })"),
+        ContainsSubstring(R"("list" has the value "two", which is not an integer)")
+    );
+    CHECK_THROWS_WITH(k.load(R"({ "pair": { "value": [1, "x"] } })"), ContainsSubstring(R"("pair")"));
+
+    k.load(R"({ "flag": { "value": "false" }, "group": { "beta": { "value": "1e-3" } },
+                "list": { "value": [" 4 ", 5] } })");
+    CHECK_FALSE(k.flag);
+    CHECK(k.beta == 1e-3);
+    CHECK(k.list == std::vector<int>{4, 5});
+}
+
+// ---------------------------------------------------------------------------
+// Regression: an enumeration read any text as 0 ("MAXIMIZE" for maxmode minimized), a fraction as
+// its integer part and a number that is none of its values as an enumerator that does not exist;
+// a negative number for an unsigned key wrapped around ("-1" as 4294967295); an 8-bit key kept
+// the low byte of a larger number. Each is refused, naming the key and what the value must be.
+
+TEST_CASE(
+    "GParserBuilder: a value outside the range of its type is refused",
+    "[common][parser-builder]"
+) {
+    using Catch::Matchers::ContainsSubstring;
+    Gem::Common::sortOrder order = Gem::Common::sortOrder::LOWERISBETTER;
+    Gem::Common::dimensions dims = Gem::Common::dimensions::Dim1;
+    std::uint32_t count = 0;
+    std::vector<std::size_t> sizes;
+    std::uint8_t small = 0;
+    GParserBuilder gpb;
+    gpb.registerFileParameter<Gem::Common::sortOrder>(
+        "order",
+        order,
+        Gem::Common::sortOrder::LOWERISBETTER
+    );
+    gpb.registerFileParameter<Gem::Common::dimensions>("dims", dims, Gem::Common::dimensions::Dim1);
+    gpb.registerFileParameter<std::uint32_t>("count", count, 1);
+    gpb.registerFileParameter<std::size_t>("sizes", sizes, std::vector<std::size_t>{1});
+    gpb.registerFileParameter<std::uint8_t>("small", small, 1);
+    auto load = [&gpb](std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); };
+
+    CHECK_THROWS_WITH(
+        load(R"({ "order": { "value": "HIGHERISBETTER" } })"),
+        ContainsSubstring(
+            R"("order" has the value "HIGHERISBETTER", which is not one of the values 0 or 1)"
+        )
+    );
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1.5" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "7" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(
+        load(R"({ "dims": { "value": 0 } })"),
+        ContainsSubstring(R"(which is not one of the values 1, 2, 3 or 4)")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "count": { "value": -1 } })"),
+        ContainsSubstring(R"("count" has the value "-1", which is not an integer >= 0)")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "sizes": { "value": [2, " -1"] } })"),
+        ContainsSubstring(R"("sizes")")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "small": { "value": 300 } })"),
+        ContainsSubstring(R"("small" has the value "300", which is not an integer from 0 to 255)")
+    );
+    CHECK(order == Gem::Common::sortOrder::LOWERISBETTER);
+    CHECK(count == 1);
+
+    load(R"({ "order": { "value": "1" }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
+              "sizes": { "value": [0, 3] }, "small": { "value": 255 } })");
+    CHECK(order == Gem::Common::sortOrder::HIGHERISBETTER);
+    CHECK(dims == Gem::Common::dimensions::Dim4);
+    CHECK(count == 4294967295U);
+    CHECK(sizes == std::vector<std::size_t>{0, 3});
+    CHECK(small == 255);
+}
+
+TEST_CASE(
+    "Gem::Common: a numeric enumeration reads only its own values from a stream",
+    "[common][parser-builder]"
+) {
+    Gem::Common::serializationMode mode = Gem::Common::serializationMode::GEM_JSON;
+    std::istringstream none("2");
+    none >> mode;
+    CHECK(none.fail());
+    CHECK(mode == Gem::Common::serializationMode::GEM_JSON);
+    std::istringstream binary("3");
+    binary >> mode;
+    CHECK_FALSE(binary.fail());
+    CHECK(mode == Gem::Common::serializationMode::GEM_BINARY);
+    CHECK(Gem::Common::numericEnumValueList<Gem::Common::logType>() == "0, 1, 2, 3, 4, 5, 6 or 7");
 }

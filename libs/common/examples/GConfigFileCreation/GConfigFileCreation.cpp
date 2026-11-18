@@ -41,6 +41,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 
 using namespace Gem::Common;
@@ -94,6 +95,8 @@ void setGlobalStdArray(std::array<int, ARRAYSIZE> par) {
  */
 // NOLINTNEXTLINE(readability-function-size) -- example main walking through the GParserBuilder registration patterns (examples 1-7) sequentially; splitting would fragment a single linear demonstration
 int main(int argc, char **argv) {
+    // An error nobody handles ends the program with a message and the exit code 1
+    Gem::Common::installFatalReport();
     int creationSwitcher = 0;
     bool useOperator = false;
     std::string fileName;

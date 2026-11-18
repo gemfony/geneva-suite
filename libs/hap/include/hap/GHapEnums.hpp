@@ -67,7 +67,7 @@ enum class randomSource : Gem::Common::ENUMBASETYPE {
 };
 
 /******************************************************************************/
-// Re-export the shared numeric enum stream operators (see numeric_enum_io_v in
+// Re-export the shared numeric enum stream operators (see numeric_enum_values_v in
 // GCommonEnums.hpp) into Gem::Hap, so that argument-dependent lookup finds them
 // for the enums above.
 using Gem::Common::operator<<;
@@ -77,7 +77,9 @@ using Gem::Common::operator>>;
 } /* namespace Gem::Hap */
 
 /******************************************************************************/
-/** @brief randomSource streams as its underlying numeric value (see numeric_enum_io_v) */
+/** @brief randomSource streams as its underlying numeric value (see numeric_enum_values_v) */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Hap::randomSource> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Hap::randomSource> =
+    numeric_enum_range<Gem::Hap::randomSource::QUEUE, Gem::Hap::randomSource::QUARANTINE>();
 } /* namespace Gem::Common */

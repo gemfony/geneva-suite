@@ -38,16 +38,15 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "geneva/GNamespaceAliases.hpp"
 #include "geneva/genome/GParameterPropertyParser.hpp"
 
 using namespace Gem::Geneva;
 
 int main(int argc, char **argv) {
-    // Parameters are addressed positionally now (by index). The optional trailing token is a
-    // free-form display label (used e.g. for plot axes), not a parameter name.
-    std::string const raw =
-        "d(0,-10.3,12.8,100), d(1,-10.3,12.8,100, MyDoubleLabel), i(0, 0,5, 20), b(0, "
-        "false, true, 10), d(2, -5, 7, 20), f(0, -2, 10), b(1)";
+    // Parameters are addressed by their index in the value channel of their type.
+    std::string const raw = "d(0,-10.3,12.8,100), d(1,-10.3,12.8,100), i(0, 0,5, 20), b(0, "
+                            "false, true, 10), d(2, -5, 7, 20), f(0, -2, 10), b(1)";
     gen::GParameterPropertyParser const p(raw);
 
     // Retrieve double parameters

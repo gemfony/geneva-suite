@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <cmath>
@@ -74,10 +75,14 @@ enum class metaOptimizationTarget : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for metaOptimizationTarget; must precede its first
-// streaming use (see numeric_enum_io_v in GCommonEnums.hpp).
+// streaming use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::metaOptimizationTarget> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::metaOptimizationTarget> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::metaOptimizationTarget::BESTFITNESS,
+        Gem::Geneva::Individuals::metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 

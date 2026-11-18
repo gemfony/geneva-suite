@@ -253,6 +253,48 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	SET_TESTS_PROPERTIES(GCourtierMpiGivenUpSendsTest PROPERTIES LABELS "courtier" PROCESSORS 2)
 	GENEVA_TEST_SIZE(GCourtierMpiGivenUpSendsTest M)
 
+	# A process that ends on an error nobody handles ends the whole MPI job, at once and with the
+	# exit code 1, while the other ranks wait for it (the fatal report, common/GFatalReport.hpp;
+	# ../CheckJobEnds.cmake: exit code, message, a bound of 30 s): an error in a configuration, the
+	# same while main() holds the MPI environment (an unwinding would finalize MPI and wait for the
+	# other ranks), and an exception out of a thread other than main's. A std::terminate() with no
+	# exception in flight, an internal fault, ends the job with the line and an abort instead.
+	ADD_EXECUTABLE(GCourtierMpiFatalEndExerciser GCourtierMpiFatalEndExerciser.cpp)
+	TARGET_LINK_LIBRARIES(GCourtierMpiFatalEndExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME}
+		${Boost_LIBRARIES} MPI::MPI_CXX)
+	INSTALL(TARGETS GCourtierMpiFatalEndExerciser
+			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
+	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/fatal-end)
+	FILE(MAKE_DIRECTORY ${_dir})
+	FOREACH(_scenario config holder thread fault)
+		SET(_exit 1)
+		SET(_end "The program ends with the exit code 1")
+		IF(_scenario STREQUAL "thread")
+			SET(_expect "Error: ;a thread of rank 1 failed (a standard exception)")
+		ELSEIF(_scenario STREQUAL "fault") # no exception in flight: an internal fault aborts
+			SET(_expect "Error: ;std::terminate() was called without an exception")
+			SET(_exit nonzero)
+			SET(_end "The program aborts")
+		ELSE()
+			SET(_expect "Error: ;has the wrong form: false")
+		ENDIF()
+		SET(_name GCourtierMpiFatalEndTest)
+		IF(NOT _scenario STREQUAL "config")
+			STRING(APPEND _name "_${_scenario}")
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME ${_name} TIMEOUT 60
+				COMMAND ${CMAKE_COMMAND}
+					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiFatalEndExerciser>;${MPIEXEC_POSTFLAGS};${_scenario}"
+					-DEXPECT_EXIT=${_exit}
+					"-DEXPECT=${_expect};${_end}"
+					"-DREFUSE=terminate called;FAIL"
+					-DLIMIT=30
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
+				WORKING_DIRECTORY ${_dir})
+		SET_TESTS_PROPERTIES(${_name} PROPERTIES LABELS "courtier" PROCESSORS 3)
+		GENEVA_TEST_SIZE(${_name} M)
+	ENDFOREACH()
+
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it
 	# ends without a close of its role (the end of the listener's work, a session that cannot be
 	# made). A client that is not told waits for ever: the time limit ends the entry then.
@@ -439,13 +481,6 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		NO_LAUNCHER ARGS --update-configs
 		EXPECT "abortJob(): the submitter failed without MPI"
 			"the process is ended with the exit code 42")
-	# A cascade that lives inside a destructor while an unrelated exception unwinds: no exception
-	# unwinds through it, so the job ends normally; a submitter that never confirms its role there
-	# still ends the job for that reason
-	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwinding 4 M zero during-unwinding)
-	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeDuringUnwindingNeverConfirms 4 M nonzero
-		during-unwinding-never-confirms EXPECT "the role of the submitter was never confirmed"
-		"The job is ended (MPI_Abort)")
 	# ... and from inside setUp(), tearDown() or a member's serveRound()
 	geneva_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
 		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")

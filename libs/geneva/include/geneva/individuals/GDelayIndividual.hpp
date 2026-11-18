@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <chrono>
@@ -117,7 +118,6 @@ public:
     GDelayIndividual();
     /**
      * @brief A standard copy constructor
-     * @param cp The other GDelayIndividual object whose data is copied
      */
     GDelayIndividual(const GDelayIndividual &cp);
     /** @brief The standard destructor */
@@ -125,46 +125,36 @@ public:
 
     /**
      * @brief Sets the sleep-time to a user-defined value
-     * @param sleep_time The fixed amount of time (in seconds) the fitness function should sleep
      */
     void setFixedSleepTime(const std::chrono::duration<double> &sleep_time);
     /**
      * @brief Retrieval of the current value of the fixed_sleep_time_ variable
-     * @return The fixed sleep time as a duration in seconds
      */
     std::chrono::duration<double> getFixedSleepTime() const;
 
     /**
      * @brief Indicate that the fitness function may crash at the end of the sleep time
-     * @param may_crash Whether the fitness function is allowed to throw
-     * @param throw_likelihood The probability with which a crash is triggered
      */
     void setMayCrash(bool may_crash, double throw_likelihood);
     /**
      * @brief Check whether the fitness function may crash at the end of the sleep time
-     * @return true if the fitness function may throw, false otherwise
      */
     bool getMayCrash() const;
     /**
      * @brief Check the likelihood for a crash at the end of the sleep time
-     * @return The configured crash probability
      */
     double getCrashLikelihood() const;
 
     /**
      * @brief Indicates that the fitness function should sleep for a random time
-     * @param sleep_randomly Whether random sleeps are enabled (instead of the fixed sleep time)
-     * @param rand_sleep_boundaries The (min, max) time window in seconds within which random sleeps are drawn
      */
     void setRandomSleep(bool sleep_randomly, std::tuple<double, double> rand_sleep_boundaries);
     /**
      * @brief Checks whether the fitness function has a random sleep schedule
-     * @return true if random sleeps are enabled, false otherwise
      */
     bool getMaySleepRandomly() const;
     /**
      * @brief Retrieves the time window for random sleeps
-     * @return The (min, max) random-sleep window in seconds
      */
     std::tuple<double, double> getSleepWindow() const;
 
@@ -192,33 +182,22 @@ public:
 
     /**
      * @brief Registers the delay configuration options, binding them to the passed Config
-     * @param gpb The parser builder the configuration options are registered with
-     * @param c The Config object whose members the options are bound to
      */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Reads a delay configuration file (creating it with defaults if it does not exist)
-     * @param configFile Path to the delay configuration file
-     * @return The parsed Config object
      */
     static Config readConfig(std::filesystem::path const &configFile);
     /**
      * @brief Parses the textual "delays" list of a Config into (seconds, milliseconds) tuples
-     * @param c The Config whose "delays" string is parsed
-     * @return A vector of (seconds, milliseconds) tuples
      */
     static std::vector<std::tuple<unsigned int, unsigned int>> parseSleepTimes(const Config &c);
     /**
      * @brief Converts a (seconds, milliseconds) tuple to a duration
-     * @param t The (seconds, milliseconds) tuple to convert
-     * @return The corresponding duration in seconds
      */
     static std::chrono::duration<double> tupleToTime(const std::tuple<unsigned int, unsigned int> &time_tuple);
     /**
      * @brief Builds a configured delay individual (genome = n_variables doubles) for one fixed sleep time
-     * @param c The Config supplying genome size and crash / random-sleep settings
-     * @param sleepTime The fixed sleep time (in seconds) assigned to the produced individual
-     * @return A shared pointer to the newly built delay individual
      */
     static std::shared_ptr<GDelayIndividual>
     create(const Config &c, const std::chrono::duration<double> &sleepTime);
@@ -259,7 +238,6 @@ protected:
     /**
      * @brief The evaluation hook: sleeps as configured (this individual measures framework overhead, not a
      *  real objective) and returns a random value in [0,1) that is not used for optimization.
-     * @return A one-element vector holding the random value
      */
     std::vector<double> evaluate() final;
 

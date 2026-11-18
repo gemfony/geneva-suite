@@ -86,7 +86,7 @@ public:
  * Escape a user-supplied string for safe inclusion inside a ROOT C-string literal (axis/plot/canvas
  * labels, TF1/TF2 formulae) or a // comment. Without this, a label containing a double quote,
  * backslash or newline would produce a non-compiling macro (or, inside a comment, inject code past
- * the comment). Only the C-string metacharacters are touched, so ROOT TLatex markup (#frac, #sqrt,
+ * the comment). Only the C-string metacharacters are touched, so ROOT TLatex markup (\#frac, \#sqrt,
  * braces) passes through unchanged.
  */
 inline std::string rootEscape(const std::string &in) {
@@ -544,7 +544,7 @@ inline void emitRootTitle(
 /******************************************************************************/
 /**
  * Escape a user-supplied string for safe inclusion inside a DOUBLE-quoted string
- * literal that interprets C-style backslash escapes (\" \\ \n \t \r). Both gnuplot
+ * literal that interprets C-style backslash escapes (`\"` `\\` `\n` `\t` `\r`). Both gnuplot
  * and Python double-quoted literals share exactly this contract, so the gnuplot and
  * matplotlib backends use this one function. It is deliberately NOT rootEscape
  * (which targets a ROOT C-string literal and additionally drops bare CRs). The

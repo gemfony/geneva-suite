@@ -32,6 +32,7 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
+#include "common/GFatalReport.hpp"
 #include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations (boot-time completeness self-check)
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
@@ -62,6 +63,7 @@
 #include <print>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Gem::Geneva {
@@ -89,7 +91,9 @@ std::once_flag fArchiveCheck; // NOLINT(cppcoreguidelines-avoid-non-const-global
 /**
  * A constructor that first parses the command line for relevant parameters and then
  * loads data from a configuration file. The user may pass additional configuration
- * parameters. This is the only allowed constructor.
+ * parameters. This is the only allowed constructor. It first installs the fatal report
+ * (Gem::Common::installFatalReport()), so that the program ends on an error nobody handles with a
+ * message and the exit code 1.
  *
  * @param argc The number of command line arguments
  * @param argv An array with the arguments
@@ -103,6 +107,9 @@ Go2::Go2(
     boost::program_options::options_description const &user_descriptions
 )
   : config_filename_(config_filename) {
+    // An error nobody handles ends the program with a message and the exit code 1, not an abort
+    Gem::Common::installFatalReport();
+
     //--------------------------------------------
     // --update-configs: detected here, before this constructor parses Go2.json (so Go2's own config is
     // refreshed too), through the shared config-emission facility -- the same switch, argv detection and
@@ -328,7 +335,7 @@ int Go2::clientRun() {
 /**
  * @brief Implementation of the client loop, according to the role of this process.
  *
- * A bystander (a process that takes no part in the consumer's protocol, e.g. an MPI sub-client)
+ * A bystander (a process that takes no part in the consumer's protocol, e.g. a member of an MPI cascade)
  * returns at once. A client builds the client of the chosen consumer (a socket client, or the MPI
  * client) and runs its processing loop.
  *
@@ -366,7 +373,7 @@ int Go2::clientRun_() {
 /**
  * Checks whether this object is running in client mode
  *
- * @return A boolean which indicates whether the client mode has been set for this object
+ * @return True if the role of this process is client or bystander, false for the submitter
  */
 bool Go2::clientMode() const {
     // Most consumers take the role from --client, so it is already known after construction and
@@ -547,7 +554,7 @@ std::vector<std::string> Go2::getAlgorithmChain() const {
  * go2.optimize();
  *
  * @param alg A base pointer to another optimization algorithm
- * @return A reference to this object
+ * @return A reference to this object, allowing call chaining
  */
 Go2 &Go2::operator&(const std::shared_ptr<GOABase> &alg) {
     this->addAlgorithm(alg); // NOLINT
@@ -581,7 +588,7 @@ void Go2::addAlgorithm(std::string const &mn) {
  * @brief Makes it easier to add algorithms through their mnemonics.
  *
  * @param mn A small mnemonic identifying the optimization algorithm in the global factory store (e.g. "ea")
- * @return A reference to this object
+ * @return A reference to this object, allowing call chaining
  */
 Go2 &Go2::operator&(std::string const &mn) {
     this->addAlgorithm(mn);
@@ -607,6 +614,9 @@ void Go2::registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<ge
  * Claims the single content-creator slot, enforcing that exactly one optimization problem (individual)
  * exists per process: whichever source registers first wins, and any second claim -- a compiled-in
  * registration when a plugin was already loaded, or a second plugin -- throws, naming both sources.
+ *
+ * @param cc_ptr The content-creator factory to install (must not be empty)
+ * @param source Where this content creator came from (for the diagnostic on a double claim)
  */
 void Go2::claimContentCreator_(
     const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
@@ -1199,7 +1209,11 @@ std::string Go2::getAlgorithmName_() const {
 }
 
 /******************************************************************************/
-/** @brief Returns one-word information about the type of optimization algorithm. */
+/**
+ * @brief Returns one-word information about the type of optimization algorithm.
+ *
+ * @return A short string identifying the algorithm personality type
+ */
 std::string Go2::getAlgorithmPersonalityType_() const {
     return {"PERSONALITY_NONE"};
 }
@@ -1378,6 +1392,25 @@ void Go2::parseCommandLine(
             << e.what() << '\n'
         );
     }
+}
+
+/******************************************************************************/
+/**
+ * @brief Whether the command line asks for the help text (--help, -h or --showAll, the options
+ * of parseCommandLine() that emitHelpIfRequested() answers); a scan without side effects.
+ *
+ * @param argc The number of arguments
+ * @param argv The arguments
+ * @return Whether one of the three options is given
+ */
+bool Go2::helpRequested(int argc, char **argv) {
+    for(int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if(arg == "--help" or arg == "-h" or arg == "--showAll") {
+            return true;
+        }
+    }
+    return false;
 }
 
 /******************************************************************************/
@@ -1743,12 +1776,8 @@ void Go2::parseConfigFile(std::filesystem::path const &config_filename) {
     // Add local configuration options
     this->addConfigurationOptions(gpb);
 
-    // Do the actual parsing
-    if(not gpb.parseConfigFile(config_filename)) {
-        glogger << "In Go2::parseConfigFile: Error!" << '\n'
-                << "Could not parse configuration file " << config_filename.string() << '\n'
-                << LOGEXIT(EXIT_FAILURE);
-    }
+    // Do the actual parsing (throws if the file cannot be read or applied)
+    gpb.parseConfigFile(config_filename);
 }
 
 /******************************************************************************/

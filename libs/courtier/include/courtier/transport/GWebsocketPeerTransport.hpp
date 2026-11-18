@@ -51,7 +51,6 @@
 // Geneva headers go here
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
-#include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GWireSerializationContext.hpp" // GWirePeerId
 #include "courtier/transport/GIoContext.hpp"
@@ -67,18 +66,19 @@ namespace Gem::Courtier::Consumers {
  *
  * Threads. The listener owns an I/O context with nThreads threads of its own (accounted in the
  * thread budget as "<name>:io"); the accept loop and every connection run on strands of it, and
- * nothing else does. The peers' handlers -- the server's sessions -- run on strands of the executor
- * the shell hands to start(), and on_peer is called there too (GPeerI.hpp, rule 2). So a session
- * may take any time over a message without its connection, or another, missing a ping.
+ * so do the calls of on_peer, on the accept strand (GListenerI::start()). The peers' handlers --
+ * the server's sessions -- run on strands of the executor the shell hands to start() (GPeerI.hpp,
+ * rule 2). So a session may take any time over a message without its connection, or another,
+ * missing a ping, and without a client that connects meanwhile running out of its handshake limit.
  *
  * Every accepted connection becomes a GWebsocketPeer (the server's end, which waits for the
  * client's websocket handshake when it is started) and is handed to the shell before the handshake:
  * a connection that never completes the handshake has a session all the same, and the handshake
  * limit of the peer ends it. Peer ids are a counter on the accept strand.
  *
- * stop() closes the acceptor, so that a client that connects from then on is refused, and waits for
- * that, and for the calls of on_peer already posted, a short time of its own (the shell waits for
- * the clients, GPeerI.hpp rule 8). endWork() stops
+ * stop() closes the acceptor on the accept strand, after the call of on_peer under way, so that a
+ * client that connects from then on is refused, and waits for that a short time of its own (the
+ * shell waits for the clients, GPeerI.hpp rule 8). endWork() stops
  * and joins the I/O threads and shuts the I/O context down (GIoContext::shutdown()): pending
  * operations go, and with them the connections that are still open, without onClosed. The listener,
  * and its I/O context with it, is destroyed after the shell's context.
@@ -110,8 +110,8 @@ public:
     /** @brief Opens, binds and listens, then starts the I/O threads and the accept loop. Throws
      *  (and is then as if not started) if the port cannot be had. */
     void start(boost::asio::any_io_executor, on_peer_type) override;
-    /** @brief Closes the acceptor and waits for the calls of on_peer under way: no new peers.
-     *  Bounded; idempotent. */
+    /** @brief Closes the acceptor, after the call of on_peer under way: no new peers. Bounded;
+     *  idempotent. */
     void stop() override;
     /** @brief Joins the I/O threads and shuts the I/O context down. */
     void endWork() override;
@@ -126,7 +126,7 @@ public:
 
 private:
     void accept_();
-    void whenAccepted_(const boost::system::error_code &, boost::asio::ip::tcp::socket);
+    void whenAccepted_(const boost::system::error_code &ec, boost::asio::ip::tcp::socket socket);
     void closeAcceptor_();
     void joinIo_();
 
@@ -143,15 +143,10 @@ private:
     boost::asio::ip::tcp::acceptor acceptor_;
     boost::asio::steady_timer retry_timer_; ///< The pause after a failed accept
 
-    /// Where on_peer and the peers' handlers run (the shell's executor); dropped by endWork()
+    /// Where the peers' handlers run (the shell's executor); dropped by endWork()
     boost::asio::any_io_executor handler_executor_;
-    /// Serializes the calls of on_peer, on the shell's executor; dropped by endWork()
-    std::optional<boost::asio::strand<boost::asio::any_io_executor>> on_peer_strand_;
-    on_peer_type on_peer_; ///< Set by start(), called on on_peer_strand_, dropped by endWork()
+    on_peer_type on_peer_; ///< Set by start(), called on the accept strand, dropped by endWork()
     GWirePeerId next_peer_id_ = 1; ///< Accept strand only
-    /// The calls of on_peer that have been posted and have not returned, by peer id (stop()
-    /// waits for them); the listener outlives the handlers that remove from it
-    Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> on_peer_calls_;
 
     /// The I/O threads' reservation in the process-wide thread budget
     Gem::Common::Concurrency::GThreadBudget::Reservation budget_;

@@ -514,6 +514,8 @@ bool GLogStreamer::hasExtension() const {
 /******************************************************************************/
 /**
  * The content of the extension_ string
+ *
+ * @return The registered source-extension string (empty if none)
  */
 std::string GLogStreamer::getExtension() const {
     return extension_;
@@ -522,6 +524,8 @@ std::string GLogStreamer::getExtension() const {
 /******************************************************************************/
 /**
  * Checks whether a log file name has been registered
+ *
+ * @return true if a one-time log file path was registered, false otherwise
  */
 bool GLogStreamer::hasOneTimeLogFile() const {
     return not log_file_.empty();
@@ -530,6 +534,8 @@ bool GLogStreamer::hasOneTimeLogFile() const {
 /******************************************************************************/
 /**
  * The name of the manually specified file
+ *
+ * @return The registered one-time log file path (empty if none)
  */
 std::filesystem::path GLogStreamer::getOneTimeLogFile() const {
     return log_file_;

@@ -106,7 +106,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object. This is needed for testing purposes.
-     * @return true if the object was modified, false otherwise
      */
     bool modify_GUnitTests_() override;
     /***************************************************************************/

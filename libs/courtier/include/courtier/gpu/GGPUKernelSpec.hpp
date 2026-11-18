@@ -48,7 +48,7 @@ namespace Gem::Courtier::GPU {
  *
  * Which device-programming-model backend evaluates a batch. The GPU consumer is DEVICE-ONLY: the only
  * backend is CUDA, compiled in when its toolkit was found at configure time. There is no CPU backend
- * -- a CPU run uses the individual's own evaluate() through a CPU consumer (e.g. --consumer stc).
+ * -- a CPU run uses the work item's own process() through a CPU consumer (e.g. --consumer stc).
  *
  * This enum is the extension point for new device backends: add a kind here, then teach
  * backendKindFromString()/toString() about it and add a branch in the GGPUBackendFactory (guarded by
@@ -72,8 +72,8 @@ inline BackendKind backendKindFromString(const std::string &s) {
         << "In Gem::Courtier::GPU::backendKindFromString(): Error!" << '\n'
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"
         << " 'cuda'." << '\n'
-        << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which evaluates via"
-        << " the individual's own evaluate()." << '\n');
+        << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which runs the"
+        << " work item's own process()." << '\n');
 }
 
 /** @brief Human-readable name of a backend kind.
@@ -89,7 +89,7 @@ inline const char *toString(BackendKind k) {
 /******************************************************************************/
 /**
  * The launch geometry for one bulk kernel launch. The framework computes a 1D grid over the batch
- * (one work-item / thread per population member) from block_x by default; the other dimensions are
+ * (one work-item / thread per batch item) from block_x by default; the other dimensions are
  * available for kernels that want a 2D/3D decomposition. A grid extent of 0 means "compute it from
  * the item count and the block size".
  */

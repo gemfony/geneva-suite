@@ -140,16 +140,11 @@ public:
 
     /**
      * @brief Implements the logging to the console
-     *
-     * @param message The log message to be written to the console
      */
     void log(std::string const &msg) const override;
 
     /**
      * @brief Writes a message to the console, prefixed with its source specifier
-     *
-     * @param message The log message to be written to the console
-     * @param extension An identifier of the logging source, emitted as a textual prefix
      */
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 };
@@ -164,8 +159,6 @@ class GFileLogger : public GBaseLogTarget {
 public:
     /**
      * @brief This constructor accepts a path to a log-file name as argument
-     *
-     * @param p The filesystem path of the log file to write to
      */
     explicit GFileLogger(std::filesystem::path const &p);
 
@@ -185,16 +178,11 @@ public:
 
     /**
      * @brief Implements logging to a file on disk
-     *
-     * @param message The log message to be appended to the file
      */
     void log(std::string const &msg) const override;
 
     /**
      * @brief Logs to a file whose name is extended with the source identifier
-     *
-     * @param message The log message to be appended to the file
-     * @param extension An identifier of the logging source, appended (with an underscore) to the file name
      */
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 
@@ -528,23 +516,14 @@ class GManipulator { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /**
      * @brief A constructor that stores the logging type only
-     *
-     * @param lt The type of logging event this manipulator triggers
      */
     explicit GManipulator(logType lt);
     /**
      * @brief A constructor that stores both accompanying information and the logging type
-     *
-     * @param accomp_info Accompanying information (e.g. a call-site location string)
-     * @param lt The type of logging event this manipulator triggers
      */
     GManipulator(std::string const &accomp_info, logType lt);
     /**
      * @brief A constructor that additionally stores a process return code (for logType::EXIT)
-     *
-     * @param accomp_info Accompanying information (e.g. a call-site location string)
-     * @param lt The type of logging event this manipulator triggers
-     * @param return_code The process return code to be used by logType::EXIT
      */
     GManipulator(std::string const &accomp_info, logType lt, int return_code);
 
@@ -563,26 +542,18 @@ public:
 
     /**
      * @brief Retrieves the stored logging type
-     *
-     * @return The logging type stored in this manipulator
      */
     [[nodiscard]] logType getLogType() const;
     /**
      * @brief Retrieves stored accompanying information (if any)
-     *
-     * @return The accompanying information string (empty if none was stored)
      */
     [[nodiscard]] std::string getAccompInfo() const;
     /**
      * @brief Checks whether any accompanying information is available
-     *
-     * @return true if accompanying information was stored, false otherwise
      */
     [[nodiscard]] bool hasAccompInfo() const;
     /**
      * @brief Retrieves the stored process return code (meaningful for logType::EXIT)
-     *
-     * @return The stored process return code
      */
     [[nodiscard]] int getReturnCode() const;
 
@@ -607,15 +578,11 @@ class GLogStreamer {
 public:
     /**
      * @brief A constructor that adds an extension string to the output
-     *
-     * @param extension A source-identifier string attached to the streamed output
      */
     explicit GLogStreamer(std::string const &extension);
 
     /**
      * @brief A constructor that logs data to a file specified by a std::filesystem::path object
-     *
-     * @param log_file The path of the one-time log file this streamer writes to
      */
     explicit GLogStreamer(std::filesystem::path log_file);
 
@@ -639,27 +606,18 @@ public:
      * @brief Streams a std::ostream manipulator (e.g. std::endl) into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ostream manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ostream &(*val)(std::ostream &));
     /**
      * @brief Streams a std::ios manipulator into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ios manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ios &(*val)(std::ios &));
     /**
      * @brief Streams a std::ios_base manipulator into the streamer
      *
      * Needed for std::ostringstream
-     *
-     * @param val A std::ios_base manipulator function pointer
-     * @return A reference to this streamer, to allow chaining
      */
     GLogStreamer &operator<<(std::ios_base &(*val)(std::ios_base &));
 
@@ -667,15 +625,11 @@ public:
      * @brief A GManipulator object triggers the actual logging procedure
      *
      * Intended to be the last element of a streaming chain; therefore it returns void.
-     *
-     * @param gm The manipulator whose log type dictates how the accumulated content is processed
      */
     void operator<<(GManipulator const &gm);
 
     /**
      * @brief Returns the content of the stream
-     *
-     * @return The accumulated streamed content as a string
      */
     std::string content() const;
     /** @brief Resets the stream content */
@@ -683,26 +637,18 @@ public:
 
     /**
      * @brief Checks whether an extension string has been registered
-     *
-     * @return true if a non-empty source-extension string was registered, false otherwise
      */
     bool hasExtension() const;
     /**
      * @brief The content of the extension_ string
-     *
-     * @return The registered source-extension string (empty if none)
      */
     std::string getExtension() const;
     /**
      * @brief Checks whether a log file name has been registered
-     *
-     * @return true if a one-time log file path was registered, false otherwise
      */
     bool hasOneTimeLogFile() const;
     /**
      * @brief The name of the manually specified file
-     *
-     * @return The registered one-time log file path (empty if none)
      */
     std::filesystem::path getOneTimeLogFile() const;
 

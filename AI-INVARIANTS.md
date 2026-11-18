@@ -53,7 +53,8 @@ At most **one** AI agent writes in the working tree at a time (read-only work ma
 plan phase is executed by a **fresh** agent that inherits no conversation state; everything a successor
 needs lives in persistent files — the active plan with its progress ledger, the per-phase handoff
 documents, and the git history. An agent's context is perishable by design; work that exists only in a
-conversation does not exist.
+conversation does not exist. A fresh agent per phase is for phases that are independent of each other;
+phases of one design fall under AI-9.
 
 ## AI-4. AI work is never attributed in the repository
 
@@ -89,6 +90,11 @@ Review has a stopping rule, because a fresh reader always finds something:
   the same series or in a small package of their own, but they start no further round of review.
 - The supervisor's verification from scratch (AI-5) is run for a state that is about to be pushed,
   not for intermediate states; between pushes the executing agent's gates carry the work.
+- **Repeated runs need an occasion.** A test is run many times only when a failure has appeared
+  -- to reproduce it, and then to show that its fix holds -- or when a merge is about to be made
+  (the verification above). Between those every test runs once per commit: repeating without an
+  occasion costs hours of machine time and waiting for no known reason. (Maintainer decision,
+  2026-11-18.)
 - This composes with Invariant 29: a thin slice gets a review of its design before depth is added,
   and its one full review when the depth is in.
 
@@ -122,6 +128,64 @@ packages and reviews of a work stream); an entry links to them instead of repeat
 *Why:* open work had spread over dated plan files, hand-over notes, packages and design papers,
 until nobody could say from one place what was decided, what was running and what was done.
 (Maintainer decision, 2026-11-17.)
+
+## AI-8. When work grows beyond its plan, the maintainer decides whether it goes on
+
+Every package states beforehand what it may cost: the expected code lines added and removed, and
+the shared state it adds (atomics, locks, threads, kinds of messages, options, callbacks). The
+numbers are not the goal -- the code is to stay simple, correct and maintainable, and to follow a
+clear architecture -- they are what makes growth visible in time.
+
+The work stops, and the maintainer is asked, as soon as one of these holds:
+
+- A defect that the same work introduced can only be fixed by a new mechanism, not by correcting
+  the lines that are there.
+- A fix needs a fix: the second round at the same place.
+- The package exceeds its stated size by more than half, or takes more than twice the time it was
+  estimated at.
+- A library gets more shared state than the package stated.
+
+The question is a single question with the numbers: what was planned, what it has become, and the
+ways on -- continue, a simpler form, or drop it. Nothing is added at that place until the answer
+is there.
+
+- **The root cause is fixed, not its symptom.** A fix on a fix on a fix that brings new defects is
+  not wanted. Fixing the root cause may mean revising the original decision about how a feature is
+  built, when that decision does not carry; that revision is put to the maintainer with the
+  question.
+- **Every review finding is first asked whether it disappears by leaving something out** -- a
+  mechanism, a case, a guarantee nobody needs -- before code is added to close it.
+- This composes with AI-6 (which bounds the rounds of review) and with Invariant 29 (the thin
+  slice that ends with a decision): those two limit how work is checked; this one limits how far it
+  may grow unasked.
+
+*Why:* in the courtier rework of November 2026 a week of packages, each reviewed and tested, grew
+the library's code by two thirds and its atomics threefold. Much of that served one optional
+guarantee and the corner cases of earlier fixes; every step was right by itself, and nobody was
+asked whether the whole was still wanted. (Maintainer decision, 2026-11-18.)
+
+## AI-9. A task is split between agents only where its parts are independent
+
+Two parts are independent if all of this holds: the interface between them is fixed and written
+down beforehand; neither part changes that interface or a state the other uses; each can be
+checked by itself and taken back by itself. This holds for parts built one after the other as much
+as for parts built at the same time.
+
+What is not independent has **one owner**: a design that hangs together -- a protocol with both
+its ends, an interface with what stands on it. The owner holds the design as a whole, reads the
+code himself and decides every change to it. The owner is a single agent that builds the piece
+whole, or the supervisor; other agents take over only what is mechanical or independent by the
+test above.
+
+- **Review findings go to the owner**, who asks first whether the design is to change before
+  anything is added at one place (AI-8).
+- **A design too large for one owner is first divided at fixed interfaces**; that division is the
+  maintainer's decision.
+
+*Why:* AI-3 asks for a fresh agent per phase, which is right for independent phases. In the
+courtier rework of November 2026 many fresh agents built on the same design one after the other;
+each knew its package and closed its problem with a mechanism of its own, and nobody owned the
+contract as a whole. (Maintainer decision, 2026-11-18.)
 
 ---
 

@@ -72,14 +72,16 @@ stepPoint(std::vector<double> const &x0, std::vector<double> const &dir, double 
  * @param eval_fn Callback that evaluates a batch of candidate points and returns one fitness per point,
  *                in the same order (the single courtier round per probe group)
  * @param x0 The current (base) point from which the search starts
- * @param dir The search direction along which trial steps are taken
+ * @param dir The search direction (must be a descent direction, i.e. @p g0_dot_dir < 0).
  * @param f0 The objective value at x0 (used as the reference for the Armijo test)
  * @param g0_dot_dir The directional derivative at x0 along dir; must be strictly negative for a descent
  *                   direction, otherwise the search reports failure immediately
  * @param opts The line-search tuning options (initial/minimum step, backtracking factor, probe budget,
  *             probes per round, Armijo constant c1)
- * @return A GLineSearchResult holding the accepted step length, new point and fitness, the number of
- *         evaluations performed, and a success flag (false if no acceptable step was found)
+ * @return The chosen step, the new point and its value, the number of evaluations, and whether the
+ *   Armijo condition was met. On failure (non-descent direction or budget exhausted) the
+ *   result carries x0 / f0 with success == false, so the caller can restart to steepest
+ *   descent or stop.
  */
 GLineSearchResult GLineSearch::search(
     eval_fn_t const &eval_fn,

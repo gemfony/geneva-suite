@@ -110,7 +110,6 @@ public:
     /**
      * @brief The copy constructor. Deep-clones the constraint object so the copy and the original never
      * share one constraint instance. Defined in the .cpp, where the constraint type is complete.
-     * @param cp The policy to copy from
      */
     GProblemPolicy(GProblemPolicy const &cp);
 
@@ -119,8 +118,6 @@ public:
 
     /**
      * @brief The copy assignment operator. Deep-clones the constraint object. Defined in the .cpp.
-     * @param cp The policy to copy from
-     * @return A reference to this object
      */
     GProblemPolicy &operator=(GProblemPolicy const &cp);
 
@@ -213,7 +210,6 @@ public:
     /**
      * @brief Registers a constraint with this policy. The constraint is cloned, so the policy owns its
      * own copy and distinct policies never share one constraint object. Throws on an empty pointer.
-     * @param c_ptr The validity-check constraint to register (must not be empty)
      */
     void registerConstraint(const std::shared_ptr<GPreEvaluationValidityCheckT<GGenome>>& c_ptr);
 
@@ -224,9 +220,6 @@ public:
      * @brief Checks whether a candidate fulfils the registered constraint. If no constraint is
      * registered, the candidate is always valid and the validity level is 0. Defined in the .cpp, where
      * GGenome is a complete type (the constraint reads its parameter values).
-     * @param genome The genome whose feasibility is checked
-     * @param validity_level Out-parameter receiving the computed validity level
-     * @return true if the candidate satisfies the constraint (or none is registered), false otherwise
      */
     bool fulfillsConstraints(const GGenome &genome, double &validity_level) const;
 

@@ -39,7 +39,7 @@ namespace Gem::Weft {
  * configuration). Weft carries no dependency on Gem::Common's version macros so
  * that it stays a self-contained, reusable foundation library.
  *
- * @return The Weft version string.
+ * @return The Weft version string (e.g. "1.99.0-beta1").
  */
 std::string version() {
 #ifdef WEFT_VERSION_STRING

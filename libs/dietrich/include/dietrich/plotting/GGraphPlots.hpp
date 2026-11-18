@@ -91,79 +91,55 @@ public:
 
     /**
 	 * @brief Adds arrows to the plots between consecutive points
-	 * @param drawArrows Whether arrows should be drawn between consecutive points (default true)
 	 */
     void setDrawArrows(bool d_a = true);
     /**
 	 * @brief Retrieves the value of the draw_arrows_ variable
-	 * @return Whether arrows are drawn between consecutive points
 	 */
     [[nodiscard]] bool getDrawArrows() const;
 
     /**
 	 * @brief Determines whether a scatter plot or a curve is created
-	 * @param pm The plotting mode (scatter plot or connected curve) to be used
 	 */
     void setPlotMode(graphPlotMode p_m);
     /**
 	 * @brief Allows to retrieve the current plotting mode
-	 * @return The currently set plotting mode
 	 */
     [[nodiscard]] graphPlotMode getPlotMode() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -225,68 +201,46 @@ public:
 
     /**
 	 * @brief Determines whether a scatter plot or a curve is created
-	 * @param pm The plotting mode (scatter plot or connected curve) to be used
 	 */
     void setPlotMode(graphPlotMode p_m);
     /**
 	 * @brief Allows to retrieve the current plotting mode
-	 * @return The currently set plotting mode
 	 */
     [[nodiscard]] graphPlotMode getPlotMode() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -353,12 +307,10 @@ public:
 
     /**
 	 * @brief Adds lines to the plots between consecutive points
-	 * @param drawLines Whether lines should be drawn between consecutive points (default true)
 	 */
     void setDrawLines(bool d_l = true);
     /**
 	 * @brief Retrieves the value of the draw_lines_ variable
-	 * @return Whether lines are drawn between consecutive points
 	 */
     [[nodiscard]] bool getDrawLines() const;
 
@@ -371,93 +323,66 @@ public:
 	 * whose points have z equal to that minimum (FLOOR) or maximum (CEILING) is drawn on the map.
 	 * Only a primary plotter can be projected, and a projection decides the drawing itself: it
 	 * cannot be combined with custom drawing arguments.
-	 *
-	 * @param projection Where the colour map is shown
 	 */
     void setSurfaceProjection(surfaceProjection projection);
     /**
 	 * @brief Retrieves where the colour map of the surface is shown
-	 * @return The surface projection
 	 */
     [[nodiscard]] surfaceProjection getSurfaceProjection() const;
 
     /**
 	 * @brief For a projected surface: whether the surface itself is drawn (the default), or only its
 	 * colour map on the floor or ceiling -- a map of the data under whatever the pad's overlays show.
-	 * @param draw_surface Whether the surface is drawn as well as its map
 	 */
     void setDrawSurface(bool draw_surface = true);
     /**
 	 * @brief Retrieves whether a projected surface is drawn, or only its colour map
-	 * @return Whether the surface is drawn as well as its map
 	 */
     [[nodiscard]] bool getDrawSurface() const;
 
     /**
 	 * @brief Draws every point a second time, small and grey, on the floor of the plot box -- its
 	 * shadow, which shows where in the x-y plane the points lie.
-	 * @param floor_shadow Whether the points' shadows are drawn
 	 */
     void setFloorShadow(bool floor_shadow = true);
     /**
 	 * @brief Retrieves whether the points' shadows are drawn on the floor
-	 * @return Whether the shadows are drawn
 	 */
     [[nodiscard]] bool getFloorShadow() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
     [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -467,21 +392,12 @@ private:
 
     /**
 	 * @brief Emits the ROOT drawing of a projected surface (see setSurfaceProjection())
-	 * @param is_secondary Whether this plotter is a secondary plotter (a projection must be primary)
-	 * @param graph_name The name of the TGraph2D the footer has created
-	 * @param indent The indentation string prepended to every emitted line
-	 * @return The ROOT code drawing the projected surface
 	 */
     [[nodiscard]] std::string
     rootProjectedSurface_(bool is_secondary, const std::string &graph_name, const std::string &indent) const;
 
     /**
 	 * @brief Emits the ROOT drawing of the points' shadows on the floor (see setFloorShadow())
-	 * @param x_array_name The name of the array holding the points' x values
-	 * @param y_array_name The name of the array holding the points' y values
-	 * @param graph_name The name of the TGraph2D the shadows belong to
-	 * @param indent The indentation string prepended to every emitted line
-	 * @return The ROOT code drawing the shadows
 	 */
     [[nodiscard]] std::string rootFloorShadow_(
         const std::string &x_array_name, const std::string &y_array_name, const std::string &graph_name,
@@ -551,101 +467,73 @@ public:
 
     /**
 	 * @brief Allows to set the minimum marker size
-	 * @param minMarkerSize The minimum marker size to be used when drawing the w-component
 	 */
     void setMinMarkerSize(const double &min_marker_size);
     /**
 	 * @brief Allows to set the maximum marker size
-	 * @param maxMarkerSize The maximum marker size to be used when drawing the w-component
 	 */
     void setMaxMarkerSize(const double &max_marker_size);
 
     /**
 	 * @brief Allows to retrieve the minimum marker size
-	 * @return The currently set minimum marker size
 	 */
     [[nodiscard]] double getMinMarkerSize() const;
     /**
 	 * @brief Allows to retrieve the maximum marker size
-	 * @return The currently set maximum marker size
 	 */
     [[nodiscard]] double getMaxMarkerSize() const;
 
     /**
 	 * @brief Allows to specify whether small w yield large markers
-	 * @param smallWLargeMarker If true, small w-values are mapped to large markers
 	 */
     void setSmallWLargeMarker(const bool &swlm);
     /**
 	 * @brief Allows to check whether small w yield large markers
-	 * @return Whether small w-values are mapped to large markers
 	 */
     [[nodiscard]] bool getSmallWLargeMarker() const;
 
     /**
 	 * @brief Allows to set the number of solutions the class should show
-	 * @param nBest The number of (best) solutions to display; 0 means all
 	 */
     void setNBest(const std::size_t &n_best);
     /**
 	 * @brief Allows to retrieve the number of solutions the class should show
-	 * @return The number of (best) solutions to display
 	 */
     [[nodiscard]] std::size_t getNBest() const;
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
-    [[nodiscard]] std::string headerData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
-    [[nodiscard]] std::string drawingArguments(bool isSecondary) const override;
+    [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -700,8 +588,6 @@ public:
 
     /**
 	 * @brief The standard constructor
-	 * @param fD A textual description of the 1-d function to be plotted (in ROOT TF1 syntax)
-	 * @param xExtremes The minimum and maximum value of the x-axis, as a tuple
 	 */
     GFunctionPlotter1D(const std::string &f_d, const std::tuple<double, double> &x_extremes);
 
@@ -721,63 +607,42 @@ public:
 
     /**
 	 * @brief Allows to set the number of sampling points in x-direction
-	 * @param nSamplesX The number of sampling points used to evaluate the function in x-direction
 	 */
     void setNSamplesX(std::size_t n_samples_x);
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -832,9 +697,6 @@ public:
 
     /**
 	 * @brief The standard constructor
-	 * @param fD A textual description of the 2-d function to be plotted (in ROOT TF2 syntax)
-	 * @param xExtremes The minimum and maximum value of the x-axis, as a tuple
-	 * @param yExtremes The minimum and maximum value of the y-axis, as a tuple
 	 */
     GFunctionPlotter2D(
         const std::string &f_d,
@@ -858,68 +720,46 @@ public:
 
     /**
 	 * @brief Allows to set the number of sampling points in x-direction
-	 * @param nSamplesX The number of sampling points used to evaluate the function in x-direction
 	 */
     void setNSamplesX(std::size_t n_samples_x);
     /**
 	 * @brief Allows to set the number of sampling points in y-direction
-	 * @param nSamplesY The number of sampling points used to evaluate the function in y-direction
 	 */
     void setNSamplesY(std::size_t n_samples_y);
 
     /**
 	 * @brief Retrieves a unique name for this plotter
-	 * @return A unique name for this plotter
 	 */
     [[nodiscard]] std::string getPlotterName() const override;
 
     /**
 	 * @brief Reports this plotter's choice (kind, columns, bins) as a GPlotSpec value
-	 * @return A GPlotSpec describing this plotter
 	 */
     [[nodiscard]] GPlotSpec plotSpec() const override;
 
 protected:
     /**
 	 * @brief Retrieve specific header settings for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The header section of the ROOT code for this plot
 	 */
     [[nodiscard]] std::string headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves the actual data sets
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The body section of the ROOT code, holding the actual data
 	 */
-    [[nodiscard]] std::string bodyData_(bool isSecondary, std::size_t pId, std::size_t ownId, const std::string &indention) const override;
+    [[nodiscard]] std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieves specific draw commands for this plot
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @param pId The id of this plotter, used to build unique variable names
-	 * @param indention The indention string prepended to each emitted line
-	 * @return The footer section of the ROOT code, holding the draw commands
 	 */
     [[nodiscard]] std::string footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const override;
 
     /**
 	 * @brief Retrieve the current drawing arguments
-	 * @param isSecondary Whether this is a secondary plot drawn into an existing pad
-	 * @return The drawing arguments to be passed to ROOT's Draw() call
 	 */
     [[nodiscard]] std::string drawingArguments(bool is_secondary) const override;
 
     /**
      * @brief The name of the object in the ROOT script whose look this plotter's legend sample copies
-     * @param is_secondary Whether this is a secondary plot drawn into an existing pad
-     * @param p_id The id of the parent plotter
-     * @param own_id This plotter's own emit index
-     * @return The name footerData_() gives the object
      */
     [[nodiscard]] std::string rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const override;
 
@@ -952,9 +792,6 @@ private:
  * The function plotters (function_1d / function_2d) cannot be reconstructed from a
  * spec -- their formula and sampling range are not part of the GPlotSpec value -- so
  * those kinds throw a geneva_exception.
- *
- * @param spec The plot specification describing the plotter to build
- * @return A newly-allocated, empty plotter matching the spec
  */
 [[nodiscard]] std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec);
 

@@ -44,6 +44,7 @@
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
@@ -314,6 +315,7 @@ bool parseCommandLine(
  */
 // NOLINTNEXTLINE(readability-function-size) -- single benchmark main: config setup, consumer registration, workload construction and measurement all belong to one run
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     // --update-configs: materialize the one config this benchmark owns (the GFunctionIndividual
     // factory's) from code defaults, then exit without running the benchmark.
     if(Gem::Common::configEmissionRequested(argc, argv)) {

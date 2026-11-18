@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 #include <fstream>
@@ -100,45 +101,28 @@ std::vector<T> fillWithData(
 
 /**
  * @brief Specialization of fillWithData() for type bool (yields the values false and true).
- * @param n_steps The number of steps to generate
- * @param lower The lower boundary of the scanned range
- * @param upper The upper boundary of the scanned range
- * @return A vector holding the boolean grid points
  */
 template <>
 std::vector<bool> fillWithData<bool>(std::size_t n_steps, bool lower, bool upper);
 
 /**
  * @brief Specialization of fillWithData() for type std::int32_t.
- * @param n_steps The number of steps to generate (only used for random entries)
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the integer grid points
  */
 template <>
 std::vector<std::int32_t> fillWithData<std::int32_t>(
-    std::size_t n_steps // will only be used for random entries
-    ,
+    std::size_t n_steps,
     std::int32_t lower,
     std::int32_t upper // inclusive
 );
 
 /**
  * @brief Specialization of fillWithData() for type float.
- * @param n_steps The number of steps to generate, including the boundaries
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the floating point grid points
  */
 template <>
 std::vector<float> fillWithData<float>(std::size_t n_steps, float lower, float upper);
 
 /**
  * @brief Specialization of fillWithData() for type double.
- * @param n_steps The number of steps to generate, including the boundaries
- * @param lower The lower boundary of the scanned range (inclusive)
- * @param upper The upper boundary of the scanned range (inclusive)
- * @return A vector holding the floating point grid points
  */
 template <>
 std::vector<double> fillWithData<double>(std::size_t n_steps, double lower, double upper);
@@ -153,9 +137,9 @@ class GScanParInterface {
 public:
     /** @brief The (defaulted) virtual destructor */
     virtual ~GScanParInterface() = default;
-    /** @brief Retrieves the name and/or position address of the scanned variable
-     *  @return The address (name and id) of the variable inside the individual */
-    [[nodiscard]] virtual gen::NAMEANDIDTYPE getVarAddress() const = 0;
+    /** @brief Retrieves the position of the scanned variable
+     *  @return The position of the variable in the value channel of its type */
+    [[nodiscard]] virtual std::size_t getVarIndex() const = 0;
     /** @brief Advances to the next grid position, rewinding to the start at the end
      *  @return true if a warp (rewind to the first position) has taken place, false otherwise */
     virtual bool goToNextItem() = 0;
@@ -193,8 +177,7 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
      *  name_()/load_()/compare_() (and the disambiguating serialize() below) all derive from one list.
      *  The pre-computed grid held by the GPodContainerT base is tied in here as data_cnt_ (the container's
      *  only state -- GContainerT serialises just data_cnt_), so the container stays a behaviour-only base
-     *  and needs no base_object handling. var_ (a std::tuple) is listed as its three named sub-elements
-     *  (compare_t cannot stream a whole tuple). GScanParInterface is a stateless pure-virtual interface. */
+     *  and needs no base_object handling. GScanParInterface is a stateless pure-virtual interface. */
     // The member list is written ONCE, in the static template helper below. self_type is deduced as
     // GBaseScanParT or const GBaseScanParT, so each member binds with the matching const-ness and
     // make_member() deduces accordingly; the two localMembers() overloads are trivial forwarders.
@@ -202,9 +185,7 @@ class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("data_cnt_", self.data_cnt_),
-            Gem::Common::make_member("var_mode", std::get<0>(self.var_)),
-            Gem::Common::make_member("var_name", std::get<1>(self.var_)),
-            Gem::Common::make_member("var_pos", std::get<2>(self.var_)),
+            Gem::Common::make_member("index_", self.index_),
             Gem::Common::make_member("step_", self.step_),
             Gem::Common::make_member("n_steps_", self.n_steps_),
             Gem::Common::make_member("lower_", self.lower_),
@@ -236,11 +217,11 @@ public:
     /**
      * @brief The standard constructor.
      *
-     * Stores the variable address, boundaries and step count from the property
+     * Stores the variable index, boundaries and step count from the property
      * specification. For a (non-random) grid scan the grid points are pre-computed
      * via fillWithData<T>().
      *
-     * @param pps The parameter property specification (variable address, boundaries, number of steps)
+     * @param pps The parameter property specification (variable index, boundaries, number of steps)
      * @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled
      * @param t A textual identifier for the parameter type (stored as type_description_)
      */
@@ -250,7 +231,7 @@ public:
         const std::string &t // type_description_
     )
       : Gem::Common::GPodContainerT<T>()
-      , var_(pps.var)
+      , index_(pps.index)
       , step_(0)
       , n_steps_(pps.nSteps)
       , lower_(pps.lowerBoundary)
@@ -271,8 +252,10 @@ public:
      * @param cp Another GBaseScanParT object whose state is copied
      */
     GBaseScanParT(const GBaseScanParT<T> &cp)
-      : Gem::Common::GPodContainerT<T>(cp) // copy the pre-computed grid (the random members default-construct)
-      , var_(cp.var_)
+      : Gem::Common::GPodContainerT<T>(
+            cp
+        ) // copy the pre-computed grid (the random members default-construct)
+      , index_(cp.index_)
       , step_(cp.step_)
       , n_steps_(cp.n_steps_)
       , lower_(cp.lower_)
@@ -289,11 +272,25 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Retrieve the address (name and id) of the scanned variable
-     * @return The variable address inside the individual
+     * @brief Retrieve the position of the scanned variable
+     * @return The position of the variable in the value channel of its type
      */
-    gen::NAMEANDIDTYPE getVarAddress() const override {
-        return var_;
+    std::size_t getVarIndex() const override {
+        return index_;
+    }
+
+    /**
+     * @brief The specification this object was built from (variable index, boundaries, step
+     * count), so it can be rebuilt for the other scan mode.
+     * @return The parameter property specification of this object
+     */
+    gen::parPropSpec<T> getSpec() const {
+        gen::parPropSpec<T> spec;
+        spec.index = index_;
+        spec.lowerBoundary = lower_;
+        spec.upperBoundary = upper_;
+        spec.nSteps = n_steps_;
+        return spec;
     }
 
     /***************************************************************************/
@@ -325,7 +322,7 @@ public:
      * @return true if a warp (rewind to the start) has taken place, false otherwise
      */
     bool goToNextItem() override {
-        if(++step_ >= n_steps_) {
+        if(++step_ >= nPositions()) {
             step_ = 0;
             return true;
         }
@@ -338,7 +335,7 @@ public:
      * @return true if the position is at (or beyond) the terminal position, false otherwise
      */
     bool isAtTerminalPosition() const override {
-        return step_ >= n_steps_;
+        return step_ >= nPositions();
     }
 
     /***************************************************************************/
@@ -383,9 +380,9 @@ protected:
     /***************************************************************************/
     // Data
 
-    gen::NAMEANDIDTYPE var_;           ///< Name and/or position of the variable
+    std::size_t index_;           ///< The position of the variable in the value channel of its type
     std::size_t step_;            ///< The current position in the data vector
-    std::size_t n_steps_;          ///< The number of steps to be taken in a scan
+    std::size_t n_steps_;         ///< Requested steps (random draws or grid points)
     T lower_;                     ///< The lower boundary of an item
     T upper_;                     ///< The upper boundary of an item
     bool random_scan_;             ///< Indicates whether we are dealing with a random scan or not
@@ -394,7 +391,7 @@ protected:
     /***************************************************************************/
     /** @brief The default constructor -- only needed for de-serialization, hence protected */
     GBaseScanParT()
-      : var_(gen::NAMEANDIDTYPE(0, "empty", 0))
+      : index_(0)
       , step_(0)
       , n_steps_(2)
       , lower_(T(0))
@@ -423,6 +420,21 @@ protected:
     }
 
 private:
+    /***************************************************************************/
+    /**
+     * @brief The number of positions a traversal steps through.
+     *
+     * A random scan draws n_steps_ items. A grid scan visits the items of its pre-computed
+     * grid, whose size is the number of values fillWithData() produced -- equal to n_steps_
+     * for the numeric types, but always two for a boolean, whatever step count its spec
+     * carries.
+     *
+     * @return The number of positions before the traversal wraps
+     */
+    [[nodiscard]] std::size_t nPositions() const {
+        return random_scan_ ? n_steps_ : this->size();
+    }
+
     mutable std::bernoulli_distribution
         uniform_bool_; ///< boolean random numbers with an even distribution
     mutable std::uniform_real_distribution<float>
@@ -510,7 +522,7 @@ class GScanParT // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>> {
 public:
     /** @brief Construction from a parameter property specification and a random-scan flag.
-     *  @param pps The parameter property specification (variable address, boundaries, steps)
+     *  @param pps The parameter property specification (variable index, boundaries, steps)
      *  @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled */
     GScanParT(const gen::parPropSpec<T> &pps, bool random_scan)
       : Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>>(
@@ -619,10 +631,7 @@ public:
 
 /******************************************************************************/
 /**
- * @brief A single scanned parameter value together with its position.
- *
- * Every scan parameter is addressed positionally (the former by-name addressing modes have been
- * removed together with their mode/name metadata).
+ * @brief A single scanned parameter value together with its position in its value channel.
  *
  * @tparam T The parameter value type (bool, std::int32_t, float, double)
  */
@@ -650,10 +659,7 @@ struct parSet {
 };
 
 /******************************************************************************/
-/** @brief A simple output operator for parSet object, mostly meant for debugging
- *  @param os The output stream to write to
- *  @param p_s The parameter set to be streamed
- *  @return A reference to the output stream, for chaining */
+/** @brief A simple output operator for parSet object, mostly meant for debugging */
 std::ostream &operator<<(std::ostream &os, const parSet &p_s);
 
 /******************************************************************************/
@@ -754,31 +760,25 @@ private:
 public:
     /** @brief The default constructor */
     GParameterScan() = default;
-    /** @brief A standard copy constructor
-     *  @param cp Another GParameterScan object to be copied */
+    /** @brief A standard copy constructor */
     GParameterScan(const GParameterScan &cp);
     /** @brief The destructor */
     ~GParameterScan() override = default;
 
-    /** @brief Fills the parameter vectors from a textual parameter specification
-     *  @param par_str The parameter specification string to be parsed */
+    /** @brief Fills the parameter vectors from a textual parameter specification */
     void setParameterSpecs(const std::string& par_str);
 
-    /** @brief Puts the class in "simple scan" mode
-     *  @param simple_scan_items The number of random samples of the whole parameter space to take (0 disables simple-scan mode) */
+    /** @brief Puts the class in "simple scan" mode */
     void setNSimpleScans(std::size_t simple_scan_items);
-    /** @brief Retrieves the number of simple scans (or 0, if disabled)
-     *  @return The configured number of simple scans */
+    /** @brief Retrieves the number of simple scans (or 0, if disabled) */
     std::size_t getNSimpleScans() const;
-    /** @brief Retrieves the number of scans performed so far
-     *  @return The number of scans processed so far */
+    /** @brief Retrieves the number of scans performed so far */
     std::size_t getNScansPerformed() const;
 
     /** @brief Allows to specify whether the parameter space should be scanned randomly or on a grid
-     *  @param scan_randomly If true the space is scanned randomly, if false on a grid */
+     *  (rebuilding the scan parameters already specified) */
     void setScanRandomly(bool scan_randomly);
-    /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid
-     *  @return true if the space is scanned randomly, false if on a grid */
+    /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid */
     bool getScanRandomly() const;
 
 protected:
@@ -809,8 +809,7 @@ private:
     }
 
 protected:
-    /** @brief Adds local configuration options to a GParserBuilder object
-     *  @param gpb The parser builder to which the configuration options are added */
+    /** @brief Adds local configuration options to a GParserBuilder object */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
     // load_() and compare_() are generated by the Gem::Common::GReflectiveInterfaceT base.
@@ -832,21 +831,18 @@ private:
     /***************************************************************************/
     // Virtual or overridden private functions
 
-    /** @brief The actual business logic to be performed during each iteration.
-     *  @return A tuple holding the best raw and transformed fitness achieved this iteration */
+    /** @brief The actual business logic to be performed during each iteration. */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Triggers fitness calculation of a number of individuals */
     void evaluatePopulation_() override;
 
 
-    /** @brief A custom halt criterion for the optimization, allowing to stop the loop when no items are left to be scanned
-     *  @return true if the optimization should be halted, false otherwise */
+    /** @brief A custom halt criterion for the optimization, allowing to stop the loop when no items are left to be scanned */
     bool customHalt_() const override;
 
     /** @brief Resizes the population to the desired level and does some error checks */
     void adjustPopulation_() override;
-    /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm
-     *  @return A shared_ptr to a personality-traits object for the parameter scan */
+    /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
     /***************************************************************************/
@@ -854,7 +850,7 @@ private:
      * @brief Writes a single scanned parameter into a value-channel vector at its encoded position.
      *
      * @tparam data_type The parameter value type held by the data point
-     * @param data_point The scanned parameter (value + addressing metadata); only mode 0 is valid here
+     * @param data_point The scanned parameter (value + position)
      * @param data_vec The destination vector, written at data_point.pos
      */
     template <typename data_type>
@@ -885,13 +881,10 @@ private:
     /** @brief Randomly re-initializes the work items (simple-scan mode) */
     void randomInitPopulation();
 
-    /** @brief Retrieves the next available parameter set
-     *  @param mode An out-parameter receiving the running index of the returned parameter set
-     *  @return A shared_ptr to the next parameter set to be evaluated */
+    /** @brief Retrieves the next available parameter set */
     std::shared_ptr<parSet> getParameterSet();
 
-    /** @brief Switches to the next parameter set
-     *  @return true if all parameter sets have been exhausted (warp-around), false otherwise */
+    /** @brief Switches to the next parameter set */
     bool switchToNextParameterSet();
 
     /** @brief Fills all parameter objects into the all_par_vec_ vector */

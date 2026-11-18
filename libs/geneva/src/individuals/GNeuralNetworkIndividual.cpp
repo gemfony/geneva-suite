@@ -350,7 +350,7 @@ networkData::getTrainingSet(const std::size_t &pos) const {
 /**
  * Retrieves the number of input nodes of this network
  *
- * @return The number of input nodes of this network
+ * @return The number of input nodes (the first stored layer size)
  */
 std::size_t networkData::getNInputNodes() const {
     return this->front();
@@ -360,7 +360,7 @@ std::size_t networkData::getNInputNodes() const {
 /**
  * Retrieves the number of output nodes of this network
  *
- * @return The number of output nodes of this network
+ * @return The number of output nodes (the last stored layer size)
  */
 std::size_t networkData::getNOutputNodes() const {
     return this->back();
@@ -1297,7 +1297,7 @@ const GNeuralNetworkArchitecture &GNeuralNetworkIndividual::architecture() const
  * A small demonstration of the technique of storing a reference to a vector
  * in another vector is shown in the file refWrapper.cpp in the Geneva test cases.
  *
- * @return The fitness of this object
+ * @return The training error as a one-element vector (single criterion)
  */
 std::vector<double> GNeuralNetworkIndividual::evaluate() {
     double result = 0;

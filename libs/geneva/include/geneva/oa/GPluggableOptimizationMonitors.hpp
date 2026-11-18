@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <array>
@@ -70,6 +71,7 @@ namespace Gem::Geneva {
  * It will usually already be registered as a pluggable optimization monitor, when
  * you instantiate a new optimization algorithm.
  */
+// clang-format off
 //! [monitors:custom-decl]
 class GStandardMonitor // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GStandardMonitor, oa::GBasePluggableOM>
@@ -119,10 +121,13 @@ private:
     /**
      * @brief Aggregates the work of all registered pluggable monitors
      */
-    void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    void informationFunction_(
+        infoMode im,
+        oa::GOptimizationAlgorithmBase const *const goa
+    ) override;
 };
 //! [monitors:custom-decl]
+// clang-format on
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -170,7 +175,6 @@ public:
     GFitnessMonitor() = default;
     /**
      * @brief The copy constructor
-     * @param cp A constant reference to another GFitnessMonitor object whose data is deep-copied
      */
     GFitnessMonitor(const GFitnessMonitor &cp);
     /** @brief The destructor */
@@ -178,45 +182,36 @@ public:
 
     /**
      * @brief Allows to specify a different name for the result file
-     * @param result_file The new name of the result file
      */
     void setResultFileName(const std::string &result_file);
     /**
      * @brief Allows to retrieve the current value of the result file name
-     * @return The current name of the result file
      */
     [[nodiscard]] std::string getResultFileName() const;
 
     /**
      * @brief Allows to set the dimensions of the canvas
-     * @param x_dim The canvas dimension in x-direction
-     * @param y_dim The canvas dimension in y-direction
      */
     void setDims(const std::uint32_t &x_dim, const std::uint32_t &y_dim);
     /**
      * @brief Retrieve the dimensions as a tuple
-     * @return A tuple holding the canvas dimensions in x- and y-direction
      */
     [[nodiscard]] std::tuple<std::uint32_t, std::uint32_t> getDims() const;
     /**
      * @brief Retrieves the dimension of the canvas in x-direction
-     * @return The canvas dimension in x-direction
      */
     [[nodiscard]] std::uint32_t getXDim() const;
     /**
      * @brief Retrieves the dimension of the canvas in y-direction
-     * @return The canvas dimension in y-direction
      */
     [[nodiscard]] std::uint32_t getYDim() const;
 
     /**
      * @brief Sets the number of individuals in the population that should be monitored
-     * @param n_monitor_inds The number of individuals that should be monitored
      */
     void setNMonitorIndividuals(const std::size_t &n_monitor_inds);
     /**
      * @brief Retrieves the number of individuals that are being monitored
-     * @return The number of individuals that are being monitored
      */
     [[nodiscard]] std::size_t getNMonitorIndividuals() const;
 
@@ -298,7 +293,6 @@ public:
     GCollectiveMonitor() = default;
     /**
      * @brief The copy constructor
-     * @param cp A constant reference to another GCollectiveMonitor object whose data is deep-copied
      */
     GCollectiveMonitor(const GCollectiveMonitor &cp);
     /** @brief The destructor */
@@ -307,12 +301,10 @@ public:
     //! [monitors:collective]
     /**
      * @brief Allows to register a new pluggable monitor
-     * @param om_ptr A shared pointer to the pluggable monitor to add to this collection
      */
     void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM>& om_ptr);
     /**
-     * @brief Checks if pluggable monitors have been registered in the collective monitor
-     * @return true if at least one pluggable monitor has been registered, false otherwise
+     * @brief Checks if pluggable monitors are registered in the collective monitor
      */
     [[nodiscard]] bool hasOptimizationMonitors() const;
     /** @brief Allows to clear all registered monitors */
@@ -706,14 +698,13 @@ public:
 	  */
     [[nodiscard]] std::string getLabel(const gen::parPropSpec<fp_type> &s) const {
         // A name set with setVariableNames() wins; otherwise the variable is labelled by its
-        // position (the former by-name addressing modes have been removed).
+        // position.
         for(std::size_t i = 0; i < fp_prof_var_vec_.size() && i < variable_names_.size(); ++i) {
             if(&fp_prof_var_vec_[i] == &s && not variable_names_[i].empty()) {
                 return variable_names_[i];
             }
         }
-        const std::size_t var_pos = std::get<2>(s.var);
-        return std::string("variable id ") + Gem::Common::to_string(var_pos);
+        return std::string("variable id ") + Gem::Common::to_string(s.index);
     }
 
 protected:
@@ -897,8 +888,8 @@ private:
 
         std::vector<fp_type> values;
         probe->template streamline<fp_type>(values);
-        const std::size_t ix = std::get<2>(fp_prof_var_vec_[0].var);
-        const std::size_t iy = std::get<2>(fp_prof_var_vec_[1].var);
+        const std::size_t ix = fp_prof_var_vec_[0].index;
+        const std::size_t iy = fp_prof_var_vec_[1].index;
         if(ix >= values.size() || iy >= values.size()) {
             return;
         }
@@ -959,7 +950,7 @@ private:
         // observed window is not logged at all.
         std::array<double, 3> vals{};
         for(std::size_t i = 0; i < n_vars; ++i) {
-            const auto v = ind.GGenome::template getVarVal<fp_type>(fp_prof_var_vec_[i].var);
+            const auto v = ind.GGenome::template getVarVal<fp_type>(fp_prof_var_vec_[i].index);
             if(observe_boundaries_ &&
                (v < fp_prof_var_vec_[i].lowerBoundary || v > fp_prof_var_vec_[i].upperBoundary)) {
                 return;
@@ -1083,13 +1074,10 @@ public:
     GAllSolutionFileLogger() = default;
     /**
      * @brief Initialization with a file name
-     * @param file_name The name of the file to which solutions should be logged
      */
     explicit GAllSolutionFileLogger(const std::string &file_name);
     /**
      * @brief Initialization with a file name and boundaries
-     * @param file_name The name of the file to which solutions should be logged
-     * @param boundaries Value boundaries used to filter which solutions are logged
      */
     GAllSolutionFileLogger(const std::string &file_name, const std::vector<double> &boundaries);
     /** @brief The copy constructor */
@@ -1099,7 +1087,6 @@ public:
 
     /**
      * @brief Sets the file name
-     * @param file_name The name of the file to which solutions should be logged
      */
     void setFileName(const std::string &file_name);
     /**
@@ -1110,7 +1097,6 @@ public:
 
     /**
      * @brief Sets the boundaries
-     * @param boundaries Value boundaries used to filter which solutions are logged
      */
     void setBoundaries(const std::vector<double> &boundaries);
     /**
@@ -1128,7 +1114,6 @@ public:
 
     /**
      * @brief Allows to specify whether explanations should be printed for parameter- and fitness values.
-     * @param with_name_and_type If true, a header line with variable names and types is prepended
      */
     void setPrintWithNameAndType(bool with_name_and_type = true);
     /**
@@ -1139,7 +1124,6 @@ public:
 
     /**
      * @brief Allows to specify whether commas should be printed in-between values
-     * @param with_commas If true, commas are printed in-between values
      */
     void setPrintWithCommas(bool with_commas = true);
     /**
@@ -1150,7 +1134,6 @@ public:
 
     /**
      * @brief Allows to specify whether the true (instead of the transformed) fitness should be shown
-     * @param use_raw_fitness If true, the raw (true) fitness is shown instead of the transformed fitness
      */
     void setUseTrueFitness(bool use_raw_fitness = true);
     /**
@@ -1161,7 +1144,6 @@ public:
 
     /**
      * @brief Allows to specify whether the validity of a solution should be shown
-     * @param show_validity If true, the validity of each solution is shown
      */
     void setShowValidity(bool show_validity = true);
     /**
@@ -1172,7 +1154,6 @@ public:
 
     /**
      * @brief Allows to specify whether the initial population should be printed.
-     * @param print_initial If true, the initial population is also printed
      */
     void setPrintInitial(bool print_initial = true);
     /**
@@ -1183,7 +1164,6 @@ public:
 
     /**
      * @brief Allows to specify whether a comment line should be inserted between iterations
-     * @param show_iteration_boundaries If true, a comment line is inserted between iterations
      */
     void setShowIterationBoundaries(bool show_iteration_boundaries = true);
     /**
@@ -1209,8 +1189,6 @@ private:
 
     /**
      * @brief Does the actual printing of the population to the log file
-     * @param iteration_description A textual description of the current iteration, used in the output
-     * @param goa A constant pointer to the optimization algorithm whose population is printed
      */
     void printPopulation(
         const std::string &iteration_description,
@@ -1274,7 +1252,6 @@ public:
     GIterationResultsFileLogger() = default;
     /**
      * @brief Initialization with a file name
-     * @param file_name The name of the file to which iteration results should be logged
      */
     explicit GIterationResultsFileLogger(const std::string &file_name);
     /** @brief The copy constructor */
@@ -1284,7 +1261,6 @@ public:
 
     /**
      * @brief Sets the file name
-     * @param file_name The name of the file to which iteration results should be logged
      */
     void setFileName(const std::string &file_name);
     /**
@@ -1295,7 +1271,6 @@ public:
 
     /**
      * @brief Allows to specify whether commas should be printed in-between values
-     * @param with_commas If true, commas are printed in-between values
      */
     void setPrintWithCommas(bool with_commas);
     /**
@@ -1306,7 +1281,6 @@ public:
 
     /**
      * @brief Allows to specify whether the true (instead of the transformed) fitness should be shown
-     * @param use_raw_fitness If true, the raw (true) fitness is shown instead of the transformed fitness
      */
     void setUseTrueFitness(bool use_raw_fitness);
     /**
@@ -1317,10 +1291,6 @@ public:
 
 protected:
     /************************************************************************/
-    /**
-     * @brief Loads the data of another object into this one
-     * @param cp A pointer to another object of this type, camouflaged as a GBasePluggableOM, whose data is copied
-     */
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceT base from class_name and localMembers_().
 
@@ -1389,12 +1359,10 @@ public:
     GNAdpationsLogger() = default;
     /**
      * @brief Initialization with a file name
-     * @param file_name The name of the file to which the number of adaptions should be logged
      */
     explicit GNAdpationsLogger(const std::string &file_name);
     /**
      * @brief The copy constructor
-     * @param cp A constant reference to another GNAdpationsLogger object whose data is deep-copied
      */
     GNAdpationsLogger(const GNAdpationsLogger &cp);
     /** @brief The destructor */
@@ -1402,7 +1370,6 @@ public:
 
     /**
      * @brief Sets the file name
-     * @param file_name The name of the file to which the number of adaptions should be logged
      */
     void setFileName(const std::string &file_name);
     /**
@@ -1413,7 +1380,6 @@ public:
 
     /**
      * @brief Allows to specify whether only the best individuals should be monitored
-     * @param monitor_best_only If true, only the best individual(s) of the population are monitored
      */
     void setMonitorBestOnly(bool monitor_best_only = true);
     /**
@@ -1424,13 +1390,10 @@ public:
 
     /**
      * @brief Allows to set the canvas dimensions
-     * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
      */
     void setCanvasDimensions(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions);
     /**
      * @brief Allows to set the canvas dimensions using separate x and y values
-     * @param x The canvas dimension in x-direction
-     * @param y The canvas dimension in y-direction
      */
     void setCanvasDimensions(std::uint32_t x, std::uint32_t y);
     /**
@@ -1441,7 +1404,6 @@ public:
 
     /**
      * @brief Allows to add a "Print" command to the end of the script so that picture files are created
-     * @param add_print_command If true, a print command is appended so that picture files are created
      */
     void setAddPrintCommand(bool add_print_command);
     /**
@@ -1453,10 +1415,6 @@ public:
 protected:
     /************************************************************************/
 
-    /**
-     * @brief Loads the data of another object into this one
-     * @param cp A pointer to another object of this type, camouflaged as a GBasePluggableOM, whose data is copied
-     */
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceT base from class_name and localMembers_().
 
@@ -1957,11 +1915,6 @@ public:
     GProcessingTimesLogger();
     /**
      * @brief Initialization with file names and histogram bin counts
-     * @param file_name_pth The file name for the 1D processing-times histograms (ROOT format)
-     * @param file_name_pth2 The file name for the 2D processing-times-versus-iteration histograms (ROOT format)
-     * @param file_name_txt The file name for the plain-text processing-times output
-     * @param n_bins_x The number of histogram bins in x-direction
-     * @param n_bins_y The number of histogram bins in y-direction
      */
     GProcessingTimesLogger(
         const std::string &file_name_pth,
@@ -1977,7 +1930,6 @@ public:
 
     /**
      * @brief Sets the file name for the processing times histogram
-     * @param file_name The file name for the 1D processing-times histograms
      */
     void setFileName_pth(const std::string &file_name);
     /**
@@ -1987,7 +1939,6 @@ public:
     [[nodiscard]] std::string getFileName_pth() const;
     /**
      * @brief Sets the file name for the processing times histograms (2D)
-     * @param file_name The file name for the 2D processing-times histograms
      */
     void setFileName_pth2(const std::string &file_name);
     /**
@@ -1998,7 +1949,6 @@ public:
 
     /**
      * @brief Sets the file name for the text output
-     * @param file_name The file name for the plain-text processing-times output
      */
     void setFileName_txt(const std::string &file_name);
     /**
@@ -2009,13 +1959,10 @@ public:
 
     /**
      * @brief Allows to set the canvas dimensions for the processing times histograms
-     * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
      */
     void setCanvasDimensions_pth(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions);
     /**
      * @brief Allows to set the canvas dimensions using separate x and y values for the processing times histograms
-     * @param x The canvas dimension in x-direction
-     * @param y The canvas dimension in y-direction
      */
     void setCanvasDimensions_pth(std::uint32_t x, std::uint32_t y);
 
@@ -2026,14 +1973,11 @@ public:
     [[nodiscard]] std::tuple<std::uint32_t, std::uint32_t> getCanvasDimensions_pth() const;
     /**
      * @brief Allows to set the canvas dimensions for the processing times histograms (2D)
-     * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
      */
     void setCanvasDimensions_pth2(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions);
 
     /**
      * @brief Allows to set the canvas dimensions using separate x and y values for the processing times histograms (2D)
-     * @param x The canvas dimension in x-direction
-     * @param y The canvas dimension in y-direction
      */
     void setCanvasDimensions_pth2(std::uint32_t x, std::uint32_t y);
     /**
@@ -2044,7 +1988,6 @@ public:
 
     /**
      * @brief Sets the number of bins for the processing times histograms in x-direction
-     * @param n_bins_x The number of histogram bins in x-direction
      */
     void setNBinsX(std::size_t n_bins_x);
     /**
@@ -2055,7 +1998,6 @@ public:
 
     /**
      * @brief Sets the number of bins for the processing times histograms in y-direction
-     * @param n_bins_y The number of histogram bins in y-direction
      */
     void setNBinsY(std::size_t n_bins_y);
     /**
@@ -2067,10 +2009,6 @@ public:
 protected:
     /************************************************************************/
 
-    /**
-     * @brief Loads the data of another object into this one
-     * @param cp A pointer to another object of this type, camouflaged as a GBasePluggableOM, whose data is copied
-     */
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceT base from class_name and localMembers_().
 

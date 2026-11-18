@@ -94,8 +94,7 @@ LINKEREXTRAFLAGS=""
 # next to libgemfony-geneva, and loaded at run time: the "mpi" consumer mnemonic exists when the
 # module and an MPI library are present, and no other Geneva library or program links MPI, so
 # Geneva programs also start on machines without MPI. The module links courtier's MPI library,
-# libgemfony-courtier-mpi, which holds the process's MPI environment. A program using
-# GMPISubClientOptimizer links the module directly.
+# libgemfony-courtier-mpi, which holds the process's MPI environment.
 BUILDMPICONSUMER="1"
 
 # Whether to build the GPU consumer (GGPUConsumerT) into the courtier library and
@@ -123,7 +122,6 @@ WITHCOVERAGE="0"
 # When set to anything other than "none", CUDA and the MPI consumer are forced
 # OFF automatically (nvcc cannot compile with -fsanitize; MPI floods TSan), and
 # the whole C++ build is instrumented (much slower, for diagnostics only).
-# See prompts/2026-05-30-sanitizer-rollout-plan.md.
 SANITIZER="none"
 
 # Set to 1 to skip all CUDA compilation entirely — no CUDA examples, no CUDA

@@ -98,21 +98,15 @@ public:
 
     /**
      * @brief The standard constructor
-     * @param canvas_label The label of the canvas
-     * @param c_x_div The number of plot divisions (pads) in the x-direction
-     * @param c_y_div The number of plot divisions (pads) in the y-direction
      */
     GPlotDesigner(const std::string &canvas_label, const std::size_t &c_x_div, const std::size_t &c_y_div);
 
     /**
      * @brief Copy constructor
-     * @param cp The designer to copy from
      */
     GPlotDesigner(GPlotDesigner const &cp);
     /**
      * @brief Assignment operator
-     * @param cp The designer to copy from
-     * @return A reference to this object
      */
     GPlotDesigner &operator=(GPlotDesigner const &cp);
 
@@ -133,14 +127,11 @@ public:
 
     /**
      * @brief Emits the overall plot through the selected backend emitter
-     * @param plot_name The name used in the emitted script (and a warning context); defaults to "empty"
-     * @return The complete backend-specific document as a string
      */
     [[nodiscard]] std::string
     plot(const std::filesystem::path & plot_name = std::filesystem::path("empty")) const;
     /**
      * @brief Writes the plot to a file
-     * @param file_name The path of the file the emitted plot script is written to
      */
     void writeToFile(const std::filesystem::path & file_name);
 
@@ -149,8 +140,6 @@ public:
      *
      * Installs the standard emitter for the requested backend (ROOT, GNUPLOT,
      * MATPLOTLIB, OCTAVE, or DATA). plot() then delegates to the selected emitter.
-     *
-     * @param backend The plotting backend to use
      */
     void setPlotBackend(plotBackend backend);
 
@@ -159,8 +148,6 @@ public:
      *
      * Overrides the backend selected via setPlotBackend() with a caller-supplied
      * emitter. plot() delegates to it.
-     *
-     * @param emitter The emitter to install (must not be empty)
      */
     void setEmitter(std::shared_ptr<IPlotEmitter> emitter);
 
@@ -170,65 +157,52 @@ public:
      * A convenience for `setEmitter(std::make_shared<GDataEmitter>(format))`: installs a
      * GDataEmitter that exports the raw series data (CSV text or a numpy .npz archive)
      * rather than a rendered plot. plot() then delegates to it.
-     *
-     * @param format The on-disk format to export (CSV, the default, or NPZ)
      */
     void setDataFormat(dataFormat format);
 
     /**
      * @brief Allows to add a new plotter object
-     * @param plotter_ptr The plotter to register with this designer
      */
     void registerPlotter(const std::shared_ptr<GBasePlotter>& plotter_ptr);
 
     /**
      * @brief Set the dimensions of the output canvas
-     * @param c_x_dim The canvas width in pixels
-     * @param c_y_dim The canvas height in pixels
      */
     void setCanvasDimensions(const std::uint32_t & c_x_dim, const std::uint32_t & c_y_dim);
     /**
      * @brief Set the dimensions of the output canvas
-     * @param c_dim A tuple holding the canvas width and height (in pixels)
      */
     void setCanvasDimensions(const std::tuple<std::uint32_t, std::uint32_t> & c_dim);
     /**
      * @brief Allows to retrieve the canvas dimensions
-     * @return A tuple holding the canvas width and height (in pixels)
      */
     std::tuple<std::uint32_t, std::uint32_t> getCanvasDimensions() const;
 
     /**
      * @brief Allows to set the canvas label
-     * @param canvas_label The label to be assigned to the entire canvas
      */
     void setCanvasLabel(const std::string & canvas_label);
     /**
      * @brief Allows to retrieve the canvas label
-     * @return The current canvas label
      */
     std::string getCanvasLabel() const;
 
     /**
      * @brief Allows to add a "Print" command to the end of the script so that picture files are created
-     * @param add_print_command Whether a print command (for png creation) should be appended to the script
      */
     void setAddPrintCommand(bool add_print_command);
     /**
      * @brief Allows to retrieve the current value of the add_print_command_ variable
-     * @return Whether a print command is appended to the emitted script
      */
     bool getAddPrintCommand() const;
 
     /**
      * @brief Whether the canvas label is shown as the title of the whole figure. It is by
      * default; a figure that carries its title elsewhere (a caption in a book) leaves it out.
-     * @param show_canvas_label Whether to show the canvas label
      */
     void setShowCanvasLabel(bool show_canvas_label);
     /**
      * @brief Whether the canvas label is shown
-     * @return true if the figure shows the canvas label as its title
      */
     bool getShowCanvasLabel() const;
 
@@ -237,27 +211,22 @@ public:
 
     /**
      * @brief Allows to set the number of spaces used for indention
-     * @param n_indention_spaces The number of spaces used for indenting emitted lines
      */
     void setNIndentionSpaces(const std::size_t & n_indention_spaces);
 
     /**
      * @brief Allows to retrieve the number spaces used for indention
-     * @return The number of spaces currently used for indention
      */
     std::size_t getNIndentionSpaces() const;
 
     /**
      * @brief Returns the current number of indention spaces as a string
-     * @return A string consisting of the configured number of indention spaces
      */
     std::string indent() const;
 
 protected:
     /**
      * @brief A header for static data in a ROOT file
-     * @param indent The indentation string prepended to each emitted line
-     * @return The static-data header section of the ROOT script
      */
     std::string staticHeader(const std::string & indent) const;
 

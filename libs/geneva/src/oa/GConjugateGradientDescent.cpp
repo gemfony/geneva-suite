@@ -307,7 +307,7 @@ void GConjugateGradientDescent::setErrorDefinition(double up) {
 /**
  * @brief Retrieves the error definition UP.
  *
- * @return The MINUIT error definition UP
+ * @return The MINUIT error definition UP value
  */
 double GConjugateGradientDescent::getErrorDefinition() const {
     return error_up_;
@@ -345,7 +345,7 @@ void GConjugateGradientDescent::resetToOptimizationStart_() {
  * still stored on the individuals), then the children are rebuilt around the
  * stepped parents and the whole population is re-evaluated.
  *
- * @return The value of the best individual found in this iteration
+ * @return A tuple holding the best achieved fitness (raw and transformed)
  */
 std::tuple<double, double> GConjugateGradientDescent::cycleLogic_() {
     if(afterFirstIteration()) {
@@ -596,6 +596,7 @@ void GConjugateGradientDescent::ensureGradientScratch_(gen::GAuxiliaryStore &cg_
  * @param parent_fitness The (minimization-oriented) fitness of that starting point
  * @return The proxy gradient, one component per floating-point parameter
  */
+// clang-format off
 //! [algo-gd-proxy-gradient]
 std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
     std::size_t starting_point,
@@ -609,7 +610,8 @@ std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
         if(h <= 0.) {
             continue;
         }
-        const std::size_t fwd = n_starting_points_ + (starting_point * children_per_sp) + (j * n_probes);
+        const std::size_t fwd =
+            n_starting_points_ + (starting_point * children_per_sp) + (j * n_probes);
         const double f_fwd = minOnly_transformed_fitness((*this->at(fwd)));
         if(central_differences_) {
             const double f_bwd = minOnly_transformed_fitness((*this->at(fwd + 1)));
@@ -622,6 +624,7 @@ std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
     return gradient;
 }
 //! [algo-gd-proxy-gradient]
+// clang-format on
 
 /******************************************************************************/
 /**

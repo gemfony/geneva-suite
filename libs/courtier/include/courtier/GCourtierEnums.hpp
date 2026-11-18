@@ -351,20 +351,20 @@ enum class dispatchState : Gem::Common::ENUMBASETYPE {
 // 64-bit so the networked consumer can pack a 40-bit, process-unique, never-wrapping batch id with a
 // 24-bit slot index (GNetworkedConsumerT). This is the per-DISPATCH ROUTING token: it is minted fresh each
 // dispatch and is unique per in-flight slot, so a return is matched back to exactly the slot it was served
-// from -- correct even when an individual is submitted more than once within a single OA iteration (large
-// populations chunked into several spans, in-iteration re-dispatch). It deliberately does NOT identify the
-// individual across re-dispatch; that LINEAGE identity is SUBMISSION_UUID_TYPE below.
+// from -- correct even when an item is submitted more than once within one round of its submitter (large
+// batches chunked into several spans, in-round re-dispatch). It deliberately does NOT identify the
+// item across re-dispatch; that LINEAGE identity is SUBMISSION_UUID_TYPE below.
 using CORRELATION_ID_TYPE = std::uint64_t;
 /// The split of the correlation id described above: the slot index in the low bits, the batch id
 /// above it. The slot field bounds one batch to 2^24 items.
 constexpr CORRELATION_ID_TYPE GCORRELATIONIDSLOTBITS = 24;
 constexpr CORRELATION_ID_TYPE GCORRELATIONIDBATCHBITS = 40;
 
-// The stable, per-individual LINEAGE identity of a work item (D11). Minted ONCE, at construction, and
+// The stable, per-item LINEAGE identity of a work item (D11). Minted ONCE, at construction, and
 // carried IMMUTABLY across every (re-)dispatch and serialized round-trip (fresh only on clone() = a new
-// individual). Distinct from the per-dispatch CORRELATION_ID_TYPE above: the correlation id routes a single
+// item). Distinct from the per-dispatch CORRELATION_ID_TYPE above: the correlation id routes a single
 // return to its slot, while the uuid lets a LATE return be reunited with -- and de-duplicated against -- the
-// live individual it belongs to, even after that individual has been resubmitted under a new correlation id.
+// live item it belongs to, even after that item has been resubmitted under a new correlation id.
 // 128-bit (process salt + monotonic counter) so ids never collide within or across runs / checkpoint resumes.
 // The salt half has a second use: it names the process that handed an item out, so a networked
 // consumer drops a result whose item another server process handed out.
@@ -390,10 +390,26 @@ std::istream &operator>>(std::istream &i, Gem::Courtier::processingStatus &srm);
 } /* namespace Gem::Courtier */
 
 /******************************************************************************/
-// Numeric streaming opt-in (see numeric_enum_io_v in GCommonEnums.hpp)
+// Numeric streaming opt-in (see numeric_enum_values_v in GCommonEnums.hpp)
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::GFrameKind> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::consumerType> = true;
 template <>
-inline constexpr bool numeric_enum_io_v<Gem::Courtier::processRole> = true;
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::GFrameKind> = std::array{
+    Gem::Courtier::GFrameKind::NONE,
+    Gem::Courtier::GFrameKind::PULL,
+    Gem::Courtier::GFrameKind::NO_WORK,
+    Gem::Courtier::GFrameKind::WORK,
+    Gem::Courtier::GFrameKind::RETURN,
+    Gem::Courtier::GFrameKind::BLOB_REQUEST,
+    Gem::Courtier::GFrameKind::BLOB_REPLY,
+    Gem::Courtier::GFrameKind::RESULT,
+    Gem::Courtier::GFrameKind::UNREADABLE
+};
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::consumerType> = numeric_enum_range<
+    Gem::Courtier::consumerType::SERIAL,
+    Gem::Courtier::consumerType::NETWORKED>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::processRole> = numeric_enum_range<
+    Gem::Courtier::processRole::SUBMITTER,
+    Gem::Courtier::processRole::BYSTANDER>();
 } /* namespace Gem::Common */

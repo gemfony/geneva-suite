@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <cmath>
@@ -269,11 +270,19 @@ enum class parameterType : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for the two enums above; must precede their first
-// streaming use (see numeric_enum_io_v in GCommonEnums.hpp).
+// streaming use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::solverFunction> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::parameterType> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::solverFunction> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::solverFunction::PARABOLA,
+        Gem::Geneva::Individuals::solverFunction::ZAKHAROV>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::parameterType> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::parameterType::UNBOUNDED_SHARED,
+        Gem::Geneva::Individuals::parameterType::BOUNDED_PER_PARAMETER>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 
@@ -341,7 +350,6 @@ public:
     GFunctionIndividual() = default;
     /**
      * @brief Initialization with the desired demo function.
-     * @param d_f The solverFunction this individual should evaluate
      */
     explicit GFunctionIndividual(const solverFunction &d_f);
     /**
@@ -355,18 +363,15 @@ public:
 
     /**
      * @brief Allows setting the demo function to be evaluated.
-     * @param d_f The solverFunction this individual should evaluate
      */
     void setDemoFunction(solverFunction d_f);
     /**
      * @brief Allows retrieving the current demo function.
-     * @return The solverFunction currently selected for evaluation
      */
     solverFunction getDemoFunction() const;
 
     /**
      * @brief Allows to cross check the parameter size.
-     * @return The number of double parameters held by this individual's genome
      */
     std::size_t getParameterSize() const;
 
@@ -557,35 +562,24 @@ public:
 
     /**
      * @brief Registers the config-file options, binding them to the passed Config.
-     * @param gpb The GParserBuilder object to which the configurable values are added
-     * @param c The Config instance whose members are bound to the parser (written on parse)
      */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Builds the flat genome's structure for the configured parameter-type mode.
-     * @param c The configuration describing dimension, bounds and parameter-type mode
-     * @return The structure-only genome data for the selected mode
      */
     static gen::GenomeData buildGenome(const Config &c);
     /**
      * @brief The OA-owned adaption config: every double group gets the configured Gauss / bi-Gauss adaptor.
-     * @param sample A sample flat genome whose group structure the config mirrors
-     * @param c The configuration providing the Gauss / bi-Gauss adaptor settings
-     * @return A shared pointer to the populated adaption config
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the (non-genome) demo function to a produced individual.
-     * @param ind The individual to configure (modified in place)
-     * @param c The configuration providing the demo function to apply
      */
     static void applyConfig(GFunctionIndividual &ind, const Config &c);
     /**
      * @brief Reads a GFunctionIndividual config file into a Config (for callers that build directly,
      *  e.g. the dimension-sweeping benchmarks).
-     * @param configFile Path to the JSON configuration file
-     * @return A Config populated from the file
      */
     static Config readConfig(std::filesystem::path const &configFile);
     /**
@@ -594,9 +588,6 @@ public:
      *  GGenome options (eval_policy / maxmode / validity thresholds) from @p configFile -- a
      *  faithful drop-in for factory get_as<>() for callers that need a genome dimension differing from the
      *  config file (the dimension-sweeping benchmarks).
-     * @param c The configuration providing genome dimension, bounds and demo function
-     * @param configFile Path to the config file supplying the base GGenome options
-     * @return A fully configured GFunctionIndividual, wrapped in a shared_ptr
      */
     static std::shared_ptr<GFunctionIndividual>
     buildConfigured(const Config &c, std::filesystem::path const &configFile);
@@ -605,7 +596,6 @@ protected:
     //---------------------------------------------------------------------------
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
     /** @brief Single declaration of this class'es local data members */
@@ -616,7 +606,6 @@ protected:
 
     /**
      * @brief The evaluation hook: evaluates the selected benchmark function on the individual's parameters.
-     * @return The raw fitness as a one-element vector (a single-criterion problem)
      */
     std::vector<double> evaluate() final;
 
@@ -624,7 +613,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether any modifications were made
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */
@@ -640,18 +628,12 @@ private:
 /******************************************************************************/
 /**
  * @brief Provides an easy way to print the individual's content.
- * @param os The output stream to write to
- * @param ind The individual whose content is written
- * @return A reference to the output stream
  */
 std::ostream &
 operator<<(std::ostream & s, const Gem::Geneva::Individuals::GFunctionIndividual & f);
 
 /**
  * @brief Provides an easy way to print the individual's content via an owning pointer.
- * @param os The output stream to write to
- * @param ind_ptr A sole-ownership pointer to the individual whose content is written
- * @return A reference to the output stream
  */
 std::ostream &
 operator<<(std::ostream & s, const std::unique_ptr<Gem::Geneva::Individuals::GFunctionIndividual>& f_ptr);
@@ -676,9 +658,11 @@ using GFunctionIndividualFactory =
  * a given constraint. Here, the sum of all double variables needs to be smaller
  * than a given constant.
  */
+// clang-format off
 //! [constraints:declaration#1]
 class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
+  : public Gem::Common::
+        GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
@@ -690,6 +674,7 @@ class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
     }
     ///////////////////////////////////////////////////////////////////////
 //! [constraints:declaration#1]
+    // clang-format on
 //! [constraints:declaration#2]
 public:
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
@@ -699,7 +684,6 @@ public:
     GDoubleSumConstraint() = default;
     /**
      * @brief Initialization with the constant.
-     * @param c The constant that the sum of all double parameters must not exceed
      */
     explicit GDoubleSumConstraint(const double &c);
 //! [constraints:declaration#2]
@@ -734,15 +718,12 @@ protected:
     //! [constraints:declaration#4]
     /**
      * @brief Checks the constraint: the sum of parameters stays below the constant.
-     * @param p The individual whose parameters are checked
-     * @return A measure of constraint violation (0 if the constraint is satisfied)
      */
     double check_(const gen::GGenome *p) const override;
     //! [constraints:declaration#4]
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -783,8 +764,6 @@ public:
     GDoubleSumGapConstraint() = default;
     /**
      * @brief Initialization with the constant and the gap.
-     * @param c The target value the sum of all double parameters should equal
-     * @param gap The tolerance around c that is still considered valid
      */
     GDoubleSumGapConstraint(const double &c, const double &gap);
     /**
@@ -815,14 +794,11 @@ protected:
 
     /**
      * @brief Checks whether the equality constraint (sum of parameters near the constant) is fulfilled.
-     * @param p The individual whose parameters are checked
-     * @return A measure of constraint violation (0 if within the allowed gap)
      */
     double check_(const gen::GGenome *p) const override;
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -860,7 +836,6 @@ public:
     GSphereConstraint() = default;
     /**
      * @brief Initialization with the diameter.
-     * @param cp The diameter of the sphere within which solutions are valid
      */
     explicit GSphereConstraint(const double &diameter);
     /**
@@ -891,14 +866,11 @@ protected:
 
     /**
      * @brief Checks whether the constraint (solution within a sphere around 0) is fulfilled.
-     * @param p The individual whose parameters are checked
-     * @return A measure of constraint violation (0 if inside the sphere)
      */
     double check_(const gen::GGenome *p) const override;
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 

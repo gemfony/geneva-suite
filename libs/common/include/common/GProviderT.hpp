@@ -45,15 +45,17 @@ namespace Gem::Common {
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * A common provisioning interface for the mnemonic-keyed global stores. Both
- * optimization algorithms and consumers are looked up by mnemonic and then
- * asked to hand out a usable object via provide(). The two flavours differ only
+ * A common provisioning interface for the mnemonic-keyed global stores. The
+ * objects of such a store are looked up by mnemonic and then asked to hand out a
+ * usable object via provide(). Providers come in two flavours, which differ only
  * in how provide() is implemented:
  *
- *  - optimization algorithms wrap a config-file-driven factory, so provide()
- *    produces a freshly configured object on every call (many instances per run);
- *  - consumers wrap a single prototype instance, so provide() returns that same
- *    instance (one instance per run, used in place).
+ *  - a provider that wraps a config-file-driven factory produces a freshly
+ *    configured object on every call (many instances per run; Geneva's
+ *    optimization algorithms, for example);
+ *  - a provider that wraps a single prototype instance returns that same instance
+ *    on every call (one instance per run, used in place; courtier's consumers,
+ *    for example).
  *
  * The remaining methods (getMnemonic / getName / addCLOptions) expose metadata
  * and command-line options without producing an object, which is what the help

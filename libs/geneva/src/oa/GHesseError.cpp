@@ -266,10 +266,12 @@ bool invertMatrix(std::vector<std::vector<double>> const &m, std::vector<std::ve
  * forms the full Hessian and the resulting covariance matrix (for small dimensions), and
  * optionally computes asymmetric MINOS errors by profiling the objective.
  *
- * @param eval_fn The objective-evaluation callback (maps a batch of points to their fitness values)
+ * @param eval_fn The batch objective: maps a set of probe points to one (min-only) objective
+ *   value each
  * @param x_min The parameter vector at the located minimum
- * @param f_min The objective value at the minimum
- * @param step_sizes Per-parameter finite-difference step sizes (must have the same size as x_min)
+ * @param f_min The objective value at @p x_min (the centre term of the second differences)
+ * @param step_sizes Per-parameter finite-difference step sizes, one per dimension of @p x_min
+ *   (typically the algorithm's difference-quotient step)
  * @param opts Options controlling UP, full-covariance / MINOS computation and dimension limits
  * @return A GHesseErrorResult holding parameter errors, optional covariance and MINOS bounds,
  *         validity flags, condition number and the total number of evaluations performed

@@ -37,18 +37,18 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * What a consumer should do with a population slot that it ultimately cannot turn into a
+ * What a consumer should do with a batch slot that it ultimately cannot turn into a
  * successfully evaluated item -- i.e. an item that FAILED (its evaluation threw/crashed) or one
  * that stayed MISSING (never returned) beyond the resubmission budget / was reclassified as a
  * hidden FAILED.
  */
 //! [courtier-submission-policy#1]
 enum class on_unresolved : Gem::Common::ENUMBASETYPE {
-    /// Cannot continue -- terminate the program (e.g. gradient methods need
+    /// Cannot continue -- terminate the program (a submitter that needs
     /// every value)
     fatal = 0,
     /// Refill the slot with a clone of a successfully evaluated item
-    /// (population-based, tolerant)
+    /// (a tolerant submitter)
     clone = 1
 };
 //! [courtier-submission-policy#1]
@@ -56,16 +56,16 @@ enum class on_unresolved : Gem::Common::ENUMBASETYPE {
 /******************************************************************************/
 /**
  * A submission policy tells the consumer how to reconcile a batch (a std::span over the
- * population slice) when evaluations are missing or fail. Submission can NEVER be assumed to
- * succeed for every item (an evaluate() can throw, a client can die), so the consumer
- * always reconciles the span against this policy and guarantees a valid, full-size population on
+ * submitter's work items) when evaluations are missing or fail. Submission can NEVER be assumed to
+ * succeed for every item (an item's processing can throw, a client can die), so the consumer
+ * always reconciles the span against this policy and guarantees a valid, full-size batch on
  * return -- or terminates fatally when the policy cannot be honoured.
  *
  * Two failure kinds are distinguished per slot:
  *  - MISSING  : the item never came back (network loss, timeout, dead client).
  *  - FAILED   : the item came back flagged (its evaluation threw/crashed).
  * A MISSING item that never returns despite repeated resubmissions (max_resubmissions) is likely a
- * *poison* individual that crashes the client; once its resubmission budget is exhausted it becomes
+ * *poison* item that crashes the client; once its resubmission budget is exhausted it becomes
  * unresolved rather than being resubmitted forever (see GBaseConsumerT::processBatch).
  */
 //! [courtier-submission-policy#2]
@@ -89,8 +89,9 @@ struct GSubmissionPolicy {
 //! [courtier-submission-policy#2]
 
     /***************************************************************************/
-    /** @brief GD/CGD and the parameter scan: every slot must be successfully evaluated; resubmit
-     *  MISSING, optionally retry transient FAILED, and terminate if any slot stays unresolved.
+    /** @brief For a submitter that needs every value (Geneva's gradient descents and parameter
+     *  scan, for example): every slot must be processed successfully; resubmit MISSING, optionally
+     *  retry transient FAILED, and terminate if any slot stays unresolved.
      *
      *  @param max_resub Maximum number of times a MISSING item is resubmitted
      *  @param max_failed_retries Maximum number of times a FAILED item is re-evaluated (rides out transient crashes)
@@ -108,15 +109,16 @@ struct GSubmissionPolicy {
     }
 
     /***************************************************************************/
-    /** @brief EA and other population-based algorithms: refill missing/failed slots with clones of
+    /** @brief For a submitter that accepts substitutes (Geneva's evolutionary and other
+     *  population-based algorithms, for example): refill missing/failed slots with clones of
      *  successful items (never fatal except the zero-usable floor).
      *
-     *  Resubmission defaults to 0 here ON PURPOSE. An evaluate() is unbounded in time, so
-     *  resubmitting a MISSING item means waiting out *another* full (possibly very long) evaluation;
-     *  a tolerant algorithm gains nothing by that wait, because a clone of an already-evaluated
-     *  sibling is immediately available and is an acceptable population member. So for these
-     *  algorithms a single clone beats a resubmission: a slot that times out is cloned at once rather
-     *  than re-dispatched. (Need-all algorithms have no such option -- see full_success_or_fatal,
+     *  Resubmission defaults to 0 here ON PURPOSE. An item's processing is unbounded in time, so
+     *  resubmitting a MISSING item means waiting out *another* full (possibly very long) processing;
+     *  a tolerant submitter gains nothing by that wait, because a clone of an already-processed
+     *  sibling is immediately available and is an acceptable member of the batch. So for these
+     *  submitters a single clone beats a resubmission: a slot that times out is cloned at once rather
+     *  than re-dispatched. (Need-all submitters have no such option -- see full_success_or_fatal,
      *  where resubmission is mandatory because only a real evaluation will do.) Pass a non-zero
      *  @p max_resub only if a particular problem genuinely prefers re-evaluation over substitution.
      *

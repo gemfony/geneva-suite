@@ -52,6 +52,7 @@
 #include <boost/program_options.hpp>
 
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
@@ -115,13 +116,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
     gpb.registerFileParameter("algo_config_files", algoConfigFiles, algoConfigFiles)
         << "Algorithm-specific config file paths, one per entry";
 
-    if (not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GCUDAOptBenchmark loadConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     if (algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
         throw geneva_exception(
@@ -144,6 +139,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
 /******************************************************************************/
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::string configFile = "config/GCUDAOptBenchmark.json";
 
     // --update-configs: materialize every config this benchmark owns -- its own config, each configured

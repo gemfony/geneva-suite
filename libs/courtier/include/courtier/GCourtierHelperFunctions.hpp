@@ -47,23 +47,17 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /**
  * @brief Translates the processingStatus into a clear-text string.
- * @param ps The processingStatus to be translated
- * @return A string representing the processing status (empty for an unrecognized value)
  */
 std::string psToStr(const processingStatus &ps);
 
 /**
  * @brief Translates a protocol frame kind into a clear-text string.
- * @param fk The GFrameKind to be translated
- * @return A string representing the frame kind (empty for an unrecognized value)
  */
 std::string fkToStr(const GFrameKind &fk);
 
 /**
  * @brief Says what an exception says, for the log and for an item's error descriptions: the
  * what() of a std::exception, or that it is not one.
- * @param failure The exception; may be null
- * @return Its description
  */
 std::string describeException(const std::exception_ptr &failure);
 
@@ -71,8 +65,6 @@ std::string describeException(const std::exception_ptr &failure);
 /**
  * @brief A number that tells apart the files a process writes for results that a client could not
  * deliver (GPeerClientT): every call in a process returns another one.
- *
- * @return The next number
  */
 std::uint64_t nextUndeliveredFileNumber();
 

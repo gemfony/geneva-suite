@@ -30,10 +30,10 @@
 # harness (ReleaseTests, outoftree/mpi-module) and the container image build
 # (containers/geneva/Containerfile) configure it standalone, with CMAKE_PREFIX_PATH naming the
 # installation, as a user's own project would be. It checks that the installed package exports
-# Geneva::geneva-mpi and Geneva::courtier-mpi with what their headers need, that the MPI consumer's
-# header defines the consumer without the collection's own compile definitions, that a program can
-# link both, and that the "mpi" consumer is loaded at run time from the module installed next to
-# libgemfony-geneva. The normal build compiles, links and runs the same source with the same usage
+# Geneva::courtier-mpi with what its headers need, that the MPI consumer's header defines the
+# consumer without the collection's own compile definitions, that a program can link it, and that
+# the "mpi" consumer is loaded at run time from the module installed next to libgemfony-geneva
+# (which no program links). The normal build compiles, links and runs the same source with the same usage
 # requirements and nothing else (../CMakeLists.txt).
 
 cmake_minimum_required(VERSION 3.27)
@@ -45,4 +45,4 @@ find_package(Geneva CONFIG REQUIRED)
 
 add_executable(GenevaMpiModuleProbe GenevaMpiModuleProbe.cpp)
 target_link_libraries(GenevaMpiModuleProbe
-    PRIVATE Geneva::geneva-mpi Geneva::courtier-mpi Geneva::geneva)
+    PRIVATE Geneva::courtier-mpi Geneva::geneva)

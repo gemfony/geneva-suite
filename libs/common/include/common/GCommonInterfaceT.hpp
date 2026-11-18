@@ -329,6 +329,7 @@ public:
      * Reads a configuration file from disk
      *
      * @param config_file The name of the configuration file to be parsed
+     * @throws geneva_exception if the file cannot be read or applied (GParserBuilder::parseConfigFile())
      */
     void readConfigFile(std::filesystem::path const &config_file) {
         // This class will handle the interaction with configuration files
@@ -479,7 +480,8 @@ protected:
     /**
      * @brief Loads the data of another g_class_type
      *
-     * @param cp A pointer to another g_class_type-derivative whose data should be loaded into this object
+     * The argument points to another g_class_type-derivative whose data should be loaded into
+     * this object.
      */
     virtual void load_(const g_class_type *) = 0;
 

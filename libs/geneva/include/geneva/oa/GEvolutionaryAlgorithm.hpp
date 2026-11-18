@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 #include <tuple>
@@ -248,7 +249,7 @@ public:
     /***************************************************************************/
     /** @brief The default constructor */
     GEvolutionaryAlgorithm();
-    /** @brief A standard copy constructor. @param The object to be copied */
+    /** @brief A standard copy constructor. */
     GEvolutionaryAlgorithm(const GEvolutionaryAlgorithm &) = default;
     /** @brief The standard destructor */
     ~GEvolutionaryAlgorithm() override = default;

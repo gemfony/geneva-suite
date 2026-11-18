@@ -34,7 +34,7 @@
  * @brief Umbrella header re-exporting the full Geneva plotting stack.
  *
  * The plotting code is split into focused headers under dietrich/plotting/. This umbrella keeps
- * a single #include "dietrich/GPlotDesigner.hpp" working; it pulls in the full plotting stack (each
+ * a single \#include "dietrich/GPlotDesigner.hpp" working; it pulls in the full plotting stack (each
  * plotting header also stands alone and chain-includes its own dependencies). The public plotting
  * API (GPlotDesigner, the GBasePlotter hierarchy, etc.) is declared and documented in
  * dietrich/plotting/GPlotDesigner.hpp and the sibling plotting headers it includes.

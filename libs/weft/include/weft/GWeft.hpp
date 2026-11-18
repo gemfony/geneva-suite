@@ -77,8 +77,6 @@ namespace Gem::Weft {
  * This is a genuine out-of-line symbol that anchors the @c gemfony-weft shared
  * object (the codecs and registry are otherwise header-only templates), so the
  * library builds and installs uniformly with the other Geneva libraries.
- *
- * @return The Weft version string (e.g. "1.99.0-beta1").
  */
 [[nodiscard]] std::string version();
 

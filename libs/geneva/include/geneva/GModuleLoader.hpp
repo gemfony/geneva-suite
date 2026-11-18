@@ -80,9 +80,6 @@ struct LoadedModule {
  * or with two individuals is refused before anything of it is taken; see
  * Gem::Common::loadModule() for the other refusals and for the one case in which part of a
  * module stays registered.
- *
- * @param module_path The module (a shared object)
- * @return What the module contributed
  */
 LoadedModule loadModule(const std::filesystem::path &module_path);
 

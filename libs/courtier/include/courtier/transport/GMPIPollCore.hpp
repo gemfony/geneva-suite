@@ -284,19 +284,19 @@ private:
 
     /// Sends that were started and that the chain has not taken over yet
     Gem::Common::Concurrency::GMPMCQueueT<GStartedSend, 0> started_;
-    std::atomic<bool> kick_pending_{false};  ///< A kick is on its way to the strand
+    std::atomic<bool> kick_pending_{false};      ///< A kick is on its way to the strand
     std::atomic<std::size_t> busy_receivers_{0}; ///< Receivers whose owner is busy (receiverBusy())
-    std::atomic<bool> started_chain_{false}; ///< start() has been called
-    std::atomic<bool> chain_ended_{false};   ///< No further link runs
-    std::atomic<bool> shut_down_{false};     ///< shutdown() has run
+    std::atomic<bool> started_chain_{false};     ///< start() has been called
+    std::atomic<bool> chain_ended_{false};       ///< No further link runs
+    std::atomic<bool> shut_down_{false};         ///< shutdown() has run
     std::atomic<int> sends_in_progress_{
         0
     }; ///< startSend() calls under way; shutdown() waits for them
 
-    std::atomic<std::uint64_t> n_received_{0}; ///< Messages received
-    std::atomic<std::uint64_t> n_sent_{0};     ///< Sends started
-    std::atomic<std::uint64_t> n_polls_{0};    ///< Links that ran
-    std::atomic<std::uint64_t> n_given_up_{0}; ///< Sends given up
+    std::atomic<std::uint64_t> n_received_{0};        ///< Messages received
+    std::atomic<std::uint64_t> n_sent_{0};            ///< Sends started
+    std::atomic<std::uint64_t> n_polls_{0};           ///< Links that ran
+    std::atomic<std::uint64_t> n_given_up_{0};        ///< Sends given up
     std::atomic<std::int64_t> receiving_ns_{0};       ///< Time inside receives, in ns
     std::atomic<std::int64_t> longest_receive_ns_{0}; ///< The longest receive, in ns
 

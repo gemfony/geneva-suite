@@ -143,7 +143,7 @@ void GSimulatedAnnealing::setTDegradationStrength(double alpha) {
 /**
   * @brief Retrieves the temperature degradation strength. This function is used for simulated annealing.
   *
-  * @return The temperature degradation strength
+  * @return The current value of the temperature degradation strength (alpha_)
   */
 double GSimulatedAnnealing::getTDegradationStrength() const {
     return alpha_;
@@ -171,7 +171,7 @@ void GSimulatedAnnealing::setT0(double t0) {
 /**
   * @brief Retrieves the start temperature. This function is used for simulated annealing.
   *
-  * @return The start temperature
+  * @return The current value of the start temperature (t0_)
   */
 double GSimulatedAnnealing::getT0() const {
     return t0_;
@@ -181,7 +181,7 @@ double GSimulatedAnnealing::getT0() const {
 /**
   * @brief Retrieves the current temperature. This function is used for simulated annealing.
   *
-  * @return The current temperature
+  * @return The current temperature (t_)
   */
 double GSimulatedAnnealing::getT() const {
     return t_;
@@ -369,11 +369,15 @@ void GSimulatedAnnealing::sortSAMode() {
   *
   * @param f_min_only_parent The "min only" (minimization-transformed) fitness of the parent
   * @param f_min_only_child The "min only" (minimization-transformed) fitness of the child
-  * @return A double value representing the Boltzmann likelihood for the child to replace the parent
+  * @return The Boltzmann acceptance weight for the child: a probability in [0,1] for a worse
+  *   child; >= 1, i.e. always accept, for a child that is at least as good
   */
+// clang-format off
 //! [sa-cooling#1]
-double
-GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min_only_child) const {
+double GSimulatedAnnealing::saProb(
+    const double &f_min_only_parent,
+    const double &f_min_only_child
+) const {
     // Minimisation: a worse child has f_child > f_parent, so the exponent is negative
     // and the result lies in (0, 1); a child that is at least as good gives a
     // non-negative exponent, hence a result >= 1, which the caller treats as
@@ -382,6 +386,7 @@ GSimulatedAnnealing::saProb(const double &f_min_only_parent, const double &f_min
     return exp(-(f_min_only_child - f_min_only_parent) / t_);
 }
 //! [sa-cooling#1]
+// clang-format on
 
 /******************************************************************************/
 /**

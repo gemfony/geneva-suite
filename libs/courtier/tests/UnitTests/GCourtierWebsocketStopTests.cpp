@@ -331,9 +331,10 @@ private:
 } /* anonymous namespace */
 
 /**
- * A client whose session is on its way when the server stops (the call of on_peer is held on a
- * session thread): stop() of the websocket listener waits for that call, so the shell finds the
- * session and the client is told that the run has ended (GListenerI::stop()).
+ * A client whose session is on its way when the server stops (the call of on_peer is held on the
+ * listener's accept strand, its one I/O thread): stop() of the websocket listener waits for that
+ * call, so the shell finds the session and the client is told that the run has ended
+ * (GListenerI::stop()).
  */
 TEST_CASE(
     "courtier(websocket): a client whose session is on its way at the stop is told the run has ended",

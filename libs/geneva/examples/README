@@ -92,10 +92,10 @@ quickstart in ../quickstart and call the executable with --help --showAll to exp
 16_GMPISubClients:
 ------------------
 
-This example shows how to use the GMPISubClientOptimizer.
-It offers all functionality of Go2 but additionally adds the functionality of
-creating MPI-sub-clients, which can be used to parallelize computation on the level
-of individuals in a user-defined fashion.
+This example shares the evaluation of one individual among several MPI processes. It uses
+courtier's MPI cascade (GMPICascade): rank 0 runs the optimization through Go2, the other
+processes form groups of a lead (a client of the MPI consumer) and its members (sub-clients),
+and each lead evaluates an individual in a round of its group.
 
 17_GAlgorithmChaining:
 ----------------------

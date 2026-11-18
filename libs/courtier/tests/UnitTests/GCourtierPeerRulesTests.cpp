@@ -250,8 +250,9 @@ bool flushed(const boost::asio::any_io_executor &executor) {
 /******************************************************************************/
 /**
  * Rule 1: nothing is reported before start(), and onOpen comes before any message. Messages that
- * reach an end before it is started are kept, not lost. After close() onOpen is not delivered, nor
- * is any message that arrived before.
+ * reach an end before it is started are kept, not lost. After a close() made before the end opened
+ * (on its strand, for these transports) onOpen is not delivered, nor is any message that arrived
+ * before (rule 6).
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- linear; Catch2 macros count
 TEMPLATE_TEST_CASE(
@@ -939,7 +940,8 @@ TEST_CASE(
 /******************************************************************************/
 /**
  * An on_peer that throws: as with the websocket listener, the exception does not leave the thread
- * that runs it, and the call is counted out, so that stop() does not wait for it until its bound.
+ * that runs it (the listener's own; GListenerI::start()), which goes on calling on_peer for the next
+ * connection, and the call is counted out, so that stop() does not wait for it until its bound.
  */
 TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[courtier][peer]") {
     const bool standard = GENERATE(true, false);
@@ -947,24 +949,11 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
         .stopBound = 5s,
     });
-    boost::asio::io_context ctx;
-    auto guard = boost::asio::make_work_guard(ctx);
-    std::atomic<int> escaped{0};
-    std::thread runner([&ctx, &escaped] {
-        while(true) {
-            try {
-                ctx.run();
-                return;
-            }
-            catch(...) {
-                escaped.fetch_add(1);
-            }
-        }
-    });
+    IoThreads io(1); // the server ends' handlers
 
     std::atomic<int> calls{0};
     listener->start(
-        ctx.get_executor(),
+        io.executor(),
         [&calls, standard](const std::shared_ptr<GPeerI> &, GWirePeerId) {
             calls.fetch_add(1);
             if(standard) {
@@ -973,21 +962,21 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
             throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
         }
     );
-    auto client_end = listener->connect_(ctx.get_executor());
-    REQUIRE(client_end != nullptr);
+    auto first_end = listener->connect_(io.executor());
+    REQUIRE(first_end != nullptr);
     REQUIRE(eventually([&] { return calls.load() == 1; }));
+    auto second_end = listener->connect_(io.executor());
+    REQUIRE(second_end != nullptr);
+    CHECK(eventually([&] { return calls.load() == 2; })); // the listener's thread goes on
 
     const auto stop_began = std::chrono::steady_clock::now();
     listener->stop();
     const auto took = std::chrono::steady_clock::now() - stop_began;
     CHECK(listener->nStopBoundsHit() == 0);
     CHECK(took < 2s);
-    CHECK(escaped.load() == 0);
 
-    client_end.reset();
-    guard.reset();
-    ctx.stop();
-    runner.join();
+    first_end.reset();
+    second_end.reset();
     listener->endWork();
 }
 

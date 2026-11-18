@@ -119,7 +119,9 @@ ADD_SUBDIRECTORY( 17_GAlgorithmChaining )
 #   06_GDirect{EA,SA,Swarm}          -- drive an optimization algorithm directly, without Go2;
 #   11_GExternalEvaluator            -- building its individual EXECUTES an external evaluator program;
 #   14_GCUDAWorker / 19_GFunctionGPU -- need a CUDA device;
-#   15_GMPIConsumer / 16_GMPISubClients -- need mpirun;
+#   15_GMPIConsumer                  -- needs mpirun;
+#   16_GMPISubClients                -- refreshes its configs without mpirun (its MPI cascade makes no
+#                                       MPI call under --update-configs), but is not listed here yet;
 #   18_GLoadableIndividual           -- a plugin loader (needs --individual <plugin.so>).
 # Those are refreshed by hand (or via their own run) when needed.
 OPTION(GENEVA_UPDATE_CONFIGS

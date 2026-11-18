@@ -37,7 +37,7 @@ namespace Gem::Common {
 /******************************************************************************/
 // The numeric enum stream operators (sortOrder, dimensions, logType,
 // serializationMode, expectation) are supplied by the shared
-// numeric_enum_io_v machinery in GCommonEnums.hpp. Only tribool's textual
+// numeric_enum_values_v machinery in GCommonEnums.hpp. Only tribool's textual
 // insertion operator needs a hand-written implementation.
 
 /******************************************************************************/
@@ -80,29 +80,6 @@ std::string serModeToString(Gem::Common::serializationMode ser_mod) {
     default:
         return "unknown";
     }
-}
-
-/******************************************************************************/
-/**
- * Reads a serializationMode as its numeric value and refuses one that names no mode.
- *
- * @param i The input stream to read from
- * @param x The mode read (unchanged if the stream fails)
- * @return A reference to the input stream
- */
-std::istream &operator>>(std::istream &i, serializationMode &x) {
-    std::int64_t value = 0;
-    if(not(i >> value)) {
-        return i;
-    }
-    for(const serializationMode mode : SERIALIZATIONMODES) {
-        if(std::cmp_equal(value, std::to_underlying(mode))) {
-            x = mode;
-            return i;
-        }
-    }
-    i.setstate(std::ios_base::failbit);
-    return i;
 }
 
 /******************************************************************************/

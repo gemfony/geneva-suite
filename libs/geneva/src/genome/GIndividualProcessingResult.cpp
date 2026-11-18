@@ -44,7 +44,7 @@ namespace Gem::Geneva::Genome {
  * The transformed fitness is set to the same value as the raw fitness, and the flag indicating that
  * the transformed fitness has been set is left false.
  *
- * @param raw_fitness The raw fitness value.
+ * @param raw_fitness The raw fitness value to store
  */
 individual_processing_result::individual_processing_result(const double raw_fitness)
   : raw_fitness_(raw_fitness)
@@ -59,8 +59,8 @@ individual_processing_result::individual_processing_result(const double raw_fitn
  *
  * Also sets the flag indicating that the transformed fitness has been set.
  *
- * @param raw_fitness The raw fitness value.
- * @param transformed_fitness The transformed fitness value.
+ * @param raw_fitness The raw fitness value to store
+ * @param transformed_fitness The transformed fitness value to store
  */
 individual_processing_result::individual_processing_result(
     const double raw_fitness,
@@ -78,7 +78,7 @@ individual_processing_result::individual_processing_result(
  * The transformed fitness is calculated by applying the provided function to the raw fitness. Throws
  * if the function object is empty.
  *
- * @param raw_fitness The raw fitness value.
+ * @param raw_fitness The raw fitness value to store
  * @param f A function mapping the raw fitness value to a transformed fitness value; must not be empty.
  */
 individual_processing_result::individual_processing_result(

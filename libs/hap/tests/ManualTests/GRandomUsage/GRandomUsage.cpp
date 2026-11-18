@@ -147,7 +147,9 @@ enum class distType : Gem::Common::ENUMBASETYPE {
 // in GCommonEnums.hpp; the using-declarations make the operators reachable for
 // this global-namespace enum.
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<distType> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<distType> =
+    numeric_enum_range<distType::GAUSSIAN, distType::EXPGAUSS16>();
 }
 using Gem::Common::operator<<;
 using Gem::Common::operator>>;

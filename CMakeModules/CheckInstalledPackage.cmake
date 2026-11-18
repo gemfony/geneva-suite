@@ -54,8 +54,9 @@
 #  5. FindGeneva.cmake, the module-mode fallback, is used against the moved
 #     installation (the module the installation carries) by a small project
 #     written here: it must define the same targets the config package exports
-#     (with the MPI consumer also Geneva::courtier-mpi and Geneva::geneva-mpi,
-#     and GENEVA_MPI); with the MPI consumer the probe's source is built and run
+#     (with the MPI consumer also Geneva::courtier-mpi,
+#     and GENEVA_MPI), and GENEVA_LIBS must not hold the MPI module, which no
+#     program links; with the MPI consumer the probe's source is built and run
 #     against those targets. The module and the config package must ask for the
 #     same Boost version and components;
 #  6. both the config package and FindGeneva.cmake say whether the installation has
@@ -282,15 +283,18 @@ FUNCTION(gip_lane_findgeneva)
 		"  if(NOT TARGET Geneva::\${_t})\n"
 		"    message(FATAL_ERROR \"FindGeneva defines no Geneva::\${_t}\")\n"
 		"  endif()\n"
-		"endforeach()\n")
+		"endforeach()\n"
+		"if(\"gemfony-geneva-mpi\" IN_LIST GENEVA_LIBS)\n"
+		"  message(FATAL_ERROR \"FindGeneva lists the MPI module in GENEVA_LIBS\")\n"
+		"endif()\n")
 	IF(WITH_MPI)
 		STRING(APPEND _fg_lists
-			"if(NOT GENEVA_MPI OR NOT TARGET Geneva::courtier-mpi OR NOT TARGET Geneva::geneva-mpi)\n"
+			"if(NOT GENEVA_MPI OR NOT TARGET Geneva::courtier-mpi)\n"
 			"  message(FATAL_ERROR \"FindGeneva does not know the MPI libraries\")\n"
 			"endif()\n"
 			"add_executable(GenevaMpiModuleProbe \"${_probe_cpp}\")\n"
 			"target_link_libraries(GenevaMpiModuleProbe\n"
-			"  PRIVATE Geneva::geneva-mpi Geneva::courtier-mpi Geneva::geneva)\n")
+			"  PRIVATE Geneva::courtier-mpi Geneva::geneva)\n")
 	ELSE()
 		STRING(APPEND _fg_lists
 			"if(GENEVA_MPI)\n"

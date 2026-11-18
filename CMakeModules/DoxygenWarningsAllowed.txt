@@ -1,0 +1,5 @@
+# The Doxygen warnings the test DoxygenWarningsOnlyAllowed accepts (CheckDoxygenWarnings.cmake),
+# one per line, as "<path below the source tree>: <message>" without the line number. Every other
+# warning fails the test, and so does a line here that Doxygen no longer reports.
+#
+# Add a line only for a warning that cannot be removed in the documentation itself, and say why.

@@ -580,8 +580,8 @@ GMPIListener::~GMPIListener() {
 /******************************************************************************/
 /**
  * Makes the poll and a peer for every other rank, starts the poll's thread, greets every client
- * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell:
- * on_peer is posted, once per rank, to a strand of @p executor, with the rank as the client's id.
+ * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell
+ * (handOver_()), with the rank as the client's id.
  * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer: one
  * that fails after the poll was set up ends the work as endWork() does, so every client rank is
  * told that the run has ended (its client would wait for ever otherwise), and the shell, which
@@ -590,8 +590,8 @@ GMPIListener::~GMPIListener() {
  * A communicator of this rank alone is refused: there is no client rank, and an MPI job keeps the
  * ranks it was started with, so the work would wait for ever.
  *
- * @param executor Where on_peer and the peers' handlers run (the shell's session pool)
- * @param on_peer Called for every client rank
+ * @param executor Where the peers' handlers run (the shell's session pool)
+ * @param on_peer Called for every client rank, on the poll's thread
  * @throws geneva_exception if the listener was started before, if the communicator has no rank
  *         besides this one, or if the poll or its thread cannot be made
  */
@@ -629,7 +629,6 @@ void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_
     }
     // (Only a failing allocation gets into the catch outside the tests.)
     try {
-        handler_executor_ = std::move(executor);
         on_peer_ = std::move(on_peer);
         n_peers_.store(peers.size());
         peers_.assign(peers.begin(), peers.end());
@@ -719,21 +718,31 @@ void GMPIListener::startPoll_(const std::shared_ptr<GMPIPollCore> &core) {
 
 /******************************************************************************/
 /**
- * Hands every peer to the shell: on_peer is posted, once per rank, to a strand of the shell's
- * executor. Every call is counted before it is posted, so that stop() sees every call that will
- * come; on_peer_ is dropped only by endWork(), when the shell's threads no longer run this.
+ * Hands every peer to the shell: one handler, posted to the poll's thread, not to the shell's
+ * executor (GListenerI::start()), calls on_peer for every rank in turn; every session thread may be
+ * busy for any time, and the calls are short. Every call is counted before the handler is posted,
+ * so that stop() sees every call that will come; on_peer_ is dropped only by endWork(), when the
+ * poll's thread no longer runs this. Everything here that may throw comes before the post, so a
+ * start() that throws has called no on_peer (GListenerI::start()). (No test: only a failing
+ * allocation makes the counting or the post throw.)
  *
  * @param peers The peers, not started
  */
 void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
-    auto on_peer_strand = boost::asio::make_strand(handler_executor_);
-    for(auto &peer : peers) {
-        const auto peer_id = static_cast<GWirePeerId>(peer->rank());
-        on_peer_calls_.set(peer_id, true);
-        boost::asio::post(on_peer_strand, [this, peer = std::move(peer), peer_id]() mutable {
-            // No exception leaves a thread of the shell's executor: a rank whose session cannot be
-            // made is closed with an error (its client would wait for ever otherwise), and the call
-            // is counted out.
+    for(const auto &peer : peers) {
+        on_peer_calls_.set(static_cast<GWirePeerId>(peer->rank()), true);
+    }
+    boost::asio::post(poll_context_, [this, peers = std::move(peers)] {
+        for(const auto &peer : peers) {
+            if(poll_context_.stopped()) {
+                // endWork() after a stop whose bound was hit: the calls not yet made are dropped,
+                // as the shell's threads have gone (the poll still holds the peers for tellEnds_())
+                return;
+            }
+            const auto peer_id = static_cast<GWirePeerId>(peer->rank());
+            // No exception leaves the poll's thread: a rank whose session cannot be made is closed
+            // with an error (its client would wait for ever otherwise), and the call is counted
+            // out.
             try {
                 if(on_peer_) {
                     on_peer_(peer, peer_id);
@@ -747,15 +756,15 @@ void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
                 peer->close(GPeerClose::ERROR);
             }
             on_peer_calls_.remove(peer_id);
-        });
-    }
+        }
+    });
 }
 
 /******************************************************************************/
 /**
  * No new peers (there are none after start()), and none on its way (GListenerI::stop()): waits
- * for the calls of on_peer posted by start(), at most LISTENER_STOP_BOUND. Not on a thread of the
- * shell's executor (the calls waited for run there). Idempotent.
+ * for the calls of on_peer posted by start(), at most LISTENER_STOP_BOUND. Not on the poll's
+ * thread (the calls waited for run there). Idempotent.
  */
 void GMPIListener::stop() {
     if(not running_.load() || stopped_.exchange(true)) {
@@ -794,7 +803,6 @@ void GMPIListener::endWork() {
     }
     poll_context_.shutdown();
     on_peer_ = nullptr;
-    handler_executor_ = boost::asio::any_io_executor{};
 }
 
 /******************************************************************************/
@@ -853,7 +861,11 @@ void GMPIListener::announceEndWithoutStart() {
 }
 
 /******************************************************************************/
-/** @return The number of client ranks; 0 before start() */
+/**
+ * @brief The number of client ranks (the peers made by start()). Any thread.
+ *
+ * @return The number of client ranks; 0 before start()
+ */
 std::size_t GMPIListener::nPeers() const noexcept {
     return n_peers_.load();
 }

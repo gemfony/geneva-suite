@@ -1923,77 +1923,6 @@ int submitterThrowsScenario(Report &report, bool consumer_first) {
     }
 }
 
-/** Runs a function in its destructor; a failure out of it is reported, not thrown */
-class InDestructor final {
-public:
-    /** @brief Runs @p function when destroyed @param report For a failure @param function What */
-    InDestructor(Report &report, std::function<void()> function)
-      : report_(report)
-      , function_(std::move(function)) { /* nothing */
-    }
-    /** @brief Runs the function */
-    ~InDestructor() {
-        try {
-            function_();
-        }
-        catch(const std::exception &e) {
-            report_.fail("an exception left the destructor's function: {}", e.what());
-        }
-        catch(...) {
-            report_.fail(
-                "an exception that is not a std::exception left the destructor's function"
-            );
-        }
-    }
-    InDestructor(const InDestructor &) = delete;
-    InDestructor(InDestructor &&) = delete;
-    InDestructor &operator=(const InDestructor &) = delete;
-    InDestructor &operator=(InDestructor &&) = delete;
-
-private:
-    Report &report_;                 ///< For a failure
-    std::function<void()> function_; ///< What runs in the destructor
-};
-
-/**
- * A cascade that lives entirely inside a destructor that runs while an unrelated exception
- * unwinds (entries ...DuringUnwinding and ...DuringUnwindingNeverConfirms): in SUBMITTER_AND_GROUPS
- * without a consumer, every lead calls its rounds itself. No exception unwinds through the
- * cascade, so with @p confirm the job ends normally with 0 -- the submitter's rule for an exception
- * before its consumer must not fire. Without @p confirm the submitter never confirms its role, and
- * its destructor must end the job for that reason.
- *
- * @param confirm Whether the submitter confirms its role
- */
-int duringUnwindingScenario(Report &report, bool confirm) {
-    try {
-        const InDestructor during(report, [&report, confirm] {
-            report.check(
-                std::uncaught_exceptions() == 1,
-                std::format(
-                    "{} exceptions unwind in the destructor, not 1",
-                    std::uncaught_exceptions()
-                )
-            );
-            SquareMember member(report);
-            Courtier::GMPICascade cascade([] {
-                return configOf(3, GMPICascadeLayout::SUBMITTER_AND_GROUPS);
-            });
-            if(cascade.role() == processRole::SUBMITTER && not confirm) {
-                std::println("the submitter leaves without confirming its role");
-                std::ignore = std::fflush(stdout);
-                return; // the cascade's destructor ends the job
-            }
-            runGroups(report, cascade, member, 2);
-        });
-        throw InjectedFailure("an exception that has nothing to do with the cascade");
-    }
-    catch(const InjectedFailure &) {
-        // expected: the cascade lived and ended inside the destructor
-    }
-    return report.failures();
-}
-
 /** The exit code a submitter of submitterAbortsScenario() ends the job with */
 constexpr int ABORTCODE = 42;
 
@@ -2220,13 +2149,10 @@ int runScenario(Report &report, std::string_view name, int argc, char **argv) {
         {"submitter-throws", [](Report &r) { return submitterThrowsScenario(r, false); }},
         {"submitter-throws-after-consumer",
          [](Report &r) { return submitterThrowsScenario(r, true); }},
-        {"during-unwinding", [](Report &r) { return duringUnwindingScenario(r, true); }},
         {"submitter-aborts", [](Report &r) { return submitterAbortsScenario(r, false); }},
         {"submitter-aborts-twice", [](Report &r) { return submitterAbortsScenario(r, true); }},
         {"abort-without-mpi",
          [argc, argv](Report &r) { return abortWithoutMpiScenario(r, argc, argv); }},
-        {"during-unwinding-never-confirms",
-         [](Report &r) { return duringUnwindingScenario(r, false); }},
     };
     for(const auto &[scenario_name, scenario] : scenarios) {
         if(scenario_name == name) {

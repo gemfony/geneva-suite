@@ -106,28 +106,35 @@ int main(int argc, char **argv) {
             .get<oa::GOptimizationAlgorithmBase>();
     }
 
+    // clang-format off
     //! [meta.example-main#2]
     // The meta genome carries only structure; its adaptors (n_parents flip, n_children
     // integer-Gauss, doubles Gauss) live on an OA-owned config the meta individual
     // authors. Register it for the outer EA.
     {
-        auto sample = gmoi_ptr->get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+        auto sample =
+            gmoi_ptr->get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
         go.registerAdaptionConfig("PERSONALITY_EA", sample->getAdaptionConfig());
     }
     //! [meta.example-main#2]
+    // clang-format on
 
     // Drive the meta-optimization with the dedicated meta-EA: it evaluates the umbrella-individuals on
     // its own orchestration pool, so each umbrella's sub-EA can submit to the one work consumer without
     // the meta level competing for it (a plain EA here would deadlock once the sub-EA shares that
     // consumer). It is a standard EA otherwise (PERSONALITY_EA), so the registered adaption config and
     // the EA-targeted monitor apply unchanged.
+    // clang-format off
     //! [meta.example-main#3]
     go.registerDefaultAlgorithm(std::make_shared<oa::GMetaEvolutionaryAlgorithm>());
 
     // Perform the actual optimization
     auto const bestIndividual_ptr =
-        go.optimize()->getBestGlobalIndividual<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+        go.optimize()
+            ->getBestGlobalIndividual<
+                gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
     //! [meta.example-main#3]
+    // clang-format on
 
     // Do something with the best result. Here we simply print the result to std-out.
     std::cout << "Best Result was:" << '\n' << *bestIndividual_ptr << '\n';

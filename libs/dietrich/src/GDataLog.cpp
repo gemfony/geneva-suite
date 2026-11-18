@@ -73,7 +73,7 @@ GDataLog::GDataLog(std::string canvas_label, std::size_t c_x_div, std::size_t c_
 /**
  * Declares a primary series (its own pad) from its plot spec.
  *
- * @param spec The plot specification
+ * @param spec The plot specification (kind, labels, columns, bins, plot mode)
  * @return The id of the new series
  */
 GDataLog::SeriesId GDataLog::declareSeries(GPlotSpec spec) {
@@ -106,7 +106,7 @@ GDataLog::SeriesId GDataLog::overlaySeries(SeriesId primary, GPlotSpec spec) {
  * Appends one data row (one value per column) to a series.
  *
  * @param id The series to append to
- * @param row One value per column
+ * @param row One value per column (size must match the series' column count)
  */
 void GDataLog::append(SeriesId id, std::span<const double> row) {
     if(id >= series_.size()) {

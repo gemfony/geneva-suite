@@ -137,7 +137,7 @@ namespace Gem::Common {
  * @param path The path (including file name) to the file to be touched
  * @param content An optional content for the file (default empty)
  * @param remove_if_not_present Indicates whether the file should be removed after having been touched (default false)
- * @return The time of the last write to the file
+ * @return The time of the last write to the file (usable as a filesystem-based time marker)
  */
 std::filesystem::file_time_type touch_time(
     std::filesystem::path const &path,
@@ -194,7 +194,7 @@ unsigned int getNHardwareThreads() {
  * a text.
  *
  * @param p The name of the file to be loaded
- * @return The data contained in the file
+ * @return The data contained in the file, as a single string
  */
 std::string loadTextDataFromFile(std::filesystem::path const &p) {
     // Check that the file exists
@@ -230,7 +230,7 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
  * a std::vector of strings, each holding a single line
  *
  * @param p The name of the file to be loaded
- * @return The data contained in the file, as a std::vector
+ * @return A std::vector holding the non-empty lines of the file
  */
 std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
     // Check that the file exists
@@ -324,10 +324,6 @@ int runExternalCommand(
 
 /******************************************************************************/
 /**
- * Splits a string into a vector of strings, according to a seperator character.
- * Any trailing or leading white spaces are removed from the result strings.
- *
- * @param str The string to be split
  * @brief Trims leading and trailing whitespace (spaces, tabs, CR, LF) from a string.
  *
  * @param s The string to trim
@@ -347,8 +343,8 @@ std::string trimWhitespace(std::string_view s) {
  * @brief Splits a string into a vector of strings, according to a separator character.
  *
  * @param str The string to be split
- * @param sep The separator character
- * @return A std::vector holding the fragments
+ * @param sep A single-character C-string holding the separator character
+ * @return A std::vector holding the (whitespace-trimmed, non-empty) fragments
  */
 std::vector<std::string> splitString(std::string const &str, const char *sep) {
     std::vector<std::string> result;
@@ -390,7 +386,7 @@ std::vector<std::string> splitString(std::string const &str, const char *sep) {
  * separated by the @p sep character.
  *
  * @param raw The string to be parsed (must contain at least one entry)
- * @param sep The separator character between entries
+ * @param sep The separator character between entries (default: ',')
  * @return A std::vector holding the parsed unsigned int values
  */
 std::vector<unsigned int> stringToUIntVec(std::string const &raw, char sep) {
@@ -592,6 +588,7 @@ std::string getMSSince1970() {
  *
  * @param file_name The output file to back up if it exists
  * @param context The caller's identification, used verbatim as the first line of the warning
+ *   (e.g. "GProcessingTimesLogger::informationFunction_(): Warning!")
  * @return true if a backup was made, false if there was no such file
  */
 bool backupExistingFile(const std::string &file_name, std::string_view context) {

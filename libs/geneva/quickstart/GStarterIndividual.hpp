@@ -74,11 +74,14 @@ enum class targetFunction : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for targetFunction; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Geneva */
 } /* namespace Gem */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::targetFunction> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::targetFunction> = numeric_enum_range<
+    Gem::Geneva::targetFunction::PARABOLA,
+    Gem::Geneva::targetFunction::NOISYPARABOLA>();
 } /* namespace Gem::Common */
 namespace Gem {
 namespace Geneva {
@@ -121,12 +124,16 @@ class GStarterIndividual
      * hand-written quartet, no silently-dropped member.
      * @return A tuple of named member references
      */
+    // clang-format off
     //! [weft-local-members#2]
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(Gem::Common::make_member("targetFunction_", self.targetFunction_));
+        return std::make_tuple(
+            Gem::Common::make_member("targetFunction_", self.targetFunction_)
+        );
     }
     //! [weft-local-members#2]
+    // clang-format on
 
     ///////////////////////////////////////////////////////////////////////
 
@@ -303,9 +310,12 @@ std::ostream &operator<<(std::ostream &, const std::unique_ptr<GStarterIndividua
  * buildGenome / applyConfig / buildAdaptionConfig hooks. Call sites use ctor(path), get_as<>(),
  * registerContentCreator() and the factory's getAdaptionConfig(sample).
  */
+// clang-format off
 //! [problem-factory-hooks#3]
-using GStarterIndividualFactory = Gem::Geneva::Genome::GIndividualFactory<GStarterIndividual>;
+using GStarterIndividualFactory =
+    Gem::Geneva::Genome::GIndividualFactory<GStarterIndividual>;
 //! [problem-factory-hooks#3]
+// clang-format on
 
 /******************************************************************************/
 

@@ -55,9 +55,9 @@ namespace {
 using error_code = boost::system::error_code;
 using boost::asio::ip::tcp;
 
-/// How long stop() waits for the accept loop to close the acceptor and for the calls of on_peer
-/// under way. Short and independent of the stop grace, so that a stop takes one grace (the shell's
-/// wait for its clients), not two.
+/// How long stop() waits for the accept loop to close the acceptor, after the call of on_peer under
+/// way, if any. Short and independent of the stop grace, so that a stop takes one grace (the
+/// shell's wait for its clients), not two.
 constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
 
 } /* anonymous namespace */
@@ -113,8 +113,8 @@ GWebsocketListener::~GWebsocketListener() {
  * made, the acceptor is closed again, no thread runs and nothing of @p executor and @p on_peer is
  * kept (GListenerI::start()).
  *
- * @param executor Where on_peer and the peers' handlers run (the shell's session pool)
- * @param on_peer Called for every accepted connection, on a strand of @p executor
+ * @param executor Where the peers' handlers run (the shell's session pool)
+ * @param on_peer Called for every accepted connection, on the accept strand (an I/O thread)
  * @throws geneva_exception if the acceptor cannot be opened, bound or set to listen, or if the I/O
  *         threads cannot be started
  */
@@ -147,7 +147,6 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
     port_.store(acceptor_.local_endpoint().port());
 
     handler_executor_ = std::move(executor);
-    on_peer_strand_.emplace(boost::asio::make_strand(handler_executor_));
     on_peer_ = std::move(on_peer);
 
     work_guard_.emplace(io_context_.get_executor());
@@ -176,7 +175,6 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         error_code ignored;
         std::ignore = acceptor_.close(ignored);
         on_peer_ = nullptr;
-        on_peer_strand_.reset();
         handler_executor_ = boost::asio::any_io_executor{};
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -207,8 +205,12 @@ void GWebsocketListener::accept_() {
 /******************************************************************************/
 /**
  * Called on the accept strand when an accept has completed: hands the connection to the shell as a
- * peer that has not been started (on_peer, posted to the shell's executor) and accepts again;
- * pauses after a failure; does nothing once the listener has stopped.
+ * peer that has not been started and accepts again; pauses after a failure; does nothing once the
+ * listener has stopped. on_peer is called here, on the I/O thread, not on the shell's executor
+ * (GListenerI::start()): every session thread may be busy for longer than the client's handshake
+ * limit, and the server's side of the handshake begins only when the session has started the peer.
+ * Since the calls run on the accept strand, stop() -- which closes the acceptor on that strand --
+ * returns only after the call under way, and none comes after it.
  *
  * @param ec A possible error of the accept
  * @param socket The accepted connection
@@ -239,34 +241,26 @@ void GWebsocketListener::whenAccepted_(const error_code &ec, tcp::socket socket)
         return;
     }
 
-    if(not on_peer_strand_) {
+    if(not on_peer_) {
         return; // not started (cannot happen while I/O threads run)
     }
     const GWirePeerId peer_id = next_peer_id_++;
-    auto peer = std::make_shared<GWebsocketPeer>(std::move(socket), options_, handler_executor_);
-    // The call is counted before it is posted, so that stop() -- which closes the acceptor on this
-    // strand first -- sees every call that will come. on_peer_ is dropped only by endWork(), when
-    // the shell's threads no longer run this.
-    on_peer_calls_.set(peer_id, true);
-    boost::asio::post(*on_peer_strand_, [this, peer = std::move(peer), peer_id]() mutable {
-        // No exception leaves a thread of the shell's executor: a client whose session cannot
-        // be made is dropped (its connection ends with the peer), and the call is counted out.
-        try {
-            if(on_peer_) {
-                on_peer_(std::move(peer), peer_id);
-            }
-        }
-        catch(const std::exception &e) {
-            glogger << "In " << name_ << ": a new client could not be taken on: " << e.what()
-                    << '\n'
-                    << GWARNING;
-        }
-        catch(...) {
-            glogger << "In " << name_ << ": a new client could not be taken on" << '\n'
-                    << GWARNING;
-        }
-        on_peer_calls_.remove(peer_id);
-    });
+    // on_peer_ is dropped only by endWork(), when the I/O threads no longer run this. No exception
+    // leaves an I/O thread: a client whose session cannot be made is dropped (its connection ends
+    // with the peer).
+    try {
+        on_peer_(
+            std::make_shared<GWebsocketPeer>(std::move(socket), options_, handler_executor_),
+            peer_id
+        );
+    }
+    catch(const std::exception &e) {
+        glogger << "In " << name_ << ": a new client could not be taken on: " << e.what() << '\n'
+                << GWARNING;
+    }
+    catch(...) {
+        glogger << "In " << name_ << ": a new client could not be taken on" << '\n' << GWARNING;
+    }
 
     this->accept_();
 }
@@ -283,17 +277,15 @@ void GWebsocketListener::closeAcceptor_() {
 /******************************************************************************/
 /**
  * No new peers, and none on its way (GListenerI::stop()): the acceptor is closed on its strand, so
- * that a client that connects from now on is refused, and this call waits for that and then for the
- * calls of on_peer already posted to the shell's executor, at most LISTENER_STOP_BOUND for both.
- * Once the acceptor is closed no accept handler runs any more that could post a call (they run on
- * the same strand and look at the stop first). Not on an I/O thread, and not on a thread of the
- * shell's executor (the calls waited for run there).
+ * that a client that connects from now on is refused, and this call waits for that, at most
+ * LISTENER_STOP_BOUND. The calls of on_peer run on the same strand: the close runs after the call
+ * under way, and no accept handler after it calls on_peer (they look at the stop first). Not on an
+ * I/O thread (the close waited for runs there).
  */
 void GWebsocketListener::stop() {
     if(not running_.load() || stopped_.exchange(true)) {
         return;
     }
-    const auto give_up_at = std::chrono::steady_clock::now() + LISTENER_STOP_BOUND;
     // The latch is shared with the handler: this call may give up waiting before it has run.
     auto closed = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     boost::asio::post(accept_strand_, [this, closed] {
@@ -301,19 +293,8 @@ void GWebsocketListener::stop() {
         closed->count_down();
     });
     if(not closed->wait_for(LISTENER_STOP_BOUND)) {
-        glogger << "In " << name_ << ": the accept loop did not stop within "
-                << LISTENER_STOP_BOUND.count() << " ms" << '\n'
-                << GWARNING;
-        return;
-    }
-    const auto left = std::max(
-        std::chrono::steady_clock::duration::zero(),
-        give_up_at - std::chrono::steady_clock::now()
-    );
-    if(not on_peer_calls_.waitUntilEmpty(left)) {
-        glogger << "In " << name_ << ": " << on_peer_calls_.size()
-                << " new client(s) did not reach the server within "
-                << LISTENER_STOP_BOUND.count() << " ms of the stop" << '\n'
+        glogger << "In " << name_ << ": the accept loop, with a new client it takes on, did not "
+                << "stop within " << LISTENER_STOP_BOUND.count() << " ms" << '\n'
                 << GWARNING;
     }
 }
@@ -329,7 +310,6 @@ void GWebsocketListener::endWork() {
     this->joinIo_();
     io_context_.shutdown();
     on_peer_ = nullptr;
-    on_peer_strand_.reset();
     handler_executor_ = boost::asio::any_io_executor{};
 }
 

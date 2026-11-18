@@ -61,8 +61,8 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /**
  * Base class for courtier consumers. A consumer is handed a *batch* -- a std::span over the
- * population slice to evaluate -- together with a GSubmissionPolicy, and is SOLELY responsible
- * for turning that span into a fully, successfully evaluated population (or for terminating the
+ * submitter's work items to process -- together with a GSubmissionPolicy, and is SOLELY responsible
+ * for turning that span into a fully, successfully processed batch (or for terminating the
  * program when the policy cannot be honoured). There is no "guaranteed full return" assumption
  * anywhere: an evaluation can always fail or never return, so the consumer always reconciles.
  *
@@ -88,11 +88,11 @@ public:
 
     /***************************************************************************/
     /** @brief Enables/sizes the consumer's late-return buffer: results that come back AFTER their
-     *  batch was already reconciled are retained (instead of dropped) for the optimization algorithm to
+     *  batch was already reconciled are retained (instead of dropped) for the submitter to
      *  reap. @p cap == 0 disables it. Default: a no-op -- local (serial / thread-pool) consumers never
-     *  produce late returns. Networked consumers override this.
-     *  @param cap Maximum number of late-return items to buffer (0 disables late-return buffering)
-     *  @param ttl_rounds Number of dispatch rounds a buffered late return is kept before being discarded */
+     *  produce late returns. Networked consumers override this. The arguments are the maximum number
+     *  of late-return items to buffer (cap; 0 disables late-return buffering) and the number of
+     *  dispatch rounds a buffered late return is kept before being discarded (ttl_rounds). */
     virtual void enableLateReturns(std::size_t /*cap*/, std::uint64_t /*ttl_rounds*/) {}
 
     /** @brief Hands back (transfers ownership of) the work items the consumer buffered as late returns,
@@ -194,7 +194,7 @@ public:
                 else {
                     // MISSING (still DO_PROCESS -- a networked timeout). Resubmit within budget;
                     // a MISSING item that persists despite resubmissions is treated as a hidden
-                    // FAILED (poison individual) and becomes unresolved rather than looping forever.
+                    // FAILED (a poison item) and becomes unresolved rather than looping forever.
                     if(item_resubmits < policy.max_resubmissions) {
                         ++item_resubmits; // stays DO_PROCESS -> re-dispatched next round
                     }
@@ -245,7 +245,8 @@ protected:
      *
      * A consumer that evaluates a copy elsewhere (e.g. a remote client) writes the resulting object back
      * into its originating span slot in place; a consumer that mutates each item in place leaves the
-     * pointers untouched. No working copy of the batch is made -- the span is the OA's own population view.
+     * pointers untouched. No working copy of the batch is made -- the span is the submitter's own
+     * view of its items.
      *
      * @param items The batch span to evaluate in place; the consumer acts on the DO_PROCESS slots and
      *        writes each (possibly replaced) result straight back into the same slot
@@ -266,9 +267,10 @@ protected:
     /***************************************************************************/
     /** @brief Deep-clones one (uniquely owned) work item into a fresh owning item. In this order:
      *  the clone function, if one was set (setCloneFunction()); else the item's own clone(), if it
-     *  yields the item pointer (so a polymorphic base such as GGenome is copied with its dynamic
-     *  type, not sliced); else copy construction (correct for leaf/concrete item types). Used both
-     *  by the refill path and by the networked consumers when handing a session a copy to ship.
+     *  yields the item pointer (so a polymorphic base such as Geneva's GGenome is copied with its
+     *  dynamic type, not sliced); else copy construction (correct for leaf/concrete item types).
+     *  Used both by the refill path and by the networked consumers when handing a session a copy to
+     *  ship.
      *  @param src The (borrowed) uniquely owned work item to clone from
      *  @return A fresh owning copy of @p src; an empty item_ptr if cloning is impossible (after fatal exit) */
     [[nodiscard]] item_ptr clone_item_(const item_ptr &src) const {
@@ -297,9 +299,9 @@ public:
     /***************************************************************************/
     /** @brief Sets the function that copies a work item, used before anything else (see
      *  clone_item_()). Without one, an item is copied through its own clone() if that yields the
-     *  item pointer -- which covers a polymorphic base such as GGenome -- and by copy construction
-     *  otherwise. A function is needed only for an item type that has no fitting clone() and must
-     *  not be copy-constructed, or to copy in a special way (a test double).
+     *  item pointer -- which covers a polymorphic base such as Geneva's GGenome -- and by copy
+     *  construction otherwise. A function is needed only for an item type that has no fitting
+     *  clone() and must not be copy-constructed, or to copy in a special way (a test double).
      *  @param fn The deep-clone functor taking a borrowed source item and returning a fresh owning copy */
     void setCloneFunction(std::function<item_ptr(const item_ptr &)> fn) { clone_fn_ = std::move(fn); }
 
@@ -308,14 +310,14 @@ private:
     /** @brief Refills an unresolved slot @p dest with a viable sibling under clone-on-partial-return,
      *  preferring an in-place substitution that PRESERVES the slot's heap address.
      *
-     *  Source = a caller-supplied @p clone_template (e.g. a representative individual) if present, else the
+     *  Source = a caller-supplied @p clone_template (e.g. a representative item) if present, else the
      *  first successfully evaluated sibling in the batch. The substitution copies the source's content INTO
      *  the failed slot without relocating it (@c loadContentFrom) and then mints a fresh lineage id -- a
-     *  refill is a NEW individual, distinct from the failed original, so a very-late return for that
+     *  refill is a NEW item, distinct from the failed original, so a very-late return for that
      *  original never reunites with the substitute. Item types that need no address stability (the
-     *  non-optimization demo containers) return false from @c loadContentFrom and fall back to
-     *  clone-and-replace, exactly as before. Keeping the address stable lets a concurrent per-individual
-     *  prefetch hold a snapshot of population addresses across the submission.
+     *  containers of courtier's tests) return false from @c loadContentFrom and fall back to
+     *  clone-and-replace, exactly as before. Keeping the address stable lets a submitter's
+     *  concurrent per-item prefetch hold a snapshot of the batch's addresses across the submission.
      *
      *  @param dest The unresolved slot to refill (its owning pointer, so a fallback can replace it)
      *  @param items The batch, scanned for a successfully evaluated sibling when no template is given
@@ -341,7 +343,7 @@ private:
         // Prefer the pointer-preserving in-place substitution; fall back to clone-and-replace for item
         // types that do not support it (they need no address stability).
         if(dest && dest->loadContentFrom(**src)) {
-            dest->setSubmissionUuid(detail::mint_submission_uuid()); // a refill is a new individual
+            dest->setSubmissionUuid(detail::mint_submission_uuid()); // a refill is a new item
         }
         else {
             dest = this->clone_item_(*src);

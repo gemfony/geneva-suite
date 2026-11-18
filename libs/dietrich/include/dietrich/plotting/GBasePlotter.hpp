@@ -99,13 +99,10 @@ public:
 
     /**
      * @brief Copy constructor
-     * @param cp The plotter to copy from
      */
     GBasePlotter(GBasePlotter const &cp);
     /**
      * @brief Assignment operator
-     * @param cp The plotter to copy from
-     * @return A reference to this object
      */
     GBasePlotter &operator=(GBasePlotter const &cp);
 
@@ -126,38 +123,31 @@ public:
 
     /**
      * @brief Allows to set the drawing arguments for this plot
-     * @param drawing_arguments The drawing arguments (passed to the plotting backend) for this plot
      */
     void setDrawingArguments(std::string drawing_arguments);
 
     /**
      * @brief Sets the label for the x-axis
-     * @param x_axis_label The text to use as the x-axis label
      */
     void setXAxisLabel(std::string x_axis_label);
     /**
      * @brief Retrieve the x-axis label
-     * @return The current x-axis label
      */
     [[nodiscard]] std::string xAxisLabel() const;
     /**
      * @brief Sets the label for the y-axis
-     * @param y_axis_label The text to use as the y-axis label
      */
     void setYAxisLabel(std::string y_axis_label);
     /**
      * @brief Retrieve the y-axis label
-     * @return The current y-axis label
      */
     [[nodiscard]] std::string yAxisLabel() const;
     /**
      * @brief Sets the label for the z-axis
-     * @param z_axis_label The text to use as the z-axis label
      */
     void setZAxisLabel(std::string z_axis_label);
     /**
      * @brief Retrieve the z-axis label
-     * @return The current z-axis label
      */
     [[nodiscard]] std::string zAxisLabel() const;
 
@@ -165,23 +155,19 @@ public:
      * @brief Chooses a logarithmic or a linear scale for the x-axis of this plot's pad. Every
      * backend honours it (matplotlib for two-dimensional plots only). The values plotted on a
      * logarithmic axis must be positive.
-     * @param logarithmic true for a logarithmic x-axis, false (the default) for a linear one
      */
     void setXAxisLogarithmic(bool logarithmic);
     /**
      * @brief Whether the x-axis is logarithmic
-     * @return true if the x-axis of this plot's pad is drawn with a logarithmic scale
      */
     [[nodiscard]] bool xAxisLogarithmic() const;
     /**
      * @brief Chooses a logarithmic or a linear scale for the y-axis of this plot's pad (see
      * setXAxisLogarithmic())
-     * @param logarithmic true for a logarithmic y-axis, false (the default) for a linear one
      */
     void setYAxisLogarithmic(bool logarithmic);
     /**
      * @brief Whether the y-axis is logarithmic
-     * @return true if the y-axis of this plot's pad is drawn with a logarithmic scale
      */
     [[nodiscard]] bool yAxisLogarithmic() const;
 
@@ -190,12 +176,10 @@ public:
      * names this series in the legend. In ROOT a label longer than the legend's box at the smallest
      * text size widens the box up to the pad's frame; beyond that it is shortened at its end and
      * marked with "..." (see setLegendPosition()).
-     * @param plot_label The label for the entire plot
      */
     void setPlotLabel(std::string p_l);
     /**
      * @brief Allows to retrieve the plot label
-     * @return The current plot label
      */
     [[nodiscard]] std::string plotLabel() const;
 
@@ -203,17 +187,14 @@ public:
      * @brief Sets the title of the pad this (primary) plotter draws into, apart from its plot
      * label. Without one the plot label is the pad's title, as before; with one the plot label
      * names the series only (in the legend of a pad with several series).
-     * @param pad_title The title of the pad (empty: the plot label)
      */
     void setPadTitle(std::string pad_title);
     /**
      * @brief The title set apart from the plot label
-     * @return The pad title, empty if none was set
      */
     [[nodiscard]] std::string padTitle() const;
     /**
      * @brief The title the pad shows: the pad title if one was set, otherwise the plot label
-     * @return The title of the pad
      */
     [[nodiscard]] std::string padTitleOrLabel() const;
     /**
@@ -232,19 +213,16 @@ public:
      * six or seven share it at LEGENDCROWDEDTEXTSIZE, and with more the last of LEGEND3DMAXROWS
      * rows says how many series are not shown. The other backends name the corner (AUTO on a 2-d
      * pad: their own placement; matplotlib's avoids data), and on a 3-d pad AUTO is the upper left.
-     * @param position A corner, FREEST, or AUTO (the default)
      */
     void setLegendPosition(legendPosition position);
     /**
      * @brief Where the legend of this plotter's pad lies
-     * @return The legend position
      */
     [[nodiscard]] legendPosition getLegendPosition() const;
     /**
      * @brief Where the legend of this (primary) plotter's pad lies, as the backends place it: the
      * position that was set, with FREEST resolved from the pad's data (freestLegendCorner()); on a
      * 3-d pad FREEST is AUTO.
-     * @return The legend position, never FREEST
      */
     [[nodiscard]] legendPosition legendPlace() const;
     /**
@@ -255,45 +233,37 @@ public:
      * takes effect where the legend lies in a corner (set, or chosen by FREEST; not AUTO or the
      * middle of the right side), in ROOT; the other backends place the legend in the corner
      * without the room.
-     * @param legend_room true: leave the legend a band of its own
      */
     void setLegendRoom(bool legend_room);
     /**
      * @brief Whether the frame of this plotter's pad leaves the legend a band of its own
-     * @return true if it does
      */
     [[nodiscard]] bool legendRoom() const;
     /**
      * @brief Sets the width of the line this plotter draws (2-d graphs); its legend sample
      * follows it
-     * @param line_width The width in the backend's units (0: the backend's default)
      */
     void setLineWidth(std::uint32_t line_width);
     /**
      * @brief The width of the line this plotter draws
-     * @return The line width, 0 for the backend's default
      */
     [[nodiscard]] std::uint32_t lineWidth() const;
     /**
      * @brief Allows to assign a marker to data structures
-     * @param ds_marker A marker that makes the origin of data structures clear in the output file
      */
     void setDataStructureMarker(std::string ds_marker);
     /**
      * @brief Allows to retrieve the data structure marker
-     * @return The current data-structure marker
      */
     [[nodiscard]] std::string dsMarker() const;
 
     /**
      * @brief Allows to add secondary plots to be added to the same sub-canvas
-     * @param secondary_plotter A plotter whose data should be emitted into the same canvas as this one
      */
     void registerSecondaryPlotter(const std::shared_ptr<GBasePlotter>& sp);
 
     /**
      * @brief Read-only access to the secondary plotters sharing this plotter's pad
-     * @return A const reference to the list of registered secondary plotters
      */
     [[nodiscard]] const std::vector<std::shared_ptr<GBasePlotter>> &secondaryPlotters() const;
 
@@ -305,7 +275,6 @@ public:
      * space), the primary first, then the secondary plotters in their order; each entry's sample
      * shows how its series is drawn (legendSampleOf()). A pad with a single series, or with none
      * labelled, gets no legend at all, whatever its dimension.
-     * @return The entries; empty: the pad has no legend
      */
     [[nodiscard]] std::vector<GLegendEntry> legendEntries() const;
 
@@ -313,18 +282,15 @@ public:
      * @brief How this plotter's series is drawn, as every backend draws it and as its legend
      * sample shows it. The default resolves it from plotSpec() (drawStyleOf()); a plotter of its
      * own that draws otherwise overrides it.
-     * @return How the series is drawn
      */
     [[nodiscard]] virtual GDrawStyle drawStyle() const;
 
     /**
      * @brief Allows to retrieve the id of this object
-     * @return The id currently assigned to this plotter
      */
     [[nodiscard]] std::size_t id() const;
     /**
      * @brief Sets the id of the object
-     * @param id The id to be assigned to this plotter
      */
     void setId(const std::size_t &id);
 
@@ -343,8 +309,6 @@ public:
      * base fills the common fields (name, labels, drawing args) and a default kind;
      * each concrete plotter overrides it to set its kind, its column names and (for
      * histograms) the bin counts.
-     *
-     * @return A GPlotSpec describing this plotter
      */
     [[nodiscard]] virtual GPlotSpec plotSpec() const;
 
@@ -360,8 +324,6 @@ public:
      * integer plotter exports its samples with their true dtype. The base returns an
      * empty list (a plotter that holds no exportable sample columns -- a function
      * plotter -- exports nothing this way).
-     *
-     * @return Type-tagged views of this plotter's per-axis value vectors, in storage order
      */
     [[nodiscard]] virtual std::vector<GPlotColumn> dataColumns() const;
 
@@ -374,8 +336,6 @@ public:
      * The base throws (a plotter that holds no double sample columns -- a function
      * plotter -- cannot accept rows this way); the columnar collectors override it. The
      * row size must equal the plotter's column count.
-     *
-     * @param row One value per axis, in column order (size must match the column count)
      */
     virtual void appendRow(std::span<const double> row);
 
@@ -392,22 +352,16 @@ public:
 
     /**
      * @brief Retrieve header settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined header section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string headerData(const std::string &indent) const;
 
     /**
      * @brief Retrieves body / data settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined body / data section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string bodyData(const std::string &indent) const;
 
     /**
      * @brief Retrieves footer / drawing settings for this plot (and any sub-plots)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The combined footer / drawing section for this plotter and its secondary plotters
      */
     [[nodiscard]] std::string footerData(const std::string &indent) const;
 
@@ -461,26 +415,16 @@ protected:
      * 4-d graph: one of its markers; a 3-d curve: a sample object of its own, never drawn). The
      * default, an empty name, gives the series a sample object made from drawStyle() in the
      * pad's colour of the series -- the choice for a plotter of one's own.
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
-     * @param own_id This plotter's own emit index, as footerData_() gets it
-     * @return The name of the object, or empty
      */
     [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
 
     /**
      * @brief Check that a given plotter is compatible with us
-     * @param other The other plotter whose compatibility with this one is checked
-     * @return true if the other plotter is compatible (by default, has the same plotter name)
      */
     [[nodiscard]] virtual bool isCompatible(std::shared_ptr<GBasePlotter> other) const;
 
     /**
      * @brief calculate a suffix from id and parent ids
-     * @param is_secondary true if a parent id should be folded into the suffix
-     * @param parent_id The id of the parent plotter (used only when is_secondary is true)
-     * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
-     * @return A suffix string built from this plotter's own id (and the parent id for secondary plotters)
      */
     [[nodiscard]] std::string suffix(bool is_secondary, std::size_t p_id, std::size_t own_id) const;
 

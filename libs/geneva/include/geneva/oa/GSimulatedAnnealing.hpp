@@ -124,28 +124,23 @@ public:
 
     /**
      * @brief Determines the strength of the temperature degradation (cooling schedule).
-     * @param alpha The new value of the temperature degradation strength (alpha_)
      */
     void setTDegradationStrength(double alpha);
     /**
      * @brief Retrieves the temperature degradation strength. This function is used for simulated annealing.
-     * @return The current value of the temperature degradation strength (alpha_)
      */
     double getTDegradationStrength() const;
 
     /**
      * @brief Sets the start temperature. This function is used for simulated annealing.
-     * @param t0 The new value of the start temperature (t0_)
      */
     void setT0(double t0);
     /**
      * @brief Retrieves the start temperature. This function is used for simulated annealing.
-     * @return The current value of the start temperature (t0_)
      */
     double getT0() const;
     /**
      * @brief Retrieves the current temperature. This function is used for simulated annealing.
-     * @return The current temperature (t_)
      */
     double getT() const;
 
@@ -171,7 +166,6 @@ protected:
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     * @param gpb The GParserBuilder object to which configuration options should be added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -194,7 +188,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     * @return A shared_ptr to a freshly created GSimulatedAnnealing_PersonalityTraits object
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
@@ -211,10 +204,6 @@ private:
 
     /**
      * @brief Calculates the simulated annealing probability for a child to replace a parent.
-     * @param f_min_only_parent The fitness value of the parent
-     * @param f_min_only_child The fitness value of the child
-     * @return The acceptance weight for the child (a probability in [0,1] for a worse child; >= 1, i.e.
-     *         always accept, for a child that is at least as good). Reads only the temperature, so const.
      */
     double saProb(const double &f_min_only_parent, const double &f_min_only_child) const;
 

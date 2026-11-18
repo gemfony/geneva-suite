@@ -395,6 +395,9 @@ void GFileParsableI::executeCallBackFunction() {
 /******************************************************************************/
 /**
  * A constructor for individual items
+ *
+ * @param option_name_var The single option name of this command-line parameter
+ * @param comment_var The single comment associated with this command-line parameter
  */
 GCLParsableI::GCLParsableI(std::string const &option_name_var, std::string const &comment_var)
   : GParsableI(option_name_var, comment_var) { /* nothing */
@@ -403,6 +406,9 @@ GCLParsableI::GCLParsableI(std::string const &option_name_var, std::string const
 /******************************************************************************/
 /**
  * A constructor for vectors
+ *
+ * @param option_name_vec The list of option names of this command-line parameter
+ * @param comment_vec The list of comments associated with this command-line parameter
  */
 GCLParsableI::GCLParsableI(
     std::vector<std::string> const &option_name_vec,
@@ -432,6 +438,13 @@ GParserBuilder::GParserBuilder() {
  * the "apply" half of parseConfigFile, separated so that callers (e.g. GFactoryT)
  * can read + parse a config file once and re-apply the cached document to many
  * freshly created objects.
+ *
+ * @param root The already-parsed JSON document to apply to the registered options
+ * @param config_path The originating file path, used only for diagnostic messages (may be empty)
+ * @param run_unknown_key_check Whether to run the unknown-key diagnostic for this load
+ * @throws geneva_exception if the document is not an object, if the entry of a known key does not
+ *         have the form its parameter needs, or if a value does not read as its parameter's type
+ *         (the error names the key)
  */
 void GParserBuilder::loadFromDocument(
     boost::json::value const &root,
@@ -503,9 +516,11 @@ void GParserBuilder::loadFromDocument(
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
  * @param do_rewrite Whether to rewrite the file in canonical form after applying it
  * @param rewrite_header The header for a rewrite; empty uses the standard auto-created header
- * @return true on success (parsed or created without error), false if an exception was caught
+ * @throws geneva_exception if the file cannot be resolved, read, parsed or applied (a value of the
+ *         wrong form, an unknown key while unknown keys are errors, a call-back that throws) or
+ *         rewritten; the message names the file and the cause
  */
-bool GParserBuilder::doParseConfigFile_(
+void GParserBuilder::doParseConfigFile_(
     std::filesystem::path const &config_file,
     boost::json::value *captured,
     bool do_rewrite,
@@ -519,7 +534,7 @@ bool GParserBuilder::doParseConfigFile_(
 
     boost::json::value root; // holds the parsed configuration document
 
-    std::filesystem::path config_path;
+    std::filesystem::path config_path = config_file; // the resolved path, once it is known
 
     try {
         // Resolve the path (creating the base directory if needed) and ensure the file exists.
@@ -548,28 +563,18 @@ bool GParserBuilder::doParseConfigFile_(
         if(do_rewrite && file_existed) {
             this->reportAndRewriteConfigFile(root, config_path, rewrite_header);
         }
-
-        return true; // Success! (a caller reads this as "parsed/created without error", not "existed")
-    }
-    catch(geneva_exception const &e) {
-        glogger << "Caught geneva_exception when parsing configuration file "
-                << config_path.string() << ":" << '\n'
-                << e.what() << '\n'
-                << GLOGGING;
-        return false;
     }
     catch(std::exception const &e) {
-        glogger << "Caught std::exception when parsing configuration file " << config_path.string()
-                << ":" << '\n'
-                << e.what() << '\n'
-                << GLOGGING;
-        return false;
-    }
-    catch(...) {
-        glogger << "Unknown error while parsing the configuration file " << config_path.string()
-                << '\n'
-                << GLOGGING;
-        return false;
+        // A failed parse is never reported by a return value alone: a caller that ignored it ran
+        // on its defaults while the file said otherwise. The cause has been logged where it was
+        // thrown; this only adds the file, and is not logged a second time. It names no function,
+        // as parseConfigFile() and updateConfigFile() both come here.
+        throw geneva_exception(
+            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
+            << "The configuration file " << config_path.string()
+            << " could not be read or applied:" << '\n'
+            << e.what() << '\n'
+        );
     }
 }
 
@@ -713,10 +718,13 @@ void GParserBuilder::reportAndRewriteConfigFile(
  *
  * @param config_file The path of the configuration file to read and parse
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
- * @return true on success, false if an exception was caught
+ * @throws geneva_exception if the file cannot be read or applied (see doParseConfigFile_())
  */
-bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured) {
-    return this->doParseConfigFile_(config_file, captured, /* do_rewrite = */ update_in_place_);
+void GParserBuilder::parseConfigFile(
+    std::filesystem::path const &config_file,
+    boost::json::value *captured
+) {
+    this->doParseConfigFile_(config_file, captured, /* do_rewrite = */ update_in_place_);
 }
 
 /******************************************************************************/
@@ -728,10 +736,13 @@ bool GParserBuilder::parseConfigFile(std::filesystem::path const &config_file, b
  *
  * @param config_file The path of the configuration file to update in place
  * @param header An optional header comment; empty uses the standard auto-created header
- * @return true on success, false if an exception was caught
+ * @throws geneva_exception if the file cannot be read, applied or rewritten (see doParseConfigFile_())
  */
-bool GParserBuilder::updateConfigFile(std::filesystem::path const &config_file, std::string const &header) {
-    return this->doParseConfigFile_(config_file, nullptr, /* do_rewrite = */ true, header);
+void GParserBuilder::updateConfigFile(
+    std::filesystem::path const &config_file,
+    std::string const &header
+) {
+    this->doParseConfigFile_(config_file, nullptr, /* do_rewrite = */ true, header);
 }
 
 /******************************************************************************/
@@ -995,6 +1006,8 @@ std::size_t GParserBuilder::numberOfFileOptions() const {
  * Globally enables (true, the default) or disables (false) the diagnostic
  * that detects unknown configuration-file keys. Intended to be called
  * once at program startup.
+ *
+ * @param enabled Whether the unknown-key diagnostic should be enabled
  */
 void GParserBuilder::setCheckUnknownKeys(bool enabled) {
     check_unknown_keys_ = enabled;
@@ -1003,6 +1016,8 @@ void GParserBuilder::setCheckUnknownKeys(bool enabled) {
 /******************************************************************************/
 /**
  * Retrieves whether the unknown-configuration-key diagnostic is enabled
+ *
+ * @return true if the unknown-key diagnostic is enabled, false otherwise
  */
 bool GParserBuilder::checkUnknownKeys() {
     return check_unknown_keys_;
@@ -1013,6 +1028,8 @@ bool GParserBuilder::checkUnknownKeys() {
  * Globally selects whether an unknown configuration-file key is treated as an
  * error (true) or merely a warning (false, the default). Only takes effect when
  * the check is enabled via setCheckUnknownKeys(true).
+ *
+ * @param is_error Whether an unknown key should throw (true) instead of warning (false)
  */
 void GParserBuilder::setUnknownKeyIsError(bool is_error) {
     unknown_key_is_error_ = is_error;
@@ -1021,6 +1038,8 @@ void GParserBuilder::setUnknownKeyIsError(bool is_error) {
 /******************************************************************************/
 /**
  * Retrieves whether unknown configuration-file keys are treated as an error
+ *
+ * @return true if unknown keys are treated as an error, false if they only warn
  */
 bool GParserBuilder::unknownKeyIsError() {
     return unknown_key_is_error_;
@@ -1101,6 +1120,8 @@ bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
 /**
  * Provides information on the number of command line configuration options
  * stored in this class
+ *
+ * @return The number of registered command-line configuration options
  */
 std::size_t GParserBuilder::numberOfCLOptions() const {
     return cl_parameter_proxies_.size();

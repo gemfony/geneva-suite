@@ -51,6 +51,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
@@ -242,6 +243,7 @@ bool parseCommandLine(
  */
 // NOLINTNEXTLINE(readability-function-size) -- single example main: CLI parsing, Go2 setup and the optimization run all belong to one driver
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::uint16_t parallelizationMode{};
     bool serverMode = false;
     std::string ip;
@@ -339,9 +341,12 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
 
+    // clang-format off
     //! [algo-ea:direct-setup]
     // Create an empty population
-    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(new oa::GEvolutionaryAlgorithm());
+    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(
+        new oa::GEvolutionaryAlgorithm()
+    );
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);
@@ -361,6 +366,7 @@ int main(int argc, char **argv) {
     // setAdaptionConfig distribution path).
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
     //! [algo-ea:direct-setup]
+    // clang-format on
 
     // Build and register the ONE process-wide consumer, depending on the parallelisation mode.
     // The algorithm submits through it automatically.

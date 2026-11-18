@@ -67,6 +67,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * @brief Returns a set of boolean data items (always both false and true).
  *
+ * The traversal of a grid scan is bounded by the size of the grid, not by n_steps, so a boolean
+ * scan visits exactly these two values whatever step count its spec carries.
+ *
  * @param n_steps The requested number of grid steps (unused for booleans, which always yield two values)
  * @param lower The lower scan boundary (unused for booleans)
  * @param upper The upper scan boundary (unused for booleans)
@@ -91,10 +94,9 @@ std::vector<bool> fillWithData<bool>(
  * @brief Returns a set of std::int32_t data items spread evenly over the inclusive scan interval.
  *
  * Like the float/double specializations, this honours n_steps: it generates exactly n_steps values
- * evenly spaced over [lower, upper] (endpoints included), each rounded to the nearest integer. Honouring
- * n_steps keeps the grid vector size equal to n_steps_, which the grid traversal logic (goToNextItem /
- * isAtTerminalPosition) relies on. Note that for a small integer range with many steps, neighbouring
- * grid points may round to the same value (harmless, redundant evaluations).
+ * evenly spaced over [lower, upper] (endpoints included), each rounded to the nearest integer.
+ * Note that for a small integer range with many steps, neighbouring grid points may round to the
+ * same value (harmless, redundant evaluations).
  *
  * @param n_steps The number of grid points to generate (must be at least 2)
  * @param lower The (inclusive) lower scan boundary (first generated value)
@@ -311,7 +313,7 @@ void GParameterScan::resetToOptimizationStart_() {
 /**
  * @brief The actual business logic to be performed during each iteration. Returns the best achieved fitness.
  *
- * @return A tuple holding the raw and transformed fitness of the best individual found this iteration
+ * @return A tuple holding the best raw and transformed fitness achieved this iteration
  */
 std::tuple<double, double> GParameterScan::cycleLogic_() {
     std::tuple<double, double> best_fitness =
@@ -552,24 +554,15 @@ std::shared_ptr<parSet> GParameterScan::getParameterSet() {
     // Create a new parSet object
     std::shared_ptr<parSet> result(new parSet());
 
-    // Every scan parameter is positional (the former by-name addressing modes have been removed);
-    // guard once per parameter against a corrupted specification.
     auto append = [this](const auto &scan_par_cnt, auto &target_vec) {
         using single_t = typename std::remove_reference_t<decltype(target_vec)>::value_type;
         for(const auto &scan_par : scan_par_cnt) {
-            gen::NAMEANDIDTYPE var = scan_par->getVarAddress();
-            if(std::get<0>(var) != 0) {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GParameterScan::getParameterSet(): Error!" << '\n'
-                    << "Encountered non-positional addressing mode " << std::get<0>(var)
-                    << " (by-name addressing has been removed)" << '\n'
-                );
-            }
-            target_vec.push_back(single_t{
-                scan_par->getCurrentItem(gr_), // value
-                std::get<2>(var)               // position
-            });
+            target_vec.push_back(
+                single_t{
+                    scan_par->getCurrentItem(gr_), // value
+                    scan_par->getVarIndex()        // position
+                }
+            );
         }
     };
     append(b_cnt_, result->bParVec);
@@ -832,7 +825,7 @@ void GParameterScan::setParameterSpecs(const std::string& par_str) {
 /**
  * @brief Specifies the number of simple scans and puts the class in "simple scan" mode.
  *
- * @param simple_scan_items The number of randomly-initialized work items to evaluate (0 disables simple-scan mode)
+ * @param simple_scan_items The number of random samples of the whole parameter space to take (0 disables simple-scan mode)
  */
 void GParameterScan::setNSimpleScans(std::size_t simple_scan_items) {
     simple_scan_items_ = simple_scan_items;
@@ -861,12 +854,37 @@ std::size_t GParameterScan::getNScansPerformed() const {
 /******************************************************************************/
 /**
  * @brief Allows to specify whether the parameter space should be scanned randomly
- * or on a grid.
+ * or on a grid. The scan parameters already specified are rebuilt for the new mode (and start
+ * from their first position), so it does not matter whether this is called before or after
+ * setParameterSpecs().
  *
  * @param scan_randomly true to scan individual variables randomly, false to scan on a grid
  */
 void GParameterScan::setScanRandomly(bool scan_randomly) {
+    if(scan_randomly == scan_randomly_) {
+        return;
+    }
     scan_randomly_ = scan_randomly;
+
+    // The scan parameters already specified were built for the other mode (setParameterSpecs()
+    // builds them at once, and a configuration file applies parameter_options before
+    // scan_randomly): rebuild them, so the order of the two settings does not matter.
+    const auto rebuild =
+        [this]<typename scan_par_type>(std::vector<std::shared_ptr<scan_par_type>> &scan_par_cnt) {
+            for(auto &scan_par : scan_par_cnt) {
+                scan_par = std::make_shared<scan_par_type>(scan_par->getSpec(), scan_randomly_);
+            }
+        };
+    rebuild(b_cnt_);
+    rebuild(int32_cnt_);
+    rebuild(f_cnt_);
+    rebuild(d_cnt_);
+
+    // A run in progress holds the parameter objects in all_par_cnt_ as well
+    if(not all_par_cnt_.empty()) {
+        this->clearAllParVec();
+        this->fillAllParVec();
+    }
 }
 
 /******************************************************************************/

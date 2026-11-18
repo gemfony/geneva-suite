@@ -100,14 +100,11 @@ class GRootEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete ROOT macro for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete ROOT macro source as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
     /**
      * @brief The ROOT-macro file extension
-     * @return The string ".C"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -131,14 +128,11 @@ class GnuplotEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete gnuplot script for a populated designer
-     * @param gpd The designer holding the graph plotters and canvas configuration
-     * @return The complete gnuplot script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
     /**
      * @brief The gnuplot-script file extension
-     * @return The string ".gp"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -162,14 +156,11 @@ class MatplotlibEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete matplotlib (Python) script for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete matplotlib script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
     /**
      * @brief The matplotlib-script file extension
-     * @return The string ".py"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -195,14 +186,11 @@ class OctaveEmitter : public IPlotEmitter {
 public:
     /**
      * @brief Emits the complete Octave / MATLAB (.m) script for a populated designer
-     * @param gpd The designer holding the plotters and canvas configuration
-     * @return The complete Octave / MATLAB script as a string
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
     /**
      * @brief The Octave / MATLAB script file extension
-     * @return The string ".m"
      */
     [[nodiscard]] std::string fileExtension() const override;
 };
@@ -231,26 +219,21 @@ public:
     GDataEmitter() = default;
     /**
      * @brief Constructs the emitter in the requested export format
-     * @param format The on-disk format to export (CSV or NPZ)
      */
     explicit GDataEmitter(dataFormat format);
 
     /**
      * @brief Emits the raw series data for a populated designer
-     * @param gpd The designer holding the plotters
-     * @return In CSV mode the human-readable text; in NPZ mode the raw .npz bytes
      */
     [[nodiscard]] std::string emitDocument(const GPlotDesigner &gpd) const override;
 
     /**
      * @brief The file extension for the selected format
-     * @return ".csv" in CSV mode, ".npz" in NPZ mode
      */
     [[nodiscard]] std::string fileExtension() const override;
 
     /**
      * @brief The export format this emitter was constructed with
-     * @return The current dataFormat (CSV or NPZ)
      */
     [[nodiscard]] dataFormat getDataFormat() const;
 

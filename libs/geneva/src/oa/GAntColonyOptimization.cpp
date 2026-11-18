@@ -390,6 +390,7 @@ std::size_t GAntColonyOptimization::rouletteSelect() {
  * sampled from a Gaussian kernel. This is an ES-style mutation that reuses the inherited RNG (gr_) and
  * std::normal_distribution, exactly as GSepCmaEvolutionStrategy / GStandardPSO2011 do.
  */
+// clang-format off
 //! [acor-construct-ants]
 void GAntColonyOptimization::constructAnts() {
     for(std::size_t a = 0; a < n_ants_; ++a) {
@@ -413,7 +414,8 @@ void GAntColonyOptimization::constructAnts() {
             // the (normalized) range so a collapsed archive cannot drive sigma to zero
             // and stall the search prematurely.
             const double sigma = std::max(
-                xi_ * sum_dist / static_cast<double>(archive_size_ - 1), ACOR_SIGMA_FLOOR_FRACTION
+                xi_ * sum_dist / static_cast<double>(archive_size_ - 1),
+                ACOR_SIGMA_FLOOR_FRACTION
             );
 
             // 3. Sample the new coordinate ~ N(mu, sigma).
@@ -429,6 +431,7 @@ void GAntColonyOptimization::constructAnts() {
     }
 }
 //! [acor-construct-ants]
+// clang-format on
 
 /******************************************************************************/
 /**

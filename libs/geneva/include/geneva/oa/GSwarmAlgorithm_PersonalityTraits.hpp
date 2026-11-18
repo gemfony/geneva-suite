@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 
@@ -87,8 +88,6 @@ public:
     GSwarmAlgorithm_PersonalityTraits() = default;
     /**
      * @brief The copy constructor
-     *
-     * @param cp A constant reference to another GSwarmAlgorithm_PersonalityTraits object to be copied
      */
     GSwarmAlgorithm_PersonalityTraits(const GSwarmAlgorithm_PersonalityTraits & cp);
     /** @brief The standard destructor */
@@ -96,14 +95,10 @@ public:
 
     /**
      * @brief Specifies in which neighborhood the individual is at present
-     *
-     * @param neighborhood The id of the neighborhood the individual is to be assigned to
      */
     void setNeighborhood(const std::size_t & neighborhood);
     /**
      * @brief Retrieves the id of the neighborhood the individual is in at present
-     *
-     * @return The id of the neighborhood the individual currently belongs to
      */
     [[nodiscard]] std::size_t getNeighborhood() const;
 
@@ -111,42 +106,30 @@ public:
     void setNoPositionUpdate();
     /**
      * @brief Retrieves the current value of the no_position_update_ flag
-     *
-     * @return true if the individual's position is not to be updated, false otherwise
      */
     [[nodiscard]] bool noPositionUpdate() const;
     /**
      * @brief Retrieves and resets the current value of the no_position_update_ flag
-     *
-     * @return The value of the no_position_update_ flag prior to being reset to false
      */
     bool checkNoPositionUpdateAndReset();
 
     /**
      * @brief Allows to add a new personal best to the individual
-     *
-     * @param p A shared pointer to the GGenome representing the individual's new personal best
      */
     void registerPersonalBest(const std::shared_ptr<gen::GGenome>& p);
     /**
      * @brief Allows to retrieve the personal best individual
-     *
-     * @return A shared pointer to the GGenome holding the individual's personal best
      */
     [[nodiscard]] std::shared_ptr<gen::GGenome> getPersonalBest() const;
     /** @brief Resets the personal best individual */
     void resetPersonalBest();
     /**
      * @brief Retrieve quality of personally best individual
-     *
-     * @return A tuple holding the raw and transformed fitness of the personally best individual
      */
     [[nodiscard]] std::tuple<double, double> getPersonalBestQuality() const;
 
     /**
      * @brief Retrieves the mnemonic of the optimization algorithm
-     *
-     * @return The mnemonic (short identifier) associated with the swarm optimization algorithm
      */
     [[nodiscard]] std::string getMnemonic() const override;
 

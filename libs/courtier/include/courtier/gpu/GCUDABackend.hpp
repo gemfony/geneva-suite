@@ -48,7 +48,7 @@ namespace Gem::Courtier::GPU {
  *
  * Compiled only when a CUDA toolkit was found at configure time (see the courtier GPU CMakeLists).
  *
- * @tparam scalar_type The flat-buffer element type for parameters and fitness (double for full parity, float for FP32 device speed); defaults to double
+ * @tparam scalar_type The flat-buffer element type for parameters and results (double for full parity, float for FP32 device speed); defaults to double
  */
 template <typename scalar_type = double>
 class GCUDABackend final : public GGPUDeviceBackendI<scalar_type> {
@@ -63,27 +63,16 @@ public:
 
     /**
      * @brief Acquires the kernel described by @p spec (NVRTC-compile a .cu source, or load a prebuilt .ptx/.cubin) and prepares the CUDA context for launches.
-     *
-     * @param spec The kernel specification (source/binary path, entry-point name, launch geometry, device id)
      */
     void initialize(const KernelSpec &spec) override;
     /**
-     * @brief Uploads the whole batch, launches the kernel once, and reads the per-item fitness back.
-     *
-     * @param params Row-major parameter buffer of n_items * dim scalar_type (params[i*dim + j] = parameter j of item i)
-     * @param n_items Number of items in the batch
-     * @param dim Number of scalar_type parameters per item
-     * @param pconst Opaque problem-constant blob the kernel also receives (e.g. function id, target image); may be null when pconst_size is 0
-     * @param pconst_size Size in bytes of the problem-constant blob
-     * @param fitness_out Output buffer receiving n_items fitness scalar_type values
-     * @param threads_per_item GPU threads cooperating on one item (intra-item parallelism); >1 launches n_items*threads_per_item threads with atomic accumulation. Defaults to 1
+     * @brief Uploads the whole batch, launches the kernel once, and reads the per-item results back.
      */
     void evaluate(
         const scalar_type *params, int n_items, int dim,
         const std::byte *pconst, std::size_t pconst_size,
-        scalar_type *fitness_out, int threads_per_item = 1) override;
-    /** @brief A short backend identifier ("cuda"), used for logging and selection.
-     *  @return The backend name string */
+        scalar_type *results_out, int threads_per_item = 1) override;
+    /** @brief A short backend identifier ("cuda"), used for logging and selection. */
     [[nodiscard]] std::string name() const override;
 
 private:

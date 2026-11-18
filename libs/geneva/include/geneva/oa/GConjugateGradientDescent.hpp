@@ -93,11 +93,20 @@ enum class errorEstimationMode : std::uint8_t {
 };
 
 // Numeric streaming opt-in for the two enums above; must precede their first
-// streaming use (see numeric_enum_io_v in GCommonEnums.hpp).
+// streaming use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::OptimizationAlgorithms::gradientMethod> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::OptimizationAlgorithms::errorEstimationMode> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::OptimizationAlgorithms::gradientMethod> =
+    numeric_enum_range<
+        Gem::Geneva::OptimizationAlgorithms::gradientMethod::CONJUGATE_PR_PLUS,
+        Gem::Geneva::OptimizationAlgorithms::gradientMethod::LBFGS>();
+template <>
+inline constexpr auto
+    numeric_enum_values_v<Gem::Geneva::OptimizationAlgorithms::errorEstimationMode> =
+        numeric_enum_range<
+            Gem::Geneva::OptimizationAlgorithms::errorEstimationMode::NONE,
+            Gem::Geneva::OptimizationAlgorithms::errorEstimationMode::MINOS>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -222,16 +231,10 @@ public:
     GConjugateGradientDescent();
     /**
      * @brief Initialization with the number of starting points and step parameters.
-     *
-     * @param std::size_t const & The number of starting points in the parameter space
-     * @param double const & The size of the finite step of the difference quotient
-     * @param double const & The multiplier for the initial trial step along the search direction
      */
     GConjugateGradientDescent(const std::size_t &n_starting_points, const double &finite_step, const double &step_size);
     /**
      * @brief A standard copy constructor.
-     *
-     * @param GConjugateGradientDescent const & The object to copy from
      */
     GConjugateGradientDescent(const GConjugateGradientDescent &) = default;
     /** @brief The destructor */
@@ -239,53 +242,37 @@ public:
 
     /**
      * @brief Retrieves the number of starting points of the algorithm.
-     *
-     * @return The number of starting positions in the parameter space
      */
     std::size_t getNStartingPoints() const;
     /**
      * @brief Allows to set the number of starting points for the conjugate gradient descent.
-     *
-     * @param std::size_t The number of starting positions in the parameter space
      */
     void setNStartingPoints(std::size_t n_starting_points);
 
     /**
      * @brief Set the size of the finite step of the difference quotient.
-     *
-     * @param double The difference-quotient step (per mill of the parameter range)
      */
     void setFiniteStep(double finite_step);
     /**
      * @brief Retrieve the size of the finite step of the difference quotient.
-     *
-     * @return The difference-quotient step (per mill of the parameter range)
      */
     double getFiniteStep() const;
 
     /**
      * @brief Sets a multiplier for the initial trial step along the search direction.
-     *
-     * @param double The multiplicative factor for the initial trial step (the line search refines it)
      */
     void setStepSize(double step_size);
     /**
      * @brief Retrieves the current step size.
-     *
-     * @return The multiplicative factor for the initial trial step
      */
     double getStepSize() const;
 
     /**
      * @brief Selects the search-direction rule (conjugate PR+ or plain steepest descent).
-     *
-     * @param gradientMethod The search-direction rule to use
      */
     void setGradientMethod(gradientMethod gm);
     /**
      * @brief Retrieves the search-direction rule currently in use.
-     *
-     * @return The search-direction rule currently configured
      */
     gradientMethod getGradientMethod() const;
 
@@ -293,14 +280,10 @@ public:
      * @brief Enables the O(h^2) CENTRAL-difference gradient (g_j = (f(x+h)-f(x-h))/2h) instead of the
      * default O(h) forward difference. More accurate, but doubles the number of probe evaluations per
      * iteration (two perturbed children per direction instead of one).
-     *
-     * @param bool If true, the central-difference gradient is enabled; if false, the forward difference is used
      */
     void setCentralDifferences(bool central);
     /**
      * @brief Whether the central-difference gradient is in use.
-     *
-     * @return true if the central-difference gradient is enabled, false otherwise
      */
     [[nodiscard]] bool getCentralDifferences() const;
 
@@ -308,45 +291,31 @@ public:
      * @brief Sets the L-BFGS history size m (the number of (s, y) curvature pairs kept per starting
      * point). Only used when gradientMethod::LBFGS is selected. Larger m -> a better inverse-Hessian
      * approximation at the cost of m*n storage and O(m*n) work per step. Clamped to >= 1.
-     *
-     * @param std::size_t The L-BFGS history size m (number of (s, y) pairs to keep)
      */
     void setLBFGSMemory(std::size_t m);
     /**
      * @brief Retrieves the L-BFGS history size m.
-     *
-     * @return The L-BFGS history size m (number of (s, y) pairs kept)
      */
     [[nodiscard]] std::size_t getLBFGSMemory() const;
 
     /**
      * @brief Selects whether/how a MINUIT-style parameter-error estimate is computed at convergence.
-     *
-     * @param errorEstimationMode The error-estimation mode to use
      */
     void setErrorEstimation(errorEstimationMode em);
     /**
      * @brief Retrieves the error-estimation mode currently in use.
-     *
-     * @return The error-estimation mode currently configured
      */
     errorEstimationMode getErrorEstimation() const;
     /**
      * @brief Sets the error definition UP (1 for chi^2-like, 0.5 for -logL); see MINUIT.
-     *
-     * @param double The MINUIT error definition UP value
      */
     void setErrorDefinition(double up);
     /**
      * @brief Retrieves the error definition UP.
-     *
-     * @return The MINUIT error definition UP value
      */
     double getErrorDefinition() const;
     /**
      * @brief Retrieves the most recent convergence error estimate (valid only if one was requested).
-     *
-     * @return The most recent error estimate result
      */
     GHesseErrorResult getLastErrorEstimate() const;
 
@@ -384,8 +353,6 @@ private:
 protected:
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
-     *
-     * @param gpb The parser builder to which this algorithm's configuration options are added
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
@@ -410,20 +377,11 @@ protected:
 
     /**
      * @brief Computes the normalised finite-difference (proxy) gradient of one starting point
-     * @param starting_point The index of the starting point whose gradient is computed
-     * @param parent_fitness The (minimization-oriented) fitness of that starting point
-     * @return The proxy gradient, one component per floating-point parameter
      */
     std::vector<double> computeProxyGradient_(std::size_t starting_point, double parent_fitness) const;
 
     /**
      * @brief Builds the L-BFGS quasi-Newton direction -H_k g_k, updating the curvature history
-     * @param cg_scratch The central slot's scratch store holding the (s, y) history
-     * @param parm_vec The starting point's current parameter vector
-     * @param gradient The current proxy gradient
-     * @param history_valid Whether the stored previous gradient/parameters are valid
-     * @param periodic_restart Whether this iteration performs the classical periodic restart
-     * @return The search direction
      */
     std::vector<double> lbfgsDirection_(
         Genome::GAuxiliaryStore &cg_scratch,
@@ -435,12 +393,6 @@ protected:
 
     /**
      * @brief Builds the steepest-descent / conjugate-gradient-family search direction
-     * @param gradient The current proxy gradient
-     * @param prev_gradient The previous iteration's gradient (scratch-backed)
-     * @param prev_direction The previous iteration's search direction (scratch-backed)
-     * @param history_valid Whether the previous gradient/direction are valid
-     * @param periodic_restart Whether this iteration performs the classical periodic restart
-     * @return The search direction
      */
     std::vector<double> conjugateDirection_(
         const std::vector<double> &gradient,
@@ -461,8 +413,6 @@ private:
 
     /**
      * @brief The actual business logic to be performed during each iteration.
-     *
-     * @return A tuple holding the best achieved fitness (raw and transformed)
      */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Triggers fitness calculation of a number of individuals */
@@ -471,8 +421,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     *
-     * @return A shared pointer to a newly created personality-traits object for this algorithm
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
     /** @brief Resizes the population to the desired level and does some error checks */
@@ -486,10 +434,6 @@ private:
      * @brief Evaluates a batch of trial parameter vectors (line-search probes) as clones of the
      * given starting point, submitted through the same consumer the algorithm uses, and returns one
      * min-only fitness per probe.
-     *
-     * @param starting_point Index of the starting point whose central individual is cloned for each probe
-     * @param points The trial parameter vectors to evaluate (one inner vector per probe)
-     * @return One min-only fitness value per probe, in the same order as @p points
      */
     std::vector<double> evaluateProbes(
         std::size_t starting_point,

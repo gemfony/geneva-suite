@@ -90,8 +90,6 @@ public:
 
     /**
      * @brief Initialization with the maximum size
-     *
-     * @param max_size The maximum number of items the priority queue is allowed to hold
      */
     explicit GGenomeFixedSizePriorityQueue(const std::size_t & max_size);
     /**
@@ -105,15 +103,10 @@ public:
 
     /**
      * @brief Checks whether no item has the dirty flag set
-     *
-     * @param pos If a dirty item is found, this is set to the position of the first such item
-     * @return true if no item has its dirty flag set, false otherwise
      */
     bool allClean(std::size_t & pos) const;
     /**
      * @brief Emits information about the "dirty flag" of all items
-     *
-     * @return A string describing the dirty-flag status of all items held by the queue
      */
     [[nodiscard]] std::string getCleanStatus() const;
 
@@ -124,16 +117,10 @@ protected:
     /***************************************************************************/
     /**
      * @brief The archive's admission rule: only individuals that carry a result belong in it
-     *
-     * @param item_ptr A constant reference to the individual to be checked
-     * @return true if the individual exists and has been processed, false otherwise
      */
     [[nodiscard]] bool isValid(const std::unique_ptr<GGenome> & item_ptr) const override;
     /**
      * @brief Evaluates a single work item, so that it can be sorted
-     *
-     * @param item_ptr A constant reference to the individual to be evaluated
-     * @return The fitness value of the item used as the sorting criterion within the priority queue
      */
     [[nodiscard]] double evaluation(const std::unique_ptr<GGenome> & item_ptr) const override;
 

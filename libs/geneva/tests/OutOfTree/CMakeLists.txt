@@ -29,7 +29,7 @@
 
 # The out-of-tree probe (MpiModuleProbe/), built and run in the normal build with what a program
 # outside the tree gets and nothing else: the usage requirements of the targets it links, the same
-# ones its own CMakeLists.txt names as Geneva::geneva-mpi, Geneva::courtier-mpi and Geneva::geneva.
+# ones its own CMakeLists.txt names as Geneva::courtier-mpi and Geneva::geneva.
 # The collection's own directory-level settings are taken away first: its compile definitions
 # (GENEVA_BUILD_WITH_MPI_CONSUMER among them, which no exported target carries) and its include
 # directories (Boost's and MPI's, which a program outside gets only through the targets). A header
@@ -42,7 +42,8 @@ SET_PROPERTY ( DIRECTORY PROPERTY INCLUDE_DIRECTORIES "" )
 
 ADD_EXECUTABLE ( GenevaMpiModuleProbe MpiModuleProbe/GenevaMpiModuleProbe.cpp )
 TARGET_LINK_LIBRARIES ( GenevaMpiModuleProbe
-	PRIVATE ${GENEVA_MPI_LIBNAME} ${COURTIER_MPI_LIBNAME} ${GENEVA_LIBNAME} )
+	PRIVATE ${COURTIER_MPI_LIBNAME} ${GENEVA_LIBNAME} )
+ADD_DEPENDENCIES ( GenevaMpiModuleProbe ${GENEVA_MPI_LIBNAME} ) # loaded at run time, not linked
 
 # The probe loads the "mpi" consumer from the module next to libgemfony-geneva and exits with 0 if
 # that worked. It initializes no MPI, so it needs no launcher.

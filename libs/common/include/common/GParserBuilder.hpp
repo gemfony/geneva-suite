@@ -40,6 +40,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -110,28 +111,107 @@ std::string cfgScalarToString(T const &v) {
 }
 
 /******************************************************************************/
+/** @brief Names, for an error text, what a configuration value of type T must be.
+ *  @tparam T The type of the value
+ *  @return "an integer", "an integer >= 0", "a number", "one of the values 0, 1 or 2" (an enum, see
+ *  numeric_enum_values_v), or "a value of its type" */
+template <typename T>
+std::string cfgExpectedValue() {
+    if constexpr(std::is_integral_v<T> && std::is_unsigned_v<T>) {
+        return "an integer >= 0";
+    }
+    else if constexpr(std::is_integral_v<T>) {
+        return "an integer";
+    }
+    else if constexpr(std::is_floating_point_v<T>) {
+        return "a number";
+    }
+    else if constexpr(numeric_io_enum<T>) {
+        return "one of the values " + numericEnumValueList<T>();
+    }
+    else {
+        return "a value of its type";
+    }
+}
+
+/******************************************************************************/
+/** @brief Reads a value of type T from the whole of @p s: anything that does not read as a value
+ *  of T is refused rather than read as far as it goes, or as an indeterminate value. Refused are
+ *  text where a number belongs, a trailing remainder (the ".5" of "2.5" for an integer), a value
+ *  the type's reader fails on (a number that is none of an enum's values, see
+ *  numeric_enum_values_v) and a negative number for an unsigned type, which the stream would wrap
+ *  around ("-1" as 4294967295).
+ *  @tparam T The type to read (arithmetic, or any type with a stream extraction operator)
+ *  @param s The string to parse
+ *  @param key The configuration key the value belongs to (named in the error text)
+ *  @return The parsed value
+ *  @throws geneva_exception if @p s is not a value of type T */
+template <typename T>
+T cfgReadWhole(std::string const &s, std::string const &key) {
+    T val{};
+    std::istringstream iss(s);
+    bool negative_unsigned = false;
+    if constexpr(std::is_unsigned_v<T>) {
+        negative_unsigned = (iss >> std::ws).peek() == '-';
+    }
+    iss >> val;
+    if(negative_unsigned || iss.fail() || not(iss >> std::ws).eof()) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "The configuration entry \"" << key << "\" has the value \"" << s
+            << "\", which is not " << cfgExpectedValue<T>() << '\n'
+        );
+    }
+    return val;
+}
+
+/******************************************************************************/
 /** @brief Parses an on-disk scalar string back into its parameter type (inverse of
- *  cfgScalarToString). Booleans accept both "true"/"false" and "1"/"0".
+ *  cfgScalarToString). Booleans accept "true"/"false" and "1"/"0"; every other type is read through
+ *  cfgReadWhole(), so a value that does not read as its type is refused (it used to read as false,
+ *  as far as it went, or as an indeterminate value).
  *  @tparam T The scalar parameter type
  *  @param s The string to parse
- *  @return The parsed value */
+ *  @param key The configuration key the value belongs to (named in the error text)
+ *  @return The parsed value
+ *  @throws geneva_exception if @p s is not a value of type T */
 template <typename T>
-T cfgScalarFromString(std::string const &s) {
+T cfgScalarFromString(std::string const &s, std::string const &key) {
     if constexpr(std::is_same_v<T, std::string>) {
         return s;
     }
     else if constexpr(std::is_same_v<T, bool>) {
-        return (s == "true" || s == "1");
+        if(s == "true" || s == "1") {
+            return true;
+        }
+        if(s == "false" || s == "0") {
+            return false;
+        }
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "The configuration entry \"" << key << "\" has the value \"" << s
+            << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
+        );
     }
     else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
         // (u)int8_t is a character type: a stream extraction of "1" would read the character '1'
         // (value 49), not the number 1. Parse through a wider integer so small enums/counts stored in
-        // an 8-bit field round-trip by value.
+        // an 8-bit field round-trip by value, and refuse what the 8-bit type cannot hold ("300").
         using wider = std::conditional_t<std::is_signed_v<T>, int, unsigned int>;
-        return static_cast<T>(Gem::Common::from_string<wider>(s));
+        auto const val = cfgReadWhole<wider>(s, key);
+        if(not std::in_range<T>(val)) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "The configuration entry \"" << key << "\" has the value \"" << s
+                << "\", which is not an integer from "
+                << static_cast<wider>(std::numeric_limits<T>::min()) << " to "
+                << static_cast<wider>(std::numeric_limits<T>::max()) << '\n'
+            );
+        }
+        return static_cast<T>(val);
     }
     else {
-        return Gem::Common::from_string<T>(s);
+        return cfgReadWhole<T>(s, key);
     }
 }
 
@@ -169,30 +249,87 @@ boost::json::value cfgScalarToJson(T const &v) {
 }
 
 /******************************************************************************/
-/** @brief Returns the object stored under @p key of @p parent, or nullptr if the key is absent or
- *  does not hold an object.
+/** @brief Refuses the entry of a known configuration key that does not have the form the key needs.
+ *  The rule for every parameter kind: an ABSENT key keeps its registered default, a PRESENT key of
+ *  the wrong form is an error -- never skipped in silence, which would leave the default in force
+ *  while the file says otherwise (e.g. a flat "scan_randomly": false).
+ *  @param key The key as it stands in the file (a combined parameter's sub-key as "group/key")
+ *  @param expected The form the key needs, with an example
+ *  @param found The entry found under the key
+ *  @throws geneva_exception always */
+[[noreturn]] inline void cfgRefuseEntry(
+    std::string const &key,
+    std::string const &expected,
+    boost::json::value const &found
+) {
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "The configuration entry \"" << key
+        << "\" has the wrong form: " << boost::json::serialize(found) << '\n'
+        << "Expected " << expected << '\n'
+    );
+}
+
+/******************************************************************************/
+/** @brief Returns the group object of a combined parameter stored under @p key of @p parent, or
+ *  nullptr if the key is absent (the registered defaults apply).
  *  @param parent The enclosing JSON object
- *  @param key The member key to look up
- *  @return A pointer to the child object, or nullptr */
+ *  @param key The group label to look up
+ *  @return A pointer to the group object, or nullptr if @p key is absent
+ *  @throws geneva_exception if the entry under @p key is not an object (see cfgRefuseEntry()) */
 inline boost::json::object const *
-cfgChildObject(boost::json::object const &parent, std::string const &key) {
+cfgGroupEntry(boost::json::object const &parent, std::string const &key) {
     auto const *v = parent.if_contains(key);
-    if(v == nullptr || not v->is_object()) { return nullptr; }
+    if(v == nullptr) {
+        return nullptr;
+    }
+    if(not v->is_object()) {
+        cfgRefuseEntry(
+            key,
+            "an object holding the group's parameters, e.g. \"" + key +
+                "\": { \"<name>\": { \"value\": ... }, ... }",
+            *v
+        );
+    }
     return &v->get_object();
 }
 
 /******************************************************************************/
-/** @brief Returns the array stored under @p key of @p parent, or nullptr if the key is absent or
- *  does not hold an array. A value written in the historical dup-key object form therefore reads as
- *  "absent" here, so the caller falls back to the registered defaults.
+/** @brief Returns the "value" of a parameter entry stored under @p key of @p parent, or nullptr if
+ *  the key is absent (the registered default applies). A present entry must be an object whose
+ *  "value" is a scalar (@p is_list false) or an array (@p is_list true).
  *  @param parent The enclosing JSON object
  *  @param key The member key to look up
- *  @return A pointer to the child array, or nullptr */
-inline boost::json::array const *
-cfgChildArray(boost::json::object const &parent, std::string const &key) {
-    auto const *v = parent.if_contains(key);
-    if(v == nullptr || not v->is_array()) { return nullptr; }
-    return &v->get_array();
+ *  @param is_list Whether the parameter holds a list of values (a vector or array parameter)
+ *  @param group The label of the enclosing group of a combined parameter, empty otherwise (names
+ *         the key in the error text)
+ *  @return A pointer to the entry's "value", or nullptr if @p key is absent
+ *  @throws geneva_exception if the entry is not of that form (see cfgRefuseEntry()) */
+inline boost::json::value const *cfgEntryValue(
+    boost::json::object const &parent,
+    std::string const &key,
+    bool is_list,
+    std::string const &group = std::string()
+) {
+    auto const *entry = parent.if_contains(key);
+    if(entry == nullptr) {
+        return nullptr;
+    }
+
+    auto const *v = entry->is_object() ? entry->get_object().if_contains("value") : nullptr;
+    bool const well_formed =
+        v != nullptr &&
+        (is_list ? v->is_array() : not(v->is_object() || v->is_array() || v->is_null()));
+    if(not well_formed) {
+        cfgRefuseEntry(
+            group.empty() ? key : group + "/" + key,
+            is_list
+                ? "an object with a \"value\" array, e.g. \"" + key + "\": { \"value\": [ ... ] }"
+                : "an object with a single \"value\", e.g. \"" + key + "\": { \"value\": ... }",
+            *entry
+        );
+    }
+    return v;
 }
 
 /******************************************************************************/
@@ -243,8 +380,7 @@ constexpr bool GCL_IMPLICIT_NOT_ALLOWED = false;
  */
 class commentLevel { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
-    /** @brief Enforce setting of the comment level
-     *  @param comment_level The id of the comment to be selected inside GParsableI */
+    /** @brief Enforce setting of the comment level */
     explicit commentLevel(std::size_t cl);
 
     /*************************************************************************/
@@ -260,8 +396,7 @@ public:
 
     /*************************************************************************/
 
-    /** @brief Retrieves the current commentLevel
-     *  @return The stored comment level id */
+    /** @brief Retrieves the current commentLevel */
     [[nodiscard]] std::size_t getCommentLevel() const;
 
 private:
@@ -290,14 +425,10 @@ public:
  */
 class GParsableI {
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this parameter
-     *  @param comment The single comment associated with this parameter */
+    /** @brief A constructor for individual items */
     GParsableI(std::string const &option_name_var, std::string const &comment_var);
 
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this parameter
-     *  @param comments The list of comments associated with this parameter */
+    /** @brief A constructor for vectors */
     GParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
 
     /** @brief The destructor */
@@ -310,22 +441,15 @@ public:
     GParsableI &operator=(GParsableI const &) = delete;
     GParsableI &operator=(GParsableI &&) = delete;
 
-    /** @brief Retrieves the option name at a given position
-     *  @param pos The index of the option name to retrieve (defaults to the first)
-     *  @return The option name stored at the given position */
+    /** @brief Retrieves the option name at a given position */
     [[nodiscard]] std::string optionName(std::size_t pos = 0) const;
-    /** @brief Retrieves the comment that was assigned to this variable at a given position
-     *  @param pos The index of the comment to retrieve (defaults to the first)
-     *  @return The comment stored at the given position */
+    /** @brief Retrieves the comment that was assigned to this variable at a given position */
     [[nodiscard]] std::string comment(std::size_t pos = 0) const;
-    /** @brief Checks whether comments have indeed been registered
-     *  @return true if at least one non-empty comment is stored, false otherwise */
+    /** @brief Checks whether comments have indeed been registered */
     [[nodiscard]] bool hasComments() const;
-    /** @brief Retrieves the number of comments available
-     *  @return The number of comment entries stored */
+    /** @brief Retrieves the number of comments available */
     [[nodiscard]] std::size_t numberOfComments() const;
-    /** @brief Retrieves the number of option names registered for this parameter
-     *  @return The number of option-name entries stored */
+    /** @brief Retrieves the number of option names registered for this parameter */
     [[nodiscard]] std::size_t numberOfOptionNames() const;
 
     /***************************************************************************/
@@ -378,32 +502,20 @@ public:
     }
 
     /***************************************************************************/
-    /** @brief Needed for std::ostringstream
-     *  @param val A stream manipulator (such as std::endl) to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ostream &(*val)(std::ostream &));
-    /** @brief Needed for std::ostringstream
-     *  @param val An std::ios manipulator to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ios &(*val)(std::ios &));
-    /** @brief Needed for std::ostringstream
-     *  @param val An std::ios_base manipulator to apply to the current comment
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Needed for std::ostringstream */
     GParsableI &operator<<(std::ios_base &(*val)(std::ios_base &));
-    /** @brief Allows to indicate the current comment level
-     *  @param cl A commentLevel manipulator selecting the comment entry to append to
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Allows to indicate the current comment level */
     GParsableI &operator<<(commentLevel const &cl);
-    /** @brief Allows to switch to the next comment level
-     *  @param nc A nextComment manipulator that advances to the next comment entry
-     *  @return A reference to this object, to allow chaining */
+    /** @brief Allows to switch to the next comment level */
     GParsableI &operator<<(nextComment const &nc);
 
 protected:
     /***************************************************************************/
-    /** @brief Splits a comment into sub-tokens
-     *  @param comment The comment string to split into sub-tokens
-     *  @return The list of sub-tokens extracted from the comment */
+    /** @brief Splits a comment into sub-tokens */
     static std::vector<std::string> splitComment(std::string const &comment);
 
 private:
@@ -427,15 +539,9 @@ class GFileParsableI : public GParsableI {
     friend class GParserBuilder;
 
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this parameter
-     *  @param comment The single comment associated with this parameter
-     *  @param is_essential Whether this is an essential (true) or secondary (false) parameter */
+    /** @brief A constructor for individual items */
     GFileParsableI(std::string const &option_name_var, std::string const &comment_var, bool is_essential_var);
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this parameter
-     *  @param comments The list of comments associated with this parameter
-     *  @param is_essential Whether this is an essential (true) or secondary (false) parameter */
+    /** @brief A constructor for vectors */
     GFileParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec, bool is_essential_var);
 
     /** @brief The destructor */
@@ -448,8 +554,7 @@ public:
     GFileParsableI &operator=(GFileParsableI const &) = delete;
     GFileParsableI &operator=(GFileParsableI &&) = delete;
 
-    /** @brief Checks whether this is an essential variable at a given position
-     *  @return true if this parameter is essential, false if it is secondary */
+    /** @brief Checks whether this is an essential variable at a given position */
     [[nodiscard]] bool isEssential() const;
 
     /** @brief Executes a stored call-back function */
@@ -661,13 +766,14 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        if(auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0))) {
-            if(auto const *v = entry->if_contains("value")) {
-                GSingleParmT<parameter_type>::par_ =
-                    detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(*v));
-            }
+        // An absent key keeps the value seeded from the default in the constructor; a present one
+        // of the wrong form is refused.
+        if(auto const *v = detail::cfgEntryValue(root, GParsableI::optionName(0), false)) {
+            GSingleParmT<parameter_type>::par_ = detail::cfgScalarFromString<parameter_type>(
+                detail::cfgValueToString(*v),
+                GParsableI::optionName(0)
+            );
         }
-        // An absent key keeps the value seeded from the default in the constructor.
     }
 
     /***************************************************************************/
@@ -954,22 +1060,24 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *group =
-            detail::cfgChildObject(root, GCombinedParT<par0_type, par1_type>::combined_label_);
+        // An absent group or sub-key keeps the defaults seeded in the constructor; a present one of
+        // the wrong form is refused.
+        std::string const &label = GCombinedParT<par0_type, par1_type>::combined_label_;
+        auto const *group = detail::cfgGroupEntry(root, label);
         if(group == nullptr) {
-            return; // absent group keeps both defaults seeded in the constructor
+            return;
         }
-        if(auto const *e0 = detail::cfgChildObject(*group, GParsableI::optionName(0))) {
-            if(auto const *v = e0->if_contains("value")) {
-                GCombinedParT<par0_type, par1_type>::par0_ =
-                    detail::cfgScalarFromString<par0_type>(detail::cfgValueToString(*v));
-            }
+        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(0), false, label)) {
+            GCombinedParT<par0_type, par1_type>::par0_ = detail::cfgScalarFromString<par0_type>(
+                detail::cfgValueToString(*v),
+                label + "/" + GParsableI::optionName(0)
+            );
         }
-        if(auto const *e1 = detail::cfgChildObject(*group, GParsableI::optionName(1))) {
-            if(auto const *v = e1->if_contains("value")) {
-                GCombinedParT<par0_type, par1_type>::par1_ =
-                    detail::cfgScalarFromString<par1_type>(detail::cfgValueToString(*v));
-            }
+        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(1), false, label)) {
+            GCombinedParT<par0_type, par1_type>::par1_ = detail::cfgScalarFromString<par1_type>(
+                detail::cfgValueToString(*v),
+                label + "/" + GParsableI::optionName(1)
+            );
         }
     }
 
@@ -1222,25 +1330,23 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0));
-        if(entry == nullptr) {
+        auto const *values = detail::cfgEntryValue(root, GParsableI::optionName(0), true);
+        if(values == nullptr) {
             // The key is absent from the file -- e.g. a newly-registered vector parameter, or an
             // update-in-place pass over a config written before this parameter existed. Keep the
-            // defaults par_cnt_ was seeded with in the constructor.
-            return;
-        }
-        auto const *values = detail::cfgChildArray(*entry, "value");
-        if(values == nullptr) {
-            // The "value" key is absent (or, for a config in the historical dup-key object form,
-            // does not read back as an array). Keep the seeded defaults.
+            // defaults par_cnt_ was seeded with in the constructor. (A present key of the wrong
+            // form was refused.)
             return;
         }
 
         // The values are present: replace the seeded defaults with the on-disk values.
         GVectorParT<parameter_type>::par_cnt_.clear();
-        for(auto const &v : *values) {
+        for(auto const &v : values->get_array()) {
             GVectorParT<parameter_type>::par_cnt_.push_back(
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(v))
+                detail::cfgScalarFromString<parameter_type>(
+                    detail::cfgValueToString(v),
+                    GParsableI::optionName(0)
+                )
             );
         }
     }
@@ -1251,7 +1357,7 @@ private:
 	  * values are taken from the def_val_ vector, which may be empty (it is
 	  * then written out as an empty "default"/"value" array).
 	  *
-	  * @param pt The object to which data should be saved
+	  * @param root The JSON object to which data should be saved
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
@@ -1493,19 +1599,19 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0));
-        if(entry == nullptr) {
-            return; // absent key keeps the constructor-seeded defaults
+        auto const *value = detail::cfgEntryValue(root, GParsableI::optionName(0), true);
+        if(value == nullptr) {
+            return; // an absent key keeps the constructor-seeded defaults (a wrong form was refused)
         }
-        auto const *values = detail::cfgChildArray(*entry, "value");
-        if(values == nullptr) {
-            return;
-        }
+        auto const &values = value->get_array();
         for(std::size_t i = 0;
-            i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values->size();
+            i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values.size();
             ++i) {
             GArrayParT<parameter_type, N>::par_arr_.at(i) =
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString((*values)[i]));
+                detail::cfgScalarFromString<parameter_type>(
+                    detail::cfgValueToString(values[i]),
+                    GParsableI::optionName(0)
+                );
         }
         // Elements beyond the on-disk array length keep their defaults.
     }
@@ -1515,7 +1621,7 @@ private:
 	  * Saves data to a property tree object, including comments. Default
 	  * values are taken from the def_val_ vector.
 	  *
-	  * @param pt The object to which data should be saved
+	  * @param root The JSON object to which data should be saved
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
@@ -1593,13 +1699,9 @@ class GCLParsableI : public GParsableI {
     friend class GParserBuilder;
 
 public:
-    /** @brief A constructor for individual items
-     *  @param option_name The single option name of this command-line parameter
-     *  @param comment The single comment associated with this command-line parameter */
+    /** @brief A constructor for individual items */
     GCLParsableI(std::string const &option_name_var, std::string const &comment_var);
-    /** @brief A constructor for vectors
-     *  @param option_names The list of option names of this command-line parameter
-     *  @param comments The list of comments associated with this command-line parameter */
+    /** @brief A constructor for vectors */
     GCLParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
 
     /** @brief The destructor */
@@ -1782,26 +1884,21 @@ public:
     GParserBuilder &operator=(GParserBuilder &&) = delete;
 
     /** @brief Reads and parses a configuration file, applying the values to the registered options. A
-     *  missing file is created from defaults (also a success). Optionally hands the parsed JSON document
-     *  back via the second argument so callers can cache it.
-     *  @param config_file The path of the configuration file to read and parse
-     *  @param captured Optional output pointer; if non-null, receives a copy of the parsed JSON document for caching
-     *  @return true on success (the file was parsed, or a missing one was created from its defaults);
-     *          false if an error occurred (the exception is logged and swallowed) */
-    bool parseConfigFile(std::filesystem::path const &config_file, boost::json::value *captured = nullptr);
-    /** @brief Applies an already-parsed configuration document to the registered options (no file access); runs the optional unknown-key diagnostic.
-     *  @param root The already-parsed JSON document to apply to the registered options
-     *  @param config_path The originating file path, used only for diagnostic messages (may be empty)
-     *  @param run_unknown_key_check Whether to run the unknown-key diagnostic for this load */
+     *  missing file is created from defaults. Optionally hands the parsed JSON document back via the
+     *  second argument so callers can cache it. Throws if the file cannot be read or applied. */
+    void parseConfigFile(
+        std::filesystem::path const &config_file,
+        boost::json::value *captured = nullptr
+    );
+    /** @brief Applies an already-parsed configuration document to the registered options (no file
+     *  access); runs the optional unknown-key diagnostic. Throws if an entry has the wrong form or
+     *  a value does not read as its type. */
     void loadFromDocument(
         boost::json::value const &root,
         std::filesystem::path const &config_path = {},
         bool run_unknown_key_check = true
     );
-    /** @brief Writes out a configuration file
-     *  @param config_file The path of the configuration file to write
-     *  @param header A header comment to be placed at the top of the file
-     *  @param write_all Whether to also write secondary (non-essential) options */
+    /** @brief Writes out a configuration file */
     void
     writeConfigFile(std::filesystem::path const &config_file, std::string const &header = "", bool write_all = true) const;
     /** @brief Update-in-place: parse @p config_file (if it exists) into the registered options, then rewrite
@@ -1809,52 +1906,35 @@ public:
      *  preserved, newly-registered parameters emitted with their defaults, comments/order refreshed. A
      *  missing file is created from defaults (same as parseConfigFile). The rewrite is atomic (a temp sibling
      *  is written and then renamed over the target), and never runs during a build into the source tree
-     *  because it targets exactly the file it was given.
-     *  @param config_file The path of the configuration file to update in place
-     *  @param header An optional header comment; empty uses the standard auto-created header
-     *  @return true on success (the file was updated, or a missing one was created from its defaults);
-     *          false if an error occurred (the exception is logged and swallowed) */
-    bool updateConfigFile(std::filesystem::path const &config_file, std::string const &header = "");
+     *  because it targets exactly the file it was given. Throws if the file cannot be read, applied or
+     *  rewritten. */
+    void updateConfigFile(std::filesystem::path const &config_file, std::string const &header = "");
     /** @brief Globally enables/disables update-in-place: when enabled, every successful parseConfigFile() that
-     *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup.
-     *  @param enabled Whether parseConfigFile should rewrite the files it reads */
+     *  read an existing file also rewrites it in canonical form (mirrors setCheckUnknownKeys). Call once at startup. */
     static void setUpdateInPlace(bool enabled);
-    /** @brief Retrieves whether update-in-place is globally enabled
-     *  @return true if parseConfigFile rewrites the files it reads, false otherwise */
+    /** @brief Retrieves whether update-in-place is globally enabled */
     static bool updateInPlace();
     /** @brief Globally enables/disables the creation-timestamp line in a generated config's header (default:
      *  enabled). Disable it to produce byte-stable, reproducible output -- e.g. for a config set that is
      *  checked into version control (the config-reference tree), where a changing timestamp would show as a
-     *  spurious diff on every regeneration. Call once at startup.
-     *  @param enabled Whether the header should carry the creation timestamp */
+     *  spurious diff on every regeneration. Call once at startup. */
     static void setEmitTimestamp(bool enabled);
-    /** @brief Retrieves whether the header creation-timestamp line is emitted
-     *  @return true if a generated config's header carries the creation timestamp, false otherwise */
+    /** @brief Retrieves whether the header creation-timestamp line is emitted */
     static bool emitTimestamp();
-    /** @brief Globally enables/disables the unknown-configuration-key diagnostic (default: enabled; warns on config keys no registered parameter consumes).
-     *  @param check Whether the unknown-key diagnostic should be enabled */
+    /** @brief Globally enables/disables the unknown-configuration-key diagnostic (default: enabled; warns on config keys no registered parameter consumes). */
     static void setCheckUnknownKeys(bool enabled);
-    /** @brief Retrieves whether the unknown-configuration-key diagnostic is enabled
-     *  @return true if the unknown-key diagnostic is enabled, false otherwise */
+    /** @brief Retrieves whether the unknown-configuration-key diagnostic is enabled */
     static bool checkUnknownKeys();
-    /** @brief Globally selects whether an unknown configuration-file key is an error (true) or a warning (false, the default). Only takes effect when the check is enabled. Call once at startup.
-     *  @param is_error Whether an unknown key should throw (true) instead of warning (false) */
+    /** @brief Globally selects whether an unknown configuration-file key is an error (true) or a warning (false, the default). Only takes effect when the check is enabled. Call once at startup. */
     static void setUnknownKeyIsError(bool is_error);
-    /** @brief Retrieves whether unknown configuration-file keys are treated as an error
-     *  @return true if unknown keys are treated as an error, false if they only warn */
+    /** @brief Retrieves whether unknown configuration-file keys are treated as an error */
     static bool unknownKeyIsError();
-    /** @brief Provides information on the number of file configuration options stored in this class
-     *  @return The number of registered file configuration options */
+    /** @brief Provides information on the number of file configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
-    /** @brief Parses the commandline for options
-     *  @param argc The number of command-line arguments
-     *  @param argv The array of command-line argument strings
-     *  @param verbose Whether to print the parsed options to the log
-     *  @return true if parsing succeeded and execution should continue, false if help was requested */
+    /** @brief Parses the commandline for options */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
-    /** @brief Provides information on the number of command line configuration options stored in this class
-     *  @return The number of registered command-line configuration options */
+    /** @brief Provides information on the number of command line configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfCLOptions() const;
 
     /***************************************************************************/
@@ -2380,7 +2460,7 @@ private:
     /***************************************************************************/
     /** @brief DEBUG-build helper shared by every registration overload: throws if an option of
      *  the given name was already registered in @p proxies (formerly an identical 15-line
-     *  #ifdef DEBUG block per overload).
+     *  \#ifdef DEBUG block per overload).
      *  @tparam proxy_vector_type The proxy-vector type (file or command-line proxies)
      *  @param option_name The (first) option name about to be registered
      *  @param proxies The proxy store to check for a duplicate
@@ -2418,13 +2498,8 @@ private:
 
     /** @brief Shared implementation of parseConfigFile()/updateConfigFile(): reads @p config_file (creating
      *  it from defaults if absent), applies it to the registered options and, when @p do_rewrite is set and
-     *  the file already existed, rewrites it in canonical form.
-     *  @param config_file The configuration file to read (and, when do_rewrite, rewrite)
-     *  @param captured Optional output pointer receiving the parsed JSON document, or nullptr
-     *  @param do_rewrite Whether to rewrite the file in canonical form after reading it
-     *  @param rewrite_header The header for a rewrite; empty uses the standard auto-created header
-     *  @return true if the file already existed, false if it had to be created from defaults */
-    bool doParseConfigFile_(
+     *  the file already existed, rewrites it in canonical form; throws on any failure. */
+    void doParseConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value *captured,
         bool do_rewrite,
@@ -2446,16 +2521,11 @@ private:
     );
     /** @brief Builds the canonical configuration document (header + one entry per registered file
      *  option: value = the current parsed/default value, default = the registered default). Shared by
-     *  writeConfigFile() and the update-in-place rewrite.
-     *  @param header The header comment (split on ';' into individual comment lines)
-     *  @param write_all Whether to also emit non-essential options
-     *  @return The assembled JSON document (a JSON object at the root) */
+     *  writeConfigFile() and the update-in-place rewrite. */
     [[nodiscard]] boost::json::value buildConfigDocument_(std::string const &header, bool write_all) const;
     /** @brief Atomically replaces @p config_file with the pretty-printed serialization of @p document
      *  (writes a temp sibling, then renames it over the target), bypassing the deliberate no-overwrite
-     *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file.
-     *  @param config_file The target configuration file (.json) to replace
-     *  @param document The JSON document to serialize */
+     *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file. */
     void atomicReplaceConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value const &document

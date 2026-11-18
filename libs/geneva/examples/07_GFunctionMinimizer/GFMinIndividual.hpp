@@ -38,8 +38,6 @@
 
 // Standard header files go here
 #include <cmath>
-#include <iostream>
-#include <sstream>
 #include <tuple>
 #include <vector>
 
@@ -72,11 +70,14 @@ enum class targetFunction : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for targetFunction; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Geneva */
 } /* namespace Gem */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::targetFunction> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::targetFunction> = numeric_enum_range<
+    Gem::Geneva::targetFunction::GFM_PARABOLA,
+    Gem::Geneva::targetFunction::GFM_NOISYPARABOLA>();
 } /* namespace Gem::Common */
 namespace Gem {
 namespace Geneva {
@@ -192,13 +193,6 @@ private:
 
     /***************************************************************************/
 };
-
-/******************************************************************************/
-/**
- * Provides an easy way to print the individual's content
- */
-std::ostream &operator<<(std::ostream &, const Gem::Geneva::GFMinIndividual &);
-std::ostream &operator<<(std::ostream &, const std::unique_ptr<Gem::Geneva::GFMinIndividual>&);
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

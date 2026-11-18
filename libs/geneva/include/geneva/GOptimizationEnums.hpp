@@ -441,7 +441,7 @@ const updateRule DEFAULTUPDATERULE =
 
 /******************************************************************************/
 
-// Re-export the shared numeric enum stream operators (see numeric_enum_io_v in
+// Re-export the shared numeric enum stream operators (see numeric_enum_values_v in
 // GCommonEnums.hpp) into Gem::Geneva, so that argument-dependent lookup finds
 // them for the optimization enums above (and for enums of individuals living in
 // this namespace). The opt-in marker specializations follow the namespace end.
@@ -456,14 +456,39 @@ using Gem::Common::operator>>;
 // All optimization enums stream as their underlying numeric value through the
 // shared machinery in GCommonEnums.hpp.
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::maxMode> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::activityMode> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::validityCheckCombinerPolicy> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::evaluationPolicy> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::duplicationScheme> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::infoMode> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::sortingMode> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::updateRule> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::adaptionMode> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::maxMode> =
+    numeric_enum_range<Gem::Geneva::maxMode::MINIMIZE, Gem::Geneva::maxMode::MAXIMIZE>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::activityMode> = numeric_enum_range<
+    Gem::Geneva::activityMode::ACTIVEONLY,
+    Gem::Geneva::activityMode::INACTIVEONLY>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::validityCheckCombinerPolicy> =
+    numeric_enum_range<
+        Gem::Geneva::validityCheckCombinerPolicy::MULTIPLYINVALID,
+        Gem::Geneva::validityCheckCombinerPolicy::ADDINVALID>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::evaluationPolicy> = numeric_enum_range<
+    Gem::Geneva::evaluationPolicy::USESIMPLEEVALUATION,
+    Gem::Geneva::evaluationPolicy::USESIGMOID>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::duplicationScheme> = numeric_enum_range<
+    Gem::Geneva::duplicationScheme::DEFAULTDUPLICATIONSCHEME,
+    Gem::Geneva::duplicationScheme::VALUEDUPLICATIONSCHEME>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::infoMode> =
+    numeric_enum_range<Gem::Geneva::infoMode::INFOINIT, Gem::Geneva::infoMode::INFOEND>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::sortingMode> = numeric_enum_range<
+    Gem::Geneva::sortingMode::MUPLUSNU_SINGLEEVAL,
+    Gem::Geneva::sortingMode::MUCOMMANU_PARETO>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::updateRule> = numeric_enum_range<
+    Gem::Geneva::updateRule::SWARM_UPDATERULE_LINEAR,
+    Gem::Geneva::updateRule::SWARM_UPDATERULE_CLASSIC>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::adaptionMode> =
+    numeric_enum_range<Gem::Geneva::adaptionMode::ALWAYS, Gem::Geneva::adaptionMode::NEVER>();
 } /* namespace Gem::Common */
 

@@ -96,26 +96,16 @@ public:
     /**
      * @brief Public entry point that forwards to the derived-class hook for emitting
      * information about the current iteration.
-     *
-     * @param infoMode Indicates which optimization phase is active (initialization, the
-     *        per-iteration cycle, or finalization)
-     * @param GOptimizationAlgorithmBase const *const Non-owning pointer to the algorithm
-     *        currently being monitored; the monitor reads its state but does not own it
      */
     void informationFunction(infoMode im, GOptimizationAlgorithmBase const *const goa);
 
     /**
      * @brief Allows to set the use_raw_evaluation_ variable.
-     *
-     * @param use_raw If true, the true (unmodified) evaluation is used instead of any
-     *        transformed value
      */
     void setUseRawEvaluation(bool use_raw);
 
     /**
      * @brief Allows to retrieve the value of the use_raw_evaluation_ variable.
-     *
-     * @return true if the true (unmodified) evaluation is requested, false otherwise
      */
     [[nodiscard]] bool getUseRawEvaluation() const;
 
@@ -139,8 +129,6 @@ protected:
 
     /**
      * @brief Applies modifications to this object. This is needed for testing purposes.
-     *
-     * @return true if the object was modified, false otherwise
      */
     bool modify_GUnitTests_();
     /***************************************************************************/
@@ -154,10 +142,9 @@ private:
      * @brief Overload this function in derived classes, specifying actions for initialization,
      * the optimization cycles and finalization (pure virtual).
      *
-     * @param infoMode Indicates which optimization phase is active (initialization, the
-     *        per-iteration cycle, or finalization)
-     * @param GOptimizationAlgorithmBase const *const Non-owning pointer to the algorithm
-     *        currently being monitored
+     * The first argument indicates which optimization phase is active (initialization, the
+     * per-iteration cycle, or finalization); the second is a non-owning pointer to the algorithm
+     * currently being monitored.
      */
     virtual void
     informationFunction_(infoMode, GOptimizationAlgorithmBase const *const) = 0;

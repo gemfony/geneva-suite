@@ -50,7 +50,7 @@ namespace Gem::Courtier {
 /**
  * A local, multi-threaded consumer. Each round's items are evaluated concurrently on a
  * Gem::Common::Concurrency::GThreadPool. A local evaluation never goes MISSING -- it either succeeds
- * (PROCESSED) or, when the user's evaluate() throws, is funnelled by
+ * (PROCESSED) or, when the item's processing throws, is funnelled by
  * GProcessingContainerT::process() into the item's EXCEPTION_CAUGHT status (the throw is caught
  * here so it never escapes the worker thread). Reconciliation against the policy is inherited
  * from GBaseConsumerT.
@@ -100,9 +100,9 @@ protected:
      * EXCEPTION_CAUGHT on a caught processing exception (which it also re-throws -- swallowed here).
      *
      * Delegates the fork/join to GThreadPool::blocking_for_each, which waits on a PER-BATCH latch rather
-     * than GThreadPool::wait() (a global drain barrier): the pool is shared, so several algorithms can
-     * submit concurrently (the fan-in case -- e.g. a meta-optimization over a population of inner
-     * algorithms), and each must wait for ONLY its own items, not the whole pool.
+     * than GThreadPool::wait() (a global drain barrier): the pool is shared, so several submitters can
+     * submit concurrently (the fan-in case -- e.g. Geneva's meta-optimization over a population of
+     * inner algorithms), and each must wait for ONLY its own items, not the whole pool.
      *
      * @param items The work items of one round; each is evaluated on the shared pool and the call blocks until all have finished
      */

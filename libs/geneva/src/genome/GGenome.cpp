@@ -36,6 +36,7 @@
 #include <random>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -131,6 +132,7 @@ bool GGenome::randomInit_(activityMode const &am) {
  * @param store The value array of this channel, modified in place
  * @param ch The channel layout providing per-element activity flags and interval bounds
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 template <typename T>
@@ -155,6 +157,7 @@ bool GGenome::randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, ac
 /**
  * @brief Randomly (re-)initializes the active entries of the int32 value channel.
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 bool GGenome::randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr) {
@@ -180,6 +183,7 @@ bool GGenome::randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr) {
 /**
  * @brief Randomly (re-)initializes the active entries of the boolean value channel.
  * @param am The activity mode that selects which entries are initialized
+ * @param gr The leased random proxy to draw from
  * @return true if at least one entry was modified, false otherwise
  */
 bool GGenome::randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr) {
@@ -276,7 +280,8 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
 /******************************************************************************/
 /**
  * @brief Retrieves parameters relevant for the evaluation from another GGenome.
- * @param cp A reference to the foreign genome (a GGenome); it is moved-from and cleared
+ * @param cp_base The foreign genome (a GGenome) whose evaluation-relevant parameters are absorbed
+ *   into this one; it is moved-from and cleared
  */
 void GGenome::cannibalize(GGenome &cp_base) {
     auto &cp = dynamic_cast<GGenome &>(cp_base);
@@ -614,7 +619,7 @@ GGenome::GGenome(const std::size_t n_fitness_criteria)
 /**
  * @brief The copy constructor. The shared policy is copied by shared pointer (1:N), the
  * pre-/post-processors are deep-cloned.
- * @param cp The other candidate whose data is copied
+ * @param cp The genome to copy from (value channels and shared layout handle)
  */
 GGenome::GGenome(GGenome const &cp) {
     // Every member -- the GProcessable base slice (copy-assigned via its descriptor), the plain members and
@@ -673,7 +678,8 @@ GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &re
 
     stored_results_cnt_ = result_cnt;
     stored_error_descriptions_.clear();
-    processing_status_ = Gem::Courtier::processingStatus::PROCESSED;
+    // Mark as processed; a begun processing is over
+    this->assignStatus_(Gem::Courtier::processingStatus::PROCESSED);
 
     return this->stored_results_cnt_.at(0);
 }
@@ -699,7 +705,9 @@ individual_processing_result GGenome::getStoredResult(const std::size_t id) cons
 /******************************************************************************/
 /**
  * @brief Performs the evaluation of this candidate (see the header for the full sequence).
- * @param res_vec Optional pre-computed raw results; if empty, evaluate() is invoked
+ * @param res_vec Optional raw results computed elsewhere, adopted after the pre-processor has run
+ *   here; if empty, evaluate() is invoked. Its size must match the criteria count. A batch
+ *   evaluation of the pre-processed values uses beginProcessing() and completeProcessing() instead.
  * @return The first stored result after processing
  */
 individual_processing_result
@@ -711,7 +719,8 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
 /**
  * @brief Performs the evaluation of this candidate as process() does, with @p evaluation called
  * where process() would call evaluate() (see the header for the full sequence).
- * @param evaluation Computes the raw results of this candidate; must not be empty
+ * @param evaluation Computes the raw results of this candidate; must not be empty. It must
+ *   return as many results as the candidate has criteria.
  * @return The first stored result after processing
  * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
  */
@@ -740,41 +749,82 @@ individual_processing_result GGenome::processWith_(
 ) {
     // The full lifecycle (precondition, reset, timed pre -> core -> guarded post, exception funneling,
     // error epilogue) is stated ONCE, on GProcessable::runProcessingLifecycle_. Only the evaluation
-    // core is geneva-specific: it consults the process-global fault injector (no-op unless a
-    // GFaultInjector is registered -- a single null-pointer check on the default path), raises a THROW
-    // fault so it surfaces as EXCEPTION_CAUGHT, runs the actual evaluation, and applies a FLAG_ERROR
-    // fault after it, like a user flagging an error from within evaluate() (-> ERROR_FLAGGED).
+    // core is geneva-specific (processingCore_()).
     this->runProcessingLifecycle_(
         "GGenome::process()",
-        [this] { this->preProcess_(); },
-        [this, &res_vec, evaluation] {
-            GFaultInjector::Fault injected_fault = GFaultInjector::Fault::NONE;
-            if(GFaultInjector *injector = GFaultInjectorRegistry::get(); injector != nullptr) {
-                // Rare (test-only) path: lease a proxy for the fault injector; the candidate holds no RNG.
-                auto lease = Gem::Hap::randomLeasePool().acquire();
-                injected_fault = injector->evaluate(*this, *lease);
-            }
-
-            if(injected_fault == GFaultInjector::Fault::THROW) {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "Fault injected during GGenome::process() (THROW)" << '\n'
-                );
-            }
-
-            this->runEvaluation_(res_vec, evaluation);
-
-            // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
-            if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
-                this->force_set_error(
-                    "Fault injected during GGenome::process() (FLAG_ERROR)\n");
-            }
-        },
+        not res_vec.empty(),
+        [this, &res_vec, evaluation] { this->processingCore_(res_vec, evaluation); },
         [this] { this->postProcess_(); }
     );
 
     // This part of the code is only reached on success (the lifecycle throws on any error)
     return this->stored_results_cnt_.at(0);
+}
+
+/******************************************************************************/
+/**
+ * @brief Completes the processing begun with GProcessable::beginProcessing() (see the header):
+ * the second half of the processing lifecycle, adopting @p res_vec.
+ * @param res_vec The raw results computed for this candidate; its size must match the criteria
+ *        count
+ * @param evaluation_time The time in seconds it took to compute @p res_vec (on a batch path the
+ *        evaluation of the whole batch)
+ * @return The first stored result after processing
+ * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the candidate
+ *         is left untouched)
+ */
+individual_processing_result GGenome::completeProcessing(
+    const std::vector<individual_processing_result> &res_vec,
+    const double evaluation_time
+) {
+    static constexpr std::string_view context = "GGenome::completeProcessing()";
+    GProcessable::requireResults_(context, not res_vec.empty());
+    this->completeProcessingLifecycle_(
+        context,
+        evaluation_time,
+        [this, &res_vec] { this->processingCore_(res_vec, nullptr); },
+        [this] { this->postProcess_(); }
+    );
+
+    // This part of the code is only reached on success (the lifecycle throws on any error)
+    return this->stored_results_cnt_.at(0);
+}
+
+/******************************************************************************/
+/**
+ * @brief The core step of the processing lifecycle. It consults the process-global fault injector
+ * (no-op unless a GFaultInjector is registered -- a single null-pointer check on the default path),
+ * raises a THROW fault so it surfaces as EXCEPTION_CAUGHT, runs the actual evaluation, and applies
+ * a FLAG_ERROR fault after it, like a user flagging an error from within evaluate()
+ * (-> ERROR_FLAGGED).
+ * @param res_vec Optional pre-computed raw results; if empty, the evaluation or evaluate() is
+ *        invoked
+ * @param evaluation The evaluation to call in place of evaluate(), or nullptr
+ */
+void GGenome::processingCore_(
+    const std::vector<individual_processing_result> &res_vec,
+    evaluation_function *evaluation
+) {
+    GFaultInjector::Fault injected_fault = GFaultInjector::Fault::NONE;
+    if(GFaultInjector *injector = GFaultInjectorRegistry::get(); injector != nullptr) {
+        // Rare (test-only) path: lease a proxy for the fault injector; the candidate holds no RNG.
+        auto lease = Gem::Hap::randomLeasePool().acquire();
+        injected_fault = injector->evaluate(*this, *lease);
+    }
+
+    if(injected_fault == GFaultInjector::Fault::THROW) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "Fault injected into the processing of a GGenome (THROW)" << '\n'
+        );
+    }
+
+    this->runEvaluation_(res_vec, evaluation);
+
+    // An injected FLAG_ERROR fault mimics a user flagging an error from within evaluate()
+    if(injected_fault == GFaultInjector::Fault::FLAG_ERROR && not this->has_errors()) {
+        this->force_set_error("Fault injected into the processing of a GGenome (FLAG_ERROR)\n");
+    }
 }
 
 /******************************************************************************/
@@ -910,8 +960,8 @@ void GGenome::finalizeFeasibleEvaluation_(
 
 /******************************************************************************/
 /**
- * @brief Sets the fitness from a vector of externally-computed raw values (the GPU consumer / external
- * evaluation), applying the feasibility check and evaluation-policy transform, then marking PROCESSED.
+ * @brief Sets the fitness from a vector of externally-computed raw values (the genome copy/move
+ * path), applying the feasibility check and evaluation-policy transform, then marking PROCESSED.
  * @param f_cnt A vector of raw fitness values (size must match the criteria count)
  */
 void GGenome::setFitness_(std::vector<double> const &f_cnt) {
@@ -985,7 +1035,7 @@ void GGenome::applyInvalidityPolicy_() {
 /******************************************************************************/
 /**
  * @brief Registers a (raw) result value of the fitness calculation at a given criterion position.
- * @param id The position of the fitness criterion
+ * @param id The position of the fitness criterion (must be < the criteria count)
  * @param value The raw fitness value to register
  */
 void GGenome::setResult(const std::size_t id, const double value) {
@@ -1006,7 +1056,7 @@ void GGenome::setResult(const std::size_t id, const double value) {
 /******************************************************************************/
 /**
  * @brief Retrieve the (raw, transformed) fitness tuple at a given evaluation position.
- * @param id The evaluation position (fitness criterion index)
+ * @param id The evaluation position (fitness criterion index); defaults to 0
  * @return A (raw, transformed) fitness tuple at the requested position
  */
 std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) const {
@@ -1017,7 +1067,7 @@ std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) cons
 /**
  * @brief Checks whether this candidate is at least as good as a set of raw boundaries.
  * @param boundaries One boundary value per fitness criterion
- * @return true if every raw fitness is at least as good as its boundary
+ * @return true if every raw fitness is at least as good as its boundary, false otherwise
  */
 bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
 #ifdef DEBUG
@@ -1181,7 +1231,10 @@ double GGenome::squaredSumCombiner() const {
 
 /******************************************************************************/
 /**
- * @brief @param weights The per-criterion weights. @return The square root of the weighed sum of squares.
+ * @brief Combines the stored transformed fitness values as a weighed square root of the sum of squares.
+ *
+ * @param weights The per-criterion weights (size must match the criteria count)
+ * @return The square root of the weighed sum of squares
  */
 double GGenome::weighedSquaredSumCombiner(std::vector<double> const &weights) const {
     if(this->getNStoredResults() != weights.size()) {
@@ -1255,6 +1308,8 @@ void GGenome::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
  * …) and the result store. Deliberately NOT copied: the genome value channels (absorbed separately, and
  * only for an `evaluated_and_modified` return) and the OA scratch. This mirrors the subset of load_()
  * that a return legitimately carries, minus the genome and scratch.
+ *
+ * @param src The returned, evaluated item whose results + lifecycle are absorbed
  */
 void GGenome::absorbResultsFrom_(const Gem::Courtier::GProcessable &src) {
     // The non-generic processing lifecycle (status / errors / timing / routing / correlation), keeping our
@@ -1285,6 +1340,9 @@ void GGenome::absorbResultsFrom_(const Gem::Courtier::GProcessable &src) {
  * population addresses stays valid). Delegates to load_() -- a full deep copy of genome + results +
  * scratch -- and returns true to signal the consumer that no clone-and-replace fallback is needed. The
  * caller mints a fresh lineage id afterwards (a refill is a new individual).
+ *
+ * @param src The source item to deep-copy in place
+ * @return true (the optimization individual supports in-place substitution)
  */
 bool GGenome::loadContentFrom_(const Gem::Courtier::GProcessable &src) {
     const auto *p_load = dynamic_cast<const GGenome *>(&src);

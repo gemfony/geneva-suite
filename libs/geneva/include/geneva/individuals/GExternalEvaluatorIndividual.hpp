@@ -29,6 +29,10 @@
 
 #pragma once
 
+// Global checks, defines and includes needed for all of Geneva
+#include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
+
 // Standard header files go here
 #include <chrono>
 #include <cmath>
@@ -92,7 +96,6 @@ const std::string GEEI_DEF_CUSTOMOPTIONS = "empty";
 const std::string GEEI_DEF_PARFILEBASENAME = "parameter_file";
 constexpr std::size_t GEEI_DEF_NRESULTS = 1;
 const std::string GEEI_DEF_STARTMODE = "random";
-const std::string GEEI_DEF_DATATYPE = "setup_data";
 const std::string GEEI_DEF_RUNID = "empty";
 constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
 
@@ -156,7 +159,6 @@ public:
     GExternalEvaluatorIndividual();
     /**
      * @brief A standard copy constructor
-     * @param cp The other GExternalEvaluatorIndividual object whose data is copied
      */
     GExternalEvaluatorIndividual(const GExternalEvaluatorIndividual &cp);
 
@@ -165,78 +167,55 @@ public:
 
     /**
      * @brief Sets the name of the external evaluation program
-     * @param program_name The path / name of the external program to be executed
      */
     void setProgramName(const std::string &program_name);
     /**
      * @brief Retrieves the name of the external evaluation program
-     * @return The name of the external evaluation program
      */
     std::string getProgramName() const;
 
     /**
      * @brief Sets any custom options that need to be passed to the external evaluation program
-     * @param custom_options The custom command-line options forwarded to the external program
      */
     void setCustomOptions(const std::string &custom_options);
     /**
      * @brief Retrieves any custom options that need to be passed to the external evaluation program
-     * @return The custom options string
      */
     std::string getCustomOptions() const;
 
     /**
      * @brief Sets the base name of the data exchange file
-     * @param parameter_file The base name used for the XML parameter exchange files
      */
     void setExchangeBaseName(const std::string &parameter_file);
     /**
      * @brief Retrieves the current value of the parameter_file_base_name_ variable
-     * @return The base name of the data exchange file
      */
     std::string getExchangeBaseName() const;
 
     /**
      * @brief Sets the number of results to be expected from the external evaluation program
-     * @param n_results The number of fitness results expected from each evaluation
      */
     void setNExpectedResults(const std::size_t &n_results);
     /**
      * @brief Retrieves the number of results to be expected from the external evaluation program
-     * @return The number of expected results
      */
     std::size_t getNExpectedResults() const;
 
     /**
-     * @brief Allows to set the data type of this individual
-     * @param dataType The data-type tag forwarded to the external program in the exchange file
-     */
-    void setDataType(std::string);
-    /**
-     * @brief Allows to retrieve the data type of this individual
-     * @return The data-type tag of this individual
-     */
-    std::string getDataType() const;
-
-    /**
      * @brief Allows to assign a run-id to this individual
-     * @param run_id The unique identifier for this optimization run
      */
     void setRunId(const std::string& run_id);
     /**
      * @brief Allows to retrieve the run-id assigned to this individual
-     * @return The run-id assigned to this individual
      */
     std::string getRunId() const;
 
     /**
      * @brief Allows to specify whether temporary files should be removed
-     * @param remove_exec_temporaries Whether the temporary exchange files should be deleted after use
      */
     void setRemoveExecTemporaries(bool remove_exec_temporaries);
     /**
      * @brief Allows to check whether temporaries should be removed
-     * @return true if temporary files are removed, false otherwise
      */
     bool getRemoveExecTemporaries() const;
 
@@ -279,41 +258,29 @@ public:
 
     /**
      * @brief Registers the config-file options, binding them to the passed Config
-     * @param gpb The parser builder the configuration options are registered with
-     * @param c The Config object whose members the options are bound to
      */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Queries the external evaluator for the individual structure and builds the flat genome;
      *  also records the discovered run_id / n_results_expected back into @p c.
-     * @param c The Config supplying the external-program settings; updated in place with the
-     *          discovered run_id and n_results_expected
-     * @return The flat genome data describing the individual's parameter structure
      */
     static gen::GenomeData buildGenome(Config &c);
     /**
      * @brief The OA-owned adaption config: the configured Gauss/bi-Gauss adaptor on every ACTIVE group
-     * @param sample A sample flat genome whose group structure the adaption config is built for
-     * @param c The Config supplying the Gauss / bi-Gauss adaptor settings
-     * @return A shared pointer to the constructed adaption config
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the external-program parameters + discovered metadata
-     * @param ind The individual that the configuration is applied to
-     * @param c The Config supplying the external-program parameters and discovered metadata
      */
     static void applyConfig(GExternalEvaluatorIndividual &ind, const Config &c);
     /**
      * @brief Teardown hook (called when the factory is destroyed): runs the external program --finalize
-     * @param c The Config supplying the external-program name and options used for the --finalize call
      */
     static void finalize(const Config &c);
     /**
      * @brief Submits a batch of best individuals to the external program for archiving (--archive).
      *  Reads the program name / custom options / exchange base name / run-id from the individuals.
-     * @param arch The batch of best individuals to be archived
      */
     static void archive(const std::vector<std::unique_ptr<GExternalEvaluatorIndividual>> &arch);
 
@@ -352,7 +319,6 @@ protected:
     /***************************************************************************/
     /**
      * @brief The evaluation hook: runs the external evaluation program and returns its per-criterion results.
-     * @return The full per-criterion raw result vector obtained from the external evaluation program
      */
     std::vector<double> evaluate() final;
 

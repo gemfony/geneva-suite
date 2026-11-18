@@ -45,6 +45,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <memory>
@@ -183,28 +184,29 @@ public:
  * releases its group (the members' serve() returns, so no process is left waiting), logs what the
  * program has to add and calls MPI_Abort. A lead or the submitter that never confirmed its role
  * ends the MPI job in the destructor (unless an exception unwinds through the cascade), the last
- * safeguard for a process that never uses the cascade. "Unwinds through the cascade" counts the
- * exceptions that unwind beyond those that unwound at its construction, so a cascade that lives
- * entirely inside a destructor run by an unrelated exception ends as any other.
+ * safeguard for a process that never uses the cascade. A cascade constructed inside a destructor
+ * that runs while an exception unwinds is not a supported use.
  *
  * <b>A submitter that fails.</b> In SUBMITTER_AND_GROUPS the leads wait for the greeting of the
  * submitter's MPI consumer, without a limit by default, and their members for them. A submitter
  * that fails before an MPI consumer was built on it must therefore end the MPI job, in one of two
  * ways:
- *  - it lets the exception unwind through its cascade: the destructor ends the MPI job. The
- *    exception's text is not known there; a program that wants it in the log catches the
- *    exception inside the cascade's scope, logs it and rethrows it;
+ *  - an exception that is caught outside the cascade's scope unwinds through the cascade: the
+ *    destructor ends the MPI job. The exception's text is not known there; a program that wants
+ *    it in the log catches the exception inside the cascade's scope, logs it and rethrows it;
  *  - or it catches the exception and calls abortJob() with an exit code and the reason: the
  *    reason is logged and the job ends at once with that code.
- * A submitter that catches the exception and returns without either leaves the leads waiting, and
- * MPI_Finalize on the submitter waits for them: the job does not end. The cascade cannot tell such
- * a return from the normal end of a submitter without a consumer, whose leads call round()
- * themselves. Once a consumer was built, its end tells the leads in every way it ends
- * (GMPIConsumerT), and the destructor ends nothing; nor does it at a normal end.
+ * An exception that nobody catches unwinds nothing: std::terminate() ends the process, and the MPI
+ * launcher ends the job with it. A submitter that catches the exception and returns without either
+ * leaves the leads waiting, and MPI_Finalize on the submitter waits for them: the job does not
+ * end. The cascade cannot tell such a return from the normal end of a submitter without a
+ * consumer, whose leads call round() themselves. Once a consumer was built, its end tells the
+ * leads in every way it ends (GMPIConsumerT), and the destructor ends nothing; nor does it at a
+ * normal end.
  *
  * <b>Failures.</b> An exception out of a lifecycle function, a member half or a lead half leaves
  * the group out of step, which cannot be repaired: the cascade logs it and ends the MPI job with
- * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole optimization, in
+ * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole run, in
  * GROUPS_ONLY one client job. A member that leaves without serve() ends the job the same way (its
  * lead would wait for ever). A call made by the wrong role or after release() throws a
  * geneva_exception before anything is announced, so the group stays in step.
@@ -299,24 +301,18 @@ private:
     void guarded_(const char *, F &&) noexcept;
     /** @brief Ends the MPI job after an exception left a half of the group */
     [[noreturn]] void endJob_(std::string_view, const std::exception_ptr &) const noexcept;
-    /** @brief Ends the MPI job with a reason, with EXIT_FAILURE */
-    [[noreturn]] void endJob_(std::string_view, std::string_view) const noexcept;
     /** @brief Ends the MPI job with a reason and an exit code */
-    [[noreturn]] void endJob_(std::string_view, std::string_view, int) const noexcept;
-    /** @brief Whether an exception unwinds through the cascade (more than at its construction) */
-    [[nodiscard]] bool unwinding_() const noexcept;
+    [[noreturn]] void
+    endJob_(std::string_view, std::string_view, int = EXIT_FAILURE) const noexcept;
 
     /// Keeps MPI initialized; null without MPI
     std::shared_ptr<Consumers::GMPIEnvironment> environment_;
     MPI_Comm base_ = MPI_COMM_NULL; ///< The base communicator (the caller's; never freed)
     /// The submitter's and the leads' communicator, given to the environment
     MPI_Comm courtier_ = MPI_COMM_NULL;
-    MPI_Comm group_ = MPI_COMM_NULL;  ///< The group's communicator, for the halves
-    MPI_Comm status_ = MPI_COMM_NULL; ///< The group's communicator for the announcements
-    int base_rank_ = 0;               ///< This process's rank in base_
-    /// The exceptions that unwound when the cascade was constructed: it may live entirely inside
-    /// a destructor that runs while an unrelated exception unwinds
-    const int uncaught_at_construction_ = std::uncaught_exceptions();
+    MPI_Comm group_ = MPI_COMM_NULL;            ///< The group's communicator, for the halves
+    MPI_Comm status_ = MPI_COMM_NULL;           ///< The group's communicator for the announcements
+    int base_rank_ = 0;                         ///< This process's rank in base_
     GMPICascadeConfig config_;                  ///< Rank 0's configuration
     processRole role_ = processRole::SUBMITTER; ///< The cascade's role of this process
 

@@ -107,7 +107,7 @@ void GLineFitIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
  * b), each its own Gauss group, with a default unbounded init range of [0, 1]. The Gauss adaptor settings
  * live on the OA-owned config (see buildAdaptionConfig()), not the genome layout. Data-independent.
  *
- * @param c The configuration (unused for the genome structure)
+ * @param c The configuration (unused for the genome structure; the data path drives applyConfig instead)
  * @return The structure-only genome data
  */
 gen::GenomeData GLineFitIndividual::buildGenome([[maybe_unused]] const Config &c) {
@@ -220,7 +220,7 @@ std::tuple<double, double> GLineFitIndividual::getLine() const {
  * @brief The actual fitness calculation takes place here; computes the root of the summed squared
  * deviation between the fitted line (a + b*x) and the stored data points.
  *
- * @return The fitness of this object: sqrt of the summed squared deviations of line and data points
+ * @return The fitness as a one-element vector (single criterion)
  */
 std::vector<double> GLineFitIndividual::evaluate() {
     double result = 0.;

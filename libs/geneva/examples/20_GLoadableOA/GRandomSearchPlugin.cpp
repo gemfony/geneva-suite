@@ -53,10 +53,14 @@
 #include "GRandomSearch_PersonalityTraits.hpp"
 
 // Serialization registrations for the algorithm and its personality traits (checkpoint payloads).
+// clang-format off
 //! [modules-oa-glue#1]
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch_PersonalityTraits) // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GRandomSearch_PersonalityTraits
+) // NOLINT
 //! [modules-oa-glue#1]
+// clang-format on
 
 /**
  * @brief The module manifest entry point. Resolved by the loader (Gem::Geneva::loadModule(), built

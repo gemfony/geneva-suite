@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 #include <concepts>
@@ -116,45 +117,32 @@ public:
     /** @brief The standard destructor */
     ~GParChild() override = default;
 
-    /** @brief Specifies the default size of the population plus the number of parents
-     *  @param pop_size The desired total size of the population (parents plus children)
-     *  @param n_parents The number of parents in the population */
+    /** @brief Specifies the default size of the population plus the number of parents */
     void setPopulationSizes(std::size_t pop_size, std::size_t n_parents);
 
-    /** @brief Retrieve the number of parents as set by the user
-     *  @return The configured number of parents */
+    /** @brief Retrieve the number of parents as set by the user */
     std::size_t getNParents() const;
-    /** @brief Calculates the current number of children from the number of parents and the size of the vector.
-     *  @return The current number of children */
+    /** @brief Calculates the current number of children from the number of parents and the size of the vector. */
     std::size_t getNChildren() const;
-    /** @brief Retrieves the default_n_children_ parameter
-     *  @return The expected (default) number of children */
+    /** @brief Retrieves the default_n_children_ parameter */
     std::size_t getDefaultNChildren() const;
 
-    /** @brief Lets the user set the desired recombination method
-     *  @param recombination_method The recombination scheme to be used */
+    /** @brief Lets the user set the desired recombination method */
     void setRecombinationMethod(duplicationScheme recombination_method);
 
-    /** @brief Retrieves the value of the recombination_method_ variable
-     *  @return The currently configured recombination method */
+    /** @brief Retrieves the value of the recombination_method_ variable */
     duplicationScheme getRecombinationMethod() const;
 
-    /** @brief Adds the option to increase the population by a given amount per iteration
-     *  @param growth_rate The number of individuals added to the population each iteration
-     *  @param max_population_size The maximum population size that growth may reach */
+    /** @brief Adds the option to increase the population by a given amount per iteration */
     void setPopulationGrowth(std::size_t growth_rate, std::size_t max_population_size);
-    /** @brief Allows to retrieve the growth rate of the population
-     *  @return The number of individuals added per iteration */
+    /** @brief Allows to retrieve the growth rate of the population */
     std::size_t getGrowthRate() const;
-    /** @brief Allows to retrieve the maximum population size when growth is enabled
-     *  @return The maximum population size growth may reach */
+    /** @brief Allows to retrieve the maximum population size when growth is enabled */
     std::size_t getMaxPopulationSize() const;
 
-    /** @brief Allows to set the likelihood for amalgamation of two units to be performed instead of "just" duplication.
-     *  @param amalgamation_likelihood The probability (in [0,1]) that a child is created by cross-over rather than duplication */
+    /** @brief Allows to set the likelihood for amalgamation of two units to be performed instead of "just" duplication. */
     void setAmalgamationLikelihood(double amalgamation_likelihood);
-    /** @brief Allows to retrieve the likelihood for amalgamation of two units to be performed instead of "just" duplication.
-     *  @return The configured amalgamation likelihood */
+    /** @brief Allows to retrieve the likelihood for amalgamation of two units to be performed instead of "just" duplication. */
     double getAmalgamationLikelihood() const;
 
     /***************************************************************************/
@@ -193,8 +181,7 @@ public:
 
     /** @brief Hands this mu/lambda algorithm an OA-owned adaption config to use. When
      *  set, init() adopts it (after validating it matches the population's genome) instead of deriving a
-     *  default from the genome layout. Transient run scratch -- NOT serialized.
-     *  @param config The externally-supplied adaption configuration to be adopted at init() */
+     *  default from the genome layout. Transient run scratch -- NOT serialized. */
     void setAdaptionConfig(std::shared_ptr<GAdaptionConfigBase> config) override;
 
     /** @brief The OA-owned adaption config built at init() (or the externally-provided one), for telemetry.
@@ -205,8 +192,7 @@ protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
 
-    /** @brief Adds local configuration options to a GParserBuilder object
-     *  @param gpb The parser builder to which the configuration options are added */
+    /** @brief Adds local configuration options to a GParserBuilder object */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
     // load_() and compare_() are generated by the Gem::Common::GReflectiveInterfaceBaseT base.
@@ -242,8 +228,7 @@ protected:
     /** @brief This function is called from GOptimizationAlgorithmBase::optimize() and performs the actual recombination */
     virtual void recombine();
 
-    /** @brief Retrieves the adaption range in a given iteration and sorting scheme.
-     *  @return A tuple holding the [start, end) index range of individuals to be adapted */
+    /** @brief Retrieves the adaption range in a given iteration and sorting scheme. */
     std::tuple<std::size_t, std::size_t> getAdaptionRange() const;
 
     /** @brief This helper function marks parents as parents and children as children. */
@@ -270,12 +255,9 @@ protected:
     /** @brief Increases the population size if requested by the user */
     void performScheduledPopulationGrowth();
 
-    /** @brief This function implements the RANDOMDUPLICATIONSCHEME scheme
-     *  @param child The child slot whose value is replaced by a randomly chosen parent's */
+    /** @brief This function implements the RANDOMDUPLICATIONSCHEME scheme */
     void randomRecombine(const std::unique_ptr<gen::GGenome> &child);
-    /** @brief This function implements the VALUEDUPLICATIONSCHEME scheme
-     *  @param child The child slot whose value is replaced by a fitness-weighted chosen parent's
-     *  @param threshold The cumulative-probability thresholds used to pick the source parent */
+    /** @brief This function implements the VALUEDUPLICATIONSCHEME scheme */
     void
     valueRecombine(const std::unique_ptr<gen::GGenome> &child, const std::vector<double> &threshold);
 
@@ -312,15 +294,13 @@ private:
     /***************************************************************************/
     // Virtual or overridden private functions
 
-    /** @brief Emits a name for this class / object
-     *  @return The class name of this object */
+    /** @brief Emits a name for this class / object */
     std::string name_() const override;
     /** @brief Creates a deep clone of this object (pure virtual here; implemented by concrete algorithms)
      *  @return A pointer to a freshly allocated deep copy of this object */
     GOptimizationAlgorithmBase *clone_() const override = 0;
 
-    /** @brief This function implements the logic that constitutes evolutionary algorithms
-     *  @return A tuple holding the best raw and transformed fitness achieved this iteration */
+    /** @brief This function implements the logic that constitutes evolutionary algorithms */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Calculates the fitness of all required individuals; to be re-implemented in derived classes */
     void evaluatePopulation_() override = 0;
@@ -332,8 +312,7 @@ private:
      *  @return A string describing the algorithm's personality type */
     std::string getAlgorithmPersonalityType_() const override = 0;
 
-    /** @brief Retrieve the number of processible items in the current iteration.
-     *  @return The number of items that can be processed in the current iteration */
+    /** @brief Retrieve the number of processible items in the current iteration. */
     std::size_t getNProcessableItems_() const override;
 
     /** @brief Gives individuals an opportunity to update their internal structures */

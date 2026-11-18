@@ -48,7 +48,7 @@ namespace Gem::Courtier {
  * has not come back assumed lost? Its cost is asymmetric -- under a need-all submission policy
  * (GSubmissionPolicy::full_success_or_fatal, e.g. gradient descent) a false-positive timeout triggers a
  * full re-evaluation, while under a tolerant policy a missing item is cheaply cloned. And because a single
- * Geneva evaluation may run anywhere from microseconds to days -- a duration not known a priori -- no fixed
+ * item's processing may run anywhere from microseconds to days -- a duration not known a priori -- no fixed
  * ABSOLUTE timeout is a sensible general default. The default is therefore scale-free (@c adaptive).
  *
  * The set is deliberately open (an enum class, not the plain-C manifest ABI), so further treatments (e.g. a

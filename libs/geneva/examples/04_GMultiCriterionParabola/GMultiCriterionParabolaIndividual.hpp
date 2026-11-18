@@ -38,7 +38,6 @@
 
 // Standard header files go here
 #include <filesystem>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -131,14 +130,6 @@ protected:
  */
 using GMultiCriterionParabolaIndividualFactory =
     Gem::Geneva::Genome::GIndividualFactory<GMultiCriterionParabolaIndividual>;
-
-/******************************************************************************/
-/**
- * Provide an easy way to print the individual's content
- */
-std::ostream &operator<<(std::ostream &, const Gem::Geneva::GMultiCriterionParabolaIndividual &);
-std::ostream &
-operator<<(std::ostream &, const std::unique_ptr<Gem::Geneva::GMultiCriterionParabolaIndividual> &);
 
 /******************************************************************************/
 

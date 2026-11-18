@@ -63,9 +63,6 @@ namespace detail {
  * After the copy the proxy serves from its own memory and touches the pool no further, so a
  * dormant STAGED proxy pins no shared memory. See GRotatingPool for the ring, the producer, and
  * the (benign, aligned-64-bit) race analysis. The implementation lives in GStagedSource.cpp.
- *
- * @param dst Start of the destination buffer (must hold at least n words)
- * @param n   Number of 64-bit words to copy out (equal to STAGED_CHUNK_WORDS)
  */
 void stagedClaim(std::uint64_t *dst, std::size_t n);
 

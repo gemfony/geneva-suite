@@ -132,10 +132,10 @@ struct GCUDABackend<scalar_type>::Impl {
     // appears, or the two libraries grow a shared CUDA layer for other reasons, revisit it there.
     CUdeviceptr d_params = 0;
     CUdeviceptr d_pconst = 0;
-    CUdeviceptr d_fitness = 0;
+    CUdeviceptr d_results = 0;
     std::size_t cap_params = 0;
     std::size_t cap_pconst = 0;
-    std::size_t cap_fitness = 0;
+    std::size_t cap_results = 0;
 
     // To skip re-uploading an unchanged problem-constant blob (e.g. a fixed target image) every batch.
     const void *last_pconst = nullptr;
@@ -147,7 +147,7 @@ struct GCUDABackend<scalar_type>::Impl {
             drv.ctxPushCurrent(context);
             if(d_params) drv.memFree(d_params);
             if(d_pconst) drv.memFree(d_pconst);
-            if(d_fitness) drv.memFree(d_fitness);
+            if(d_results) drv.memFree(d_results);
             if(module) drv.moduleUnload(module);
             CUcontext popped = nullptr;
             drv.ctxPopCurrent(&popped);
@@ -179,7 +179,8 @@ struct GCUDABackend<scalar_type>::Impl {
 
 /**
  * @brief Default constructor. Allocates the private (pimpl) implementation; no device work yet.
- * @tparam scalar_type The host-side scalar element type (double or float) of the param/fitness buffers
+ * @tparam scalar_type The host-side scalar element type (double or float) of the parameter/result
+ * buffers
  */
 template <typename scalar_type>
 GCUDABackend<scalar_type>::GCUDABackend()
@@ -188,14 +189,14 @@ GCUDABackend<scalar_type>::GCUDABackend()
 
 /**
  * @brief Destructor. Releases the pimpl, which frees device buffers, the module and the CUDA context.
- * @tparam scalar_type The host-side scalar element type of the param/fitness buffers
+ * @tparam scalar_type The host-side scalar element type of the parameter/result buffers
  */
 template <typename scalar_type>
 GCUDABackend<scalar_type>::~GCUDABackend() = default;
 
 /**
  * @brief Returns the backend's name.
- * @tparam scalar_type The host-side scalar element type of the param/fitness buffers
+ * @tparam scalar_type The host-side scalar element type of the parameter/result buffers
  * @return The string "cuda"
  */
 template <typename scalar_type>
@@ -208,7 +209,7 @@ std::string GCUDABackend<scalar_type>::name() const { return "cuda"; }
  * prebuilt PTX/cubin or by NVRTC-compiling a .cu source for the device's compute capability. Throws a
  * geneva_exception if no device is found, the device id is out of range, or compilation/loading fails.
  *
- * @tparam scalar_type The host-side scalar element type of the param/fitness buffers
+ * @tparam scalar_type The host-side scalar element type of the parameter/result buffers
  * @param spec The kernel specification (device id, kernel path, entry-point name, launch config)
  */
 template <typename scalar_type>
@@ -284,26 +285,29 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
 }
 
 /**
- * @brief Evaluates a batch of work items on the GPU and writes one fitness value per item.
+ * @brief Evaluates a batch of work items on the GPU and writes one result value per item.
  *
  * Uploads the flattened parameters (and, when changed, the cached problem-constant blob), zeroes the
- * fitness buffer, launches the kernel with n_items * threads_per_item total threads, and copies the
+ * result buffer, launches the kernel with n_items * threads_per_item total threads, and copies the
  * results back to the host. Device buffers grow lazily to fit the largest batch seen.
  *
- * @tparam scalar_type The host-side scalar element type of the param/fitness buffers
- * @param params Host pointer to the flattened parameters, laid out as n_items blocks of @p dim scalars
+ * @tparam scalar_type The host-side scalar element type of the parameter/result buffers
+ * @param params Host pointer to the row-major parameter buffer of n_items * dim scalar_type
+ *   (params[i*dim + j] = parameter j of item i)
  * @param n_items Number of work items in this batch (no-op if <= 0)
  * @param dim Number of parameters per work item
- * @param pconst Host pointer to the problem-constant blob (e.g. a target image); may be unchanged across calls
+ * @param pconst Opaque problem-constant blob the kernel also receives (e.g. function id, target
+ *   image); may be unchanged across calls, and may be null when pconst_size is 0
  * @param pconst_size Size in bytes of @p pconst (0 means no problem constants)
- * @param fitness_out Host output buffer receiving one fitness value per item (size n_items)
- * @param threads_per_item Number of GPU threads cooperating per item (clamped to a minimum of 1)
+ * @param results_out Host output buffer receiving one result value per item (size n_items)
+ * @param threads_per_item GPU threads cooperating on one item (intra-item parallelism, clamped to
+ *   a minimum of 1); >1 launches n_items*threads_per_item threads with atomic accumulation
  */
 template <typename scalar_type>
 void GCUDABackend<scalar_type>::evaluate(
     const scalar_type *params, int n_items, int dim,
     const std::byte *pconst, std::size_t pconst_size,
-    scalar_type *fitness_out, int threads_per_item) {
+    scalar_type *results_out, int threads_per_item) {
     if(n_items <= 0) {
         return;
     }
@@ -311,34 +315,35 @@ void GCUDABackend<scalar_type>::evaluate(
     const GCUDADriver &drv = cudaDriver();
     cuCheck(drv.ctxPushCurrent(p_->context), "cuCtxPushCurrent(evaluate)");
 
-    const std::size_t paramBytes = static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim) * sizeof(scalar_type);
-    const std::size_t fitnessBytes = static_cast<std::size_t>(n_items) * sizeof(scalar_type);
-    const std::size_t pconstBytes = pconst_size > 0 ? pconst_size : 1; // avoid a 0-byte allocation
+    const std::size_t param_bytes =
+        static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim) * sizeof(scalar_type);
+    const std::size_t result_bytes = static_cast<std::size_t>(n_items) * sizeof(scalar_type);
+    const std::size_t pconst_bytes = pconst_size > 0 ? pconst_size : 1; // avoid a 0-byte allocation
 
-    p_->ensure(p_->d_params, p_->cap_params, paramBytes);
-    p_->ensure(p_->d_fitness, p_->cap_fitness, fitnessBytes);
-    p_->ensure(p_->d_pconst, p_->cap_pconst, pconstBytes);
+    p_->ensure(p_->d_params, p_->cap_params, param_bytes);
+    p_->ensure(p_->d_results, p_->cap_results, result_bytes);
+    p_->ensure(p_->d_pconst, p_->cap_pconst, pconst_bytes);
 
-    cuCheck(drv.memcpyHtoD(p_->d_params, params, paramBytes), "cuMemcpyHtoD(params)");
+    cuCheck(drv.memcpyHtoD(p_->d_params, params, param_bytes), "cuMemcpyHtoD(params)");
     // Upload the problem constants only when they actually changed (same pointer + size => the
     // consumer reused its cached, static blob, so the device copy is still valid). This avoids
-    // re-sending e.g. a multi-MB target image every generation.
+    // re-sending e.g. a multi-MB target image for every batch.
     if(pconst_size > 0 && (pconst != p_->last_pconst || pconst_size != p_->last_pconst_sz)) {
         cuCheck(drv.memcpyHtoD(p_->d_pconst, pconst, pconst_size), "cuMemcpyHtoD(pconst)");
         p_->last_pconst = pconst;
         p_->last_pconst_sz = pconst_size;
     }
-    // Always zero the fitness buffer: a kernel that accumulates (atomicAdd, for intra-item
+    // Always zero the result buffer: a kernel that accumulates (atomicAdd, for intra-item
     // parallelism) needs it, and a kernel that overwrites is unaffected. This keeps an accumulating
     // kernel correct at ANY threads_per_item (including 1).
-    cuCheck(drv.memsetD8(p_->d_fitness, 0, fitnessBytes), "cuMemsetD8(fitness)");
+    cuCheck(drv.memsetD8(p_->d_results, 0, result_bytes), "cuMemsetD8(results)");
 
     // Kernel ABI: evaluate(const scalar_type* params, int n_items, int dim,
-    //                      const unsigned char* pconst, int pconst_size, scalar_type* fitness,
+    //                      const unsigned char* pconst, int pconst_size, scalar_type* results,
     //                      int threads_per_item)
     int pconstSizeArg = static_cast<int>(pconst_size);
     void *args[] = {
-        &p_->d_params, &n_items, &dim, &p_->d_pconst, &pconstSizeArg, &p_->d_fitness,
+        &p_->d_params, &n_items, &dim, &p_->d_pconst, &pconstSizeArg, &p_->d_results,
         &threads_per_item};
 
     // Total threads = n_items * threads_per_item (one per (item, work-unit)).
@@ -352,7 +357,7 @@ void GCUDABackend<scalar_type>::evaluate(
         "cuLaunchKernel");
     cuCheck(drv.ctxSynchronize(), "cuCtxSynchronize");
 
-    cuCheck(drv.memcpyDtoH(fitness_out, p_->d_fitness, fitnessBytes), "cuMemcpyDtoH(fitness)");
+    cuCheck(drv.memcpyDtoH(results_out, p_->d_results, result_bytes), "cuMemcpyDtoH(results)");
 
     CUcontext popped = nullptr;
     cuCheck(drv.ctxPopCurrent(&popped), "cuCtxPopCurrent(evaluate)");

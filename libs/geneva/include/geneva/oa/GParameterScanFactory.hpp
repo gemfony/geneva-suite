@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <string>
@@ -85,7 +86,7 @@ public:
     /**
      * @brief The copy constructor
      *
-     * @param The factory to be copied (default member-wise copy).
+     * The factory is copied member-wise (default copy).
      */
     GParameterScanFactory(const GParameterScanFactory &) = default;
     /** @brief The destructor */
@@ -98,9 +99,6 @@ public:
 
     /**
      * @brief Adds local command line options to boost::program_options::options_description objects
-     *
-     * @param visible The options_description for visible (user-facing) command line options.
-     * @param hidden The options_description for hidden command line options.
      */
     void addCLOptions(
         boost::program_options::options_description &visible,
@@ -109,14 +107,10 @@ public:
 
     /**
      * @brief Allows to specify the command line parameter manually for variables to be scanned
-     *
-     * @param par_str The parameter specification string describing the variables to be scanned.
      */
     void setCLParameterSpecs(std::string par_str);
     /**
      * @brief Allows to retrieve the command line parameter settings for variables to be scanned
-     *
-     * @return The current parameter specification string for the variables to be scanned.
      */
     std::string getCLParameterSpecs() const;
     /** @brief Allows to reset the command line parameter specs */
@@ -125,8 +119,6 @@ public:
 protected:
     /**
      * @brief Allows to act on the configuration options received from the configuration file
-     *
-     * @param p_base The freshly created algorithm to be post-processed after its options have been read.
      */
     void postProcess_(std::shared_ptr<GOptimizationAlgorithmBase> &p_base) override;
 

@@ -54,10 +54,10 @@
 // Standard header files go here
 #include <chrono>
 #include <cstdint>
-#include <exception>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -70,6 +70,7 @@
 #include <mpi.h>
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerSpec.hpp"
 #include "courtier/GCourtierEnums.hpp"
@@ -77,7 +78,6 @@
 #include "courtier/mpi/GMPICascadeConfig.hpp"
 #include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
-#include "hap/GRandomFactory.hpp"
 
 #include "GSleepGroup.hpp"
 #include "GSleepGroupIndividual.hpp"
@@ -262,47 +262,6 @@ Gem::Courtier::GMPICascadeConfig cascadeConfig(unsigned int group, GMPICascadeLa
 }
 
 /******************************************************************************/
-/** @brief What the consumer of the command line gives a lead: its role and, for a CLIENT, its
- *  client. */
-struct LeadClient {
-    processRole role; ///< The consumer's role of this process
-    /// The client; null unless the role is CLIENT
-    std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>> client;
-};
-
-/**
- * The one place that builds a lead's client, from the consumer options of the command line,
- * through Geneva's consumer setup (as Go2 does for a client, without Go2). Called on a lead only,
- * after the cascade exists: on a member it would load the consumers and parse their options, and
- * a member runs no Geneva code.
- *
- * @param argc The number of arguments
- * @param argv The arguments
- * @param role What readRole() found
- * @return The consumer's role of this process and, for a CLIENT, its client
- */
-LeadClient buildLeadClient(int argc, char **argv, const Role &role) {
-    Gem::Hap::setGpuRandomNumbersAllowed(false); // as Go2 for a client: no CUDA context per lead
-    boost::program_options::options_description options;
-    boost::program_options::options_description hidden;
-    addConsumerOptions(options, hidden);
-    boost::program_options::variables_map vm;
-    boost::program_options::store(
-        boost::program_options::command_line_parser(argc, argv)
-            .options(options.add(hidden))
-            .allow_unregistered()
-            .run(),
-        vm
-    );
-    const Gem::Courtier::ConsumerSpec spec = specFromCommandLine(role.consumer, vm);
-    const processRole consumer_role = consumerRole(spec, role.client);
-    return {
-        .role = consumer_role,
-        .client = consumer_role == processRole::CLIENT ? buildConsumerClient(spec) : nullptr
-    };
-}
-
-/******************************************************************************/
 /**
  * A process of a job that is laid out in groups (GMPICascade): a member serves its lead; the
  * submitter (only with -c mpi) measures through Go2; a lead runs its client and evaluates every
@@ -337,25 +296,18 @@ int runGroupProcess(
         return cascade.serve(member);
     }
     if(cascade.role() == processRole::SUBMITTER) {
-        try {
-            cascade.requireRole(
-                consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer})
-            );
-            Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
-            return measure(go, settings);
-        }
-        catch(const std::exception &e) {
-            // An option only Go2 knows, refused here alone; a missing serial reference. The
-            // cascade ends the job as the exception leaves it (the leads wait for this process's
-            // greeting); the text is printed first, which the cascade cannot do.
-            std::cerr << "GSubClientOverhead: " << e.what() << '\n';
-            std::cerr.flush();
-            throw;
-        }
+        // An error here (an option only Go2 knows, refused here alone; a missing serial
+        // reference) is caught by nobody: the fatal report prints it and ends this process, and
+        // with it the job, whose leads wait for this process's greeting.
+        cascade.requireRole(consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer}));
+        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
+        return measure(go, settings);
     }
 
     // A lead. The client is declared after the cascade: it goes before the cascade's communicators.
-    const auto [consumer_role, client] = buildLeadClient(argc, argv, role);
+    // It is built only here: on a member it would load the consumers, and a member runs no Geneva
+    // code.
+    const auto [consumer_role, client] = buildClientFromCommandLine(argc, argv);
     cascade.requireRole(consumer_role);
     lead_log.setPauses(pause_min, pause_max);
     cascade.lead(lead_log);
@@ -389,11 +341,12 @@ int runGroupProcess(
 
 /******************************************************************************/
 
-// A failure ends the program with its message and a non-zero status instead of an abort.
-int main(int argc, char **argv) try {
+int main(int argc, char **argv) {
+    // An error nobody handles ends the program with a message and the exit code 1
+    Gem::Common::installFatalReport();
     const Role role = readRole(argc, argv);
     Settings settings;
-    if(not role.updateConfigs and role.group > 1) {
+    if(not role.updateConfigs and not Go2::helpRequested(argc, argv) and role.group > 1) {
         if(role.consumer == "mpi") {
             return runGroupProcess(
                 argc,
@@ -408,14 +361,10 @@ int main(int argc, char **argv) try {
         }
     }
     // Everything without a cascade: the serial reference, a websocket server, a group of one,
-    // --update-configs
+    // --update-configs, a help request (Go2 prints the text and ends the process)
     Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
     if(not role.updateConfigs and go.clientMode()) {
         return go.clientRun();
     }
     return measure(go, settings);
-}
-catch(const std::exception &e) {
-    std::cerr << "GSubClientOverhead: " << e.what() << '\n';
-    return 1;
 }

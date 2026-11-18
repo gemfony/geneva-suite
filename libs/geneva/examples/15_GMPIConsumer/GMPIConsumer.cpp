@@ -71,6 +71,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp" // processRole
@@ -201,6 +202,7 @@ bool parseCommandLine(
  */
 // NOLINTNEXTLINE(readability-function-size) -- example 15's main(): a single linear setup script (config parsing, role query, client/submitter branch, MPI-consumer setup, population + adaption-config wiring, run); splitting would scatter tightly sequential one-shot setup steps
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::uint16_t nProducerThreads = 0;
     std::size_t populationSize = 0;
     std::size_t nParents = 0;

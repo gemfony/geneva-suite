@@ -46,6 +46,8 @@
 // Boost.DLL locates this library on disk, next to which the optional consumer modules are installed.
 #define BOOST_DLL_USE_STD_FS 1
 #include <boost/dll/runtime_symbol_info.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/value_semantic.hpp>
 
 // Default values for the consumer command-line options.
 #include "courtier/GCourtierEnums.hpp"
@@ -58,6 +60,7 @@
 #include "common/GParserBuilder.hpp" // GParserBuilder::updateInPlace() -- materialize the networked config too
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
+#include "hap/GRandomFactory.hpp" // setGpuRandomNumbersAllowed() -- a client draws no GPU numbers
 
 // The concrete courtier consumers -- known ONLY here.
 #include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
@@ -573,6 +576,46 @@ std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>>
 buildConsumerClient(const c2::ConsumerSpec &spec) {
     auto provider = lookupConsumerProvider(spec.mnemonic);
     return provider ? provider->buildClient(spec) : nullptr;
+}
+
+/******************************************************************************/
+/**
+ * @brief Builds the client of a process that runs without Go2, from the consumer options of its
+ * command line (--consumer, --client and the options of the consumers; others are ignored).
+ * Without --consumer the consumer is Gem::Courtier::GDEFAULTCONSUMERMNEMONIC, as in Go2.
+ *
+ * @param argc The number of arguments
+ * @param argv The arguments
+ * @return The role of this process (consumerRole()) and, for a CLIENT, its client
+ *         (buildConsumerClient()); a CLIENT also stops drawing random numbers on the GPU, as Go2's
+ *         clients do
+ * @throws geneva_exception for a consumer no provider is registered for
+ */
+GCommandLineClient buildClientFromCommandLine(int argc, char **argv) {
+    namespace po = boost::program_options;
+    std::string mnemonic{Gem::Courtier::GDEFAULTCONSUMERMNEMONIC}; // as Go2 without --consumer
+    bool client_requested = false;
+    po::options_description options;
+    po::options_description hidden;
+    options.add_options()("consumer,c", po::value<std::string>(&mnemonic))(
+        "client",
+        po::bool_switch(&client_requested)
+    );
+    addConsumerOptions(options, hidden);
+    po::variables_map vm;
+    po::store(
+        po::command_line_parser(argc, argv).options(options.add(hidden)).allow_unregistered().run(),
+        vm
+    );
+    po::notify(vm);
+
+    const c2::ConsumerSpec spec = specFromCommandLine(mnemonic, vm);
+    const Gem::Courtier::processRole role = consumerRole(spec, client_requested);
+    if(role != Gem::Courtier::processRole::CLIENT) {
+        return {.role = role, .client = nullptr};
+    }
+    Gem::Hap::setGpuRandomNumbersAllowed(false); // as Go2 for a client: no CUDA context per client
+    return {.role = role, .client = buildConsumerClient(spec)};
 }
 
 /******************************************************************************/

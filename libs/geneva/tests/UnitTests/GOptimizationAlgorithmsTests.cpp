@@ -41,25 +41,27 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
-#include <utility>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <tuple>
+#include <utility>
 #include <vector>
 
-
+#include "common/GParserBuilder.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
@@ -303,6 +305,9 @@ protected:
 std::mutex g_scan_probe_mutex;
 std::vector<std::int32_t> g_scan_int_samples;            ///< every int value the int probe was evaluated at
 std::vector<std::pair<double, double>> g_scan_pair_samples; ///< every (x, y) the 2-double probe was evaluated at
+std::vector<bool> g_scan_bool_samples;                      ///< every value the bool probe saw
+std::vector<std::pair<bool, double>>
+    g_scan_bool_double_samples; ///< every (b, x) the bool-and-double probe was evaluated at
 
 /** @brief A single-int32 probe (genome bound [-10, 10]) recording each evaluated int value. */
 class ScanIntProbe : public gen::GGenomeT<ScanIntProbe> {
@@ -325,6 +330,57 @@ protected:
             g_scan_int_samples.push_back(v[0]);
         }
         return {static_cast<double>(v[0]) * static_cast<double>(v[0])};
+    }
+};
+
+/** @brief A single-boolean probe recording each evaluated boolean value. */
+class ScanBoolProbe : public gen::GGenomeT<ScanBoolProbe> {
+public:
+    using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
+public:
+    ScanBoolProbe() {
+        gen::GGenomeBuilder b;
+        b.addBoolGroup(1).init(false);
+        this->setGenome(b.build());
+    }
+    ScanBoolProbe(const ScanBoolProbe &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<bool> v;
+        this->streamline<bool>(v);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.push_back(v[0]);
+        }
+        return {v[0] ? 1. : 0.};
+    }
+};
+
+/** @brief A probe with one boolean and one double (bounds [-5, 5)) recording each evaluated pair. */
+class ScanBoolDoubleProbe : public gen::GGenomeT<ScanBoolDoubleProbe> {
+public:
+    using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
+public:
+    ScanBoolDoubleProbe() {
+        gen::GGenomeBuilder b;
+        b.addBoolGroup(1).init(false);
+        b.addDoubleGroup(1, -5., 5.).init(0.0);
+        this->setGenome(b.build());
+    }
+    ScanBoolDoubleProbe(const ScanBoolDoubleProbe &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<bool> b;
+        std::vector<double> x;
+        this->streamline<bool>(b);
+        this->streamline<double>(x);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_double_samples.emplace_back(b[0], x[0]);
+        }
+        return {x[0] * x[0] + (b[0] ? 1. : 0.)};
     }
 };
 
@@ -1151,17 +1207,20 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
     // (scan_randomly = false) used to lose its pre-computed grid, so getCurrentItem -> at(step_) threw
     // during the sweep. We build a grid scan, CLONE it (via the copy ctor that clone() uses), and run the
     // clone: it must sweep the intact grid and find the origin (which is on a 3-step [-5, 5] grid).
+    // clang-format off
     //! [ps-direct-construction]
     auto pop = std::make_shared<oa::GParameterScan>();
     pop->setScanRandomly(false); // GRID scan: pre-computed grid points must survive a clone
     pop->setParameterSpecs(
-        "d(0, -5., 5., 3), d(1, -5., 5., 3), d(2, -5., 5., 3), d(3, -5., 5., 3), d(4, -5., 5., 3)"
+        "d(0, -5., 5., 3), d(1, -5., 5., 3), d(2, -5., 5., 3), "
+        "d(3, -5., 5., 3), d(4, -5., 5., 3)"
     );
     pop->setMaxIteration(100000);
     pop->setMaxStallIteration(0);
     pop->setReportIteration(100000);
     pop->push_back(SphereOA().clone());
     //! [ps-direct-construction]
+    // clang-format on
 
     // Deep-copy through the copy constructor (exactly what clone() / load_() use).
     auto clone = std::make_shared<oa::GParameterScan>(*pop);
@@ -1231,6 +1290,171 @@ TEST_CASE("Parameter scan grid covers exactly the product of the per-dimension s
     CHECK(combos.count(std::make_pair(-1., 1.)) == 1);
     CHECK(combos.count(std::make_pair(1., -1.)) == 1);
     CHECK(combos.count(std::make_pair(1., 1.)) == 1);
+}
+
+/******************************************************************************/
+
+TEST_CASE("Parameter scan over a boolean visits each of its two values once", "[flat][oa][ps]") {
+    // Regression: a grid scan used to step through a boolean up to the spec's step count -- 100
+    // when a bare b(...) gives none -- while the boolean's grid holds two values, so the third step
+    // read past the grid (std::out_of_range), and a step count of 1 left `true` unscanned. The grid
+    // itself bounds the traversal: every spec below visits false and true exactly once.
+    for(const char *spec : {"b(0)", "b(0, false, true, 5)", "b(0, 1)"}) {
+        CAPTURE(spec);
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.clear();
+        }
+
+        auto pop = std::make_shared<oa::GParameterScan>();
+        pop->setScanRandomly(false); // grid scan
+        pop->setParameterSpecs(spec);
+        pop->setMaxIteration(100000);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->push_back(ScanBoolProbe().clone());
+        CHECK_NOTHROW(pop->optimize());
+
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        CHECK(g_scan_bool_samples.size() == 2);
+        CHECK(std::ranges::count(g_scan_bool_samples, false) == 1);
+        CHECK(std::ranges::count(g_scan_bool_samples, true) == 1);
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "Parameter scan over a boolean and a double visits their cross product",
+    "[flat][oa][ps]"
+) {
+    // The boolean is the fastest digit of the scan's odometer; with a second scanned variable its
+    // traversal must still wrap after its two values, or the scan reads past its grid.
+    {
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        g_scan_bool_double_samples.clear();
+    }
+
+    auto pop = std::make_shared<oa::GParameterScan>();
+    pop->setScanRandomly(false); // grid scan
+    pop->setParameterSpecs("b(0), d(0, -1., 1., 3)");
+    pop->setMaxIteration(100000);
+    pop->setMaxStallIteration(0);
+    pop->setReportIteration(100000);
+    pop->push_back(ScanBoolDoubleProbe().clone());
+    CHECK_NOTHROW(pop->optimize());
+
+    std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+    std::set<std::pair<bool, double>> const combos(
+        g_scan_bool_double_samples.begin(),
+        g_scan_bool_double_samples.end()
+    );
+    CHECK(g_scan_bool_double_samples.size() == 6); // 2 * 3, each once
+    CHECK(combos.size() == 6);
+    for(const bool b : {false, true}) {
+        for(const double x : {-1., 0., 1.}) {
+            CHECK(combos.count(std::make_pair(b, x)) == 1);
+        }
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "Parameter scan mode does not depend on the order of the two settings",
+    "[flat][oa][ps]"
+) {
+    // Regression: the scan objects were built when the specification was set, in the scan mode of
+    // that moment. A configuration file applies parameter_options before scan_randomly, so
+    // "scan_randomly": false came too late and the scan drew random values; the same happened on
+    // the API with setScanRandomly() after setParameterSpecs().
+    const auto run_and_count = [](const std::shared_ptr<oa::GParameterScan> &pop) {
+        {
+            std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+            g_scan_bool_samples.clear();
+        }
+        pop->setMaxIteration(100000);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->push_back(ScanBoolProbe().clone());
+        CHECK_NOTHROW(pop->optimize());
+        std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
+        CHECK(g_scan_bool_samples.size() == 2); // a grid: both values once (a random scan: 100)
+        CHECK(std::ranges::count(g_scan_bool_samples, false) == 1);
+        CHECK(std::ranges::count(g_scan_bool_samples, true) == 1);
+    };
+
+    SECTION("from a configuration file") {
+        const auto dir = std::filesystem::temp_directory_path() / "geneva_parameter_scan_tests";
+        std::filesystem::create_directories(dir);
+        const auto cfg = dir / "GParameterScan.json";
+        {
+            std::ofstream out(cfg);
+            out << R"json({
+                "parameter_options": { "value": "b(0)" },
+                "scan_randomly": { "value": false }
+            })json"
+                << '\n';
+        }
+        auto pop = std::make_shared<oa::GParameterScan>();
+        Gem::Common::GParserBuilder gpb;
+        pop->addConfigurationOptions(gpb);
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+        std::filesystem::remove(cfg);
+        CHECK_FALSE(pop->getScanRandomly());
+        run_and_count(pop);
+    }
+
+    SECTION("on the API, the mode set after the specification") {
+        auto pop = std::make_shared<oa::GParameterScan>();
+        pop->setParameterSpecs("b(0)");
+        pop->setScanRandomly(false);
+        run_and_count(pop);
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "A parameter-scan specification with a label is refused when it is parsed",
+    "[flat][oa][ps]"
+) {
+    // A specification addresses each variable by its index; a trailing label used to be accepted
+    // by the grammar and refused only when the scan ran (as the remainder of the removed by-name
+    // addressing).
+    for(const char *spec :
+        {"d(0, -1., 1., 10, x)",
+         "f(0, -1., 1., x)",
+         "i(0, 0, 5, 3, x)",
+         "b(0, x)",
+         "b(0, false, true, 5, x)"}) {
+        CAPTURE(spec);
+        CHECK_THROWS_WITH(
+            gen::GParameterPropertyParser(spec),
+            Catch::Matchers::ContainsSubstring("\"x\"") &&
+                Catch::Matchers::ContainsSubstring("is not a step count")
+        );
+    }
+    CHECK_THROWS_AS(
+        oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
+        geneva_exception
+    );
+
+    // The forms without a label are read as before
+    gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
+    auto [d_it, d_end] = ppp.getIterators<double>();
+    REQUIRE(std::distance(d_it, d_end) == 1);
+    CHECK(d_it->index == 3);
+    CHECK(d_it->nSteps == 10);
+    auto [b_it, b_end] = ppp.getIterators<bool>();
+    REQUIRE(std::distance(b_it, b_end) == 2);
+    CHECK(b_it->index == 2);
+    CHECK(std::next(b_it)->index == 4);
+    CHECK(std::next(b_it)->nSteps == 7);
+    auto [i_it, i_end] = ppp.getIterators<std::int32_t>();
+    REQUIRE(std::distance(i_it, i_end) == 1);
+    CHECK(i_it->index == 1);
+    CHECK(i_it->nSteps == 100); // the default step count
 }
 
 /******************************************************************************/

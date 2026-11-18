@@ -89,7 +89,7 @@ bool GBaseParChildPersonalityTraits::isParent() const {
 /**
  * @brief Retrieves the current value of the parent_counter_ variable
  *
- * @return The current value of the parent_counter_ variable (the number of generations spent as a parent)
+ * @return The number of consecutive generations this individual has been re-elected as parent (0 if it is a child)
  */
 std::uint32_t GBaseParChildPersonalityTraits::getParentCounter() const {
     return parent_counter_;

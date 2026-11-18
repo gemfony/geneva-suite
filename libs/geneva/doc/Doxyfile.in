@@ -68,3 +68,6 @@ EXPAND_ONLY_PREDEF     = NO
 # in the codebase with headroom; not high enough to produce unreadable
 # wall-of-spaghetti pictures.
 DOT_GRAPH_MAX_NODES    = 200
+# The formulas (\f[ ... \f]) use amsmath / amssymb constructs (cases, \text, \substack,
+# \mathbb); without these packages LaTeX fails on them and the formula images are missing.
+EXTRA_PACKAGES         = amsmath amssymb

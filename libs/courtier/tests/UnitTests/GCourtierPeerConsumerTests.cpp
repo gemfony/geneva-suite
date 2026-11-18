@@ -587,8 +587,9 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A session that is made while the server stops: its peer's start() is held on the session thread
-// (by a wrapper around the server's end) while stopServer() looks at the registry of peers.
+// A session that is made while the server stops: its peer's start() is held on the listener's
+// thread, in on_peer (by a wrapper around the server's end), while stopServer() looks at the
+// registry of peers.
 
 namespace {
 
@@ -945,9 +946,9 @@ TEST_CASE(
 
 /**
  * The shell never closes a peer before that peer has been started (GPeerI.hpp, rule 2): a session
- * enters the registry only after its peer's start(). The stop comes while a session thread is held
- * in the start() of a new peer for longer than the listener's stop() waits for it; the stop neither
- * closes that peer early nor waits its grace for a peer whose close was lost.
+ * enters the registry only after its peer's start(). The stop comes while the listener's thread is
+ * held in the start() of a new peer for longer than the listener's stop() waits for it; the stop
+ * neither closes that peer early nor waits its grace for a peer whose close was lost.
  */
 TEST_CASE(
     "GPeerConsumerT: a peer is never closed before it has been started",
@@ -989,7 +990,7 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * A client that connects while the strand the listener calls on_peer on is busy: its session is on
+ * A client that connects while the thread the listener calls on_peer on is busy: its session is on
  * its way when the server stops. stop() of the listener waits for that call, so the shell finds the
  * session and the client hears that the run has ended (GListenerI::stop()).
  */
@@ -1011,7 +1012,7 @@ TEST_CASE(
         shell.startServer();
         const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
         auto holding = std::make_shared<std::atomic<bool>>(false);
-        listener->holdAcceptStrand([holding, release] {
+        listener->holdAcceptThread([holding, release] {
             holding->store(true);
             release->wait();
         });

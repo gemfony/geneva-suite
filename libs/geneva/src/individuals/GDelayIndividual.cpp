@@ -92,7 +92,7 @@ GDelayIndividual::~GDelayIndividual() { /* nothing */
  * optionally throws with a configured likelihood, and returns a random value -- no real
  * optimization is performed.
  *
- * @return A random value in [0, 1); the result is not used for any actual optimization
+ * @return A one-element vector holding the random value
  */
 std::vector<double> GDelayIndividual::evaluate() {
     // The candidate holds no RNG of its own -- lease a proxy for this evaluation's random draws.
@@ -324,13 +324,7 @@ GDelayIndividual::Config GDelayIndividual::readConfig(std::filesystem::path cons
     Gem::Common::GParserBuilder gpb;
     describeConfig(gpb, c);
 
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GDelayIndividual::readConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     return c;
 }

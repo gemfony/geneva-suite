@@ -52,12 +52,13 @@ constexpr std::size_t GPP_DEF_NSTEPS = 100; // The default number of steps for a
 //   spec-list := spec ( ',' spec )*
 //   spec      := type '(' args ')'
 //   type      := 'd' | 'f' | 'i' | 'b' | 's'
-//   args (d/f/i) := index ',' lower ',' upper [ ',' nSteps ] [ ',' label ]
-//   args (b)     := index [ ',' lower ',' upper [ ',' nSteps ] ] [ ',' label ]
+//   args (d/f/i) := index ',' lower ',' upper [ ',' nSteps ]
+//   args (b)     := index [ ',' lower ',' upper ] [ ',' nSteps ]
 //   args (s)     := nItems
 // Parameters are addressed by 'index' (their position in the flat parameter vector of
-// the corresponding type). The optional 'label' is a free-form display name used by
-// monitors (e.g. GProgressPlotter axis labels); it does NOT identify a parameter.
+// the corresponding type). A specification carries no name or label: a token where the
+// step count stands that is not a step count is refused with a message naming it (a
+// progress plot names its variables with setVariableNames()).
 namespace {
 
 /**
@@ -159,13 +160,42 @@ bool toBool(const std::string &s, const std::string &raw) {
 }
 
 /**
+ * @brief Reads the optional step count of a spec: the tokens from @p first on. At most one
+ * token may follow, and it must be an unsigned number; anything else -- a label, a name -- is
+ * refused with a message that names it.
+ *
+ * @param tok The comma-split argument tokens of the spec
+ * @param first The position of the step count in @p tok
+ * @param raw The raw fragment content, for the error messages
+ * @return The step count, or GPP_DEF_NSTEPS if none is given
+ */
+std::size_t
+readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::string &raw) {
+    for(std::size_t k = first; k < tok.size(); ++k) {
+        if(not isUnsigned(tok[k])) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GParameterPropertyParser::parse(): Error!" << '\n'
+                << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
+                << "A parameter-scan specification carries no label or name: a variable is"
+                << " addressed by its index (a progress plot names its variables with"
+                << " setVariableNames())." << '\n'
+            );
+        }
+    }
+    if(tok.size() > first + 1) {
+        fail(raw);
+    }
+    return tok.size() == first + 1 ? static_cast<std::size_t>(std::stoul(tok[first]))
+                                   : GPP_DEF_NSTEPS;
+}
+
+/**
  * @brief Builds a parPropSpec for a numeric (d/f/i) parameter from its argument tokens.
  *
- * Fills the index, lower/upper boundaries, step count and optional label of the spec. The
- * first three tokens are the mandatory index, lower boundary and upper boundary. Any further
- * tokens are interpreted positionally-by-content: a purely numeric token sets nSteps, anything
- * else is taken as the free-form display label. When no nSteps token is given, GPP_DEF_NSTEPS
- * is used.
+ * Fills the index, lower/upper boundaries and step count of the spec. The first three tokens
+ * are the mandatory index, lower boundary and upper boundary; an optional fourth is the step
+ * count (GPP_DEF_NSTEPS when none is given). See readNSteps() for what else is refused.
  *
  * @tparam par_type The parameter value type of the spec (double, float or std::int32_t)
  * @tparam conv_fun_type Callable type used to convert a boundary token into a par_type value
@@ -184,20 +214,10 @@ parPropSpec<par_type> makeNumericSpec(
         fail(raw);
     }
     parPropSpec<par_type> spec;
-    const std::size_t index = toUnsigned(tok[0], raw);
+    spec.index = toUnsigned(tok[0], raw);
     spec.lowerBoundary = convertBound(tok[1], raw);
     spec.upperBoundary = convertBound(tok[2], raw);
-    spec.nSteps = GPP_DEF_NSTEPS;
-    std::string label;
-    for(std::size_t k = 3; k < tok.size(); ++k) {
-        if(isUnsigned(tok[k])) {
-            spec.nSteps = static_cast<std::size_t>(std::stoul(tok[k]));
-        }
-        else {
-            label = tok[k];
-        }
-    }
-    spec.var = NAMEANDIDTYPE(label.empty() ? 0 : 2, label, index);
+    spec.nSteps = readNSteps(tok, 3, raw);
     return spec;
 }
 
@@ -404,8 +424,9 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
 /**
  * @brief applyFragment() 'b' branch: parse a boolean parameter-scan spec.
  *
- * Layout: index[,lowerBoundary,upperBoundary][,nSteps][,label] -- the optional trailing tokens
- * (nSteps as an unsigned, everything else a label) may appear in either order.
+ * Layout: index[,lowerBoundary,upperBoundary][,nSteps]. nSteps (default GPP_DEF_NSTEPS) is the
+ * number of draws of a random scan; a grid scan visits the two boolean values whatever it says.
+ * See readNSteps() for what else is refused.
  *
  * @param tok The comma-split tokens of the fragment content
  * @param content The original fragment content (for error messages)
@@ -417,32 +438,16 @@ void GParameterPropertyParser::applyBoolFragment(
         fail(content);
     }
     parPropSpec<bool> spec;
-    const std::size_t index = toUnsigned(tok[0], content);
+    spec.index = toUnsigned(tok[0], content);
     spec.lowerBoundary = false;
     spec.upperBoundary = true;
-    spec.nSteps = GPP_DEF_NSTEPS;
-    std::string label;
-    if(tok.size() >= 3) {
+    std::size_t n_steps_at = 1; // b(index[, nSteps])
+    if(tok.size() >= 3) {       // b(index, lower, upper[, nSteps])
         spec.lowerBoundary = toBool(tok[1], content);
         spec.upperBoundary = toBool(tok[2], content);
-        for(std::size_t k = 3; k < tok.size(); ++k) {
-            if(isUnsigned(tok[k])) {
-                spec.nSteps = static_cast<std::size_t>(std::stoul(tok[k]));
-            }
-            else {
-                label = tok[k];
-            }
-        }
+        n_steps_at = 3;
     }
-    else if(tok.size() == 2) {
-        if(isUnsigned(tok[1])) {
-            spec.nSteps = static_cast<std::size_t>(std::stoul(tok[1]));
-        }
-        else {
-            label = tok[1];
-        }
-    }
-    spec.var = NAMEANDIDTYPE(label.empty() ? 0 : 2, label, index);
+    spec.nSteps = readNSteps(tok, n_steps_at, content);
     b_spec_vec_.push_back(spec);
 }
 

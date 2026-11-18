@@ -325,7 +325,7 @@ TEST_CASE(
     slow[0]->process();
     consumer.checkin(std::move(slow[0])); // its batch has retired -> a late arrival
 
-    CHECK(consumer.lateReturnBufferSize() == 1);   // held for a later getOldWorkItems() to reap
+    CHECK(consumer.lateReturnBufferSize() == 1);   // held for a later getLateReturns() to reap
     CHECK(consumer.lateReturnDroppedCount() == 0);  // nothing dropped
 }
 
@@ -344,7 +344,7 @@ TEST_CASE("courtier(late): getLateReturns() drains the buffer and transfers the 
     }
     REQUIRE(consumer.lateReturnBufferSize() == 2);
 
-    auto reaped = consumer.getLateReturns(); // the OA-side getOldWorkItems() drains via this hook
+    auto reaped = consumer.getLateReturns(); // a submitter's reaper drains via this hook
     REQUIRE(reaped.size() == 2);
     CHECK(consumer.lateReturnBufferSize() == 0);             // buffer emptied
     CHECK(reaped[0]->get_stored_number() == 2);              // FIFO / arrival order preserved

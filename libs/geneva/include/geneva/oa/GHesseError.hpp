@@ -142,14 +142,6 @@ public:
      * Computes the cheap diagonal (parameter-fixed) errors always, and the covariance/profiled errors when
      * the dimension is small enough (see GHesseErrorOptions). All curvature probes are evaluated through
      * @p eval_fn, so the estimate runs on whatever consumer the calling algorithm uses.
-     *
-     * @param eval_fn The batch objective: maps a set of probe points to one (min-only) objective value each.
-     * @param x_min The location of the minimum at which the errors are estimated.
-     * @param f_min The objective value at @p x_min (the centre term of the second differences).
-     * @param step_sizes The per-parameter finite step for the curvature differences (typically the
-     *  algorithm's difference-quotient step); one entry per dimension of @p x_min.
-     * @param opts The error definition UP and the gate controlling whether the full covariance is computed.
-     * @return The estimate (validity flags, per-parameter errors, and -- when computed -- the covariance).
      */
     //! [hesse-estimate#2]
     static GHesseErrorResult estimate(

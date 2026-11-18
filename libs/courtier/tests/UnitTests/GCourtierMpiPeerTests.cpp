@@ -516,6 +516,41 @@ TEST_CASE("MPI transport: the end of the listener's work tells the clients", "[c
 
 /******************************************************************************/
 /**
+ * A stop whose bound is hit, then the end of the listener's work: the calls of on_peer not yet
+ * made are dropped (the shell's threads have gone), and every client rank is still told that the
+ * run has ended. Rank 1's on_peer is held past the stop's bound and past the start of endWork(),
+ * so rank 2's call is the one that must not be made.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: the end of the listener's work after a stop whose bound was hit",
+    "[courtier][mpi]"
+) {
+    // Longer than the stop's bound of one second, with a second's margin for endWork() to stop
+    // the poll's context while rank 1's call still runs
+    constexpr auto ON_PEER_HOLD = 2s;
+    auto world = std::make_shared<GMPIFakeWorld>(3);
+    Master master(world);
+    Client client_one(world, 1);
+    Client client_two(world, 2);
+    master.start([&](Role &, GWirePeerId rank) {
+        if(rank == 1) {
+            std::this_thread::sleep_for(ON_PEER_HOLD);
+        }
+    });
+    master.listener().stop(); // the bound is hit: rank 1's call has not returned
+    master.pool().join();
+    master.listener().endWork(); // joins the poll's thread once rank 1's call has returned
+    CHECK(master.ranks() == std::set<GWirePeerId>{1});
+    REQUIRE(eventually([&] {
+        return client_one.role().nClosed() == 1 && client_two.role().nClosed() == 1;
+    }));
+    CHECK(client_one.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+    CHECK(client_two.role().events().back() == "closed:CLOSED_THERE:RUN_ENDED");
+}
+
+/******************************************************************************/
+/**
  * A rank whose session cannot be made (an exception in on_peer) is closed with an error at once,
  * also before its end was started; the other ranks are served.
  */
@@ -565,6 +600,43 @@ TEST_CASE("MPI transport: the listener's stop and end", "[courtier][mpi]") {
     master.pool().join();
     master.listener().endWork();
     CHECK(master.rolesLetGo());
+}
+
+/******************************************************************************/
+/**
+ * The listener hands its peers over (on_peer) on the poll's thread, not on the shell's executor
+ * (GListenerI::start()): while the one session thread is busy, every rank's session is made all
+ * the same. The roles are told of the open on the session thread, once it is free again.
+ */
+// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
+TEST_CASE(
+    "MPI transport: the peers reach the shell while every session thread is busy",
+    "[courtier][mpi]"
+) {
+    auto world = std::make_shared<GMPIFakeWorld>(4);
+    Master master(world, optionsWith(), 1);
+    Client one(world, 1);
+    Client two(world, 2);
+    Client three(world, 3);
+    std::atomic<bool> holding{false};
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    boost::asio::post(master.pool().executor(), [&holding, release] {
+        holding.store(true);
+        std::ignore = release->wait_for(3 * PATIENCE); // longer than the check waits
+    });
+    REQUIRE(eventually([&] { return holding.load(); }));
+
+    master.start();
+    CHECK(eventually([&] { return master.ranks().size() == 3; }));
+    const auto role = master.role(1);
+    REQUIRE(role != nullptr);
+    CHECK(role->events().empty()); // its handlers wait for the session thread
+    release->count_down();
+
+    REQUIRE(eventually([&] { return role->events().size() == 1; }));
+    CHECK(role->events().front() == "open");
+    REQUIRE(eventually([&] { return one.role().events().size() == 1; }));
+    CHECK(one.role().events().front() == "open");
 }
 
 /******************************************************************************/

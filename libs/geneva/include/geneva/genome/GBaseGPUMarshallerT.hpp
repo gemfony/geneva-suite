@@ -100,14 +100,19 @@ public:
  * The GPU consumer is device-only: it never evaluates on the host. A CPU run uses the individual's own
  * @c evaluate() through a CPU consumer (e.g. --consumer stc), not this marshaller.
  *
- * The generic plumbing provided here:
+ * The generic plumbing provided here implements the processing rule of the interface (stated on
+ * @c GGPUEvaluableI: begin in flatten(), complete in scatter(), a failing item fails alone):
  *  - @c itemDimension() -- the flattened scalar count of one individual (its parameter count);
- *  - @c flatten() -- streamlines each individual's EXTERNAL (range-folded) values row-major straight into
- *    the device buffer. Because the buffer element is @c scalar_type, the individual's @c long @c double /
- *    @c double genome is converted to @c scalar_type here (the FP conversion), so the author's @c evaluate()
- *    stays in full precision while the device runs at @c scalar_type;
- *  - @c scatter() -- injects each device-computed fitness through the individual's own @c process() results
- *    channel (which leaves the item PROCESSED for the courtier reconciliation).
+ *  - @c flatten() -- begins each individual's processing, then streamlines its EXTERNAL
+ *    (range-folded) values row-major straight into the device buffer. Because the buffer element is
+ *    @c scalar_type, the individual's @c long @c double / @c double genome is converted to
+ *    @c scalar_type here (the FP conversion), so the author's @c evaluate() stays in full precision
+ *    while the device runs at @c scalar_type;
+ *  - @c scatter() -- completes each individual's processing with its device-computed fitness
+ *    (@c GGenome::completeProcessing(): feasibility gate, policy transform, PROCESSED,
+ *    post-processor).
+ *
+ * A derived marshaller that overrides @c flatten() or @c scatter() delegates to these.
  *
  * This sits in @c geneva (not @c courtier) because the generic flatten/scatter necessarily know the geneva
  * individual model (@c GGenome, @c individual_processing_result); it derives from courtier's
@@ -151,10 +156,14 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Streamlines every item's external values row-major into @p params_out (@c scalar_type each).
+     * @brief Begins every item's processing (its pre-processor runs), then streamlines its external
+     * values row-major into @p params_out (@c scalar_type each). An item whose processing fails
+     * here keeps its failure (EXCEPTION_CAUGHT) and is still flattened; scatter() leaves it alone.
      *
-     * @param items The batch to flatten (every item must be a GGenome of uniform dimension)
+     * @param items The batch to flatten (every item must be a due GGenome of uniform dimension)
      * @param params_out Filled with @c items.size() * itemDimension() scalars (parameter j of item i at i*dim + j)
+     * @throws geneva_exception if an item is not a GGenome, or if its pre-processor changed its
+     *         dimension (its values would not fit its row of the buffer)
      */
     void flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const override {
         if(items.empty()) {
@@ -173,6 +182,25 @@ public:
                     << " individuals." << '\n'
                 );
             }
+            try {
+                // The pre-processor runs before the device sees the values
+                items[i]->beginProcessing();
+            }
+            catch(const Gem::Courtier::g_processing_exception &) {
+                // Recorded on the item (EXCEPTION_CAUGHT), as on the CPU path; it fails alone.
+            }
+            // The consumer checked the uniform dimension before the pre-processors ran; a
+            // pre-processor that changed it would make streamlineInto() write past the item's row.
+            if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
+                throw geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
+                    << "Work item " << i << " has " << item_dim << " parameters after its"
+                    << " pre-processing, the batch " << dim << "." << '\n'
+                    << "A pre-processor must not change the number of parameters of an item"
+                    << " evaluated on a device." << '\n'
+                );
+            }
             // streamlineInto() writes the external (range-folded) values as scalar_type -- no per-item
             // temporary, and the double-to-scalar_type conversion happens here.
             flat->streamlineInto(params_out.data() + i * dim);
@@ -181,14 +209,34 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Injects each device-computed fitness back into its item via the item's process() results channel.
+     * @brief Completes each item's processing with its device-computed fitness (the item's
+     * post-processor runs). An item whose processing failed in flatten() is left alone; one whose
+     * completion fails keeps its failure, as on the CPU path, and the others are completed.
      * @param items The batch the fitness values belong to (in order)
      * @param fitness One fitness scalar per item, produced by the device/host evaluation
+     * @param evaluation_time The time in seconds the evaluation of the whole batch took
      */
-    void scatter(std::span<const item_ptr> items, const std::vector<scalar_type> &fitness) const override {
+    void scatter(
+        std::span<const item_ptr> items,
+        const std::vector<scalar_type> &fitness,
+        const double evaluation_time
+    ) const override {
         for(auto const &[item, fit] : std::views::zip(items, fitness)) {
-            item->process(std::vector<Gem::Geneva::Genome::individual_processing_result>(
-                1, Gem::Geneva::Genome::individual_processing_result(fit)));
+            if(not item->is_due_for_processing()) {
+                continue; // its processing failed in flatten(); the failure is recorded on it
+            }
+            try {
+                item->completeProcessing(
+                    std::vector<Gem::Geneva::Genome::individual_processing_result>(
+                        1,
+                        Gem::Geneva::Genome::individual_processing_result(fit)
+                    ),
+                    evaluation_time
+                );
+            }
+            catch(const Gem::Courtier::g_processing_exception &) {
+                // Recorded on the item (EXCEPTION_CAUGHT / ERROR_FLAGGED), as on the CPU path.
+            }
         }
     }
 };

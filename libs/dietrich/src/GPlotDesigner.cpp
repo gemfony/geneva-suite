@@ -102,7 +102,7 @@ using Gem::Common::to_string;
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 // The plotting enums' stream operators are supplied by the shared
-// numeric_enum_io_v machinery declared in GCommonEnums.hpp / GPlotEnums.hpp.
+// numeric_enum_values_v machinery declared in GCommonEnums.hpp / GPlotEnums.hpp.
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -785,6 +785,9 @@ GDrawStyle GBasePlotter::drawStyle() const {
  * drawStyle().
  *
  * @return An empty name
+ * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
+ * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
+ * @param own_id This plotter's own emit index, as footerData_() gets it
  */
 std::string GBasePlotter::rootLegendObject_(
     [[maybe_unused]] bool is_secondary,
@@ -1081,7 +1084,7 @@ std::string GPlotDesigner::plot(const std::filesystem::path &plot_name) const {
  * Realizes the log and writes it to a file through the given backend.
  *
  * @param path The output file path
- * @param backend The rendering backend
+ * @param backend The rendering backend (defaults to ROOT)
  */
 void GDataLog::writeToFile(const std::filesystem::path &path, plotBackend backend) const {
     GPlotDesigner gpd = this->toDesigner();
@@ -1224,7 +1227,7 @@ void GPlotDesigner::setCanvasDimensions(const std::tuple<std::uint32_t, std::uin
 /**
  * Allows to retrieve the canvas dimensions
  *
- * @return A std::tuple holding the canvas dimensions
+ * @return A tuple holding the canvas width and height (in pixels)
  */
 std::tuple<std::uint32_t, std::uint32_t> GPlotDesigner::getCanvasDimensions() const {
     return std::tuple<std::uint32_t, std::uint32_t>{c_x_dim_, c_y_dim_};

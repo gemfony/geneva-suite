@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
 #include <concepts>
@@ -166,7 +167,6 @@ public:
     void setCPersonal(double c_personal);
     /**
      * @brief Allows to retrieve the static multiplier for personal distances.
-     * @return The current value of the personal-distance multiplier (c_personal_)
      */
     double getCPersonal() const;
 
@@ -176,7 +176,6 @@ public:
     void setCNeighborhood(double c_neighborhood);
     /**
      * @brief Allows to retrieve the static multiplier for neighborhood distances.
-     * @return The current value of the neighborhood-distance multiplier (c_neighborhood_)
      */
     double getCNeighborhood() const;
 
@@ -186,7 +185,6 @@ public:
     void setCGlobal(double c_global);
     /**
      * @brief Allows to retrieve the static multiplier for global distances.
-     * @return The current value of the global-distance multiplier (c_global_)
      */
     double getCGlobal() const;
 
@@ -196,7 +194,6 @@ public:
     void setCVelocity(double c_velocity);
     /**
      * @brief Allows to retrieve the static multiplier for velocities.
-     * @return The current value of the velocity multiplier (c_velocity_)
      */
     double getCVelocity() const;
 
@@ -206,24 +203,19 @@ public:
     void setVelocityRangePercentage(double velocity_range_percentage);
     /**
      * @brief Allows to retrieve the velocity range percentage.
-     * @return The current velocity range percentage (velocity_range_percentage_)
      */
     double getVelocityRangePercentage() const;
 
     /**
      * @brief Retrieves the number of neighborhoods.
-     * @return The number of neighborhoods in the population (n_neighborhoods_)
      */
     std::size_t getNNeighborhoods() const;
     /**
      * @brief Retrieves the default number of individuals in each neighborhood.
-     * @return The default number of individuals per neighborhood (default_n_neighborhood_members_)
      */
     std::size_t getDefaultNNeighborhoodMembers() const;
     /**
      * @brief Retrieves the current number of individuals in a given neighborhood.
-     *
-     * @return The current number of individuals in the requested neighborhood
      */
     std::size_t getCurrentNNeighborhoodMembers(const std::size_t &neighborhood) const;
 
@@ -233,7 +225,6 @@ public:
     void setUpdateRule(updateRule ur);
     /**
      * @brief Allows to retrieve the update rule currently used by the swarm.
-     * @return The update rule currently in use (update_rule_)
      */
     updateRule getUpdateRule() const;
 
@@ -243,7 +234,6 @@ public:
     void setRepulsionThreshold(std::uint32_t repulsion_threshold);
     /**
      * @brief Allows to retrieve the number of stalls as of which the algorithm switches to repulsive mode.
-     * @return The current repulsion threshold (repulsion_threshold_)
      */
     std::uint32_t getRepulsionThreshold() const;
 
@@ -255,7 +245,6 @@ public:
     void setNeighborhoodsRandomFillUp(bool random_fill_up = true);
     /**
      * @brief Allows to check whether neighborhoods are filled up with random individuals.
-     * @return true if neighborhoods are filled up with random individuals, false otherwise
      */
     bool neighborhoodsFilledUpRandomly() const;
 
@@ -336,7 +325,6 @@ protected:
 
     /**
      * @brief Updates the best individuals found.
-     * @return A tuple holding the best raw and transformed fitness values found
      */
     virtual std::tuple<double, double> findBests();
     /** @brief findBests() phase 1: (re)computes every individual's personal best. */
@@ -360,27 +348,20 @@ protected:
 
     /**
      * @brief Checks whether each neighborhood has the default size.
-     * @return true if every neighborhood currently holds its nominal (default) number of members, false otherwise
      */
     bool neighborhoodsHaveNominalValues() const;
 
     /**
      * @brief Helper function that returns the id of the first individual of a neighborhood.
-     *
-     * @return The position (index in the population) of the first individual of the given neighborhood
      */
     std::size_t getFirstNIPos(const std::size_t &neighborhood) const;
     /**
      * @brief Helper function that returns the id of the first individual of a neighborhood, using a vector of neighborhood sizes.
-     *
-     * @return The position (index in the population) of the first individual of the given neighborhood
      */
     static std::size_t
     getFirstNIPosVec(const std::size_t &neighborhood, const std::vector<std::size_t> &vec);
     /**
      * @brief Helper function that returns the id of the last individual of a neighborhood.
-     *
-     * @return The position (index in the population) one past the last individual of the given neighborhood
      */
     std::size_t getLastNIPos(const std::size_t &neighborhood) const;
 
@@ -461,7 +442,6 @@ private:
 
     /**
      * @brief The actual business logic to be performed during each iteration.
-     * @return A tuple holding the best raw and transformed fitness values achieved in this iteration
      */
     std::tuple<double, double> cycleLogic_() override;
     /** @brief Updates the fitness of all individuals */
@@ -470,7 +450,6 @@ private:
 
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
-     * @return A shared_ptr to a freshly created GSwarmAlgorithm_PersonalityTraits object
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 

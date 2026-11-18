@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
 	)(
 		"monitorSpec"
 		, po::value<std::string>(&monitorSpec)->default_value(std::string("empty"))
-		, "Allows you to specify variables to be monitored like this: \"d(var0 -10 10)\""
+		, "Allows you to specify variables to be monitored like this: \"d(0, -10, 10)\" (a double, by its index)"
 	)(
 		"observeBoundaries"
 		, po::value<bool>(&observeBoundaries)->implicit_value(true)->default_value(false) // This allows you say both --observeBoundaries and --observeBoundaries=true

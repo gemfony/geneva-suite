@@ -165,6 +165,7 @@ GParaboloidIndividual2D::~GParaboloidIndividual2D() { /* nothing */
  *
  * @return The raw fitness as a one-element vector
  */
+// clang-format off
 //! [problem-evaluate]
 std::vector<double> GParaboloidIndividual2D::evaluate() {
     std::vector<double> parVec; // Will hold the parameters
@@ -173,9 +174,13 @@ std::vector<double> GParaboloidIndividual2D::evaluate() {
 
     // Do the actual calculation (a single criterion -> a one-element result vector)
     return {std::ranges::fold_left(
-        parVec | std::views::transform([](double d) { return d * d; }), 0., std::plus{})};
+        parVec | std::views::transform([](double d) { return d * d; }),
+        0.,
+        std::plus{}
+    )};
 }
 //! [problem-evaluate]
+// clang-format on
 
 /********************************************************************************************/
 

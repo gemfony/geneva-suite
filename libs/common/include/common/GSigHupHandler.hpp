@@ -47,16 +47,12 @@ namespace Gem::Common {
  * for Windows and Unix systems. Register it with e.g.
  * `signal(G_SIGHUP, Gem::Common::sigHupHandler)` to allow interruption of an
  * optimization run without loss of data.
- *
- * @param signum The number of the signal that was raised
  */
 void sigHupHandler(int signum);
 
 /******************************************************************************/
 /**
  * @brief Checks whether a SIGHUP or CTRL_CLOSE_EVENT signal has been sent.
- *
- * @return A boolean indicating whether a SIGHUP / CTRL_CLOSE_EVENT signal was received
  */
 bool G_SIGHUP_SENT();
 

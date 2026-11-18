@@ -48,6 +48,7 @@ using namespace Gem::Dietrich;
 //! [dietrich-quickstart#1]
 
 int main() {
+    // clang-format off
     //! [dietrich-quickstart#2]
     // A 1x1 canvas (one pad) titled for the figure.
     GDataLog log("Dietrich quickstart: y = sin(x)", 1, 1);
@@ -63,7 +64,8 @@ int main() {
 
     // Push the data, row by row.
     for(int i = 0; i <= 200; ++i) {
-        const double x = -std::numbers::pi + 2. * std::numbers::pi * static_cast<double>(i) / 200.;
+        const double x =
+            -std::numbers::pi + 2. * std::numbers::pi * static_cast<double>(i) / 200.;
         log.append(id, x, std::sin(x));
     }
 
@@ -74,6 +76,7 @@ int main() {
     log.writeToFile("quickstart.m",   plotBackend::OCTAVE);     // an Octave / MATLAB script
     log.writeToFile("quickstart.csv", plotBackend::DATA);       // CSV data + manifest
     //! [dietrich-quickstart#2]
+    // clang-format on
 
     std::cout << "quickstart: wrote quickstart.{C,gp,py,m,csv}\n";
     return 0;

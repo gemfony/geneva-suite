@@ -203,7 +203,7 @@ std::size_t GExternalEvaluatorIndividual::getNExpectedResults() const {
  * parse the result file it produces. On failure the worst-case value is assigned and the individual
  * is flagged as invalid.
  *
- * @return The primary (first) result value returned by the external program
+ * @return The full per-criterion raw result vector obtained from the external evaluation program
  */
 std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     namespace json = boost::json;

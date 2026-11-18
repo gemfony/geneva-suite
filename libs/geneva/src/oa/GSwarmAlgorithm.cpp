@@ -221,7 +221,7 @@ void GSwarmAlgorithm::setSwarmSizes(
  * a maximum value of (nNeighborhoods_-1).
  *
  * @param neighborhood The id of the neighborhood for which the id of the first individual should be calculated
- * @return The position of the first individual of a neighborhood
+ * @return The position (index in the population) of the first individual of the given neighborhood
  */
 std::size_t GSwarmAlgorithm::getFirstNIPos(const std::size_t &neighborhood) const {
     return getFirstNIPosVec(neighborhood, n_neighborhood_members_cnt_);
@@ -236,7 +236,7 @@ std::size_t GSwarmAlgorithm::getFirstNIPos(const std::size_t &neighborhood) cons
  * @brief Returns the population index of the first individual of a neighborhood, using an explicit size vector
  * @param neighborhood The id of the neighborhood for which the id of the first individual should be calculated
  * @param vec A vector holding the number of members of each neighborhood, used to sum up the preceding members
- * @return The position of the first individual of a neighborhood
+ * @return The position (index in the population) of the first individual of the given neighborhood
  */
 std::size_t GSwarmAlgorithm::getFirstNIPosVec(
     const std::size_t &neighborhood,
@@ -278,7 +278,7 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
  * in C++ .
  *
  * @param neighborhood The id of the neighborhood for which the id of the last individual should be calculated
- * @return The position of the individual right after the last of a neighborhood
+ * @return The position (index in the population) one past the last individual of the given neighborhood
  */
 std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const {
 #ifdef DEBUG
@@ -541,6 +541,8 @@ void GSwarmAlgorithm::finalize() {
 /******************************************************************************/
 /**
  * Retrieve a GPersonalityTraits object belonging to this algorithm
+ *
+ * @return A shared_ptr to a freshly created GSwarmAlgorithm_PersonalityTraits object
  */
 std::shared_ptr<GPersonalityTraits> GSwarmAlgorithm::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();
@@ -553,7 +555,7 @@ std::shared_ptr<GPersonalityTraits> GSwarmAlgorithm::getPersonalityTraits_() con
  * the optimization,
  *
  * @brief Performs one iteration of the swarm algorithm (position update, evaluation, best-search, topology fix)
- * @return A tuple holding the raw and transformed fitness of the best individual found
+ * @return A tuple holding the best raw and transformed fitness values achieved in this iteration
  */
 //! [swarm-cycle]
 std::tuple<double, double> GSwarmAlgorithm::cycleLogic_() {
@@ -711,7 +713,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
 /**
  * Checks whether each neighborhood has the default size
  *
- * @return A boolean which indicates whether all neighborhoods have the default size
+ * @return true if every neighborhood currently holds its nominal (default) number of members, false otherwise
  */
 bool GSwarmAlgorithm::neighborhoodsHaveNominalValues() const {
     for(std::size_t n = 0; n < n_neighborhoods_; n++) {
@@ -1139,7 +1141,7 @@ void GSwarmAlgorithm::evaluatePopulation_() {
  * and that the neighborhood and global bests have been initialized (possibly with dummy values). This should have
  * happened in the adjustPopulation() function. It also assumes that all individuals have already been evaluated.
  *
- * @return The best evaluation found in this iteration
+ * @return A tuple holding the best raw and transformed fitness values found
  */
 std::tuple<double, double> GSwarmAlgorithm::findBests() {
     auto const mode =
@@ -1562,7 +1564,7 @@ double GSwarmAlgorithm::getVelocityRangePercentage() const {
 /**
  * Retrieves the number of neighborhoods
  *
- * @return The number of neighborhoods in the population
+ * @return The number of neighborhoods in the population (n_neighborhoods_)
  */
 std::size_t GSwarmAlgorithm::getNNeighborhoods() const {
     return n_neighborhoods_;

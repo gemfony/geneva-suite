@@ -239,12 +239,6 @@ GFunctionIndividual::GFunctionIndividual(const solverFunction &d_f)
 
 /******************************************************************************/
 /**
- * @brief Allows external entities to set the fitness.
- *
- * @param result_vec A vector of result values to assign as this individual's fitness
- */
-/******************************************************************************/
-/**
  * @brief Adds local configuration options to a GParserBuilder object.
  *
  * @param gpb The GParserBuilder object to which configuration options should be added
@@ -270,7 +264,7 @@ void GFunctionIndividual::setDemoFunction(solverFunction d_f) {
 /**
  * @brief Allows to retrieve the demo function.
  *
- * @return The id of the currently selected demo function
+ * @return The solverFunction currently selected for evaluation
  */
 solverFunction GFunctionIndividual::getDemoFunction() const {
     return demo_function_;
@@ -659,13 +653,7 @@ GFunctionIndividual::Config GFunctionIndividual::readConfig(std::filesystem::pat
     Gem::Common::GParserBuilder gpb;
     describeConfig(gpb, c);
 
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFunctionIndividual::readConfig(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     return c;
 }
@@ -693,13 +681,7 @@ GFunctionIndividual::buildConfigured(const Config &c, std::filesystem::path cons
     Config sink;
     describeConfig(gpb, sink);          // bind the genome-shaping keys (suppresses unknown-key noise)
     ind->addConfigurationOptions(gpb);  // bind the base GGenome options to this individual
-    if(not gpb.parseConfigFile(configFile)) {
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFunctionIndividual::buildConfigured(): Error!" << '\n'
-            << "Could not parse configuration file " << configFile.string() << '\n'
-        );
-    }
+    gpb.parseConfigFile(configFile);
 
     ind->setGenome(buildGenome(c));
     applyConfig(*ind, c);
@@ -712,7 +694,7 @@ GFunctionIndividual::buildConfigured(const Config &c, std::filesystem::path cons
 /**
  * @brief Provide an easy way to print the individual's content.
  *
- * @param s The output stream that is returned (the parameter dump itself is written to std::cout)
+ * @param s The output stream the raw fitness and the parameter values are written to
  * @param f The GFunctionIndividual whose raw fitness and parameter values are printed
  * @return The std::ostream object passed in as @p s
  */
@@ -720,13 +702,13 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunct
     std::vector<double> par_vec;
     f.streamline(par_vec);
 
-    std::cout << '\n' << "Raw fitness: " << f.raw_fitness(0) << '\n' << '\n';
+    s << '\n' << "Raw fitness: " << f.raw_fitness(0) << '\n' << '\n';
     std::size_t pos = 0;
-    std::cout << "Parameter values of best individual:" << '\n';
+    s << "Parameter values of best individual:" << '\n';
     for(const auto &val : par_vec) {
-        std::cout << pos++ << ": " << val << '\n';
+        s << pos++ << ": " << val << '\n';
     }
-    std::cout << '\n';
+    s << '\n';
 
     return s;
 }
@@ -735,11 +717,16 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunct
 /**
  * @brief Provide an easy way to print the individual's content through a smart-pointer.
  *
- * @param s The output stream that is returned (the parameter dump itself is written to std::cout)
- * @param f_ptr An owning pointer to the GFunctionIndividual whose content is printed (dereferenced internally)
+ * An empty pointer is printed as "(null)".
+ *
+ * @param s The output stream the raw fitness and the parameter values are written to
+ * @param f_ptr An owning pointer to the GFunctionIndividual whose content is printed (may be empty)
  * @return The std::ostream object passed in as @p s
  */
 std::ostream &operator<<(std::ostream &s, const std::unique_ptr<Gem::Geneva::Individuals::GFunctionIndividual>& f_ptr) {
+    if(not f_ptr) {
+        return s << "(null)" << '\n';
+    }
     return operator<<(s, *f_ptr);
 }
 

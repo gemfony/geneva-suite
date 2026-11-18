@@ -17,9 +17,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 ## 1. Toolchain and build
 
 - **C++23 is now required** (was C++20). Minimum compilers: **GCC ≥ 15** or
-  **Clang ≥ 22**, the versions Ubuntu 26.10 ships. The build pins `CMAKE_CXX_STANDARD=23` and rejects anything lower,
-  and the exported CMake package advertises `cxx_std_23`, so **downstream consumers of
-  the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
+  **Clang ≥ 22**, the versions Ubuntu 26.10 ships. The build pins `CMAKE_CXX_STANDARD=23` and
+  rejects anything lower, and the exported CMake package advertises `cxx_std_23`, so **downstream
+  consumers of the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
   longer build or link against Geneva.
 - **Boost ≥ 1.91**, built in C++23 mode; **CMake ≥ 3.27**; **Catch2 v3** for the tests.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
@@ -123,6 +123,29 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (non-Go2 programs honor
   it too).
+- **A parameter entry of the wrong form is refused.** Each parameter is an object with a
+  `"value"` -- a list for a vector or array parameter -- as in
+  `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
+  known key in another form (the flat `"scan_randomly": false`, an object without `"value"`, a
+  list where one value belongs) was skipped without a word, leaving the default in force; it is
+  now an error that names the key and the form it needs. An absent key keeps its default.
+  So is a value that does not read as its parameter's type: a boolean other than `true`,
+  `false`, `1` or `0` (it read as `false`), a number with text or a remainder (`2.5` for an
+  integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
+  4294967295), and for an enumeration text or a number that is none of its values
+  (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
+- **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `geneva_exception`
+  that names the file and the cause when the file cannot be read or applied, and return
+  `void`. They used to log the error and return `false`, which most callers ignored -- a direct
+  `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
+  applied ran on its defaults. Code that tested the result drops the test.
+- **A Geneva program ends on an error nobody handles with a message and the exit code 1**, not
+  with an abort and a core dump: Go2's constructor makes `Gem::Common::installFatalReport()`
+  (`common/GFatalReport.hpp`) the terminate handler of the process; a program without Go2 calls it
+  in the first line of `main()`. Nothing is unwound on the way, so under MPI no process finalizes
+  MPI while others wait for it, and the launcher ends the whole job. A program that wants its own
+  terminate handler sets it after constructing Go2. A `std::terminate()` with no exception in
+  flight, an internal fault, still aborts, for the core dump.
 
 ## 5. Parallelization and consumers
 
@@ -136,20 +159,32 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   its own orchestration pool while their sub-optimizations submit to the one process
   consumer — so the consumer is never re-entered.
 - **The MPI consumer is a module of its own.** `libgemfony-geneva-mpi` carries the `mpi`
-  consumer and `GMPISubClientOptimizer` / `GMPISubClientIndividual`. The process's one MPI
-  environment lives in courtier's MPI library `libgemfony-courtier-mpi`, which the module links:
+  consumer. The process's one MPI environment lives in courtier's MPI library
+  `libgemfony-courtier-mpi`, which the module links:
   `Gem::Courtier::mpiEnvironment()`, `mpiEnvironmentOn()` and `mpiProcessRole()` in
   `courtier/mpi/GMPIEnvironmentAccess.hpp`, next to the environment class
   (`courtier/mpi/GMPIEnvironment.hpp`, formerly under `courtier/transport/`). No other Geneva
   library links MPI, so Geneva programs start on machines without an MPI library. The module
   is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
   first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
-  names the reason. **Source-breaking for users of the sub-client classes:** a program that
-  uses `GMPISubClientOptimizer` or `GMPISubClientIndividual` links `gemfony-geneva-mpi`
-  (out of tree: `Geneva::geneva-mpi`, which brings `Geneva::courtier-mpi` and MPI with it) in
-  addition to Geneva; a program that names the environment's functions links
+  names the reason. No program links the module: it is a module library, not an exported
+  target (`Geneva::geneva-mpi` is gone). A program that names the environment's functions links
   `gemfony-courtier-mpi` (`Geneva::courtier-mpi`, which carries MPI; `find_package(Geneva)`
   finds MPI for it).
+- **Parallelism inside one evaluation: `GMPISubClientOptimizer` and `GMPISubClientIndividual`
+  are removed; their replacement is courtier's MPI cascade**, `Gem::Courtier::GMPICascade`
+  (`courtier/mpi/GMPICascade.hpp`, in `libgemfony-courtier-mpi`, `Geneva::courtier-mpi`). It
+  splits the job into the submitter and groups of a lead and its members, as before with
+  1 + clients x group size processes. Porting: the sub-client job given to
+  `registerSubClientJob()` becomes a `GMPIGroupMemberI` that `cascade.serve()` runs on every
+  member; an individual that used `getCommunicator()` in `evaluate()` becomes MPI-free, and the
+  lead's item processor (`setItemProcessor()` of the client, built with
+  `buildClientFromCommandLine()` of `geneva/GConsumerSetup.hpp`) evaluates it in a round,
+  `cascade.round()`; `sub_client_group_size` is the same key in `config/GMPICascade.json`
+  (`GMPICascadeConfig::load()`). Example 16 shows it. `courtier/GMPIHelperFunctions.hpp`
+  (`mpiScatterWhile()`, `mpiGatherWhile()`, `MPICompletionStatus`, ...) is removed with them; its
+  replacement is `courtier/mpi/GMPIPolledCalls.hpp` (`mpiScatter()`, `mpiGather()`,
+  `waitPolled()`, `probePolled()`).
 - **A program that builds its consumer without Go2 passes the configuration struct of the
   consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
   `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
@@ -168,14 +203,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
   a closed frame vocabulary (`GFrameKind`: pull / no-work / work / return / result /
-  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on, and
-  nothing else. The end of a run is said by the transport's close, not by a frame: the `shutdown`
-  frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What a message
-  *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
+  blob-request / blob-reply / unreadable) plus the per-slot `GProcessingOutcome` it reconciles on,
+  and nothing else. The end of a run is said by the transport's close, not by a frame: the
+  `shutdown` frame, Geneva's `terminate` command and `GWireProtocolT::shutdownTag()` are gone. What
+  a message *means* is Geneva's: a numeric tag (`geneva_command`: `evaluate` / `evaluation` /
   `evaluated_and_modified`) and a per-command payload, both relayed by courtier without
-  interpretation. A library plugs its own answers
-  in by specializing `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no
-  Geneva code and knows no Geneva vocabulary.
+  interpretation. A library plugs its own answers in by specializing
+  `Gem::Courtier::GWireProtocolT<work_item_type>`; courtier links no Geneva code and knows no Geneva
+  vocabulary.
 - **A processed item returns its RESULTS, not a hollowed-out copy of itself.** The ordinary
   return is an `evaluation` carrying the computed result store plus the validity level --
   a few hundred bytes whose size does not grow with the individual, its parameters or any
@@ -246,10 +281,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   a connection or a thread. A client answers pings while it evaluates, and both ends answer them
   while they encode or decode a message (neither does that on the thread that moves the
   connection's bytes), so an evaluation, and the encoding of a message, may take any length of
-  time; a connection that opens while every session thread of the server is busy encoding or
-  decoding answers pings from its handshake on, instead of being lost to its client's idle limit.
-  There is no limit on the size of a message. Without the keep-alive (an interval of 0) a
-  lost client is not noticed by the transport, and the server reclaims its items by the time lease.
+  time. A connection is accepted, opened and kept alive while every session thread of the server
+  is busy: the server takes a new client on, and answers its handshake and its pings, on the
+  threads that move the bytes. There is no limit on the size of a message. Without the keep-alive
+  (an interval of 0) a lost client is not noticed by the transport, and the server reclaims its
+  items by the time lease.
 - **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
   (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
   many threads again.
@@ -309,14 +345,21 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   longer ends the worker's rank; the item comes back flagged. A request a server cannot read or
   handle is answered with NO_WORK, so the client asks again instead of ending; a websocket server
   does not answer a result it cannot read (it asked for nothing) and puts back what its client held.
-  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts back what
-  the client held and sends it its blobs anew; the client stays. A result that
-  cannot be applied to its item marks the item as failed, and so does an item that the server
-  cannot encode for a client, or whose result the client cannot encode or return (the client
-  then sends the outcome alone, marked as failed, and stays). In each case the submission policy
-  decides what happens to the item, as it does for any failed evaluation.
+  A websocket or MPI client that cannot read an item tells the server (`unreadable`), which puts
+  back what the client held and sends it its blobs anew; the client stays. A result that cannot be
+  applied to its item marks the item as failed, and so does an item that the server cannot encode
+  for a client, or whose result the client cannot encode or return (the client then sends the
+  outcome alone, marked as failed, and stays). In each case the submission policy decides what
+  happens to the item, as it does for any failed evaluation.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
+- **The GPU path keeps the processing contract of a CPU consumer.** A marshaller begins each
+  item's processing in `flatten()` (`beginProcessing()`: the item's pre-processor runs before the
+  device sees its values) and completes it in `scatter()` (`completeProcessing(results,
+  evaluation_time)`: the post-processor runs after). `scatter()` takes the time of the batch's
+  device evaluation as a third argument, and each item reports it as its processing time; an item
+  whose processing fails fails alone. `process(results)` refuses an item whose processing was
+  begun so. `GBaseGPUMarshallerT` does all this for geneva's individuals.
 - **A batch may hold up to 2^24 items** (`GNetworkedConsumerT::maxBatchSize()`); a larger span
   is refused with a fatal error. Submit it in several batches.
 - **The EA post-optimizer always refines inline.** `GEvolutionaryAlgorithmPostOptimizer`
@@ -343,12 +386,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Geneva's Boost link footprint is now just Boost.JSON and Boost.ProgramOptions.** Beyond
   Boost.Serialization (above), **Boost.Filesystem has also been dropped**: Geneva's own code uses
   `std::filesystem` throughout, and the plugin loader (Boost.DLL) is compiled with
-  `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`. `Boost::filesystem`
-  was removed from the library link lines, the `GENEVA_BOOST_LIBS` component list, the installed
-  `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An installed Geneva
-  library now links only `libboost_json` and `libboost_program_options` (Boost headers are still
-  needed at build time, e.g. Boost.Asio/Beast for the networked consumers and Boost.DLL for module
-  loading).
+  `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`.
+  `Boost::filesystem` was removed from the library link lines, the `GENEVA_BOOST_LIBS` component
+  list, the installed `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An
+  installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
+  headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
+  Boost.DLL for module loading).
 - **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
   `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
   courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
@@ -396,20 +439,30 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   uses it through `Gem::Geneva::loadModule()`.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
-  is gone, and a factory registers through one function, `Gem::Geneva::registerOptimizationAlgorithm()`
-  — the same one whether the algorithm is built in (via `GInitializerT`) or loaded from a module (via
-  `oaManifest<>` and the module loader). Consequences for existing code: the per-algorithm factory
-  types and their headers (`GEvolutionaryAlgorithmFactory`, `GSwarmAlgorithmFactory`, … and
-  `geneva/oa/G*Factory.hpp`) are **gone**. For every algorithm but one the factory added nothing to
-  the scaffold, so the factory *is* the scaffold: write
-  `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` where the old type name stood (the algorithm's
-  own personality traits are the default second argument), and include the algorithm's header and
-  `geneva/oa/GOptimizationAlgorithmFactoryT.hpp`. `GParameterScanFactory` is the exception and remains
-  a class of its own — it adds the parameter-spec command-line option; a user-written factory that
-  derived from one of the removed types derives from the instantiation instead. `GOAFactoryT` gains
-  `provide()` and a `final` `getName()` (the provider-interface spelling of `getAlgorithmName()`).
+  is gone, and a factory registers through one function,
+  `Gem::Geneva::registerOptimizationAlgorithm()` — the same one whether the algorithm is built in
+  (via `GInitializerT`) or loaded from a module (via `oaManifest<>` and the module loader).
+  Consequences for existing code: the per-algorithm factory types and their headers
+  (`GEvolutionaryAlgorithmFactory`, `GSwarmAlgorithmFactory`, … and `geneva/oa/G*Factory.hpp`) are
+  **gone**. For every algorithm but one the factory added nothing to the scaffold, so the factory
+  *is* the scaffold: write `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` where the old type name
+  stood (the algorithm's own personality traits are the default second argument), and include the
+  algorithm's header and `geneva/oa/GOptimizationAlgorithmFactoryT.hpp`. `GParameterScanFactory` is
+  the exception and remains a class of its own — it adds the parameter-spec command-line option; a
+  user-written factory that derived from one of the removed types derives from the instantiation
+  instead. `GOAFactoryT` gains `provide()` and a `final` `getName()` (the provider-interface
+  spelling of `getAlgorithmName()`).
 
 ## 7. Renames and small API removals
+
+- **A parameter-scan or profile specification carries no label.** A variable is addressed by
+  its index in the value channel of its type (`d(0, -1., 1., 10)`); a trailing label such as
+  `d(0, -1., 1., 10, x)` is refused when the specification is parsed, with a message that names
+  it (a progress plot names its variables with `setVariableNames()`). With the label the
+  remainder of the by-name addressing left: `parPropSpec<T>::index` replaces the
+  `(mode, name, index)` tuple `var` (and the `NAMEANDIDTYPE` alias),
+  `GScanParInterface::getVarIndex()` replaces `getVarAddress()`, and `GGenome::getVarVal<T>()`
+  takes the index.
 
 - **The genome-only marker is `using genome_only = void;`** (was
   `using gemfony_flat_individual = void;`). A leaf individual whose state is its genome
@@ -491,11 +544,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   hook now has an empty default on `GOptimizationAlgorithmBase`; override it only when
   the algorithm actually reacts to a stall (as the parent-child EA base does).
 - **Geneva's enums stream through one shared, opt-in operator template**
-  (`Gem::Common::numeric_enum_io_v` in `GCommonEnums.hpp`) instead of per-enum
+  (`Gem::Common::numeric_enum_values_v` in `GCommonEnums.hpp`) instead of per-enum
   hand-written `operator<<`/`operator>>` pairs. The textual form (the underlying
   number) is unchanged, so configuration files and archives are unaffected; only code
   that took the address of one of the old operator functions needs adjusting. A
-  user-defined enum can opt into the same machinery by specializing the marker.
+  user-defined enum opts into the same machinery by specializing `numeric_enum_values_v`
+  with the list of its values (`numeric_enum_range<FIRST, LAST>()` for a contiguous enum);
+  the reader fails on a number that is none of them.
 - **dietrich: `project<I>()`/`projectX..W()` on a non-all-double collector is now a
   compile-time error** (it used to compile and throw at run time), and the projections
   are available for every axis of every all-double collector arity.
@@ -551,6 +606,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
   `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.
   Constant problem data is loaded in every process, before `clientRun()` as before `optimize()`.
+- **geneva: `GExternalEvaluatorIndividual::setDataType()` / `getDataType()` and
+  `GEEI_DEF_DATATYPE` were removed.** The two accessors were declared but never defined, so no
+  program could have called them. The `dataType` field of the exchange file names the kind of
+  message and is fixed by the operation that writes it; it is not a property of an individual.
+- **courtier: `GProcessable::graftOaScratchFrom()` / `graftOaScratchFrom_()` are
+  `graftRetainedStateFrom()` / `graftRetainedStateFrom_()`.** The hook takes back from the
+  originally-submitted item the state that does not travel on the wire; courtier names it for
+  that, not for the use Geneva makes of it. A work-item class that overrides the hook renames
+  its override.
 
 ## 8. Checkpointing
 

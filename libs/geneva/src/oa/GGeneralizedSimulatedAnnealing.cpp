@@ -426,8 +426,12 @@ std::vector<double> GGeneralizedSimulatedAnnealing::drawVisitingJump(double tqv)
  *
  * clamped to [0,1].
  */
+// clang-format off
 //! [gsa-acceptance]
-double GGeneralizedSimulatedAnnealing::acceptanceProbability(double delta_e, double tqa) const {
+double GGeneralizedSimulatedAnnealing::acceptanceProbability(
+    double delta_e,
+    double tqa
+) const {
     if(tqa <= 0.) {
         return 0.; // zero temperature => never accept an uphill move
     }
@@ -451,6 +455,7 @@ double GGeneralizedSimulatedAnnealing::acceptanceProbability(double delta_e, dou
     return p;
 }
 //! [gsa-acceptance]
+// clang-format on
 
 /******************************************************************************/
 /**

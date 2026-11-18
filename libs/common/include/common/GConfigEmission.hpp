@@ -48,20 +48,19 @@ namespace Gem::Common {
  * config it subsequently parses is created-if-absent and rewritten in canonical form), constructs
  * each of its config owners so their parse fires, and exits without optimizing.
  *
- * @c Go2 binaries already do this internally (Go2 consumes @c --update-configs and refreshes every
- * factory/individual config it owns). These helpers give the **non-Go2** mains (the direct-OA
- * examples, the parameter-object demo, the benchmarks, the manual tests) the exact same behaviour
- * behind the exact same switch, so a single build step can drive @c "<binary> --update-configs" over
- * every config-owning target uniformly.
+ * A driver that owns its program's configs may do this internally (Geneva's @c Go2, for example,
+ * consumes @c --update-configs and refreshes every config it owns). These helpers give every other
+ * main() (in Geneva: the direct-OA examples, the parameter-object demo, the benchmarks, the manual
+ * tests) the exact same behaviour behind the exact same switch, so a single build step can drive
+ * @c "<binary> --update-configs" over every config-owning target uniformly.
  *
- * Usage in a non-Go2 main(), immediately after GenevaInitializer and before the binary's own option
+ * Usage in a main(), once the libraries it uses are initialized and before the binary's own option
  * parser runs:
  * @code
- *   GenevaInitializer gi;
  *   if(Gem::Common::configEmissionRequested(argc, argv)) {
  *       Gem::Common::beginConfigEmission();
  *       // Construct (and, if the parse is lazy, exercise) every config owner this binary uses:
- *       gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+ *       MyConfiguredComponent component("./config/MyConfiguredComponent.json");
  *       Gem::Common::finishConfigEmission(); // logs and exits(0)
  *   }
  * @endcode
@@ -71,8 +70,8 @@ namespace Gem::Common {
 /**
  * @brief The command-line switch that requests configuration emission.
  *
- * The same token @c Go2 already recognises, so a build/install materialization step drives every
- * config-owning binary -- Go2-based or not -- through one uniform invocation.
+ * The same token a driver such as Geneva's @c Go2 recognises, so a build/install materialization
+ * step drives every config-owning binary -- driver-based or not -- through one uniform invocation.
  */
 inline constexpr std::string_view CONFIG_EMISSION_FLAG = "--update-configs";
 
@@ -95,10 +94,6 @@ inline constexpr std::string_view CONFIG_REFERENCE_ENV = "GENEVA_CONFIG_REFERENC
  * This is a side-effect-free scan of @p argv for CONFIG_EMISSION_FLAG, meant to be called before the
  * binary's own program-options parser runs (so an emit-only invocation need not carry a full, valid
  * option set).
- *
- * @param argc The argument count as passed to main()
- * @param argv The argument vector as passed to main()
- * @return true if the configuration-emission switch is present, false otherwise
  */
 bool configEmissionRequested(int argc, char **argv);
 
@@ -115,9 +110,9 @@ void beginConfigEmission();
 /**
  * @brief Concludes a configuration-emission run: logs completion and exits the process cleanly.
  *
- * Call after every config owner has been constructed (and its parse exercised). Like Go2's
- * @c --update-configs path this exits via std::exit(0) so the caller's post-optimization boilerplate
- * is not reached; registered atexit/static teardown (logger flush, RNG factory guard) still runs.
+ * Call after every config owner has been constructed (and its parse exercised). Like Geneva's Go2
+ * on @c --update-configs, this exits via std::exit(0) so the caller's remaining work is not
+ * reached; registered atexit/static teardown (logger flush, RNG factory guard) still runs.
  */
 [[noreturn]] void finishConfigEmission();
 

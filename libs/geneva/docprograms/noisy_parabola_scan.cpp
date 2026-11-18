@@ -175,9 +175,12 @@ private:
      * @param im The information mode (initialization, per-iteration cycle, or finalization)
      * @param goa A non-owning pointer to the algorithm being monitored
      */
+    // clang-format off
     //! [dietrich-search-monitor]
-    void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    void informationFunction_(
+        infoMode im,
+        oa::GOptimizationAlgorithmBase const *const goa
+    ) override {
         if(im != infoMode::INFOPROCESSING) {
             return; // nothing to record before the first iteration or after the last
         }
@@ -188,7 +191,8 @@ private:
             const double fitness = ind_ptr->raw_fitness(0);
 
             path_log_->append(path_, parameters[0], parameters[1], fitness);
-            progress_log_->append(spread_, double(goa->getIteration()), logFitness(fitness));
+            progress_log_
+                ->append(spread_, double(goa->getIteration()), logFitness(fitness));
             ++n_recorded_;
         }
 
@@ -200,6 +204,7 @@ private:
         );
     }
     //! [dietrich-search-monitor]
+    // clang-format on
 
     GDataLog *path_log_ = nullptr;     ///< the log carrying the scanned landscape
     GDataLog::SeriesId path_ = 0;      ///< the overlay series drawn on top of it

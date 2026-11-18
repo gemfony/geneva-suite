@@ -67,10 +67,6 @@ namespace Gem::Common {
  *
  * Numbers are parsed with full precision so a floating-point value round-trips exactly. On a parse
  * error a Gem::Common::geneva_exception is thrown.
- *
- * @param text The JSON text to parse
- * @param context An optional description of the source (used only in the error message)
- * @return The parsed JSON value
  */
 boost::json::value parseJsonString(std::string_view text, std::string_view context = "");
 
@@ -80,9 +76,6 @@ boost::json::value parseJsonString(std::string_view text, std::string_view conte
  *
  * A thin convenience wrapper around the Boost.JSON parser: it accepts a std::filesystem::path (which
  * Boost.JSON's parser does not) and reports the file name on error.
- *
- * @param path The path of the JSON file to read
- * @return The parsed JSON value
  */
 boost::json::value parseJsonFile(std::filesystem::path const &path);
 
@@ -92,18 +85,12 @@ boost::json::value parseJsonFile(std::filesystem::path const &path);
  *
  * Uses a four-space indent (matching Geneva's historical configuration layout). Empty objects and
  * arrays are emitted compactly (`{}` / `[]`). No trailing newline is appended (see writeJsonFile()).
- *
- * @param os The stream to write to
- * @param jv The JSON value to serialize
  */
 void prettyPrintJson(std::ostream &os, boost::json::value const &jv);
 
 /******************************************************************************/
 /**
  * @brief Returns @p jv as an indented JSON string (see the streaming overload).
- *
- * @param jv The JSON value to serialize
- * @return The indented JSON representation
  */
 std::string prettyPrintJson(boost::json::value const &jv);
 
@@ -114,9 +101,6 @@ std::string prettyPrintJson(boost::json::value const &jv);
  * This is a plain (non-atomic) write. Callers that must not truncate a live file on failure
  * (e.g. the configuration update-in-place path) perform their own temp-file-plus-rename around
  * prettyPrintJson() instead.
- *
- * @param path The file to write
- * @param jv The JSON value to serialize
  */
 void writeJsonFile(std::filesystem::path const &path, boost::json::value const &jv);
 
@@ -142,9 +126,6 @@ void writeJsonFile(std::filesystem::path const &path, boost::json::value const &
  *  - otherwise the override names a key the configuration does not contain, or its shape does not
  *    match the target node, and a Gem::Common::geneva_exception is thrown — a stale or mistyped
  *    override fails loudly rather than being silently ignored.
- *
- * @param base The generated configuration value to overlay onto (modified in place)
- * @param overrides An object mapping parameter/group names to replacement values
  */
 void applyConfigOverrides(boost::json::value &base, boost::json::value const &overrides);
 

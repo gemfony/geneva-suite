@@ -71,6 +71,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 namespace {
 
 /******************************************************************************/
+// clang-format off
 //! [algo-overview-registration]
 // The algorithms that are always part of Geneva. Each factory is the
 // GOptimizationAlgorithmFactoryT scaffold instantiated for one algorithm -- that
@@ -78,12 +79,16 @@ namespace {
 // own (the algorithm's own personality traits are the scaffold's default second
 // argument).
 
-const GInitializerT<GOptimizationAlgorithmFactoryT<GAntColonyOptimization>> g_aco_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GAntColonyOptimization>>
+    g_aco_registrant;
 //! [geneva.oa.registration#2]
-const GInitializerT<GOptimizationAlgorithmFactoryT<GEvolutionaryAlgorithm>> g_ea_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GEvolutionaryAlgorithm>>
+    g_ea_registrant;
 //! [geneva.oa.registration#2]
-const GInitializerT<GOptimizationAlgorithmFactoryT<GGeneralizedSimulatedAnnealing>> g_gsa_registrant;
-const GInitializerT<GOptimizationAlgorithmFactoryT<GSepCmaEvolutionStrategy>> g_sepcma_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GGeneralizedSimulatedAnnealing>>
+    g_gsa_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GSepCmaEvolutionStrategy>>
+    g_sepcma_registrant;
 const GInitializerT<GOptimizationAlgorithmFactoryT<GStandardPSO2011>> g_pso_registrant;
 
 /******************************************************************************/
@@ -92,7 +97,8 @@ const GInitializerT<GOptimizationAlgorithmFactoryT<GStandardPSO2011>> g_pso_regi
 // mnemonic simply does not exist at runtime.
 
 #ifdef GENEVA_ALGO_CGD
-const GInitializerT<GOptimizationAlgorithmFactoryT<GConjugateGradientDescent>> g_cgd_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GConjugateGradientDescent>>
+    g_cgd_registrant;
 #endif
 #ifdef GENEVA_ALGO_NM
 const GInitializerT<GOptimizationAlgorithmFactoryT<GNelderMead>> g_nm_registrant;
@@ -106,12 +112,14 @@ const GInitializerT<GParameterScanFactory> g_ps_registrant;
 //! [geneva.oa.registration#3]
 #endif
 #ifdef GENEVA_ALGO_SA
-const GInitializerT<GOptimizationAlgorithmFactoryT<GSimulatedAnnealing>> g_sa_registrant;
+const GInitializerT<GOptimizationAlgorithmFactoryT<GSimulatedAnnealing>>
+    g_sa_registrant;
 #endif
 #ifdef GENEVA_ALGO_SWARM
 const GInitializerT<GOptimizationAlgorithmFactoryT<GSwarmAlgorithm>> g_swarm_registrant;
 #endif
 //! [algo-overview-registration]
+// clang-format on
 
 /******************************************************************************/
 

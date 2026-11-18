@@ -97,7 +97,6 @@ public:
     GThreadPool() = delete;
     /**
      * @brief Initialisation with a number of threads (0 -> hardware default)
-     * @param n_threads The number of worker threads to start (0 picks a hardware-based default)
      */
     explicit GThreadPool(unsigned int n_threads);
     /**
@@ -105,10 +104,6 @@ public:
      * GThreadBudget under the given source name (holding the reservation for the pool's life)
      * and starts the granted number of workers. The plain constructor above stays unbudgeted,
      * so leaf tests/benchmarks are unaffected.
-     *
-     * @param source A short name identifying this pool in the budget (e.g. "oa:tp")
-     * @param n_threads The number of worker threads the pool wants (0 picks a hardware-based default)
-     * @param elasticity Whether the pool could correctly run with fewer workers than requested
      */
     GThreadPool(std::string_view source, unsigned int n_threads, ThreadElasticity elasticity);
     /** @brief The destructor drains the queue and joins all workers */
@@ -122,12 +117,10 @@ public:
 
     /**
      * @brief Sets the number of worker threads (lets the pool run empty first)
-     * @param n_threads The new number of worker threads (0 picks a hardware-based default)
      */
     void setNThreads(unsigned int n_threads);
     /**
      * @brief Retrieves the current number of worker threads
-     * @return The live worker-thread count
      */
     [[nodiscard]] unsigned int getNThreads() const;
 
@@ -294,9 +287,6 @@ private:
      * in-flight counter and enqueues the (already type-erased) task under a shared
      * submission lock. Returns false if the queue was closed (pool shutting down),
      * having left the counter unchanged.
-     *
-     * @param task The type-erased task to enqueue (moved into the queue)
-     * @return true if the task was enqueued, false if the queue was already closed
      */
     bool enqueue(std::move_only_function<void()> task);
 
@@ -304,13 +294,10 @@ private:
     /** @brief Worker body: drains the queue until it is closed and empty. Observes the
      *  jthread's stop_token: a stop request closes the task queue, so the worker still drains
      *  the remaining tasks (their futures complete) and then exits -- request_stop() is thus a
-     *  graceful "drain and stop", never an abrupt abandon.
-     *  @param st The jthread stop token; a stop request closes the task queue so the worker drains
-     *   the remaining tasks and then exits */
+     *  graceful "drain and stop", never an abrupt abandon. */
     void worker_loop(const std::stop_token& st);
     /**
      * @brief Starts n worker threads draining the (current) queue
-     * @param n The number of worker threads to start
      */
     void start_workers(unsigned int n);
     /** @brief Blocks (under counter_mutex_) until no tasks are in flight */

@@ -53,18 +53,12 @@ class GRateableI {
 public:
     /**
      * @brief Retrieves the stored raw fitness with a given id.
-     *
-     * @param pos The index of the fitness criterion to retrieve (default 0, the main criterion)
-     * @return The raw (untransformed) fitness value for the requested criterion
      */
     //! [constraints:fitness-accessors#1]
     [[nodiscard]] double raw_fitness(std::size_t pos = 0) const;
     //! [constraints:fitness-accessors#1]
     /**
      * @brief Retrieves the stored transformed fitness with a given id.
-     *
-     * @param pos The index of the fitness criterion to retrieve (default 0, the main criterion)
-     * @return The transformed fitness value for the requested criterion
      */
     //! [constraints:fitness-accessors#2]
     [[nodiscard]] double transformed_fitness(std::size_t pos = 0) const;
@@ -72,16 +66,12 @@ public:
 
     /**
      * @brief Returns all raw fitness results in a std::vector.
-     *
-     * @return A vector holding the raw (untransformed) fitness value of every criterion
      */
     //! [constraints:fitness-accessors#3]
     [[nodiscard]] std::vector<double> raw_fitness_vec() const;
     //! [constraints:fitness-accessors#3]
     /**
      * @brief Returns all transformed fitness results in a std::vector.
-     *
-     * @return A vector holding the transformed fitness value of every criterion
      */
     //! [constraints:fitness-accessors#4]
     [[nodiscard]] std::vector<double> transformed_fitness_vec() const;
@@ -109,14 +99,16 @@ private:
     /**
      * @brief Retrieves the stored raw fitness with a given id.
      *
-     * @param id The index of the fitness criterion to retrieve
+     * The argument is the index of the fitness criterion to retrieve.
+     *
      * @return The raw (untransformed) fitness value for the requested criterion
      */
     [[nodiscard]] virtual double raw_fitness_(std::size_t) const = 0;
     /**
      * @brief Retrieves the stored transformed fitness with a given id.
      *
-     * @param id The index of the fitness criterion to retrieve
+     * The argument is the index of the fitness criterion to retrieve.
+     *
      * @return The transformed fitness value for the requested criterion
      */
     [[nodiscard]] virtual double transformed_fitness_(std::size_t) const = 0;

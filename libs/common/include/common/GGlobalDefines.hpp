@@ -60,7 +60,7 @@
 //-----------------------------------------------------------
 
 // Tell Boost not to compile std::auto_ptr compatibility functions — std::auto_ptr
-// was removed in C++17 and Geneva requires C++20.
+// was removed in C++17, and Geneva is built to a later standard.
 #define BOOST_NO_AUTO_PTR
 
 #include <boost/config.hpp>
@@ -72,7 +72,7 @@
  * composes them into one monotonically comparable integer
  *   major * 10000 + minor * 100 + patch
  * so that e.g. 1.99.0 → 19900 and ordinary version tests such as
- *   #if GENEVA_VERSION >= 19900
+ *   \#if GENEVA_VERSION >= 19900
  * work. Each component is a plain decimal literal (no leading zero), so no value is
  * ever silently reinterpreted as octal — the historical packed-literal form (e.g.
  * "019900") was an octal literal and, once a minor/patch digit reached 8 or 9 as it
@@ -133,20 +133,3 @@ template <typename T>
 #else
 #define G_DEPRECATED(message)
 #endif
-
-//-----------------------------------------------------------
-
-// Library-wide short namespace aliases. Defined here because virtually
-// every Geneva translation unit includes this header (directly or
-// transitively), so `oa::`, `gen::` and `gind::` resolve everywhere.
-// The target namespaces are forward-declared so no real dependency is
-// introduced. (The Gem::Geneva::Interface namespace has no short alias;
-// it is referenced by its full nested name.)
-namespace Gem::Geneva::OptimizationAlgorithms {}
-namespace Gem::Geneva::Genome {}
-namespace Gem::Geneva::Individuals {}
-namespace Gem::Geneva::Benchmarks {}
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
-namespace gen = Gem::Geneva::Genome;
-namespace gind = Gem::Geneva::Individuals;
-namespace gbm = Gem::Geneva::Benchmarks;

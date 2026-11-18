@@ -71,7 +71,7 @@ GNelderMead::GNelderMead()
 /**
  * @brief Initialization with the number of simplices.
  *
- * @param n_simplices The number of simultaneous Nelder-Mead simplices to maintain
+ * @param n_simplices The number of simplices to run in parallel (one per starting region)
  */
 GNelderMead::GNelderMead(const std::size_t &n_simplices)
   : n_simplices_(n_simplices) { /* nothing */
@@ -317,7 +317,7 @@ void GNelderMead::resetToOptimizationStart_() {
  *   2. propose new reflection / expansion / contraction trial points,
  *   3. (re-)evaluate the whole population.
  *
- * @return The value of the best vertex found in this iteration
+ * @return A tuple holding the best achieved fitness (raw, transformed) of this iteration
  */
 std::tuple<double, double> GNelderMead::cycleLogic_() {
     // Oriented restart on stagnation (opt-in). Fires once every restart_threshold_
@@ -714,7 +714,8 @@ void GNelderMead::buildInitialSimplices() {
  * vertex -- and hence the best-so-far recorded globally -- is preserved, so a
  * restart can never worsen the reported result.
  *
- * @return true if a restart was performed (i.e. there is at least one simplex), false otherwise
+ * @return true if at least one simplex was restarted (its vertices then need re-evaluation),
+ *   false otherwise
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent numeric kernel: one oriented-restart step per simplex (best vertex, descent-orienting centroid, then the per-coordinate perturbation of every non-best vertex derived from that centroid); splitting would scatter one tightly coupled procedure
 bool GNelderMead::restartSimplices() {

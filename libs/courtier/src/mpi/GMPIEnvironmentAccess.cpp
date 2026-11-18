@@ -66,7 +66,7 @@ using environment_type = Consumers::GMPIEnvironment;
 /// Guards the two pointers below: the environment is created at most once while one is alive.
 std::mutex environmentMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// The environment, without keeping it: the holders (the consumer, the client, the optimizer)
+/// The environment, without keeping it: the holders (the consumer, the client, the cascade, ...)
 /// decide how long it lives, and MPI is finalized when the last of them lets go. Once it has
 /// expired, the next call builds a new one (whose constructor refuses if MPI was finalized
 /// meanwhile).

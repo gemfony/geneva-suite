@@ -84,7 +84,7 @@ def build_mpi_module_probe(ctx: JobContext) -> CheckResult:
 
     The MPI consumer lives in libgemfony-geneva-mpi, a module installed next to libgemfony-geneva and
     loaded at run time. The probe (libs/geneva/tests/OutOfTree/MpiModuleProbe) finds the installed
-    package, links Geneva::geneva-mpi and Geneva::courtier-mpi, and exits 0 only if the "mpi"
+    package, links Geneva::courtier-mpi, and exits 0 only if the "mpi"
     consumer was loaded from the installation.
     """
     tier = Tier.SHORT

@@ -276,9 +276,9 @@ private:
     std::size_t max_message_bytes_;         ///< The longest message sent
     std::string name_;                      ///< For the log
 
-    GPeerHandlers handlers_;       ///< On the strand; dropped at the end
-    GState state_ = GState::NEW;   ///< On the strand
-    bool role_open_ = false;       ///< On the strand: the role was told of the open
+    GPeerHandlers handlers_;     ///< On the strand; dropped at the end
+    GState state_ = GState::NEW; ///< On the strand
+    bool role_open_ = false;     ///< On the strand: the role was told of the open
     /// On the strand: the other rank knows that the connection is over -- it was sent this end's
     /// close or an answer to its own, or it closed itself (tellOther_())
     bool other_told_ = false;
@@ -297,15 +297,15 @@ private:
  * courtier's communicator, all made in start(), and the poll that receives for them.
  *
  * Threads. The poll runs on an io context of the listener's own with one thread (accounted in the
- * thread budget as "<name>:poll"), so that no session holds it up; the peers' handlers run on
- * strands of the executor the shell hands to start(), and on_peer is called there, once for every
- * rank (GPeerI.hpp, rule 2).
+ * thread budget as "<name>:poll"), so that no session holds it up, and on_peer is called there,
+ * once for every rank (GListenerI::start()); the peers' handlers run on strands of the executor
+ * the shell hands to start() (GPeerI.hpp, rule 2).
  *
  * start() makes the poll and the peers, greets every client rank (TAG_PEER_OPEN: their ends open on
- * it) and hands every peer to the shell (on_peer, posted). stop() waits for those calls of on_peer,
- * at most a short bound of its own (GListenerI::stop()). endWork() stops and joins the poll's
- * thread, ends the poll (GMPIPollCore::shutdown(): sends that have not completed are given up, the
- * peers are let go) and shuts the poll's context down.
+ * it) and hands every peer to the shell (on_peer, posted to the poll's thread). stop() waits for
+ * those calls of on_peer, at most a short bound of its own (GListenerI::stop()). endWork() stops
+ * and joins the poll's thread, ends the poll (GMPIPollCore::shutdown(): sends that have not
+ * completed are given up, the peers are let go) and shuts the poll's context down.
  *
  * Loss of a client: not noticed (detectsLoss() is false): a rank that dies ends the whole job, and
  * the items of a rank that hangs come back by the consumer's time lease.
@@ -344,8 +344,7 @@ public:
      *  and waits for their answers, at most stopGrace() */
     void announceEndWithoutStart() override;
 
-    /** @brief The number of client ranks (the peers made by start()). Any thread.
-     *  @return The count; 0 before start() */
+    /** @brief The number of client ranks (the peers made by start()). Any thread. */
     [[nodiscard]] std::size_t nPeers() const noexcept;
     /** @brief What the poll has done; empty before start(). Any thread. @return The counts */
     [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;
@@ -366,9 +365,7 @@ private:
     mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
     std::shared_ptr<GMPIPollCore> core_; ///< Made by start(); declared after its context
 
-    /// Where on_peer and the peers' handlers run (the shell's executor); dropped by endWork()
-    boost::asio::any_io_executor handler_executor_;
-    on_peer_type on_peer_; ///< Set by start(), dropped by endWork()
+    on_peer_type on_peer_; ///< Set by start(), called on the poll's thread, dropped by endWork()
     /// The calls of on_peer that have been posted and have not returned, by rank (stop() waits)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> on_peer_calls_;
     std::atomic<std::size_t> n_peers_{0}; ///< The peers made by start()

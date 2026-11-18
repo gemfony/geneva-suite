@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
 #include <algorithm> // for std::sort
@@ -71,10 +72,14 @@ enum class PERFOBJECTTYPE : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for PERFOBJECTTYPE; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::PERFOBJECTTYPE> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::PERFOBJECTTYPE> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::PERFOBJECTTYPE::PERFGDOUBLEOBJECT,
+        Gem::Geneva::Individuals::PERFOBJECTTYPE::PERFGCONSTRAINEDDOUBLECOLLECTION>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 
@@ -115,13 +120,10 @@ public:
     /**
      * @brief Initialising constructor: builds a flat genome holding the requested number of double
      *  parameters of the requested representation type
-     * @param n_objects The number of double parameters (or collection entries) to add to the genome
-     * @param otype The representation type of the double parameters to be created (see PERFOBJECTTYPE)
      */
     GTestIndividual2(const std::size_t &n_objects, const PERFOBJECTTYPE &otype);
     /**
      * @brief The copy constructor
-     * @param cp Another GTestIndividual2 object whose data is copied into this one
      */
     GTestIndividual2(const GTestIndividual2 &cp);
 
@@ -131,20 +133,17 @@ public:
     /**
      * @brief The OA-owned Gauss adaption config authoring every double group of this genome (used by the
      *  self-driven StandaloneAdapter benchmark / manual-test sites).
-     * @return A shared pointer to the Gauss adaption config describing every double group of this genome
      */
     std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> getAdaptionConfig() const;
 
 protected:
     /**
      * @brief The evaluation hook: computes this individual's fitness.
-     * @return The fitness as a one-element vector (single criterion)
      */
     std::vector<double> evaluate() final;
 
     /**
      * @brief Applies modifications to this object.
-     * @return A boolean indicating whether a modification was actually carried out
      */
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */

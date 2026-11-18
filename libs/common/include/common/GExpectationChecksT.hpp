@@ -75,9 +75,6 @@ class GToken // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /**
      * @brief The standard constructor -- initialization with class name and expectation.
-     *
-     * @param caller The name of the calling class, recorded for use in diagnostic messages
-     * @param e The expectation (EQUALITY / FP_SIMILARITY / INEQUALITY) all checks fed to this token must fulfill
      */
     GToken(std::string caller, Gem::Common::expectation e);
 
@@ -101,62 +98,51 @@ public:
 
     /**
      * @brief Allows to retrieve the current state of the success counter.
-     * @return The number of tests that have met the expectation so far
      */
     [[nodiscard]] std::size_t getSuccessCounter() const;
     /**
      * @brief Allows to retrieve the current state of the test counter.
-     * @return The total number of tests performed so far
      */
     [[nodiscard]] std::size_t getTestCounter() const;
 
     /**
      * @brief Allows to check whether the expectation was met.
-     * @return true if all recorded tests met the expectation, false otherwise
      */
     [[nodiscard]] bool expectationMet() const;
     /**
      * @brief Conversion to a boolean indicating whether the expectation was met.
-     * @return true if all recorded tests met the expectation, false otherwise
      */
     operator bool() const; // NOLINT
 
     /**
      * @brief Allows to retrieve the expectation token.
-     * @return The expectation (EQUALITY / FP_SIMILARITY / INEQUALITY) this token enforces
      */
     [[nodiscard]] Gem::Common::expectation getExpectation() const;
     /**
      * @brief Allows to retrieve the expectation token as a string.
-     * @return A human-readable string representation of the enforced expectation
      */
     [[nodiscard]] std::string getExpectationStr() const;
     /**
      * @brief Allows to retrieve the name of the caller.
-     * @return The name of the calling class passed to the constructor
      */
     [[nodiscard]] std::string getCallerName() const;
 
     /**
      * @brief Allows to register an error message e.g. obtained from a failed check.
-     * @param error_message The error message to append to this token's collection
      */
     void registerErrorMessage(std::string const &m);
     /**
      * @brief Allows to register an exception obtained from a failed check.
-     * @param g The expectation-violation exception whose message is appended to this token's collection
      */
     void registerErrorMessage(g_expectation_violation const &g);
 
     /**
      * @brief Allows to retrieve the currently registered error messages.
-     * @return A concatenation of all error messages recorded for failed checks
      */
     [[nodiscard]] std::string getErrorMessages() const;
 
     /**
      * @brief Conversion to a string indicating success or failure.
-     * @return A human-readable summary of this token's success / failure state
      */
     [[nodiscard]] std::string toString() const;
 
@@ -178,10 +164,6 @@ private:
 /******************************************************************************/
 /**
  * @brief This function facilitates the output of GToken objects, mostly for debugging purposes.
- *
- * @param s The output stream the token is written to
- * @param g The GToken object to be streamed
- * @return A reference to the (modified) output stream, for chaining
  */
 std::ostream &operator<<(std::ostream &s, GToken const &g);
 
@@ -1424,8 +1406,6 @@ void compare(
  * and the limit (the maximum allowed deviation of two floating point values; unused for tribool and
  * present only to match the common compare() signature). A g_expectation_violation exception is thrown
  * if the expectation is violated.
- *
- * @param limit The maximum allowed deviation of two floating point values (unused for tribool)
  */
 void compare(
     Gem::Common::tribool const &x,

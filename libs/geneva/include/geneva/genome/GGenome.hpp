@@ -31,6 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
+#include "geneva/GNamespaceAliases.hpp" // gen, for the authors of a problem who start here
 
 // Standard header files go here
 #include <array>
@@ -298,11 +299,9 @@ public:
 
     /** @brief The default constructor */
     GGenome();
-    /** @brief Initialization with the number of fitness criteria.
-     *  @param n_fitness_criteria The number of fitness criteria this genome will report */
+    /** @brief Initialization with the number of fitness criteria. */
     explicit GGenome(std::size_t n_fitness_criteria);
-    /** @brief The copy constructor.
-     *  @param cp The genome to copy from (value channels and shared layout handle) */
+    /** @brief The copy constructor. */
     GGenome(GGenome const &cp);
     /** @brief The destructor */
     ~GGenome() override = default;
@@ -311,8 +310,7 @@ public:
      *  split-member load(archive_type&, unsigned) below would otherwise hide by name. */
     using Gem::Common::GCommonInterfaceT<GGenome>::load;
 
-    /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder.
-     *  @param g The genome data (the four value channels plus the shared immutable layout) */
+    /** @brief Installs the value arrays + shared layout produced by a GGenomeBuilder. */
     void setGenome(GenomeData const &g);
 
     /** @brief Direct, shared access to the structural layout (problem metadata).
@@ -376,16 +374,10 @@ public:
     /***************************************************************************/
     // Algorithm-facing genome operations (the flat-genome overrides of the GGenome virtuals).
 
-    /** @brief Transformation of the individual's parameters into a JSON object.
-     *  @return A boost::json::object holding this individual's parameters, metadata and results */
+    /** @brief Transformation of the individual's parameters into a JSON object. */
     virtual boost::json::object toJSON() const;
 
-    /** @brief Transformation of the individual's parameters into a list of comma-separated values.
-     *  @param with_name_and_type Whether to prefix each value with its name and type
-     *  @param with_commas Whether to separate the values with commas
-     *  @param use_raw_fitness Whether to emit the raw rather than the transformed fitness
-     *  @param show_validity Whether to append the individual's validity flag
-     *  @return The parameters (and optionally fitness/validity) as a single CSV string */
+    /** @brief Transformation of the individual's parameters into a list of comma-separated values. */
     virtual std::string toCSV(
         bool with_name_and_type = false,
         bool with_commas = true,
@@ -393,13 +385,10 @@ public:
         bool show_validity = true
     ) const;
 
-    /** @brief Perform a cross-over operation between this genome and another (a GGenome).
-     *  @param cp_base The other entity to cross over with (must be a GGenome)
-     *  @return A new genome holding the recombined parameter values */
+    /** @brief Perform a cross-over operation between this genome and another (a GGenome). */
     virtual std::shared_ptr<GGenome> crossOverWith(GGenome const &cp_base) const;
 
-    /** @brief Retrieves parameters relevant for the evaluation from another GGenome.
-     *  @param cp_base The entity whose evaluation-relevant parameters are absorbed into this one */
+    /** @brief Retrieves parameters relevant for the evaluation from another GGenome. */
     virtual void cannibalize(GGenome &cp_base);
 
     /** @brief Absorbs the parameter values and the shared structural layout of @p src into this genome,
@@ -433,9 +422,7 @@ protected:
     // serialize() is NOT generated -- save()/load() above keep the bespoke send-once layout wire
     // protocol.
 
-    /** @brief Random initialization of the genome's parameter values.
-     *  @param am The activity mode selecting which parameters are randomly initialised
-     *  @return true if at least one parameter value was changed */
+    /** @brief Random initialization of the genome's parameter values. */
     virtual bool randomInit_(activityMode const &am);
 
     /** @brief Applies modifications to this object. This is needed for testing purposes */
@@ -486,23 +473,16 @@ private:
         return counts_cache_[type_idx][amIndex(am)];
     }
 
-    /** @brief Retrieve the active double parameter at the given positional index.
-     *  @param idx The position among the active double parameters. @return Its (folded) value */
+    /** @brief Retrieve the active double parameter at the given positional index. */
     virtual double getVarVal_d_(std::size_t idx);
-    /** @brief Retrieve the active float parameter at the given positional index.
-     *  @param idx The position among the active float parameters. @return Its (folded) value */
+    /** @brief Retrieve the active float parameter at the given positional index. */
     virtual float getVarVal_f_(std::size_t idx);
-    /** @brief Retrieve the active int32 parameter at the given positional index.
-     *  @param idx The position among the active int32 parameters. @return Its (folded) value */
+    /** @brief Retrieve the active int32 parameter at the given positional index. */
     virtual std::int32_t getVarVal_i_(std::size_t idx);
-    /** @brief Retrieve the active bool parameter at the given positional index.
-     *  @param idx The position among the active bool parameters. @return Its value */
+    /** @brief Retrieve the active bool parameter at the given positional index. */
     virtual bool getVarVal_b_(std::size_t idx);
 
-    /** @brief Retrieval of a suitable position for cross over inside of a vector.
-     *  @param lower The minimum allowed cross-over position (must be > 0)
-     *  @param upper The exclusive upper bound of the cross-over range
-     *  @return A valid cross-over position within the vector */
+    /** @brief Retrieval of a suitable position for cross over inside of a vector. */
     std::size_t getCrossOverPos(std::size_t lower, std::size_t upper);
 
     /***************************************************************************/
@@ -770,17 +750,12 @@ private:
     /***************************************************************************/
     // Random-init channel helpers (the per-channel ADAPTION kernels are OA-owned).
 
-    /** @brief Randomly initialises a floating-point channel's active parameters.
-     *  @tparam T The channel's value type. @param store The internal storage (overwritten at active positions)
-     *  @param ch The channel layout. @param am The activity mode. @param gr The leased random proxy to draw from.
-     *  @return true if a value changed */
+    /** @brief Randomly initialises a floating-point channel's active parameters. */
     template <typename T>
     bool randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, activityMode const &am, Gem::Hap::GRandomBase &gr);
-    /** @brief Randomly initialises the int32 channel's active parameters.
-     *  @param am The activity mode. @param gr The leased random proxy to draw from. @return true if a value changed */
+    /** @brief Randomly initialises the int32 channel's active parameters. */
     bool randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr);
-    /** @brief Randomly initialises the bool channel's active parameters.
-     *  @param am The activity mode. @param gr The leased random proxy to draw from. @return true if a value changed */
+    /** @brief Randomly initialises the bool channel's active parameters. */
     bool randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr);
 
     /***************************************************************************/
@@ -867,18 +842,34 @@ public:
     // Processing: the result store + the evaluation orchestration.
 
     /**
-     * @brief Performs the evaluation of this candidate: drives the optional pre-processor, the feasibility
-     * check and fitness calculation (or adopts pre-computed raw results from res_vec), the evaluation-policy
-     * transform and the optional post-processor, measuring the time of each step. On an exception the
-     * fitnesses are set to the worst case and a processing exception is rethrown. Only an item with the
-     * DO_PROCESS status is accepted.
-     * @param res_vec Optional pre-computed raw results (e.g. from a remote/GPU evaluator); if empty,
-     *        evaluate() is invoked. Its size must match the criteria count.
-     * @return The first stored result after processing
+     * @brief Performs the evaluation of this candidate: drives the optional pre-processor, the
+     * feasibility check and fitness calculation (or adopts pre-computed raw results from res_vec),
+     * the evaluation-policy transform and the optional post-processor, measuring the time of each
+     * step. On an exception the fitnesses are set to the worst case and a processing exception is
+     * rethrown. Only an item with the DO_PROCESS status is accepted. Results in res_vec are
+     * adopted after the pre-processor has run here, so they must not depend on its effect; an
+     * environment that computes them from the pre-processed values begins the processing with
+     * beginProcessing() and completes it with completeProcessing(), and process(res_vec) refuses
+     * an item so begun (geneva_exception, the candidate is left untouched).
      */
     individual_processing_result process(
         const std::vector<individual_processing_result> &res_vec =
             std::vector<individual_processing_result>()
+    );
+
+    /**
+     * @brief Completes the processing begun with GProcessable::beginProcessing(), with the raw
+     * results computed for this candidate since: the part of process(res_vec) after the
+     * pre-processor -- feasibility gate, adoption of the results, evaluation-policy transform,
+     * PROCESSED, post-processor. The processing time is @p evaluation_time plus the time of the
+     * adoption.
+     * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the
+     *         candidate is left untouched)
+     * @throws g_processing_exception as process() does
+     */
+    individual_processing_result completeProcessing(
+        const std::vector<individual_processing_result> &res_vec,
+        double evaluation_time = 0.
     );
 
     /** @brief An evaluation a caller supplies to process(): it gets the candidate, read-only,
@@ -896,25 +887,18 @@ public:
      * the candidate with the EXCEPTION_CAUGHT status and is rethrown as a processing exception;
      * the post-processor runs afterwards. This is how an execution environment that evaluates
      * differently (a process group, a device) stays inside the lifecycle.
-     * @param evaluation Computes the raw results of this candidate; must not be empty. It must
-     *        return as many results as the candidate has criteria.
-     * @return The first stored result after processing
      * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
      */
     individual_processing_result process(evaluation_function evaluation);
 
     /**
      * @brief Sets the vector of stored results to a given collection and marks the candidate PROCESSED.
-     * @param result_cnt The new result vector (size must match the configured number of stored results)
-     * @return The first stored result after the assignment
      */
     individual_processing_result
     markAsProcessedWith(std::vector<individual_processing_result> const &result_cnt);
 
     /**
      * @brief Read-only retrieval of a stored result. Throws if the PROCESSED flag is not set.
-     * @param id The position of the stored result to return
-     * @return The stored result at position id
      */
     [[nodiscard]] individual_processing_result getStoredResult(std::size_t id = 0) const;
 
@@ -968,30 +952,23 @@ public:
 
     /**
      * @brief Registers a (raw) result value of the fitness calculation at a given criterion position.
-     * @param id The position of the fitness criterion (must be < the criteria count)
-     * @param value The raw fitness value to register
      */
     void setResult(std::size_t id, double value);
     /** @brief @return true if more than one fitness criterion is present */
     [[nodiscard]] bool hasMultipleFitnessCriteria() const { return this->getNStoredResults() > 1; }
     /**
      * @brief Retrieve the (raw, transformed) fitness tuple at a given evaluation position.
-     * @param id The evaluation position (fitness criterion index); defaults to 0
-     * @return A (raw, transformed) fitness tuple at the requested position
      */
     [[nodiscard]] std::tuple<double, double> getFitnessTuple(std::uint32_t id = 0) const;
     /**
      * @brief Checks whether this candidate is at least as good as a set of raw boundaries.
-     * @param boundaries One boundary value per fitness criterion
-     * @return true if every raw fitness is at least as good as its boundary, false otherwise
      */
     bool isGoodEnough(std::vector<double> const &boundaries);
 
     /***************************************************************************/
     // Policy-derived accessors (forwarded to the shared GProblemPolicy).
 
-    /** @brief Installs the shared problem policy (the 1:N feasibility/ranking rules).
-     *  @param policy The shared policy to reference (must not be empty) */
+    /** @brief Installs the shared problem policy (the 1:N feasibility/ranking rules). */
     void setPolicy(std::shared_ptr<GProblemPolicy> policy);
     /** @brief @return The shared problem policy referenced by this candidate */
     [[nodiscard]] std::shared_ptr<GProblemPolicy> getPolicy() const { return policy_; }
@@ -1369,18 +1346,16 @@ public:
     /**
      * @brief Retrieves a parameter of a given type at the specified active index.
      * @tparam val_type The value type to retrieve (double, float, std::int32_t or bool)
-     * @param target A (type-index, name, position) tuple; the third element is the active index
+     * @param idx The active index of the parameter in the value channel of its type
      * @return The parameter value of the requested type at the requested index
      */
     template <typename val_type>
-    val_type getVarVal(std::tuple<std::size_t, std::string, std::size_t> const &target) {
+    val_type getVarVal(const std::size_t idx) {
         static_assert(
             std::is_same_v<val_type, double> || std::is_same_v<val_type, float> ||
                 std::is_same_v<val_type, std::int32_t> || std::is_same_v<val_type, bool>,
             "GGenome::getVarVal<>(): unsupported value type (use double, float, std::int32_t or bool)"
         );
-
-        const std::size_t idx = std::get<2>(target);
 
         if constexpr (std::is_same_v<val_type, double>) {
             return this->getVarVal_d_(idx);
@@ -1406,8 +1381,6 @@ public:
 
     /**
      * @brief Randomly initializes the parameters (marking the item for reprocessing on change).
-     * @param am The activity mode selecting which parameters are (re-)initialized
-     * @return true if at least one parameter was changed
      */
     bool randomInit(activityMode const &am);
 
@@ -1419,8 +1392,7 @@ protected:
      * @brief Sets the fitness from a vector of externally-computed raw values, applying the feasibility
      * check and evaluation-policy transform, then marking the candidate PROCESSED. An internal helper (an
      * alternative to process(res_vec) used on the genome copy/move path); not a public API -- external
-     * results are injected through process(res_vec).
-     * @param f_cnt A vector of raw fitness values (size must match the criteria count)
+     * results are injected through completeProcessing() or process(res_vec).
      */
     void setFitness_(std::vector<double> const &f_cnt);
 
@@ -1468,15 +1440,13 @@ protected:
     [[nodiscard]] double fabsSumCombiner() const;
     /** @brief @return The square root of the sum of squares of all stored transformed fitness values */
     [[nodiscard]] double squaredSumCombiner() const;
-    /** @brief @return The square root of the weighed sum of squares of all stored transformed fitness values
-     *  @param weights The per-criterion weights (size must match the criteria count) */
+    /** @brief Combines the stored transformed fitness values as a weighed square root of the sum of squares */
     [[nodiscard]] double weighedSquaredSumCombiner(std::vector<double> const &weights) const;
 
     /***************************************************************************/
     // GCommonInterfaceT / configuration contract.
 
-    /** @brief Adds local configuration options (eval policy, sigmoid, max mode, adaption limits).
-     *  @param gpb The parser builder the configuration options are registered with */
+    /** @brief Adds local configuration options (eval policy, sigmoid, max mode, adaption limits). */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override;
 
     // load_(), compare_() and name_() are generated by the Gem::Common::GReflectiveInterfaceBaseT base from
@@ -1537,9 +1507,9 @@ private:
 
     /** @brief Re-attaches the OA-owned scratch from @p original onto this individual (the wire omits the
      *  scratch, so a networked return arrives without it; the consumer grafts it back from the retained
-     *  original -- see Gem::Courtier::GProcessable::graftOaScratchFrom()).
+     *  original -- see Gem::Courtier::GProcessable::graftRetainedStateFrom()).
      *  @param original The originally-submitted item supplying the scratch (ignored if not a GGenome) */
-    void graftOaScratchFrom_(const Gem::Courtier::GProcessable &original) override {
+    void graftRetainedStateFrom_(const Gem::Courtier::GProcessable &original) override {
         const auto *src = dynamic_cast<const GGenome *>(&original);
         if(src != nullptr && src->scratch_) {
             // This deep-copy runs under the consumer's mutex (the original is reconciled in place). It is
@@ -1547,7 +1517,7 @@ private:
             // so a move WOULD be safe and O(1) -- but coupling correctness to that "source dies next"
             // invariant is a footgun a future reorder could trip silently. SIGNPOST: if profiling at high
             // client/return rates ever shows this mutex as hot, switch to an explicit consume -- take the
-            // source by rvalue-ref (graftOaScratchFrom_(GProcessable&&)) so call sites must std::move it and
+            // source by rvalue-ref (graftRetainedStateFrom_(GProcessable&&)) so call sites must std::move it and
             // the steal is visible -- rather than turning this into a silent move. Until then, keep the copy.
             scratch_ = std::make_unique<GAuxiliaryStore>(*src->scratch_);
         }
@@ -1558,41 +1528,40 @@ private:
      *  KEEPING this live population element's own genome value channels (an `evaluation` return leaves them
      *  untouched; a full return grafts the genome separately, see GNetworkedConsumerT::checkin) and its
      *  OA-owned scratch. Keeping the object in place (rather than swapping in the deserialized return) is
-     *  what preserves its heap address across a networked round-trip.
-     *  @param src The returned, evaluated item whose results + lifecycle are absorbed */
+     *  what preserves its heap address across a networked round-trip. */
     void absorbResultsFrom_(const Gem::Courtier::GProcessable &src) override;
 
     /** @brief In-place full deep copy (see Gem::Courtier::GProcessable::loadContentFrom): replaces this
      *  item's whole content (genome + results + scratch + lifecycle) with a copy of @p src without
      *  relocating the object, so a concurrent snapshot of population addresses stays valid. Used by the
-     *  clone-on-partial-return refill to substitute a viable sibling into a failed slot.
-     *  @param src The source item to deep-copy in place
-     *  @return true (the optimization individual supports in-place substitution) */
+     *  clone-on-partial-return refill to substitute a viable sibling into a failed slot. */
     bool loadContentFrom_(const Gem::Courtier::GProcessable &src) override;
 
     /***************************************************************************/
     // Evaluation internals.
 
-    /** @brief The body of both process() overloads. @param res_vec Optional pre-computed raw
-     *  results @param evaluation The evaluation to call in place of evaluate(), or nullptr
-     *  @return The first stored result after processing */
+    /** @brief The body of both process() overloads. */
     individual_processing_result processWith_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
     );
 
+    /** @brief The core step of the processing lifecycle: the fault injector's hook around
+     *  runEvaluation_(). Shared by process() and completeProcessing(). */
+    void processingCore_(
+        const std::vector<individual_processing_result> &res_vec,
+        evaluation_function *evaluation
+    );
+
     /** @brief The evaluation body run inside process(): feasibility check + evaluate()/res_vec
-     *  adoption + the evaluation-policy transform. @param res_vec Optional pre-computed raw results
-     *  @param evaluation The evaluation to call in place of evaluate(), or nullptr */
+     *  adoption + the evaluation-policy transform. */
     void runEvaluation_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
     );
 
     /** @brief runEvaluation_() feasible branch: adopt the raw results and apply the evaluation-policy
-     *  transform (or worst-case the surface if the user flagged an error). @param res_vec Optional
-     *  pre-computed raw results @param evaluation The evaluation to call in place of evaluate(), or
-     *  nullptr */
+     *  transform (or worst-case the surface if the user flagged an error). */
     void finalizeFeasibleEvaluation_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
@@ -1601,9 +1570,7 @@ private:
     /** @brief Adopts the raw results into the result store -- either from a non-empty res_vec
      *  (external GPU/network path), from the evaluation supplied to process(), or from a local
      *  evaluate() -- returning the main (index-0) raw result and storing the secondary criteria.
-     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_().
-     *  @param res_vec Optional pre-computed raw results @param evaluation The evaluation to call in
-     *  place of evaluate(), or nullptr @return The main raw result */
+     *  Worst-cases the whole surface and rethrows on any failure. Extracted from runEvaluation_(). */
     double adoptRawResults_(
         const std::vector<individual_processing_result> &res_vec,
         evaluation_function *evaluation
@@ -1614,15 +1581,16 @@ private:
      *  runEvaluation_() and setFitness_() (formerly two identical copies). */
     void applyInvalidityPolicy_();
 
-    /** @brief Runs the registered pre-processor (if allowed) on this candidate */
-    void preProcess_();
+    /** @brief Runs the registered pre-processor (if allowed) on this candidate (the GProcessable
+     *  hook of the lifecycle's pre-processing step; final, so a member of that name in a derived
+     *  individual cannot replace the registered pre-processor without a word) */
+    void preProcess_() final;
     /** @brief Runs the registered post-processor (if allowed) on this candidate */
     void postProcess_();
 
     /** @brief Sets every raw and transformed fitness to the same value. @param val The value */
     void setAllFitnessTo(double val) { this->setAllFitnessTo(val, val); }
-    /** @brief Sets every raw fitness to raw_value and every transformed fitness to transformed_value.
-     *  @param raw_value The raw value. @param transformed_value The transformed value */
+    /** @brief Sets every raw fitness to raw_value and every transformed fitness to transformed_value. */
     void setAllFitnessTo(double raw_value, double transformed_value);
 
     /** @brief Resets every stored result to a default-constructed value */

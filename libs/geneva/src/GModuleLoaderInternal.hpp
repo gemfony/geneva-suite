@@ -49,9 +49,6 @@ namespace Gem::Geneva {
  * @brief Loads a module with Geneva's handlers, without loading the optional consumer modules
  * first. For loadOptionalConsumerModules() only, which runs inside std::call_once and would
  * enter itself through loadModule().
- *
- * @param module_path The module
- * @return What it contributed
  */
 LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_path);
 

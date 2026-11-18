@@ -11,8 +11,8 @@ Canonical examples: `quickstart/` (minimal), `examples/03_GParameterObjectUsageP
 ## 1. Subclass `GGenomeT` and override `evaluate()`
 
 ```cpp
-#include "geneva/ind/GGenomeT.hpp"
-#include "geneva/ind/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
 
 namespace gen = Gem::Geneva::Genome;
 
@@ -117,6 +117,12 @@ There are three ways to give an algorithm its adaption config:
   oa::StandaloneAdapter adapter(genome, cfg);
   adapter.adapt(genome);                              // mutates in place
   ```
+
+An error the program does not handle -- a configuration file that cannot be applied, say -- ends
+the program with its message and the exit code 1, also under MPI, where the launcher then ends the
+whole job: Go2's constructor installs `Gem::Common::installFatalReport()`
+(`common/GFatalReport.hpp`) as the terminate handler. A program without Go2 calls it in the first
+line of `main()`.
 
 ## 5. Adapting without a config is a hard error
 

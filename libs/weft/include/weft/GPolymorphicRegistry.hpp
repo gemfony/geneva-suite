@@ -81,9 +81,9 @@ namespace Gem::Weft {
  * The tag is supplied by the registration site (the fully-qualified, stringized
  * type name -- see @ref GEM_REGISTER_TYPE), @b not read from the type's
  * @c class_name. @c class_name is overloaded as a config @e filename
- * (@c ./config/<class_name>.json), so it is constrained to a filename-safe
+ * (<tt>./config/\<class_name\>.json</tt>), so it is constrained to a filename-safe
  * alphabet; a wire tag by contrast wants a globally-unique, namespace- and
- * template-argument-bearing string (@c "Gem::Geneva::GMetaOptimizerIndividualT<Gem::Geneva::GFunctionIndividual>"),
+ * template-argument-bearing string (@c "Gem::Some::GWrapperT<Gem::Some::GPayload>"),
  * every one of whose @c :: @c < @c > @c , characters is filename-hostile. The
  * registry key is only ever a map key, never a path, so it is free to be fully
  * qualified -- and per-instantiation-unique for templates for free (the
@@ -91,21 +91,22 @@ namespace Gem::Weft {
  *
  * @par Lifetime (important)
  * Registration happens during dynamic initialisation across many translation
- * units, and Geneva can additionally register types at runtime when a loadable
- * OA/individual plugin is @c dlopen 'd. The singleton is therefore heap-allocated
- * and @b never destroyed (leaked deliberately): a function-local @c static of
- * object type would be torn down at process exit in an order unrelated to the
- * registering TUs, and a late registration (or a late serialization on a worker
- * thread) could then touch freed memory. A leaked singleton sidesteps all
- * static-destruction-order hazards. Its maps are mutex-guarded so a plugin load
- * on one thread cannot race a lookup on another.
+ * units, and a program can additionally register types at runtime when a loadable
+ * plugin is @c dlopen 'd (Geneva's algorithm and individual modules). The
+ * singleton is therefore heap-allocated and @b never destroyed (leaked
+ * deliberately): a function-local @c static of object type would be torn down at
+ * process exit in an order unrelated to the registering TUs, and a late
+ * registration (or a late serialization on a worker thread) could then touch
+ * freed memory. A leaked singleton sidesteps all static-destruction-order
+ * hazards. Its maps are mutex-guarded so a plugin load on one thread cannot race
+ * a lookup on another.
  *
- * @par Cross-module singleton (the pluggable-OA / pluggable-individual guarantee)
- * A loadable OA/individual plugin registers its concrete types (@ref GEM_REGISTER_TYPE /
- * @c GEM_REGISTER_ARCHIVABLE) from the plugin's own @c .so, exactly as it carries a
- * @c BOOST_CLASS_EXPORT today. For that registration to be visible to the host that
- * serializes the type, the plugin and the host must share @b one @ref instance(). Two
- * project-wide conditions make that so, and both must hold:
+ * @par Cross-module singleton (the guarantee loadable plugins rely on)
+ * A loadable plugin registers its concrete types (@ref GEM_REGISTER_TYPE /
+ * @c GEM_REGISTER_ARCHIVABLE) from the plugin's own @c .so. For that registration
+ * to be visible to the host that serializes the type, the plugin and the host
+ * must share @b one @ref instance(). Two project-wide conditions make that so,
+ * and both must hold:
  *   - @c GModuleLoader @c dlopen's every plugin @c RTLD_GLOBAL @c | @c RTLD_NOW, so the
  *     plugin's references to this template's vague-linkage singleton resolve against the
  *     definition already loaded from @c libgemfony-common (RTLD_NOW forces the binding,
