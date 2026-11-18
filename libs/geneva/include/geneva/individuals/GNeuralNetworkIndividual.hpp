@@ -310,8 +310,16 @@ enum class transferFunction : Gem::Common::ENUMBASETYPE {
 
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::trainingDataType> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::transferFunction> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::trainingDataType> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::trainingDataType::TDTNONE,
+        Gem::Geneva::Individuals::trainingDataType::SINUS>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::transferFunction> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::transferFunction::SIGMOID,
+        Gem::Geneva::Individuals::transferFunction::RBF>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 

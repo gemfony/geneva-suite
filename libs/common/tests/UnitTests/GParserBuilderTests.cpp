@@ -31,15 +31,18 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <functional>
+#include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
 #include <boost/json.hpp>
 
+#include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GJsonIO.hpp"
 #include "common/GParserBuilder.hpp"
@@ -1066,7 +1069,7 @@ TEST_CASE("GParserBuilder: a value that does not read as its type is refused wit
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "list": { "value": [1, "two"] } })"),
-        ContainsSubstring(R"("list" has the value "two", which is not a number)")
+        ContainsSubstring(R"("list" has the value "two", which is not an integer)")
     );
     CHECK_THROWS_WITH(k.load(R"({ "pair": { "value": [1, "x"] } })"), ContainsSubstring(R"("pair")"));
 
@@ -1075,4 +1078,84 @@ TEST_CASE("GParserBuilder: a value that does not read as its type is refused wit
     CHECK_FALSE(k.flag);
     CHECK(k.beta == 1e-3);
     CHECK(k.list == std::vector<int>{4, 5});
+}
+
+// ---------------------------------------------------------------------------
+// Regression: an enumeration read any text as 0 ("MAXIMIZE" for maxmode minimized), a fraction as
+// its integer part and a number that is none of its values as an enumerator that does not exist;
+// a negative number for an unsigned key wrapped around ("-1" as 4294967295); an 8-bit key kept
+// the low byte of a larger number. Each is refused, naming the key and what the value must be.
+
+TEST_CASE(
+    "GParserBuilder: a value outside the range of its type is refused",
+    "[common][parser-builder]"
+) {
+    using Catch::Matchers::ContainsSubstring;
+    Gem::Common::sortOrder order = Gem::Common::sortOrder::LOWERISBETTER;
+    Gem::Common::dimensions dims = Gem::Common::dimensions::Dim1;
+    std::uint32_t count = 0;
+    std::vector<std::size_t> sizes;
+    std::uint8_t small = 0;
+    GParserBuilder gpb;
+    gpb.registerFileParameter<Gem::Common::sortOrder>(
+        "order",
+        order,
+        Gem::Common::sortOrder::LOWERISBETTER
+    );
+    gpb.registerFileParameter<Gem::Common::dimensions>("dims", dims, Gem::Common::dimensions::Dim1);
+    gpb.registerFileParameter<std::uint32_t>("count", count, 1);
+    gpb.registerFileParameter<std::size_t>("sizes", sizes, std::vector<std::size_t>{1});
+    gpb.registerFileParameter<std::uint8_t>("small", small, 1);
+    auto load = [&gpb](std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); };
+
+    CHECK_THROWS_WITH(
+        load(R"({ "order": { "value": "HIGHERISBETTER" } })"),
+        ContainsSubstring(
+            R"("order" has the value "HIGHERISBETTER", which is not one of the values 0 or 1)"
+        )
+    );
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1.5" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "7" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(
+        load(R"({ "dims": { "value": 0 } })"),
+        ContainsSubstring(R"(which is not one of the values 1, 2, 3 or 4)")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "count": { "value": -1 } })"),
+        ContainsSubstring(R"("count" has the value "-1", which is not an integer >= 0)")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "sizes": { "value": [2, " -1"] } })"),
+        ContainsSubstring(R"("sizes")")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "small": { "value": 300 } })"),
+        ContainsSubstring(R"("small" has the value "300", which is not an integer from 0 to 255)")
+    );
+    CHECK(order == Gem::Common::sortOrder::LOWERISBETTER);
+    CHECK(count == 1);
+
+    load(R"({ "order": { "value": "1" }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
+              "sizes": { "value": [0, 3] }, "small": { "value": 255 } })");
+    CHECK(order == Gem::Common::sortOrder::HIGHERISBETTER);
+    CHECK(dims == Gem::Common::dimensions::Dim4);
+    CHECK(count == 4294967295U);
+    CHECK(sizes == std::vector<std::size_t>{0, 3});
+    CHECK(small == 255);
+}
+
+TEST_CASE(
+    "Gem::Common: a numeric enumeration reads only its own values from a stream",
+    "[common][parser-builder]"
+) {
+    Gem::Common::serializationMode mode = Gem::Common::serializationMode::GEM_JSON;
+    std::istringstream none("2");
+    none >> mode;
+    CHECK(none.fail());
+    CHECK(mode == Gem::Common::serializationMode::GEM_JSON);
+    std::istringstream binary("3");
+    binary >> mode;
+    CHECK_FALSE(binary.fail());
+    CHECK(mode == Gem::Common::serializationMode::GEM_BINARY);
+    CHECK(Gem::Common::numericEnumValueList<Gem::Common::logType>() == "0, 1, 2, 3, 4, 5, 6 or 7");
 }

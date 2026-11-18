@@ -102,7 +102,7 @@ using Gem::Common::to_string;
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 // The plotting enums' stream operators are supplied by the shared
-// numeric_enum_io_v machinery declared in GCommonEnums.hpp / GPlotEnums.hpp.
+// numeric_enum_values_v machinery declared in GCommonEnums.hpp / GPlotEnums.hpp.
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

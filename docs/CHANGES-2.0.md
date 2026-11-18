@@ -130,8 +130,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   list where one value belongs) was skipped without a word, leaving the default in force; it is
   now an error that names the key and the form it needs. An absent key keeps its default.
   So is a value that does not read as its parameter's type: a boolean other than `true`,
-  `false`, `1` or `0` (it read as `false`), or a number with text or a remainder (`2.5` for an
-  integer read as 2).
+  `false`, `1` or `0` (it read as `false`), a number with text or a remainder (`2.5` for an
+  integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
+  4294967295), and for an enumeration text or a number that is none of its values
+  (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
 - **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `geneva_exception`
   that names the file and the cause when the file cannot be read or applied, and return
   `void`. They used to log the error and return `false`, which most callers ignored -- every
@@ -523,11 +525,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   hook now has an empty default on `GOptimizationAlgorithmBase`; override it only when
   the algorithm actually reacts to a stall (as the parent-child EA base does).
 - **Geneva's enums stream through one shared, opt-in operator template**
-  (`Gem::Common::numeric_enum_io_v` in `GCommonEnums.hpp`) instead of per-enum
+  (`Gem::Common::numeric_enum_values_v` in `GCommonEnums.hpp`) instead of per-enum
   hand-written `operator<<`/`operator>>` pairs. The textual form (the underlying
   number) is unchanged, so configuration files and archives are unaffected; only code
   that took the address of one of the old operator functions needs adjusting. A
-  user-defined enum can opt into the same machinery by specializing the marker.
+  user-defined enum opts into the same machinery by specializing `numeric_enum_values_v`
+  with the list of its values (`numeric_enum_range<FIRST, LAST>()` for a contiguous enum);
+  the reader fails on a number that is none of them.
 - **dietrich: `project<I>()`/`projectX..W()` on a non-all-double collector is now a
   compile-time error** (it used to compile and throw at run time), and the projections
   are available for every axis of every all-double collector arity.

@@ -390,10 +390,26 @@ std::istream &operator>>(std::istream &i, Gem::Courtier::processingStatus &srm);
 } /* namespace Gem::Courtier */
 
 /******************************************************************************/
-// Numeric streaming opt-in (see numeric_enum_io_v in GCommonEnums.hpp)
+// Numeric streaming opt-in (see numeric_enum_values_v in GCommonEnums.hpp)
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::GFrameKind> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Courtier::consumerType> = true;
 template <>
-inline constexpr bool numeric_enum_io_v<Gem::Courtier::processRole> = true;
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::GFrameKind> = std::array{
+    Gem::Courtier::GFrameKind::NONE,
+    Gem::Courtier::GFrameKind::PULL,
+    Gem::Courtier::GFrameKind::NO_WORK,
+    Gem::Courtier::GFrameKind::WORK,
+    Gem::Courtier::GFrameKind::RETURN,
+    Gem::Courtier::GFrameKind::BLOB_REQUEST,
+    Gem::Courtier::GFrameKind::BLOB_REPLY,
+    Gem::Courtier::GFrameKind::RESULT,
+    Gem::Courtier::GFrameKind::UNREADABLE
+};
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::consumerType> = numeric_enum_range<
+    Gem::Courtier::consumerType::SERIAL,
+    Gem::Courtier::consumerType::NETWORKED>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Courtier::processRole> = numeric_enum_range<
+    Gem::Courtier::processRole::SUBMITTER,
+    Gem::Courtier::processRole::BYSTANDER>();
 } /* namespace Gem::Common */

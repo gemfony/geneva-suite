@@ -270,11 +270,19 @@ enum class parameterType : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for the two enums above; must precede their first
-// streaming use (see numeric_enum_io_v in GCommonEnums.hpp).
+// streaming use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::solverFunction> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::parameterType> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::solverFunction> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::solverFunction::PARABOLA,
+        Gem::Geneva::Individuals::solverFunction::ZAKHAROV>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::parameterType> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::parameterType::UNBOUNDED_SHARED,
+        Gem::Geneva::Individuals::parameterType::BOUNDED_PER_PARAMETER>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 

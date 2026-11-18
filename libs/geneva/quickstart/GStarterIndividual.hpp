@@ -74,11 +74,14 @@ enum class targetFunction : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for targetFunction; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Geneva */
 } /* namespace Gem */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::targetFunction> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::targetFunction> = numeric_enum_range<
+    Gem::Geneva::targetFunction::PARABOLA,
+    Gem::Geneva::targetFunction::NOISYPARABOLA>();
 } /* namespace Gem::Common */
 namespace Gem {
 namespace Geneva {

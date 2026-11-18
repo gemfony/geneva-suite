@@ -73,7 +73,7 @@
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
-// Re-export the shared numeric enum stream operators (see numeric_enum_io_v in
+// Re-export the shared numeric enum stream operators (see numeric_enum_values_v in
 // GCommonEnums.hpp) into this namespace, so that argument-dependent lookup
 // finds them for the algorithm-specific enums (e.g. the CGD gradientMethod).
 using Gem::Common::operator<<;

@@ -93,11 +93,20 @@ enum class errorEstimationMode : std::uint8_t {
 };
 
 // Numeric streaming opt-in for the two enums above; must precede their first
-// streaming use (see numeric_enum_io_v in GCommonEnums.hpp).
+// streaming use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::OptimizationAlgorithms::gradientMethod> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::OptimizationAlgorithms::errorEstimationMode> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::OptimizationAlgorithms::gradientMethod> =
+    numeric_enum_range<
+        Gem::Geneva::OptimizationAlgorithms::gradientMethod::CONJUGATE_PR_PLUS,
+        Gem::Geneva::OptimizationAlgorithms::gradientMethod::LBFGS>();
+template <>
+inline constexpr auto
+    numeric_enum_values_v<Gem::Geneva::OptimizationAlgorithms::errorEstimationMode> =
+        numeric_enum_range<
+            Gem::Geneva::OptimizationAlgorithms::errorEstimationMode::NONE,
+            Gem::Geneva::OptimizationAlgorithms::errorEstimationMode::MINOS>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::OptimizationAlgorithms {
 

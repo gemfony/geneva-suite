@@ -95,23 +95,52 @@ using ENUMBASETYPE = std::uint16_t;
  *
  * Nearly every Geneva enum streams as its underlying numeric value; the
  * operator bodies used to be copy-pasted per enum across all libraries. An enum
- * now opts in by specializing the marker variable template below (in namespace
- * Gem::Common, right next to the enum's definition), and the two constrained
- * operator templates that follow supply the one shared implementation. A
- * namespace other than Gem::Common additionally re-exports the operators once
- * via using-declarations so that ADL finds them for its own enums (see e.g.
+ * now opts in by specializing the variable template below with the list of its
+ * valid values (in namespace Gem::Common, right next to the enum's definition),
+ * and the two constrained operator templates that follow supply the one shared
+ * implementation. The reader refuses a number that is none of the listed values
+ * (it fails the stream), so a configuration value or an option such as "7" for
+ * a two-valued enum is refused where it is read instead of becoming an
+ * enumerator that does not exist. A contiguous enum lists its values with
+ * numeric_enum_range(); one with gaps lists them one by one. A namespace other
+ * than Gem::Common additionally re-exports the operators once via
+ * using-declarations so that ADL finds them for its own enums (see e.g.
  * GPlotEnums.hpp).
  *
  * Enums with textual (non-numeric) streaming -- Gem::Common::tribool, and
  * such enums of the libraries above common -- simply do not opt in and keep
  * their hand-written operators.
+ *
+ * @code
+ * template <> inline constexpr auto numeric_enum_values_v<sortOrder>
+ *     = numeric_enum_range<sortOrder::LOWERISBETTER, sortOrder::HIGHERISBETTER>();
+ * @endcode
  */
 template <typename enum_type>
-inline constexpr bool numeric_enum_io_v = false;
+inline constexpr auto numeric_enum_values_v = std::array<enum_type, 0>{};
 
-/** @brief Satisfied by enum types that opted into numeric streaming via numeric_enum_io_v */
+/** @brief Satisfied by enum types that opted into numeric streaming via numeric_enum_values_v */
 template <typename enum_type>
-concept numeric_io_enum = std::is_enum_v<enum_type> && numeric_enum_io_v<enum_type>;
+concept numeric_io_enum =
+    std::is_enum_v<enum_type> && (numeric_enum_values_v<enum_type>.size() > 0);
+
+/**
+ * @brief Every value of a contiguous enum from FIRST to LAST, for numeric_enum_values_v
+ * @tparam FIRST The enumerator with the smallest value
+ * @tparam LAST The enumerator with the largest value
+ * @return The values FIRST, FIRST + 1, ..., LAST
+ */
+template <auto FIRST, auto LAST>
+    requires std::is_enum_v<decltype(FIRST)> && std::is_same_v<decltype(FIRST), decltype(LAST)>
+consteval auto numeric_enum_range() {
+    using enum_type = decltype(FIRST);
+    static_assert(std::to_underlying(FIRST) <= std::to_underlying(LAST));
+    std::array<enum_type, std::to_underlying(LAST) - std::to_underlying(FIRST) + 1> values{};
+    for(std::size_t pos = 0; pos < values.size(); ++pos) {
+        values.at(pos) = static_cast<enum_type>(std::to_underlying(FIRST) + pos);
+    }
+    return values;
+}
 
 /**
  * @brief Writes an opted-in enum to a stream as its underlying numeric value
@@ -128,19 +157,46 @@ std::ostream &operator<<(std::ostream &o, enum_type const &x) {
 }
 
 /**
- * @brief Reads an opted-in enum from a stream as its underlying numeric value
+ * @brief Reads an opted-in enum from a stream as its underlying numeric value. A number that is
+ * none of the enum's values (see numeric_enum_values_v) fails the stream, as text does.
  * @param i The input stream to read from
- * @param x The enum value to be filled from the stream
+ * @param x The enum value to be filled from the stream (unchanged if the stream fails)
  * @return A reference to the input stream
  */
 template <numeric_io_enum enum_type>
 std::istream &operator>>(std::istream &i, enum_type &x) {
     // Wide intermediate for the same reason as in operator<< (a std::uint8_t
     // would otherwise be read as a single character)
-    std::int64_t tmp = 0;
-    i >> tmp;
-    x = static_cast<enum_type>(tmp);
+    std::int64_t value = 0;
+    if(not(i >> value)) {
+        return i;
+    }
+    for(enum_type const candidate : numeric_enum_values_v<enum_type>) {
+        if(std::cmp_equal(value, std::to_underlying(candidate))) {
+            x = candidate;
+            return i;
+        }
+    }
+    i.setstate(std::ios_base::failbit);
     return i;
+}
+
+/**
+ * @brief The values of an opted-in enum for a message: "0, 1 or 2"
+ * @tparam enum_type The enum whose values are listed (see numeric_enum_values_v)
+ * @return The numeric values, separated by commas and a final "or"
+ */
+template <numeric_io_enum enum_type>
+std::string numericEnumValueList() {
+    auto const &values = numeric_enum_values_v<enum_type>;
+    std::string text;
+    for(std::size_t pos = 0; pos < values.size(); ++pos) {
+        if(pos > 0) {
+            text += (pos + 1 == values.size()) ? " or " : ", ";
+        }
+        text += std::to_string(static_cast<std::int64_t>(std::to_underlying(values.at(pos))));
+    }
+    return text;
 }
 
 /******************************************************************************/
@@ -154,8 +210,10 @@ enum class dimensions : Gem::Common::ENUMBASETYPE {
     Dim4 = 4
 };
 
-/** @brief dimensions streams as its underlying numeric value (see numeric_enum_io_v) */
-template <> inline constexpr bool numeric_enum_io_v<dimensions> = true;
+/** @brief dimensions streams as its underlying numeric value (see numeric_enum_values_v) */
+template <>
+inline constexpr auto numeric_enum_values_v<dimensions> =
+    numeric_enum_range<dimensions::Dim1, dimensions::Dim4>();
 
 /******************************************************************************/
 /**
@@ -173,8 +231,10 @@ enum class sortOrder : Gem::Common::ENUMBASETYPE {
     HIGHERISBETTER = 1
 };
 
-/** @brief sortOrder streams as its underlying numeric value (see numeric_enum_io_v) */
-template <> inline constexpr bool numeric_enum_io_v<sortOrder> = true;
+/** @brief sortOrder streams as its underlying numeric value (see numeric_enum_values_v) */
+template <>
+inline constexpr auto numeric_enum_values_v<sortOrder> =
+    numeric_enum_range<sortOrder::LOWERISBETTER, sortOrder::HIGHERISBETTER>();
 
 /******************************************************************************/
 /**
@@ -191,8 +251,10 @@ enum class logType : Gem::Common::ENUMBASETYPE {
     EXIT = 7 ///< A deliberate, clean program exit with a chosen return code (see LOGEXIT)
 };
 
-/** @brief logType streams as its underlying numeric value (see numeric_enum_io_v) */
-template <> inline constexpr bool numeric_enum_io_v<logType> = true;
+/** @brief logType streams as its underlying numeric value (see numeric_enum_values_v) */
+template <>
+inline constexpr auto numeric_enum_values_v<logType> =
+    numeric_enum_range<logType::EXCEPTION, logType::EXIT>();
 
 /******************************************************************************/
 /**
@@ -246,15 +308,13 @@ inline constexpr std::array<serializationMode, 2> SERIALIZATIONMODES{
     serializationMode::GEM_JSON
 };
 
-/** @brief serializationMode streams as its underlying numeric value (see numeric_enum_io_v) */
-template <> inline constexpr bool numeric_enum_io_v<serializationMode> = true;
-
 /**
- * @brief Reads a serializationMode as its numeric value; a value that names no mode (one of the
- * removed Boost archives, say) fails the stream, so that an option or a configuration that names
- * one is refused where it is read. Preferred over the generic numeric reader.
+ * @brief serializationMode streams as its underlying numeric value (see numeric_enum_values_v); a
+ * value that names no mode (one of the removed Boost archives, say) fails the stream, so that an
+ * option or a configuration that names one is refused where it is read
  */
-std::istream &operator>>(std::istream &i, serializationMode &x);
+template <>
+inline constexpr auto numeric_enum_values_v<serializationMode> = SERIALIZATIONMODES;
 
 /**
  * @brief The modes for a help text, from SERIALIZATIONMODES: "GEM_BINARY (3) or GEM_JSON (4)"
@@ -285,8 +345,10 @@ enum class expectation : Gem::Common::ENUMBASETYPE {
     INEQUALITY = 2 // at least one checked component differs
 };
 
-/** @brief expectation streams as its underlying numeric value (see numeric_enum_io_v) */
-template <> inline constexpr bool numeric_enum_io_v<expectation> = true;
+/** @brief expectation streams as its underlying numeric value (see numeric_enum_values_v) */
+template <>
+inline constexpr auto numeric_enum_values_v<expectation> =
+    numeric_enum_range<expectation::EQUALITY, expectation::INEQUALITY>();
 
 /******************************************************************************/
 /**

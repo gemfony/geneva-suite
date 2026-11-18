@@ -64,8 +64,7 @@
 
 namespace Gem::Dietrich {
 
-
-// Re-export the shared numeric enum stream operators (see numeric_enum_io_v in
+// Re-export the shared numeric enum stream operators (see numeric_enum_values_v in
 // GCommonEnums.hpp) into Gem::Dietrich, so that argument-dependent lookup finds
 // them for the plotting enums below (a using-DIRECTIVE is invisible to ADL;
 // these using-declarations are not).
@@ -248,11 +247,42 @@ class GPlotDesigner;
 // own namespace; the operators themselves are re-exported into Gem::Dietrich
 // above).
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gColor> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gMarker> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::gLineStyle> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::graphPlotMode> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::surfaceProjection> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::tddropt> = true;
-template <> inline constexpr bool numeric_enum_io_v<Gem::Dietrich::legendPosition> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::gColor> = std::array{
+    Gem::Dietrich::gColor::white,
+    Gem::Dietrich::gColor::black,
+    Gem::Dietrich::gColor::red,
+    Gem::Dietrich::gColor::green,
+    Gem::Dietrich::gColor::blue,
+    Gem::Dietrich::gColor::grey
+};
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::gMarker> = std::array{
+    Gem::Dietrich::gMarker::none,
+    Gem::Dietrich::gMarker::openCircle,
+    Gem::Dietrich::gMarker::closedCircle,
+    Gem::Dietrich::gMarker::closedTriangle,
+    Gem::Dietrich::gMarker::openTriangle,
+    Gem::Dietrich::gMarker::closedStar,
+    Gem::Dietrich::gMarker::openStar
+};
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::gLineStyle> = numeric_enum_range<
+    Gem::Dietrich::gLineStyle::straight,
+    Gem::Dietrich::gLineStyle::longdashed>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::graphPlotMode> = numeric_enum_range<
+    Gem::Dietrich::graphPlotMode::SCATTER,
+    Gem::Dietrich::graphPlotMode::CURVE>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::surfaceProjection> = numeric_enum_range<
+    Gem::Dietrich::surfaceProjection::NONE,
+    Gem::Dietrich::surfaceProjection::CEILING>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::tddropt> =
+    numeric_enum_range<Gem::Dietrich::tddropt::TDEMPTY, Gem::Dietrich::tddropt::SURFONECYL>();
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::legendPosition> = numeric_enum_range<
+    Gem::Dietrich::legendPosition::AUTO,
+    Gem::Dietrich::legendPosition::FREEST>();
 } /* namespace Gem::Common */

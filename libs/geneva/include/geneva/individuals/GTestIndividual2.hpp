@@ -72,10 +72,14 @@ enum class PERFOBJECTTYPE : Gem::Common::ENUMBASETYPE {
 };
 
 // Numeric streaming opt-in for PERFOBJECTTYPE; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::Individuals */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::Individuals::PERFOBJECTTYPE> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::PERFOBJECTTYPE> =
+    numeric_enum_range<
+        Gem::Geneva::Individuals::PERFOBJECTTYPE::PERFGDOUBLEOBJECT,
+        Gem::Geneva::Individuals::PERFOBJECTTYPE::PERFGCONSTRAINEDDOUBLECOLLECTION>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 

@@ -99,14 +99,18 @@ enum class stepControl : std::uint8_t {
 };
 
 // Numeric streaming opt-in for stepControl; must precede its first streaming
-// use (see numeric_enum_io_v in GCommonEnums.hpp).
+// use (see numeric_enum_values_v in GCommonEnums.hpp).
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
 namespace Gem::Common {
-template <> inline constexpr bool numeric_enum_io_v<Gem::Geneva::OptimizationAlgorithms::stepControl> = true;
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Geneva::OptimizationAlgorithms::stepControl> =
+    numeric_enum_range<
+        Gem::Geneva::OptimizationAlgorithms::stepControl::SELF_ADAPT,
+        Gem::Geneva::OptimizationAlgorithms::stepControl::CSA>();
 } /* namespace Gem::Common */
 namespace Gem::Geneva::OptimizationAlgorithms {
 
-// stepControl streams as its integer code through the shared numeric_enum_io_v
+// stepControl streams as its integer code through the shared numeric_enum_values_v
 // machinery of GCommonEnums.hpp (marker specialization at the end of this
 // header). Re-export the operators so ADL finds them in this namespace even
 // when this header is included on its own.

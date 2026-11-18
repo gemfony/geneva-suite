@@ -40,6 +40,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -110,24 +111,55 @@ std::string cfgScalarToString(T const &v) {
 }
 
 /******************************************************************************/
-/** @brief Reads a number from the whole of @p s: anything that is not a number of type T (text,
- *  a trailing remainder such as the ".5" of "2.5" for an integer) is refused rather than read as
- *  far as it goes, or as an indeterminate value.
- *  @tparam T The arithmetic type to read
+/** @brief Names, for an error text, what a configuration value of type T must be.
+ *  @tparam T The type of the value
+ *  @return "an integer", "an integer >= 0", "a number", "one of the values 0, 1 or 2" (an enum, see
+ *  numeric_enum_values_v), or "a value of its type" */
+template <typename T>
+std::string cfgExpectedValue() {
+    if constexpr(std::is_integral_v<T> && std::is_unsigned_v<T>) {
+        return "an integer >= 0";
+    }
+    else if constexpr(std::is_integral_v<T>) {
+        return "an integer";
+    }
+    else if constexpr(std::is_floating_point_v<T>) {
+        return "a number";
+    }
+    else if constexpr(numeric_io_enum<T>) {
+        return "one of the values " + numericEnumValueList<T>();
+    }
+    else {
+        return "a value of its type";
+    }
+}
+
+/******************************************************************************/
+/** @brief Reads a value of type T from the whole of @p s: anything that does not read as a value
+ *  of T is refused rather than read as far as it goes, or as an indeterminate value. Refused are
+ *  text where a number belongs, a trailing remainder (the ".5" of "2.5" for an integer), a value
+ *  the type's reader fails on (a number that is none of an enum's values, see
+ *  numeric_enum_values_v) and a negative number for an unsigned type, which the stream would wrap
+ *  around ("-1" as 4294967295).
+ *  @tparam T The type to read (arithmetic, or any type with a stream extraction operator)
  *  @param s The string to parse
  *  @param key The configuration key the value belongs to (named in the error text)
  *  @return The parsed value
- *  @throws geneva_exception if @p s is not a number of type T */
+ *  @throws geneva_exception if @p s is not a value of type T */
 template <typename T>
-T cfgNumberFromString(std::string const &s, std::string const &key) {
+T cfgReadWhole(std::string const &s, std::string const &key) {
     T val{};
     std::istringstream iss(s);
+    bool negative_unsigned = false;
+    if constexpr(std::is_unsigned_v<T>) {
+        negative_unsigned = (iss >> std::ws).peek() == '-';
+    }
     iss >> val;
-    if(iss.fail() || not(iss >> std::ws).eof()) {
+    if(negative_unsigned || iss.fail() || not(iss >> std::ws).eof()) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "The configuration entry \"" << key << "\" has the value \"" << s
-            << "\", which is not a number of its type" << '\n'
+            << "\", which is not " << cfgExpectedValue<T>() << '\n'
         );
     }
     return val;
@@ -135,13 +167,14 @@ T cfgNumberFromString(std::string const &s, std::string const &key) {
 
 /******************************************************************************/
 /** @brief Parses an on-disk scalar string back into its parameter type (inverse of
- *  cfgScalarToString). Booleans accept "true"/"false" and "1"/"0"; a boolean or a number that does
- *  not read as one is refused (it used to read as false, or as an indeterminate number).
+ *  cfgScalarToString). Booleans accept "true"/"false" and "1"/"0"; every other type is read through
+ *  cfgReadWhole(), so a value that does not read as its type is refused (it used to read as false,
+ *  as far as it went, or as an indeterminate value).
  *  @tparam T The scalar parameter type
  *  @param s The string to parse
  *  @param key The configuration key the value belongs to (named in the error text)
  *  @return The parsed value
- *  @throws geneva_exception if @p s is not a value of a boolean or numeric T */
+ *  @throws geneva_exception if @p s is not a value of type T */
 template <typename T>
 T cfgScalarFromString(std::string const &s, std::string const &key) {
     if constexpr(std::is_same_v<T, std::string>) {
@@ -163,15 +196,22 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
     else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
         // (u)int8_t is a character type: a stream extraction of "1" would read the character '1'
         // (value 49), not the number 1. Parse through a wider integer so small enums/counts stored in
-        // an 8-bit field round-trip by value.
+        // an 8-bit field round-trip by value, and refuse what the 8-bit type cannot hold ("300").
         using wider = std::conditional_t<std::is_signed_v<T>, int, unsigned int>;
-        return static_cast<T>(cfgNumberFromString<wider>(s, key));
-    }
-    else if constexpr(std::is_arithmetic_v<T>) {
-        return cfgNumberFromString<T>(s, key);
+        auto const val = cfgReadWhole<wider>(s, key);
+        if(not std::in_range<T>(val)) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "The configuration entry \"" << key << "\" has the value \"" << s
+                << "\", which is not an integer from "
+                << static_cast<wider>(std::numeric_limits<T>::min()) << " to "
+                << static_cast<wider>(std::numeric_limits<T>::max()) << '\n'
+            );
+        }
+        return static_cast<T>(val);
     }
     else {
-        return Gem::Common::from_string<T>(s);
+        return cfgReadWhole<T>(s, key);
     }
 }
 
