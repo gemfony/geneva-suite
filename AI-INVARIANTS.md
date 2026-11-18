@@ -53,7 +53,8 @@ At most **one** AI agent writes in the working tree at a time (read-only work ma
 plan phase is executed by a **fresh** agent that inherits no conversation state; everything a successor
 needs lives in persistent files — the active plan with its progress ledger, the per-phase handoff
 documents, and the git history. An agent's context is perishable by design; work that exists only in a
-conversation does not exist.
+conversation does not exist. A fresh agent per phase is for phases that are independent of each other;
+phases of one design fall under AI-9.
 
 ## AI-4. AI work is never attributed in the repository
 
@@ -157,6 +158,29 @@ is there.
 the library's code by two thirds and its atomics threefold. Much of that served one optional
 guarantee and the corner cases of earlier fixes; every step was right by itself, and nobody was
 asked whether the whole was still wanted. (Maintainer decision, 2026-11-18.)
+
+## AI-9. A task is split between agents only where its parts are independent
+
+Two parts are independent if all of this holds: the interface between them is fixed and written
+down beforehand; neither part changes that interface or a state the other uses; each can be
+checked by itself and taken back by itself. This holds for parts built one after the other as much
+as for parts built at the same time.
+
+What is not independent has **one owner**: a design that hangs together -- a protocol with both
+its ends, an interface with what stands on it. The owner holds the design as a whole, reads the
+code himself and decides every change to it. The owner is a single agent that builds the piece
+whole, or the supervisor; other agents take over only what is mechanical or independent by the
+test above.
+
+- **Review findings go to the owner**, who asks first whether the design is to change before
+  anything is added at one place (AI-8).
+- **A design too large for one owner is first divided at fixed interfaces**; that division is the
+  maintainer's decision.
+
+*Why:* AI-3 asks for a fresh agent per phase, which is right for independent phases. In the
+courtier rework of November 2026 many fresh agents built on the same design one after the other;
+each knew its package and closed its problem with a mechanism of its own, and nobody owned the
+contract as a whole. (Maintainer decision, 2026-11-18.)
 
 ---
 
