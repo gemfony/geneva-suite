@@ -243,6 +243,17 @@ TEST_CASE("GFunctionIndividual: operator<< writes to the stream it is given", "[
 }
 
 /******************************************************************************/
+// The pointer overload of GFunctionIndividual's output operator dereferenced its argument without a
+// check, so printing an empty pointer (e.g. the result of a run that produced no individual) was
+// undefined behaviour -- a crash in practice.
+TEST_CASE("GFunctionIndividual: operator<< prints an empty pointer as (null)", "[candidate][print]") {
+    const std::unique_ptr<gind::GFunctionIndividual> empty;
+    std::ostringstream out;
+    out << empty;
+    CHECK(out.str() == "(null)\n");
+}
+
+/******************************************************************************/
 TEST_CASE("GGenome: streamline / assignValueVector round-trip", "[candidate]") {
     NewSphere ind(4, 0, 0);
 

@@ -717,11 +717,16 @@ std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunct
 /**
  * @brief Provide an easy way to print the individual's content through a smart-pointer.
  *
+ * An empty pointer is printed as "(null)".
+ *
  * @param s The output stream the raw fitness and the parameter values are written to
- * @param f_ptr An owning pointer to the GFunctionIndividual whose content is printed (dereferenced internally)
+ * @param f_ptr An owning pointer to the GFunctionIndividual whose content is printed (may be empty)
  * @return The std::ostream object passed in as @p s
  */
 std::ostream &operator<<(std::ostream &s, const std::unique_ptr<Gem::Geneva::Individuals::GFunctionIndividual>& f_ptr) {
+    if(not f_ptr) {
+        return s << "(null)" << '\n';
+    }
     return operator<<(s, *f_ptr);
 }
 
