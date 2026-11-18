@@ -217,8 +217,7 @@ public:
         stored_error_descriptions_.clear();
 
         // Mark as processed; a begun processing is over
-        processing_status_ = processingStatus::PROCESSED;
-        processing_begun_.begun = false;
+        this->assignStatus_(processingStatus::PROCESSED);
 
         // This part of the code should never be reached if an exception was thrown
         return this->stored_results_cnt_.at(0);
@@ -531,9 +530,11 @@ private:
     /**
 		  * @brief Runs the registered pre-processor, if pre-processing is both permitted for this
 		  * object and configured. It resets nothing -- the permission flags are the caller's.
-		  * (The GProcessable hook of the lifecycle's pre-processing step.)
+		  * (The GProcessable hook of the lifecycle's pre-processing step. It is final: a member of
+		  * that name in a derived class would otherwise replace the registered pre-processor
+		  * without a word.)
   		  */
-    void preProcess_() override {
+    void preProcess_() final {
         if(this->mayBePreProcessed() && pre_processor_ptr_) {
             auto &p = dynamic_cast<processable_type &>(*this);
             (*pre_processor_ptr_)(p);

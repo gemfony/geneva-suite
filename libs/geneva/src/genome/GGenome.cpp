@@ -678,7 +678,8 @@ GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &re
 
     stored_results_cnt_ = result_cnt;
     stored_error_descriptions_.clear();
-    processing_status_ = Gem::Courtier::processingStatus::PROCESSED;
+    // Mark as processed; a begun processing is over
+    this->assignStatus_(Gem::Courtier::processingStatus::PROCESSED);
 
     return this->stored_results_cnt_.at(0);
 }

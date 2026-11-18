@@ -1582,8 +1582,9 @@ private:
     void applyInvalidityPolicy_();
 
     /** @brief Runs the registered pre-processor (if allowed) on this candidate (the GProcessable
-     *  hook of the lifecycle's pre-processing step) */
-    void preProcess_() override;
+     *  hook of the lifecycle's pre-processing step; final, so a member of that name in a derived
+     *  individual cannot replace the registered pre-processor without a word) */
+    void preProcess_() final;
     /** @brief Runs the registered post-processor (if allowed) on this candidate */
     void postProcess_();
 

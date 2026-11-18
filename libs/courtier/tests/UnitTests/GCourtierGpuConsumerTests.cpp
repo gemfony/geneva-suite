@@ -490,4 +490,10 @@ TEST_CASE(
     CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
     CHECK_NOTHROW(item.completeProcessing({true}));
     CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
+
+    // A new submission of a begun item must be begun again
+    item.set_processing_status(processingStatus::DO_PROCESS);
+    item.beginProcessing();
+    item.mark_as_due_for_processing();
+    CHECK_THROWS_AS(item.completeProcessing({true}), geneva_exception);
 }

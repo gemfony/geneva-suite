@@ -285,23 +285,24 @@ public:
             );
         }
 
-        // Every accepted transition performs the same reset: adopt the state, forget past errors,
-        // drop any stored results (via the clearStoredResults_() hook of the result-bearing class)
-        // and forget a begun processing.
-        processing_status_ = target_ps;
+        // Every accepted transition performs the same reset: adopt the state (which forgets a
+        // begun processing), forget past errors and drop any stored results (via the
+        // clearStoredResults_() hook of the result-bearing class).
+        this->assignStatus_(target_ps);
         stored_error_descriptions_.clear();
         this->clearStoredResults_();
-        processing_begun_.begun = false;
     }
 
-    /** @brief Marks this item as being due for processing (DO_PROCESS). */
-    void mark_as_due_for_processing() { processing_status_ = processingStatus::DO_PROCESS; }
+    /** @brief Marks this item as being due for processing (DO_PROCESS; a begun processing is
+     *  forgotten, so the item is begun again before it is completed). */
+    void mark_as_due_for_processing() {
+        this->assignStatus_(processingStatus::DO_PROCESS);
+    }
 
     /** @brief Sets the UNPROCESSED flag so the item will not be processed (a begun processing is
      *  forgotten). */
     void mark_as_ignorable() {
-        processing_status_ = processingStatus::UNPROCESSED;
-        processing_begun_.begun = false;
+        this->assignStatus_(processingStatus::UNPROCESSED);
     }
 
     /***************************************************************************/
@@ -444,8 +445,7 @@ public:
      * @param outcome The lifecycle record reported by the worker
      */
     void applyProcessingOutcome(const GProcessingOutcome &outcome) {
-        processing_status_ = outcome.status;
-        processing_begun_.begun = false;
+        this->assignStatus_(outcome.status);
         stored_error_descriptions_ = outcome.error_descriptions;
         pre_processing_time_ = outcome.pre_processing_time;
         processing_time_ = outcome.processing_time;
@@ -725,6 +725,21 @@ protected:
 
     /***************************************************************************/
     /**
+     * @brief Assigns a processing status set from outside the processing lifecycle, and with it
+     * forgets a begun processing. This is the rule, stated once: an item begun with
+     * beginProcessing() is completed with completeProcessing() only while nothing else has set its
+     * status in between. Whoever sets it -- an un-submit or new submission, results adopted with
+     * markAsProcessedWith(), a returned outcome, a flagged error -- ends the begun processing, so
+     * the next completion needs a beginning of its own (it would otherwise skip the pre-processor
+     * of the values it completes). The lifecycle's own steps assign the status directly.
+     * @param ps The new processing status
+     */
+    void assignStatus_(processingStatus ps) noexcept {
+        processing_status_ = ps;
+        processing_begun_.begun = false;
+    }
+
+    /**
      * @brief Hook: clears the (result-bearing derived class's) stored results when the processing
      * status is reset. The base has no result store, so the default is a no-op; GProcessingContainerT
      * overrides it to clear its result vector.
@@ -783,7 +798,7 @@ protected:
         }
         // There may already be information stored in this variable. Hence we attach via +=
         stored_error_descriptions_ += error_info;
-        processing_status_ = processingStatus::ERROR_FLAGGED;
+        this->assignStatus_(processingStatus::ERROR_FLAGGED);
     }
 
     /***************************************************************************/
@@ -804,8 +819,9 @@ protected:
     double post_processing_time_ = 0.; ///< Time needed for post-processing (seconds)
 
     /// Transient: set when the first half of the processing lifecycle has run, until the second
-    /// half starts or the status is changed from outside the lifecycle. Deliberately NOT part of
-    /// serialize(), like dispatch_state_, and never copied (see detail::ProcessingBegunMark).
+    /// half starts or the status is set from outside the lifecycle (assignStatus_()). Deliberately
+    /// NOT part of serialize(), like dispatch_state_, and never copied (see
+    /// detail::ProcessingBegunMark).
     detail::ProcessingBegunMark processing_begun_;
 
     std::string

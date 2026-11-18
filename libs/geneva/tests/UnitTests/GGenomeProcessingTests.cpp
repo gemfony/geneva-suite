@@ -1044,6 +1044,27 @@ TEST_CASE(
         CHECK(copy->getProcessingStatus() == processingStatus::DO_PROCESS);
         CHECK_THROWS_AS(copy->completeProcessing(res), geneva_exception);
         CHECK_NOTHROW(item.completeProcessing(res));
+
+        // Results adopted with markAsProcessedWith() end a begun processing: the item is refused
+        // for its status, not as begun, and a new submission must be begun again
+        item.set_processing_status(processingStatus::DO_PROCESS);
+        item.beginProcessing();
+        item.markAsProcessedWith(res);
+        CHECK_THROWS_WITH(
+            item.process(res),
+            Catch::Matchers::ContainsSubstring("Function called while processing_status_")
+        );
+        item.mark_as_due_for_processing();
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+
+        // So does a new submission of a begun item (e.g. its values were changed after the
+        // pre-processor ran)
+        item.beginProcessing();
+        item.mark_as_due_for_processing();
+        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        item.beginProcessing();
+        CHECK_NOTHROW(item.completeProcessing(res));
+        CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
     }
 }
 
