@@ -60,41 +60,6 @@ namespace Gem::Geneva {
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
-     * Provide an easy way to print the individual's content
-     */
-std::ostream &operator<<(std::ostream &s, const Gem::Geneva::GMultiCriterionParabolaIndividual &f) {
-    std::vector<double> parVec;
-    f.streamline(parVec);
-
-    for(std::size_t i = 0; i < f.getNStoredResults(); i++) {
-        s << "Raw fitness " << i << ": " << f.raw_fitness(i) << '\n';
-    }
-
-    std::vector<double>::iterator it;
-    for(it = parVec.begin(); it != parVec.end(); ++it) {
-        s << std::distance(parVec.begin(), it) << ": " << *it << '\n';
-    }
-
-    return s;
-}
-
-/******************************************************************************/
-/**
-     * Provide an easy way to print the individual's content through a smart-pointer (an empty one
-     * prints as "(null)")
-     */
-std::ostream &operator<<(
-    std::ostream &s,
-    const std::unique_ptr<Gem::Geneva::GMultiCriterionParabolaIndividual> &f_ptr
-) {
-    if(not f_ptr) {
-        return s << "(null)" << '\n';
-    }
-    return operator<<(s, *f_ptr);
-}
-
-/******************************************************************************/
-/**
      * The evaluation hook: one parabola per criterion around its own minimum, with the minima read from the
      * module's load-once store. The first entry is the main result.
      *
