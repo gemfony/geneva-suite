@@ -52,6 +52,7 @@
 #include <boost/program_options.hpp>
 
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
@@ -138,6 +139,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
 /******************************************************************************/
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::string configFile = "config/GCUDAOptBenchmark.json";
 
     // --update-configs: materialize every config this benchmark owns -- its own config, each configured

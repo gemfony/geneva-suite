@@ -44,16 +44,21 @@ namespace {
 /**
  * The terminate handler of installFatalReport(): prints fatalMessage() of the exception in flight,
  * flushes the standard streams and ends the process with EXIT_FAILURE, without unwinding and
- * without running any destructor.
+ * without running any destructor. Without an exception in flight (an internal fault) it aborts
+ * instead, for the core dump.
  */
 [[noreturn]] void reportAndExit() noexcept {
+    const std::exception_ptr error = std::current_exception();
     try {
-        std::cerr << fatalMessage(std::current_exception());
+        std::cerr << fatalMessage(error);
         std::cout.flush();
         std::clog.flush(); // the logger's console stream
         std::cerr.flush();
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the exit code is all that is left to give
+    }
+    if(not error) {
+        std::abort();
     }
     std::_Exit(EXIT_FAILURE);
 }
@@ -79,7 +84,7 @@ void installFatalReport() noexcept {
  * @param error The exception; empty if std::terminate() was called without one
  * @return "Error: " and the message of a geneva_exception, of any other std::exception (marked as
  *         a standard exception) or a sentence for one of unknown type or none, then a line with the
- *         exit code
+ *         exit code (without an exception: that the program aborts)
  */
 std::string fatalMessage(const std::exception_ptr &error) {
     std::string text;
@@ -100,8 +105,9 @@ std::string fatalMessage(const std::exception_ptr &error) {
             text = "an exception of unknown type";
         }
     }
-    return "\nError: " + text + "\nThe program ends with the exit code " +
-           std::to_string(EXIT_FAILURE) + ".\n";
+    const std::string end =
+        error ? "ends with the exit code " + std::to_string(EXIT_FAILURE) : std::string("aborts");
+    return "\nError: " + text + "\nThe program " + end + ".\n";
 }
 
 /******************************************************************************/

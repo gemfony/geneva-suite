@@ -144,7 +144,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (`common/GFatalReport.hpp`) the terminate handler of the process; a program without Go2 calls it
   in the first line of `main()`. Nothing is unwound on the way, so under MPI no process finalizes
   MPI while others wait for it, and the launcher ends the whole job. A program that wants its own
-  terminate handler sets it after constructing Go2.
+  terminate handler sets it after constructing Go2. A `std::terminate()` with no exception in
+  flight, an internal fault, still aborts, for the core dump.
 
 ## 5. Parallelization and consumers
 

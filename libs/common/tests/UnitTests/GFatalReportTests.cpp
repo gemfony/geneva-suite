@@ -56,6 +56,6 @@ TEST_CASE("the fatal report names the error and the exit code", "[common][fatal]
     );
     CHECK(
         Gem::Common::fatalMessage(nullptr) ==
-        "\nError: std::terminate() was called without an exception" + exit_line
+        "\nError: std::terminate() was called without an exception\nThe program aborts.\n"
     );
 }

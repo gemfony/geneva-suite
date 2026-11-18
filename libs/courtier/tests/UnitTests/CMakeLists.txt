@@ -257,7 +257,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	# exit code 1, while the other ranks wait for it (the fatal report, common/GFatalReport.hpp;
 	# ../CheckJobEnds.cmake: exit code, message, a bound of 30 s): an error in a configuration, the
 	# same while main() holds the MPI environment (an unwinding would finalize MPI and wait for the
-	# other ranks), and an exception out of a thread other than main's.
+	# other ranks), and an exception out of a thread other than main's. A std::terminate() with no
+	# exception in flight, an internal fault, ends the job with the line and an abort instead.
 	ADD_EXECUTABLE(GCourtierMpiFatalEndExerciser GCourtierMpiFatalEndExerciser.cpp)
 	TARGET_LINK_LIBRARIES(GCourtierMpiFatalEndExerciser ${LIBRARIES_TO_LINK} ${COURTIER_MPI_LIBNAME}
 		${Boost_LIBRARIES} MPI::MPI_CXX)
@@ -265,9 +266,15 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 			DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/UnitTests)
 	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/fatal-end)
 	FILE(MAKE_DIRECTORY ${_dir})
-	FOREACH(_scenario config holder thread)
+	FOREACH(_scenario config holder thread fault)
+		SET(_exit 1)
+		SET(_end "The program ends with the exit code 1")
 		IF(_scenario STREQUAL "thread")
 			SET(_expect "Error: ;a thread of rank 1 failed (a standard exception)")
+		ELSEIF(_scenario STREQUAL "fault") # no exception in flight: an internal fault aborts
+			SET(_expect "Error: ;std::terminate() was called without an exception")
+			SET(_exit nonzero)
+			SET(_end "The program aborts")
 		ELSE()
 			SET(_expect "Error: ;has the wrong form: false")
 		ENDIF()
@@ -278,8 +285,8 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 		GENEVA_ADD_MPI_TEST(NAME ${_name} TIMEOUT 60
 				COMMAND ${CMAKE_COMMAND}
 					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiFatalEndExerciser>;${MPIEXEC_POSTFLAGS};${_scenario}"
-					-DEXPECT_EXIT=1
-					"-DEXPECT=${_expect};The program ends with the exit code 1"
+					-DEXPECT_EXIT=${_exit}
+					"-DEXPECT=${_expect};${_end}"
 					"-DREFUSE=terminate called;FAIL"
 					-DLIMIT=30
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake

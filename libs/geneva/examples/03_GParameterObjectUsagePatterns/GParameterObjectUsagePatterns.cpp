@@ -47,6 +47,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GJsonIO.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -147,6 +148,7 @@ void printGenome(const std::string &title, const gen::GenomeData &g) {
  */
 // NOLINTNEXTLINE(readability-function-size) -- single demo main walking through the flat-genome usage patterns end to end (config emission, builder use, inspection)
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     // --update-configs: materialize the one configuration file this demo owns (the GFunctionIndividual
     // factory's), then exit. Constructing the factory with GParserBuilder in update-in-place mode
     // creates/rewrites ./config/GFunctionIndividual.json from code defaults.

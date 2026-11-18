@@ -46,11 +46,15 @@ namespace Gem::Common {
  * cannot be applied, say). installFatalReport() makes this the terminate handler of the process.
  * An exception that no handler catches -- in main() or in any other thread -- reaches it without
  * unwinding the stack, so no destructor runs on the way: in particular none that would finalize
- * MPI and wait for other processes. The process ends with std::_Exit(), and an MPI launcher ends
- * the whole job when one of its processes ends that way.
+ * MPI and wait for other processes. (An exception stopped by a noexcept function, or rethrown from
+ * a catch, unwinds up to that frame first.) The process ends with std::_Exit(), and an MPI
+ * launcher ends the whole job when one of its processes ends that way. A std::terminate() with
+ * no exception in flight is an internal fault (a joinable std::thread destroyed, a pure virtual
+ * call): the handler prints its line and calls std::abort(), for the core dump.
  *
  * Go2's constructor installs it; a program without Go2 calls installFatalReport() in the first line
- * of main(). A program that wants a terminate handler of its own sets it afterwards.
+ * of main(). A terminate handler set before is replaced; a program that wants one of its own sets
+ * it afterwards.
  */
 
 /** @brief Makes the fatal report the terminate handler of the process; idempotent */

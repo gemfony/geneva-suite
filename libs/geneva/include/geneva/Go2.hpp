@@ -107,8 +107,8 @@ public:
      *
      * It first installs the fatal report (Gem::Common::installFatalReport(),
      * common/GFatalReport.hpp): a program ends on an error nobody handles with a message and the
-     * exit code 1. A program that wants a terminate handler of its own sets it after constructing
-     * Go2.
+     * exit code 1. A terminate handler set before is replaced; a program that wants one of its own
+     * sets it after constructing Go2.
      */
     Go2(int argc,
         char **argv,

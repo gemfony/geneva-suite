@@ -38,10 +38,13 @@
 //    without a holder in main();
 //  - "holder": the same, while a local of main() holds the environment -- an unwinding would
 //    finalize MPI there and wait for the other ranks;
-//  - "thread": a thread of rank 1 throws, which no handler of main() could catch.
+//  - "thread": a thread of rank 1 throws, which no handler of main() could catch;
+//  - "fault": rank 1 calls std::terminate() with no exception in flight, as an internal fault
+//    does: the handler prints its line and aborts.
 // The test that runs this checks the exit code, the message and a time limit.
 
 // Standard headers go here
+#include <exception>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -83,6 +86,9 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if(rank == 1) {
+        if(scenario == "fault") {
+            std::terminate();
+        }
         if(scenario == "thread") {
             std::thread failing([] { throw std::runtime_error("a thread of rank 1 failed"); });
             failing.join();
