@@ -169,30 +169,87 @@ boost::json::value cfgScalarToJson(T const &v) {
 }
 
 /******************************************************************************/
-/** @brief Returns the object stored under @p key of @p parent, or nullptr if the key is absent or
- *  does not hold an object.
+/** @brief Refuses the entry of a known configuration key that does not have the form the key needs.
+ *  The rule for every parameter kind: an ABSENT key keeps its registered default, a PRESENT key of
+ *  the wrong form is an error -- never skipped in silence, which would leave the default in force
+ *  while the file says otherwise (e.g. a flat "scan_randomly": false).
+ *  @param key The key as it stands in the file (a combined parameter's sub-key as "group/key")
+ *  @param expected The form the key needs, with an example
+ *  @param found The entry found under the key
+ *  @throws geneva_exception always */
+[[noreturn]] inline void cfgRefuseEntry(
+    std::string const &key,
+    std::string const &expected,
+    boost::json::value const &found
+) {
+    throw geneva_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "The configuration entry \"" << key
+        << "\" has the wrong form: " << boost::json::serialize(found) << '\n'
+        << "Expected " << expected << '\n'
+    );
+}
+
+/******************************************************************************/
+/** @brief Returns the group object of a combined parameter stored under @p key of @p parent, or
+ *  nullptr if the key is absent (the registered defaults apply).
  *  @param parent The enclosing JSON object
- *  @param key The member key to look up
- *  @return A pointer to the child object, or nullptr */
+ *  @param key The group label to look up
+ *  @return A pointer to the group object, or nullptr if @p key is absent
+ *  @throws geneva_exception if the entry under @p key is not an object (see cfgRefuseEntry()) */
 inline boost::json::object const *
-cfgChildObject(boost::json::object const &parent, std::string const &key) {
+cfgGroupEntry(boost::json::object const &parent, std::string const &key) {
     auto const *v = parent.if_contains(key);
-    if(v == nullptr || not v->is_object()) { return nullptr; }
+    if(v == nullptr) {
+        return nullptr;
+    }
+    if(not v->is_object()) {
+        cfgRefuseEntry(
+            key,
+            "an object holding the group's parameters, e.g. \"" + key +
+                "\": { \"<name>\": { \"value\": ... }, ... }",
+            *v
+        );
+    }
     return &v->get_object();
 }
 
 /******************************************************************************/
-/** @brief Returns the array stored under @p key of @p parent, or nullptr if the key is absent or
- *  does not hold an array. A value written in the historical dup-key object form therefore reads as
- *  "absent" here, so the caller falls back to the registered defaults.
+/** @brief Returns the "value" of a parameter entry stored under @p key of @p parent, or nullptr if
+ *  the key is absent (the registered default applies). A present entry must be an object whose
+ *  "value" is a scalar (@p is_list false) or an array (@p is_list true).
  *  @param parent The enclosing JSON object
  *  @param key The member key to look up
- *  @return A pointer to the child array, or nullptr */
-inline boost::json::array const *
-cfgChildArray(boost::json::object const &parent, std::string const &key) {
-    auto const *v = parent.if_contains(key);
-    if(v == nullptr || not v->is_array()) { return nullptr; }
-    return &v->get_array();
+ *  @param is_list Whether the parameter holds a list of values (a vector or array parameter)
+ *  @param group The label of the enclosing group of a combined parameter, empty otherwise (names
+ *         the key in the error text)
+ *  @return A pointer to the entry's "value", or nullptr if @p key is absent
+ *  @throws geneva_exception if the entry is not of that form (see cfgRefuseEntry()) */
+inline boost::json::value const *cfgEntryValue(
+    boost::json::object const &parent,
+    std::string const &key,
+    bool is_list,
+    std::string const &group = std::string()
+) {
+    auto const *entry = parent.if_contains(key);
+    if(entry == nullptr) {
+        return nullptr;
+    }
+
+    auto const *v = entry->is_object() ? entry->get_object().if_contains("value") : nullptr;
+    bool const well_formed =
+        v != nullptr &&
+        (is_list ? v->is_array() : not(v->is_object() || v->is_array() || v->is_null()));
+    if(not well_formed) {
+        cfgRefuseEntry(
+            group.empty() ? key : group + "/" + key,
+            is_list
+                ? "an object with a \"value\" array, e.g. \"" + key + "\": { \"value\": [ ... ] }"
+                : "an object with a single \"value\", e.g. \"" + key + "\": { \"value\": ... }",
+            *entry
+        );
+    }
+    return v;
 }
 
 /******************************************************************************/
@@ -629,13 +686,12 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        if(auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0))) {
-            if(auto const *v = entry->if_contains("value")) {
-                GSingleParmT<parameter_type>::par_ =
-                    detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(*v));
-            }
+        // An absent key keeps the value seeded from the default in the constructor; a present one
+        // of the wrong form is refused.
+        if(auto const *v = detail::cfgEntryValue(root, GParsableI::optionName(0), false)) {
+            GSingleParmT<parameter_type>::par_ =
+                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(*v));
         }
-        // An absent key keeps the value seeded from the default in the constructor.
     }
 
     /***************************************************************************/
@@ -922,22 +978,20 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *group =
-            detail::cfgChildObject(root, GCombinedParT<par0_type, par1_type>::combined_label_);
+        // An absent group or sub-key keeps the defaults seeded in the constructor; a present one of
+        // the wrong form is refused.
+        std::string const &label = GCombinedParT<par0_type, par1_type>::combined_label_;
+        auto const *group = detail::cfgGroupEntry(root, label);
         if(group == nullptr) {
-            return; // absent group keeps both defaults seeded in the constructor
+            return;
         }
-        if(auto const *e0 = detail::cfgChildObject(*group, GParsableI::optionName(0))) {
-            if(auto const *v = e0->if_contains("value")) {
-                GCombinedParT<par0_type, par1_type>::par0_ =
-                    detail::cfgScalarFromString<par0_type>(detail::cfgValueToString(*v));
-            }
+        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(0), false, label)) {
+            GCombinedParT<par0_type, par1_type>::par0_ =
+                detail::cfgScalarFromString<par0_type>(detail::cfgValueToString(*v));
         }
-        if(auto const *e1 = detail::cfgChildObject(*group, GParsableI::optionName(1))) {
-            if(auto const *v = e1->if_contains("value")) {
-                GCombinedParT<par0_type, par1_type>::par1_ =
-                    detail::cfgScalarFromString<par1_type>(detail::cfgValueToString(*v));
-            }
+        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(1), false, label)) {
+            GCombinedParT<par0_type, par1_type>::par1_ =
+                detail::cfgScalarFromString<par1_type>(detail::cfgValueToString(*v));
         }
     }
 
@@ -1190,23 +1244,18 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0));
-        if(entry == nullptr) {
+        auto const *values = detail::cfgEntryValue(root, GParsableI::optionName(0), true);
+        if(values == nullptr) {
             // The key is absent from the file -- e.g. a newly-registered vector parameter, or an
             // update-in-place pass over a config written before this parameter existed. Keep the
-            // defaults par_cnt_ was seeded with in the constructor.
-            return;
-        }
-        auto const *values = detail::cfgChildArray(*entry, "value");
-        if(values == nullptr) {
-            // The "value" key is absent (or, for a config in the historical dup-key object form,
-            // does not read back as an array). Keep the seeded defaults.
+            // defaults par_cnt_ was seeded with in the constructor. (A present key of the wrong
+            // form was refused.)
             return;
         }
 
         // The values are present: replace the seeded defaults with the on-disk values.
         GVectorParT<parameter_type>::par_cnt_.clear();
-        for(auto const &v : *values) {
+        for(auto const &v : values->get_array()) {
             GVectorParT<parameter_type>::par_cnt_.push_back(
                 detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(v))
             );
@@ -1461,19 +1510,16 @@ private:
 	  * @param root The root JSON object of the parsed configuration
 	  */
     void load_from(boost::json::object const &root) override {
-        auto const *entry = detail::cfgChildObject(root, GParsableI::optionName(0));
-        if(entry == nullptr) {
-            return; // absent key keeps the constructor-seeded defaults
+        auto const *value = detail::cfgEntryValue(root, GParsableI::optionName(0), true);
+        if(value == nullptr) {
+            return; // an absent key keeps the constructor-seeded defaults (a wrong form was refused)
         }
-        auto const *values = detail::cfgChildArray(*entry, "value");
-        if(values == nullptr) {
-            return;
-        }
+        auto const &values = value->get_array();
         for(std::size_t i = 0;
-            i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values->size();
+            i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values.size();
             ++i) {
             GArrayParT<parameter_type, N>::par_arr_.at(i) =
-                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString((*values)[i]));
+                detail::cfgScalarFromString<parameter_type>(detail::cfgValueToString(values[i]));
         }
         // Elements beyond the on-disk array length keep their defaults.
     }

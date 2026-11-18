@@ -123,6 +123,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (non-Go2 programs honor
   it too).
+- **A parameter entry of the wrong form is refused.** Each parameter is an object with a
+  `"value"` -- a list for a vector or array parameter -- as in
+  `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
+  known key in another form (the flat `"scan_randomly": false`, an object without `"value"`, a
+  list where one value belongs) was skipped without a word, leaving the default in force; it is
+  now an error that names the key and the form it needs. An absent key keeps its default.
 
 ## 5. Parallelization and consumers
 

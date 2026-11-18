@@ -28,7 +28,9 @@
  ********************************************************************************/
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -935,4 +937,86 @@ TEST_CASE("GParserBuilder: comment-less registration honors is_essential",
     CHECK(text.find("secondary_option") == std::string::npos);
 
     std::filesystem::remove(path);
+}
+
+// ---------------------------------------------------------------------------
+// Regression: a known key whose entry is not an object with a "value" was skipped without a
+// word, so the registered default applied while the file said otherwise (a flat
+// "scan_randomly": false). It is refused, naming the key and the form it needs, for every
+// parameter kind; an absent key still keeps its default.
+
+namespace {
+
+// One parameter of each kind (single, combined, vector, array), loaded from a JSON text.
+struct OneOfEachKind {
+    bool flag = true;
+    int alpha = 0;
+    double beta = 0.;
+    std::vector<int> list;
+    std::array<int, 2> pair{};
+    GParserBuilder gpb;
+
+    OneOfEachKind() {
+        gpb.registerFileParameter<bool>("flag", flag, true);
+        gpb.registerFileParameter<int, double>(
+            "alpha", "beta", 1, 2.5, [this](int a, double b) { alpha = a; beta = b; }, "group"
+        );
+        gpb.registerFileParameter<int>("list", list, std::vector<int>{1, 2});
+        gpb.registerFileParameter<int, 2>("pair", pair, std::array<int, 2>{3, 4});
+    }
+
+    void load(std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); }
+};
+
+} // namespace
+
+TEST_CASE("GParserBuilder: a known key of the wrong form is refused with its key and form named",
+          "[common][parser-builder]") {
+    using Catch::Matchers::ContainsSubstring;
+    OneOfEachKind k;
+
+    SECTION("the object form is read; an absent key keeps its default") {
+        k.load(R"({ "flag": { "value": false }, "group": { "alpha": { "value": 7 } },
+                    "list": { "value": [5, 6, 7] } })");
+        CHECK_FALSE(k.flag);
+        CHECK(k.alpha == 7);
+        CHECK(k.beta == 2.5);
+        CHECK(k.list == std::vector<int>{5, 6, 7});
+        CHECK(k.pair == std::array<int, 2>{3, 4});
+    }
+
+    SECTION("a single parameter") {
+        CHECK_THROWS_WITH(
+            k.load(R"({ "flag": false })"),
+            ContainsSubstring(R"("flag" has the wrong form: false)")
+                && ContainsSubstring(R"(e.g. "flag": { "value": ... })")
+        );
+        CHECK_THROWS_WITH(k.load(R"({ "flag": { "default": false } })"), ContainsSubstring(R"("flag")"));
+        CHECK_THROWS_WITH(k.load(R"({ "flag": { "value": [false] } })"), ContainsSubstring(R"("flag")"));
+        CHECK(k.flag);
+    }
+
+    SECTION("a combined parameter") {
+        CHECK_THROWS_WITH(k.load(R"({ "group": 7 })"), ContainsSubstring(R"("group" has the wrong form)"));
+        CHECK_THROWS_WITH(
+            k.load(R"({ "group": { "alpha": 7 } })"),
+            ContainsSubstring(R"("group/alpha" has the wrong form)")
+        );
+        CHECK(k.alpha == 0);
+    }
+
+    SECTION("a vector parameter") {
+        CHECK_THROWS_WITH(
+            k.load(R"({ "list": [5, 6] })"),
+            ContainsSubstring(R"("list" has the wrong form)")
+                && ContainsSubstring(R"(e.g. "list": { "value": [ ... ] })")
+        );
+        CHECK_THROWS_WITH(k.load(R"({ "list": { "value": 5 } })"), ContainsSubstring(R"("list")"));
+        CHECK(k.list.empty());
+    }
+
+    SECTION("an array parameter") {
+        CHECK_THROWS_WITH(k.load(R"({ "pair": [5, 6] })"), ContainsSubstring(R"("pair" has the wrong form)"));
+        CHECK(k.pair == std::array<int, 2>{});
+    }
 }
