@@ -546,7 +546,6 @@ public:
         GInProcessFaults serverFaults{};            ///< How the server ends misbehave
         GInProcessFaults clientFaults{};            ///< How the client ends misbehave
         std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
-        bool detectsLoss = true;                    ///< What detectsLoss() answers
         std::chrono::milliseconds keepAlive{0};     ///< What keepAlive() answers
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
         /// How long stop() waits for the calls of on_peer under way
@@ -620,11 +619,6 @@ public:
     /** @brief @return What the options say */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return options_.stopGrace;
-    }
-
-    /** @brief @return What the options say */
-    [[nodiscard]] bool detectsLoss() const override {
-        return options_.detectsLoss;
     }
 
     /** @brief @return What the options say */
@@ -772,10 +766,6 @@ public:
     /** @brief Forwards @return What the listener says */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
-    }
-    /** @brief Forwards @return What the listener says */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
     }
     /** @brief Forwards @return The listener's interval */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override {

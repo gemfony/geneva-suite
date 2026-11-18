@@ -51,7 +51,6 @@
 
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
@@ -97,9 +96,6 @@ GWebsocketConsumerConfig serverConfig(std::size_t n_threads, std::size_t ping = 
 std::shared_ptr<consumer_type>
 startedServer(const GWebsocketConsumerConfig &config, std::chrono::milliseconds stop_grace) {
     auto consumer = std::make_shared<consumer_type>(config, stop_grace);
-    Gem::Courtier::GNetworkedTimeoutConfig timeouts;
-    timeouts.treatment = "wait_indefinitely";
-    consumer->applyTimeoutConfig(timeouts);
     consumer->startServer();
     return consumer;
 }
@@ -308,10 +304,6 @@ public:
     /** @brief Forwards @return The websocket listener's grace */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
-    }
-    /** @brief Forwards @return The websocket listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
     }
     /** @brief Forwards @return The listener's interval */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override {

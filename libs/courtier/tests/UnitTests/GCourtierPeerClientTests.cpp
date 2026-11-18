@@ -67,7 +67,6 @@
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GPeerConsumerT.hpp"
 #include "courtier/transport/GPeerClientT.hpp"
 #include "courtier/transport/GPeerI.hpp"
@@ -318,10 +317,6 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
     }
-    /** @brief Forwards @return The in-process listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
-    }
     /** @brief Forwards @return The listener's interval */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
         return listener_->keepAlive();
@@ -388,9 +383,6 @@ public:
       : listener_(std::make_shared<GInProcessListener>(options))
       , counts_(std::make_shared<ServerCounts>())
       , shell_("Shell", std::make_unique<CountingListener>(listener_, counts_), 2, BIN) {
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        shell_.applyTimeoutConfig(config);
         shell_.startServer();
     }
 
@@ -717,9 +709,6 @@ public:
                 std::move(options)
             )
         ) {
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        shell_.applyTimeoutConfig(config);
         shell_.startServer();
         runner_ = std::jthread([client = client_] { client->run(); });
     }
@@ -1618,9 +1607,6 @@ TEST_CASE(
     {
         Gem::Courtier::GPeerConsumerT<GHeldDecodeItem>
             shell("Shell", std::make_unique<GInProcessListenerRef>(listener), 2, BIN);
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        shell.applyTimeoutConfig(config);
         shell.startServer();
         client = std::make_shared<held_client_type>(
             std::make_unique<GInProcessConnector>(
@@ -1856,10 +1842,6 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
     }
-    /** @brief Forwards @return The in-process listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
-    }
     /** @brief Forwards @return The listener's interval */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
         return listener_->keepAlive();
@@ -1892,9 +1874,6 @@ public:
             2,
             BIN
         ) {
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        shell_.applyTimeoutConfig(config);
         shell_.startServer();
         auto gated = std::make_unique<GatedConnector>(
             std::make_unique<GInProcessConnector>(route_, true, watch_)

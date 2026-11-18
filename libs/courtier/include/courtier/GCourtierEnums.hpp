@@ -198,37 +198,6 @@ constexpr std::chrono::milliseconds GCLIENTRECONNECTPAUSEMAX{30'000};
 constexpr std::chrono::milliseconds GCONSUMERACCEPTRETRYPAUSE{100};
 
 /******************************************************************************
- * Defaults of the timeout treatment of the networked consumers (see GNetworkedConsumerT and
- * GNetworkedTimeoutConfig, which both take their defaults from here):
- */
-constexpr double GNETWORKEDEMAALPHA = 0.25;   ///< Weight of a new sample in the mean return time
-constexpr double GNETWORKEDLEASEFACTOR = 4.0; ///< Reclaim lease = factor * mean return time
-constexpr double GNETWORKEDSTALLFACTOR = 8.0; ///< Give-up window = factor * mean return time
-constexpr std::chrono::milliseconds GNETWORKEDLEASEBOOTSTRAP{
-    10'000
-}; ///< Lease before a return was seen
-constexpr std::chrono::milliseconds GNETWORKEDMINLEASE{200};     ///< Lower clamp on the lease
-constexpr std::chrono::milliseconds GNETWORKEDMAXLEASE{300'000}; ///< Upper clamp on the lease
-constexpr std::chrono::milliseconds GNETWORKEDMINSTALL{
-    2'000
-}; ///< Lower clamp on the give-up window
-constexpr std::chrono::milliseconds GNETWORKEDMAXSTALL{
-    600'000
-}; ///< Upper clamp on the give-up window
-constexpr std::chrono::milliseconds GNETWORKEDSWEEPTICK{
-    50
-}; ///< How often a waiting batch looks again
-constexpr std::chrono::milliseconds GNETWORKEDFIXEDSTALLWINDOW{
-    300'000
-}; ///< Give-up window, "fixed"
-constexpr std::chrono::milliseconds GNETWORKEDFIXEDLEASE{300'000}; ///< Reclaim lease, "fixed"
-/// The window and the lease of the treatment "wait_indefinitely". A finite but very large value
-/// (100 years) rather than milliseconds::max(): it is compared against a steady_clock (nanosecond)
-/// duration, and max() would overflow int64 when the comparison promotes it to nanoseconds,
-/// whereas 100 years in ns (~3.15e18) stays well within range and can never elapse in a real run.
-constexpr std::chrono::milliseconds GNETWORKEDNEVERWINDOW{100LL * 365 * 24 * 3600 * 1000};
-
-/******************************************************************************
  * Constants specifically for the GPU consumer:
  */
 /// The default launch block size (x) of a kernel.

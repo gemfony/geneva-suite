@@ -94,8 +94,8 @@
  * submitter's from the HELLO (setKeepAlive()) -- a rank that has been heard from and then not for
  * more than two intervals is silent: its end tells it with a close (GPeerClose::ERROR) and reports
  * GPeerEnd::SILENT, and the job is ended where MPI would be finalized (GMPIEnvironment), since
- * MPI_Finalize would wait for that rank. GMPIListener::detectsLoss() says whether there is an
- * interval. A rank that dies ends the job (the communicator has MPI_ERRORS_ARE_FATAL). A failure
+ * MPI_Finalize would wait for that rank. GMPIListener::keepAlive() names the interval (0: none).
+ * A rank that dies ends the job (the communicator has MPI_ERRORS_ARE_FATAL). A failure
  * of the poll ends every peer of the process with GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
  * ends with GPeerEnd::FAILED, reported on its executor, and tells the other end with a close
  * (GPeerClose::ERROR).
@@ -308,9 +308,9 @@ private:
  *
  * Loss of a client: with a keep-alive interval (GMPIPollTiming::keepAlive of the options; keepAlive()
  * names it, and the sessions name it to their clients) a client rank that falls silent ends its
- * end as GPeerEnd::SILENT, and the shell's lease puts back what it held (detectsLoss() is true).
- * Without one a client that hangs is not noticed, and its items come back by the consumer's time
- * lease. A rank that dies ends the whole job.
+ * end as GPeerEnd::SILENT, and the shell's lease puts back what it held. Without one a client
+ * that hangs is not noticed; its items come back only by a reclaim lease the user has set
+ * (GNetworkedTimeoutConfig). A rank that dies ends the whole job.
  *
  * A submitter whose consumer is stopped without having been started has never greeted its clients,
  * which wait for that without a limit by default: announceEndWithoutStart() closes every client
@@ -339,8 +339,6 @@ public:
     void endWork() override;
     /** @brief A constant bound: an end finishes as soon as its close has been handed to the poll */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override;
-    /** @brief Whether there is a keep-alive interval: a silent rank's end then ends by itself */
-    [[nodiscard]] bool detectsLoss() const override;
     /** @brief The keep-alive interval of the poll (GMPIPollTiming::keepAlive; 0: none) */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override;
     /** @brief For a submitter that never started: tells every client rank that the run has ended

@@ -673,10 +673,8 @@ TEST_CASE("Peer rules (in-process): the close protocol and the switches", "[cour
 TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]") {
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
         .stopGrace = 1500ms,
-        .detectsLoss = false,
     });
     CHECK(listener->stopGrace() == 1500ms);
-    CHECK_FALSE(listener->detectsLoss());
     // The connector goes after the threads its ends run on, the ends kept here before them
     GInProcessConnector connector(std::make_shared<GInProcessRoute>(listener));
     IoThreads io;

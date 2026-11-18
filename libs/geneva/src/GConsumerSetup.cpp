@@ -63,7 +63,7 @@
 #include "hap/GRandomFactory.hpp" // setGpuRandomNumbersAllowed() -- a client draws no GPU numbers
 
 // The concrete courtier consumers -- known ONLY here.
-#include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
+#include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file time limits
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -478,11 +478,11 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::Consum
 
     auto consumer = provider->setup(spec);
 
-    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read their SERVER-side timeout /
-    // death-detection treatment from a config file (created with scale-free adaptive defaults if absent), so
-    // a user can select "fixed" / "wait_indefinitely" or tune the adaptive lease purely via the config --
-    // no command line. Applied once here for whichever networked consumer was built; local / GPU consumers
-    // (not GNetworkedConsumerT) are unaffected.
+    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read the user's two time limits
+    // -- the reclaim lease and the give-up window, both 0 (none) by default -- from a config file
+    // (created with the defaults if absent); no command line. A negative value ends the program with
+    // an exception that names its key. Applied once here for whichever networked consumer was built;
+    // local / GPU consumers (not GNetworkedConsumerT) are unaffected.
     if(auto *networked = dynamic_cast<c2::GNetworkedConsumerT<gen::GGenome> *>(consumer.get())) {
         c2::GNetworkedTimeoutConfig timeout_cfg;
         timeout_cfg.load("./config/GNetworkedConsumer.json");
@@ -491,7 +491,7 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::Consum
     else if(Gem::Common::GParserBuilder::updateInPlace()) {
         // --update-configs (build-time materialization) forces the local thread-pool consumer, so no
         // networked consumer is built above and its config would be missed. Materialize it here too --
-        // loading it under update-in-place writes/refreshes the file with scale-free adaptive defaults --
+        // loading it under update-in-place writes/refreshes the file with its defaults --
         // so GNetworkedConsumer.json joins every binary's emitted config set, like its other configs.
         c2::GNetworkedTimeoutConfig timeout_cfg;
         timeout_cfg.load("./config/GNetworkedConsumer.json");

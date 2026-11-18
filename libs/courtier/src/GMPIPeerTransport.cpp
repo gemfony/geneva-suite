@@ -789,13 +789,6 @@ std::chrono::milliseconds GMPIListener::stopGrace() const {
 }
 
 /******************************************************************************/
-/** @return Whether the loss of a rank is noticed: with a keep-alive interval (see the class
- *  comment) */
-bool GMPIListener::detectsLoss() const {
-    return options_.poll.keepAlive > std::chrono::milliseconds::zero();
-}
-
-/******************************************************************************/
 /** @return The keep-alive interval of the poll, which the sessions name to their clients */
 std::chrono::milliseconds GMPIListener::keepAlive() const {
     return options_.poll.keepAlive;

@@ -1604,8 +1604,6 @@ WebsocketRun runOverWebsocket(
     };
     auto consumer =
         std::make_shared<Courtier::GWebsocketConsumerT<Courtier::GFaultyContainer>>(config);
-    // Every item is evaluated once: none is given up on time and evaluated again
-    consumer->setTimeoutTreatment(Courtier::timeoutTreatment::wait_indefinitely);
     consumer->startServer();
     config.port = consumer->getPort();
     auto client =
@@ -1789,8 +1787,6 @@ void submitOverMpi(std::size_t n_items, Report &report) {
         const auto consumer = std::make_shared<Courtier::GMPIConsumerT<Courtier::GFaultyContainer>>(
             Courtier::mpiEnvironment()
         );
-        // Every item is evaluated once: none is given up on time and evaluated again
-        consumer->setTimeoutTreatment(Courtier::timeoutTreatment::wait_indefinitely);
         consumer->startServer();
         consumer->processBatch(
             std::span<std::unique_ptr<Courtier::GFaultyContainer>>(items.data(), items.size()),

@@ -4,88 +4,20 @@
             "This configuration file was automatically created by GParserBuilder"
         ]
     },
-    "treatment": {
+    "reclaim_lease_ms": {
         "comment": [
-            "Timeout treatment: adaptive (scale-free, the default) | fixed | wait_indefinitely"
+            "An item in flight longer than this (ms) is handed out to another client",
+            "0 (the default): never. The one bound on a client that hangs while its process answers"
         ],
-        "default": "adaptive",
-        "value": "adaptive"
+        "default": 0,
+        "value": 0
     },
-    "ema_alpha": {
+    "give_up_window_ms": {
         "comment": [
-            "[adaptive] EMA weight for a new return-time sample"
+            "A batch without any result for longer than this (ms), counted from its start or its last result, is given up and its open items go to the submission policy",
+            "0 (the default): never"
         ],
-        "default": 2.5E-1,
-        "value": 2.5E-1
-    },
-    "lease_factor": {
-        "comment": [
-            "[adaptive] reclaim lease = lease_factor * running mean return time (clamped)"
-        ],
-        "default": 4E0,
-        "value": 4E0
-    },
-    "stall_factor": {
-        "comment": [
-            "[adaptive] give-up window = stall_factor * running mean return time (clamped)"
-        ],
-        "default": 8E0,
-        "value": 8E0
-    },
-    "lease_bootstrap_ms": {
-        "comment": [
-            "[adaptive] reclaim lease (ms) used before the first return is observed"
-        ],
-        "default": 10000,
-        "value": 10000
-    },
-    "min_lease_ms": {
-        "comment": [
-            "[adaptive] lower clamp (ms) on the reclaim lease"
-        ],
-        "default": 200,
-        "value": 200
-    },
-    "max_lease_ms": {
-        "comment": [
-            "[adaptive] upper clamp (ms) on the reclaim lease"
-        ],
-        "default": 300000,
-        "value": 300000
-    },
-    "min_stall_ms": {
-        "comment": [
-            "[adaptive] lower clamp (ms) on the give-up window"
-        ],
-        "default": 2000,
-        "value": 2000
-    },
-    "max_stall_ms": {
-        "comment": [
-            "[adaptive] upper clamp (ms) on the give-up window"
-        ],
-        "default": 600000,
-        "value": 600000
-    },
-    "sweep_tick_ms": {
-        "comment": [
-            "dispatch_ re-evaluation poll interval (ms)"
-        ],
-        "default": 50,
-        "value": 50
-    },
-    "fixed_stall_window_ms": {
-        "comment": [
-            "[fixed] give-up window (ms) when treatment == fixed"
-        ],
-        "default": 300000,
-        "value": 300000
-    },
-    "fixed_lease_ms": {
-        "comment": [
-            "[fixed] reclaim lease (ms) when treatment == fixed"
-        ],
-        "default": 300000,
-        "value": 300000
+        "default": 0,
+        "value": 0
     }
 }

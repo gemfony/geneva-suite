@@ -61,7 +61,7 @@
  *                     with the result false (an item's own processing stores true). Every item
  *                     must come back processed by a processor.
  *   soak           -- (five ranks) many batches of changing size from three submitters, with idle
- *                     phases; give-up window and time lease off. Nothing may be put back, dropped
+ *                     phases; no time limit (the default). Nothing may be put back, dropped
  *                     or late; at the end every client waits at the master; the stop is quick.
  *   stop-parked    -- the master stops while every client's request waits at it.
  *   stop-evaluating -- the master stops while every client evaluates an item of 3 s.
@@ -227,12 +227,11 @@ std::size_t runBatch(
     }));
 }
 
-/** Many batches of changing size from three submitters, with idle phases in between. The give-up
- *  window and the time lease are off, so a lost item or a lost result makes the run hang (ctest's
- *  limit ends it), and nothing may be put back or dropped. */
+/** Many batches of changing size from three submitters, with idle phases in between. There is no
+ *  time limit (the default), so a lost item or a lost result makes the run hang (ctest's limit ends
+ *  it), and nothing may be put back or dropped. */
 int soak(consumer_type &consumer, std::size_t workers) {
     constexpr int ROUNDS = 80;
-    consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     consumer.startServer();
     std::atomic<std::size_t> total{0};
     std::atomic<std::size_t> bad{0};
@@ -288,7 +287,6 @@ int soak(consumer_type &consumer, std::size_t workers) {
 /** The stop cases: what the master does before it stops differs, the check is the same --
  *  stopServer() returns within a bound (every client is told the end of the run: runClient()). */
 int stopCase(consumer_type &consumer, const std::string &scenario, std::size_t workers) {
-    consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     consumer.startServer();
     bool ok = true;
     double stop_bound = 2.0; // seconds
@@ -549,10 +547,6 @@ int main(int argc, char **argv) {
         return stopCase(*consumer, scenario, workers);
     }
 
-    // Nothing may be resubmitted behind the test's back: every item that comes back was processed
-    // by the client it was sent to, and an item comes back to the master only when a client
-    // gives it back.
-    consumer->setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     consumer->startServer();
     // Every client has asked for work before the batch starts
     if(not waitFor(

@@ -60,8 +60,10 @@ namespace Gem::Courtier {
  * grace (GWEBSOCKETCONSUMERSTOPGRACE by default); see GPeerConsumerT.
  *
  * Lost clients: with the keep-alive on (a ping interval above 0) a lost client ends its connection
- * by the idle limit and what it held is put back at once; without it the consumer reclaims items
- * by the time lease.
+ * by the idle limit and what it held is put back at once; without it a client that vanishes
+ * without a TCP reset is not noticed. There is no time limit by default: a client that hangs
+ * inside an evaluation while its process answers is not noticed unless the user sets
+ * reclaim_lease_ms (GNetworkedTimeoutConfig).
  *
  * @tparam processable_type The work-item type handed to clients and reconciled back into the batch
  */

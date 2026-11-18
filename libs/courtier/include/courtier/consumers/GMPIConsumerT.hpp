@@ -93,8 +93,9 @@ namespace Gem::Courtier {
  * heard from for more than two intervals is lost, its session ends, and what it held is put back,
  * so the run finishes with the other clients. MPI_Finalize would then wait for the lost rank, so
  * the environment ends the job (MPI_Abort, exit code EXIT_FAILURE) where it would finalize MPI
- * (GMPIEnvironment). With an interval of 0 a client that hangs is not noticed, and its items come
- * back by the time lease.
+ * (GMPIEnvironment). With an interval of 0 a client that hangs is not noticed. There is no time
+ * limit by default: a client that hangs inside an evaluation while its process answers is not
+ * noticed unless the user sets reclaim_lease_ms (GNetworkedTimeoutConfig).
  *
  * Size: MPI carries a message of at most INT_MAX bytes (about 2 GiB). A work item whose message
  * would be longer fails where the submitter hands it out, and a result that would be longer comes

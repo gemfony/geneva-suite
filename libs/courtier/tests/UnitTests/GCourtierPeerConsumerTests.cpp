@@ -98,7 +98,7 @@ bool eventually(condition_type condition) {
 }
 
 /******************************************************************************/
-/** @brief The shell under test, with its protected answer to "time lease?" made public */
+/** @brief The shell under test, on the in-process listener */
 class Shell final : public Gem::Courtier::GPeerConsumerT<GFaultyContainer> {
 public:
     /** @brief @param listener The in-process listener the shell owns a reference to
@@ -110,13 +110,8 @@ public:
     /** @brief @param listener The listener the shell owns @param n_threads The session threads */
     Shell(std::unique_ptr<Gem::Courtier::Consumers::GListenerI> listener, std::size_t n_threads)
       : Gem::Courtier::GPeerConsumerT<GFaultyContainer>("Shell", std::move(listener), n_threads, BIN) {
-        // Nothing is given up on time: a lost item must come back through the session's lease.
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        this->applyTimeoutConfig(config);
+        // No time limit (the default): a lost item must come back through the session's lease.
     }
-
-    using Gem::Courtier::GPeerConsumerT<GFaultyContainer>::usesTimeLease;
 };
 
 /******************************************************************************/
@@ -387,11 +382,10 @@ TEST_CASE(
 
     SECTION("a client that dies unnoticed is counted until the transport notices") {
         // The server's ends ignore a close (the client's close never arrives, as from a host
-        // that is gone), and the listener does not detect a loss
+        // that is gone), and the listener has no keep-alive
         auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
             .serverFaults = GInProcessFaults{.ignoreClose = true},
-            .stopGrace = 300ms,
-            .detectsLoss = false
+            .stopGrace = 300ms
         });
         GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
         IoThreads clients;
@@ -415,7 +409,7 @@ TEST_CASE(
 /******************************************************************************/
 /**
  * A client that is lost while it holds items: its session puts them back at once, and another
- * client gets them. Nothing is given up on time here (wait_indefinitely), so only the lease can.
+ * client gets them. Nothing is given up on time here (no time limit), so only the lease can.
  */
 TEST_CASE(
     "GPeerConsumerT: the items of a lost client are served to another one",
@@ -457,22 +451,6 @@ TEST_CASE(
         n_processed += (item && item->is_processed()) ? 1 : 0;
     }
     CHECK(n_processed == 4);
-}
-
-/******************************************************************************/
-/** The time lease is used exactly where the transport does not notice a lost client itself. */
-TEST_CASE(
-    "GPeerConsumerT: the time lease follows the listener's detectsLoss()",
-    "[courtier][peer][shell]"
-) {
-    auto noticing =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = true});
-    auto blind =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
-    const Shell with_loss_detection{noticing, 1};
-    const Shell without_loss_detection{blind, 1};
-    CHECK_FALSE(with_loss_detection.usesTimeLease());
-    CHECK(without_loss_detection.usesTimeLease());
 }
 
 /******************************************************************************/
@@ -666,10 +644,6 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
     }
-    /** @brief Forwards @return The in-process listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
-    }
     /** @brief Forwards @return The listener's interval */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
         return listener_->keepAlive();
@@ -777,7 +751,7 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * With the time lease (a listener that does not notice lost clients), a session's lease gives back
+ * With the user's reclaim lease (a listener without a keep-alive), a session's lease gives back
  * only its own checkout: client A holds item X until the lease puts it back, client B takes it, then
  * A is lost. A's lease must not take X from B: a third client C gets nothing, and X has been handed
  * out twice, not three times.
@@ -787,16 +761,12 @@ TEST_CASE(
     "[courtier][peer][shell]"
 ) {
     constexpr std::int64_t LEASE_MS = 2000;
-    auto listener =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
     IoThreads clients;
     Shell shell{listener, 2};
     Gem::Courtier::GNetworkedTimeoutConfig config;
-    config.treatment = "fixed";
-    config.fixed_lease_ms = LEASE_MS;
-    config.fixed_stall_window_ms = 600000;
-    config.sweep_tick_ms = 20;
+    config.reclaim_lease_ms = LEASE_MS;
     shell.applyTimeoutConfig(config);
     shell.startServer();
 

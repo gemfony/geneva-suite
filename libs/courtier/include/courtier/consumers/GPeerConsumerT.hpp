@@ -106,13 +106,14 @@ namespace Gem::Courtier {
  * The keep-alive interval is the listener's (GListenerI::keepAlive()); every session names it to its
  * client in the HELLO, and the client's end takes it: the server alone sets it.
  *
- * Lost clients. Whether items of a lost client come back by the time lease is the listener's
- * answer (detectsLoss()): a transport that notices the loss of a client by itself needs no time
- * lease. A session's CheckoutLease is used in either case: when a connection ends, by a close or by
- * a loss, what its client held is put back at once -- only what it holds still: an item that the
- * time lease has put back and another session has taken stays with that session. If a client hangs,
- * the time lease may put an item back that the client later still returns when it ends; the item is
- * then evaluated twice and the late duplicate is dropped and counted (GNetworkedConsumerT).
+ * Lost clients. A lost client is noticed by its connection: the transport's signs of life end
+ * the peer of a client that has died or fallen silent. A session's CheckoutLease then puts back
+ * what its client held, at once -- only what it holds still: an item that the user's reclaim
+ * lease has put back and another session has taken stays with that session. There is no time
+ * limit by default: a client that hangs inside an evaluation while its process still answers is
+ * not noticed unless the user sets a reclaim lease (GNetworkedTimeoutConfig). Then its item is
+ * handed out again; if the client still returns it, the item has been evaluated twice and the
+ * late duplicate is dropped and counted (GNetworkedConsumerT).
  *
  * Lifetime. The sessions refer to this object through a plain `this`. That is safe because their
  * handlers run on the session threads only, which are joined in stopServer(), and the calls of
@@ -150,7 +151,6 @@ public:
       : consumer_name_(consumer_name)
       , n_threads_(n_threads == 0 ? defaultThreads_() : n_threads)
       , serialization_mode_(serialization_mode)
-      , detects_loss_(listener ? listener->detectsLoss() : false)
       , keep_alive_(listener ? listener->keepAlive() : std::chrono::milliseconds::zero())
       , listener_(std::move(listener)) {
         if(not listener_) {
@@ -185,8 +185,8 @@ public:
      *  that never completes) and a client that has said nothing so far (a client asks for work as
      *  soon as its connection is open). Counted: a client that has died without its connection
      *  ending (its host gone without a reset, its process stopped), until the transport notices
-     *  the loss -- at its idle limit if it has one (GListenerI::detectsLoss()), otherwise not
-     *  before the end of the run. Such a client that connects again is counted twice until then:
+     *  the loss -- at its keep-alive limit if it has one (GListenerI::keepAlive()), otherwise
+     *  not before the end of the run. Such a client that connects again is counted twice until then:
      *  a client carries no identity of its own across connections, so its new session cannot
      *  know that it replaces another. getNActiveSessions() counts all sessions, the silent ones
      *  too.
@@ -364,14 +364,6 @@ private:
 protected:
 
     /***************************************************************************/
-    /** @brief A transport that notices the loss of a client by itself needs no time lease; one
-     *  that does not, reclaims items by it.
-     *  @return true if stuck in-flight items are reclaimed via the time lease */
-    [[nodiscard]] bool usesTimeLease() const override {
-        return not detects_loss_;
-    }
-
-    /***************************************************************************/
     /** @brief The listener, for a concrete consumer that has questions about its transport (a
      *  port, say). It lives as long as this object.
      *  @return The listener */
@@ -445,10 +437,7 @@ private:
                             checkout = lease->remove(id);
                         }
                         try {
-                            // A result of an item this session did not hand out (sent again
-                            // after a lost connection) gives no sample of the return time: it
-                            // includes the outage.
-                            this->checkin(std::move(frame), checkout.has_value());
+                            this->checkin(std::move(frame));
                         }
                         catch(...) {
                             if(checkout) {
@@ -513,7 +502,6 @@ private:
     std::string consumer_name_; ///< The concrete consumer's qualified class name (diagnostics)
     std::size_t n_threads_;     ///< The number of session threads
     Gem::Common::serializationMode serialization_mode_; ///< The wire format
-    bool detects_loss_; ///< The listener's answer to detectsLoss(), asked once
     /// The listener's answer to keepAlive(), asked once: what the sessions name in the HELLO
     std::chrono::milliseconds keep_alive_;
 

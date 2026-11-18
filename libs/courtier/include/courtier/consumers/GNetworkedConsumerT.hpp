@@ -32,7 +32,6 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
-#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -51,6 +50,8 @@
 #include <vector>
 
 // Geneva headers
+#include "common/GErrorStreamer.hpp" // g_error_streamer (a refused time limit)
+#include "common/GExceptions.hpp"    // geneva_exception (a refused time limit)
 #include "common/GLogger.hpp" // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
 #include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
@@ -62,7 +63,7 @@
 #include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
 #include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
 #include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // timeoutTreatment + the config struct
+#include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // the user's two time limits
 
 namespace Gem::Courtier {
 
@@ -77,8 +78,8 @@ namespace Gem::Courtier {
  *  - dispatch_(items) registers the round's items as a new BATCH (the scheduling state lives ON each
  *    item -- its dispatchState -- so there are no per-item side queues; each call BORROWS the caller's
  *    round vector, it never owns/copies the items). It then blocks until every slot of ITS batch
- *    reaches DONE or that batch's adaptive give-up window elapses; items left DO_PROCESS == MISSING are
- *    resubmitted/cloned/failed by the inherited reconciliation loop.
+ *    reaches DONE, or until the user's give-up window elapses if one is set; items left DO_PROCESS ==
+ *    MISSING are resubmitted/cloned/failed by the inherited reconciliation loop.
  *  - checkout()/checkin() are the queue endpoints a transport's session calls. checkout() serves the
  *    next pending slot, round-robin INTERLEAVED across all currently-active batches (so concurrent
  *    submitters make progress together, not one whole batch after another). checkin() matches a
@@ -100,21 +101,19 @@ namespace Gem::Courtier {
  * policy the inherited reconciliation may replace an item whose type cannot load content in place,
  * see GBaseConsumerT::processBatch().)
  *
- * Timeout / death-detection (per batch, user-selectable via applyTimeoutConfig()): each dispatch_ waits
- * until its batch is DONE or progress stalls past a give-up window; items left DO_PROCESS == MISSING are
- * resubmitted/cloned/failed by the inherited reconciliation loop. The give-up window (and the reclaim lease
- * below) follow the configured timeoutTreatment:
- *  - adaptive (the default): a multiple of the running mean return time, clamped -- scale-free, so it
- *    self-calibrates to an evaluation that may run from microseconds to days;
- *  - fixed: a user-set fixed window / lease (for a user who knows their time bound);
- *  - wait_indefinitely: never declare an item MISSING on time (for a reliable cluster + a need-all policy).
- * The give-up window only applies ONCE at least one result has ever been received: before that, dispatch_
- * waits INDEFINITELY, because under a batch-scheduling system the first worker may not enter the pool for
- * minutes or hours. While waiting, where the transport has no client-liveness signal (usesTimeLease(),
- * default true: MPI), stuck in-flight items of that batch are reclaimed once they exceed the reclaim
- * LEASE. A transport that detects client death directly (the websocket consumer, via its persistent session
- * and CheckoutLease) reclaims immediately on disconnect and disables the time lease, so it honours the
- * give-up treatment but is not bound by the time lease.
+ * Time limits (applyTimeoutConfig()): by default there is none. A dispatch_ waits until its batch is
+ * DONE or the consumer stops, however long an evaluation takes: that is the user's problem's business,
+ * and nothing here guesses it. A lost client is noticed by its connection (both transports give signs
+ * of life), and the session puts back what it held at once (CheckoutLease). A client that hangs inside
+ * an evaluation while its process still answers is not noticed that way. The user may set two limits,
+ * each 0 (none) by default:
+ *  - the reclaim lease: an item in flight longer than this is put back and handed out again, on every
+ *    transport. The first result back is taken; a later duplicate is dropped and counted.
+ *  - the give-up window: a batch without any result for longer than this, counted from its start or
+ *    its last result, is given up; its open slots are left DO_PROCESS == MISSING for the reconciliation
+ *    loop, which resubmits them and then applies the submission policy.
+ * The wait itself has no period: it sleeps until the batch is done, a stop, or the nearer of the
+ * two limits is due.
  *
  * @tparam processable_type The work-item type the consumer schedules to remote clients and reconciles
  */
@@ -128,49 +127,26 @@ public:
     ~GNetworkedConsumerT() override = default;
 
     /***************************************************************************/
-    /** @brief Sets the lease used to reclaim a stuck in-flight item before the running mean is known.
-     *  @param w The bootstrap reclaim lease (used until the first return time is observed) */
-    void setLeaseBootstrap(std::chrono::milliseconds w) { lease_bootstrap_ = w; }
-    /** @brief Sets the multiple of the running mean return time used as the reclaim lease.
-     *  @param f The multiplier applied to the running mean return time to form the (clamped) reclaim lease */
-    void setLeaseFactor(double f) { lease_factor_ = f; }
-    /** @brief Sets the lower/upper clamp on the adaptive reclaim lease.
-     *  @param lo The lower clamp on the reclaim lease
-     *  @param hi The upper clamp on the reclaim lease */
-    void setLeaseBounds(std::chrono::milliseconds lo, std::chrono::milliseconds hi) {
-        min_lease_ = lo;
-        max_lease_ = hi;
-    }
-    /** @brief Sets the poll interval at which dispatch_ re-evaluates the lease/stall while waiting.
-     *  @param w The re-evaluation poll interval */
-    void setSweepTick(std::chrono::milliseconds w) { sweep_tick_ = w; }
-    /** @brief Selects the timeout treatment (adaptive / fixed / wait_indefinitely) directly.
-     *  @param t The treatment governing when an unreturned item is declared MISSING */
-    void setTimeoutTreatment(timeoutTreatment t) { treatment_ = t; }
-
-    /***************************************************************************/
     /**
-     * @brief Applies a networked-consumer timeout configuration (typically read from a config file).
+     * @brief Sets the user's two time limits (typically read from a config file). Both are off
+     * (0) by default; see the class comment.
      *
-     * Sets the treatment and every adaptive/fixed knob from @p cfg. This is the SERVER-side "when is
-     * an item lost" transport concern; it is orthogonal to the algorithm's GSubmissionPolicy (what to
-     * do about a lost item).
+     * This is the SERVER-side "when is an item handed out again, or given up" concern; it is
+     * orthogonal to the algorithm's GSubmissionPolicy (what to do about an item that was given up).
      *
-     * @param cfg The parsed timeout configuration to apply
+     * @param cfg The parsed configuration to apply
+     * @throws geneva_exception if a value is negative or too large for the clock (the exception
+     *         names the key); the limits are then left as they were
      */
     void applyTimeoutConfig(const GNetworkedTimeoutConfig &cfg) {
-        treatment_ = cfg.treatmentEnum();
-        ema_alpha_ = cfg.ema_alpha;
-        lease_factor_ = cfg.lease_factor;
-        stall_factor_ = cfg.stall_factor;
-        lease_bootstrap_ = std::chrono::milliseconds(cfg.lease_bootstrap_ms);
-        min_lease_ = std::chrono::milliseconds(cfg.min_lease_ms);
-        max_lease_ = std::chrono::milliseconds(cfg.max_lease_ms);
-        min_stall_ = std::chrono::milliseconds(cfg.min_stall_ms);
-        max_stall_ = std::chrono::milliseconds(cfg.max_stall_ms);
-        sweep_tick_ = std::chrono::milliseconds(cfg.sweep_tick_ms);
-        fixed_stall_window_ = std::chrono::milliseconds(cfg.fixed_stall_window_ms);
-        fixed_lease_ = std::chrono::milliseconds(cfg.fixed_lease_ms);
+        const auto lease = checkedLimit_("reclaim_lease_ms", cfg.reclaim_lease_ms);
+        const auto window = checkedLimit_("give_up_window_ms", cfg.give_up_window_ms);
+        {
+            std::scoped_lock const lk(mtx_);
+            reclaim_lease_ = lease;
+            give_up_window_ = window;
+        }
+        cv_done_.notify_all(); // a waiting batch takes the new limits at once
     }
 
     /***************************************************************************/
@@ -266,8 +242,8 @@ public:
         return MAX_BATCH_SIZE;
     }
 
-    /** @brief Number of in-flight items put back to pending since construction: reclaimed by the
-     *  time lease, or put back by a session that lost its client.
+    /** @brief Number of in-flight items put back to pending since construction: by the user's
+     *  reclaim lease, or by a session that lost its client.
      *  @return The running total of re-queued items */
     [[nodiscard]] std::uint64_t requeuedCount() const {
         std::scoped_lock const lk(mtx_);
@@ -312,13 +288,12 @@ protected:
      * and records EVERY item it currently has in flight (a prefetching client may hold several at once);
      * if the session is destroyed while still holding unreturned items -- the client disconnected
      * mid-evaluation -- the lease requeues all of them for other clients immediately, a liveness-driven
-     * put-back that does not wait out the time lease. A transport without such sessions relies on the
-     * time lease instead -- see usesTimeLease().
+     * put-back that needs no time limit.
      *
      * Items are keyed by their (batch_id, slot) correlation id, so add()/remove() pair up regardless of
      * the order results come back in, and each remembers which checkout of its slot the session got
      * (GCheckoutResult::checkout). A put-back names that checkout: if the slot has been checked out
-     * again since (the time lease put it back and another session took it), the put-back does nothing,
+     * again since (the user's reclaim lease put it back and another session took it), the put-back does nothing,
      * so a lease gives back only its own checkout. The in-flight store is thread-safe: although a
      * single session drives its add()/remove() on one strand, the destructor may run on whichever io
      * thread releases the last reference, so the two must not race.
@@ -424,13 +399,9 @@ protected:
      *  to the GWireProtocolT seam, which knows what an evaluation RESULT means. Courtier never inspects
      *  the latter.
      *
-     *  @param frame The deserialized RESULT frame (ownership transferred)
-     *  @param count_return_time Whether the time from checkout to this return is a sample of the
-     *         adaptive lease and give-up window. A transport passes false for a result that arrives
-     *         on another connection than the one its item was handed out on (a client that sends
-     *         it again after a lost connection): its time includes the outage. */
+     *  @param frame The deserialized RESULT frame (ownership transferred) */
     // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved) -- consumed in place
-    void checkin(GCommandContainerT<processable_type> &&frame, bool count_return_time = true) {
+    void checkin(GCommandContainerT<processable_type> &&frame) {
         item_ptr returned = frame.releaseItem();
         std::scoped_lock const lk(mtx_);
         // A result whose item was handed out by another server process (a client that outlived
@@ -460,19 +431,12 @@ protected:
             return;
         }
         if(ds == dispatchState::PENDING) {
-            // The slot was put back (lease reclaim / session put-back) and its first holder returns
+            // The slot was put back (reclaim lease / session put-back) and its first holder returns
             // after all. Take the result: the slot leaves the pending set and is not served again.
             --b.pending;
             --total_pending_;
         }
-        // Feed the (shared) adaptive timeout: how long this item took from checkout to return. A
-        // slot that was put back at least once gives no usable sample: its checkout time may belong
-        // to a second holder, and a sample that is too short would shrink the lease for everyone.
-        const auto now = clock::now();
-        if(count_return_time && not b.reclaimed[slot]) {
-            recordReturnTime_(now - b.checked_out_at[slot]);
-        }
-        b.last_progress = now;
+        b.last_progress = clock::now(); // the give-up window counts from here
 
         // Reconcile the return INTO the live slot object in place, keeping its heap address (the
         // slot aliases the submitter's own item). Rather than swapping the returned object in --
@@ -605,15 +569,6 @@ protected:
     }
 
     /***************************************************************************/
-    /** @brief Whether this consumer reclaims stuck in-flight items via the TIME lease. True for
-     *  transports with no per-client liveness signal (MPI): an item that has been IN_FLIGHT
-     *  longer than the adaptive lease is presumed lost and requeued. A transport that detects client
-     *  death directly (the websocket consumer, via CheckoutLease on its persistent session) overrides
-     *  this to false, so a live-but-slow client is never wrongly reclaimed.
-     *  @return true if stuck in-flight items are reclaimed via the time lease (false for liveness-driven transports) */
-    virtual bool usesTimeLease() const { return true; }
-
-    /***************************************************************************/
     /**
      * Registers @p items as a fresh batch (state lives on the items themselves, the vector is merely
      * BORROWED), waits for them to return (or time out), and -- because checkin() writes results
@@ -623,7 +578,7 @@ protected:
      *
      * @param items The round's work items, BORROWED (not owned) for the duration of the call; results are written back into their slots in place
      */
-    // NOLINTNEXTLINE(readability-function-size) -- one coherent batch dispatch lifecycle (register under lock, wait with adaptive stall/lease reclamation, then deregister + retain late-return originals) sharing the same locked BatchState across phases; splitting would fragment the locking discipline the comments document
+    // NOLINTNEXTLINE(readability-function-size) -- one coherent batch dispatch lifecycle (register under lock, wait with the user's limits, then deregister + retain late-return originals) sharing the same locked BatchState across phases; splitting would fragment the locking discipline the comments document
     void dispatch_(std::span<item_ptr> items) override {
         const std::size_t n = items.size();
         if(n == 0) {
@@ -650,7 +605,6 @@ protected:
             b.items = items;
             b.cursor = 0;
             b.checked_out_at.assign(n, start); // indexed by slot (the span index)
-            b.reclaimed.assign(n, false);
             b.checkouts.assign(n, 0);
             b.last_progress = start;
             // Select exactly the DO_PROCESS slots of the span for this batch: tag each with its
@@ -682,37 +636,46 @@ protected:
         }
         announceWork_(n_announced);
 
-        // Wait until every slot of THIS batch is DONE, or its progress stalls past the (adaptive)
-        // give-up window. The happy path wakes on the final checkin() and exits at once. While
-        // waiting, where the transport has no liveness signal, periodically reclaim this batch's items
-        // that have been in flight longer than the adaptive lease.
+        // Wait until every slot of THIS batch is DONE or the consumer stops. With the user's
+        // limits: give up once nothing has come back for longer than the give-up window, and put
+        // back every slot that has been in flight longer than the reclaim lease. Without them the
+        // wait has no time-out at all; with them it sleeps until the nearer of the two is due.
         {
             std::unique_lock<std::mutex> lk(mtx_);
-            BatchState &b = my_it->second; // stable across wait_for: std::map refs survive other ins/erase
+            BatchState &b = my_it->second; // stable across waits: std::map refs survive other ins/erase
             while(true) {
                 if(b.done == b.target || stop_.load()) {
                     break;
                 }
                 const auto now = clock::now();
-                // Never give up while NO result has EVER been received: under a batch-scheduling system
-                // the first worker may enter the pool arbitrarily later (minutes, even hours), so we
-                // wait indefinitely for the first return. The give-up window only bounds how long we
-                // keep waiting once workers ARE returning (it reclaims items handed to workers that
-                // have since gone slow/dead) -- it must not bound the wait for workers to appear.
-                if(n_return_samples_ > 0 && now - b.last_progress > currentStallWindow()) {
-                    break; // progress stalled with live workers -> give up; unresolved slots MISSING
+                std::optional<clock::time_point> wake_at;
+                if(give_up_window_ > std::chrono::milliseconds::zero()) {
+                    if(now - b.last_progress > give_up_window_) {
+                        break; // nothing came back for too long -> give up; unresolved slots MISSING
+                    }
+                    wake_at = b.last_progress + give_up_window_;
                 }
-                n_announced = this->usesTimeLease() ? leaseSweep_locked(b, now) : 0;
-                if(n_announced > 0) {
-                    // Items were put back: tell the callers, without the lock. The batch's last
-                    // check-in may arrive in that window, and its notification would find nobody
-                    // waiting -- so look at the batch again instead of going to sleep.
-                    lk.unlock();
-                    announceWork_(n_announced);
-                    lk.lock();
-                    continue;
+                if(reclaim_lease_ > std::chrono::milliseconds::zero()) {
+                    const auto [n_put_back, next_due] = leaseSweep_locked(b, now);
+                    if(n_put_back > 0) {
+                        // Items were put back: tell the callers, without the lock. The batch's last
+                        // check-in may arrive in that window, and its notification would find nobody
+                        // waiting -- so look at the batch again instead of going to sleep.
+                        lk.unlock();
+                        announceWork_(n_put_back);
+                        lk.lock();
+                        continue;
+                    }
+                    if(next_due && (not wake_at || *next_due < *wake_at)) {
+                        wake_at = next_due;
+                    }
                 }
-                cv_done_.wait_for(lk, sweep_tick_);
+                if(wake_at) {
+                    cv_done_.wait_until(lk, *wake_at);
+                }
+                else {
+                    cv_done_.wait(lk);
+                }
             }
             // Slots are already updated in place by checkin(); slots never reached DONE keep their
             // original DO_PROCESS item == MISSING for the policy loop. Drop the still-PENDING slots
@@ -877,10 +840,9 @@ private:
         std::size_t done = 0;                   ///< Slots that have reached DONE
         std::size_t pending = 0;                ///< Slots currently PENDING (awaiting a client)
         std::size_t cursor = 0;                 ///< Next slot index to consider in checkout
-        std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (lease + stats)
-        std::vector<bool> reclaimed;          ///< Per-slot: put back to PENDING at least once
+        std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (reclaim lease)
         std::vector<std::uint64_t> checkouts; ///< Per-slot: the number of its current checkout
-        clock::time_point last_progress;      ///< Time of the most recent checkin (stall basis)
+        clock::time_point last_progress;      ///< Start, or the most recent checkin (give-up window)
     };
 
     /***************************************************************************/
@@ -1018,7 +980,6 @@ private:
             return false;
         }
         b.items[slot]->setDispatchState(Gem::Courtier::dispatchState::PENDING);
-        b.reclaimed[slot] = true;
         ++b.pending;
         ++total_pending_;
         ++n_requeued_;
@@ -1029,22 +990,36 @@ private:
     }
 
     /***************************************************************************/
-    /** @brief Reclaims every slot of batch @p b that has been IN_FLIGHT longer than the adaptive
-     *  lease, returning it to PENDING for re-service. Caller holds mtx_.
+    /** @brief Puts back every slot of batch @p b that has been IN_FLIGHT longer than the user's
+     *  reclaim lease (PENDING again, for re-service), and finds when the next slot becomes due.
+     *  A slot that is PENDING now is checked out later than @p now, so it is due no earlier
+     *  than @p now plus the lease: a checkout needs no wake-up of the waiting dispatch_. Caller
+     *  holds mtx_; only called with a lease set.
      *  @param b The batch to sweep
      *  @param now The current time; each slot's checkout time is compared with the lease against it
-     *  @return How many slots were put back (the caller then announces that much work) */
-    [[nodiscard]] std::size_t leaseSweep_locked(BatchState &b, clock::time_point now) {
-        const auto lease = currentLease();
+     *  @return How many slots were put back (the caller then announces that much work), and when
+     *          the next slot becomes due (none if no slot is in flight or pending) */
+    [[nodiscard]] std::pair<std::size_t, std::optional<clock::time_point>>
+    leaseSweep_locked(BatchState &b, clock::time_point now) {
         std::size_t n_put_back = 0;
+        std::optional<clock::time_point> next_due;
+        if(b.pending > 0) {
+            next_due = now + reclaim_lease_;
+        }
         for(std::size_t k = 0; k < b.items.size(); ++k) {
-            if(b.items[k] &&
-               b.items[k]->getDispatchState() == Gem::Courtier::dispatchState::IN_FLIGHT &&
-               (now - b.checked_out_at[k]) > lease) {
+            if(not b.items[k] ||
+               b.items[k]->getDispatchState() != Gem::Courtier::dispatchState::IN_FLIGHT) {
+                continue;
+            }
+            const auto due = b.checked_out_at[k] + reclaim_lease_;
+            if(now > due) {
                 n_put_back += requeueSlot_locked(b, k) ? 1 : 0;
             }
+            else if(not next_due || due < *next_due) {
+                next_due = due;
+            }
         }
-        return n_put_back;
+        return {n_put_back, next_due};
     }
 
     /***************************************************************************/
@@ -1076,67 +1051,28 @@ private:
     }
 
     /***************************************************************************/
-    /** @brief Folds one observed checkout->return duration into the running mean (an EMA).
-     *  @param d The observed checkout-to-return duration of one item */
-    void recordReturnTime_(clock::duration d) {
-        const double ms = std::chrono::duration<double, std::milli>(d).count();
-        if(n_return_samples_ == 0) {
-            mean_return_ms_ = ms;
+    /** @brief A time limit of the config file as a duration, refused if it is negative or too
+     *  large for the clock (a malformed configuration ends loudly, not quietly).
+     *  @param key The config key, named in the exception
+     *  @param ms The value in milliseconds (0: no limit)
+     *  @return The limit
+     *  @throws geneva_exception if @p ms is negative or too large */
+    static std::chrono::milliseconds checkedLimit_(const char *key, std::int64_t ms) {
+        // Half the clock's range: a deadline (a time point plus the limit) must not overflow.
+        constexpr auto max_ms =
+            std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() / 2;
+        if(ms < 0 || ms > max_ms) {
+            throw geneva_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
+                << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
+                << '\n'
+                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "." << '\n'
+            );
         }
-        else {
-            mean_return_ms_ = (ema_alpha_ * ms) + ((1.0 - ema_alpha_) * mean_return_ms_);
-        }
-        ++n_return_samples_;
+        return std::chrono::milliseconds(ms);
     }
 
-protected:
-    /***************************************************************************/
-    /** @brief The current reclaim lease: a multiple of the running mean return time (clamped), or a
-     *  bootstrap value until the first return has been observed. Protected so a derived transport (and the
-     *  timeout tests) can inspect the treatment-driven value.
-     *  @return The current reclaim lease duration */
-    std::chrono::milliseconds currentLease() const {
-        switch(treatment_) {
-            case timeoutTreatment::wait_indefinitely:
-                // Never reclaim on time: no time lease can ever elapse (liveness-driven reclaim, e.g. a
-                // websocket disconnect, still applies independently).
-                return GNETWORKEDNEVERWINDOW;
-            case timeoutTreatment::fixed:
-                return fixed_lease_;
-            case timeoutTreatment::adaptive:
-            default:
-                if(n_return_samples_ == 0) {
-                    return lease_bootstrap_;
-                }
-                const auto v =
-                    std::chrono::milliseconds(static_cast<long long>(lease_factor_ * mean_return_ms_));
-                return std::clamp(v, min_lease_, max_lease_);
-        }
-    }
-
-    /***************************************************************************/
-    /** @brief The current give-up window: how long a batch's dispatch_ tolerates NO progress before
-     *  declaring the rest of that batch MISSING. A generous multiple of the running mean return time,
-     *  clamped. Only ever consulted once n_return_samples_ > 0 (dispatch_ waits indefinitely before
-     *  the first return ever arrives), so there is no pre-sample fallback here.
-     *  @return The current give-up (stall) window duration */
-    std::chrono::milliseconds currentStallWindow() const {
-        switch(treatment_) {
-            case timeoutTreatment::wait_indefinitely:
-                // Never give up on time: the stall window can never elapse, so no item is declared MISSING
-                // for lateness (a genuinely dead client is still detected by liveness where available).
-                return GNETWORKEDNEVERWINDOW;
-            case timeoutTreatment::fixed:
-                return fixed_stall_window_;
-            case timeoutTreatment::adaptive:
-            default:
-                const auto v =
-                    std::chrono::milliseconds(static_cast<long long>(stall_factor_ * mean_return_ms_));
-                return std::clamp(v, min_stall_, max_stall_);
-        }
-    }
-
-private:
     mutable std::mutex mtx_;
     std::condition_variable cv_done_; ///< Signalled when a batch's last slot reaches DONE
 
@@ -1168,36 +1104,11 @@ private:
     bool late_drop_warned_ = false;             ///< One-shot warning guard for the first dropped late item
     bool foreign_return_warned_ = false; ///< One-shot warning guard for the first foreign return
 
-    double mean_return_ms_ = 0.0;       ///< Running (EMA) mean checkout->return time (consumer-wide)
-    std::size_t n_return_samples_ = 0;  ///< Returns observed so far (across all batches)
-
     std::atomic<bool> stop_{false};
 
-    // --- timeout treatment (see timeoutTreatment): adaptive (scale-free, the default) declares MISSING /
-    //     reclaims relative to the running mean; fixed uses the two fixed windows below; wait_indefinitely
-    //     never declares MISSING on time. Selected from the config file via applyTimeoutConfig(). ---
-    timeoutTreatment treatment_ = timeoutTreatment::adaptive;
-    /// give-up window when treatment_ == fixed
-    std::chrono::milliseconds fixed_stall_window_{GNETWORKEDFIXEDSTALLWINDOW};
-    std::chrono::milliseconds fixed_lease_{
-        GNETWORKEDFIXEDLEASE
-    }; ///< reclaim lease when treatment_ == fixed
-
-    // --- adaptive-timeout configuration (sane defaults; tunable via the setters) ---
-    double ema_alpha_ = GNETWORKEDEMAALPHA; ///< EMA weight for new return-time samples
-    /// Reclaim lease = lease_factor_ * mean return time (clamped)
-    double lease_factor_ = GNETWORKEDLEASEFACTOR;
-    /// Give-up window = stall_factor_ * mean return time (clamped)
-    double stall_factor_ = GNETWORKEDSTALLFACTOR;
-    /// Reclaim lease before any return is seen
-    std::chrono::milliseconds lease_bootstrap_{GNETWORKEDLEASEBOOTSTRAP};
-    std::chrono::milliseconds min_lease_{GNETWORKEDMINLEASE}; ///< Lower clamp on the reclaim lease
-    std::chrono::milliseconds max_lease_{GNETWORKEDMAXLEASE}; ///< Upper clamp on the reclaim lease
-    std::chrono::milliseconds min_stall_{GNETWORKEDMINSTALL}; ///< Lower clamp on the give-up window
-    std::chrono::milliseconds max_stall_{GNETWORKEDMAXSTALL}; ///< Upper clamp on the give-up window
-    std::chrono::milliseconds sweep_tick_{
-        GNETWORKEDSWEEPTICK
-    }; ///< dispatch_ re-evaluation poll interval
+    // --- the user's two time limits (applyTimeoutConfig()); 0: none, the default ---
+    std::chrono::milliseconds reclaim_lease_{0};  ///< An item in flight longer than this is put back
+    std::chrono::milliseconds give_up_window_{0}; ///< A batch without a result this long is given up
 };
 
 /******************************************************************************/

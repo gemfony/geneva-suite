@@ -293,11 +293,6 @@ public:
      *  for the peers to end (rule 8). */
     [[nodiscard]] virtual std::chrono::milliseconds stopGrace() const = 0;
 
-    /** @brief Whether the loss of a client ends its peer by itself, within a bounded time (a
-     *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
-     *  time lease. */
-    [[nodiscard]] virtual bool detectsLoss() const = 0;
-
     /** @brief The keep-alive interval of the server's ends (0: none). The sessions name it to
      *  their clients in the HELLO, and a client's end takes it (GPeerI::setKeepAlive()): the
      *  server alone sets it. */

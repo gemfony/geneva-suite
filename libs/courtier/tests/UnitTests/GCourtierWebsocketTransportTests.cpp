@@ -349,17 +349,14 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** Without the keep-alive a lost client is not noticed by the transport: the consumer then needs
- *  the time lease. */
+/** The listener names its ping interval: the one its sessions name to their clients in the HELLO
+ *  (0: no keep-alive). */
 TEST_CASE(
-    "GWebsocketListener: detectsLoss follows the keep-alive",
+    "GWebsocketListener: keepAlive names the ping interval",
     "[courtier][websocket][transport]"
 ) {
     const GWebsocketListener with_ping("listener test", 0, withPing(1s), 1);
     const GWebsocketListener without_ping("listener test", 0, withPing(0ms), 1);
-    CHECK(with_ping.detectsLoss());
-    CHECK_FALSE(without_ping.detectsLoss());
-    // The interval its sessions name to their clients in the HELLO
     CHECK(with_ping.keepAlive() == 1s);
     CHECK(without_ping.keepAlive() == 0ms);
 }

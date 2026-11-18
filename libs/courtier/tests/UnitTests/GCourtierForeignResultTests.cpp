@@ -184,7 +184,6 @@ TEST_CASE(
             .nThreads = 2
         }
     );
-    second->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     second->startServer();
     Gem::Courtier::Tests::GTcpRelay relay(first.port());
 

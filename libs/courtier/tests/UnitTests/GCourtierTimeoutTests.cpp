@@ -28,8 +28,8 @@
  ********************************************************************************/
 
 /**
- * Tier-1 tests for the courtier timeout machinery -- the adaptive timeout / death-detection (the
- * reclaim lease + the explicit put-back) and the clone-from-template refill. The networked timeout
+ * Tier-1 tests for the courtier time limits -- the user's reclaim lease and give-up window, the
+ * explicit put-back -- and the clone-from-template refill. The networked timeout
  * logic lives in GNetworkedConsumerT independently of any actual socket, so it is exercised here
  * deterministically by a test subclass acting as a simulated transport: a driver thread plays the
  * role of clients (checkout / process / checkin), and can ABANDON an item (never check it back in,
@@ -39,6 +39,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -60,6 +61,7 @@
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 
+using Catch::Matchers::ContainsSubstring;
 using Gem::Courtier::fault_mode;
 using Gem::Courtier::GFaultyContainer;
 namespace c2 = Gem::Courtier;
@@ -97,9 +99,6 @@ public:
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkout;
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkin;
     using c2::GNetworkedConsumerT<GFaultyContainer>::requeue;
-    // Expose the treatment-driven give-up window / reclaim lease so the timeout-treatment test can read them.
-    using c2::GNetworkedConsumerT<GFaultyContainer>::currentStallWindow;
-    using c2::GNetworkedConsumerT<GFaultyContainer>::currentLease;
 };
 
 /** @brief How the driver mistreats a chosen item the first time it sees it. */
@@ -114,9 +113,9 @@ enum class misbehave { abandon, requeue_it };
 template <typename victim_pred_type>
 void run_with_misbehaviour(std::vector<item_ptr> &batch, misbehave mode, victim_pred_type victim) {
     SimNetConsumer consumer;
-    consumer.setLeaseBootstrap(30ms);  // reclaim an abandoned item quickly
-    consumer.setLeaseBounds(10ms, 5s);
-    consumer.setSweepTick(5ms);
+    c2::GNetworkedTimeoutConfig limits;
+    limits.reclaim_lease_ms = 30; // reclaim an abandoned item quickly
+    consumer.applyTimeoutConfig(limits);
 
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
@@ -207,8 +206,8 @@ void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE
 /** @brief Runs an n-item batch but ABANDONS the victim slots forever (never checks them in).
  *  The batch therefore retires with those slots still MISSING, which -- with the late-return
  *  buffer enabled -- makes the consumer retain a clone of each victim's original (keyed by its
- *  correlation id) so a later return can be applied to it. The other slots are processed normally
- *  (so at least one return is observed and the give-up window engages). The first copy handed out
+ *  correlation id) so a later return can be applied to it. The other slots are processed normally;
+ *  the user's give-up window (short) ends the batch. The copy handed out
  *  for each victim is kept, as a slow worker would keep it, and returned unprocessed in the order
  *  of @p victims; checking it in later is a late return of a slot that had not returned when its
  *  batch ended. In the first dispatch round the batch_id is 0, so a victim slot's correlation id
@@ -218,9 +217,9 @@ std::vector<item_ptr> run_abandoning_forever(
     std::vector<item_ptr> &batch,
     const std::vector<std::size_t> &victims
 ) {
-    consumer.setLeaseBootstrap(20ms);
-    consumer.setLeaseBounds(10ms, 200ms);
-    consumer.setSweepTick(5ms);
+    c2::GNetworkedTimeoutConfig limits;
+    limits.give_up_window_ms = 300;
+    consumer.applyTimeoutConfig(limits);
     std::vector<item_ptr> slow(victims.size());
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
@@ -557,29 +556,18 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// Configurable timeout treatment (adaptive / fixed / wait_indefinitely), read from a config file. The
-// treatment is a SERVER-side transport concern -- WHEN an unreturned item is declared MISSING -- orthogonal
-// to the algorithm's GSubmissionPolicy. Because a Geneva evaluation may run from microseconds to days, the
-// default is scale-free (adaptive); this pins the config round-trip and the treatment -> window/lease mapping.
-TEST_CASE("courtier(timeout): the treatment is config-file selectable", "[courtier][timeout][config]") {
-    SECTION("treatment string <-> enum") {
-        CHECK(c2::timeoutTreatmentFromString("adaptive") == c2::timeoutTreatment::adaptive);
-        CHECK(c2::timeoutTreatmentFromString("fixed") == c2::timeoutTreatment::fixed);
-        CHECK(c2::timeoutTreatmentFromString("wait_indefinitely") == c2::timeoutTreatment::wait_indefinitely);
-        CHECK(c2::timeoutTreatmentFromString("bogus") == c2::timeoutTreatment::adaptive); // unknown -> default
-        CHECK(c2::to_string(c2::timeoutTreatment::fixed) == "fixed");
-        CHECK(c2::to_string(c2::timeoutTreatment::wait_indefinitely) == "wait_indefinitely");
-    }
-
-    SECTION("an absent config file materializes the scale-free adaptive defaults") {
+// The user's two time limits, read from a config file. They are a SERVER-side transport concern --
+// when an unreturned item is handed out again or given up -- orthogonal to the algorithm's
+// GSubmissionPolicy. Because an evaluation may run from microseconds to weeks, neither has a
+// default: both are 0, no limit.
+TEST_CASE("courtier(timeout): the two time limits are read from the config file", "[courtier][timeout][config]") {
+    SECTION("an absent config file materializes the two limits, both 0") {
         const auto path = std::filesystem::temp_directory_path() / "geneva_nettimeout_defaults.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig cfg;
         cfg.load(path.string()); // absent -> written with defaults, then read back
-        CHECK(cfg.treatment == "adaptive");
-        CHECK(cfg.treatmentEnum() == c2::timeoutTreatment::adaptive);
-        CHECK(cfg.lease_factor == 4.0);
-        CHECK(cfg.stall_factor == 8.0);
+        CHECK(cfg.reclaim_lease_ms == 0);
+        CHECK(cfg.give_up_window_ms == 0);
         std::filesystem::remove(path);
     }
 
@@ -587,47 +575,25 @@ TEST_CASE("courtier(timeout): the treatment is config-file selectable", "[courti
         const auto path = std::filesystem::temp_directory_path() / "geneva_nettimeout_roundtrip.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig w;
-        w.treatment = "fixed";
-        w.fixed_lease_ms = 1234;
-        w.stall_factor = 3.5;
-        w.max_stall_ms = 54'321;
+        w.reclaim_lease_ms = 1234;
+        w.give_up_window_ms = 54'321;
         w.load(path.string()); // absent -> writes THESE values, reads them back
 
         c2::GNetworkedTimeoutConfig r;
         r.load(path.string()); // file now present -> reads the written values into a fresh struct
-        CHECK(r.treatment == "fixed");
-        CHECK(r.treatmentEnum() == c2::timeoutTreatment::fixed);
-        CHECK(r.fixed_lease_ms == 1234);
-        CHECK(r.stall_factor == 3.5);
-        CHECK(r.max_stall_ms == 54'321);
+        CHECK(r.reclaim_lease_ms == 1234);
+        CHECK(r.give_up_window_ms == 54'321);
         std::filesystem::remove(path);
     }
 
-    SECTION("the treatment drives the give-up window and reclaim lease") {
-        SimNetConsumer consumer; // fresh: adaptive, no return samples observed yet
-
-        // adaptive default, before any sample: the lease is the bootstrap value (10s default), and the
-        // give-up window is the lower stall clamp (mean == 0 -> clamped up to min_stall == 2s).
-        CHECK(consumer.currentLease() == 10s);
-        CHECK(consumer.currentStallWindow() == 2s);
-
-        // fixed: the two configured constants are returned verbatim, regardless of observed timings.
-        c2::GNetworkedTimeoutConfig fixed_cfg;
-        fixed_cfg.treatment = "fixed";
-        fixed_cfg.fixed_stall_window_ms = 7'000;
-        fixed_cfg.fixed_lease_ms = 9'000;
-        consumer.applyTimeoutConfig(fixed_cfg);
-        CHECK(consumer.currentStallWindow() == 7s);
-        CHECK(consumer.currentLease() == 9s);
-
-        // wait_indefinitely: an "effectively never" window/lease (>> any real run) so nothing is ever
-        // declared MISSING on time. It must stay comfortably below the overflow boundary of a nanosecond
-        // clock comparison, but far above any plausible run length.
-        c2::GNetworkedTimeoutConfig wait_cfg;
-        wait_cfg.treatment = "wait_indefinitely";
-        consumer.applyTimeoutConfig(wait_cfg);
-        CHECK(consumer.currentStallWindow() > std::chrono::hours(24 * 365 * 50)); // > 50 years
-        CHECK(consumer.currentLease() > std::chrono::hours(24 * 365 * 50));
+    SECTION("a negative value is refused, naming its key") {
+        SimNetConsumer consumer;
+        c2::GNetworkedTimeoutConfig lease;
+        lease.reclaim_lease_ms = -1;
+        CHECK_THROWS_WITH(consumer.applyTimeoutConfig(lease), ContainsSubstring("reclaim_lease_ms"));
+        c2::GNetworkedTimeoutConfig window;
+        window.give_up_window_ms = -5;
+        CHECK_THROWS_WITH(consumer.applyTimeoutConfig(window), ContainsSubstring("give_up_window_ms"));
     }
 }
 
@@ -703,12 +669,11 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "courtier(routing): a return for a put-back slot is accepted without a timing sample",
+    "courtier(routing): a return for a put-back slot is accepted",
     "[courtier][routing]"
 ) {
     auto batch = make_batch(1);
     SimNetConsumer consumer;
-    consumer.setLeaseBootstrap(12345ms); // the lease while no return time has been sampled
 
     std::jthread worker([&] {
         consumer.processBatch(
@@ -735,8 +700,6 @@ TEST_CASE(
 
     CHECK(count_processed(batch) == 1);
     CHECK(consumer.droppedReturnCount() == 0);
-    // A put-back slot yields no return-time sample, so the lease is still the bootstrap value.
-    CHECK(consumer.currentLease() == 12345ms);
 }
 
 TEST_CASE(
@@ -795,7 +758,7 @@ TEST_CASE("courtier(routing): duplicates and empty checkouts are counted", "[cou
 /******************************************************************************/
 // A clone that throws at checkout. The slot used to be marked IN_FLIGHT and counted out of the
 // pending set before the clone was made; when the clone threw, the exception left checkout() with
-// the slot in flight and nobody holding it, and under wait_indefinitely the batch never ended.
+// the slot in flight and nobody holding it, and without a time limit the batch never ended.
 
 namespace {
 
@@ -840,10 +803,7 @@ TEST_CASE(
         p->set_processing_status(c2::processingStatus::DO_PROCESS);
     }
 
-    StoppableRawDispatchConsumer consumer;
-    c2::GNetworkedTimeoutConfig cfg;
-    cfg.treatment = "wait_indefinitely"; // a stuck slot cannot be hidden by the give-up window
-    consumer.applyTimeoutConfig(cfg);
+    StoppableRawDispatchConsumer consumer; // no give-up window can hide a stuck slot (the default)
     consumer.setCloneFunction([standard](const item_ptr &src) -> item_ptr {
         if(src->get_stored_number() == BAD) {
             if(standard) {
@@ -914,10 +874,7 @@ TEST_CASE(
     const c2::SUBMISSION_UUID_TYPE foreign_uuid{c2::detail::lineageSalt() ^ 1U, 42};
 
     auto batch = make_batch(1);
-    StoppableRawDispatchConsumer consumer;
-    c2::GNetworkedTimeoutConfig cfg;
-    cfg.treatment = "wait_indefinitely"; // no give-up window completes the batch behind our back
-    consumer.applyTimeoutConfig(cfg);
+    StoppableRawDispatchConsumer consumer; // no give-up window ends the batch behind our back
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8); // a misrouted return could be parked
 
     auto submitter = std::async(std::launch::async, [&] {
@@ -974,46 +931,3 @@ TEST_CASE(
     CHECK(consumer.foreignReturnCount() == 1);
 }
 
-/******************************************************************************/
-/**
- * A result that arrives on another connection than the one its item went out on (a client that
- * sends it again after a lost connection) gives no sample of the return time: the outage is in it.
- */
-TEST_CASE(
-    "Networked: a result that does not count its return time leaves the lease as it is",
-    "[courtier][timeout]"
-) {
-    SimNetConsumer consumer;
-    auto batch = make_batch(2);
-    std::atomic<bool> finished{false};
-    std::jthread worker([&] {
-        consumer.processBatch(
-            std::span<item_ptr>(batch.data(), batch.size()),
-            c2::GSubmissionPolicy::full_success_or_fatal()
-        );
-        finished.store(true);
-    });
-    auto first = consumer.checkout();
-    while(not first) {
-        std::this_thread::sleep_for(1ms);
-        first = consumer.checkout();
-    }
-    first->process();
-    std::this_thread::sleep_for(100ms);
-    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
-    frame.setOutcome(first->processingOutcome());
-    frame.setItem(std::move(first));
-    consumer.checkin(std::move(frame), /*count_return_time=*/false);
-    CHECK(consumer.currentLease() == c2::GNETWORKEDLEASEBOOTSTRAP); // still no sample
-
-    auto second = consumer.checkout();
-    while(not second) {
-        std::this_thread::sleep_for(1ms);
-        second = consumer.checkout();
-    }
-    second->process();
-    consumer.checkin(std::move(second));
-    CHECK(consumer.currentLease() != c2::GNETWORKEDLEASEBOOTSTRAP); // one sample
-    worker.join();
-    CHECK(finished.load());
-}

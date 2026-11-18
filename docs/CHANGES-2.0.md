@@ -221,8 +221,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The shared genome layout is sent once per client** and referenced by a content id
   thereafter. Interning is source-side only: a worker always inlines what it sends back.
   Checkpoint/file serialization stays self-contained (full layout by value).
-- **Networked consumers' timeout / death-detection is now user-configurable** through a
-  config file.
+- **Networked consumers set no time limit by default.** A lost client is noticed by its
+  connection (both transports keep signs of life), and what it held is handed out again at once.
+  `config/GNetworkedConsumer.json` holds two limits, both 0 (none) by default: `reclaim_lease_ms`
+  (an item in flight longer than this is handed out again -- the only bound on a client that hangs
+  inside an evaluation while its process answers) and `give_up_window_ms` (a batch without any
+  result for that long is given up; the submission policy decides the rest). A negative value is
+  refused. The estimate from measured return times (the treatments `adaptive` / `fixed` /
+  `wait_indefinitely` and their ten keys) is gone.
 - **A websocket (`beast`) client that finds no work waits at the server instead of polling.**
   The server keeps the request and answers it when an item becomes available; one waiting client
   is woken per item, the one that has waited longest first. A client thus gets its next item as
@@ -284,8 +290,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   time. A connection is accepted, opened and kept alive while every session thread of the server
   is busy: the server takes a new client on, and answers its handshake and its pings, on the
   threads that move the bytes. There is no limit on the size of a message. Without the keep-alive
-  (an interval of 0) a lost client is not noticed by the transport, and the server reclaims its
-  items by the time lease.
+  (an interval of 0) a lost client is not noticed by the transport; only a `reclaim_lease_ms` the
+  user sets brings its items back.
 - **The number of threads of the websocket server** is set with `--beast_nListenerThreads`
   (default 4; 0 means one per hardware thread), as in 1.11; the server runs its sessions on as
   many threads again.

@@ -163,8 +163,8 @@ ENDFOREACH()
 
 # The MPI consumer fixes its rank layout at launch, so it is exercised as a multi-process program
 # under mpirun (1 master + 2 workers, unless an entry says otherwise) rather than as an in-process
-# Catch2 test. Every entry runs the items with the time lease off (wait_indefinitely): an item that is
-# lost makes the entry hang until ctest ends it.
+# Catch2 test. Every entry runs the items without a time limit (the default): an item that is lost
+# makes the entry hang until ctest ends it.
 IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	ADD_EXECUTABLE(GCourtierMpiExerciser GCourtierMpiExerciser.cpp)
 	# The exercisers build the MPI consumer and its client directly, so they -- and only they -- link

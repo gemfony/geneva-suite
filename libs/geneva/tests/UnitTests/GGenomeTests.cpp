@@ -1811,9 +1811,6 @@ public:
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::checkin;
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLateReturnBuffer;
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::retainedOriginalCount;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLeaseBootstrap;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLeaseBounds;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setSweepTick;
 };
 
 } // namespace Gem::Tests
@@ -1828,9 +1825,10 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
 
     Gem::Tests::LateReturnConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
-    consumer.setLeaseBootstrap(20ms);
-    consumer.setLeaseBounds(10ms, 200ms);
-    consumer.setSweepTick(5ms);
+    c2::GNetworkedTimeoutConfig limits; // the batch must end with the victim's slot open
+    limits.reclaim_lease_ms = 20;
+    limits.give_up_window_ms = 200;
+    consumer.applyTimeoutConfig(limits);
 
     constexpr std::size_t N = 3;
     constexpr std::size_t VICTIM = 1; // first dispatch round -> batch id 0 -> correlation id == slot index

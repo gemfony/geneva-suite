@@ -48,7 +48,7 @@ namespace Gem::Courtier {
  *
  * Everything here is transport/scheduling state that courtier itself acts on: the status decides whether
  * the reconciliation loop sees a slot as processed, failed or missing; the error text is what a failure
- * reports; the timings feed the adaptive timeout; the correlation id routes the return to its slot. None
+ * reports; the timings say how long the stages took; the correlation id routes the return to its slot. None
  * of it says anything about the PROBLEM being solved -- that lives in the frame's library tag and payload,
  * which courtier only relays.
  *

@@ -472,9 +472,6 @@ TEST_CASE(
         }
         REQUIRE(consumer->parkedCount() == CLIENTS + 1);
 
-        // A batch that makes no progress is given up after a while and submitted again, which
-        // announces its item anew; that would paper over a wake-up that went astray. Not here.
-        consumer->setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
         auto one_item = make_batch(1);
         auto one_batch = std::async(std::launch::async, [&] {
             consumer->processBatch(

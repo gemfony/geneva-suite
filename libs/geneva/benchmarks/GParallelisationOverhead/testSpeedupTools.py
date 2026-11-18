@@ -335,11 +335,10 @@ def check_subclients(program, workdir, consumer, reference_dir, env=None):
     status, out = run_bounded(['bash', os.path.join(HERE, 'runWithClients.sh'), program, workdir,
                                consumer, '2', '4', '3', '(0,20)', '(0,10), (0,20), (0,30)', '1']
                               + options, 240,
-                              # Every evaluation exactly once: no item may be given to a second
-                              # client because its first one was slow under load (an adaptive
-                              # lease).
+                              # Every evaluation exactly once: there is no time limit by default,
+                              # so no item is given to a second client because its first was slow.
                               env=dict(os.environ, GROUP='3', CLIENT_GRACE='60', INTER_DELAY='0',
-                                       TIMEOUT_TREATMENT='wait_indefinitely', **(env or {})))
+                                       **(env or {})))
     if status != 0:
         fail(f'runWithClients.sh exited with {status}: {out}')
     if 'clients that did not end by themselves: 0' not in out and consumer != 'mpi':

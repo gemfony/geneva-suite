@@ -67,7 +67,6 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GPeerConsumerT.hpp"
 #include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GMPIPeerTransport.hpp"
@@ -560,7 +559,6 @@ TEST_CASE("MPI transport: the listener's stop and end", "[courtier][mpi]") {
     master.listener().endWork();
     CHECK(master.rolesLetGo());
     CHECK(master.listener().stopGrace() == 1s); // a constant: nothing waits for an answer
-    CHECK_FALSE(master.listener().detectsLoss());
 }
 
 /******************************************************************************/
@@ -819,9 +817,6 @@ TEST_CASE(
         2,
         Gem::Common::serializationMode::GEM_BINARY
     );
-    Gem::Courtier::GNetworkedTimeoutConfig timeouts;
-    timeouts.treatment = "wait_indefinitely";
-    shell.applyTimeoutConfig(timeouts);
     shell.startServer();
 
     GMPIPeerOptions limited_options = optionsWith();
@@ -1041,15 +1036,13 @@ TEST_CASE("MPI transport: the end of a rank that falls silent ends as SILENT", "
 }
 
 /******************************************************************************/
-/** The listener notices a loss, and names an interval to its clients, only with a keep-alive. */
-TEST_CASE("MPI transport: the listener's keep-alive decides whether it detects a loss", "[courtier][mpi]") {
+/** The listener names the poll's keep-alive interval to its clients (0: none). */
+TEST_CASE("MPI transport: the listener names the keep-alive interval", "[courtier][mpi]") {
     auto world = std::make_shared<GMPIFakeWorld>(2);
     const GMPIListener without(world->calls(0), optionsWith());
-    CHECK_FALSE(without.detectsLoss());
     CHECK(without.keepAlive() == 0ms);
     GMPIPeerOptions options = optionsWith();
     options.poll.keepAlive = 1500ms;
     const GMPIListener with(world->calls(0), options);
-    CHECK(with.detectsLoss());
     CHECK(with.keepAlive() == 1500ms);
 }

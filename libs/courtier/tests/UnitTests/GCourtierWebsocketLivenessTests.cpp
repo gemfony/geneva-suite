@@ -527,7 +527,6 @@ TEST_CASE(
     "[courtier][websocket][liveness][net]"
 ) {
     auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     std::vector<std::unique_ptr<GFaultyContainer>> items;
     items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
     auto batch = tolerantBatch(consumer, items);
@@ -752,9 +751,6 @@ TEST_CASE(
     INFO((standard ? "the seam throws a std::exception" : "the seam throws an int"));
     checkInsThrowStandard.store(standard);
     auto consumer = startedServer<GSimpleContainer>(/*n_threads=*/2);
-    // No giving up on a slot that makes no progress: a slot left in flight would otherwise be
-    // declared missing after a while and filled like a failed one, and the test could not tell.
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     auto client = matchingClient<GSimpleContainer>(consumer->getPort());
     const std::jthread client_thread([client] { client->run(); });
 
@@ -809,7 +805,6 @@ void runSlowCodecCase(const SlowCodecCase &c) {
     glogger.addLogTarget(log);
 
     auto consumer = startedServer<GSlowCodecItem>(c.serverThreads);
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     std::vector<std::shared_ptr<GWebsocketClientT<GSlowCodecItem>>> clients;
     std::vector<std::jthread> client_threads;
     clients.reserve(c.clients);
@@ -914,7 +909,6 @@ TEST_CASE(
     "[courtier][websocket][liveness][net]"
 ) {
     auto consumer = startedServer<GRandomNumberContainer>(/*n_threads=*/2);
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GRandomNumberContainer>(relay.port());
     std::atomic<int> n_evaluated{0};
