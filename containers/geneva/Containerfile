@@ -152,7 +152,7 @@ RUN set -eu; \
 
 # The installed package must be usable from outside the tree: build the downstream template
 # (libs/geneva/quickstart) against /opt/geneva exactly as a user's own project would be, and a probe
-# that links the MPI module and checks that the "mpi" consumer is loaded from the installation.
+# that checks that the "mpi" consumer is loaded from the installation.
 RUN set -eu; \
     cmake -S /src/geneva/libs/geneva/quickstart -B /tmp/quickstart \
           -DCMAKE_PREFIX_PATH="/opt/geneva;/opt/boost" -DBOOST_ROOT=/opt/boost; \

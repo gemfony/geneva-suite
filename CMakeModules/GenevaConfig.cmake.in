@@ -44,9 +44,11 @@
 # requirement. An installation built with the MPI consumer also has
 #
 #   Geneva::courtier-mpi - courtier's MPI library: the process's one MPI
-#                          environment (courtier/mpi/); carries MPI::MPI_CXX
-#   Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
-#                          libgemfony-geneva; programs do not link it
+#                          environment (courtier/mpi/) and the MPI cascade;
+#                          carries MPI::MPI_CXX
+#
+# and Geneva's MPI module, libgemfony-geneva-mpi, which libgemfony-geneva loads
+# at run time; it is not a target, as no program links it.
 #
 # None of the five targets above needs MPI.
 #

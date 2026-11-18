@@ -166,7 +166,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   library links MPI, so Geneva programs start on machines without an MPI library. The module
   is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
   first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
-  names the reason. A program that names the environment's functions links
+  names the reason. No program links the module: it is a module library, not an exported
+  target (`Geneva::geneva-mpi` is gone). A program that names the environment's functions links
   `gemfony-courtier-mpi` (`Geneva::courtier-mpi`, which carries MPI; `find_package(Geneva)`
   finds MPI for it).
 - **Parallelism inside one evaluation: `GMPISubClientOptimizer` and `GMPISubClientIndividual`

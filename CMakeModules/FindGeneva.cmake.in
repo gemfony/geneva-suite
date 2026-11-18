@@ -56,9 +56,10 @@
 # Geneva include directory. An installation built with the MPI consumer also has
 #
 # Geneva::courtier-mpi - courtier's MPI library (the process's one MPI
-#                        environment); carries MPI::MPI_CXX
-# Geneva::geneva-mpi   - Geneva's MPI module, loaded at run time by
-#                        libgemfony-geneva; programs do not link it
+#                        environment and the MPI cascade); carries MPI::MPI_CXX
+#
+# and Geneva's MPI module, libgemfony-geneva-mpi, which libgemfony-geneva loads
+# at run time (no target: no program links it)
 #
 # and GENEVA_MPI is TRUE, as with the config-file package.
 #
@@ -409,15 +410,6 @@ IF (GENEVA_FOUND)
 				IMPORTED_LOCATION "${GENEVA_COURTIER_MPI_LIBRARY}"
 				INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
 				INTERFACE_LINK_LIBRARIES "Geneva::courtier;MPI::MPI_CXX"
-			)
-		ENDIF ()
-
-		IF (NOT TARGET Geneva::geneva-mpi)
-			ADD_LIBRARY (Geneva::geneva-mpi UNKNOWN IMPORTED)
-			SET_TARGET_PROPERTIES (Geneva::geneva-mpi PROPERTIES
-				IMPORTED_LOCATION "${GENEVA_GENEVA_MPI_LIBRARY}"
-				INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
-				INTERFACE_LINK_LIBRARIES "Geneva::courtier-mpi"
 			)
 		ENDIF ()
 	ELSE ()

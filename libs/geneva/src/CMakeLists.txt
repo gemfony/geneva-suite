@@ -299,22 +299,22 @@ INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_P
 # the loader looks. Where libgemfony-courtier-mpi or the MPI library is missing, the module fails to
 # load, and the loader says so (a Geneva program that does not use MPI still starts).
 IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} SHARED
+	# A MODULE: loaded, never linked, so it is not part of the exported package. It keeps the "lib"
+	# prefix, which MODULE libraries drop by default.
+	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} MODULE
 		GMPIConsumerModule.cpp )
-	SET_TARGET_PROPERTIES ( ${GENEVA_MPI_LIBNAME} PROPERTIES
-		VERSION ${GENEVA_VERSION}
-		EXPORT_NAME geneva-mpi )
-	# Like a loadable individual module, it links no Geneva library -- the process that loads (or
-	# links) it already carries libgemfony-geneva, and a testing build's Geneva would hand the
+	SET_TARGET_PROPERTIES ( ${GENEVA_MPI_LIBNAME} PROPERTIES PREFIX "lib" )
+	# Like a loadable individual module, it links no Geneva library -- the process that loads it
+	# already carries libgemfony-geneva, and a testing build's Geneva would hand the
 	# static Catch2 on to a shared library that cannot take it. COMPILE_ONLY takes Geneva's include
 	# paths and compile settings without linking. The one exception is courtier's MPI library: the
 	# process's MPI environment is defined there, once, and the module needs it at load time (also
-	# when a program that does not link it loads the module). It brings courtier and MPI with it.
+	# when a program that does not link that library loads the module).
 	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME}
 		PRIVATE ${COURTIER_MPI_LIBNAME}
 		PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> )
 	ADD_DEPENDENCIES ( ${GENEVA_MPI_LIBNAME} ${GENEVA_LIBNAME} )
-	INSTALL ( TARGETS ${GENEVA_MPI_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
+	INSTALL ( TARGETS ${GENEVA_MPI_LIBNAME} DESTINATION ${INSTALL_PREFIX_LIBS} )
 
 	# The loader in libgemfony-geneva needs the module's file name.
 	SET_PROPERTY ( SOURCE GConsumerSetup.cpp APPEND PROPERTY COMPILE_DEFINITIONS
