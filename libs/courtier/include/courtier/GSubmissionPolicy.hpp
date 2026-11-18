@@ -37,18 +37,18 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * What a consumer should do with a population slot that it ultimately cannot turn into a
+ * What a consumer should do with a batch slot that it ultimately cannot turn into a
  * successfully evaluated item -- i.e. an item that FAILED (its evaluation threw/crashed) or one
  * that stayed MISSING (never returned) beyond the resubmission budget / was reclassified as a
  * hidden FAILED.
  */
 //! [courtier-submission-policy#1]
 enum class on_unresolved : Gem::Common::ENUMBASETYPE {
-    /// Cannot continue -- terminate the program (e.g. gradient methods need
+    /// Cannot continue -- terminate the program (a submitter that needs
     /// every value)
     fatal = 0,
     /// Refill the slot with a clone of a successfully evaluated item
-    /// (population-based, tolerant)
+    /// (a tolerant submitter)
     clone = 1
 };
 //! [courtier-submission-policy#1]
@@ -56,9 +56,9 @@ enum class on_unresolved : Gem::Common::ENUMBASETYPE {
 /******************************************************************************/
 /**
  * A submission policy tells the consumer how to reconcile a batch (a std::span over the
- * population slice) when evaluations are missing or fail. Submission can NEVER be assumed to
+ * submitter's work items) when evaluations are missing or fail. Submission can NEVER be assumed to
  * succeed for every item (an item's processing can throw, a client can die), so the consumer
- * always reconciles the span against this policy and guarantees a valid, full-size population on
+ * always reconciles the span against this policy and guarantees a valid, full-size batch on
  * return -- or terminates fatally when the policy cannot be honoured.
  *
  * Two failure kinds are distinguished per slot:

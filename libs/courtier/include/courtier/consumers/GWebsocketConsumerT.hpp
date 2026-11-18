@@ -63,7 +63,7 @@ namespace Gem::Courtier {
  * by the idle limit and what it held is put back at once; without it the consumer reclaims items
  * by the time lease.
  *
- * @tparam processable_type The work-item type handed to clients and reconciled back into the population
+ * @tparam processable_type The work-item type handed to clients and reconciled back into the batch
  */
 template <typename processable_type>
 class GWebsocketConsumerT final : public GPeerConsumerT<processable_type> {

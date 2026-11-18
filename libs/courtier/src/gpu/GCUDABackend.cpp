@@ -315,15 +315,16 @@ void GCUDABackend<scalar_type>::evaluate(
     const GCUDADriver &drv = cudaDriver();
     cuCheck(drv.ctxPushCurrent(p_->context), "cuCtxPushCurrent(evaluate)");
 
-    const std::size_t paramBytes = static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim) * sizeof(scalar_type);
-    const std::size_t resultBytes = static_cast<std::size_t>(n_items) * sizeof(scalar_type);
-    const std::size_t pconstBytes = pconst_size > 0 ? pconst_size : 1; // avoid a 0-byte allocation
+    const std::size_t param_bytes =
+        static_cast<std::size_t>(n_items) * static_cast<std::size_t>(dim) * sizeof(scalar_type);
+    const std::size_t result_bytes = static_cast<std::size_t>(n_items) * sizeof(scalar_type);
+    const std::size_t pconst_bytes = pconst_size > 0 ? pconst_size : 1; // avoid a 0-byte allocation
 
-    p_->ensure(p_->d_params, p_->cap_params, paramBytes);
-    p_->ensure(p_->d_results, p_->cap_results, resultBytes);
-    p_->ensure(p_->d_pconst, p_->cap_pconst, pconstBytes);
+    p_->ensure(p_->d_params, p_->cap_params, param_bytes);
+    p_->ensure(p_->d_results, p_->cap_results, result_bytes);
+    p_->ensure(p_->d_pconst, p_->cap_pconst, pconst_bytes);
 
-    cuCheck(drv.memcpyHtoD(p_->d_params, params, paramBytes), "cuMemcpyHtoD(params)");
+    cuCheck(drv.memcpyHtoD(p_->d_params, params, param_bytes), "cuMemcpyHtoD(params)");
     // Upload the problem constants only when they actually changed (same pointer + size => the
     // consumer reused its cached, static blob, so the device copy is still valid). This avoids
     // re-sending e.g. a multi-MB target image for every batch.
@@ -335,7 +336,7 @@ void GCUDABackend<scalar_type>::evaluate(
     // Always zero the result buffer: a kernel that accumulates (atomicAdd, for intra-item
     // parallelism) needs it, and a kernel that overwrites is unaffected. This keeps an accumulating
     // kernel correct at ANY threads_per_item (including 1).
-    cuCheck(drv.memsetD8(p_->d_results, 0, resultBytes), "cuMemsetD8(results)");
+    cuCheck(drv.memsetD8(p_->d_results, 0, result_bytes), "cuMemsetD8(results)");
 
     // Kernel ABI: evaluate(const scalar_type* params, int n_items, int dim,
     //                      const unsigned char* pconst, int pconst_size, scalar_type* results,
@@ -356,7 +357,7 @@ void GCUDABackend<scalar_type>::evaluate(
         "cuLaunchKernel");
     cuCheck(drv.ctxSynchronize(), "cuCtxSynchronize");
 
-    cuCheck(drv.memcpyDtoH(results_out, p_->d_results, resultBytes), "cuMemcpyDtoH(results)");
+    cuCheck(drv.memcpyDtoH(results_out, p_->d_results, result_bytes), "cuMemcpyDtoH(results)");
 
     CUcontext popped = nullptr;
     cuCheck(drv.ctxPopCurrent(&popped), "cuCtxPopCurrent(evaluate)");

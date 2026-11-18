@@ -93,8 +93,10 @@ namespace Gem::Courtier {
  *
  * Borrow contract: the
  * batch's vector is BORROWED for the duration of dispatch_; the consumer reads/serializes/schedules
- * through it but never takes ownership. The only write is checkin() swapping a slot's pointer for the
- * deserialized result -- the submitter stays the sole owner of its items.
+ * through it but never takes ownership. It writes into the items in place -- a returned result in
+ * checkin() (applyProcessingOutcome(), then GWireProtocolT::applyReturn()), a failure, and each
+ * item's dispatch state -- but never replaces, frees or moves one: the submitter stays the sole
+ * owner of its items, and their addresses do not change.
  *
  * Timeout / death-detection (per batch, user-selectable via applyTimeoutConfig()): each dispatch_ waits
  * until its batch is DONE or progress stalls past a give-up window; items left DO_PROCESS == MISSING are
@@ -441,9 +443,9 @@ protected:
         auto it = batches_.find(decodeBatch(id));
         if(it == batches_.end()) {
             // Batch no longer active: a late arrival from a timed-out/finished batch. Instead of
-            // dropping it silently, park it in the bounded late-return buffer for a
-            // later getOldWorkItems() to reap. With buffering disabled (the default) this still counts
-            // the drop rather than losing it without trace.
+            // dropping it silently, park it in the bounded late-return buffer for a later
+            // getLateReturns() to reap. With buffering disabled (the default) this still counts the
+            // drop rather than losing it without trace.
             bufferLateReturn_locked(frame, std::move(returned));
             return;
         }
@@ -471,12 +473,13 @@ protected:
         }
         b.last_progress = now;
 
-        // Reconcile the return INTO the live slot object in place, keeping its heap address (the slot
-        // aliases the live population element). Rather than swapping the returned object in -- which would
-        // free the original and RELOCATE the population element -- we keep the original and write only
-        // what came back into it. The original already holds the submitted parameters and the evolved
-        // retained state (omitted on the wire), and address stability is what lets a concurrent
-        // per-item prefetch hold a snapshot of population addresses across the submission.
+        // Reconcile the return INTO the live slot object in place, keeping its heap address (the
+        // slot aliases the submitter's own item). Rather than swapping the returned object in --
+        // which would free the original and RELOCATE the submitter's item -- we keep the original
+        // and write only what came back into it. The original already holds the submitted data
+        // and the retained state (omitted on the wire), and address stability is what lets a
+        // concurrent per-item prefetch of the submitter hold a snapshot of the batch's addresses
+        // across the submission.
         //
         // A result that cannot be written into its slot leaves the slot in an unknown state, so
         // the slot is not handed out again as it is. It is flagged as failed, and the submission
@@ -717,7 +720,7 @@ protected:
             //
             // Before deregistering, retain a CLONE of each un-returned (MISSING) original, keyed by its
             // correlation id, so a slow-but-alive worker's later payload-only return still has something
-            // to be applied to, and can be reaped via getOldWorkItems() instead of dropped.
+            // to be applied to, and can be reaped via getLateReturns() instead of dropped.
             // Only when buffering is enabled; bounded by the same TTL + cap as the late-return buffer.
             if(late_store_.buffering()) {
                 for(std::size_t k = 0; k < b.items.size(); ++k) {

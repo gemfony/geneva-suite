@@ -61,8 +61,8 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /**
  * Base class for courtier consumers. A consumer is handed a *batch* -- a std::span over the
- * population slice to evaluate -- together with a GSubmissionPolicy, and is SOLELY responsible
- * for turning that span into a fully, successfully evaluated population (or for terminating the
+ * submitter's work items to process -- together with a GSubmissionPolicy, and is SOLELY responsible
+ * for turning that span into a fully, successfully processed batch (or for terminating the
  * program when the policy cannot be honoured). There is no "guaranteed full return" assumption
  * anywhere: an evaluation can always fail or never return, so the consumer always reconciles.
  *

@@ -461,7 +461,7 @@ public:
      * work item, keeping this item's own heap address and lineage id.
      *
      * This is the pointer-preserving counterpart of "the returned object becomes the slot": rather
-     * than overwriting a population slot's owning pointer with the deserialized return (which would
+     * than overwriting a batch slot's owning pointer with the deserialized return (which would
      * free the original object and change its address), a networked consumer keeps the
      * originally-submitted object and absorbs only what the worker computed. Address stability lets
      * other parts of the system (e.g. a submitter's per-item prefetch overlapping the processing)

@@ -95,7 +95,7 @@ public:
         int dim,
         const std::byte * /*pconst*/,
         std::size_t /*pconst_size*/,
-        double *fitness_out,
+        double *results_out,
         int /*threads_per_item*/
     ) override {
         std::thread::id expected{}; // no thread yet
@@ -110,7 +110,7 @@ public:
         }
         std::this_thread::sleep_for(20ms);
         for(int i = 0; i < n_items; ++i) {
-            fitness_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
+            results_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
         }
         seen_->inside.fetch_sub(1);
     }
@@ -176,12 +176,12 @@ public:
         int dim,
         const std::byte * /*pconst*/,
         std::size_t /*pconst_size*/,
-        double *fitness_out,
+        double *results_out,
         int /*threads_per_item*/
     ) override {
         *n_evaluated_ += static_cast<std::size_t>(n_items);
         for(int i = 0; i < n_items; ++i) {
-            fitness_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
+            results_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
         }
     }
 
@@ -288,13 +288,13 @@ public:
         int dim,
         const std::byte * /*pconst*/,
         std::size_t /*pconst_size*/,
-        double *fitness_out,
+        double *results_out,
         int /*threads_per_item*/
     ) override {
         lifecycleLog().emplace_back("device");
         std::this_thread::sleep_for(20ms);
         for(int i = 0; i < n_items; ++i) {
-            fitness_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
+            results_out[i] = params[static_cast<std::size_t>(i) * static_cast<std::size_t>(dim)];
         }
     }
 

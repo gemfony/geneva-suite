@@ -89,7 +89,7 @@ inline const char *toString(BackendKind k) {
 /******************************************************************************/
 /**
  * The launch geometry for one bulk kernel launch. The framework computes a 1D grid over the batch
- * (one work-item / thread per population member) from block_x by default; the other dimensions are
+ * (one work-item / thread per batch item) from block_x by default; the other dimensions are
  * available for kernels that want a 2D/3D decomposition. A grid extent of 0 means "compute it from
  * the item count and the block size".
  */
