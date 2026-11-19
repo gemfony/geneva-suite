@@ -32,7 +32,7 @@
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
 
-// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
+// No guard on GEM_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
 
 // Standard headers go here
 #include <chrono>

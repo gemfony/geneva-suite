@@ -116,7 +116,7 @@ def build_mpi_module_probe(ctx: JobContext) -> CheckResult:
 
 
 def build_tests_mismatch(ctx: JobContext) -> CheckResult:
-    """Verify a consumer can detect a GENEVA_BUILD_TESTS mismatch via the exposed variable.
+    """Verify a consumer can detect a GEM_BUILD_TESTS mismatch via the exposed variable.
 
     Geneva's installed config package (GenevaConfig.cmake.in:66) and the bundled
     FindGeneva.cmake both export the boolean ``GENEVA_TESTING`` variable, which
@@ -153,12 +153,12 @@ def build_tests_mismatch(ctx: JobContext) -> CheckResult:
         "endif()\n"
         "if(CONSUMER_REQUIRES_TESTING AND NOT GENEVA_TESTING)\n"
         "  message(FATAL_ERROR\n"
-        "    \"GENEVA_BUILD_TESTS mismatch: consumer requires a testing-enabled Geneva install\"\n"
+        "    \"GEM_BUILD_TESTS mismatch: consumer requires a testing-enabled Geneva install\"\n"
         "    \" but the install at ${CMAKE_PREFIX_PATH} reports GENEVA_TESTING=FALSE\")\n"
         "endif()\n"
         "if(NOT CONSUMER_REQUIRES_TESTING AND GENEVA_TESTING)\n"
         "  message(FATAL_ERROR\n"
-        "    \"GENEVA_BUILD_TESTS mismatch: consumer requires a non-testing Geneva install\"\n"
+        "    \"GEM_BUILD_TESTS mismatch: consumer requires a non-testing Geneva install\"\n"
         "    \" but the install at ${CMAKE_PREFIX_PATH} reports GENEVA_TESTING=TRUE\")\n"
         "endif()\n"
         "message(STATUS \"GENEVA_TESTING matches consumer expectation: ${CONSUMER_REQUIRES_TESTING}\")\n"
@@ -175,7 +175,7 @@ def build_tests_mismatch(ctx: JobContext) -> CheckResult:
         f"cmake -DCMAKE_PREFIX_PATH='{prefix}' -DCONSUMER_REQUIRES_TESTING={opposite} "
         '"$D/src" > /tmp/oot_bad.log 2>&1 && '
         '{ echo "PHASE2 (mismatch) UNEXPECTEDLY SUCCEEDED:"; tail -20 /tmp/oot_bad.log; exit 1; }\n'
-        'grep -q "GENEVA_BUILD_TESTS mismatch" /tmp/oot_bad.log '
+        'grep -q "GEM_BUILD_TESTS mismatch" /tmp/oot_bad.log '
         '|| { echo "PHASE2 failed but mismatch FATAL_ERROR not emitted:"; '
         'tail -20 /tmp/oot_bad.log; exit 1; }\n'
         'echo "build-tests-mismatch OK '

@@ -62,29 +62,29 @@
 ADD_SUBDIRECTORY ( include/geneva )
 ADD_SUBDIRECTORY ( src )
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()
 
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( docprograms )
 ENDIF ()
 
-IF ( GENEVA_BUILD_BENCHMARKS )
+IF ( GEM_BUILD_BENCHMARKS )
 	ADD_SUBDIRECTORY ( benchmarks )
 ENDIF ()
 
 # The unified GPU consumer framework (CPU/CUDA backends, runtime kernel loading) lives in the
 # Courtier library (courtier/include/courtier/gpu + courtier/src/gpu). It is an opt-in add-on folded
-# INTO gemfony-courtier when GENEVA_BUILD_WITH_GPU_CONSUMER is ON (like the MPI consumer); there is no
+# INTO gemfony-courtier when GEM_BUILD_WITH_GPU_CONSUMER is ON (like the MPI consumer); there is no
 # separate GPU library. It is exercised by example 14 (the Mona-Lisa problem) and the GPU optimisation
 # benchmark, both built only when the GPU consumer is.
 
 # Per-library Doxygen target (doc-geneva).
 ADD_SUBDIRECTORY ( doc )
 
-GENEVA_AGGREGATE_TARGET( "geneva-all" )
+GEM_AGGREGATE_TARGET( "geneva-all" )

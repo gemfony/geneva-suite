@@ -933,7 +933,7 @@ TEST_CASE(
 
     // The sections that run the consumer need its backend factory, which courtier contains only
     // where the GPU consumer is built; the marshaller and the item's own rules are tested everywhere.
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
     using Gem::Courtier::GSubmissionPolicy;
     using Gem::Courtier::GPU::GGPUConsumerT;
     GGPUConsumerT<GGenome, double> consumer(
@@ -976,7 +976,7 @@ TEST_CASE(
             CHECK(std::get<2>(item->getProcessingTimes()) >= 0.2);
         }
     }
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
     SECTION("a pre-processor that changes the dimension is refused before the buffer is written") {
         batch[0]->registerPreProcessor(std::make_shared<Gem::Tests::GrowingPreProcessor>());
@@ -1009,7 +1009,7 @@ TEST_CASE(
         CHECK_NOTHROW(batch[0]->completeProcessing({individual_processing_result(12.)}));
     }
 
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
     SECTION("a failing device reaches the submitter; the items are begun again when resubmitted") {
         GGPUConsumerT<GGenome, double> failing(
             std::make_unique<Gem::Tests::FailingBackend>(),
@@ -1046,7 +1046,7 @@ TEST_CASE(
             CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
         }
     }
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
     SECTION("an item whose pre- or post-processor throws fails alone") {
         // On the marshaller directly: under a submission policy the consumer would end the run

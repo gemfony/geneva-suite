@@ -5,7 +5,7 @@
 # -- was printed to stderr as "GCudaRNG: cuRAND call failed (...)", because the cuRAND error path could not
 # recognise shutdown on its own. The race is non-deterministic (about 40% of runs on the reference machine),
 # so this guard runs the reproducer many times and fails if the noise appears in ANY run. It is registered
-# only when the CUDA RNG backend is built (GENEVA_USE_CUDA_RNG_ENABLED) -- the defect cannot occur otherwise.
+# only when the CUDA RNG backend is built (GEM_USE_CUDA_RNG_ENABLED) -- the defect cannot occur otherwise.
 #
 # Driven via `cmake -P` with -DBIN, -DPLUGIN, -DWORKDIR and optionally -DRUNS.
 

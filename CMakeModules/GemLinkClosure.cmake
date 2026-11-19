@@ -30,7 +30,7 @@
 # The link closure of a library's programs: a test that fails when a program of a library, or a
 # library its programs are built with, links a library outside that library's own closure.
 #
-#     geneva_check_link_closure(<test name> FORBID <regex> DIRECTORIES <dirs...>)
+#     gem_check_link_closure(<test name> FORBID <regex> DIRECTORIES <dirs...>)
 #
 # called at the end of a library's CMakeLists.txt, after its subdirectories were added. It walks the
 # given directories (relative to the calling one; a directory that was not added, as tests/ in a
@@ -60,20 +60,20 @@ IF(CMAKE_SCRIPT_MODE_FILE)
 ENDIF()
 
 # Collects into <out> the targets defined in <dir> and in the directories below it
-FUNCTION(_geneva_link_closure_targets dir out)
+FUNCTION(_gem_link_closure_targets dir out)
 	GET_PROPERTY(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
 	GET_PROPERTY(_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
 	FOREACH(_sub IN LISTS _subdirs)
-		_geneva_link_closure_targets("${_sub}" _below)
+		_gem_link_closure_targets("${_sub}" _below)
 		LIST(APPEND _targets ${_below})
 	ENDFOREACH()
 	SET(${out} ${_targets} PARENT_SCOPE)
 ENDFUNCTION()
 
-FUNCTION(geneva_check_link_closure test_name)
+FUNCTION(gem_check_link_closure test_name)
 	CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 1 arg "" "FORBID" "DIRECTORIES")
 	IF(NOT arg_FORBID OR NOT arg_DIRECTORIES OR arg_UNPARSED_ARGUMENTS)
-		MESSAGE(FATAL_ERROR "geneva_check_link_closure(<test name> FORBID <regex> DIRECTORIES <dirs...>)")
+		MESSAGE(FATAL_ERROR "gem_check_link_closure(<test name> FORBID <regex> DIRECTORIES <dirs...>)")
 	ENDIF()
 
 	# The directories that were added below the calling one
@@ -82,7 +82,7 @@ FUNCTION(geneva_check_link_closure test_name)
 	FOREACH(_dir IN LISTS arg_DIRECTORIES)
 		SET(_full "${CMAKE_CURRENT_SOURCE_DIR}/${_dir}")
 		IF(_full IN_LIST _added)
-			_geneva_link_closure_targets("${_full}" _found)
+			_gem_link_closure_targets("${_full}" _found)
 			LIST(APPEND _targets ${_found})
 		ENDIF()
 	ENDFOREACH()
@@ -130,7 +130,7 @@ FUNCTION(geneva_check_link_closure test_name)
 	ENDFOREACH()
 
 	IF(_checked EQUAL 0)
-		MESSAGE(FATAL_ERROR "geneva_check_link_closure(${test_name}): no program or library found in "
+		MESSAGE(FATAL_ERROR "gem_check_link_closure(${test_name}): no program or library found in "
 			"${arg_DIRECTORIES} -- the walk is broken")
 	ENDIF()
 	LIST(JOIN _violations "|" _violations_text)
@@ -141,5 +141,5 @@ FUNCTION(geneva_check_link_closure test_name)
 			-P ${CMAKE_CURRENT_FUNCTION_LIST_FILE}
 	)
 	SET_TESTS_PROPERTIES(${test_name} PROPERTIES LABELS "conventions")
-	GENEVA_TEST_SIZE(${test_name} S)
+	GEM_TEST_SIZE(${test_name} S)
 ENDFUNCTION()

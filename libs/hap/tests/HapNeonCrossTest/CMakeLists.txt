@@ -74,7 +74,7 @@ IF ( HAP_AARCH64_CXX AND HAP_QEMU_AARCH64 )
 
 		ADD_CUSTOM_TARGET ( HapNeonCrossTest ALL DEPENDS ${_bin} )
 		ADD_TEST ( NAME HapNeonCrossTest COMMAND ${HAP_QEMU_AARCH64} ${_bin} )
-		GENEVA_TEST_SIZE(HapNeonCrossTest S)
+		GEM_TEST_SIZE(HapNeonCrossTest S)
 
 		MESSAGE ( STATUS "Hap: NEON cross-arch self-test enabled "
 			"(${HAP_AARCH64_CXX} + ${HAP_QEMU_AARCH64})" )

@@ -50,19 +50,19 @@
 ADD_SUBDIRECTORY ( include/hap )
 ADD_SUBDIRECTORY ( src )
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()
 
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
-IF ( GENEVA_BUILD_BENCHMARKS )
+IF ( GEM_BUILD_BENCHMARKS )
 	ADD_SUBDIRECTORY ( benchmarks )
 ENDIF ()
 
 # Per-library Doxygen target (doc-hap), mirroring hap/.
 ADD_SUBDIRECTORY ( doc )
 
-GENEVA_AGGREGATE_TARGET( "hap-all" )
+GEM_AGGREGATE_TARGET( "hap-all" )

@@ -35,7 +35,7 @@
 #  2. that installation is renamed: nothing in it may still name the prefix it
 #     was installed to (the exported targets, the config package, the run paths);
 #     a staged install (DESTDIR) is usable in the same way; of the collection's
-#     CMake modules it carries FindGeneva.cmake only (not CommonGenevaBuild.cmake,
+#     CMake modules it carries FindGeneva.cmake only (not CommonGemBuild.cmake,
 #     which builds the collection itself);
 #     every installed library, module and program must then resolve all its
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
@@ -44,7 +44,7 @@
 #     moved installation and GStarter is built, which also runs it once in the build
 #     tree (its configuration files are written by the program itself at build
 #     time); both programs carry the commit of that tree, the identity
-#     GENEVA_STAMP_PROGRAM stamps them with (the stamp's source names it and its
+#     GEM_STAMP_PROGRAM stamps them with (the stamp's source names it and its
 #     object is part of the program's link); the quickstart is then
 #     installed, configured with CMAKE_INSTALL_RPATH_USE_LINK_PATH, and the
 #     installed GStarter is run. A program linked by hand with -L, -l and
@@ -199,7 +199,7 @@ ENDFUNCTION()
 
 # 3. The quickstart: the config package must be the one of the moved installation. It is built as a
 #    user has it, copied out of the tree into a git work tree of its own, and its programs carry
-#    the commit of that tree (GENEVA_STAMP_PROGRAM); without git, CMake says they are not stamped.
+#    the commit of that tree (GEM_STAMP_PROGRAM); without git, CMake says they are not stamped.
 FUNCTION(gip_lane_quickstart)
 	gip_common_args(_args)
 	SET(_qs_src "${ROOT}/quickstart-src")
@@ -245,13 +245,13 @@ FUNCTION(gip_lane_quickstart)
 	# optimizing compiler may build the string from immediate values instead of keeping it whole.)
 	IF(GIT)
 		FOREACH(_program GStarter GStarterGenericOptimizer)
-			SET(_stamp "${ROOT}/quickstart/${_program}-GenevaProgramStamp.cpp")
+			SET(_stamp "${ROOT}/quickstart/${_program}-GemProgramStamp.cpp")
 			FILE(READ "${_stamp}" _stamp_source)
 			FILE(GLOB_RECURSE _stamp_object
-				"${ROOT}/quickstart/CMakeFiles/${_program}.dir/*${_program}-GenevaProgramStamp.cpp.o")
+				"${ROOT}/quickstart/CMakeFiles/${_program}.dir/*${_program}-GemProgramStamp.cpp.o")
 			IF(NOT _stamp_source MATCHES "setProgramIdentity\\(\"${_qs_commit}\"\\)" OR NOT _stamp_object)
 				MESSAGE(FATAL_ERROR "${_program} does not carry the commit ${_qs_commit} of the "
-					"quickstart's tree (GENEVA_STAMP_PROGRAM): its stamp\n${_stamp_source}\n"
+					"quickstart's tree (GEM_STAMP_PROGRAM): its stamp\n${_stamp_source}\n"
 					"its object: \"${_stamp_object}\"")
 			ENDIF()
 		ENDFOREACH()
@@ -471,9 +471,9 @@ ENDIF()
 FILE(RENAME "${ROOT}/installed" "${ROOT}/moved")
 
 # Of the collection's CMake modules the installation carries FindGeneva.cmake only. The modules that
-# build the collection itself (CommonGenevaBuild.cmake and what it includes) are not installed: a
+# build the collection itself (CommonGemBuild.cmake and what it includes) are not installed: a
 # project outside the tree finds Geneva with find_package(Geneva), as the lanes below do.
-FILE(GLOB_RECURSE _build_modules "${ROOT}/moved/*CommonGenevaBuild.cmake")
+FILE(GLOB_RECURSE _build_modules "${ROOT}/moved/*CommonGemBuild.cmake")
 FILE(GLOB _modules RELATIVE "${ROOT}/moved/CMakeModules" "${ROOT}/moved/CMakeModules/*")
 IF(_build_modules OR NOT _modules STREQUAL "FindGeneva.cmake")
 	gip_fail("The installation carries CMake modules beyond FindGeneva.cmake: ${_build_modules} "

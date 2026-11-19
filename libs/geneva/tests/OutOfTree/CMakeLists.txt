@@ -31,7 +31,7 @@
 # outside the tree gets and nothing else: the usage requirements of the targets it links, the same
 # ones its own CMakeLists.txt names as Geneva::courtier-mpi and Geneva::geneva.
 # The collection's own directory-level settings are taken away first: its compile definitions
-# (GENEVA_BUILD_WITH_MPI_CONSUMER among them, which no exported target carries) and its include
+# (GEM_BUILD_WITH_MPI_CONSUMER among them, which no exported target carries) and its include
 # directories (Boost's and MPI's, which a program outside gets only through the targets). A header
 # that compiles only with one of them breaks this build, as it would break a user's. The probe
 # itself is configured standalone against an installation by the release harness and the container
@@ -51,4 +51,4 @@ ADD_TEST ( NAME GenevaMpiModuleProbe
 	COMMAND $<TARGET_FILE:GenevaMpiModuleProbe>
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
 SET_TESTS_PROPERTIES ( GenevaMpiModuleProbe PROPERTIES LABELS "geneva" )
-GENEVA_TEST_SIZE ( GenevaMpiModuleProbe S )
+GEM_TEST_SIZE ( GenevaMpiModuleProbe S )

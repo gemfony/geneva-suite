@@ -73,11 +73,11 @@
 
 // The GPU consumer + the marshaller store it is built from -- known ONLY here (folded into
 // gemfony-courtier / geneva only when the GPU consumer is built).
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/GMarshallerSetup.hpp"
 #include "geneva/genome/GBaseGPUMarshallerT.hpp"
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
 namespace Gem::Geneva {
 
@@ -251,7 +251,7 @@ public:
     }
 };
 
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
 /**
  * @brief Provider for the (local, device-only) GPU consumer.
  *
@@ -366,7 +366,7 @@ private:
         return consumer;
     }
 };
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
 /******************************************************************************/
 /**
@@ -384,9 +384,9 @@ struct ConsumerProviderRegistrar {
             std::make_shared<GStdThreadConsumerProvider>()
         );
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
     }
 };
 

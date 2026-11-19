@@ -34,7 +34,7 @@
  * The DATA backend writes the columnar series data plus a self-describing manifest
  * (canvas + per-series plot kind / labels / bins), so rendering can happen entirely
  * OUTSIDE the C++ library. Two on-disk formats are shown: a human-inspectable CSV and
- * a binary numpy .npz. The bundled scripts/geneva_plot_render.py turns either back
+ * a binary numpy .npz. The bundled scripts/gem_plot_render.py turns either back
  * into a figure.
  */
 
@@ -73,6 +73,6 @@ int main() {
 
     std::cout << "external_render: wrote exported.csv and exported.npz\n"
               << "Render outside C++ with the bundled renderer, e.g.:\n"
-              << "  python3 dietrich/scripts/geneva_plot_render.py exported.npz -o exported.png\n";
+              << "  python3 dietrich/scripts/gem_plot_render.py exported.npz -o exported.png\n";
     return 0;
 }

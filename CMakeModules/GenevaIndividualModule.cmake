@@ -32,7 +32,7 @@
 # compiled-in object library and/or a runtime-loadable shared MODULE.
 #
 # This module is SHARED between the in-tree Geneva build (included from
-# CommonGenevaBuild.cmake) and the INSTALLED CMake package (included from the
+# CommonGemBuild.cmake) and the INSTALLED CMake package (included from the
 # generated GenevaConfig.cmake), so an out-of-tree project that consumes an
 # installed Geneva via find_package(Geneva) gets the same packaging helpers.
 #

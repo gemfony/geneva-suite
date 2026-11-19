@@ -193,7 +193,7 @@ std::string helloProgramUnchecked(const GCommandContainerT<processable_type> &he
                             : "this client's program has no identity";
     }
     return "The program is not checked against the server's: " + which +
-           " (Geneva's CMake support stamps a program with GENEVA_STAMP_PROGRAM; a program may "
+           " (Geneva's CMake support stamps a program with GEM_STAMP_PROGRAM; a program may "
            "also call Gem::Common::setProgramIdentity()).";
 }
 

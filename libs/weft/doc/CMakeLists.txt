@@ -31,8 +31,8 @@ IF (NOT DOXYGEN_FOUND)
 	RETURN ()
 ENDIF ()
 
-SET (GENEVA_DOC_LIB_NAME "weft")
-SET (GENEVA_DOC_LIB_DESC "Standalone serialization engine: an intrusive/non-intrusive "
+SET (GEM_DOC_LIB_NAME "weft")
+SET (GEM_DOC_LIB_DESC "Standalone serialization engine: an intrusive/non-intrusive "
 		"serialize contract with binary and JSON value codecs, content-addressed "
 		"polymorphic-pointer dispatch and its own error facility (named for the weft "
 		"thread woven through a fabric)")

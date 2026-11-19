@@ -37,19 +37,19 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
 
 # Include guard
-IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
-	SET(COMMON_GENEVA_BUILD_INCLUDED TRUE)
+IF(NOT COMMON_GEM_BUILD_INCLUDED)
+	SET(COMMON_GEM_BUILD_INCLUDED TRUE)
 
 	################################################################################
 	# Set some default values for user-settings. Generally, these should be provided
 	# through a custom genevaConfig.gcfg, in conjunction with the prepareBuild.sh script.
 
-	IF( NOT DEFINED GENEVA_BUILD_TYPE )
-		SET( GENEVA_BUILD_TYPE "Release" )
+	IF( NOT DEFINED GEM_BUILD_TYPE )
+		SET( GEM_BUILD_TYPE "Release" )
 	ENDIF()
 
-	IF( NOT DEFINED GENEVA_BUILD_TESTS )
-		SET( GENEVA_BUILD_TESTS TRUE )
+	IF( NOT DEFINED GEM_BUILD_TESTS )
+		SET( GEM_BUILD_TESTS TRUE )
 	ENDIF()
 
 	IF( NOT DEFINED CMAKE_VERBOSE_MAKEFILE )
@@ -71,17 +71,17 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# Identify the operating system
 
 	FIND_HOST_OS (
-			"GENEVA_OS_NAME"
-			"GENEVA_OS_VERSION"
+			"GEM_OS_NAME"
+			"GEM_OS_VERSION"
 	)
 
 	###############################################################################
 	# Identify unsupported setups as early as possible
 
 	FLAG_UNSUPPORTED_SETUPS(
-			${GENEVA_OS_NAME}
-			${GENEVA_OS_VERSION}
-			${GENEVA_BUILD_TYPE}
+			${GEM_OS_NAME}
+			${GEM_OS_VERSION}
+			${GEM_BUILD_TYPE}
 	)
 
 	################################################################################
@@ -113,24 +113,24 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# Set the compiler and linker flags
 
 	SET_COMPILER_FLAGS (
-			${GENEVA_OS_NAME}
-			${GENEVA_OS_VERSION}
-			${GENEVA_BUILD_TYPE}
+			${GEM_OS_NAME}
+			${GEM_OS_VERSION}
+			${GEM_BUILD_TYPE}
 	)
 
 	SET_LINKER_FLAGS (
-			${GENEVA_OS_NAME}
-			${GENEVA_OS_VERSION}
-			${GENEVA_BUILD_TYPE}
+			${GEM_OS_NAME}
+			${GEM_OS_VERSION}
+			${GEM_BUILD_TYPE}
 	)
 
 	################################################################################
 	# Set other necessary build flags
 
 	GET_BUILD_FLAGS (
-			${GENEVA_OS_NAME}
-			${GENEVA_OS_VERSION}
-			${GENEVA_BUILD_TYPE}
+			${GEM_OS_NAME}
+			${GEM_OS_VERSION}
+			${GEM_BUILD_TYPE}
 			"PLATFORM_NEEDS_LIBRARY_LINKING"
 	)
 
@@ -140,7 +140,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	################################################################################
 	# Set the preprocessor definition for enabling testing code
 
-	IF ( GENEVA_BUILD_TESTS )
+	IF ( GEM_BUILD_TESTS )
 		ADD_DEFINITIONS("-DGEM_TESTING")
 	ENDIF ()
 
@@ -158,19 +158,19 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# The minimum Boost version required for building Geneva and Geneva applications. It is
 	# written only as MIN_BOOST_VERSION in GGlobalDefines.hpp (BOOST_VERSION encoding, e.g.
 	# 109100) and is read from there as "major.minor" (e.g. 1.91).
-	SET (_GENEVA_BOOST_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
-	FILE (STRINGS "${_GENEVA_BOOST_HEADER}" _GENEVA_BOOST_LINE
+	SET (_GEM_BOOST_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
+	FILE (STRINGS "${_GEM_BOOST_HEADER}" _GEM_BOOST_LINE
 		REGEX "^#define[ \t]+MIN_BOOST_VERSION[ \t]+[0-9]+00[ \t]*$")
-	IF (NOT _GENEVA_BOOST_LINE MATCHES "MIN_BOOST_VERSION[ \t]+([0-9]+)")
-		MESSAGE (FATAL_ERROR "Cannot read MIN_BOOST_VERSION (a BOOST_VERSION-encoded number with patch level 00, such as 109100) from ${_GENEVA_BOOST_HEADER}")
+	IF (NOT _GEM_BOOST_LINE MATCHES "MIN_BOOST_VERSION[ \t]+([0-9]+)")
+		MESSAGE (FATAL_ERROR "Cannot read MIN_BOOST_VERSION (a BOOST_VERSION-encoded number with patch level 00, such as 109100) from ${_GEM_BOOST_HEADER}")
 	ENDIF ()
-	MATH (EXPR _GENEVA_BOOST_MAJOR "${CMAKE_MATCH_1} / 100000")
-	MATH (EXPR _GENEVA_BOOST_MINOR "${CMAKE_MATCH_1} / 100 % 1000")
-	SET (GENEVA_MIN_BOOST_VERSION ${_GENEVA_BOOST_MAJOR}.${_GENEVA_BOOST_MINOR})
+	MATH (EXPR _GEM_BOOST_MAJOR "${CMAKE_MATCH_1} / 100000")
+	MATH (EXPR _GEM_BOOST_MINOR "${CMAKE_MATCH_1} / 100 % 1000")
+	SET (GEM_MIN_BOOST_VERSION ${_GEM_BOOST_MAJOR}.${_GEM_BOOST_MINOR})
 
 	# These are the libraries required for any Geneva build
 	SET (
-			GENEVA_BOOST_LIBS
+			GEM_BOOST_LIBS
 			atomic
 			json
 			regex
@@ -189,7 +189,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# data and documentation destinations are "." (see below): "./examples/..." is to mean
 	# "examples/...". CMake 3.31 and later normalize such a path only under the NEW behaviour of
 	# CMP0177; the OLD one warns about every such destination. (Set here for the functions this
-	# file defines, such as GENEVA_MATERIALIZE_CONFIGS; the top-level CMakeLists.txt sets it for
+	# file defines, such as GEM_MATERIALIZE_CONFIGS; the top-level CMakeLists.txt sets it for
 	# its directories.)
 	if(POLICY CMP0177)
 		cmake_policy(SET CMP0177 NEW)
@@ -199,12 +199,12 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	MESSAGE("Searching for Boost...\n")
 	FIND_PACKAGE(
 			Boost
-			${GENEVA_MIN_BOOST_VERSION} REQUIRED
-			COMPONENTS ${GENEVA_BOOST_LIBS}
+			${GEM_MIN_BOOST_VERSION} REQUIRED
+			COMPONENTS ${GEM_BOOST_LIBS}
 	)
 	MESSAGE("")
 
-	IF (GENEVA_BUILD_TESTS)
+	IF (GEM_BUILD_TESTS)
 		MESSAGE("Searching for Catch2...\n")
 		FIND_PACKAGE(Catch2 3 REQUIRED)
 		MESSAGE("")
@@ -213,7 +213,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
 	# Optionally Search for MPI
-	IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+	IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		MESSAGE("Searching for MPI...\n")
 		FIND_PACKAGE(MPI REQUIRED)
 		MESSAGE("")
@@ -230,7 +230,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# Courtier's MPI library: built only with the MPI consumer; holds the process's one MPI
 	# environment (libs/courtier/src/mpi). Nothing that does not use MPI links it.
 	SET ( COURTIER_MPI_LIBNAME      "gemfony-courtier-mpi" )
-	# The GPU consumer is folded INTO gemfony-courtier as an opt-in add-on (GENEVA_BUILD_WITH_GPU_CONSUMER):
+	# The GPU consumer is folded INTO gemfony-courtier as an opt-in add-on (GEM_BUILD_WITH_GPU_CONSUMER):
 	# when enabled, courtier carries the CUDA backend and loads the CUDA driver at run time; when disabled,
 	# no GPU code is compiled. There is no separate GPU library. The MPI consumer, by contrast, lives in a
 	# module of its own (GENEVA_MPI_LIBNAME below), because MPI is a library not every machine has.
@@ -249,7 +249,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# build on common only; common builds on weft (the standalone serialization
 	# engine, the deepest layer), so weft links LAST, after common.
 	SET (
-			GENEVA_LIBNAMES
+			GEM_LIBNAMES
 			${GENEVA_LIBNAME}
 			${COURTIER_LIBNAME}
 			${HAP_LIBNAME}
@@ -260,7 +260,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 
 	# This variable contains the library names.
 	# The function TARGET_LINK_LIBRARIES() can use either variant.
-	SET ( GENEVA_LIBRARIES ${GENEVA_LIBNAMES} )
+	SET ( GENEVA_LIBRARIES ${GEM_LIBNAMES} )
 
 	################################################################################
 	# Add a custom target to run a "make clean" and remove temporaries,
@@ -330,12 +330,12 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 		# is made absolute against CMAKE_INSTALL_PREFIX. After a move the $ORIGIN entries, which
 		# come first, find the libraries.
 		IF (IS_ABSOLUTE "${INSTALL_PREFIX_LIBS}")
-			SET (_geneva_installed_libdir "${INSTALL_PREFIX_LIBS}")
+			SET (_gem_installed_libdir "${INSTALL_PREFIX_LIBS}")
 		ELSE ()
-			SET (_geneva_installed_libdir "${CMAKE_INSTALL_PREFIX}/${INSTALL_PREFIX_LIBS}")
+			SET (_gem_installed_libdir "${CMAKE_INSTALL_PREFIX}/${INSTALL_PREFIX_LIBS}")
 		ENDIF ()
 		SET (CMAKE_INSTALL_RPATH
-			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;$ORIGIN/../../../../lib;${_geneva_installed_libdir}")
+			"$ORIGIN/../lib;$ORIGIN/../../lib;$ORIGIN/../../../lib;$ORIGIN/../../../../lib;${_gem_installed_libdir}")
 	ENDIF ()
 	SET (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
@@ -347,7 +347,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	MESSAGE ("Building:")
 	MESSAGE ("\tthe Geneva library collection")
 	MESSAGE ("\tdynamically linked")
-	IF (GENEVA_BUILD_TESTS)
+	IF (GEM_BUILD_TESTS)
 		MESSAGE ("\tincluding testing code")
 	ELSE ()
 		MESSAGE ("\twithout testing code")
@@ -355,7 +355,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# Don't print the useless build type on multi-config generators
 	IF(NOT CMAKE_CONFIGURATION_TYPES)
 		MESSAGE ("\tin ${CMAKE_BUILD_TYPE} mode")
-		IF ("${GENEVA_BUILD_TYPE}" STREQUAL "Sanitize")
+		IF ("${GEM_BUILD_TYPE}" STREQUAL "Sanitize")
 			MESSAGE ("\twith -fsanitize=thread (if available)")
 		ENDIF ()
 	ENDIF ()
@@ -386,7 +386,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	ELSE()
 		MESSAGE ("\tproducing sparse CMake output")
 	ENDIF()
-	MESSAGE ("\tfor operating system:\t\t ${GENEVA_OS_NAME}")
+	MESSAGE ("\tfor operating system:\t\t ${GEM_OS_NAME}")
 	MESSAGE ("\tto install into prefix:\t\t ${INFO_INSTALL_PREFIX}")
 	MESSAGE ("")
 	MESSAGE ("========================================\n")
@@ -394,7 +394,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	###############################################################################
 	# Drift-proof aggregate-target helper.
 	#
-	# GENEVA_AGGREGATE_TARGET(<name>) creates a custom target depending on EVERY
+	# GEM_AGGREGATE_TARGET(<name>) creates a custom target depending on EVERY
 	# buildsystem target defined in the current directory and all of its
 	# subdirectories (recursively). Call it AFTER the ADD_SUBDIRECTORY() calls of
 	# a CMakeLists. This replaces hand-maintained DEPENDS lists -- which have
@@ -402,28 +402,28 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# new tests/benchmarks/examples never added) -- so that anything added under
 	# the directory is picked up automatically.
 
-	FUNCTION(_GENEVA_COLLECT_TARGETS_RECURSIVE _out_var _dir)
+	FUNCTION(_GEM_COLLECT_TARGETS_RECURSIVE _out_var _dir)
 		GET_PROPERTY(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
 		GET_PROPERTY(_targets DIRECTORY "${_dir}" PROPERTY BUILDSYSTEM_TARGETS)
 		SET(_acc "")
-		# Skip targets that opt out of the aggregate (GENEVA_EXCLUDE_FROM_AGGREGATE): opt-in maintenance
+		# Skip targets that opt out of the aggregate (GEM_EXCLUDE_FROM_AGGREGATE): opt-in maintenance
 		# targets (e.g. config-reference, which regenerates a version-controlled tree) must not run as part
 		# of a normal build.
 		FOREACH(_t ${_targets})
-			GET_TARGET_PROPERTY(_excl ${_t} GENEVA_EXCLUDE_FROM_AGGREGATE)
+			GET_TARGET_PROPERTY(_excl ${_t} GEM_EXCLUDE_FROM_AGGREGATE)
 			IF(NOT _excl)
 				LIST(APPEND _acc ${_t})
 			ENDIF()
 		ENDFOREACH()
 		FOREACH(_sub ${_subdirs})
-			_GENEVA_COLLECT_TARGETS_RECURSIVE(_child "${_sub}")
+			_GEM_COLLECT_TARGETS_RECURSIVE(_child "${_sub}")
 			LIST(APPEND _acc ${_child})
 		ENDFOREACH()
 		SET(${_out_var} "${_acc}" PARENT_SCOPE)
 	ENDFUNCTION()
 
-	FUNCTION(GENEVA_AGGREGATE_TARGET _name)
-		_GENEVA_COLLECT_TARGETS_RECURSIVE(_collected "${CMAKE_CURRENT_SOURCE_DIR}")
+	FUNCTION(GEM_AGGREGATE_TARGET _name)
+		_GEM_COLLECT_TARGETS_RECURSIVE(_collected "${CMAKE_CURRENT_SOURCE_DIR}")
 		IF(_collected)
 			LIST(REMOVE_DUPLICATES _collected)
 		ENDIF()
@@ -432,32 +432,32 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	ENDFUNCTION()
 
 	###############################################################################
-	# Build-time config materialization (GENEVA_MATERIALIZE_CONFIGS). The function body lives in the
-	# shared, installable GenevaConfigMaterialization.cmake so the SAME mechanism is available to an
+	# Build-time config materialization (GEM_MATERIALIZE_CONFIGS). The function body lives in the
+	# shared, installable GemConfigMaterialization.cmake so the SAME mechanism is available to an
 	# out-of-tree project that consumes an installed Geneva via find_package(Geneva) (the installed
 	# GenevaConfig.cmake includes the same file).
-	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaConfigMaterialization.cmake)
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GemConfigMaterialization.cmake)
 
 	###############################################################################
-	# The stamp of a user's program (GENEVA_STAMP_PROGRAM), shared with the installed package like
+	# The stamp of a user's program (GEM_STAMP_PROGRAM), shared with the installed package like
 	# the materialization above. The in-tree examples and benchmarks are not stamped: they are
 	# Geneva's own tree, whose commit the HELLO names already.
-	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaProgramStamp.cmake)
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GemProgramStamp.cmake)
 
 	###############################################################################
-	# The test-size label helper (GENEVA_TEST_SIZE). In-tree only: it is about how THIS suite is
+	# The test-size label helper (GEM_TEST_SIZE). In-tree only: it is about how THIS suite is
 	# scheduled, not about anything an installed Geneva exposes.
-	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaTestSize.cmake)
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GemTestSize.cmake)
 
 	###############################################################################
-	# The registration of a test that starts MPI jobs (GENEVA_ADD_MPI_TEST): a directory of its own
+	# The registration of a test that starts MPI jobs (GEM_ADD_MPI_TEST): a directory of its own
 	# for Open MPI's shared-memory files. In-tree only, like the size labels.
-	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaMpiTest.cmake)
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GemMpiTest.cmake)
 
 	###############################################################################
 	# The check that a library's programs link only the library's own closure
-	# (geneva_check_link_closure). In-tree only, like the size labels.
-	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaLinkClosure.cmake)
+	# (gem_check_link_closure). In-tree only, like the size labels.
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GemLinkClosure.cmake)
 
 	###############################################################################
 	# Runtime-loadable / compiled-in individual packaging helpers
@@ -483,8 +483,8 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	# of the consumer's own build type. (A sanitizer / _GLIBCXX_DEBUG build would be carried the same way, since
 	# those flags are in the build-type flags too.)
 	SET(_gi_bt "${CMAKE_BUILD_TYPE}")
-	IF(NOT _gi_bt AND DEFINED GENEVA_BUILD_TYPE)
-		SET(_gi_bt "${GENEVA_BUILD_TYPE}")
+	IF(NOT _gi_bt AND DEFINED GEM_BUILD_TYPE)
+		SET(_gi_bt "${GEM_BUILD_TYPE}")
 	ENDIF()
 	STRING(TOUPPER "${_gi_bt}" _gi_bt_u)
 	SEPARATE_ARGUMENTS(GENEVA_INDIVIDUAL_ABI_OPTIONS UNIX_COMMAND
@@ -495,7 +495,7 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	###############################################################################
 	# End of the include-guard
 
-ENDIF(NOT COMMON_GENEVA_BUILD_INCLUDED)
+ENDIF(NOT COMMON_GEM_BUILD_INCLUDED)
 
 ################################################################################
 # Done

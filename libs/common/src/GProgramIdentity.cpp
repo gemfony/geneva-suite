@@ -46,7 +46,7 @@ namespace {
 /******************************************************************************/
 /**
  * The identity of the user's program. A function-local static, so that a static object of the
- * program (the stamp of GENEVA_STAMP_PROGRAM) can set it before main(), whatever the order of
+ * program (the stamp of GEM_STAMP_PROGRAM) can set it before main(), whatever the order of
  * static initialization. No lock: see setProgramIdentity().
  */
 std::string &identity() {

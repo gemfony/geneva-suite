@@ -50,6 +50,6 @@ ADD_TEST(
 )
 # Configs auto-create on the first run and the stall criterion halts it in well under a second.
 SET_TESTS_PROPERTIES(GFunctionMinimizer PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GFunctionMinimizer S)
+GEM_TEST_SIZE(GFunctionMinimizer S)
 
 INSTALL ( TARGETS GFMinIndividual DESTINATION ${INSTALL_PREFIX_DATA}/examples/GFunctionMinimizer )

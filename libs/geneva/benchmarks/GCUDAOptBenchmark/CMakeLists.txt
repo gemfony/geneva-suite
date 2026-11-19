@@ -28,7 +28,7 @@
 ################################################################################
 
 # Multi-algorithm GPU optimisation benchmark. It is evaluated through the SAME unified courtier GPU
-# consumer (folded into gemfony-courtier when GENEVA_BUILD_WITH_GPU_CONSUMER is ON) that example 14 uses
+# consumer (folded into gemfony-courtier when GEM_BUILD_WITH_GPU_CONSUMER is ON) that example 14 uses
 # -- a whole population scored in one bulk,
 # runtime-compiled kernel launch. The kernel (kernels/benchmark_eval.cu via NVRTC)
 # is loaded at run time, so this target no longer enables the CUDA language at build time: it builds
@@ -45,7 +45,7 @@ ADD_EXECUTABLE ( ${EXECUTABLENAME}
 TARGET_INCLUDE_DIRECTORIES ( ${EXECUTABLENAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
 
 # The Geneva libraries (the GPU consumer + its CUDA backend + the libstdc++ ABI fix are folded
-# into gemfony-courtier when GENEVA_BUILD_WITH_GPU_CONSUMER is ON -- required for this benchmark to be
+# into gemfony-courtier when GEM_BUILD_WITH_GPU_CONSUMER is ON -- required for this benchmark to be
 # built at all, see geneva/benchmarks/CMakeLists.txt) and Boost.
 SET ( LIBRARIES_TO_LINK
 	${GENEVA_LIBRARIES}
@@ -74,7 +74,7 @@ ADD_CUSTOM_COMMAND ( TARGET ${EXECUTABLENAME} POST_BUILD
 
 # Materialize the configuration from code defaults at build time and overlay this benchmark's overrides
 # (config/config-overrides.json: the GPU-consumer kernel path), then install it.
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks/${EXECUTABLENAME}/config )
 
 # A throughput-scale run: it repeats the same optimization on each available backend and compares them,
 # so it takes minutes, not seconds -- 1372 s measured on the development host. Registered like every
@@ -87,7 +87,7 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/benchmarks
 # have tripped the clock and reported a defect that is not there.
 ADD_TEST ( ${EXECUTABLENAME} ${EXECUTABLENAME} )
 SET_TESTS_PROPERTIES ( ${EXECUTABLENAME} PROPERTIES LABELS "benchmark" TIMEOUT 4500 )
-GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
+GEM_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME}
 	DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/${EXECUTABLENAME} )

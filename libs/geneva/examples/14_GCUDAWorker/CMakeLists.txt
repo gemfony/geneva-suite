@@ -28,7 +28,7 @@
 ################################################################################
 
 # Example 14 -- the Mona-Lisa problem, evaluated through the unified courtier GPU consumer (folded into
-# gemfony-courtier when GENEVA_BUILD_WITH_GPU_CONSUMER is ON, which gates this whole example -- see
+# gemfony-courtier when GEM_BUILD_WITH_GPU_CONSUMER is ON, which gates this whole example -- see
 # geneva/examples/CMakeLists.txt). Unlike the old example 14 it does NOT enable the CUDA language: the kernel
 # is runtime-compiled by NVRTC at run time, so the example builds with an ordinary C++ toolchain and
 # selects CPU / CUDA at run time via config/GGPUConsumer.json. It only needs libpng to load
@@ -96,7 +96,7 @@ IF ( GIMAGE_USE_FLOAT )
 ENDIF ()
 
 # The Geneva libraries (the GPU consumer + its CUDA backend are folded into gemfony-courtier
-# when GENEVA_BUILD_WITH_GPU_CONSUMER is ON -- which is required for this example to be built at all,
+# when GEM_BUILD_WITH_GPU_CONSUMER is ON -- which is required for this example to be built at all,
 # see geneva/examples/CMakeLists.txt), Boost and libpng.
 TARGET_LINK_LIBRARIES ( ${EXECUTABLENAME} PRIVATE
 	${GENEVA_LIBRARIES}
@@ -118,7 +118,7 @@ FILE ( COPY ${CMAKE_CURRENT_SOURCE_DIR}/pictures DESTINATION ${CMAKE_CURRENT_BIN
 # depend on it so it exists first). This build-time run also loads the module under RTLD_NOW, so it doubles
 # as the smoke check that both contributions (individual + marshaller) resolve.
 ADD_DEPENDENCIES ( ${EXECUTABLENAME} GImageIndividual )
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/14_GCUDAWorker/config
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/14_GCUDAWorker/config
 	--module $<TARGET_FILE:GImageIndividual> )
 
 # Device-free end-to-end test: the launcher loads the module and optimizes the loaded individual on the CPU
@@ -138,7 +138,7 @@ ADD_TEST (
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES ( GCUDAWorker_CPU PROPERTIES LABELS "geneva;example" TIMEOUT 300 )
-GENEVA_TEST_SIZE(GCUDAWorker_CPU L)
+GEM_TEST_SIZE(GCUDAWorker_CPU L)
 
 # A networked run: a server and three clients, all of them ranks of the MPI consumer (the launcher
 # that starts the processes is the only infrastructure this needs, so the test exists only where the
@@ -146,8 +146,8 @@ GENEVA_TEST_SIZE(GCUDAWorker_CPU L)
 # evaluation without a target throws, and a best fitness of exactly 0 -- what an empty target
 # scores -- fails the test as well. One generation covers the path (Inv 22); three clients rather
 # than one keep a Debug run of it below a minute.
-IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
-	GENEVA_ADD_MPI_TEST (
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
+	GEM_ADD_MPI_TEST (
 		NAME GCUDAWorker_NetworkedClient
 		TIMEOUT 300
 		COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
@@ -158,7 +158,7 @@ IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
 	SET_TESTS_PROPERTIES ( GCUDAWorker_NetworkedClient PROPERTIES
 		LABELS "geneva;example" PROCESSORS 4
 		FAIL_REGULAR_EXPRESSION "no target image is loaded;Best fitness: 0[\r\n]" )
-	GENEVA_TEST_SIZE(GCUDAWorker_NetworkedClient L)
+	GEM_TEST_SIZE(GCUDAWorker_NetworkedClient L)
 ENDIF ()
 
 INSTALL ( TARGETS ${EXECUTABLENAME} GImageIndividual

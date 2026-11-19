@@ -35,4 +35,4 @@ ADD_SUBDIRECTORY ( HapGpuFallbackTests )
 ADD_SUBDIRECTORY ( ManualTests )
 ADD_SUBDIRECTORY ( HapNeonCrossTest )  # optional; only active with aarch64 cross-tools
 
-GENEVA_AGGREGATE_TARGET( "tests-hap" )
+GEM_AGGREGATE_TARGET( "tests-hap" )

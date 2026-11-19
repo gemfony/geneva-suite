@@ -65,7 +65,7 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 # These are the benchmark's own values, overlaid onto its own materialized configuration. Nothing about
 # the library defaults changes -- a fixed 1000-iteration budget with no stall halt is right here and
 # wrong nearly everywhere else (Inv 22).
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/geneva/PerformanceTests/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/geneva/PerformanceTests/${EXECUTABLENAME}/config )
 
 # A convergence-scale run: it optimizes the same problem at nine dimensions from 2 to 512, ten times
 # each, at a fixed 1000-iteration budget -- minutes, not seconds (123 s measured on the development
@@ -76,6 +76,6 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/gene
 # than on the clock.
 ADD_TEST(${EXECUTABLENAME} ${EXECUTABLENAME})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "benchmark" TIMEOUT 600)
-GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
+GEM_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )

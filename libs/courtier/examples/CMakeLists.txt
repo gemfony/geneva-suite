@@ -31,4 +31,4 @@
 # collects nothing until one is added. Documentation programs -- compiled listings
 # for the manual -- are deliberately kept apart, in ../docprograms/.
 
-GENEVA_AGGREGATE_TARGET( "examples-courtier" )
+GEM_AGGREGATE_TARGET( "examples-courtier" )

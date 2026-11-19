@@ -2612,7 +2612,7 @@ TEST_CASE(
 }
 #endif
 
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+#ifdef GEM_BUILD_WITH_MPI_CONSUMER
 // The command-line options of the "mpi" consumer are registered by Geneva's MPI module. Their
 // defaults must be those of MPIConsumerConfig: an option left unset must leave the consumer as a
 // default-constructed configuration describes it, and a default changed in the struct must change

@@ -29,9 +29,9 @@
 ################################################################################
 #
 #
-# Usage: GenevaRunMpiTest.sh <bound in seconds> <command> [<argument>...]
+# Usage: GemRunMpiTest.sh <bound in seconds> <command> [<argument>...]
 #
-# Runs a ctest entry that starts MPI jobs (GENEVA_ADD_MPI_TEST, GenevaMpiTest.cmake) with a
+# Runs a ctest entry that starts MPI jobs (GEM_ADD_MPI_TEST, GemMpiTest.cmake) with a
 # directory of its own for the files of Open MPI's shared-memory transport: made below /dev/shm
 # (below TMPDIR where there is none) before <command> starts, named to it and to every MPI job it
 # starts in OMPI_MCA_btl_sm_backing_directory (other MPI libraries ignore it), and removed when
@@ -46,7 +46,7 @@
 # timeout exists, it does this (it puts itself and <command> into a group of their own); elsewhere
 # <command> is started in a group of its own (bash's job control) and a watch of this script signals
 # that group. A bash script for that reason: sh has no job control without a terminal.
-# GENEVA_ADD_MPI_TEST sets the entry's TIMEOUT above the bound, so that the script still removes the
+# GEM_ADD_MPI_TEST sets the entry's TIMEOUT above the bound, so that the script still removes the
 # directory before ctest would end it with SIGKILL, which no script can answer.
 #
 # Interrupts. <command> runs in the background while the script waits for it, so that SIGINT,
@@ -61,7 +61,7 @@
 ################################################################################
 
 if [ $# -lt 2 ]; then
-    echo "Usage: GenevaRunMpiTest.sh <bound in seconds> <command> [<argument>...]" >&2
+    echo "Usage: GemRunMpiTest.sh <bound in seconds> <command> [<argument>...]" >&2
     exit 2
 fi
 bound=$1
@@ -71,7 +71,7 @@ base=/dev/shm
 if [ ! -d "$base" ] || [ ! -w "$base" ]; then
     base=${TMPDIR:-/tmp}
 fi
-dir=$(mktemp -d "$base/geneva-ctest-sm.XXXXXX") || exit 2
+dir=$(mktemp -d "$base/gem-ctest-sm.XXXXXX") || exit 2
 trap 'rm -rf "$dir"' EXIT
 OMPI_MCA_btl_sm_backing_directory=$dir
 export OMPI_MCA_btl_sm_backing_directory

@@ -493,7 +493,7 @@ private:
 
     /** @brief A bounded buffer holding the random number packages. The queue backend is selected at
      *  compile time by FACTORYQUEUEBACKEND (default: the std::deque-backed queue -- unchanged
-     *  behaviour; switchable to the preallocated ring via GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED). */
+     *  behaviour; switchable to the preallocated ring via GEM_HAP_FACTORY_QUEUE_PREALLOCATED). */
     Gem::Common::Concurrency::GMPMCQueueT<
         std::unique_ptr<random_container>,
         DEFAULTFACTORYBUFFERSIZE,

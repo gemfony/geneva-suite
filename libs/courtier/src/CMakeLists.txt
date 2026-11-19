@@ -47,7 +47,7 @@ SET(COMMUNICATIONSOURCES
 # The GPU consumer is optional, and is folded into this one courtier library: the device backends compile in (and CUDA links in) only when requested. The backend
 # source list + toolkit detection come from gpu/GPUBackends.cmake (which sets COURTIER_GPU_SRCS and the
 # COURTIER_GPU_HAVE_CUDA flag used in the link/definitions block below).
-IF (GENEVA_GPU_CONSUMER_ENABLED)
+IF (GEM_GPU_CONSUMER_ENABLED)
     INCLUDE( ${CMAKE_CURRENT_SOURCE_DIR}/gpu/GPUBackends.cmake )
     SET( COMMUNICATIONSOURCES
             ${COMMUNICATIONSOURCES}
@@ -70,7 +70,7 @@ SET_TARGET_PROPERTIES(
 )
 
 # Export the include directory. The C++ standard is selected centrally in
-# CMakeModules/CommonGenevaBuild.cmake.
+# CMakeModules/CommonGemBuild.cmake.
 TARGET_INCLUDE_DIRECTORIES(
         ${COURTIER_LIBNAME}
         PUBLIC
@@ -87,7 +87,7 @@ TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PUBLIC ${COMMON_LIBNAME})
 # GPUGEN_HAVE_* feature macros are likewise PRIVATE: only GGPUBackendFactory.cpp (a courtier translation
 # unit) switches on them to register the available backends; no public GPU header references them, so a
 # program that builds a GPU marshaller (e.g. example 14) does not need them.
-IF (GENEVA_GPU_CONSUMER_ENABLED)
+IF (GEM_GPU_CONSUMER_ENABLED)
     IF (COURTIER_GPU_HAVE_CUDA)
         TARGET_COMPILE_DEFINITIONS(${COURTIER_LIBNAME} PRIVATE GPUGEN_HAVE_CUDA)
         # NVRTC (a toolkit library) for runtime kernel compilation is linked. The CUDA driver API is
@@ -103,9 +103,9 @@ IF (GENEVA_GPU_CONSUMER_ENABLED)
     # The CUDA toolkit's bundled host compiler can inject an older libstdc++ into the link step; link
     # the CXX compiler's own libstdc++.so by full path to satisfy the required CXXABI (see top-level
     # CMakeLists notes on the CUDA link fix).
-    IF (COURTIER_GPU_HAVE_CUDA AND DEFINED GENEVA_CXX_RUNTIME_LIB_DIR
-        AND EXISTS "${GENEVA_CXX_RUNTIME_LIB_DIR}/libstdc++.so")
-        TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PRIVATE "${GENEVA_CXX_RUNTIME_LIB_DIR}/libstdc++.so")
+    IF (COURTIER_GPU_HAVE_CUDA AND DEFINED GEM_CXX_RUNTIME_LIB_DIR
+        AND EXISTS "${GEM_CXX_RUNTIME_LIB_DIR}/libstdc++.so")
+        TARGET_LINK_LIBRARIES(${COURTIER_LIBNAME} PRIVATE "${GEM_CXX_RUNTIME_LIB_DIR}/libstdc++.so")
     ENDIF ()
     MESSAGE(STATUS "${COURTIER_LIBNAME}: GPU consumer built in (consumer mnemonic 'gpu' available)")
 ENDIF ()
@@ -123,7 +123,7 @@ INSTALL(TARGETS ${COURTIER_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_P
 # not link (tests/CheckNoDriverLink.cmake). Nothing links it unless it uses MPI: Geneva's MPI module
 # does, and so does a program that names the functions of courtier/mpi/. Its headers include mpi.h,
 # so MPI is part of its interface.
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF (GEM_BUILD_WITH_MPI_CONSUMER)
     ADD_LIBRARY(${COURTIER_MPI_LIBNAME} SHARED
             mpi/GMPICalls.cpp
             mpi/GMPICascade.cpp

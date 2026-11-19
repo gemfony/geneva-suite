@@ -51,14 +51,14 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 
 # Materialize this example's configuration from the code defaults at build time (and overlay any
 # config/config-overrides.json), instead of copying a hand-maintained set of shipped config files.
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
 # End-to-end test on the materialized default configuration: the stall criterion halts the run after a
 # few dozen iterations, well inside a second (Inv 22).
 ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(${EXECUTABLENAME} S)
+GEM_TEST_SIZE(${EXECUTABLENAME} S)
 
 # A configuration file that cannot be applied ends the program with a clear message and the exit
 # code 1 (the fatal report Go2 installs, common/GFatalReport.hpp), not with an abort and a core dump:
@@ -76,6 +76,6 @@ ADD_TEST ( NAME ${EXECUTABLENAME}ConfigError
 		-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckJobEnds.cmake
 	WORKING_DIRECTORY ${CONFIG_ERROR_WORKDIR} )
 SET_TESTS_PROPERTIES ( ${EXECUTABLENAME}ConfigError PROPERTIES LABELS "geneva;example" )
-GENEVA_TEST_SIZE ( ${EXECUTABLENAME}ConfigError S )
+GEM_TEST_SIZE ( ${EXECUTABLENAME}ConfigError S )
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

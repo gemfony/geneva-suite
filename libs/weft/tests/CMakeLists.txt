@@ -29,4 +29,4 @@
 
 ADD_SUBDIRECTORY ( UnitTests )
 
-GENEVA_AGGREGATE_TARGET( "tests-weft" )
+GEM_AGGREGATE_TARGET( "tests-weft" )

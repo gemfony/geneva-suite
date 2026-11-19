@@ -49,7 +49,7 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${LIBRARIES_TO_LINK})
 
 
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 ADD_SUBDIRECTORY (evaluator)
 
 # This example delegates every evaluation to an EXTERNAL program -- the shipped evaluator/evaluator.py,
@@ -62,7 +62,7 @@ IF ( Python3_Interpreter_FOUND )
 	ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300)
-	GENEVA_TEST_SIZE(${EXECUTABLENAME} M)
+	GEM_TEST_SIZE(${EXECUTABLENAME} M)
 ELSE ()
 	MESSAGE ( STATUS
 		"Example 11 (GExternalEvaluator): no Python 3 interpreter found -- its end-to-end test is not registered" )

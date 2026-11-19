@@ -37,12 +37,12 @@ IF (NOT DOXYGEN_FOUND)
 	RETURN ()
 ENDIF ()
 
-SET (GENEVA_DOC_LIB_NAME "common")
-SET (GENEVA_DOC_LIB_DESC "Utilities: logging, thread pool, formula parser, "
+SET (GEM_DOC_LIB_NAME "common")
+SET (GEM_DOC_LIB_DESC "Utilities: logging, thread pool, formula parser, "
 		"plot designer, serialization helpers, bounded buffers, exception "
 		"types")
 # No upstream libraries -- common is the foundation.
-SET (GENEVA_DOC_TAGFILES "")
+SET (GEM_DOC_TAGFILES "")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in

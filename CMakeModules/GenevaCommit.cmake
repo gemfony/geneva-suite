@@ -48,8 +48,8 @@
 # Script mode:
 #   cmake -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<the C++ source to write> -P GenevaCommit.cmake
 #
-# The program mode (-DMODE=program) takes the identity of a user's program for GENEVA_STAMP_PROGRAM
-# (GenevaProgramStamp.cmake), by rule 1 with one difference: the program's sources may lie at any
+# The program mode (-DMODE=program) takes the identity of a user's program for GEM_STAMP_PROGRAM
+# (GemProgramStamp.cmake), by rule 1 with one difference: the program's sources may lie at any
 # depth inside the git work tree, whose HEAD is taken (and whose tracked files make it "-dirty"); a
 # user's project may well be a subdirectory of its repository. The file GENEVA_COMMIT belongs to the
 # Geneva sources and is not read. Without git the identity is empty
@@ -148,14 +148,14 @@ IF(MODE STREQUAL "program")
 	STRING(REPLACE "\\" "\\\\" _literal "${_id}")
 	STRING(REPLACE "\"" "\\\"" _literal "${_literal}")
 	SET(_source [=[
-// Written by GenevaCommit.cmake for GENEVA_STAMP_PROGRAM (GenevaProgramStamp.cmake); do not edit.
+// Written by GenevaCommit.cmake for GEM_STAMP_PROGRAM (GemProgramStamp.cmake); do not edit.
 #include "common/GGenevaCommit.hpp"
 
 namespace {
 /// Sets the identity of this program before main(); an empty one leaves the program unchecked
-const struct GenevaProgramStamp {
-    GenevaProgramStamp() { Gem::Common::setProgramIdentity("@ID@"); }
-} genevaProgramStamp;
+const struct GemProgramStamp {
+    GemProgramStamp() { Gem::Common::setProgramIdentity("@ID@"); }
+} gemProgramStamp;
 } // namespace
 ]=])
 	STRING(REPLACE "@ID@" "${_literal}" _source "${_source}")

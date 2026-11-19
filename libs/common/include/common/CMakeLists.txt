@@ -32,7 +32,7 @@
 # encoding rules).
 #
 
-SET ( GENEVACOMMONINCLUDES
+SET ( COMMONINCLUDES
 	GArchiveNamed.hpp
 	GBuildFingerprint.hpp
 	GCommonEnums.hpp
@@ -75,7 +75,7 @@ SET ( GENEVACOMMONINCLUDES
 # The concurrency facilities (thread pool/group + MPMC queues) live in a distinct
 # sub-module: the common/concurrency/ sub-directory + the Gem::Common::Concurrency
 # namespace, so they are clearly separated and hard to overlook.
-SET ( GENEVACOMMONCONCURRENCYINCLUDES
+SET ( COMMONCONCURRENCYINCLUDES
 	concurrency/GAgingStoreT.hpp
 	concurrency/GBlockingMPMCQueueT.hpp
 	concurrency/GCompletionLatchT.hpp
@@ -93,7 +93,7 @@ SET ( GENEVACOMMONCONCURRENCYINCLUDES
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${GENEVACOMMONINCLUDES} ${GENEVACOMMONCONCURRENCYINCLUDES})
+ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES})
 
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and

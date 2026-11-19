@@ -27,18 +27,18 @@
 #
 ################################################################################
 #
-# Build-time config materialization (GENEVA_MATERIALIZE_CONFIGS). The function
+# Build-time config materialization (GEM_MATERIALIZE_CONFIGS). The function
 # body lives in this shared, installable module so the SAME mechanism is
 # available to an out-of-tree project that consumes an installed Geneva via
 # find_package(Geneva) -- GenevaConfig.cmake includes it, exactly like the
 # individual-packaging helpers in GenevaIndividualModule.cmake. It expects
-# GenevaRunQuiet.cmake to sit next to this file (both in-tree in CMakeModules/
+# GemRunQuiet.cmake to sit next to this file (both in-tree in CMakeModules/
 # and in the installed package directory).
 #
 ################################################################################
 
 ###############################################################################
-# GENEVA_MATERIALIZE_CONFIGS(<target> <install-config-dest>)
+# GEM_MATERIALIZE_CONFIGS(<target> <install-config-dest>)
 #
 # Wires a config-owning binary so its configuration directory is MATERIALIZED FROM CODE at build time
 # rather than copied from a hand-maintained set of shipped files. After <target> is built it is run once
@@ -57,10 +57,10 @@
 #
 # The binaries run here emit their normal runtime output (GLogger notes about created config files
 # etc.); to keep that from interleaving with the build output, each run is routed through the
-# GenevaRunQuiet.cmake helper, which captures stdout+stderr to a log file in the target's build
+# GemRunQuiet.cmake helper, which captures stdout+stderr to a log file in the target's build
 # directory and replays it only if the run fails.
-SET(GENEVA_RUN_QUIET_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GenevaRunQuiet.cmake)
-FUNCTION(GENEVA_MATERIALIZE_CONFIGS _target _install_dest)
+SET(GEM_RUN_QUIET_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GemRunQuiet.cmake)
+FUNCTION(GEM_MATERIALIZE_CONFIGS _target _install_dest)
 	SET(_extra_args ${ARGN})
 	SET(_cfg_dir ${CMAKE_CURRENT_BINARY_DIR}/config)
 	SET(_overrides ${CMAKE_CURRENT_SOURCE_DIR}/config/config-overrides.json)
@@ -90,7 +90,7 @@ FUNCTION(GENEVA_MATERIALIZE_CONFIGS _target _install_dest)
 				"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 				"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/config-materialization.log"
 				"-DRQ_DESC=Config materialization for ${_target}"
-				-P ${GENEVA_RUN_QUIET_SCRIPT}
+				-P ${GEM_RUN_QUIET_SCRIPT}
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 			COMMENT "Materializing ${_target} configuration from code defaults"
 			VERBATIM)
@@ -103,7 +103,7 @@ FUNCTION(GENEVA_MATERIALIZE_CONFIGS _target _install_dest)
 					"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 					"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/config-overlay.log"
 					"-DRQ_DESC=Config-override overlay for ${_target}"
-					-P ${GENEVA_RUN_QUIET_SCRIPT}
+					-P ${GEM_RUN_QUIET_SCRIPT}
 				COMMENT "Overlaying ${_target} configuration overrides"
 				VERBATIM)
 	ENDIF()

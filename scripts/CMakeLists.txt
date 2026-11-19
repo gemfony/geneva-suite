@@ -27,13 +27,13 @@
 #
 ################################################################################
 
-SET ( GENEVACONFFILES
+SET ( GEMCONFFILES
 	README
 	genevaConfig.gcfg
 	sampleHostFile.hcfg
 )
 
-SET ( GENEVASCRIPTS
+SET ( GEMSCRIPTS
 	prepareBuild.sh
 	rsyncList.sh
 	sshList.sh
@@ -41,6 +41,6 @@ SET ( GENEVASCRIPTS
 	startLocalJobs.sh
 )
 
-INSTALL ( FILES ${GENEVACONFFILES} DESTINATION ${INSTALL_PREFIX_DATA}/scripts )
+INSTALL ( FILES ${GEMCONFFILES} DESTINATION ${INSTALL_PREFIX_DATA}/scripts )
 
-INSTALL ( PROGRAMS ${GENEVASCRIPTS} DESTINATION ${INSTALL_PREFIX_DATA}/scripts )
+INSTALL ( PROGRAMS ${GEMSCRIPTS} DESTINATION ${INSTALL_PREFIX_DATA}/scripts )

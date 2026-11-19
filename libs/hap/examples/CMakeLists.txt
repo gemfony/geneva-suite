@@ -30,4 +30,4 @@
 
 ADD_SUBDIRECTORY( 05_GHapUsagePatterns )
 
-GENEVA_AGGREGATE_TARGET( "examples-hap" )
+GEM_AGGREGATE_TARGET( "examples-hap" )

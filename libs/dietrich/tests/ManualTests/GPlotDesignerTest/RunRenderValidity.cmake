@@ -1,7 +1,7 @@
 ################################################################################
 #
 # Driver for the GPlotDesignerRenderValidity ctest. It confirms that the EXTERNAL
-# renderer (scripts/geneva_plot_render.py) reproduces a figure from a Geneva DATA
+# renderer (scripts/gem_plot_render.py) reproduces a figure from a Geneva DATA
 # export -- i.e. that rendering can live entirely OUTSIDE the C++ library, consuming
 # only the raw series data plus the self-describing manifest the DATA backend writes.
 #
@@ -48,12 +48,12 @@ function(render_and_check _input _png)
 	)
 	if(_err MATCHES "Traceback" OR _err MATCHES "Error")
 		message(FATAL_ERROR
-			"geneva_plot_render reported an error rendering ${_input}.\n"
+			"gem_plot_render reported an error rendering ${_input}.\n"
 			"stdout:\n${_out}\nstderr:\n${_err}")
 	endif()
 	if(NOT _py_rc EQUAL 0)
 		message(FATAL_ERROR
-			"geneva_plot_render exited non-zero (rc=${_py_rc}) rendering ${_input}.\n"
+			"gem_plot_render exited non-zero (rc=${_py_rc}) rendering ${_input}.\n"
 			"stdout:\n${_out}\nstderr:\n${_err}")
 	endif()
 	if(NOT EXISTS "${WORKDIR}/${_png}")
@@ -77,7 +77,7 @@ get_filename_component(_render_dir "${RENDER_PY}" DIRECTORY)
 file(WRITE "${WORKDIR}/gpd_render_validate.py"
 "import sys\n"
 "sys.path.insert(0, sys.argv[1])\n"
-"import geneva_plot_render as r\n"
+"import gem_plot_render as r\n"
 "\n"
 "canvas, series = r.load('result_data_full.npz')\n"
 "pads = {ax.get_title(): ax for ax in r.build_figure(canvas, series).axes}\n"

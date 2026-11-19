@@ -30,7 +30,7 @@
 ################################################################################
 # Helper: declare a Weft-library Catch2 test executable. Each call
 #
-#     geneva_weft_test(<exe-name> <size> <source-files...>)
+#     gem_weft_test(<exe-name> <size> <source-files...>)
 #
 # creates an executable, links it against ONLY gemfony-weft + Boost.JSON +
 # Catch2::Catch2WithMain (deliberately NOT the rest of the Geneva libraries), so
@@ -43,9 +43,9 @@
 # INSTALL. It is a required argument on purpose: a new test cannot be added without
 # saying what it costs, because the size is what decides whether a gate runs it.
 
-SET(_GENEVA_WEFT_TEST_TARGETS "")
+SET(_GEM_WEFT_TEST_TARGETS "")
 
-FUNCTION(geneva_weft_test name size)
+FUNCTION(gem_weft_test name size)
 	ADD_EXECUTABLE(${name} ${ARGN})
 
 	TARGET_LINK_LIBRARIES(${name}
@@ -56,27 +56,27 @@ FUNCTION(geneva_weft_test name size)
 
 	ADD_TEST(${name} ${name})
 	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "weft")
-	GENEVA_TEST_SIZE(${name} ${size})
+	GEM_TEST_SIZE(${name} ${size})
 	INSTALL(TARGETS ${name}
 		DESTINATION ${INSTALL_PREFIX_DATA}/tests/weft/UnitTests)
 
 	# Append to the parent-scope aggregate list.
-	SET(_GENEVA_WEFT_TEST_TARGETS "${_GENEVA_WEFT_TEST_TARGETS};${name}"
+	SET(_GEM_WEFT_TEST_TARGETS "${_GEM_WEFT_TEST_TARGETS};${name}"
 		PARENT_SCOPE)
 ENDFUNCTION()
 
 ################################################################################
 # Test executables — one per production feature, alphabetical.
 
-geneva_weft_test(GBinaryArchiveTests          S  GBinaryArchiveTests.cpp)
-geneva_weft_test(GArchiveCoverageTests        S  GArchiveCoverageTests.cpp)
-geneva_weft_test(GJsonArchiveTests            S  GJsonArchiveTests.cpp)
-geneva_weft_test(GPolymorphicRegistryTests    S  GPolymorphicRegistryTests.cpp)
+gem_weft_test(GBinaryArchiveTests          S  GBinaryArchiveTests.cpp)
+gem_weft_test(GArchiveCoverageTests        S  GArchiveCoverageTests.cpp)
+gem_weft_test(GJsonArchiveTests            S  GJsonArchiveTests.cpp)
+gem_weft_test(GPolymorphicRegistryTests    S  GPolymorphicRegistryTests.cpp)
 
 ################################################################################
 # Aggregate `tests-weft-unit` target builds every Weft test exe at once.
 
 ADD_CUSTOM_TARGET( "tests-weft-unit"
-	DEPENDS ${_GENEVA_WEFT_TEST_TARGETS}
+	DEPENDS ${_GEM_WEFT_TEST_TARGETS}
 	COMMENT "Building the unit tests for the \"weft\" library."
 )

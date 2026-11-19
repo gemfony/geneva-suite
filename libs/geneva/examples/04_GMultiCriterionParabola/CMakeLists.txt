@@ -38,7 +38,7 @@ GENEVA_DECLARE_INDIVIDUAL(GMultiCriterionParabolaIndividual
 # This problem exposes several conflicting evaluation criteria, so it must be optimized with a Pareto
 # sorting scheme -- the generic optimizer's default EA config uses single-objective selection, which would
 # drive only the first criterion. Because this example ships only a loadable module (it has no bespoke
-# executable), the standard GENEVA_MATERIALIZE_CONFIGS -- which runs a LOCAL executable -- does not fit;
+# executable), the standard GEM_MATERIALIZE_CONFIGS -- which runs a LOCAL executable -- does not fit;
 # instead the generic optimizer itself materializes the run-directory configs from its code defaults, and
 # the shipped config-overrides.json overlays the Pareto sorting_method onto GEvolutionaryAlgorithm.json.
 # (Kept inline rather than generalized into the shared macro until a second collapsed example needs it.)
@@ -51,7 +51,7 @@ ADD_DEPENDENCIES(GMultiCriterionParabolaIndividual GGenericOptimizer)
 IF(TARGET GConfigOverlay)
 	ADD_DEPENDENCIES(GMultiCriterionParabolaIndividual GConfigOverlay)
 ENDIF()
-# Both runs are routed through GenevaRunQuiet.cmake, like the shared macro's: their runtime output is
+# Both runs are routed through GemRunQuiet.cmake, like the shared macro's: their runtime output is
 # captured to log files in this build directory and replayed only on failure.
 ADD_CUSTOM_COMMAND(TARGET GMultiCriterionParabolaIndividual POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E rm -rf ${_mc_cfg_dir}
@@ -61,13 +61,13 @@ ADD_CUSTOM_COMMAND(TARGET GMultiCriterionParabolaIndividual POST_BUILD
 		"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 		"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/config-materialization.log"
 		"-DRQ_DESC=Config materialization for GMultiCriterionParabolaIndividual"
-		-P ${GENEVA_RUN_QUIET_SCRIPT}
+		-P ${GEM_RUN_QUIET_SCRIPT}
 	COMMAND ${CMAKE_COMMAND}
 		"-DRQ_CMD=$<TARGET_FILE:GConfigOverlay>|${_mc_cfg_dir}|${_mc_overrides}"
 		"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 		"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/config-overlay.log"
 		"-DRQ_DESC=Config-override overlay for GMultiCriterionParabolaIndividual"
-		-P ${GENEVA_RUN_QUIET_SCRIPT}
+		-P ${GEM_RUN_QUIET_SCRIPT}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 	COMMENT "Materializing GMultiCriterionParabola configs (Pareto sorting_method)"
 	VERBATIM)
@@ -80,7 +80,7 @@ ADD_TEST(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES(GMultiCriterionParabola PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GMultiCriterionParabola S)
+GEM_TEST_SIZE(GMultiCriterionParabola S)
 
 INSTALL ( TARGETS GMultiCriterionParabolaIndividual DESTINATION ${INSTALL_PREFIX_DATA}/examples/GMultiCriterionParabola )
 INSTALL ( DIRECTORY ${_mc_cfg_dir}/ DESTINATION ${INSTALL_PREFIX_DATA}/examples/GMultiCriterionParabola/config )

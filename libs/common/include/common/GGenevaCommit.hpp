@@ -60,8 +60,8 @@ namespace Gem::Common {
  *
  * A server of the networked consumers names it in its HELLO beside genevaCommit(), and a client
  * whose program has another identity ends; where one side has none, the program is not checked
- * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GENEVA_STAMP_PROGRAM,
- * CMakeModules/GenevaProgramStamp.cmake), which calls this function from a static object before
+ * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GEM_STAMP_PROGRAM,
+ * CMakeModules/GemProgramStamp.cmake), which calls this function from a static object before
  * main(); a program may also call it itself.
  *
  * The identity is one string per process and holds no lock: it is set before a consumer is made,

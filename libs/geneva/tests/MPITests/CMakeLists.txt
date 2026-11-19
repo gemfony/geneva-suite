@@ -45,13 +45,13 @@ TARGET_LINK_LIBRARIES ( GMPICascadeBaseCommTest
 ADD_DEPENDENCIES ( GMPICascadeBaseCommTest ${GENEVA_MPI_LIBNAME} )
 SET ( CASCADE_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/cascade-base-comm )
 FILE ( MAKE_DIRECTORY ${CASCADE_WORKDIR} )
-GENEVA_ADD_MPI_TEST ( NAME GMPICascadeBaseCommTest TIMEOUT 60
+GEM_ADD_MPI_TEST ( NAME GMPICascadeBaseCommTest TIMEOUT 60
 	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 5 ${MPIEXEC_PREFLAGS}
 			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
 			$<TARGET_FILE:GMPICascadeBaseCommTest> ${MPIEXEC_POSTFLAGS} --consumer mpi
 	WORKING_DIRECTORY ${CASCADE_WORKDIR} )
 SET_TESTS_PROPERTIES ( GMPICascadeBaseCommTest PROPERTIES LABELS "geneva" PROCESSORS 5 )
-GENEVA_TEST_SIZE ( GMPICascadeBaseCommTest M )
+GEM_TEST_SIZE ( GMPICascadeBaseCommTest M )
 
 # A bystander in a plain Go2 program: three ranks, of which the MPI consumer's communicator holds
 # two. The third must be in client mode, and its clientRun() must return at once. Each rank runs in
@@ -70,20 +70,20 @@ TARGET_LINK_LIBRARIES ( GMPIBystanderTest
 ADD_DEPENDENCIES ( GMPIBystanderTest ${GENEVA_MPI_LIBNAME} )
 SET ( BYSTANDER_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/bystander )
 FILE ( MAKE_DIRECTORY ${BYSTANDER_WORKDIR} )
-GENEVA_ADD_MPI_TEST ( NAME GMPIBystanderTest TIMEOUT 60
+GEM_ADD_MPI_TEST ( NAME GMPIBystanderTest TIMEOUT 60
 	COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
 			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
 			$<TARGET_FILE:GMPIBystanderTest> ${MPIEXEC_POSTFLAGS} --consumer mpi
 	WORKING_DIRECTORY ${BYSTANDER_WORKDIR} )
 SET_TESTS_PROPERTIES ( GMPIBystanderTest PROPERTIES LABELS "geneva" PROCESSORS 3 )
-GENEVA_TEST_SIZE ( GMPIBystanderTest M )
+GEM_TEST_SIZE ( GMPIBystanderTest M )
 
 # No rank enters MPI on the way out: a Go2 program asked for its help text, or for a refresh of its
 # configuration files, with the MPI consumer named, must end with 0 under the launcher. A rank that
 # initialized MPI and exited without finalizing it would make the launcher fail the job. Each rank
 # runs in a directory of its own below a scratch directory, because both paths write configuration
 # files.
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	SET ( NOMPI_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/no-mpi-on-the-way-out )
 	FILE ( MAKE_DIRECTORY ${NOMPI_WORKDIR} )
 	FOREACH ( _case IN ITEMS Help UpdateConfigs )
@@ -92,13 +92,13 @@ IF ( GENEVA_BUILD_EXAMPLES )
 		ELSE ()
 			SET ( _args --update-configs --consumer mpi )
 		ENDIF ()
-		GENEVA_ADD_MPI_TEST ( NAME GMPINoMpiOn${_case} TIMEOUT 60
+		GEM_ADD_MPI_TEST ( NAME GMPINoMpiOn${_case} TIMEOUT 60
 			COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}
 					${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
 					$<TARGET_FILE:GSimpleOptimizer> ${MPIEXEC_POSTFLAGS} ${_args}
 			WORKING_DIRECTORY ${NOMPI_WORKDIR} )
 		SET_TESTS_PROPERTIES ( GMPINoMpiOn${_case} PROPERTIES LABELS "geneva" PROCESSORS 2 )
-		GENEVA_TEST_SIZE ( GMPINoMpiOn${_case} S )
+		GEM_TEST_SIZE ( GMPINoMpiOn${_case} S )
 	ENDFOREACH ()
 
 	# A program started with the MPI consumer as one rank (under the launcher with one process, or
@@ -106,7 +106,7 @@ IF ( GENEVA_BUILD_EXAMPLES )
 	# say so and end with a non-zero code within seconds, not wait for ever.
 	SET ( ONERANK_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/one-rank )
 	FILE ( MAKE_DIRECTORY ${ONERANK_WORKDIR} )
-	GENEVA_ADD_MPI_TEST ( NAME GMPIOneRankRefused TIMEOUT 60
+	GEM_ADD_MPI_TEST ( NAME GMPIOneRankRefused TIMEOUT 60
 		COMMAND ${CMAKE_COMMAND}
 			"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};1;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GSimpleOptimizer>;${MPIEXEC_POSTFLAGS};--consumer;mpi"
 			-DEXPECT_EXIT=nonzero
@@ -115,5 +115,5 @@ IF ( GENEVA_BUILD_EXAMPLES )
 			-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckJobEnds.cmake
 		WORKING_DIRECTORY ${ONERANK_WORKDIR} )
 	SET_TESTS_PROPERTIES ( GMPIOneRankRefused PROPERTIES LABELS "geneva" )
-	GENEVA_TEST_SIZE ( GMPIOneRankRefused S )
+	GEM_TEST_SIZE ( GMPIOneRankRefused S )
 ENDIF ()

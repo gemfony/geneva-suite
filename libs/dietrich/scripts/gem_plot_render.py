@@ -50,7 +50,7 @@ graph_2d / graph_2d_err / graph_3d / graph_4d / hist_1d / hist_1i / hist_2d (an
 ``hist_1i`` integer histogram is stored as a true int32 array in the ``.npz``).
 
 Usage:
-    geneva_plot_render.py INPUT[.npz|.csv] [-o OUTPUT.png]
+    gem_plot_render.py INPUT[.npz|.csv] [-o OUTPUT.png]
 
 With no ``-o`` the output defaults to the input path with a ``.png`` suffix.
 """
@@ -328,10 +328,10 @@ def main(argv=None):
 
     canvas, series = load(args.input)
     if not series:
-        sys.stderr.write("geneva_plot_render: no renderable series in %s\n" % args.input)
+        sys.stderr.write("gem_plot_render: no renderable series in %s\n" % args.input)
         return 1
     render(canvas, series, output)
-    print("geneva_plot_render: wrote %s (%d series, %dx%d pads)"
+    print("gem_plot_render: wrote %s (%d series, %dx%d pads)"
           % (output, len(series), canvas.get("c_x_div", 1), canvas.get("c_y_div", 1)))
     return 0
 

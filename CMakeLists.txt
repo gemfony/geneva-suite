@@ -29,7 +29,7 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
 
-# Relative install destinations: see CMP0177 in CMakeModules/CommonGenevaBuild.cmake, which sets it
+# Relative install destinations: see CMP0177 in CMakeModules/CommonGemBuild.cmake, which sets it
 # for the functions it defines (their own policy scope); this sets it for the install() calls of
 # this project's directories.
 IF (POLICY CMP0177)
@@ -49,40 +49,40 @@ PROJECT (Geneva_Library_Collection LANGUAGES C CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set ON to skip all CUDA compilation regardless of whether nvcc is present.
-# Overrides GENEVA_USE_CUDA_RNG, CUDA_NVCC, and CUDA_ROOT.  Useful when a
+# Overrides GEM_USE_CUDA_RNG, CUDA_NVCC, and CUDA_ROOT.  Useful when a
 # system CUDA installation is broken or incompatible (e.g. CUDA 13.1 + glibc 2.39).
-option(GENEVA_SKIP_CUDA "Disable all CUDA compilation" OFF)
+option(GEM_SKIP_CUDA "Disable all CUDA compilation" OFF)
 
 # By default Geneva only enables CUDA-dependent code when the build host's GPU driver actually
-# supports the required CUDA version (see GENEVA_MIN_CUDA_VERSION below) -- a 13.3 toolkit paired with
+# supports the required CUDA version (see GEM_MIN_CUDA_VERSION below) -- a 13.3 toolkit paired with
 # an older driver compiles but fails at runtime in the NVRTC/PTX JIT, so that combination is
-# auto-disabled. Set GENEVA_FORCE_CUDA=ON to bypass the DEVICE check and build CUDA code whenever a
+# auto-disabled. Set GEM_FORCE_CUDA=ON to bypass the DEVICE check and build CUDA code whenever a
 # sufficiently new toolkit is present, regardless of the build host's driver -- intended for build
 # farms / CI where the machine that builds Geneva is not the machine that runs it. The toolkit-version
 # requirement is NOT bypassed. (gcfg: FORCECUDA.)
-option(GENEVA_FORCE_CUDA "Enable CUDA code on a new-enough toolkit even if the build host's driver cannot be confirmed to support it" OFF)
+option(GEM_FORCE_CUDA "Enable CUDA code on a new-enough toolkit even if the build host's driver cannot be confirmed to support it" OFF)
 
 # Tri-state opt-in for the Hap CUDA RNG backend: auto|on|off (legacy 0/1 still accepted).
-#   auto -> use CUDA when a toolkit is present (and GENEVA_SKIP_CUDA is OFF), else the SIMD/CPU engine
+#   auto -> use CUDA when a toolkit is present (and GEM_SKIP_CUDA is OFF), else the SIMD/CPU engine
 #   on   -> require CUDA (FATAL_ERROR if no toolkit / SKIPALLCUDA)
 #   off  -> never use CUDA for the RNG
-# Resolved below into the normal boolean GENEVA_USE_CUDA_RNG_ENABLED used downstream.
-set(GENEVA_USE_CUDA_RNG "auto" CACHE STRING "Use CUDA for RNG in Hap: auto|on|off")
-set_property(CACHE GENEVA_USE_CUDA_RNG PROPERTY STRINGS auto on off)
+# Resolved below into the normal boolean GEM_USE_CUDA_RNG_ENABLED used downstream.
+set(GEM_USE_CUDA_RNG "auto" CACHE STRING "Use CUDA for RNG in Hap: auto|on|off")
+set_property(CACHE GEM_USE_CUDA_RNG PROPERTY STRINGS auto on off)
 
 # Tri-state opt-in for the GPU consumer (GGPUConsumerT) built INTO the courtier library, exposing
 # the "gpu" consumer mnemonic: auto|on|off (legacy 0/1 still accepted). Like the MPI consumer this
 # is an opt-in add-on: when enabled the courtier library dynamically links the CUDA (NVRTC + driver
 # API) device backend when present; when disabled no GPU code is compiled and "gpu" is not a
 # selectable consumer (example 14 and the GPU benchmark are skipped too). A CPU backend is always
-# available when the consumer is built. Independent of GENEVA_USE_CUDA_RNG (a separate Hap feature);
-# honours GENEVA_SKIP_CUDA, which forces the whole consumer off.
-#   auto -> build the consumer when a CUDA toolkit is present (and GENEVA_SKIP_CUDA is OFF), else off
+# available when the consumer is built. Independent of GEM_USE_CUDA_RNG (a separate Hap feature);
+# honours GEM_SKIP_CUDA, which forces the whole consumer off.
+#   auto -> build the consumer when a CUDA toolkit is present (and GEM_SKIP_CUDA is OFF), else off
 #   on   -> require CUDA (FATAL_ERROR if no toolkit / SKIPALLCUDA)
 #   off  -> never build the GPU consumer
-# Resolved below into the normal boolean GENEVA_GPU_CONSUMER_ENABLED used downstream.
-set(GENEVA_BUILD_WITH_GPU_CONSUMER "auto" CACHE STRING "Build the GPU consumer (GGPUConsumerT) into courtier and expose the 'gpu' mnemonic: auto|on|off")
-set_property(CACHE GENEVA_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
+# Resolved below into the normal boolean GEM_GPU_CONSUMER_ENABLED used downstream.
+set(GEM_BUILD_WITH_GPU_CONSUMER "auto" CACHE STRING "Build the GPU consumer (GGPUConsumerT) into courtier and expose the 'gpu' mnemonic: auto|on|off")
+set_property(CACHE GEM_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 
 # Selects the source the default Gem::Hap::GRandom proxy draws from (compile-time only -- exactly
 # one backend exists in a given build):
@@ -101,20 +101,20 @@ endif()
 # default. Every consumer of hap must see the same one (else GRandom differs between the library
 # and the program): hap's PUBLIC compile definition (libs/hap/src/CMakeLists.txt), and the one of
 # Geneva::hap in the installed FindGeneva.cmake (CMakeModules/CMakeLists.txt).
-set(GENEVA_HAP_PUBLIC_DEFINE "")
+set(GEM_HAP_PUBLIC_DEFINE "")
 if(NOT HAP_RANDOM_SOURCE STREQUAL "queue")
-	string(TOUPPER "HAP_DEFAULT_SOURCE_${HAP_RANDOM_SOURCE}=1" GENEVA_HAP_PUBLIC_DEFINE)
+	string(TOUPPER "HAP_DEFAULT_SOURCE_${HAP_RANDOM_SOURCE}=1" GEM_HAP_PUBLIC_DEFINE)
 endif()
 
 # Set ON to instrument the Common library and its tests with coverage flags
 # (--coverage on GCC, -fprofile-instr-generate -fcoverage-mapping on Clang).
 # Used together with the `coverage` make target to produce gcovr reports.
 # Costs a noticeable amount of runtime; leave OFF for normal builds.
-option(GENEVA_BUILD_WITH_COVERAGE "Instrument Common library + tests for code coverage" OFF)
+option(GEM_BUILD_WITH_COVERAGE "Instrument Common library + tests for code coverage" OFF)
 
 # Probe for an optional CUDA toolchain.  If nvcc is found, CUDA examples and
 # benchmarks are added to the build automatically; if not, the rest of the
-# build proceeds as pure C++.  GENEVA_USE_CUDA_RNG remains a separate opt-in
+# build proceeds as pure C++.  GEM_USE_CUDA_RNG remains a separate opt-in
 # flag (see genevaConfig.gcfg) because enabling it makes the Hap library
 # depend on the CUDA runtime, reducing portability of programs linked with it.
 
@@ -124,13 +124,13 @@ option(GENEVA_BUILD_WITH_COVERAGE "Instrument Common library + tests for code co
 # nothing, falls back to a cuDriverGetVersion() probe via try_run (authoritative, and the durable path
 # once nvidia-smi's deprecated "CUDA Version" field is removed in CUDA 14). Must be called AFTER
 # find_package(CUDAToolkit) so the CUDA::cuda_driver target exists for the fallback.
-function(_geneva_detect_driver_cuda_version out_var)
+function(_gem_detect_driver_cuda_version out_var)
     set(_ver "")
 
-    find_program(_geneva_nvidia_smi nvidia-smi)
-    if(_geneva_nvidia_smi)
+    find_program(_gem_nvidia_smi nvidia-smi)
+    if(_gem_nvidia_smi)
         execute_process(
-            COMMAND "${_geneva_nvidia_smi}" -q
+            COMMAND "${_gem_nvidia_smi}" -q
             OUTPUT_VARIABLE _smi_out
             ERROR_QUIET
             RESULT_VARIABLE _smi_res)
@@ -143,14 +143,14 @@ function(_geneva_detect_driver_cuda_version out_var)
     endif()
 
     if((NOT _ver) AND TARGET CUDA::cuda_driver)
-        set(_probe "${CMAKE_BINARY_DIR}/CMakeFiles/geneva_cuda_driver_probe.cpp")
+        set(_probe "${CMAKE_BINARY_DIR}/CMakeFiles/gem_cuda_driver_probe.cpp")
         file(WRITE "${_probe}"
             "#include <cuda.h>\n#include <cstdio>\n"
             "int main(){int v=0; if(cuInit(0)!=CUDA_SUCCESS) return 2;"
             " if(cuDriverGetVersion(&v)!=CUDA_SUCCESS) return 3;"
             " std::printf(\"%d.%d\\n\", v/1000, (v%1000)/10); return 0;}\n")
         try_run(_run_res _comp_res
-            "${CMAKE_BINARY_DIR}/CMakeFiles/geneva_cuda_driver_probe"
+            "${CMAKE_BINARY_DIR}/CMakeFiles/gem_cuda_driver_probe"
             "${_probe}"
             LINK_LIBRARIES CUDA::cuda_driver
             RUN_OUTPUT_VARIABLE _run_out)
@@ -165,69 +165,69 @@ function(_geneva_detect_driver_cuda_version out_var)
     set(${out_var} "${_ver}" PARENT_SCOPE)
 endfunction()
 
-if(NOT GENEVA_SKIP_CUDA)
+if(NOT GEM_SKIP_CUDA)
     # If only CMAKE_CUDA_COMPILER was supplied (e.g. by prepareBuild.sh), derive
     # CUDAToolkit_ROOT from it so find_package(CUDAToolkit) locates the matching
     # headers and libraries.  Assumes the standard NVIDIA layout: <root>/bin/nvcc.
     if(DEFINED CMAKE_CUDA_COMPILER AND NOT DEFINED CUDAToolkit_ROOT)
-        get_filename_component(_geneva_cuda_bindir "${CMAKE_CUDA_COMPILER}" DIRECTORY)
-        get_filename_component(_geneva_cuda_root   "${_geneva_cuda_bindir}"  DIRECTORY)
-        set(CUDAToolkit_ROOT "${_geneva_cuda_root}"
+        get_filename_component(_gem_cuda_bindir "${CMAKE_CUDA_COMPILER}" DIRECTORY)
+        get_filename_component(_gem_cuda_root   "${_gem_cuda_bindir}"  DIRECTORY)
+        set(CUDAToolkit_ROOT "${_gem_cuda_root}"
             CACHE PATH "CUDA toolkit root (derived from CMAKE_CUDA_COMPILER)")
-        unset(_geneva_cuda_bindir)
-        unset(_geneva_cuda_root)
+        unset(_gem_cuda_bindir)
+        unset(_gem_cuda_root)
     endif()
 
     # The minimum supported CUDA version (toolkit AND device driver). 13.3 is the first CUDA Geneva
     # targets: its host front end consumes the C++23 code base, and earlier versions are no longer
     # validated against. Bump this in lock-step with the documented requirement (README, docs,
-    # scripts/genevaConfig.gcfg). Overridable via -DGENEVA_MIN_CUDA_VERSION for advanced users/tests.
-    if(NOT DEFINED GENEVA_MIN_CUDA_VERSION)
-        set(GENEVA_MIN_CUDA_VERSION 13.3)
+    # scripts/genevaConfig.gcfg). Overridable via -DGEM_MIN_CUDA_VERSION for advanced users/tests.
+    if(NOT DEFINED GEM_MIN_CUDA_VERSION)
+        set(GEM_MIN_CUDA_VERSION 13.3)
     endif()
 
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
         # A CUDA toolkit is present. Before enabling the language, decide whether CUDA-dependent code is
-        # actually BUILDABLE and RUNNABLE on this host: (1) the toolkit must be >= GENEVA_MIN_CUDA_VERSION,
-        # and (2) unless GENEVA_FORCE_CUDA is set, the build host's GPU driver must support that CUDA
+        # actually BUILDABLE and RUNNABLE on this host: (1) the toolkit must be >= GEM_MIN_CUDA_VERSION,
+        # and (2) unless GEM_FORCE_CUDA is set, the build host's GPU driver must support that CUDA
         # version too (a new toolkit on an older driver compiles fine but fails at runtime in the
         # NVRTC/PTX JIT with CUDA_ERROR_UNSUPPORTED_PTX_VERSION). If either check fails we AUTO-DISABLE
         # CUDA -- the rest of Geneva still builds -- and say so loudly, so the outcome is never silent.
         find_package(CUDAToolkit REQUIRED)
 
-        set(_geneva_cuda_ok TRUE)
-        set(_geneva_cuda_disable_reason "")
+        set(_gem_cuda_ok TRUE)
+        set(_gem_cuda_disable_reason "")
 
         # (1) Toolkit-version gate.
-        if(CUDAToolkit_VERSION VERSION_LESS GENEVA_MIN_CUDA_VERSION)
-            set(_geneva_cuda_ok FALSE)
-            set(_geneva_cuda_disable_reason
-                "the CUDA toolkit is ${CUDAToolkit_VERSION} (< required ${GENEVA_MIN_CUDA_VERSION})")
+        if(CUDAToolkit_VERSION VERSION_LESS GEM_MIN_CUDA_VERSION)
+            set(_gem_cuda_ok FALSE)
+            set(_gem_cuda_disable_reason
+                "the CUDA toolkit is ${CUDAToolkit_VERSION} (< required ${GEM_MIN_CUDA_VERSION})")
         endif()
 
-        # (2) Device/driver-capability gate (bypassed by GENEVA_FORCE_CUDA).
-        set(_geneva_driver_cuda "")
-        if(_geneva_cuda_ok AND NOT GENEVA_FORCE_CUDA)
-            _geneva_detect_driver_cuda_version(_geneva_driver_cuda)
-            if(NOT _geneva_driver_cuda)
-                set(_geneva_cuda_ok FALSE)
-                set(_geneva_cuda_disable_reason
+        # (2) Device/driver-capability gate (bypassed by GEM_FORCE_CUDA).
+        set(_gem_driver_cuda "")
+        if(_gem_cuda_ok AND NOT GEM_FORCE_CUDA)
+            _gem_detect_driver_cuda_version(_gem_driver_cuda)
+            if(NOT _gem_driver_cuda)
+                set(_gem_cuda_ok FALSE)
+                set(_gem_cuda_disable_reason
                     "no CUDA-capable GPU/driver could be detected on the build host")
-            elseif(_geneva_driver_cuda VERSION_LESS GENEVA_MIN_CUDA_VERSION)
-                set(_geneva_cuda_ok FALSE)
-                set(_geneva_cuda_disable_reason
-                    "the GPU driver supports only CUDA ${_geneva_driver_cuda} (< required ${GENEVA_MIN_CUDA_VERSION})")
+            elseif(_gem_driver_cuda VERSION_LESS GEM_MIN_CUDA_VERSION)
+                set(_gem_cuda_ok FALSE)
+                set(_gem_cuda_disable_reason
+                    "the GPU driver supports only CUDA ${_gem_driver_cuda} (< required ${GEM_MIN_CUDA_VERSION})")
             endif()
         endif()
 
-        if(_geneva_cuda_ok)
+        if(_gem_cuda_ok)
             enable_language(CUDA)
-            if(GENEVA_FORCE_CUDA)
-                message(STATUS "CUDA ${CUDAToolkit_VERSION} enabled (GENEVA_FORCE_CUDA=ON — build-host driver check bypassed)")
+            if(GEM_FORCE_CUDA)
+                message(STATUS "CUDA ${CUDAToolkit_VERSION} enabled (GEM_FORCE_CUDA=ON — build-host driver check bypassed)")
             else()
-                message(STATUS "CUDA ${CUDAToolkit_VERSION} enabled — toolkit and GPU driver (supports CUDA ${_geneva_driver_cuda}) are both >= ${GENEVA_MIN_CUDA_VERSION}")
+                message(STATUS "CUDA ${CUDAToolkit_VERSION} enabled — toolkit and GPU driver (supports CUDA ${_gem_driver_cuda}) are both >= ${GEM_MIN_CUDA_VERSION}")
             endif()
             message(STATUS "  Toolkit root: ${CUDAToolkit_ROOT}")
 
@@ -258,7 +258,7 @@ if(NOT GENEVA_SKIP_CUDA)
                 )
                 if(_cxx_libstdcxx_path AND NOT _cxx_libstdcxx_path STREQUAL "libstdc++.so")
                     get_filename_component(_cxx_lib_dir "${_cxx_libstdcxx_path}" DIRECTORY)
-                    set(GENEVA_CXX_RUNTIME_LIB_DIR "${_cxx_lib_dir}" CACHE INTERNAL "CXX runtime lib dir for CUDA link fix")
+                    set(GEM_CXX_RUNTIME_LIB_DIR "${_cxx_lib_dir}" CACHE INTERNAL "CXX runtime lib dir for CUDA link fix")
                 endif()
                 unset(_cxx_libstdcxx_path)
                 unset(_cxx_lib_dir)
@@ -266,46 +266,46 @@ if(NOT GENEVA_SKIP_CUDA)
         else()
             # AUTO-DISABLE: behave exactly as if no CUDA toolkit were present, so every downstream gate
             # (CUDA RNG, GPU consumer, CUDA examples/benchmark) uniformly turns off. We deliberately do
-            # NOT enable_language(CUDA); clearing CMAKE_CUDA_COMPILER makes _geneva_cuda_available FALSE.
-            set(GENEVA_CUDA_AUTODISABLED TRUE)
-            set(GENEVA_CUDA_DISABLE_REASON "${_geneva_cuda_disable_reason}")
+            # NOT enable_language(CUDA); clearing CMAKE_CUDA_COMPILER makes _gem_cuda_available FALSE.
+            set(GEM_CUDA_AUTODISABLED TRUE)
+            set(GEM_CUDA_DISABLE_REASON "${_gem_cuda_disable_reason}")
             unset(CMAKE_CUDA_COMPILER)
             unset(CMAKE_CUDA_COMPILER CACHE)
             message(WARNING
-                "CUDA-dependent code DISABLED: ${_geneva_cuda_disable_reason}.\n"
+                "CUDA-dependent code DISABLED: ${_gem_cuda_disable_reason}.\n"
                 "  All non-CUDA parts of Geneva still build; the CUDA examples/benchmark, the CUDA RNG "
                 "backend and the GPU consumer ('gpu' mnemonic) are skipped.\n"
                 "  To enable CUDA, install a toolkit AND GPU driver that both support CUDA "
-                ">= ${GENEVA_MIN_CUDA_VERSION}. If the build host's driver differs from the deploy "
-                "machine (build farm / CI), set -DGENEVA_FORCE_CUDA=ON (gcfg FORCECUDA=1) to build CUDA "
+                ">= ${GEM_MIN_CUDA_VERSION}. If the build host's driver differs from the deploy "
+                "machine (build farm / CI), set -DGEM_FORCE_CUDA=ON (gcfg FORCECUDA=1) to build CUDA "
                 "code anyway.")
         endif()
     else()
         message(STATUS "CUDA not found — building without CUDA examples and benchmarks")
     endif()
 else()
-    message(STATUS "CUDA disabled (GENEVA_SKIP_CUDA=ON) — skipping all CUDA compilation")
+    message(STATUS "CUDA disabled (GEM_SKIP_CUDA=ON) — skipping all CUDA compilation")
 endif()
 
 ################################################################################
-# Resolve the two tri-state CUDA opt-ins (GENEVA_USE_CUDA_RNG, GENEVA_BUILD_WITH_GPU_CONSUMER)
+# Resolve the two tri-state CUDA opt-ins (GEM_USE_CUDA_RNG, GEM_BUILD_WITH_GPU_CONSUMER)
 # into the NORMAL (non-cache) booleans the hap/courtier/geneva subdirectories gate on. Done here,
 # once, right after the shared CUDA detection above and before any ADD_SUBDIRECTORY, so the two
 # features stay independent yet share a single source of truth (the detection + SKIPALLCUDA).
 #
-#   _geneva_cuda_available -> a usable CUDA toolkit was detected and not skipped
+#   _gem_cuda_available -> a usable CUDA toolkit was detected and not skipped
 #   value -> ON  (legacy 1/TRUE/YES/ON) : require CUDA, FATAL_ERROR if unavailable
 #   value -> AUTO                       : enable iff a toolkit is available, else fall back
 #   value -> OFF (legacy 0/FALSE/NO/empty) : disabled
 #   anything else                       : FATAL_ERROR (must be auto|on|off)
-set(_geneva_cuda_available FALSE)
-if((NOT GENEVA_SKIP_CUDA) AND CMAKE_CUDA_COMPILER)
-    set(_geneva_cuda_available TRUE)
+set(_gem_cuda_available FALSE)
+if((NOT GEM_SKIP_CUDA) AND CMAKE_CUDA_COMPILER)
+    set(_gem_cuda_available TRUE)
 endif()
 
 # Resolve one tri-state cache STRING (<in_var>) into a normal boolean (<out_var>), naming the
 # feature (<label>) and its fallback (<fallback>) in the messages.
-function(_geneva_resolve_cuda_tristate in_var out_var label fallback)
+function(_gem_resolve_cuda_tristate in_var out_var label fallback)
     string(TOUPPER "${${in_var}}" _v)
     if(_v MATCHES "^(1|TRUE|YES|ON)$")
         set(_v "ON")
@@ -313,24 +313,24 @@ function(_geneva_resolve_cuda_tristate in_var out_var label fallback)
         set(_v "OFF")
     endif()
 
-    if(GENEVA_SKIP_CUDA)
+    if(GEM_SKIP_CUDA)
         if(_v STREQUAL "ON")
-            message(WARNING "${label}=on but GENEVA_SKIP_CUDA=ON overrides it — ${label} disabled")
+            message(WARNING "${label}=on but GEM_SKIP_CUDA=ON overrides it — ${label} disabled")
         endif()
         set(${out_var} FALSE PARENT_SCOPE)
     elseif(_v STREQUAL "ON")
-        if(_geneva_cuda_available)
+        if(_gem_cuda_available)
             set(${out_var} TRUE PARENT_SCOPE)
-        elseif(GENEVA_CUDA_AUTODISABLED)
+        elseif(GEM_CUDA_AUTODISABLED)
             message(FATAL_ERROR
-                "${label}=on, but CUDA was auto-disabled: ${GENEVA_CUDA_DISABLE_REASON}. "
-                "Fix the toolkit/driver to CUDA >= ${GENEVA_MIN_CUDA_VERSION}, set GENEVA_FORCE_CUDA=ON, "
+                "${label}=on, but CUDA was auto-disabled: ${GEM_CUDA_DISABLE_REASON}. "
+                "Fix the toolkit/driver to CUDA >= ${GEM_MIN_CUDA_VERSION}, set GEM_FORCE_CUDA=ON, "
                 "or set ${label}=auto|off.")
         else()
             message(FATAL_ERROR "${label}=on but no CUDA toolkit found (or SKIPALLCUDA on)")
         endif()
     elseif(_v STREQUAL "AUTO")
-        if(_geneva_cuda_available)
+        if(_gem_cuda_available)
             set(${out_var} TRUE PARENT_SCOPE)
         else()
             message(STATUS "${label}=auto: no CUDA toolkit — using ${fallback}")
@@ -343,36 +343,36 @@ function(_geneva_resolve_cuda_tristate in_var out_var label fallback)
     endif()
 endfunction()
 
-_geneva_resolve_cuda_tristate(GENEVA_USE_CUDA_RNG          GENEVA_USE_CUDA_RNG_ENABLED "GENEVA_USE_CUDA_RNG"          "the SIMD/CPU RNG engine")
-_geneva_resolve_cuda_tristate(GENEVA_BUILD_WITH_GPU_CONSUMER GENEVA_GPU_CONSUMER_ENABLED "GENEVA_BUILD_WITH_GPU_CONSUMER" "no GPU consumer")
+_gem_resolve_cuda_tristate(GEM_USE_CUDA_RNG          GEM_USE_CUDA_RNG_ENABLED "GEM_USE_CUDA_RNG"          "the SIMD/CPU RNG engine")
+_gem_resolve_cuda_tristate(GEM_BUILD_WITH_GPU_CONSUMER GEM_GPU_CONSUMER_ENABLED "GEM_BUILD_WITH_GPU_CONSUMER" "no GPU consumer")
 
 # Unified, no-surprise configure summary for the CUDA/GPU features.
-if(_geneva_cuda_available)
-    set(_geneva_cuda_summary "found ${CMAKE_CUDA_COMPILER_VERSION}")
-elseif(GENEVA_SKIP_CUDA)
-    set(_geneva_cuda_summary "skipped (SKIPALLCUDA)")
-elseif(GENEVA_CUDA_AUTODISABLED)
-    set(_geneva_cuda_summary "auto-disabled (${GENEVA_CUDA_DISABLE_REASON})")
+if(_gem_cuda_available)
+    set(_gem_cuda_summary "found ${CMAKE_CUDA_COMPILER_VERSION}")
+elseif(GEM_SKIP_CUDA)
+    set(_gem_cuda_summary "skipped (SKIPALLCUDA)")
+elseif(GEM_CUDA_AUTODISABLED)
+    set(_gem_cuda_summary "auto-disabled (${GEM_CUDA_DISABLE_REASON})")
 else()
-    set(_geneva_cuda_summary "not found")
+    set(_gem_cuda_summary "not found")
 endif()
-if(GENEVA_SKIP_CUDA)
-    set(_geneva_skip_summary "on")
+if(GEM_SKIP_CUDA)
+    set(_gem_skip_summary "on")
 else()
-    set(_geneva_skip_summary "off")
+    set(_gem_skip_summary "off")
 endif()
-if(GENEVA_USE_CUDA_RNG_ENABLED)
-    set(_geneva_rng_summary "CUDA")
+if(GEM_USE_CUDA_RNG_ENABLED)
+    set(_gem_rng_summary "CUDA")
 else()
-    set(_geneva_rng_summary "SIMD-or-CPU")
+    set(_gem_rng_summary "SIMD-or-CPU")
 endif()
-if(GENEVA_GPU_CONSUMER_ENABLED)
-    set(_geneva_gpu_summary "CUDA")
+if(GEM_GPU_CONSUMER_ENABLED)
+    set(_gem_gpu_summary "CUDA")
 else()
-    set(_geneva_gpu_summary "off")
+    set(_gem_gpu_summary "off")
 endif()
-message(STATUS "Geneva GPU/CUDA: SKIPALLCUDA=${_geneva_skip_summary}  CUDA-toolkit=${_geneva_cuda_summary}")
-message(STATUS "  Hap-RNG(USECUDARNG=${GENEVA_USE_CUDA_RNG}) -> ${_geneva_rng_summary}   GPU-consumer(BUILDGPUCONSUMER=${GENEVA_BUILD_WITH_GPU_CONSUMER}) -> ${_geneva_gpu_summary}")
+message(STATUS "Geneva GPU/CUDA: SKIPALLCUDA=${_gem_skip_summary}  CUDA-toolkit=${_gem_cuda_summary}")
+message(STATUS "  Hap-RNG(USECUDARNG=${GEM_USE_CUDA_RNG}) -> ${_gem_rng_summary}   GPU-consumer(BUILDGPUCONSUMER=${GEM_BUILD_WITH_GPU_CONSUMER}) -> ${_gem_gpu_summary}")
 
 # Detect the CXX compiler's libstdc++.so location and cache it.
 # The GCUDAWorker example uses this to link explicitly against the right
@@ -387,7 +387,7 @@ if(CMAKE_CUDA_COMPILER_LOADED AND CMAKE_CXX_COMPILER)
     )
     if(_cxx_libstdcxx_path AND NOT _cxx_libstdcxx_path STREQUAL "libstdc++.so")
         get_filename_component(_cxx_lib_dir "${_cxx_libstdcxx_path}" DIRECTORY)
-        set(GENEVA_CXX_RUNTIME_LIB_DIR "${_cxx_lib_dir}" CACHE INTERNAL "CXX runtime lib dir for CUDA link fix")
+        set(GEM_CXX_RUNTIME_LIB_DIR "${_cxx_lib_dir}" CACHE INTERNAL "CXX runtime lib dir for CUDA link fix")
     endif()
     unset(_cxx_libstdcxx_path)
     unset(_cxx_lib_dir)
@@ -400,7 +400,7 @@ endif()
 # red that was hidden rather than diagnosed). What decides whether a given run
 # includes a test is its measured SIZE, carried as a CTest label: S (< 1 s),
 # M (1-10 s), L (10-60 s), XL (> 60 s). Every registered test carries exactly one,
-# assigned with GENEVA_TEST_SIZE (CMakeModules/GenevaTestSize.cmake).
+# assigned with GEM_TEST_SIZE (CMakeModules/GemTestSize.cmake).
 #
 # The other labels -- the owning library, `example`, `benchmark` -- are descriptive
 # and never decide anything. A benchmark is a program whose purpose is a
@@ -454,7 +454,7 @@ ENDIF()
 #                              examples, tests and other scripts
 # If none of these variables is set, the whole Geneva binary tree is installed
 # (as expected) in "CMAKE_INSTALL_PREFIX", with destinations relative to it, so
-# that the installation can be moved (see the 'CommonGenevaBuild' module). The
+# that the installation can be moved (see the 'CommonGemBuild' module). The
 # default value for this last variable is set here.
 # Generally, this can be provided through a custom genevaConfig.gcfg, in
 # conjunction with the prepareBuild.sh script.
@@ -470,63 +470,63 @@ SET(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/CMakeModules")
 
 ################################################################################
 # Set preprocessor define to use in source code if building with MPI consumer
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-	ADD_COMPILE_DEFINITIONS(GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF (GEM_BUILD_WITH_MPI_CONSUMER)
+	ADD_COMPILE_DEFINITIONS(GEM_BUILD_WITH_MPI_CONSUMER)
 ENDIF ()
 
 # Set preprocessor define to use in source code if building with the GPU consumer.
-# This gates the "gpu" mnemonic in GConsumerSetup just as GENEVA_BUILD_WITH_MPI_CONSUMER
+# This gates the "gpu" mnemonic in GConsumerSetup just as GEM_BUILD_WITH_MPI_CONSUMER
 # gates "mpi". The CUDA backend selection inside courtier uses the separate
 # GPUGEN_HAVE_CUDA feature macro (see libs/courtier/src/CMakeLists.txt).
-IF (GENEVA_GPU_CONSUMER_ENABLED)
-	ADD_COMPILE_DEFINITIONS(GENEVA_BUILD_WITH_GPU_CONSUMER)
+IF (GEM_GPU_CONSUMER_ENABLED)
+	ADD_COMPILE_DEFINITIONS(GEM_BUILD_WITH_GPU_CONSUMER)
 ENDIF ()
 
 ###############################################################################
 # Include the shared functionality module for any Geneva build
 
-INCLUDE(CommonGenevaBuild)
+INCLUDE(CommonGemBuild)
 
 ###############################################################################
 # Sanitizer support (ThreadSanitizer / AddressSanitizer / UBSan).
 #
-# OFF by default (GENEVA_SANITIZER=none). When enabled it instruments the whole
+# OFF by default (GEM_SANITIZER=none). When enabled it instruments the whole
 # C++ build (compile + every link kind, including the shared libraries). CUDA
 # and MPI are deliberately EXCLUDED: nvcc cannot compile device code with
 # -fsanitize, and MPI internals flood ThreadSanitizer. The caller (prepareBuild.sh)
-# forces GENEVA_SKIP_CUDA=ON and GENEVA_BUILD_WITH_MPI_CONSUMER=OFF when a
+# forces GEM_SKIP_CUDA=ON and GEM_BUILD_WITH_MPI_CONSUMER=OFF when a
 # sanitizer is selected; we hard-fail here if that contract is violated.
-SET(GENEVA_SANITIZER "none" CACHE STRING
+SET(GEM_SANITIZER "none" CACHE STRING
     "Build with a sanitizer: none | thread | address | undefined (default: none)")
-SET_PROPERTY(CACHE GENEVA_SANITIZER PROPERTY STRINGS none thread address undefined)
+SET_PROPERTY(CACHE GEM_SANITIZER PROPERTY STRINGS none thread address undefined)
 
-IF(NOT GENEVA_SANITIZER STREQUAL "none")
-    IF(NOT GENEVA_SANITIZER MATCHES "^(thread|address|undefined)$")
-        MESSAGE(FATAL_ERROR "GENEVA_SANITIZER must be none|thread|address|undefined, got '${GENEVA_SANITIZER}'")
+IF(NOT GEM_SANITIZER STREQUAL "none")
+    IF(NOT GEM_SANITIZER MATCHES "^(thread|address|undefined)$")
+        MESSAGE(FATAL_ERROR "GEM_SANITIZER must be none|thread|address|undefined, got '${GEM_SANITIZER}'")
     ENDIF()
-    IF(NOT GENEVA_SKIP_CUDA)
+    IF(NOT GEM_SKIP_CUDA)
         MESSAGE(FATAL_ERROR
-            "GENEVA_SANITIZER=${GENEVA_SANITIZER} requires GENEVA_SKIP_CUDA=ON "
+            "GEM_SANITIZER=${GEM_SANITIZER} requires GEM_SKIP_CUDA=ON "
             "(CUDA device code cannot be built with -fsanitize).")
     ENDIF()
-    IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+    IF(GEM_BUILD_WITH_MPI_CONSUMER)
         MESSAGE(FATAL_ERROR
-            "GENEVA_SANITIZER=${GENEVA_SANITIZER} requires GENEVA_BUILD_WITH_MPI_CONSUMER=OFF "
+            "GEM_SANITIZER=${GEM_SANITIZER} requires GEM_BUILD_WITH_MPI_CONSUMER=OFF "
             "(MPI is excluded from sanitizing).")
     ENDIF()
-    SET(_geneva_san "-fsanitize=${GENEVA_SANITIZER} -g -fno-omit-frame-pointer")
-    STRING(APPEND CMAKE_CXX_FLAGS           " ${_geneva_san}")
-    STRING(APPEND CMAKE_C_FLAGS             " ${_geneva_san}")
-    STRING(APPEND CMAKE_EXE_LINKER_FLAGS    " -fsanitize=${GENEVA_SANITIZER}")
-    STRING(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=${GENEVA_SANITIZER}")
-    STRING(APPEND CMAKE_MODULE_LINKER_FLAGS " -fsanitize=${GENEVA_SANITIZER}")
+    SET(_gem_san "-fsanitize=${GEM_SANITIZER} -g -fno-omit-frame-pointer")
+    STRING(APPEND CMAKE_CXX_FLAGS           " ${_gem_san}")
+    STRING(APPEND CMAKE_C_FLAGS             " ${_gem_san}")
+    STRING(APPEND CMAKE_EXE_LINKER_FLAGS    " -fsanitize=${GEM_SANITIZER}")
+    STRING(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=${GEM_SANITIZER}")
+    STRING(APPEND CMAKE_MODULE_LINKER_FLAGS " -fsanitize=${GEM_SANITIZER}")
     # UBSan has no predefined compiler macro, so the GemCompat build fingerprint
     # (common/GBuildFingerprint.hpp) cannot detect it on its own; feed it the bit here so a UBSan module
     # and an uninstrumented host are told apart. Conservative -- plain UBSan stays link-compatible.
-    IF(GENEVA_SANITIZER STREQUAL "undefined")
+    IF(GEM_SANITIZER STREQUAL "undefined")
         ADD_COMPILE_DEFINITIONS(GEM_ABI_UBSAN_ACTIVE=1)
     ENDIF()
-    MESSAGE(STATUS "Sanitizer ENABLED: -fsanitize=${GENEVA_SANITIZER} (CUDA + MPI excluded)")
+    MESSAGE(STATUS "Sanitizer ENABLED: -fsanitize=${GEM_SANITIZER} (CUDA + MPI excluded)")
 ELSE()
     MESSAGE(STATUS "Sanitizer: none (default)")
 ENDIF()
@@ -567,28 +567,28 @@ ADD_CUSTOM_TARGET( "courtier"           DEPENDS ${COURTIER_LIBNAME}          COM
 ADD_CUSTOM_TARGET( "geneva"             DEPENDS ${GENEVA_LIBNAME}            COMMENT "Building only the Geneva library (now includes the former geneva-individuals sources)." )
 
 # Custom target for building all the libraries but no examples nor tests
-ADD_CUSTOM_TARGET( "core"               DEPENDS ${GENEVA_LIBNAMES}           COMMENT "Building all the Geneva libraries.")
+ADD_CUSTOM_TARGET( "core"               DEPENDS ${GEM_LIBNAMES}           COMMENT "Building all the Geneva libraries.")
 
 ################################################################################
 # Coverage target (Common library only). Only meaningful when configured with
-# -DGENEVA_BUILD_WITH_COVERAGE=ON. Builds the Common library and its tests,
+# -DGEM_BUILD_WITH_COVERAGE=ON. Builds the Common library and its tests,
 # runs them under CTest (label "common"), and produces both an HTML report
 # under <build>/coverage/common/ and a text summary on the terminal. Fails
-# if the line-coverage drops below GENEVA_COVERAGE_LINE_THRESHOLD (default
+# if the line-coverage drops below GEM_COVERAGE_LINE_THRESHOLD (default
 # 90; override at configure time to relax during early test development).
-SET(GENEVA_COVERAGE_LINE_THRESHOLD 90 CACHE STRING
+SET(GEM_COVERAGE_LINE_THRESHOLD 90 CACHE STRING
     "Minimum acceptable line-coverage percentage for the Common library")
-SET(GENEVA_COVERAGE_BRANCH_THRESHOLD 80 CACHE STRING
+SET(GEM_COVERAGE_BRANCH_THRESHOLD 80 CACHE STRING
     "Minimum acceptable branch-coverage percentage for the Common library")
-IF (GENEVA_BUILD_WITH_COVERAGE)
+IF (GEM_BUILD_WITH_COVERAGE)
     FIND_PROGRAM(GCOVR_EXECUTABLE NAMES gcovr)
     IF (NOT GCOVR_EXECUTABLE)
-        MESSAGE(WARNING "GENEVA_BUILD_WITH_COVERAGE=ON but gcovr was not "
+        MESSAGE(WARNING "GEM_BUILD_WITH_COVERAGE=ON but gcovr was not "
                 "found in PATH; the `coverage` make target will not work.")
     ENDIF ()
     # Filter: only the Common library's headers and sources count. (The plotting
     # code now lives in the separate dietrich library and is covered there.)
-    SET(_GENEVA_COV_FILTER
+    SET(_GEM_COV_FILTER
         "--filter=${PROJECT_SOURCE_DIR}/libs/common/include/common/.*"
         "--filter=${PROJECT_SOURCE_DIR}/libs/common/src/.*")
     ADD_CUSTOM_TARGET( "coverage"
@@ -601,13 +601,13 @@ IF (GENEVA_BUILD_WITH_COVERAGE)
         # the filter anyway; this just silences the noise.
         COMMAND ${GCOVR_EXECUTABLE}
                 --root "${PROJECT_SOURCE_DIR}"
-                ${_GENEVA_COV_FILTER}
+                ${_GEM_COV_FILTER}
                 --gcov-ignore-errors=no_working_dir_found
                 --print-summary
                 --txt "${CMAKE_BINARY_DIR}/coverage/common/summary.txt"
                 --html-details "${CMAKE_BINARY_DIR}/coverage/common/index.html"
-                --fail-under-line ${GENEVA_COVERAGE_LINE_THRESHOLD}
-                --fail-under-branch ${GENEVA_COVERAGE_BRANCH_THRESHOLD}
+                --fail-under-line ${GEM_COVERAGE_LINE_THRESHOLD}
+                --fail-under-branch ${GEM_COVERAGE_BRANCH_THRESHOLD}
                 "${CMAKE_BINARY_DIR}"
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         COMMENT "Building, running, and measuring Common-library coverage."
@@ -627,7 +627,7 @@ ADD_SUBDIRECTORY (scripts)
 # upcoming per-library subtrees) own their own tests/ subdirectories, so
 # enable_testing() must be in scope before those add_subdirectory calls or
 # their add_test() invocations are silently dropped.
-IF (GENEVA_BUILD_TESTS)
+IF (GEM_BUILD_TESTS)
 	INCLUDE(CTest)
 ENDIF ()
 
@@ -658,8 +658,8 @@ ADD_SUBDIRECTORY (libs/geneva)
 # library carries the standard as a PUBLIC compile feature, which travels with its imported target
 # (Geneva::*) into a downstream project. The global CMAKE_CXX_STANDARD reaches only the targets of
 # this build, never a consumer of the installed package.
-FOREACH ( _geneva_lib IN LISTS GENEVA_LIBNAMES )
-	TARGET_COMPILE_FEATURES ( ${_geneva_lib} PUBLIC cxx_std_${CMAKE_CXX_STANDARD} )
+FOREACH ( _gem_lib IN LISTS GEM_LIBNAMES )
+	TARGET_COMPILE_FEATURES ( ${_gem_lib} PUBLIC cxx_std_${CMAKE_CXX_STANDARD} )
 ENDFOREACH ()
 
 ################################################################################
@@ -682,14 +682,14 @@ ENDFOREACH ()
 INCLUDE(CMakePackageConfigHelpers)
 
 # Where the config package lands: alongside the installed libraries.
-SET(GENEVA_INSTALL_CMAKEDIR "${INSTALL_PREFIX_LIBS}/cmake/Geneva")
+SET(GEM_INSTALL_CMAKEDIR "${INSTALL_PREFIX_LIBS}/cmake/Geneva")
 
 # Export the imported targets accumulated via EXPORT GenevaTargets in the
 # per-library install(TARGETS ...) calls, under the Geneva:: namespace.
 INSTALL(
 	EXPORT GenevaTargets
 	NAMESPACE Geneva::
-	DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
+	DESTINATION ${GEM_INSTALL_CMAKEDIR}
 	FILE GenevaTargets.cmake
 )
 
@@ -698,27 +698,27 @@ INSTALL(
 # testing-enabled libgemfony-geneva references Catch2 symbols and must re-find
 # Catch2, and only a testing-enabled install carries working self-test hook
 # bodies for a consumer to drive (see GenevaConfig.cmake.in).
-IF (GENEVA_BUILD_TESTS)
-	SET(GENEVA_INSTALLED_WITH_TESTING TRUE)
+IF (GEM_BUILD_TESTS)
+	SET(GEM_INSTALLED_WITH_TESTING TRUE)
 ELSE ()
-	SET(GENEVA_INSTALLED_WITH_TESTING FALSE)
+	SET(GEM_INSTALLED_WITH_TESTING FALSE)
 ENDIF ()
 
 # Record whether this install was built with the MPI consumer: Geneva::courtier-mpi (and the MPI
 # module) then carry MPI::MPI_CXX in their interface, and the config package must find MPI for it.
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
-	SET(GENEVA_INSTALLED_WITH_MPI TRUE)
+IF (GEM_BUILD_WITH_MPI_CONSUMER)
+	SET(GEM_INSTALLED_WITH_MPI TRUE)
 ELSE ()
-	SET(GENEVA_INSTALLED_WITH_MPI FALSE)
+	SET(GEM_INSTALLED_WITH_MPI FALSE)
 ENDIF ()
 
 # Record whether this install was built with the GPU consumer: its backends are then compiled into
 # Geneva::courtier. The GPU headers are installed in any case (Inv 19), so a program can tell only
 # from this variable whether using them will link.
-IF (GENEVA_GPU_CONSUMER_ENABLED)
-	SET(GENEVA_INSTALLED_WITH_GPU TRUE)
+IF (GEM_GPU_CONSUMER_ENABLED)
+	SET(GEM_INSTALLED_WITH_GPU TRUE)
 ELSE ()
-	SET(GENEVA_INSTALLED_WITH_GPU FALSE)
+	SET(GEM_INSTALLED_WITH_GPU FALSE)
 ENDIF ()
 
 # Generate GenevaConfig.cmake from the template. PATH_VARS / INSTALL_DESTINATION
@@ -726,7 +726,7 @@ ENDIF ()
 CONFIGURE_PACKAGE_CONFIG_FILE(
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaConfig.cmake.in
 	${CMAKE_CURRENT_BINARY_DIR}/GenevaConfig.cmake
-	INSTALL_DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
+	INSTALL_DESTINATION ${GEM_INSTALL_CMAKEDIR}
 )
 
 # Version compatibility policy: SameMinorVersion. Geneva's minor version encodes
@@ -746,16 +746,16 @@ INSTALL(
 	# The individual-packaging helpers, so an out-of-tree consumer's find_package(Geneva) exposes
 	# GENEVA_ADD_INDIVIDUAL_MODULE / GENEVA_DECLARE_INDIVIDUAL (GenevaConfig.cmake includes this file).
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaIndividualModule.cmake
-	# The config-materialization helper (GENEVA_MATERIALIZE_CONFIGS) and the quiet-run script it drives,
+	# The config-materialization helper (GEM_MATERIALIZE_CONFIGS) and the quiet-run script it drives,
 	# so an out-of-tree consumer materializes its configs from code defaults the same way the in-tree
 	# examples do (GenevaConfig.cmake includes the former; the latter must sit next to it).
-	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaConfigMaterialization.cmake
-	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaRunQuiet.cmake
-	# The stamp of a program (GENEVA_STAMP_PROGRAM; GenevaConfig.cmake includes it) and the script
+	${PROJECT_SOURCE_DIR}/CMakeModules/GemConfigMaterialization.cmake
+	${PROJECT_SOURCE_DIR}/CMakeModules/GemRunQuiet.cmake
+	# The stamp of a program (GEM_STAMP_PROGRAM; GenevaConfig.cmake includes it) and the script
 	# that takes the commit of a tree for it, which must sit next to it.
-	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaProgramStamp.cmake
+	${PROJECT_SOURCE_DIR}/CMakeModules/GemProgramStamp.cmake
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
-	DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
+	DESTINATION ${GEM_INSTALL_CMAKEDIR}
 )
 
 ################################################################################
@@ -764,8 +764,8 @@ INSTALL(
 # that uses FindGeneva.cmake are built against the moved installation, at the same time, and
 # run, without LD_LIBRARY_PATH (CMakeModules/CheckInstalledPackage.cmake says how). Not registered in a
 # sanitizer build: a program built without -fsanitize cannot run against instrumented libraries.
-IF (GENEVA_BUILD_TESTS)
-	IF (GENEVA_SANITIZER STREQUAL "none")
+IF (GEM_BUILD_TESTS)
+	IF (GEM_SANITIZER STREQUAL "none")
 		# git makes the quickstart's copy a work tree of its own, whose commit its programs carry
 		FIND_PACKAGE(Git QUIET)
 		ADD_TEST(
@@ -778,9 +778,9 @@ IF (GENEVA_BUILD_TESTS)
 				-DBUILD_TYPE=${CMAKE_BUILD_TYPE}
 				-DBOOST_DIR=${Boost_DIR}
 				-DCATCH2_DIR=${Catch2_DIR}
-				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
-				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
-				-DHAP_DEFINE=${GENEVA_HAP_PUBLIC_DEFINE}
+				-DWITH_MPI=${GEM_BUILD_WITH_MPI_CONSUMER}
+				-DWITH_GPU=${GEM_INSTALLED_WITH_GPU}
+				-DHAP_DEFINE=${GEM_HAP_PUBLIC_DEFINE}
 				-DGIT=${GIT_EXECUTABLE}
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
@@ -790,16 +790,16 @@ IF (GENEVA_BUILD_TESTS)
 		# to 25 s under the load of a full "ctest -j16", and once reached 52 s on a host loaded by
 		# other compilations; 180 s leave room for such load without letting a hang wait long.
 		SET_TESTS_PROPERTIES(GenevaInstalledPackageProbes PROPERTIES LABELS "install" TIMEOUT 180)
-		GENEVA_TEST_SIZE(GenevaInstalledPackageProbes L)
+		GEM_TEST_SIZE(GenevaInstalledPackageProbes L)
 	ELSE ()
 		MESSAGE(STATUS "GenevaInstalledPackageProbes not registered: a sanitizer build "
-			"(GENEVA_SANITIZER=${GENEVA_SANITIZER}) cannot serve uninstrumented programs")
+			"(GEM_SANITIZER=${GEM_SANITIZER}) cannot serve uninstrumented programs")
 	ENDIF ()
 ENDIF ()
 
 ################################################################################
 # Conventions of the tree that a test can check, without building anything.
-IF (GENEVA_BUILD_TESTS)
+IF (GEM_BUILD_TESTS)
 	# The header lists of the libraries' IDE targets are sorted and name every header.
 	ADD_TEST(
 		NAME HeaderListsSortedAndComplete
@@ -807,7 +807,7 @@ IF (GENEVA_BUILD_TESTS)
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckHeaderLists.cmake
 	)
 	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
-	GENEVA_TEST_SIZE(HeaderListsSortedAndComplete S)
+	GEM_TEST_SIZE(HeaderListsSortedAndComplete S)
 
 	# Every library and program includes only the libraries of its layer (courtier nothing of hap).
 	ADD_TEST(
@@ -816,7 +816,7 @@ IF (GENEVA_BUILD_TESTS)
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckLibraryLayers.cmake
 	)
 	SET_TESTS_PROPERTIES(LibraryLayersRespected PROPERTIES LABELS "conventions")
-	GENEVA_TEST_SIZE(LibraryLayersRespected S)
+	GEM_TEST_SIZE(LibraryLayersRespected S)
 
 	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
 	ADD_TEST(
@@ -825,7 +825,7 @@ IF (GENEVA_BUILD_TESTS)
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckTestCaseNames.cmake
 	)
 	SET_TESTS_PROPERTIES(TestCaseNamesSelectable PROPERTIES LABELS "conventions")
-	GENEVA_TEST_SIZE(TestCaseNamesSelectable S)
+	GEM_TEST_SIZE(TestCaseNamesSelectable S)
 
 	# A NOLINT of cppcoreguidelines-special-member-functions sits on the class's name line, where
 	# clang-tidy reports the check (elsewhere it suppresses nothing).
@@ -835,7 +835,7 @@ IF (GENEVA_BUILD_TESTS)
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckSpecialMemberNolint.cmake
 	)
 	SET_TESTS_PROPERTIES(SpecialMemberNolintEffective PROPERTIES LABELS "conventions")
-	GENEVA_TEST_SIZE(SpecialMemberNolintEffective S)
+	GEM_TEST_SIZE(SpecialMemberNolintEffective S)
 
 	# Doxygen reports no warning about the libraries' documentation beyond the few that
 	# CMakeModules/DoxygenWarningsAllowed.txt lists with their reason. Needs Doxygen, like the doc
@@ -852,7 +852,7 @@ IF (GENEVA_BUILD_TESTS)
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckDoxygenWarnings.cmake
 		)
 		SET_TESTS_PROPERTIES(DoxygenWarningsOnlyAllowed PROPERTIES LABELS "conventions")
-		GENEVA_TEST_SIZE(DoxygenWarningsOnlyAllowed M)
+		GEM_TEST_SIZE(DoxygenWarningsOnlyAllowed M)
 	ELSE ()
 		MESSAGE(STATUS "DoxygenWarningsOnlyAllowed not registered: Doxygen not found")
 	ENDIF ()
@@ -874,7 +874,7 @@ IF (GENEVA_BUILD_TESTS)
 		ADD_TEST(NAME CheckFigureTitlesRule_${_case}
 			COMMAND ${CMAKE_COMMAND} -DFIGURES=${_titles_dir}/${_case}.C
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake)
-		GENEVA_TEST_SIZE(CheckFigureTitlesRule_${_case} S)
+		GEM_TEST_SIZE(CheckFigureTitlesRule_${_case} S)
 	ENDFOREACH()
 	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
 		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
@@ -890,43 +890,43 @@ IF (GENEVA_BUILD_TESTS)
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaCommit.cmake
 		)
 		SET_TESTS_PROPERTIES(GenevaCommitSources PROPERTIES LABELS "conventions" TIMEOUT 60)
-		GENEVA_TEST_SIZE(GenevaCommitSources S)
-		# How GENEVA_STAMP_PROGRAM (GenevaProgramStamp.cmake) stamps a user's program, in made-up
+		GEM_TEST_SIZE(GenevaCommitSources S)
+		# How GEM_STAMP_PROGRAM (GemProgramStamp.cmake) stamps a user's program, in made-up
 		# projects (configured, not compiled).
 		ADD_TEST(
-			NAME GenevaProgramStamp
-			COMMAND ${CMAKE_COMMAND} -DMODULE=${PROJECT_SOURCE_DIR}/CMakeModules/GenevaProgramStamp.cmake
+			NAME GemProgramStamp
+			COMMAND ${CMAKE_COMMAND} -DMODULE=${PROJECT_SOURCE_DIR}/CMakeModules/GemProgramStamp.cmake
 				-DGIT=${GIT_EXECUTABLE} -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
-				-DWORK=${CMAKE_BINARY_DIR}/GenevaProgramStamp
-				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaProgramStamp.cmake
+				-DWORK=${CMAKE_BINARY_DIR}/GemProgramStamp
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGemProgramStamp.cmake
 		)
-		SET_TESTS_PROPERTIES(GenevaProgramStamp PROPERTIES LABELS "conventions" TIMEOUT 120)
-		GENEVA_TEST_SIZE(GenevaProgramStamp M)
+		SET_TESTS_PROPERTIES(GemProgramStamp PROPERTIES LABELS "conventions" TIMEOUT 120)
+		GEM_TEST_SIZE(GemProgramStamp M)
 	ELSE ()
-		MESSAGE(STATUS "GenevaCommitSources and GenevaProgramStamp not registered: git not found")
+		MESSAGE(STATUS "GenevaCommitSources and GemProgramStamp not registered: git not found")
 	ENDIF ()
 
-	# The runner of the tests that start MPI jobs (GenevaMpiTest.cmake) gives two runs at the same
+	# The runner of the tests that start MPI jobs (GemMpiTest.cmake) gives two runs at the same
 	# time two directories for Open MPI's shared-memory files and removes each, also after a
 	# failure and at its bound; and every entry that names the MPI launcher runs under it.
 	ADD_TEST(
-		NAME GenevaMpiTestDirectories
-		COMMAND ${CMAKE_COMMAND} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
-			-DWORK=${CMAKE_BINARY_DIR}/GenevaMpiTestDirectories
+		NAME GemMpiTestDirectories
+		COMMAND ${CMAKE_COMMAND} -DRUNNER=${GEM_MPI_TEST_RUNNER}
+			-DWORK=${CMAKE_BINARY_DIR}/GemMpiTestDirectories
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestDirectories.cmake
 	)
-	SET_TESTS_PROPERTIES(GenevaMpiTestDirectories PROPERTIES LABELS "conventions" TIMEOUT 60)
-	GENEVA_TEST_SIZE(GenevaMpiTestDirectories S)
+	SET_TESTS_PROPERTIES(GemMpiTestDirectories PROPERTIES LABELS "conventions" TIMEOUT 60)
+	GEM_TEST_SIZE(GemMpiTestDirectories S)
 	IF (MPIEXEC_EXECUTABLE)
 		ADD_TEST(
-			NAME GenevaMpiTestsRegistered
+			NAME GemMpiTestsRegistered
 			COMMAND ${CMAKE_COMMAND} -DCTEST=${CMAKE_CTEST_COMMAND} -DBUILD_DIR=${CMAKE_BINARY_DIR}
-				-DMPIEXEC=${MPIEXEC_EXECUTABLE} -DRUNNER=${GENEVA_MPI_TEST_RUNNER}
-				-DMARGIN=${GENEVA_MPI_TEST_MARGIN}
+				-DMPIEXEC=${MPIEXEC_EXECUTABLE} -DRUNNER=${GEM_MPI_TEST_RUNNER}
+				-DMARGIN=${GEM_MPI_TEST_MARGIN}
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestRegistrations.cmake
 		)
-		SET_TESTS_PROPERTIES(GenevaMpiTestsRegistered PROPERTIES LABELS "conventions" TIMEOUT 60)
-		GENEVA_TEST_SIZE(GenevaMpiTestsRegistered S)
+		SET_TESTS_PROPERTIES(GemMpiTestsRegistered PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GEM_TEST_SIZE(GemMpiTestsRegistered S)
 	ENDIF ()
 
 	# The release harness's own unit tests (ReleaseTests/tests). A Python 3 interpreter is an
@@ -942,7 +942,7 @@ IF (GENEVA_BUILD_TESTS)
 			WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 		)
 		SET_TESTS_PROPERTIES(ReleaseHarnessUnitTests PROPERTIES LABELS "harness")
-		GENEVA_TEST_SIZE(ReleaseHarnessUnitTests S)
+		GEM_TEST_SIZE(ReleaseHarnessUnitTests S)
 	ELSE ()
 		MESSAGE(STATUS "ReleaseHarnessUnitTests not registered: no Python 3 interpreter found")
 	ENDIF ()
@@ -1043,11 +1043,11 @@ SET(CPACK_DEBIAN_PACKAGE_SECTION "Science")
 SET(CPACK_DEBIAN_PACKAGE_PRIORITY "Extra")
 SET(
 	CPACK_DEBIAN_PACKAGE_DEPENDS
-	"libboost-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
-	libboost-atomic-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
-	libboost-json-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
-	libboost-program-options-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
-	libboost-regex-dev (>= ${GENEVA_MIN_BOOST_VERSION}.0),
+	"libboost-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
+	libboost-atomic-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
+	libboost-json-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
+	libboost-program-options-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
+	libboost-regex-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
 	libcatch2-dev (>= 3.0)"
 )
 
@@ -1055,7 +1055,7 @@ SET(
 SET(CPACK_RPM_PACKAGE_DESCRIPTION ${CPACK_AUX_PACKAGE_DESCRIPTION})
 SET(CPACK_RPM_PACKAGE_LICENSE "Apache License 2.0")
 SET(CPACK_RPM_PACKAGE_GROUP "Sciences/Libraries")
-SET(CPACK_RPM_PACKAGE_REQUIRES "boost-devel >= ${GENEVA_MIN_BOOST_VERSION}")
+SET(CPACK_RPM_PACKAGE_REQUIRES "boost-devel >= ${GEM_MIN_BOOST_VERSION}")
 
 # Detect the distribution to autos-elect the package generator...
 EXECUTE_PROCESS(COMMAND lsb_release -is

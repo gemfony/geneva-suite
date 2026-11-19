@@ -95,7 +95,7 @@
  * Encoding: major(1 digit) + "0" + minor(2 digits) + "00"
  * Example:  1.91  →  "1" + "0" + "91" + "00"  =  109100
  *
- * This is the only place where the minimum is written: CMakeModules/CommonGenevaBuild.cmake reads
+ * This is the only place where the minimum is written: CMakeModules/CommonGemBuild.cmake reads
  * it from this macro.
  */
 #define MIN_BOOST_VERSION 109100

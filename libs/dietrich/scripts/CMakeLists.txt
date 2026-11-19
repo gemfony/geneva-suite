@@ -30,4 +30,4 @@
 # The bundled external renderer: it turns a DATA export (raw series data + the
 # self-describing manifest the DATA backend writes) into figures entirely outside
 # the C++ library. Installed next to the other Geneva scripts.
-INSTALL ( PROGRAMS geneva_plot_render.py DESTINATION ${INSTALL_PREFIX_DATA}/scripts )
+INSTALL ( PROGRAMS gem_plot_render.py DESTINATION ${INSTALL_PREFIX_DATA}/scripts )

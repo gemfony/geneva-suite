@@ -31,4 +31,4 @@ ADD_SUBDIRECTORY(GContainerTBenchmark)
 ADD_SUBDIRECTORY(GBlockingMPMCQueueTBenchmark)
 ADD_SUBDIRECTORY(GMPMCQueueBackendBenchmark)
 
-GENEVA_AGGREGATE_TARGET( "benchmarks-common" )
+GEM_AGGREGATE_TARGET( "benchmarks-common" )

@@ -27,8 +27,8 @@
 #
 ################################################################################
 #
-# Driver of the test GenevaMpiTestDirectories: GenevaRunMpiTest.sh (the runner of every entry
-# registered with GENEVA_ADD_MPI_TEST) gives each run a directory of its own for Open MPI's
+# Driver of the test GemMpiTestDirectories: GemRunMpiTest.sh (the runner of every entry
+# registered with GEM_ADD_MPI_TEST) gives each run a directory of its own for Open MPI's
 # shared-memory files and removes it, whichever way the run ends.
 #
 #  1. Two runs at the same time (execute_process starts the commands of a pipeline together);

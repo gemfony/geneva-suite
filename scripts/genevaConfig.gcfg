@@ -203,13 +203,13 @@ CXXEXTRAFLAGS=""
 # "Specialist flags" available to fine-tune the behaviour of the Geneva library collection.
 # Add to CXXEXTRAFLAGS in order to activate.
 #
-# -DGENEVA_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE <unsigned integer>:
+# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE <unsigned integer>:
 # The size of a single buffer produced by the random factory
-# -DGENEVA_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE <unsigned integer>:
+# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE <unsigned integer>:
 # The default size of the thread-safe buffer used to store random number packages
-# -DGENEVA_COMMON_DEFAULT_BUFFER_SIZE <unsigned integer>:
+# -DGEM_COMMON_DEFAULT_BUFFER_SIZE <unsigned integer>:
 # The default size of a general thread-safe buffer
-# -DGENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT <unsigned integer>:
+# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT <unsigned integer>:
 # The maximum timed wait for get operations in the GRandomFactory random queue in milliseconds
-# -DGENEVA_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE <unsigned integer>
+# -DGEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE <unsigned integer>
 # The size of the vector with seeds

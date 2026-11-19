@@ -35,7 +35,7 @@
  * An out-of-tree program against an installed Geneva with the MPI module (see CMakeLists.txt beside it).
  * It exits with 0 if the "mpi" consumer is available, and otherwise prints why the module could not be
  * loaded and exits with 1. It is compiled without any definition of the collection's own build (in
- * particular without GENEVA_BUILD_WITH_MPI_CONSUMER), as a program outside the tree is.
+ * particular without GEM_BUILD_WITH_MPI_CONSUMER), as a program outside the tree is.
  */
 
 #include <cstdio>

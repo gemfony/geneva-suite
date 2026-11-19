@@ -30,7 +30,7 @@
 # Example 21 -- the GPU North Star of the loadable-module scheme. ONE loadable module carries BOTH the
 # optimization individual AND its GPU marshaller; a generic optimizer loads it via --module and runs it
 # entirely on the device with `--consumer gpu`. It is built only when the GPU consumer is (this directory is
-# added under GENEVA_GPU_CONSUMER_ENABLED in geneva/examples/CMakeLists.txt). The kernel is runtime-compiled
+# added under GEM_GPU_CONSUMER_ENABLED in geneva/examples/CMakeLists.txt). The kernel is runtime-compiled
 # by NVRTC, so no CUDA language is enabled at build time -- an ordinary C++ toolchain builds it and the
 # backend/kernel are selected at run time via config/GGPUConsumer.json.
 
@@ -70,7 +70,7 @@ ADD_CUSTOM_COMMAND(TARGET GGPUParaboloidOptimizer POST_BUILD
 # consumer's configs only exist once the module is loaded, so materialize with the just-built module (and
 # depend on it so it exists first).
 ADD_DEPENDENCIES(GGPUParaboloidOptimizer GGPUParaboloid)
-GENEVA_MATERIALIZE_CONFIGS(GGPUParaboloidOptimizer
+GEM_MATERIALIZE_CONFIGS(GGPUParaboloidOptimizer
 	${INSTALL_PREFIX_DATA}/examples/21_GLoadableGPU/config
 	--module $<TARGET_FILE:GGPUParaboloid>)
 
@@ -82,7 +82,7 @@ GENEVA_MATERIALIZE_CONFIGS(GGPUParaboloidOptimizer
 #
 # Registered unconditionally for the reason given in example 18's CMakeLists.txt. The GPU conditionality is
 # handled entirely at CONFIGURE time and one level up: this whole directory is only added under
-# GENEVA_GPU_CONSUMER_ENABLED (geneva/examples/CMakeLists.txt), so where the GPU consumer is not built the
+# GEM_GPU_CONSUMER_ENABLED (geneva/examples/CMakeLists.txt), so where the GPU consumer is not built the
 # test simply does not exist. Where it IS built, the test needs no device -- deliberately, so that a machine
 # with the GPU consumer compiled in but no usable device (a sandbox, a CI container) still gates the module
 # ABI instead of reporting a device problem as an ABI failure.
@@ -92,7 +92,7 @@ ADD_TEST(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES(GLoadableGPU_CPU PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GLoadableGPU_CPU S)
+GEM_TEST_SIZE(GLoadableGPU_CPU S)
 
 INSTALL(TARGETS GGPUParaboloidOptimizer GGPUParaboloid
 	DESTINATION ${INSTALL_PREFIX_DATA}/examples/21_GLoadableGPU)

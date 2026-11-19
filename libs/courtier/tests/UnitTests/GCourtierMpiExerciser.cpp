@@ -79,7 +79,7 @@
 
 #include "common/GGlobalDefines.hpp"
 
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+#ifdef GEM_BUILD_WITH_MPI_CONSUMER
 
 #include <algorithm>
 #include <atomic>
@@ -673,4 +673,4 @@ int main() {
     return 0;
 }
 
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
+#endif /* GEM_BUILD_WITH_MPI_CONSUMER */
