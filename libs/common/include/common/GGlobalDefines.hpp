@@ -96,13 +96,13 @@
  * Encoding: major(1 digit) + "0" + minor(2 digits) + "00"
  * Example:  1.91  →  "1" + "0" + "91" + "00"  =  109100
  *
- * Keep in sync with GENEVA_MIN_BOOST_VERSION in
- * CMakeModules/CommonGenevaBuild.cmake.
+ * This is the only place where the minimum is written: CMakeModules/CommonGenevaBuild.cmake reads
+ * it from this macro.
  */
 #define MIN_BOOST_VERSION 109100
 
 #if BOOST_VERSION < MIN_BOOST_VERSION
-#error "Error: Boost should at least have version 1.91 !"
+#error "Error: Boost is older than MIN_BOOST_VERSION in common/GGlobalDefines.hpp !"
 #endif /* BOOST_VERSION */
 
 //-----------------------------------------------------------

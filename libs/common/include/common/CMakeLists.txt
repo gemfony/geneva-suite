@@ -28,7 +28,8 @@
 ################################################################################
 #
 # GGlobalDefines.hpp is a regular, manually maintained header; the Geneva version
-# is written there (see the comments there for the encoding rules).
+# and the minimum Boost version are written there (see the comments there for the
+# encoding rules).
 #
 
 SET ( GENEVACOMMONINCLUDES
