@@ -49,7 +49,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * GPositionPersonalityTraits base provides; the GAlgorithmPersonalityTraitsT scaffold supplies the
  * shared boilerplate, so this class contributes only the algorithm's identity.
  */
-class GConjugateGradientDescent_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
+// NOLINTNEXTLINE(cppcoreguidelines-special-member-functions)
+class GConjugateGradientDescent_PersonalityTraits
   : public GAlgorithmPersonalityTraitsT<GConjugateGradientDescent_PersonalityTraits> {
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base (via the generator) reach this
     // stateless class's explicit empty localMembers_() (required by the mixin's deleted fallback).

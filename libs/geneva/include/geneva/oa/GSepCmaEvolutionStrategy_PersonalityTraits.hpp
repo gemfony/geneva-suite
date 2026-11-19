@@ -53,7 +53,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * selection rank (best == 0) and a pareto-front tag for the NSGA-II selection mode,
  * mirroring the informational tags the other algorithms' personalities carry.
  */
-class GSepCmaEvolutionStrategy_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
+// NOLINTNEXTLINE(cppcoreguidelines-special-member-functions)
+class GSepCmaEvolutionStrategy_PersonalityTraits
   : public Gem::Common::GReflectiveInterfaceT<GSepCmaEvolutionStrategy_PersonalityTraits, GPersonalityTraits>
   , public GParetoTag
   , public Gem::Common::GSelfTestable {
