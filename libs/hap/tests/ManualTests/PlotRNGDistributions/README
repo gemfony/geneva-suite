@@ -1,9 +1,0 @@
-This directory contains a manual test that draws random numbers from a number
-of distributions and writes them to a file from which the ROOT analysis
-toolkit (see http://root.cern.ch) draws the distributions, for a look by eye.
-
-After calling the main executable, run
-
-root -l rootPlotRNGDistributions.C
-
-to inspect the results. The script also stores the plots as PNG files.

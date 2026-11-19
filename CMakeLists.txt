@@ -962,7 +962,7 @@ ADD_CUSTOM_TARGET(
 	weft-all        # serialization lib + tests + examples
 	common-all      # lib + tests + examples + benchmarks for the common library
 	dietrich-all    # plotting lib + tests (unit + validity gates)
-	hap-all         # lib + tests + examples
+	hap-all         # lib + tests + examples + docprograms + benchmarks
 	courtier-all    # lib + tests + examples-stub + docprograms + benchmarks
 	geneva-all      # lib + tests + examples + benchmarks (the largest subtree)
 	COMMENT "Build the entire Gemfony library collection"

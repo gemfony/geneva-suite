@@ -45,6 +45,8 @@
 # Layout:
 #   hap/include/hap/*.hpp   public headers
 #   hap/src/*.cpp *.cu       implementation + the gemfony-hap target
+#   hap/docprograms/         figure producers for the manual, each registered
+#                            as an S-size test
 ################################################################################
 
 ADD_SUBDIRECTORY ( include/hap )
@@ -56,6 +58,10 @@ ENDIF ()
 
 IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
+ENDIF ()
+
+IF ( GEM_BUILD_TESTS )
+	ADD_SUBDIRECTORY ( docprograms )
 ENDIF ()
 
 IF ( GEM_BUILD_BENCHMARKS )
