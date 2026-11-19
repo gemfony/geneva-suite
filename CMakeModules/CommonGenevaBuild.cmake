@@ -353,12 +353,6 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	MESSAGE ("\twith Boost include location:\t ${Boost_INCLUDE_DIRS}")
 	MESSAGE ("\twith Boost library location:\t ${Boost_LIBRARY_DIRS}")
 
-	IF(GENEVA_BUILD_WITH_OPENCL_EXAMPLES)
-		MESSAGE ("\twith OpenCL include location:\t ${OpenCL_INCLUDE_DIRS}")
-		MESSAGE ("\twith OpenCL library location:\t ${OpenCL_LIBRARIES}")
-		MESSAGE ("\twith with highest supported OpenCL version ${OpenCL_VERSION_STRING}")
-	ENDIF()
-
 	MESSAGE ("\tusing compiler:\t\t\t ${CMAKE_CXX_COMPILER_ID} v${CMAKE_CXX_COMPILER_VERSION}")
 	# Don't try to access the build type on multi-config generators
 	IF(NOT CMAKE_CONFIGURATION_TYPES)

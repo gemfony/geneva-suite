@@ -445,8 +445,8 @@ ENDIF ()
 
 # Set preprocessor define to use in source code if building with the GPU consumer.
 # This gates the "gpu" mnemonic in GConsumerSetup just as GENEVA_BUILD_WITH_MPI_CONSUMER
-# gates "mpi". The CUDA/OpenCL backend selection inside courtier uses the separate
-# GPUGEN_HAVE_CUDA / GPUGEN_HAVE_OPENCL feature macros (see libs/courtier/src/CMakeLists.txt).
+# gates "mpi". The CUDA backend selection inside courtier uses the separate
+# GPUGEN_HAVE_CUDA feature macro (see libs/courtier/src/CMakeLists.txt).
 IF (GENEVA_GPU_CONSUMER_ENABLED)
 	ADD_COMPILE_DEFINITIONS(GENEVA_BUILD_WITH_GPU_CONSUMER)
 ENDIF ()
