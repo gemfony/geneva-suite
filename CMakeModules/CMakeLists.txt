@@ -36,7 +36,7 @@ CONFIGURE_FILE ( FindGeneva.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/FindGeneva.cmak
 
 # It is the only module installed into the installation's CMakeModules/ directory. The config
 # package carries its own helpers (GenevaIndividualModule.cmake, GemConfigMaterialization.cmake,
-# GemRunQuiet.cmake, GemProgramStamp.cmake with GenevaCommit.cmake; installed by the top-level
+# GemRunQuiet.cmake, GemProgramStamp.cmake with GemCommit.cmake; installed by the top-level
 # CMakeLists.txt next to GenevaConfig.cmake). The other modules build the collection itself
 # (CommonGemBuild.cmake and what it includes); a project outside the tree uses
 # find_package(Geneva).

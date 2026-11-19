@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "common/GGenevaCommit.hpp"
+#include "common/GGemCommit.hpp"
 
 // Standard headers go here
 #include <string>

@@ -532,19 +532,19 @@ ELSE()
 ENDIF()
 
 ################################################################################
-# The commit of the sources (CMakeModules/GenevaCommit.cmake): taken here once, so that a tree that
+# The commit of the sources (CMakeModules/GemCommit.cmake): taken here once, so that a tree that
 # does not say which commit it is does not configure, and again at every build, before the common
 # library is compiled (libs/common/src/CMakeLists.txt), so that a commit made after the configure is
-# seen. The one source it writes defines Gem::Common::genevaCommit().
-SET(GENEVA_COMMIT_SOURCE ${CMAKE_BINARY_DIR}/libs/common/src/GGenevaCommit.cpp)
+# seen. The one source it writes defines Gem::Common::gemCommit().
+SET(GEM_COMMIT_SOURCE ${CMAKE_BINARY_DIR}/libs/common/src/GGemCommit.cpp)
 EXECUTE_PROCESS(
-	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GENEVA_COMMIT_SOURCE}
-		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
-	RESULT_VARIABLE _geneva_commit_rc
-	ERROR_VARIABLE _geneva_commit_error
+	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GEM_COMMIT_SOURCE}
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GemCommit.cmake
+	RESULT_VARIABLE _gem_commit_rc
+	ERROR_VARIABLE _gem_commit_error
 )
-IF(NOT _geneva_commit_rc EQUAL 0)
-	MESSAGE(FATAL_ERROR "${_geneva_commit_error}")
+IF(NOT _gem_commit_rc EQUAL 0)
+	MESSAGE(FATAL_ERROR "${_gem_commit_error}")
 ENDIF()
 
 ################################################################################
@@ -754,7 +754,7 @@ INSTALL(
 	# The stamp of a program (GEM_STAMP_PROGRAM; GenevaConfig.cmake includes it) and the script
 	# that takes the commit of a tree for it, which must sit next to it.
 	${PROJECT_SOURCE_DIR}/CMakeModules/GemProgramStamp.cmake
-	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+	${PROJECT_SOURCE_DIR}/CMakeModules/GemCommit.cmake
 	DESTINATION ${GEM_INSTALL_CMAKEDIR}
 )
 
@@ -879,18 +879,18 @@ IF (GEM_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
 		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
 
-	# Where a build takes the commit of the sources from (GenevaCommit.cmake), on made-up source
+	# Where a build takes the commit of the sources from (GemCommit.cmake), on made-up source
 	# trees, and how a program is stamped with it. Need git, to make the work trees among them.
 	FIND_PACKAGE(Git QUIET)
 	IF (GIT_FOUND)
 		ADD_TEST(
-			NAME GenevaCommitSources
-			COMMAND ${CMAKE_COMMAND} -DSCRIPT=${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
-				-DGIT=${GIT_EXECUTABLE} -DWORK=${CMAKE_BINARY_DIR}/GenevaCommitSources
-				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaCommit.cmake
+			NAME GemCommitSources
+			COMMAND ${CMAKE_COMMAND} -DSCRIPT=${PROJECT_SOURCE_DIR}/CMakeModules/GemCommit.cmake
+				-DGIT=${GIT_EXECUTABLE} -DWORK=${CMAKE_BINARY_DIR}/GemCommitSources
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGemCommit.cmake
 		)
-		SET_TESTS_PROPERTIES(GenevaCommitSources PROPERTIES LABELS "conventions" TIMEOUT 60)
-		GEM_TEST_SIZE(GenevaCommitSources S)
+		SET_TESTS_PROPERTIES(GemCommitSources PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GEM_TEST_SIZE(GemCommitSources S)
 		# How GEM_STAMP_PROGRAM (GemProgramStamp.cmake) stamps a user's program, in made-up
 		# projects (configured, not compiled).
 		ADD_TEST(
@@ -903,7 +903,7 @@ IF (GEM_BUILD_TESTS)
 		SET_TESTS_PROPERTIES(GemProgramStamp PROPERTIES LABELS "conventions" TIMEOUT 120)
 		GEM_TEST_SIZE(GemProgramStamp M)
 	ELSE ()
-		MESSAGE(STATUS "GenevaCommitSources and GemProgramStamp not registered: git not found")
+		MESSAGE(STATUS "GemCommitSources and GemProgramStamp not registered: git not found")
 	ENDIF ()
 
 	# The runner of the tests that start MPI jobs (GemMpiTest.cmake) gives two runs at the same

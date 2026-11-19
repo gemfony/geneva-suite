@@ -27,25 +27,25 @@
 #
 ################################################################################
 #
-# Driver for the test GenevaCommitSources: GenevaCommit.cmake on made-up source trees, each in a
+# Driver for the test GemCommitSources: GemCommit.cmake on made-up source trees, each in a
 # directory of its own under WORK (removed and made again at the start):
 #   - a git work tree gives the id of its HEAD, and an untracked file does not change it;
 #   - a changed tracked file appends "-dirty";
-#   - a tree without git whose GENEVA_COMMIT holds an id gives that id;
+#   - a tree without git whose GEM_COMMIT holds an id gives that id;
 #   - sources in a subdirectory of a git work tree do not take that repository's commit (they may
-#     be unpacked into another project's repository): their GENEVA_COMMIT gives the id;
-#   - a tree without git whose GENEVA_COMMIT holds the placeholder of the repository fails, and its
+#     be unpacked into another project's repository): their GEM_COMMIT gives the id;
+#   - a tree without git whose GEM_COMMIT holds the placeholder of the repository fails, and its
 #     text names the file.
 #
 # Input (passed via -D):
-#   SCRIPT   CMakeModules/GenevaCommit.cmake
+#   SCRIPT   CMakeModules/GemCommit.cmake
 #   GIT      the git executable
 #   WORK     a scratch directory in the build tree
 #
 ################################################################################
 
 IF(NOT SCRIPT OR NOT GIT OR NOT WORK)
-	MESSAGE(FATAL_ERROR "CheckGenevaCommit.cmake needs -DSCRIPT=<GenevaCommit.cmake> -DGIT=<git> -DWORK=<dir>")
+	MESSAGE(FATAL_ERROR "CheckGemCommit.cmake needs -DSCRIPT=<GemCommit.cmake> -DGIT=<git> -DWORK=<dir>")
 ENDIF()
 
 FILE(REMOVE_RECURSE "${WORK}")
@@ -81,10 +81,10 @@ ENDMACRO()
 # A git work tree
 SET(_tree "${WORK}/git")
 FILE(MAKE_DIRECTORY "${_tree}")
-FILE(WRITE "${_tree}/GENEVA_COMMIT" "$Format:%H$\n")
+FILE(WRITE "${_tree}/GEM_COMMIT" "$Format:%H$\n")
 FILE(WRITE "${_tree}/tracked.txt" "one\n")
 _git("${_tree}" init -q)
-_git("${_tree}" add GENEVA_COMMIT tracked.txt)
+_git("${_tree}" add GEM_COMMIT tracked.txt)
 _git("${_tree}" commit -q -m "a commit")
 _git("${_tree}" rev-parse HEAD)
 SET(_head "${_git_out}")
@@ -104,17 +104,17 @@ ENDIF()
 # No git, the file holds an id
 SET(_tree "${WORK}/filled")
 SET(_given "0123456789abcdef0123456789abcdef01234567")
-FILE(WRITE "${_tree}/GENEVA_COMMIT" "${_given}\n")
+FILE(WRITE "${_tree}/GEM_COMMIT" "${_given}\n")
 _take_commit("${_tree}")
 IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL _given)
-	STRING(APPEND _problems "\n  filled GENEVA_COMMIT: expected ${_given}, got \"${_id}\" (${_rc}): ${_err}")
+	STRING(APPEND _problems "\n  filled GEM_COMMIT: expected ${_given}, got \"${_id}\" (${_rc}): ${_err}")
 ENDIF()
 
-# Sources in a subdirectory of a git work tree: the id of their GENEVA_COMMIT, not the repository's
+# Sources in a subdirectory of a git work tree: the id of their GEM_COMMIT, not the repository's
 SET(_tree "${WORK}/below/sources")
-FILE(WRITE "${_tree}/GENEVA_COMMIT" "${_given}\n")
+FILE(WRITE "${_tree}/GEM_COMMIT" "${_given}\n")
 _git("${WORK}/below" init -q)
-_git("${WORK}/below" add sources/GENEVA_COMMIT)
+_git("${WORK}/below" add sources/GEM_COMMIT)
 _git("${WORK}/below" commit -q -m "a commit")
 _take_commit("${_tree}")
 IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL _given)
@@ -123,13 +123,13 @@ ENDIF()
 
 # Neither
 SET(_tree "${WORK}/neither")
-FILE(WRITE "${_tree}/GENEVA_COMMIT" "$Format:%H$\n")
+FILE(WRITE "${_tree}/GEM_COMMIT" "$Format:%H$\n")
 _take_commit("${_tree}")
-IF(_rc EQUAL 0 OR EXISTS "${WORK}/out.cpp" OR NOT _err MATCHES "GENEVA_COMMIT")
-	STRING(APPEND _problems "\n  neither git nor an id: expected a failure that names GENEVA_COMMIT, got (${_rc}): ${_err}")
+IF(_rc EQUAL 0 OR EXISTS "${WORK}/out.cpp" OR NOT _err MATCHES "GEM_COMMIT")
+	STRING(APPEND _problems "\n  neither git nor an id: expected a failure that names GEM_COMMIT, got (${_rc}): ${_err}")
 ENDIF()
 
 IF(_problems)
-	MESSAGE(FATAL_ERROR "GenevaCommit.cmake did not take the commit as it should:${_problems}")
+	MESSAGE(FATAL_ERROR "GemCommit.cmake did not take the commit as it should:${_problems}")
 ENDIF()
-MESSAGE(STATUS "GenevaCommit.cmake took the commit of all five trees as it should")
+MESSAGE(STATUS "GemCommit.cmake took the commit of all five trees as it should")

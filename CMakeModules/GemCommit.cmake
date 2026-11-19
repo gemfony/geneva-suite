@@ -33,25 +33,25 @@
 #   1. git: the source directory is the top of a git work tree and git is installed. The id is
 #      "git rev-parse HEAD", with "-dirty" appended when a tracked file differs from HEAD (untracked
 #      files do not count).
-#   2. the file GENEVA_COMMIT at the top of the sources, if it holds a commit id (40 hexadecimal
+#   2. the file GEM_COMMIT at the top of the sources, if it holds a commit id (40 hexadecimal
 #      digits, optionally followed by "-dirty"). In the repository it holds a placeholder that
 #      "git archive" replaces with the id (.gitattributes: export-subst); a build that copies the
 #      sources without .git (the container build) writes the id into it.
 #   3. neither: the script fails, and its text names the three ways to give a build its id.
 #
-# The script writes a C++ source that defines Gem::Common::genevaCommit() (common/GGenevaCommit.hpp)
+# The script writes a C++ source that defines Gem::Common::gemCommit() (common/GGemCommit.hpp)
 # and is compiled into the common library. It writes the file only if its content changes, so that
 # an unchanged id rebuilds nothing. The top-level CMakeLists.txt runs it at configure time (a tree
 # without an id does not configure), and libs/common/src/CMakeLists.txt at every build (a commit
 # made after the configure is seen).
 #
 # Script mode:
-#   cmake -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<the C++ source to write> -P GenevaCommit.cmake
+#   cmake -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<the C++ source to write> -P GemCommit.cmake
 #
 # The program mode (-DMODE=program) takes the identity of a user's program for GEM_STAMP_PROGRAM
 # (GemProgramStamp.cmake), by rule 1 with one difference: the program's sources may lie at any
 # depth inside the git work tree, whose HEAD is taken (and whose tracked files make it "-dirty"); a
-# user's project may well be a subdirectory of its repository. The file GENEVA_COMMIT belongs to the
+# user's project may well be a subdirectory of its repository. The file GEM_COMMIT belongs to the
 # Geneva sources and is not read. Without git the identity is empty
 # instead of a failure (the program is then not checked). -DIDENTITY=<text> gives the identity
 # instead of git. The source it writes holds one static object that calls
@@ -61,13 +61,13 @@
 ################################################################################
 
 IF(NOT SOURCE_DIR OR NOT OUTPUT)
-	MESSAGE(FATAL_ERROR "GenevaCommit.cmake needs -DSOURCE_DIR=<the sources> -DOUTPUT=<file>")
+	MESSAGE(FATAL_ERROR "GemCommit.cmake needs -DSOURCE_DIR=<the sources> -DOUTPUT=<file>")
 ENDIF()
 IF(NOT MODE)
-	SET(MODE geneva)
+	SET(MODE gem)
 ENDIF()
-IF(NOT MODE MATCHES "^(geneva|program)$")
-	MESSAGE(FATAL_ERROR "GenevaCommit.cmake: MODE is geneva or program, not ${MODE}")
+IF(NOT MODE MATCHES "^(gem|program)$")
+	MESSAGE(FATAL_ERROR "GemCommit.cmake: MODE is gem or program, not ${MODE}")
 ENDIF()
 FILE(REAL_PATH "${SOURCE_DIR}" _source_dir)
 
@@ -107,9 +107,9 @@ IF(_git AND _id STREQUAL "")
 	ENDIF()
 ENDIF()
 
-# 2. the file GENEVA_COMMIT (of the Geneva sources only)
-IF(_id STREQUAL "" AND MODE STREQUAL "geneva" AND EXISTS "${_source_dir}/GENEVA_COMMIT")
-	FILE(READ "${_source_dir}/GENEVA_COMMIT" _content)
+# 2. the file GEM_COMMIT (of the Geneva sources only)
+IF(_id STREQUAL "" AND MODE STREQUAL "gem" AND EXISTS "${_source_dir}/GEM_COMMIT")
+	FILE(READ "${_source_dir}/GEM_COMMIT" _content)
 	STRING(STRIP "${_content}" _content)
 	IF(_content MATCHES "^[0-9a-f]+(-dirty)?$")
 		STRING(REGEX REPLACE "-dirty$" "" _hex "${_content}")
@@ -121,24 +121,24 @@ IF(_id STREQUAL "" AND MODE STREQUAL "geneva" AND EXISTS "${_source_dir}/GENEVA_
 ENDIF()
 
 # 3. neither: a Geneva build fails; a program is not stamped
-IF(_id STREQUAL "" AND MODE STREQUAL "geneva")
+IF(_id STREQUAL "" AND MODE STREQUAL "gem")
 	MESSAGE(FATAL_ERROR
 		"The Geneva sources in ${_source_dir} do not say which commit they are. A Geneva build must "
 		"know its commit (a server and its clients must be built from the same one). Give it in one "
 		"of three ways:\n"
 		"  - build from a git checkout, with git installed;\n"
 		"  - build from an archive made by \"git archive\", which writes the id into the file "
-		"GENEVA_COMMIT;\n"
+		"GEM_COMMIT;\n"
 		"  - write the commit id (40 hexadecimal digits, optionally followed by \"-dirty\") into the "
-		"file GENEVA_COMMIT at the top of the sources -- as a build that copies the sources without "
-		".git must (the container build takes it as the build argument GENEVA_COMMIT).")
+		"file GEM_COMMIT at the top of the sources -- as a build that copies the sources without "
+		".git must (the container build takes it as the build argument GEM_COMMIT).")
 ENDIF()
 
 SET(_source [=[
-// Written by CMakeModules/GenevaCommit.cmake from the commit of the Geneva sources; do not edit.
-#include "common/GGenevaCommit.hpp"
+// Written by CMakeModules/GemCommit.cmake from the commit of the Geneva sources; do not edit.
+#include "common/GGemCommit.hpp"
 
-std::string_view Gem::Common::genevaCommit() noexcept {
+std::string_view Gem::Common::gemCommit() noexcept {
     return "@ID@";
 }
 ]=])
@@ -148,8 +148,8 @@ IF(MODE STREQUAL "program")
 	STRING(REPLACE "\\" "\\\\" _literal "${_id}")
 	STRING(REPLACE "\"" "\\\"" _literal "${_literal}")
 	SET(_source [=[
-// Written by GenevaCommit.cmake for GEM_STAMP_PROGRAM (GemProgramStamp.cmake); do not edit.
-#include "common/GGenevaCommit.hpp"
+// Written by GemCommit.cmake for GEM_STAMP_PROGRAM (GemProgramStamp.cmake); do not edit.
+#include "common/GGemCommit.hpp"
 
 namespace {
 /// Sets the identity of this program before main(); an empty one leaves the program unchecked
@@ -167,7 +167,7 @@ ENDIF()
 IF(NOT _old STREQUAL _source)
 	FILE(WRITE "${OUTPUT}" "${_source}")
 ENDIF()
-IF(MODE STREQUAL "geneva")
+IF(MODE STREQUAL "gem")
 	MESSAGE(STATUS "Geneva commit: ${_id}")
 ELSEIF(NOT QUIET)
 	MESSAGE(STATUS "Program identity: ${_id}")

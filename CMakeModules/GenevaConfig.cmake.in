@@ -124,7 +124,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/GenevaIndividualModule.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/GemConfigMaterialization.cmake")
 
 # The stamp of a program (GEM_STAMP_PROGRAM): its identity, by default the commit of the project's
-# own sources, which a server names in its HELLO and a client compares (GenevaCommit.cmake, which
+# own sources, which a server names in its HELLO and a client compares (GemCommit.cmake, which
 # takes the commit, is installed next to it).
 include("${CMAKE_CURRENT_LIST_DIR}/GemProgramStamp.cmake")
 

@@ -49,7 +49,7 @@ SET ( COMMONINCLUDES
 	GFactoryT.hpp
 	GFatalReport.hpp
 	GFixedSizePriorityQueueT.hpp
-	GGenevaCommit.hpp
+	GGemCommit.hpp
 	GGlobalDefines.hpp
 	GGlobalOptionsT.hpp
 	GJsonIO.hpp

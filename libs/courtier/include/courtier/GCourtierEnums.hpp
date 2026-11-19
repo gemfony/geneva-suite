@@ -68,7 +68,7 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  *
  * Every message has a head, which is read first and by itself, and may have a payload:
  *  - HELLO is the first message of every connection, from the server: its build (the commit of the
- *    Geneva sources, Gem::Common::genevaCommit()), the identity of its program
+ *    Geneva sources, Gem::Common::gemCommit()), the identity of its program
  *    (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
  *    connection in milliseconds (0: none), which the server alone sets. A client built from another
  *    commit, or whose program has another identity, ends; one that matches takes the interval

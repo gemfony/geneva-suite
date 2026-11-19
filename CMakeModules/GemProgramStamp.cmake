@@ -32,11 +32,11 @@
 # Stamps the executable <target> with the identity of the user's program. A server of the networked
 # consumers names it in the HELLO it greets each client with, beside the commit of Geneva, and a
 # client whose program has another identity ends (Gem::Common::setProgramIdentity(),
-# common/GGenevaCommit.hpp). So a server and its clients are known to be built from the same sources.
+# common/GGemCommit.hpp). So a server and its clients are known to be built from the same sources.
 #
 #  - With IDENTITY, <text> is the identity.
 #  - Without it, the identity is the commit of the project's sources (CMAKE_SOURCE_DIR), taken at
-#    every build by the rule of GenevaCommit.cmake: if the sources are inside a git work tree (at
+#    every build by the rule of GemCommit.cmake: if the sources are inside a git work tree (at
 #    its top or in a subdirectory), the id of its HEAD, with "-dirty" appended when a tracked file of
 #    that repository differs from it. Sources without git give no identity: CMake says once, at
 #    configure time, that the program is not stamped, and it is not checked against a server's
@@ -49,11 +49,11 @@
 # module loader's own gates.
 #
 # This module is shared by the in-tree build (included from CommonGemBuild.cmake) and the
-# installed package (included from GenevaConfig.cmake); GenevaCommit.cmake must sit next to it.
+# installed package (included from GenevaConfig.cmake); GemCommit.cmake must sit next to it.
 #
 ################################################################################
 
-SET(GEM_PROGRAM_STAMP_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GenevaCommit.cmake)
+SET(GEM_PROGRAM_STAMP_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GemCommit.cmake)
 
 FUNCTION(GEM_STAMP_PROGRAM _target)
 	CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 1 _arg "" "IDENTITY" "")
