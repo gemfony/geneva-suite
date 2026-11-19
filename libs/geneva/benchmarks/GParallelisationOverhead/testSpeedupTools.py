@@ -39,7 +39,9 @@ Usage:
       of that earlier run is used instead of a new one (MPIRUN in the environment names the MPI
       launcher; every check that starts MPI jobs refuses to run without it). The run passes two
       client options, the prefetch depth and the evaluations at a time, and checks that both
-      clients used them.
+      clients used them. With mqtt the server and its clients meet on the tests' MQTT broker,
+      whose port the file port in GEM_MQTT_TEST_BROKER_DIR names (the broker fixture of courtier's
+      tests writes it).
   testSpeedupTools.py subclients <GSubClientOverhead> <workdir> <consumer> [<reference dir>]
       a short run with two clients of two sub-clients each: every evaluation is done once, in a
       group of three, every process ends by itself, and both clients used the prefetch depth and
@@ -256,6 +258,18 @@ def check_client_options(log, depth):
              f'{parallel} (evaluations at a time: number of clients)')
 
 
+def mqtt_broker_port():
+    """The port of the tests' MQTT broker, which its fixture writes into GEM_MQTT_TEST_BROKER_DIR."""
+    directory = os.environ.get('GEM_MQTT_TEST_BROKER_DIR', '')
+    try:
+        port = open(os.path.join(directory, 'port'), encoding='utf-8').read().strip()
+    except OSError:
+        port = ''
+    if not port.isdigit():
+        fail(f'no MQTT test broker: GEM_MQTT_TEST_BROKER_DIR ("{directory}") names no port')
+    return port
+
+
 def check_run(program, workdir, consumer, reference_dir):
     """A short run of runWithClients.sh, with a reference of its own or a shared one."""
     if consumer == 'mpi':
@@ -266,10 +280,13 @@ def check_run(program, workdir, consumer, reference_dir):
             os.remove(os.path.join(workdir, name))
     if reference_dir:
         shutil.copy(os.path.join(reference_dir, 'referenceLine.txt'), workdir)
-    # A websocket server's first port is held by another process: the script must try another one
+    # A websocket server's first port is held by another process: the script must try another one.
+    # An MQTT server binds no port: it and its clients meet on the tests' broker.
     holder = None
     env = None
-    if consumer != 'mpi':
+    if consumer == 'mqtt':
+        env = {'BROKER_PORT': mqtt_broker_port()}
+    elif consumer != 'mpi':
         holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         holder.bind(('0.0.0.0', 0))
         holder.listen(1)

@@ -82,6 +82,10 @@ Optional:
 
  - A CUDA toolkit, for the GPU consumer and/or the CUDA random-number backend.
  - An MPI implementation, for the MPI consumer.
+ - An MQTT broker, for the MQTT consumer (built when the Boost in use has
+   Boost.MQTT5, which is part of every Boost Geneva accepts; BUILDMQTTCONSUMER in
+   genevaConfig.gcfg). Its tests start a mosquitto of their own (Debian/Ubuntu:
+   the package mosquitto) and are registered when configure finds it.
  - A plotting viewer -- ROOT (http://root.cern), gnuplot, matplotlib or octave --
    to render the plot scripts that some examples emit. None of these is required to
    run Geneva or to produce the scripts, only to view them.

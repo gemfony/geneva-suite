@@ -365,6 +365,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   is constructed from the inner-EA config file alone; the former `execMode` constructor
   parameter and `setExecMode` / `getExecMode` have been **removed** (the nested
   refinement never submits to the process consumer, so there was no mode to select).
+- **An MQTT consumer, in a first version: `--consumer mqtt`.** Server and clients talk through an
+  MQTT broker instead of a port of the server's: `--mqtt_ip` and `--mqtt_port` name the broker
+  (default 127.0.0.1:1883), `--mqtt_topic` the prefix of the topics (default `gem`; servers that
+  share a broker use different ones). `--mqtt_pingInterval` (the MQTT keep-alive, default 15 s),
+  `--mqtt_prefetchDepth`, `--mqtt_parallelEvaluations`, `--mqtt_firstContactLimit`,
+  `--mqtt_reconnectLimit` and `--mqtt_serializationMode` work as their `beast` namesakes. Every
+  connection has an MQTT client of its own at both ends; a lost broker connection ends the
+  connection, and its client connects again, as with `beast`; the broker's will of a process
+  that died or hangs ends the other end. A server that cannot reach its broker refuses to start
+  and names it. Not yet there: a client keeps its own keep-alive instead of the server's; a
+  message larger than the broker accepts (2,000,000 bytes by default with mosquitto 2.1) fails
+  its item, and the receive limit of every end is fixed at 2,000,000 bytes, whatever the broker
+  allows; no TLS and no broker authentication; no chapter in the manual. Built when the Boost
+  in use has Boost.MQTT5 (`BUILDMQTTCONSUMER` in `genevaConfig.gcfg`).
 
 ## 6. Packaging: libraries and runtime-loadable modules
 

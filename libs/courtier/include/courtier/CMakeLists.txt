@@ -50,6 +50,8 @@ SET ( COMMUNICATIONINCLUDES
 # courtier2 rework, merged in at Stage E).
 SET ( CONSUMER_INCLUDES
     consumers/GMPIConsumerConfig.hpp
+    consumers/GMqttConsumerConfig.hpp
+    consumers/GMqttConsumerT.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
     consumers/GPeerConsumerT.hpp
@@ -69,6 +71,7 @@ SET ( TRANSPORT_INCLUDES
     transport/GMPIPeerTransport.hpp
     transport/GMPIPollCore.hpp
     transport/GMqttPeerTransport.hpp
+    transport/GMqttTransportT.hpp
     transport/GPeerClientT.hpp
     transport/GPeerI.hpp
     transport/GPeerSessionT.hpp

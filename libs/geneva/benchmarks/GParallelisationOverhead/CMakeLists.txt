@@ -168,6 +168,22 @@ IF (Python3_Interpreter_FOUND)
 		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3)
 	GEM_TEST_SIZE(${EXECUTABLENAME}ShortReferenceRefused M)
 
+	# The same run with the MQTT consumer, against the broker of courtier's tests (its fixture,
+	# libs/courtier/tests/UnitTests): a server and two clients, selected with --consumer mqtt
+	IF (GEM_MQTT_CONSUMER_ENABLED AND GEM_MQTT_TEST_BROKER_DIR)
+		ADD_TEST(NAME ${EXECUTABLENAME}RunWithMQTTClients
+			COMMAND ${CMAKE_COMMAND} -E env GEM_MQTT_TEST_BROKER_DIR=${GEM_MQTT_TEST_BROKER_DIR}
+				${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
+				${CMAKE_CURRENT_BINARY_DIR}/check-run-mqtt mqtt
+				${CMAKE_CURRENT_BINARY_DIR}/check-run-beast)
+		SET_TESTS_PROPERTIES(${EXECUTABLENAME}RunWithMQTTClients PROPERTIES
+			LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
+			FIXTURES_REQUIRED "${EXECUTABLENAME}SharedReference;courtier_mqtt_broker")
+		GEM_TEST_SIZE(${EXECUTABLENAME}RunWithMQTTClients M)
+	ELSE ()
+		MESSAGE(STATUS "${EXECUTABLENAME}RunWithMQTTClients not registered: no MQTT consumer or test broker")
+	ENDIF ()
+
 	IF (GEM_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE)
 		GEM_ADD_MPI_TEST(NAME ${EXECUTABLENAME}RunWithMPIClients TIMEOUT 300
 			COMMAND ${CMAKE_COMMAND} -E env

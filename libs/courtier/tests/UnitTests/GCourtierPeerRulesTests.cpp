@@ -28,8 +28,9 @@
  ********************************************************************************/
 
 // The rules of GPeerI.hpp, checked on every transport that can run in one process: the in-process
-// pair of GInProcessPeer.hpp -- the reference the roles are tested against -- and the MPI
-// transport's ends (GMPIPeer) on the in-memory stand-in for MPI of GMPIFakeCalls.hpp. The cases
+// pair of GInProcessPeer.hpp -- the reference the roles are tested against --, the MPI
+// transport's ends (GMPIPeer) on the in-memory stand-in for MPI of GMPIFakeCalls.hpp, and, where
+// courtier has it, the MQTT transport's ends (GMqttPeer) on the tests' own broker. The cases
 // that need what one transport alone can do (a fault of the in-process pair) run on that one; the
 // websocket peer has rule tests of its own (GCourtierWebsocketPeerTests).
 
@@ -37,6 +38,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -61,6 +63,9 @@
 #include "GInProcessTestSupport.hpp"
 #include "GMPIFakeCalls.hpp"
 #include "GPeerTestRole.hpp"
+#ifdef GCOURTIER_MQTT_BROKER_DIR
+#include "GMqttTestSupport.hpp"
+#endif
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/transport/GIoContext.hpp"
@@ -87,6 +92,15 @@ using Gem::Courtier::Tests::GMPIFakeWorld;
 using Gem::Courtier::Tests::IoThreads;
 using Gem::Courtier::Tests::makeRole;
 using Gem::Courtier::Tests::Role;
+#ifdef GCOURTIER_MQTT_BROKER_DIR
+using Gem::Courtier::Consumers::GMqttConnector;
+using Gem::Courtier::Consumers::GMqttOptions;
+using Gem::Courtier::Consumers::GMqttPeer;
+using Gem::Courtier::Tests::JoinableIo;
+using Gem::Courtier::Tests::mqttConnect;
+using Gem::Courtier::Tests::MqttServer;
+using Gem::Courtier::Tests::mqttTestOptions;
+#endif
 using namespace std::chrono_literals;
 
 namespace {
@@ -223,6 +237,84 @@ private:
     std::shared_ptr<GMPIFakeWorld> world_;             ///< The communicator of the last pair
 };
 
+#ifdef GCOURTIER_MQTT_BROKER_DIR
+/**
+ * The MQTT transport's ends (GMqttPeer) on the tests' broker, made as a server and a client make
+ * them: the first end is a client's, from its connector, the second the server's end of the same
+ * connection, from the listener. Every pair is a connection of its own (a new id, two MQTT
+ * clients). The client's ends run on a strand of a context of their own; the server's handlers on
+ * the listener's shell threads (MqttServer). The client's context is stopped first, the connector
+ * goes before it, the server last.
+ */
+class MqttTransport {
+public:
+    using peer_type = GMqttPeer;
+
+    MqttTransport()
+      : options_(mqttTestOptions())
+      , server_(options_)
+      , connector_(options_) { /* nothing */
+    }
+    /** @brief Closes the ends the cases left open, waits for them, then lets the client's context
+     *  run out of work */
+    ~MqttTransport() {
+        for(const auto &weak : ends_) {
+            if(auto end = weak.lock()) {
+                end->close(GPeerClose::NORMAL);
+            }
+        }
+        std::ignore = eventually([this] {
+            return std::ranges::all_of(ends_, [](const std::weak_ptr<GMqttPeer> &weak) {
+                auto end = weak.lock();
+                return not end || end->ended();
+            });
+        });
+        client_io_.join();
+    }
+    MqttTransport(const MqttTransport &) = delete;
+    MqttTransport(MqttTransport &&) = delete;
+    MqttTransport &operator=(const MqttTransport &) = delete;
+    MqttTransport &operator=(MqttTransport &&) = delete;
+
+    /** @brief @return The executor of the client's ends */
+    boost::asio::any_io_executor executor() {
+        return client_io_.executor();
+    }
+
+    /** @brief @return The two ends of a new connection: the client's and the server's */
+    std::pair<std::shared_ptr<GMqttPeer>, std::shared_ptr<GMqttPeer>> pair() {
+        auto [client_end, error] =
+            mqttConnect(connector_, boost::asio::make_strand(client_io_.executor()));
+        REQUIRE(client_end);
+        const std::size_t index = n_pairs_++;
+        REQUIRE(eventually([&] { return server_.nPeers() > index; }));
+        second_ = std::static_pointer_cast<GMqttPeer>(server_.peer(index));
+        auto first = std::static_pointer_cast<GMqttPeer>(client_end);
+        ends_.emplace_back(first);
+        ends_.emplace_back(second_);
+        return {first, second_};
+    }
+
+    /** @brief @param n A number @return Whether @p n messages of the first end of the last pair
+     *  have arrived at the second end (handed to its strand, or waiting for its start) */
+    [[nodiscard]] bool arrived(std::size_t n) const {
+        return second_ && second_->received() >= n;
+    }
+
+private:
+    GMqttOptions options_;              ///< The broker, and a topic prefix of this transport's
+    MqttServer server_;                 ///< The listener, and the threads of its ends' handlers
+    JoinableIo client_io_{2};           ///< Where the client's ends run
+    GMqttConnector connector_;          ///< Makes the client's ends
+    std::size_t n_pairs_ = 0;           ///< Connections made
+    std::shared_ptr<GMqttPeer> second_; ///< The server's end of the last pair
+    std::vector<std::weak_ptr<GMqttPeer>> ends_; ///< Every end made, closed at the end
+};
+#define GEM_PEER_RULE_TRANSPORTS InProcessTransport, MpiTransport, MqttTransport
+#else
+#define GEM_PEER_RULE_TRANSPORTS InProcessTransport, MpiTransport
+#endif
+
 /** @brief Holds the strand of @p executor until the latch it returns is counted down
  *  @param executor A strand @return The latch */
 std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT>
@@ -254,8 +346,7 @@ bool flushed(const boost::asio::any_io_executor &executor) {
 TEMPLATE_TEST_CASE(
     "Peer rules: rule 1 -- two phases",
     "[courtier][peer]",
-    InProcessTransport,
-    MpiTransport
+    GEM_PEER_RULE_TRANSPORTS
 ) {
     TestType transport;
 
@@ -317,8 +408,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Peer rules: rules 2 and 3 -- one executor and no handler inside a call",
     "[courtier][peer]",
-    InProcessTransport,
-    MpiTransport
+    GEM_PEER_RULE_TRANSPORTS
 ) {
     TestType transport;
     constexpr int ROUNDS = 100;
@@ -357,8 +447,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Peer rules: rule 5 -- onClosed exactly once",
     "[courtier][peer]",
-    InProcessTransport,
-    MpiTransport
+    GEM_PEER_RULE_TRANSPORTS
 ) {
     TestType transport;
     constexpr int ROUNDS = 100;
@@ -403,8 +492,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Peer rules: rule 6 -- what a close sends and what it stops",
     "[courtier][peer]",
-    InProcessTransport,
-    MpiTransport
+    GEM_PEER_RULE_TRANSPORTS
 ) {
     TestType transport;
 

@@ -98,10 +98,21 @@ gem_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTranspor
 # The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound
 gem_courtier_test(GCourtierWebsocketStopTests M  GCourtierWebsocketStopTests.cpp)
 # The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
-# directory, used by later tests of the roles as their transport) and on the MPI transport's ends
-# over the in-memory stand-in for MPI (GMPIFakeCalls.hpp): one set of rule tests for both
-gem_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
-	GInProcessTestSupport.hpp GMPIFakeCalls.hpp GPeerTestRole.hpp)
+# directory, used by later tests of the roles as their transport), on the MPI transport's ends
+# over the in-memory stand-in for MPI (GMPIFakeCalls.hpp) and, where courtier has it, on the MQTT
+# transport's ends (see below): one set of rule tests for all. Its cases on the MQTT transport go
+# through a broker (about 8 s, most of it in the 40 ms the broker waits before it sends a second
+# small packet: its set_tcp_nodelay is off, see tests/mqttTestBroker.sh), which makes the entry M.
+IF(GEM_MQTT_CONSUMER_ENABLED)
+	FIND_PROGRAM(GEM_MOSQUITTO_EXECUTABLE mosquitto PATHS /usr/sbin /usr/local/sbin)
+ENDIF()
+IF(GEM_MQTT_CONSUMER_ENABLED AND GEM_MOSQUITTO_EXECUTABLE)
+	SET(_gem_rules_size M)
+ELSE()
+	SET(_gem_rules_size S)
+ENDIF()
+gem_courtier_test(GCourtierPeerRulesTests ${_gem_rules_size} GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
+	GInProcessTestSupport.hpp GMPIFakeCalls.hpp GPeerTestRole.hpp GMqttTestSupport.hpp)
 gem_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
 gem_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
@@ -142,9 +153,9 @@ gem_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketL
 # on a free port of the loopback interface and ends it by its pid (a CTest fixture; never the host's
 # broker). Its directory, with the port, is GEM_MQTT_TEST_BROKER_DIR; the tests that need it require
 # the fixture courtier_mqtt_broker and use a topic prefix of their own each. Registered where
-# courtier has the transport and configure finds mosquitto.
+# courtier has the transport and configure finds mosquitto (GEM_MOSQUITTO_EXECUTABLE, looked for
+# above, at the rule tests).
 IF(GEM_MQTT_CONSUMER_ENABLED)
-	FIND_PROGRAM(GEM_MOSQUITTO_EXECUTABLE mosquitto PATHS /usr/sbin /usr/local/sbin)
 	IF(GEM_MOSQUITTO_EXECUTABLE)
 		SET(GEM_MQTT_TEST_BROKER_DIR ${CMAKE_BINARY_DIR}/mqtt-test-broker
 			CACHE INTERNAL "Where the tests' MQTT broker writes its port")
@@ -166,6 +177,10 @@ IF(GEM_MQTT_CONSUMER_ENABLED)
 		TARGET_COMPILE_DEFINITIONS(GCourtierMqttTransportTests
 			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
 		SET_TESTS_PROPERTIES(GCourtierMqttTransportTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+		# The rules of GPeerI.hpp on the MQTT transport too
+		TARGET_COMPILE_DEFINITIONS(GCourtierPeerRulesTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierPeerRulesTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
 	ELSE()
 		MESSAGE(STATUS "The tests of the MQTT transport are not registered: no mosquitto found")
 	ENDIF()
