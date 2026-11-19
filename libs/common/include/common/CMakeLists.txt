@@ -27,13 +27,8 @@
 #
 ################################################################################
 #
-# GGlobalDefines.hpp is a regular, manually maintained header — it is no longer
-# generated from a .in template.  When bumping the Geneva version or the minimum
-# Boost version, update the GENEVA_VERSION and MIN_BOOST_VERSION macros in that
-# file directly (see the comments there for the encoding rules).
-# The authoritative version numbers are VERSION_MAJOR / VERSION_MINOR /
-# VERSION_PATCH in the top-level CMakeLists.txt and GENEVA_MIN_BOOST_VERSION in
-# CMakeModules/CommonGenevaBuild.cmake.
+# GGlobalDefines.hpp is a regular, manually maintained header; the Geneva version
+# is written there (see the comments there for the encoding rules).
 #
 
 SET ( GENEVACOMMONINCLUDES

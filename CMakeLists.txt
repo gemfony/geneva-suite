@@ -413,6 +413,37 @@ endif()
 # dependency (an MPI launcher, a Python interpreter, a GPU consumer build), never
 # for parking a failure.
 
+###############################################################################
+# The library/package version. Uneven minor numbers denote development versions
+# while even minor numbers stand for production releases. The version is written
+# only in libs/common/include/common/GGlobalDefines.hpp and is read from there.
+#
+# The pre-release tag (e.g. "beta1", the header's GENEVA_VERSION_PRERELEASE without
+# its dash) rides only in the human-facing strings (full version, install prefix,
+# Doxygen, CPack) -- GENEVA_VERSION stays pure x.y.z, as required by the library
+# VERSION property and WRITE_BASIC_PACKAGE_VERSION_FILE.
+
+SET(_GENEVA_VERSION_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
+FILE(STRINGS "${_GENEVA_VERSION_HEADER}" _GENEVA_VERSION_LINES
+	REGEX "^#define[ \t]+GENEVA_VERSION_(MAJOR|MINOR|PATCH|PRERELEASE)[ \t]")
+FOREACH(_comp MAJOR MINOR PATCH)
+	IF(NOT _GENEVA_VERSION_LINES MATCHES "#define[ \t]+GENEVA_VERSION_${_comp}[ \t]+([0-9]+)")
+		MESSAGE(FATAL_ERROR "Cannot read GENEVA_VERSION_${_comp} (a plain decimal) from ${_GENEVA_VERSION_HEADER}")
+	ENDIF()
+	SET(VERSION_${_comp} "${CMAKE_MATCH_1}")
+ENDFOREACH()
+IF(NOT _GENEVA_VERSION_LINES MATCHES "#define[ \t]+GENEVA_VERSION_PRERELEASE[ \t]+\"(-[^\"]+)?\"")
+	MESSAGE(FATAL_ERROR "Cannot read GENEVA_VERSION_PRERELEASE (\"\" or a tag with a leading dash, such as \"-beta1\") from ${_GENEVA_VERSION_HEADER}")
+ENDIF()
+STRING(REGEX REPLACE "^-" "" VERSION_SUFFIX "${CMAKE_MATCH_1}")
+
+SET(GENEVA_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
+IF(VERSION_SUFFIX STREQUAL "")
+	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION})
+ELSE()
+	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION}-${VERSION_SUFFIX})
+ENDIF()
+
 ################################################################################
 # Different subcomponents of the Geneva binary tree can be installed in
 # customized locations, by setting the "INSTALL_PREFIX_*" variables:
@@ -498,30 +529,6 @@ IF(NOT GENEVA_SANITIZER STREQUAL "none")
     MESSAGE(STATUS "Sanitizer ENABLED: -fsanitize=${GENEVA_SANITIZER} (CUDA + MPI excluded)")
 ELSE()
     MESSAGE(STATUS "Sanitizer: none (default)")
-ENDIF()
-
-###############################################################################
-# Set the library/package version. Uneven minor numbers denote development
-# versions while even minor numbers stand for production releases.
-#
-# IMPORTANT: When bumping the version here, also update the two macros
-#   GENEVA_VERSION components (+ GENEVA_VERSION_PRERELEASE)  and  MIN_BOOST_VERSION
-# in libs/common/include/common/GGlobalDefines.hpp accordingly.
-
-SET(VERSION_MAJOR "1")
-SET(VERSION_MINOR "99")
-SET(VERSION_PATCH "0")
-# Pre-release tag (e.g. "beta1"); set to "" for a final release. It rides only in the
-# human-facing strings (full version, install prefix, Doxygen, CPack) -- the numeric
-# GENEVA_VERSION below stays pure x.y.z, as required by the library VERSION property and
-# WRITE_BASIC_PACKAGE_VERSION_FILE.
-SET(VERSION_SUFFIX "beta1")
-
-SET(GENEVA_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
-IF(VERSION_SUFFIX STREQUAL "")
-	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION})
-ELSE()
-	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION}-${VERSION_SUFFIX})
 ENDIF()
 
 ################################################################################
