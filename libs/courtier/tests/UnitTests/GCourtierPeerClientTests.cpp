@@ -1014,6 +1014,9 @@ TEST_CASE(
     auto items = makeBatch(8);
     auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
     const bool limited_done = eventually([&] { return world.clientsDone(); });
+    // The client's close follows its last RESULT on the connection, and the server's end reads in
+    // order: once the client's session has left the shell, every RESULT it sent has been counted.
+    const bool limited_closed = eventually([&] { return world.shell().getNActiveSessions() == 0; });
     const std::size_t n_results = world.counts().nResults.load();
     world.client(
         GPeerClientOptions{.name = "other client", .mode = BIN},
@@ -1024,6 +1027,7 @@ TEST_CASE(
     );
     REQUIRE(batch.get());
     REQUIRE(limited_done);
+    REQUIRE(limited_closed);
     CHECK(limited->total.load() == 3);
     CHECK(n_results == 3);
     for(std::size_t i = 0; i < items.size(); ++i) {

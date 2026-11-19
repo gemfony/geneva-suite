@@ -131,8 +131,9 @@ struct GFrameHead {
  *    Courtier stores and relays both without ever interpreting them.
  *
  * The payload is a variant with one alternative per frame purpose -- nothing, a work item, or the
- * library's own payload type -- so each frame carries exactly what it means. Courtier knows exactly ONE of the alternatives from the inside: the work item, which it must
- * be able to process() and route. Everything else it archives blind.
+ * library's own payload type -- so each frame carries exactly what it means. Courtier knows
+ * exactly ONE of the alternatives from the inside: the work item, which it must be able to
+ * process() and route. Everything else it archives blind.
  *
  * @tparam processable_type The type of the processable work item carried as payload
  */

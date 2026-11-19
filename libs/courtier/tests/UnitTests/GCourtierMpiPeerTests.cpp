@@ -333,6 +333,8 @@ TEST_CASE(
     CHECK(master.ranks() == std::set<GWirePeerId>{1, 2, 3});
     const auto master_one = master.role(1);
     REQUIRE(master_one != nullptr);
+    // The role is listed before its end's start() has run on the pool (GPeerI.hpp, rule 2)
+    REQUIRE(eventually([&] { return not master_one->events().empty(); }));
     CHECK(master_one->events() == std::vector<std::string>{"open"});
 
     one.role().close(GPeerClose::NORMAL);

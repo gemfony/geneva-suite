@@ -727,7 +727,9 @@ TEST_CASE(
         );
         REQUIRE(eventually([&] { return connection.client->closed() == "CLOSED_THERE:ERROR"; }));
         CHECK(connection.client->nFrames() == 1); // no answer
-        CHECK(consumer.nPending() == 1);          // what the client held is back
+        // The lease gives back when the session goes, after its close has gone out: the client
+        // may hear the close first. What the client held is back:
+        CHECK(eventually([&] { return consumer.nPending() == 1; }));
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
     }
 }
@@ -770,7 +772,9 @@ TEST_CASE(
         CHECK(consumer.nCheckedIn() == 1);        // the RESULT
         CHECK(connection.client->nFrames() == 1); // the first WORK; the PULL is not answered
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
-        CHECK(consumer.nPending() == 2); // what the client held is back, and nothing is out
+        // A session signs off before its lease gives back. What the client held is back, and
+        // nothing is out:
+        CHECK(eventually([&] { return consumer.nPending() == 2; }));
     }
 }
 
