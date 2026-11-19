@@ -41,7 +41,7 @@
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 // Geneva headers go here
-#include "common/GModuleManifest.hpp" // the unified module manifest (GenevaCompat + contributions)
+#include "common/GModuleManifest.hpp" // the unified module manifest (GemCompat + contributions)
 #include "geneva/GConsumerSetup.hpp"  // GConsumerProviderT / consumerProviderStore()
 
 namespace Gem::Geneva {
@@ -62,7 +62,7 @@ using GConsumerProviderPtr = std::shared_ptr<GConsumerProviderT>;
  * -- MPI -- lives in a module of its own, so that no Geneva program depends on that library to start. The
  * module's source hand-writes ONE small entry point that delegates here:
  * @code
- *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+ *   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
  *       return Gem::Geneva::consumerManifest<GMyConsumerProvider, "my">();
  *   }
  * @endcode
@@ -81,25 +81,20 @@ using GConsumerProviderPtr = std::shared_ptr<GConsumerProviderT>;
  * @return A pointer to this module's process-lifetime manifest
  */
 template <typename provider_type, Gem::Common::GFixedString MNEMONIC>
-const GenevaModuleManifest *consumerManifest() {
+const GemModuleManifest *consumerManifest() {
     // Captureless thunk -> void*(*)(void): build the provider on the heap; the loader moves-from and deletes
     // it, then registers the provider in consumerProviderStore().
     static constexpr auto factory_thunk =
         +[]() -> void * { return new GConsumerProviderPtr(std::make_shared<provider_type>()); };
     // NOLINTNEXTLINE(readability-identifier-naming) -- named as in the other manifest helpers
-    static const GenevaContribution contribution{
-        GENEVA_CONTRIBUTION_CONSUMER,
+    static const GemContribution contribution{
+        GEM_CONTRIBUTION_CONSUMER,
         MNEMONIC.c_str(),
         factory_thunk,
         typeid(gen::GGenome).name()
     };
-    static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP,
-        MNEMONIC.c_str(),
-        GENEVA_VERSION_STRING,
-        &contribution,
-        1u
-    };
+    static const GemModuleManifest
+        manifest{GEM_MODULE_ABI_STAMP, MNEMONIC.c_str(), GEM_VERSION_STRING, &contribution, 1u};
     return &manifest;
 }
 

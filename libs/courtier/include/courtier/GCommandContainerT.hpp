@@ -87,7 +87,7 @@ struct GFrameHead {
         archive_named(ar, "kind", kind);
         if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
             if(not isFrameKind(kind)) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                     << "The message is not a frame: its kind " << std::to_underlying(kind)
                     << " is not a GFrameKind" << '\n'
@@ -323,13 +323,13 @@ public:
 	  * lifecycle refuses it there, and no processor is spent on it.
 	  *
 	  * @param processor Processes a due item in place of its process(); nullptr: process()
-	  * @throws geneva_exception if the frame holds no work item
+	  * @throws gem_exception if the frame holds no work item
 	  * @throws g_processing_exception (from the item) if processing flagged or threw an error
 	  */
     void process(GItemProcessorT<processable_type> *processor = nullptr) {
         auto *held = std::get_if<std::unique_ptr<processable_type>>(&payload_);
         if(held == nullptr || not *held) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommandContainerT<processable_type>::process():" << '\n'
                 << "Tried to process a work item while the frame carries none" << '\n'
@@ -478,7 +478,7 @@ void makeFailedResult(
  *
  * A failure of the user's processing code surfaces as a g_processing_exception, with the work item
  * already flagged (EXCEPTION_CAUGHT) and its error text stored. Any other exception out of the
- * item's processing -- e.g. the geneva_exception the processing lifecycle throws for an item that
+ * item's processing -- e.g. the gem_exception the processing lifecycle throws for an item that
  * is not due -- leaves the item unflagged; it is flagged here (ERROR_FLAGGED, the text appended to
  * its error descriptions, unless the item already reports an error). Neither ends the worker: the
  * flagged item is returned like any other result, and the server's submission policy decides what
@@ -493,7 +493,7 @@ void makeFailedResult(
  * @param container The frame holding the work item to process
  * @param worker_name The worker's name, used in the warning
  * @param processor Processes a due item in place of its process(); nullptr: the item's process()
- * @throws geneva_exception if the frame holds no work item
+ * @throws gem_exception if the frame holds no work item
  */
 template <typename processable_type>
 void processWorkFrame(
@@ -561,7 +561,7 @@ void processWorkFrame(
  * @param container The frame to fill (reset first)
  * @param serMode The serialization format the message was produced with
  * @return The part of @p descr that holds the payload (a view into it)
- * @throws geneva_exception if the head cannot be read
+ * @throws gem_exception if the head cannot be read
  */
 template <typename processable_type>
 std::string_view frameHeadFromString(
@@ -572,7 +572,7 @@ std::string_view frameHeadFromString(
     container.reset();
     try {
         if(descr.size() < 4) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                 << "the message is shorter than the length of a head" << '\n'
             );
@@ -583,7 +583,7 @@ std::string_view frameHeadFromString(
                         << (8 * i);
         }
         if(head_length > descr.size() - 4) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                 << "the head is longer than the message" << '\n'
             );
@@ -593,7 +593,7 @@ std::string_view frameHeadFromString(
     }
     catch(...) {
         container.reset();
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
             << "The head of a message cannot be read: "
             << describeException(std::current_exception()) << '\n'
@@ -609,7 +609,7 @@ std::string_view frameHeadFromString(
  * @param payload The payload part of the message
  * @param container The frame whose head has been read
  * @param serMode The serialization format the message was produced with
- * @throws geneva_exception if the payload cannot be read
+ * @throws gem_exception if the payload cannot be read
  */
 template <typename processable_type>
 void framePayloadFromString(
@@ -621,7 +621,7 @@ void framePayloadFromString(
         container.payloadFromString(payload, serMode);
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
             << "The payload of a " << fkToStr(container.kind())
             << " cannot be read: " << describeException(std::current_exception()) << '\n'
@@ -638,7 +638,7 @@ void framePayloadFromString(
  * @param container The command container to be serialized
  * @param serMode The serialization format to use (GArchive binary or JSON)
  * @return The message
- * @throws geneva_exception if serialization fails
+ * @throws gem_exception if serialization fails
  */
 template <typename processable_type>
 std::string container_to_string(
@@ -658,7 +658,7 @@ std::string container_to_string(
         return message;
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
             << "In container_to_string(GCommandContainerT<>): "
             << describeException(std::current_exception()) << '\n'
@@ -675,7 +675,7 @@ std::string container_to_string(
  * @param descr The message to load from
  * @param container The command container to be filled (reset before loading)
  * @param serMode The serialization format the message was produced with
- * @throws geneva_exception if the head or the payload cannot be read
+ * @throws gem_exception if the head or the payload cannot be read
  */
 template <typename processable_type>
 void container_from_string(

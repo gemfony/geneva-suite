@@ -147,8 +147,8 @@ TEST_CASE(
     "grational_sigmoid: zero steepness throws in DEBUG mode",
     "[common][math][grational_sigmoid]"
 ) {
-    REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., 0.), geneva_exception);
-    REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., -1.), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., 0.), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., -1.), gem_exception);
 }
 #endif
 
@@ -186,7 +186,7 @@ TEST_CASE(
     "[common][math][enforceRangeConstraint]"
 ) {
     double v = 5.;
-    REQUIRE_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 10., 0.), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 10., 0.), gem_exception);
 }
 
 TEST_CASE(
@@ -224,7 +224,7 @@ TEST_CASE(
     "checkRangeCompliance<fp>: lower > upper throws",
     "[common][math][checkRangeCompliance]"
 ) {
-    REQUIRE_THROWS_AS(Gem::Common::checkRangeCompliance(5., 10., 0.), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkRangeCompliance(5., 10., 0.), gem_exception);
 }
 
 TEST_CASE(
@@ -248,7 +248,7 @@ TEST_CASE(
     "checkRangeCompliance<int>: lower > upper throws",
     "[common][math][checkRangeCompliance]"
 ) {
-    REQUIRE_THROWS_AS(Gem::Common::checkRangeCompliance(5, 10, 0), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkRangeCompliance(5, 10, 0), gem_exception);
 }
 
 // --- getWorstCase / getBestCase ------------------------------------------
@@ -283,8 +283,8 @@ TEST_CASE(
     "checkValueRange<fp>: value out of range throws by default",
     "[common][math][checkValueRange]"
 ) {
-    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(-1., 0., 10.), geneva_exception);
-    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(11., 0., 10.), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(-1., 0., 10.), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(11., 0., 10.), gem_exception);
 }
 
 TEST_CASE("checkValueRange<fp>: warnOnly does not throw", "[common][math][checkValueRange]") {
@@ -303,7 +303,7 @@ TEST_CASE(
             Gem::Common::GFPLOWEROPEN,
             Gem::Common::GFPUPPERCLOSED
         ),
-        geneva_exception
+        gem_exception
     );
     REQUIRE_THROWS_AS(
         Gem::Common::checkValueRange(
@@ -313,7 +313,7 @@ TEST_CASE(
             Gem::Common::GFPLOWERCLOSED,
             Gem::Common::GFPUPPEROPEN
         ),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -324,18 +324,18 @@ TEST_CASE("checkValueRange<int>: value in range is returned", "[common][math][ch
 }
 
 TEST_CASE("checkValueRange<int>: value out of range throws", "[common][math][checkValueRange]") {
-    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(-1, 0, 10), geneva_exception);
-    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(11, 0, 10), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(-1, 0, 10), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(11, 0, 10), gem_exception);
 }
 
 TEST_CASE(
     "checkValueRange<int>: open boundaries exclude endpoints",
     "[common][math][checkValueRange]"
 ) {
-    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(0, 0, 10, true /*lowerOpen*/), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::checkValueRange(0, 0, 10, true /*lowerOpen*/), gem_exception);
     REQUIRE_THROWS_AS(
         Gem::Common::checkValueRange(10, 0, 10, false, true /*upperOpen*/),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -356,8 +356,8 @@ TEST_CASE("getMinMax 1D: two-element vector", "[common][math][getMinMax]") {
 }
 
 TEST_CASE("getMinMax 1D: size < 2 throws", "[common][math][getMinMax]") {
-    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{1.}), geneva_exception);
-    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{}), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{1.}), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{}), gem_exception);
 }
 
 TEST_CASE(
@@ -375,7 +375,7 @@ TEST_CASE(
 
 TEST_CASE("getMinMax 2D: size < 2 throws", "[common][math][getMinMax]") {
     using T = std::tuple<double, double>;
-    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<T>{{1., 2.}}), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<T>{{1., 2.}}), gem_exception);
 }
 
 TEST_CASE(
@@ -429,7 +429,7 @@ TEST_CASE("GMean: constant vector returns the constant", "[common][math][GMean]"
 
 #ifdef DEBUG
 TEST_CASE("GMean: empty vector throws in DEBUG mode", "[common][math][GMean]") {
-    REQUIRE_THROWS_AS(Gem::Common::GMean(std::vector<double>{}), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::GMean(std::vector<double>{}), gem_exception);
 }
 #endif
 
@@ -515,13 +515,13 @@ TEST_CASE(
 TEST_CASE("subtractVec: size mismatch throws in DEBUG", "[common][math][subtractVec]") {
     std::vector<double> a{1., 2.};
     std::vector<double> b{3., 4., 5.};
-    REQUIRE_THROWS_AS(Gem::Common::subtractVec(a, b), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::subtractVec(a, b), gem_exception);
 }
 
 TEST_CASE("addVec: size mismatch throws in DEBUG", "[common][math][addVec]") {
     std::vector<double> a{1., 2.};
     std::vector<double> b{3.};
-    REQUIRE_THROWS_AS(Gem::Common::addVec(a, b), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::addVec(a, b), gem_exception);
 }
 #endif
 
@@ -650,20 +650,20 @@ TEST_CASE("getRatioError: known ratio and propagated error", "[common][math][get
 TEST_CASE("getRatioError: division by zero throws", "[common][math][getRatioError]") {
     auto s = std::tuple<double, double, double, double>{1., 0., 4., 0.1};
     auto p = std::tuple<double, double, double, double>{1., 0., 0., 0.1};
-    REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);
 }
 
 TEST_CASE("getRatioError: mismatched sleep times throws", "[common][math][getRatioError]") {
     auto s = std::tuple<double, double, double, double>{1., 0., 4., 0.1};
     auto p = std::tuple<double, double, double, double>{2., 0., 2., 0.1};
-    REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);
 }
 
 TEST_CASE("getRatioErrors: size mismatch throws", "[common][math][getRatioErrors]") {
     using T4 = std::tuple<double, double, double, double>;
     std::vector<T4> const sn{{1., 0., 2., 0.1}};
     std::vector<T4> const pn{{1., 0., 1., 0.1}, {2., 0., 1., 0.1}};
-    REQUIRE_THROWS_AS(Gem::Common::getRatioErrors(sn, pn), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getRatioErrors(sn, pn), gem_exception);
 }
 
 TEST_CASE("getRatioErrors: applies getRatioError element-wise", "[common][math][getRatioErrors]") {

@@ -30,7 +30,7 @@
 #pragma once
 
 // Global checks, defines and includes needed for all of Geneva
-#include "common/GGlobalDefines.hpp" // GENEVA_VERSION (the ABI token)
+#include "common/GGlobalDefines.hpp" // GEM_VERSION (the ABI token)
 
 // Standard headers go here
 #include <cstddef>
@@ -42,7 +42,7 @@
 
 // Geneva headers go here
 #include "common/GFactoryT.hpp"
-#include "common/GModuleManifest.hpp" // the unified module manifest (GenevaCompat + contributions)
+#include "common/GModuleManifest.hpp" // the unified module manifest (GemCompat + contributions)
 #include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Geneva {
@@ -61,17 +61,17 @@ using Gem::Common::GFixedString;
  *
  * A loadable individual's source hand-writes ONE small entry point that delegates here:
  * @code
- *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+ *   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
  *       return Gem::Geneva::individualManifest<
  *           Gem::Geneva::Genome::GIndividualFactory<MyProblem>,
  *           "./config/MyProblem.json", "MyProblem">();
  *   }
  * @endcode
  * The @c extern @c "C" wrapper is irreducible: the loader resolves the fixed, unmangled symbol
- * @c geneva_module_manifest via a dlsym-style lookup, which no template can synthesize. Everything else is
+ * @c gem_module_manifest via a dlsym-style lookup, which no template can synthesize. Everything else is
  * this typed template.
  *
- * The returned manifest carries this module's @c GenevaCompat fingerprint (which the loader validates BEFORE
+ * The returned manifest carries this module's @c GemCompat fingerprint (which the loader validates BEFORE
  * touching any C++ contribution) and a single INDIVIDUAL contribution whose factory thunk hands back a
  * heap-allocated content-creator factory as a @c void* (so the boundary stays plain C); the loader
  * moves-from and deletes it. The statics live for the process; the .so is kept resident by the loader. This
@@ -86,19 +86,19 @@ using Gem::Common::GFixedString;
  * @return A pointer to this module's process-lifetime manifest
  */
 template <typename factory_type, GFixedString CONFIG, GFixedString NAME>
-const GenevaModuleManifest *individualManifest() {
+const GemModuleManifest *individualManifest() {
     // Captureless thunk -> void*(*)(void): construct the factory (with its config path) on the heap; the
     // loader moves-from and deletes it. CONFIG is a template-parameter object, usable without capture.
     static constexpr auto factory_thunk = +[]() -> void * {
         return new GIndividualFactoryPtr(std::make_shared<factory_type>(CONFIG.c_str()));
     };
-    static const GenevaContribution contribution{
-        GENEVA_CONTRIBUTION_INDIVIDUAL,
+    static const GemContribution contribution{
+        GEM_CONTRIBUTION_INDIVIDUAL,
         NAME.c_str(),
         factory_thunk
     };
-    static const GenevaModuleManifest
-        manifest{GENEVA_MODULE_ABI_STAMP, NAME.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+    static const GemModuleManifest
+        manifest{GEM_MODULE_ABI_STAMP, NAME.c_str(), GEM_VERSION_STRING, &contribution, 1u};
     return &manifest;
 }
 

@@ -3,7 +3,7 @@
  * @brief Module "glue" that makes GStarterIndividual a runtime-loadable Geneva individual.
  *
  * This is the entire author-facing surface for making an existing individual loadable at run time: the fixed
- * extern "C" entry point geneva_module_manifest(), delegating to the typed helper
+ * extern "C" entry point gem_module_manifest(), delegating to the typed helper
  * individualManifest<Factory, Config, Name>() (from the INSTALLED Geneva header geneva/genome/GIndividualPlugin.hpp).
  * The individual's archive tag (GEM_REGISTER_ARCHIVABLE) lives in GStarterIndividual.cpp, which is
  * the DECLARE's SOURCES (compiled into both the compiled-in object library and the loadable module), so this
@@ -16,14 +16,14 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
 #include "GStarterIndividual.hpp"
 
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GStarterIndividual>,
         "./config/GStarterIndividual.json",

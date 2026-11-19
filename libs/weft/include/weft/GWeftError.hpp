@@ -44,7 +44,7 @@ namespace Gem::Weft {
  * Weft is a self-contained, dependency-free foundation library (the whole point
  * of the split is that it can be reused in other projects), so it carries its
  * own tiny error facility rather than reaching for Gem::Common's
- * @c geneva_exception / @c g_error_streamer / @c GLogger. A @c weft_exception is a
+ * @c gem_exception / @c g_error_streamer / @c GLogger. A @c weft_exception is a
  * plain @c std::runtime_error: the caller catches it and decides whether/how to
  * log — Weft never logs on its own.
  */

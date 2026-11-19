@@ -77,7 +77,7 @@ bool backendAvailable(BackendKind kind) {
  * @tparam scalar_type The floating-point scalar the backend operates on (double or float)
  * @param kind The backend to construct
  * @return An owning pointer to the constructed backend
- * @throws geneva_exception if the requested backend was not compiled into this build
+ * @throws gem_exception if the requested backend was not compiled into this build
  */
 template <typename scalar_type>
 std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind) {
@@ -89,7 +89,7 @@ std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind) {
         break;
 #endif
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "Gem::Courtier::GPU::makeBackend(): backend '" << toString(kind)
         << "' was not compiled into this build (its toolkit was not found at configure time)."

@@ -296,14 +296,14 @@ private:
             const std::filesystem::path dir(resultImageDirectory_);
             if(not std::filesystem::exists(dir)) {
                 if(not std::filesystem::create_directories(dir)) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "GImagePOM: could not create directory " << resultImageDirectory_ << '\n'
                     );
                 }
             }
             else if(not std::filesystem::is_directory(dir)) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "GImagePOM: " << resultImageDirectory_ << " is not a directory" << '\n'
                 );

@@ -125,7 +125,7 @@ public:
      *  @param config Reads nHandlerThreads (the session threads; 0: one per hardware thread),
      *         pingInterval (the keep-alive interval in seconds; 0: off) and serializationMode. The
      *         client members are ignored.
-     *  @throws geneva_exception if @p environment is null or the role of this process is not
+     *  @throws gem_exception if @p environment is null or the role of this process is not
      *          SUBMITTER */
     explicit GMPIConsumerT(
         std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment,
@@ -168,14 +168,14 @@ private:
     static std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment>
     requireSubmitter_(std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment) {
         if(not environment) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
                 << "The MPI environment must not be empty" << '\n'
             );
         }
         if(environment->role() != Gem::Courtier::processRole::SUBMITTER) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
                 << "The MPI consumer is built on the submitter only; this process has the role "

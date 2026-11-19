@@ -82,7 +82,7 @@ sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMod
     }
     }
 
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In sharedPtrToString(): unknown serialization mode " << static_cast<int>(ser_mod)
         << '\n'
@@ -128,7 +128,7 @@ sharedPtrFromString(const std::string &gt_string, const Gem::Common::serializati
         return std::shared_ptr<T>();
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In sharedPtrFromString(): Error!" << '\n'
             << "Caught unknown exception" << '\n'

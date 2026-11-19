@@ -55,7 +55,7 @@ namespace Gem::Courtier::Consumers {
  * @param calls The calls to MPI on courtier's communicator; must not be null
  * @param executor Where the chain runs (on a strand of its own)
  * @param timing How the poll paces itself
- * @throws geneva_exception if @p calls is null or @p timing is not usable
+ * @throws gem_exception if @p calls is null or @p timing is not usable
  */
 GMPIPollCore::GMPIPollCore(
     std::shared_ptr<GMPICallsI> calls,
@@ -75,7 +75,7 @@ GMPIPollCore::GMPIPollCore(
   , keep_alive_(timing.keepAlive)
   , life_(receivers_.size()) {
     if(not calls_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "No calls to MPI were given" << '\n'
@@ -83,7 +83,7 @@ GMPIPollCore::GMPIPollCore(
     }
     if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin || timing_.rounds < 1 ||
        timing_.drainGrace.count() < 0 || timing_.keepAlive.count() < 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "The timing is not usable: the shortest pause must be positive and not above the "
@@ -115,7 +115,7 @@ GMPIPollCore::~GMPIPollCore() {
  *
  * @param rank The rank whose messages the receiver gets
  * @param receiver The receiver; the poll holds it until shutdown()
- * @throws geneva_exception after start(), for a rank outside the communicator, a rank that has a
+ * @throws gem_exception after start(), for a rank outside the communicator, a rank that has a
  *         receiver already, or a null receiver
  */
 void GMPIPollCore::addReceiver(int rank, std::shared_ptr<GMPIPollReceiverI> receiver) {
@@ -133,7 +133,7 @@ void GMPIPollCore::addReceiver(int rank, std::shared_ptr<GMPIPollReceiverI> rece
         refusal = "the rank has a receiver already";
     }
     if(refusal != nullptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::addReceiver(): Error!" << '\n'
             << "A receiver for rank " << rank << " cannot be added: " << refusal << '\n'
@@ -199,11 +199,11 @@ void GMPIPollCore::setKeepAlive(std::chrono::milliseconds interval) {
  * @param rank The receiving rank
  * @param tag The kind of message
  * @param message The bytes; at most INT_MAX of them (the caller has checked)
- * @throws geneva_exception for a rank outside the communicator
+ * @throws gem_exception for a rank outside the communicator
  */
 void GMPIPollCore::startSend(int rank, int tag, std::string message) {
     if(not this->validRank_(rank)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIPollCore::startSend(): Error!" << '\n'
             << "Rank " << rank << " is not one of the " << size_ << " ranks of the communicator"

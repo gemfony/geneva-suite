@@ -270,7 +270,7 @@ private:
 
 #ifdef DEBUG
         if(not grf_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GRandomT<QUEUE>::getNewRandomContainer(): Error!" << '\n'
                 << "No connection to GRandomFactory object." << '\n'
@@ -295,7 +295,7 @@ private:
         // still-drawing consumer.)
         while(not(p_ = grf_->getNewRandomContainer())) {
             if(grf_->finalized()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GRandomT<QUEUE>::getNewRandomContainer(): Error!" << '\n'
                     << "The random-number factory has been finalized (permanently shut down);"

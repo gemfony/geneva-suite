@@ -366,7 +366,7 @@ public:
      */
     void addCheck(const std::shared_ptr<GPreEvaluationValidityCheckT<ind_type>> &vc_ptr) {
         if(not vc_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GValidityCheckContainerT<>::addCheck(): Error!" << '\n'
                 << "Got empty check pointer" << '\n'
@@ -553,7 +553,7 @@ protected:
 
             // --------------------------------------------------------------------
         default: {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCheckCombinerT<ind_type>::check_(): Error!" << '\n'
                 << "Got invalid combiner_policy_ value: " << combiner_policy_ << '\n'

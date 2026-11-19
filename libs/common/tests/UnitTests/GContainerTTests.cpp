@@ -724,7 +724,7 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::deque backend", "[GContain
         ConcretePodDeque b;
         b.assign({4, 5, 6});
 #ifdef DEBUG
-        CHECK_THROWS_AS(a.crossOver(b, 3), geneva_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
 #else
         CHECK_NOTHROW(a.crossOver(b, 2));
 #endif
@@ -833,13 +833,13 @@ TEST_CASE(
     SECTION("push_backClone — null pointer throws") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.push_back_clone(null), geneva_exception);
+        CHECK_THROWS_AS(c.push_back_clone(null), gem_exception);
     }
 
     SECTION("push_backNoclone — null pointer throws") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.push_back_noclone(null), geneva_exception);
+        CHECK_THROWS_AS(c.push_back_noclone(null), gem_exception);
     }
 
     SECTION("insertClone — single") {
@@ -870,8 +870,8 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(0));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_clone(c.begin(), null), geneva_exception);
-        CHECK_THROWS_AS(c.insert_clone(c.begin(), 2u, null), geneva_exception);
+        CHECK_THROWS_AS(c.insert_clone(c.begin(), null), gem_exception);
+        CHECK_THROWS_AS(c.insert_clone(c.begin(), 2u, null), gem_exception);
     }
 
     SECTION("insertNoclone — single") {
@@ -887,7 +887,7 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_noclone(c.begin(), null), geneva_exception);
+        CHECK_THROWS_AS(c.insert_noclone(c.begin(), null), gem_exception);
     }
 
     SECTION("insertClone — count, mid-position contiguity") {
@@ -987,7 +987,7 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_noclone(c.begin(), 2u, null), geneva_exception);
+        CHECK_THROWS_AS(c.insert_noclone(c.begin(), 2u, null), gem_exception);
     }
 
     SECTION("resizeClone") {
@@ -1004,7 +1004,7 @@ TEST_CASE(
     SECTION("resizeClone — null pointer throws on grow") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.resize_clone(3u, null), geneva_exception);
+        CHECK_THROWS_AS(c.resize_clone(3u, null), gem_exception);
     }
 
     SECTION("resizeNoclone") {
@@ -1029,7 +1029,7 @@ TEST_CASE(
     SECTION("resizeNoclone — null pointer throws on grow") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.resize_noclone(3u, null), geneva_exception);
+        CHECK_THROWS_AS(c.resize_noclone(3u, null), gem_exception);
     }
 
     SECTION("resizeEmpty") {
@@ -1078,14 +1078,14 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.count<TestBase>(null), geneva_exception);
+        CHECK_THROWS_AS(c.count<TestBase>(null), gem_exception);
     }
 
     SECTION("find — null pointer throws") {
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.find<TestBase>(null), geneva_exception);
+        CHECK_THROWS_AS(c.find<TestBase>(null), gem_exception);
     }
 
     SECTION("crossOver — equal length") {
@@ -1128,7 +1128,7 @@ TEST_CASE(
         b.push_back_noclone(std::make_shared<TestBase>(4));
         b.push_back_noclone(std::make_shared<TestBase>(5));
 #ifdef DEBUG
-        CHECK_THROWS_AS(a.crossOver(b, 2), geneva_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 2), gem_exception);
 #else
         CHECK_NOTHROW(a.crossOver(b, 1));
 #endif
@@ -1542,8 +1542,8 @@ TEST_CASE("GContainerT: edge cases", "[GContainerT][edge]") {
         b.assign({4, 5, 6});
 #ifdef DEBUG
         // pos >= minSize(3) must throw in debug builds
-        CHECK_THROWS_AS(a.crossOver(b, 3), geneva_exception);
-        CHECK_THROWS_AS(a.crossOver(b, 99), geneva_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 99), gem_exception);
 #else
         // In release builds the guard is compiled out; just verify no crash at boundary
         CHECK_NOTHROW(a.crossOver(b, 2));

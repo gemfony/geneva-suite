@@ -733,7 +733,7 @@ inline scriptKind classifyForScript(
     default:
         break;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In " << where << ": Error!" << '\n'
         << "the " << backend_name << " backend does not support " << p.getPlotterName()
@@ -770,7 +770,7 @@ inline void validateScriptPads(
             const scriptKind sk = classifyForScript(*sp, with_histograms, where, backend_name);
             if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) !=
                surfaceProjection::NONE) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In " << where << ": Error!" << '\n'
                     << "an overlay (" << sp->getPlotterName()
@@ -779,7 +779,7 @@ inline void validateScriptPads(
                 );
             }
             if(isThreeDimensionalScript(k) != isThreeDimensionalScript(sk)) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In " << where << ": Error!" << '\n'
                     << "a 2-d and a 3-d graph cannot share a single " << backend_name << " pad ("

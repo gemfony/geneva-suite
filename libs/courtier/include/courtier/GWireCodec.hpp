@@ -40,7 +40,7 @@
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"                // Gem::Common::serializationMode
 #include "common/GGenevaCommit.hpp"               // Gem::Common::genevaCommit(), programIdentity()
-#include "common/GModuleManifest.hpp"             // GENEVA_VERSION_STRING
+#include "common/GModuleManifest.hpp"             // GEM_VERSION_STRING
 #include "courtier/GCommandContainerT.hpp"        // GCommandContainerT, container_to/from_string
 #include "courtier/GCourtierEnums.hpp"            // GFrameKind
 #include "courtier/GWireSerializationContext.hpp" // GWireSerializationScope / registry / ids
@@ -160,7 +160,7 @@ std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
     const std::string_view own = Gem::Common::genevaCommit();
     if(hello.build() != own) {
         return "The server was built from another commit: the server's Geneva commit is " +
-               hello.build() + ", this client's (Geneva " + GENEVA_VERSION_STRING + ") is " +
+               hello.build() + ", this client's (Geneva " + GEM_VERSION_STRING + ") is " +
                std::string(own) + ". Server and client must be built from the same commit.";
     }
     const std::string_view own_program = Gem::Common::programIdentity();

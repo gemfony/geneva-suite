@@ -69,7 +69,7 @@ namespace Gem::Common {
  * this contract.
  *
  * @param identity The identity; setting the same text again is accepted
- * @throws geneva_exception if another identity has been set before (the text names both)
+ * @throws gem_exception if another identity has been set before (the text names both)
  */
 void setProgramIdentity(std::string identity);
 

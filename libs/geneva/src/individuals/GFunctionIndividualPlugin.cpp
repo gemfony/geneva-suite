@@ -32,7 +32,7 @@
  * @brief Module "glue" that makes GFunctionIndividual a runtime-loadable Geneva individual.
  *
  * Compiled into the module .so ONLY (never the object library): it holds the fixed extern "C" entry point
- * geneva_module_manifest(), whose symbol name must be unique per process. It does NOT re-emit the
+ * gem_module_manifest(), whose symbol name must be unique per process. It does NOT re-emit the
  * individual's GEM_REGISTER_ARCHIVABLE -- those (GFunctionIndividual and the three demo constraints)
  * live once in GFunctionIndividual.cpp, compiled into both the module and any compile-in consumer.
  * GFunctionIndividual is the canonical Tier-2 (config-driven) demo individual: the manifest hands back the
@@ -41,7 +41,7 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
@@ -49,8 +49,8 @@
 
 // clang-format off
 //! [ind-module-manifest]
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<
             Gem::Geneva::Individuals::GFunctionIndividual>,

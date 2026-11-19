@@ -93,7 +93,7 @@ TEST_CASE(
     GGlobalOptionsT<int> opts;
     opts.set("present", 42);
 
-    CHECK_THROWS_AS(opts.get("absent"), geneva_exception);
+    CHECK_THROWS_AS(opts.get("absent"), gem_exception);
 
     // Crucially — the failed get() must not have grown the map.
     CHECK(opts.size() == 1);

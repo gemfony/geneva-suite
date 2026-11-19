@@ -58,7 +58,7 @@ static_assert(
 /**
  * @param request An MPI request
  * @return Its handle; NONE for MPI_REQUEST_NULL
- * @throws geneva_exception for an active request whose bytes are all zero (it could not be told
+ * @throws gem_exception for an active request whose bytes are all zero (it could not be told
  *         from NONE; neither MPICH nor Open MPI makes one)
  */
 GMPIRequest toHandle(MPI_Request request) {
@@ -68,7 +68,7 @@ GMPIRequest toHandle(MPI_Request request) {
     std::uintptr_t bytes = 0;
     std::memcpy(&bytes, static_cast<const void *>(&request), sizeof(MPI_Request));
     if(bytes == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICalls: Error!" << '\n'
             << "MPI made a request that cannot be told from no request" << '\n'
@@ -100,7 +100,7 @@ MPI_Request toRequest(GMPIRequest handle) {
  * Makes the calls on courtier's communicator of @p environment.
  *
  * @param environment The process's MPI environment
- * @throws geneva_exception if @p environment is null or belongs to a bystander (no communicator)
+ * @throws gem_exception if @p environment is null or belongs to a bystander (no communicator)
  */
 GMPICalls::GMPICalls(std::shared_ptr<GMPIEnvironment> environment)
   : environment_(std::move(environment))
@@ -108,7 +108,7 @@ GMPICalls::GMPICalls(std::shared_ptr<GMPIEnvironment> environment)
   , rank_(communicator_ != MPI_COMM_NULL ? environment_->rank() : -1)
   , size_(communicator_ != MPI_COMM_NULL ? environment_->size() : 0) {
     if(communicator_ == MPI_COMM_NULL) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICalls::GMPICalls(): Error!" << '\n'
             << "No environment, or the environment of a process that takes no part in courtier's "
@@ -135,7 +135,7 @@ int GMPICalls::size() const {
  * (MPI_Get_count).
  *
  * @return The message's source, tag and length, or nothing if no message is there
- * @throws geneva_exception for a message whose length MPI cannot count in an int
+ * @throws gem_exception for a message whose length MPI cannot count in an int
  */
 std::optional<GMPIProbed> GMPICalls::probe() {
     int available = 0;
@@ -147,7 +147,7 @@ std::optional<GMPIProbed> GMPICalls::probe() {
     int count = 0;
     MPI_Get_count(&status, MPI_CHAR, &count);
     if(count == MPI_UNDEFINED || count < 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICalls::probe(): Error!" << '\n'
             << "The message from rank " << status.MPI_SOURCE << " is longer than INT_MAX bytes"
@@ -192,11 +192,11 @@ std::string GMPICalls::receive(const GMPIProbed &probed) {
  * @param tag The kind of message
  * @param bytes The message
  * @return The handle of the send
- * @throws geneva_exception for a message longer than INT_MAX bytes
+ * @throws gem_exception for a message longer than INT_MAX bytes
  */
 GMPIRequest GMPICalls::startSend(int rank, int tag, std::string_view bytes) {
     if(bytes.size() > static_cast<std::size_t>(INT_MAX)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICalls::startSend(): Error!" << '\n'
             << "A message of " << bytes.size() << " bytes is longer than MPI can send at once"

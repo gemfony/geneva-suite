@@ -161,7 +161,7 @@ public:
 #ifdef DEBUG
         // Check that the parent id is in a valid range
         if(parent_id >= this->getNParents()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParChild::getParentIndividual<>() : Error" << '\n'
                 << "Requested parent id which does not exist: " << parent_id << " / "

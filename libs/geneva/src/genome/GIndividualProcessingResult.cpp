@@ -90,7 +90,7 @@ individual_processing_result::individual_processing_result(
         transformed_fitness_set_ = true;
     }
     else {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In individual_processing_result(double, std::function<double(double)>): Error!"
             << '\n'
@@ -135,7 +135,7 @@ void individual_processing_result::setTransformedFitnessWith(
         transformed_fitness_set_ = true;
     }
     else {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In individual_processing_result::setTransformedFitnessWith():" << '\n'
             << "Function object f is empty." << '\n'
@@ -222,7 +222,7 @@ void individual_processing_result::reset(
         transformed_fitness_set_ = true;
     }
     else {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In individual_processing_result::reset():" << '\n'
             << "Function object f is empty." << '\n'

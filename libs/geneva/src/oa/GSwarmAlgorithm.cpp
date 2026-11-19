@@ -247,7 +247,7 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
     // neighborhood, so this also catches the id of a non-existing neighborhood. (This is a static
     // function, so the check is expressed through the argument, not the n_neighborhoods_ member.)
     if(neighborhood >= vec.size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::getFirstNIPosVec():" << '\n'
             << "Received id " << neighborhood << " of a neighborhood which does not exist:" << '\n'
@@ -282,7 +282,7 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
 std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const {
 #ifdef DEBUG
     if(neighborhood >= n_neighborhoods_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::getLastNIPos():" << '\n'
             << "Received id " << neighborhood << " of a neighborhood which does not exist." << '\n'
@@ -305,7 +305,7 @@ std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const
 void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &ind_ptr) {
 #ifdef DEBUG
     if(not ind_ptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
             << "Got empty ind_ptr" << '\n'
@@ -313,7 +313,7 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
     }
 
     if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
             << "ind_ptr is unprocessed or has errors: " << '\n'
@@ -342,7 +342,7 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
 void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGenome> &ind_ptr) {
 #ifdef DEBUG
     if(not ind_ptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updatePersonalBestIfBetter():" << '\n'
             << "Got empty ind_ptr" << '\n'
@@ -350,7 +350,7 @@ void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGen
     }
 
     if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updatePersonalBestIfBetter(): Error!" << '\n'
             << "dirty flag of individual is set." << '\n'
@@ -594,7 +594,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
     // Check that last_iteration_individuals_cnt_ has the desired size in iterations other than the first
     if(afterFirstIteration() && last_iteration_individuals_cnt_.size() !=
                                     default_n_neighborhood_members_ * n_neighborhoods_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
             << "last_iteration_individuals_cnt_ has incorrect size! Expected" << '\n'
@@ -662,7 +662,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
                 // all builds (not just DEBUG) -- otherwise this->front() below is undefined behaviour in
                 // a release build when every first-iteration work item failed to return.
                 if(this->empty()) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
                         << "No items returned in the first iteration; cannot seed the swarm."
@@ -696,7 +696,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
 #ifdef DEBUG
     // Check that the population has the expected size
     if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
             << "The population has an incorrect size of " << this->size() << ", expected "
@@ -764,7 +764,7 @@ void GSwarmAlgorithm::updatePositions() {
     // Check that all neighborhoods have the default size
     for(std::size_t n = 0; n < n_neighborhoods_; n++) {
         if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
                 << "n_neighborhood_members_cnt_[" << n << "] has invalid size "
@@ -774,7 +774,7 @@ void GSwarmAlgorithm::updatePositions() {
         }
 
         if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
                 << "The population has an incorrect size of " << this->size() << ", expected "
@@ -795,7 +795,7 @@ void GSwarmAlgorithm::updatePositions() {
 #ifdef DEBUG
     // Cross-check that we have the nominal amount of individuals
     if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
             << "Invalid number of individuals found." << '\n'
@@ -810,7 +810,7 @@ void GSwarmAlgorithm::updatePositions() {
 #ifdef DEBUG
         if(afterFirstIteration()) {
             if(not neighborhood_bests_cnt_[n]) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GSwarmAlgorithm::updatePositions():" << '\n'
                     << "neighborhood_bests_cnt_[" << n << "] is empty." << '\n'
@@ -818,7 +818,7 @@ void GSwarmAlgorithm::updatePositions() {
             }
 
             if(n == 0 && not global_best_ptr_) { // Only check for the first n
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GSwarmAlgorithm::updatePositions():" << '\n'
                     << "global_best_ptr_ is empty." << '\n'
@@ -828,7 +828,7 @@ void GSwarmAlgorithm::updatePositions() {
 
         // Check that the number if individuals in each neighborhoods has the expected value
         if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
                 << "Invalid number of members in neighborhood " << n << ": "
@@ -900,7 +900,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
 #ifdef DEBUG
     // Do some error checking
     if(not ind) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
             << "Found empty individual \"ind\"" << '\n'
@@ -915,7 +915,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
     // Further error checks
 #ifdef DEBUG
     if(not personal_best) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
             << "Found empty individual \"personal_best\"" << '\n'
@@ -923,7 +923,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
     }
 
     if(not neighborhood_best) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
             << "Found empty individual \"neighborhood_best\"" << '\n'
@@ -931,7 +931,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
     }
 
     if(not global_best) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
             << "Found empty individual \"global_best\"" << '\n'
@@ -1149,7 +1149,7 @@ std::tuple<double, double> GSwarmAlgorithm::findBests() {
 #ifdef DEBUG
     for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
         if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSwarmAlgorithm::findBests(): Error!" << '\n'
                 << "Found individual in position " << pos << " in iteration "
@@ -1301,7 +1301,7 @@ void GSwarmAlgorithm::adjustPopulation_() {
     const std::size_t n_neighborhoods = getNNeighborhoods();
 
     if(current_size == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
             << "No individuals found in the population." << '\n'
@@ -1380,7 +1380,7 @@ void GSwarmAlgorithm::adjustPopulation_() {
     // As the above switch statement is quite complicated, cross check that we now
     // indeed have at least the required number of individuals
     if(this->size() < default_pop_size) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
             << "Expected at least a population size of " << default_pop_size << '\n'
@@ -1409,7 +1409,7 @@ void GSwarmAlgorithm::adjustPopulation_() {
 void GSwarmAlgorithm::fillUpNeighborhood1() {
     // Do some error checking
     if(this->size() != n_neighborhoods_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
             << "Invalid size: " << this->size() << " Expected " << n_neighborhoods_ << '\n'
@@ -1432,7 +1432,7 @@ void GSwarmAlgorithm::fillUpNeighborhood1() {
             if(random_fill_up_) {
 #ifdef DEBUG
                 if(not(*(this->begin() + n + 1))) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
                         << "Found empty position " << n << '\n'
@@ -1538,7 +1538,7 @@ double GSwarmAlgorithm::getCVelocity() const {
 void GSwarmAlgorithm::setVelocityRangePercentage(double velocity_range_percentage) {
     // Do some error checking
     if(velocity_range_percentage <= 0. || velocity_range_percentage > 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::setVelocityRangePercentage()" << '\n'
             << "Invalid velocity_range_percentage: " << velocity_range_percentage << '\n'

@@ -40,16 +40,16 @@ struct Plain {
     int v{99};
 };
 
-// A type whose default constructor always throws a geneva_exception; used
+// A type whose default constructor always throws a gem_exception; used
 // to verify that TFactory_GUnitTests re-throws geneva exceptions verbatim.
-struct ThrowsGeneva {
-    ThrowsGeneva() {
-        throw geneva_exception("intentional from ThrowsGeneva");
+struct ThrowsGem {
+    ThrowsGem() {
+        throw gem_exception("intentional from ThrowsGem");
     }
 };
 
 // A type whose default constructor throws a non-geneva exception; the
-// factory must wrap it in a geneva_exception (the "Caught unknown
+// factory must wrap it in a gem_exception (the "Caught unknown
 // exception" path) before rethrowing.
 struct ThrowsOther {
     ThrowsOther() {
@@ -69,23 +69,23 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "TFactory_GUnitTests<T>: geneva_exception from T's ctor propagates unchanged",
+    "TFactory_GUnitTests<T>: gem_exception from T's ctor propagates unchanged",
     "[common][unit-framework]"
 ) {
-    CHECK_THROWS_AS(TFactory_GUnitTests<ThrowsGeneva>(), geneva_exception);
+    CHECK_THROWS_AS(TFactory_GUnitTests<ThrowsGem>(), gem_exception);
 }
 
 TEST_CASE(
-    "TFactory_GUnitTests<T>: non-geneva exception is wrapped in geneva_exception",
+    "TFactory_GUnitTests<T>: non-geneva exception is wrapped in gem_exception",
     "[common][unit-framework]"
 ) {
-    // The factory catches unknown exceptions and re-throws as geneva_exception
+    // The factory catches unknown exceptions and re-throws as gem_exception
     // with a "Caught unknown exception" message.
     try {
         TFactory_GUnitTests<ThrowsOther>();
-        FAIL("expected geneva_exception to be thrown");
+        FAIL("expected gem_exception to be thrown");
     }
-    catch(geneva_exception const &g) {
+    catch(gem_exception const &g) {
         std::string const what = g.what();
         CHECK(what.contains("Caught unknown exception"));
     }

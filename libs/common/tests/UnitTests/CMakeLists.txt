@@ -119,9 +119,9 @@ geneva_common_test(GUnitTestFrameworkTTests       S  GUnitTestFrameworkTTests.cp
 GENEVA_ADD_INDIVIDUAL_MODULE(GTwoContributionsModule modules/GTwoContributionsModule.cpp)
 ADD_DEPENDENCIES(GModuleLoaderTests GTwoContributionsModule)
 TARGET_COMPILE_DEFINITIONS(GModuleLoaderTests PRIVATE
-	"GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS=\"$<TARGET_FILE:GTwoContributionsModule>\""
+	"GEM_TEST_MODULE_TWO_CONTRIBUTIONS=\"$<TARGET_FILE:GTwoContributionsModule>\""
 	# A shared library that is no module: common's own.
-	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${COMMON_LIBNAME}>\"")
+	"GEM_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${COMMON_LIBNAME}>\"")
 
 ################################################################################
 # Aggregate `tests-common-unit` target builds every Common test exe at once.

@@ -11,7 +11,7 @@
 # all four libraries.
 
 PROJECT_NAME           = "Geneva -- @GENEVA_DOC_LIB_NAME@ library"
-PROJECT_NUMBER         = "@GENEVA_VERSION_FULL@"
+PROJECT_NUMBER         = "@GEM_VERSION_FULL@"
 PROJECT_BRIEF          = "@GENEVA_DOC_LIB_DESC@"
 
 # Sources to scan: the lib's own include/ and src/ trees.

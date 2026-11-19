@@ -72,7 +72,7 @@ void GProblemPolicy::registerConstraint(
     const std::shared_ptr<GPreEvaluationValidityCheckT<GGenome>> &c_ptr
 ) {
     if(not c_ptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GProblemPolicy::registerConstraint(): Error!" << '\n'
             << "Tried to register an empty constraint object" << '\n'

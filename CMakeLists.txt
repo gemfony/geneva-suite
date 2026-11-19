@@ -418,30 +418,30 @@ endif()
 # while even minor numbers stand for production releases. The version is written
 # only in libs/common/include/common/GGlobalDefines.hpp and is read from there.
 #
-# The pre-release tag (e.g. "beta1", the header's GENEVA_VERSION_PRERELEASE without
+# The pre-release tag (e.g. "beta1", the header's GEM_VERSION_PRERELEASE without
 # its dash) rides only in the human-facing strings (full version, install prefix,
-# Doxygen, CPack) -- GENEVA_VERSION stays pure x.y.z, as required by the library
+# Doxygen, CPack) -- GEM_VERSION stays pure x.y.z, as required by the library
 # VERSION property and WRITE_BASIC_PACKAGE_VERSION_FILE.
 
-SET(_GENEVA_VERSION_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
-FILE(STRINGS "${_GENEVA_VERSION_HEADER}" _GENEVA_VERSION_LINES
-	REGEX "^#define[ \t]+GENEVA_VERSION_(MAJOR|MINOR|PATCH|PRERELEASE)[ \t]")
+SET(_GEM_VERSION_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
+FILE(STRINGS "${_GEM_VERSION_HEADER}" _GEM_VERSION_LINES
+	REGEX "^#define[ \t]+GEM_VERSION_(MAJOR|MINOR|PATCH|PRERELEASE)[ \t]")
 FOREACH(_comp MAJOR MINOR PATCH)
-	IF(NOT _GENEVA_VERSION_LINES MATCHES "#define[ \t]+GENEVA_VERSION_${_comp}[ \t]+([0-9]+)")
-		MESSAGE(FATAL_ERROR "Cannot read GENEVA_VERSION_${_comp} (a plain decimal) from ${_GENEVA_VERSION_HEADER}")
+	IF(NOT _GEM_VERSION_LINES MATCHES "#define[ \t]+GEM_VERSION_${_comp}[ \t]+([0-9]+)")
+		MESSAGE(FATAL_ERROR "Cannot read GEM_VERSION_${_comp} (a plain decimal) from ${_GEM_VERSION_HEADER}")
 	ENDIF()
 	SET(VERSION_${_comp} "${CMAKE_MATCH_1}")
 ENDFOREACH()
-IF(NOT _GENEVA_VERSION_LINES MATCHES "#define[ \t]+GENEVA_VERSION_PRERELEASE[ \t]+\"(-[^\"]+)?\"")
-	MESSAGE(FATAL_ERROR "Cannot read GENEVA_VERSION_PRERELEASE (\"\" or a tag with a leading dash, such as \"-beta1\") from ${_GENEVA_VERSION_HEADER}")
+IF(NOT _GEM_VERSION_LINES MATCHES "#define[ \t]+GEM_VERSION_PRERELEASE[ \t]+\"(-[^\"]+)?\"")
+	MESSAGE(FATAL_ERROR "Cannot read GEM_VERSION_PRERELEASE (\"\" or a tag with a leading dash, such as \"-beta1\") from ${_GEM_VERSION_HEADER}")
 ENDIF()
 STRING(REGEX REPLACE "^-" "" VERSION_SUFFIX "${CMAKE_MATCH_1}")
 
-SET(GENEVA_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
+SET(GEM_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 IF(VERSION_SUFFIX STREQUAL "")
-	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION})
+	SET(GEM_VERSION_FULL ${GEM_VERSION})
 ELSE()
-	SET(GENEVA_VERSION_FULL ${GENEVA_VERSION}-${VERSION_SUFFIX})
+	SET(GEM_VERSION_FULL ${GEM_VERSION}-${VERSION_SUFFIX})
 ENDIF()
 
 ################################################################################
@@ -460,7 +460,7 @@ ENDIF()
 # conjunction with the prepareBuild.sh script.
 
 IF( NOT CMAKE_INSTALL_PREFIX )
-	SET( INSTALL_PREFIX_ROOT "/opt/geneva-${GENEVA_VERSION_FULL}" )
+	SET( INSTALL_PREFIX_ROOT "/opt/geneva-${GEM_VERSION_FULL}" )
 ENDIF()
 
 ################################################################################
@@ -520,11 +520,11 @@ IF(NOT GENEVA_SANITIZER STREQUAL "none")
     STRING(APPEND CMAKE_EXE_LINKER_FLAGS    " -fsanitize=${GENEVA_SANITIZER}")
     STRING(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=${GENEVA_SANITIZER}")
     STRING(APPEND CMAKE_MODULE_LINKER_FLAGS " -fsanitize=${GENEVA_SANITIZER}")
-    # UBSan has no predefined compiler macro, so the GenevaCompat build fingerprint
+    # UBSan has no predefined compiler macro, so the GemCompat build fingerprint
     # (common/GBuildFingerprint.hpp) cannot detect it on its own; feed it the bit here so a UBSan module
     # and an uninstrumented host are told apart. Conservative -- plain UBSan stays link-compatible.
     IF(GENEVA_SANITIZER STREQUAL "undefined")
-        ADD_COMPILE_DEFINITIONS(GENEVA_ABI_UBSAN_ACTIVE=1)
+        ADD_COMPILE_DEFINITIONS(GEM_ABI_UBSAN_ACTIVE=1)
     ENDIF()
     MESSAGE(STATUS "Sanitizer ENABLED: -fsanitize=${GENEVA_SANITIZER} (CUDA + MPI excluded)")
 ELSE()
@@ -735,7 +735,7 @@ CONFIGURE_PACKAGE_CONFIG_FILE(
 # that requested e.g. 2.0 must not silently be satisfied by 2.2.
 WRITE_BASIC_PACKAGE_VERSION_FILE(
 	${CMAKE_CURRENT_BINARY_DIR}/GenevaConfigVersion.cmake
-	VERSION ${GENEVA_VERSION}
+	VERSION ${GEM_VERSION}
 	COMPATIBILITY SameMinorVersion
 )
 
@@ -1031,7 +1031,7 @@ SET(CPACK_PACKAGE_CONTACT "Gemfony scientific <contact (AT) gemfony (DOT) eu>")
 SET(CPACK_PACKAGE_VERSION_MAJOR ${VERSION_MAJOR})
 SET(CPACK_PACKAGE_VERSION_MINOR ${VERSION_MINOR})
 SET(CPACK_PACKAGE_VERSION_PATCH ${VERSION_PATCH})
-SET(CPACK_PACKAGE_VERSION ${GENEVA_VERSION_FULL}) # carries the pre-release tag, if any
+SET(CPACK_PACKAGE_VERSION ${GEM_VERSION_FULL}) # carries the pre-release tag, if any
 SET(CPACK_PACKAGING_INSTALL_PREFIX "/opt/geneva")
 
 # DEB specific variables. Indentation is important in the description!

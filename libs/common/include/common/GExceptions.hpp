@@ -64,16 +64,16 @@
  * General exception class to be thrown in the case of severe errors
  * in the Geneva library collection.
  */
-class geneva_exception : public std::runtime_error {
+class gem_exception : public std::runtime_error {
 public:
     using std::runtime_error::runtime_error;
 };
 
 /******************************************************************************/
 /**
- * @brief This function allows to output a geneva_exception to a stream
+ * @brief This function allows to output a gem_exception to a stream
  */
-std::ostream &operator<<(std::ostream &o, const geneva_exception &g);
+std::ostream &operator<<(std::ostream &o, const gem_exception &g);
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,9 +82,9 @@ std::ostream &operator<<(std::ostream &o, const geneva_exception &g);
  * An exception to be thrown in case of an expectation violation. This is used
  * in the compare infrastructure, but listed here to resolve a circular dependency.
  */
-class g_expectation_violation : public geneva_exception {
+class g_expectation_violation : public gem_exception {
 public:
-    using geneva_exception::geneva_exception;
+    using gem_exception::gem_exception;
 };
 
 /******************************************************************************/
@@ -94,20 +94,20 @@ public:
  * @brief This define allows easy access to throwing exceptions.
  *
  * It captures the current source location, wraps the supplied message in a
- * formatted error banner and throws a geneva_exception carrying the result.
+ * formatted error banner and throws a gem_exception carrying the result.
  *
  * @param E A streamable expression describing the error (inserted into an ostringstream)
  */
 #define raiseException(E)                                                                          \
     {                                                                                              \
-        std::source_location const _geneva_source_loc = std::source_location::current();           \
+        std::source_location const _gem_source_loc = std::source_location::current();              \
         std::ostringstream error;                                                                  \
         error << '\n'                                                                              \
               << "================================================" << '\n'                        \
               << "ERROR" << '\n'                                                                   \
-              << "in file " << _geneva_source_loc.file_name() << '\n'                              \
-              << "near line " << _geneva_source_loc.line() << " (function "                        \
-              << _geneva_source_loc.function_name() << ")" << " with description:" << '\n'         \
+              << "in file " << _gem_source_loc.file_name() << '\n'                                 \
+              << "near line " << _gem_source_loc.line() << " (function "                           \
+              << _gem_source_loc.function_name() << ")" << " with description:" << '\n'            \
               << '\n'                                                                              \
               << E /* NOLINT(bugprone-macro-parentheses) */ << '\n'                                \
               << '\n'                                                                              \
@@ -119,7 +119,7 @@ public:
               << "We appreciate your help!" << '\n'                                                \
               << "The Geneva team" << '\n'                                                         \
               << "================================================" << '\n';                       \
-        throw(geneva_exception(error.str()));                                                      \
+        throw(gem_exception(error.str()));                                                         \
     }
 
 /******************************************************************************/

@@ -68,14 +68,14 @@ using Gem::Common::takeContribution;
  *  @param context The module, for the messages
  *  @param noun What the contribution is, for the messages */
 void registerOAContribution(
-    const GenevaContribution &contribution,
+    const GemContribution &contribution,
     const GContributionContext &context,
     std::string_view noun
 ) {
     auto const provider = takeContribution<GOAProviderPtr>(contribution, context, noun);
     const std::string mnemonic = provider->getMnemonic();
     if(not registerOptimizationAlgorithm(provider)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
@@ -94,14 +94,14 @@ void registerOAContribution(
  *  @param context The module, for the messages
  *  @param noun What the contribution is, for the messages */
 void registerMarshallerContribution(
-    const GenevaContribution &contribution,
+    const GemContribution &contribution,
     const GContributionContext &context,
     std::string_view noun
 ) {
     auto const provider = takeContribution<GMarshallerProviderPtr>(contribution, context, noun);
     const std::string device_target = provider->getMnemonic();
     if(not marshallerProviderStore()->setOnce(device_target, provider)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
@@ -119,7 +119,7 @@ void registerMarshallerContribution(
  *  @param contribution The contribution to check
  *  @param context The module, for the messages */
 void checkConsumerContribution(
-    const GenevaContribution &contribution,
+    const GemContribution &contribution,
     const GContributionContext &context
 ) {
     const char *expected = typeid(gen::GGenome).name();
@@ -129,7 +129,7 @@ void checkConsumerContribution(
     const std::string found = contribution.subject == nullptr
                                 ? std::string("no item type (its subject is null)")
                                 : "the item type " + boost::core::demangle(contribution.subject);
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In Gem::Geneva::loadModule(): Error!" << '\n'
         << "The module " << context.description << " contributes a consumer '"
@@ -148,7 +148,7 @@ void checkConsumerContribution(
  *  @param context The module, for the messages
  *  @param noun What the contribution is, for the messages */
 void registerConsumerContribution(
-    const GenevaContribution &contribution,
+    const GemContribution &contribution,
     const GContributionContext &context,
     std::string_view noun
 ) {
@@ -157,7 +157,7 @@ void registerConsumerContribution(
     const std::string_view stated =
         contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "";
     if(mnemonic != stated) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
@@ -167,7 +167,7 @@ void registerConsumerContribution(
         );
     }
     if(not consumerProviderStore()->setOnce(mnemonic, provider)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description << " contributes a consumer with mnemonic '"
@@ -193,15 +193,15 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
     std::uint32_t n_individuals = 0;
 
     const std::array<GContributionHandler, 4> handlers{{
-        {.kind = GENEVA_CONTRIBUTION_INDIVIDUAL,
+        {.kind = GEM_CONTRIBUTION_INDIVIDUAL,
          .noun = "individual",
          .check =
              [&n_individuals](
-                 const GenevaContribution & /*contribution*/,
+                 const GemContribution & /*contribution*/,
                  const GContributionContext &context
              ) {
                  if(++n_individuals > 1) {
-                     throw geneva_exception(
+                     throw gem_exception(
                          g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                          << "In Gem::Geneva::loadModule(): Error!" << '\n'
                          << "The module " << context.description
@@ -212,45 +212,34 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
                  }
              },
          .take =
-             [&result](
-                 const GenevaContribution &contribution,
-                 const GContributionContext &context
-             ) {
+             [&result](const GemContribution &contribution, const GContributionContext &context) {
                  result.individual =
                      takeContribution<GIndividualFactoryPtr>(contribution, context, "individual");
              }},
-        {.kind = GENEVA_CONTRIBUTION_OA,
+        {.kind = GEM_CONTRIBUTION_OA,
          .noun = "optimization algorithm",
          .check = {},
          .take =
-             [&result](
-                 const GenevaContribution &contribution,
-                 const GContributionContext &context
-             ) {
+             [&result](const GemContribution &contribution, const GContributionContext &context) {
                  registerOAContribution(contribution, context, "optimization algorithm");
                  ++result.oa_count;
              }},
-        {.kind = GENEVA_CONTRIBUTION_MARSHALLER,
+        {.kind = GEM_CONTRIBUTION_MARSHALLER,
          .noun = "GPU marshaller",
          .check = {},
          .take =
-             [&result](
-                 const GenevaContribution &contribution,
-                 const GContributionContext &context
-             ) {
+             [&result](const GemContribution &contribution, const GContributionContext &context) {
                  registerMarshallerContribution(contribution, context, "GPU marshaller");
                  ++result.marshaller_count;
              }},
-        {.kind = GENEVA_CONTRIBUTION_CONSUMER,
+        {.kind = GEM_CONTRIBUTION_CONSUMER,
          .noun = "consumer",
          .check = checkConsumerContribution,
-         .take = [&result](
-                     const GenevaContribution &contribution,
-                     const GContributionContext &context
-                 ) {
-             registerConsumerContribution(contribution, context, "consumer");
-             ++result.consumer_count;
-         }},
+         .take =
+             [&result](const GemContribution &contribution, const GContributionContext &context) {
+                 registerConsumerContribution(contribution, context, "consumer");
+                 ++result.consumer_count;
+             }},
     }};
 
     Gem::Common::loadModule(module_path, handlers);

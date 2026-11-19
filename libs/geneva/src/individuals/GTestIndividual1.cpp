@@ -531,7 +531,7 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
             this->clone<Gem::Geneva::Individuals::GTestIndividual1>();
 
         CHECK_NOTHROW(p_test->mark_as_due_for_processing());
-        CHECK_THROWS_AS(p_test->transformed_fitness(0), geneva_exception);
+        CHECK_THROWS_AS(p_test->transformed_fitness(0), gem_exception);
     }
 #endif /* DEBUG */
 
@@ -570,7 +570,7 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
         std::shared_ptr<oa::GEvolutionaryAlgorithm_PersonalityTraits> p_pt_ea;
         CHECK_THROWS_AS(
             (p_pt_ea = ind->getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>()),
-            geneva_exception
+            gem_exception
         );
     }
 #endif /* DEBUG */
@@ -589,7 +589,7 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
         // Trying to retrieve an EA personality object should throw
         CHECK_THROWS_AS(
             (ind->getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>()),
-            geneva_exception
+            gem_exception
         );
     }
 #endif /* DEBUG */
@@ -605,7 +605,7 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
 
         // Trying to retrieve an EA personality object should throw
         std::shared_ptr<GPersonalityTraits> p_pt;
-        CHECK_THROWS_AS((p_pt = ind->getPersonalityTraits()), geneva_exception);
+        CHECK_THROWS_AS((p_pt = ind->getPersonalityTraits()), gem_exception);
     }
 #endif /* DEBUG */
 

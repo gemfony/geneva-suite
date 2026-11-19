@@ -141,7 +141,7 @@ public:
      * @param listener The server side of the transport; the consumer owns it. Must not be null.
      * @param n_threads Number of session threads; 0 means one per hardware thread
      * @param serialization_mode Which serialization format the wire protocol uses
-     * @throws geneva_exception if @p listener is empty
+     * @throws gem_exception if @p listener is empty
      */
     GPeerConsumerT(
         std::string_view consumer_name,
@@ -155,7 +155,7 @@ public:
       , keep_alive_(listener ? listener->keepAlive() : std::chrono::milliseconds::zero())
       , listener_(std::move(listener)) {
         if(not listener_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << consumer_name_ << ": Error!" << '\n'
                 << "The listener must not be empty" << '\n'
@@ -219,7 +219,7 @@ public:
      * been registered with the GConsumerRegistry and before any batch is submitted.
      *
      * A consumer is started once: the call is accepted only in a consumer that has neither been
-     * started nor stopped, and every other call throws a geneva_exception that says why (started
+     * started nor stopped, and every other call throws a gem_exception that says why (started
      * already, a start failed before, stopped). If the listener cannot be started (a port that
      * cannot be bound, say), its exception reaches the caller and the start counts as failed:
      * stopServer() then only tells the clients that wait for the server that the run has ended,
@@ -228,7 +228,7 @@ public:
      * startServer() and stopServer() may be called from different threads at the same time: they
      * take turns.
      *
-     * @throws whatever the listener's start() throws; geneva_exception if the consumer has been
+     * @throws whatever the listener's start() throws; gem_exception if the consumer has been
      *         started or stopped before, or an earlier start failed
      */
     void startServer() {
@@ -241,7 +241,7 @@ public:
             else if(lifecycle_ == GLifecycle::START_FAILED) {
                 why = "the listener could not be started before";
             }
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
                 << "The consumer cannot be started: " << why << '\n'

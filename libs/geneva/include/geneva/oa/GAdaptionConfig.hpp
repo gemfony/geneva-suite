@@ -755,7 +755,7 @@ public:
     GLabelConfigHandle forLabel(const std::string &name) {
         const std::int32_t id = labelId(name);
         if(id < 0) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAdaptionConfigBase::forLabel(): Error!" << '\n'
                 << "Label \"" << name << "\" is not present in the genome." << '\n'
@@ -765,7 +765,7 @@ public:
             h(labelHandle(d_, id), labelHandle(f_, id), labelHandle(i_, id), labelHandle(b_, id));
         if(d_labelEmpty(id) && f_labelEmpty(id) && i_labelEmpty(id) && b_labelEmpty(id)) {
             // Defensive: a registered label string with no group carrying its id (should not happen).
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAdaptionConfigBase::forLabel(): Error!" << '\n'
                 << "Label \"" << name << "\" resolves to no group." << '\n'
@@ -1066,7 +1066,7 @@ private:
     static GroupConfigHandle<T>
     oneHandle(std::vector<GroupSpec<T>> &groups, std::size_t index, const char *channel) {
         if(index >= groups.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAdaptionConfigBase::group" << channel << "(): Error!" << '\n'
                 << "Group index " << index << " is out of range (" << groups.size() << " groups)."
@@ -1135,7 +1135,7 @@ private:
         const char *channel
     ) {
         if(cfg.size() != layout.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAdaptionConfigBase::checkChannel(): Error!" << '\n'
                 << "Group count mismatch on the " << channel << " channel: config has "
@@ -1144,7 +1144,7 @@ private:
         }
         for(auto const &[gi, c, l] : std::views::zip(std::views::iota(0uz), cfg, layout)) {
             if(c.start != l.start || c.len != l.len || c.label_id != l.label_id) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GAdaptionConfigBase::checkChannel(): Error!" << '\n'
                     << "Structural mismatch on the " << channel << " channel, group " << gi << '\n'

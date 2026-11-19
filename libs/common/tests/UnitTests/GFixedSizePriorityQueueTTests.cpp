@@ -229,10 +229,10 @@ TEMPLATE_TEST_CASE(
     CHECK(pq.size() == 0);
     CHECK(pq.cloneToVector().empty());
     CHECK(pq.begin() == pq.end());
-    CHECK_THROWS_AS(pq.best(), geneva_exception);
-    CHECK_THROWS_AS(pq.worst(), geneva_exception);
-    CHECK_THROWS_AS(pq.at(0), geneva_exception);
-    CHECK_THROWS_AS(pq.pop(), geneva_exception);
+    CHECK_THROWS_AS(pq.best(), gem_exception);
+    CHECK_THROWS_AS(pq.worst(), gem_exception);
+    CHECK_THROWS_AS(pq.at(0), gem_exception);
+    CHECK_THROWS_AS(pq.pop(), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -269,8 +269,8 @@ TEMPLATE_TEST_CASE(
     CHECK(valueOf(pq.at(0)) == 5.0);
 
     // Out of range throws rather than reading past the end.
-    CHECK_THROWS_AS(pq.at(pq.size()), geneva_exception);
-    CHECK_THROWS_AS(pq.at(1000), geneva_exception);
+    CHECK_THROWS_AS(pq.at(pq.size()), gem_exception);
+    CHECK_THROWS_AS(pq.at(1000), gem_exception);
 }
 
 // ---------------------------------------------------------------------------

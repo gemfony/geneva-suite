@@ -51,7 +51,7 @@
 
 // Geneva headers
 #include "common/GErrorStreamer.hpp" // g_error_streamer (a refused time limit)
-#include "common/GExceptions.hpp"    // geneva_exception (a refused time limit)
+#include "common/GExceptions.hpp"    // gem_exception (a refused time limit)
 #include "common/GLogger.hpp"        // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
 #include "common/concurrency/GMPMCQueueT.hpp"            // the list of parked callers
@@ -135,7 +135,7 @@ public:
      * orthogonal to the algorithm's GSubmissionPolicy (what to do about an item that was given up).
      *
      * @param cfg The parsed configuration to apply
-     * @throws geneva_exception if a value is negative or too large for the clock (the exception
+     * @throws gem_exception if a value is negative or too large for the clock (the exception
      *         names the key); the limits are then left as they were
      */
     void applyTimeoutConfig(const GNetworkedTimeoutConfig &cfg) {
@@ -1077,14 +1077,14 @@ private:
      *  @param key The config key, named in the exception
      *  @param ms The value in milliseconds (0: no limit)
      *  @return The limit
-     *  @throws geneva_exception if @p ms is negative or too large */
+     *  @throws gem_exception if @p ms is negative or too large */
     static std::chrono::milliseconds checkedLimit_(const char *key, std::int64_t ms) {
         // Half the clock's range: a deadline (a time point plus the limit) must not overflow.
         constexpr auto max_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() /
             2;
         if(ms < 0 || ms > max_ms) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
                 << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"

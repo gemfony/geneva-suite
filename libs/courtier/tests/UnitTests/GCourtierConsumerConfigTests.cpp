@@ -262,7 +262,7 @@ TEST_CASE("configOf() refuses the configuration of another family", "[courtier][
     try {
         (void)Gem::Courtier::configOf<GWebsocketConsumerConfig>(mismatched);
     }
-    catch(const geneva_exception &e) {
+    catch(const gem_exception &e) {
         message = e.what();
     }
     REQUIRE_FALSE(message.empty());
@@ -291,7 +291,7 @@ namespace {
  *  @param name The test's part of the directory's name @return The directory */
 std::filesystem::path scratchDirectory(const std::string &name) {
     const auto dir = std::filesystem::temp_directory_path() /
-                     ("geneva_cascade_config_" + name + "_" + std::to_string(::getpid()));
+                     ("gem_cascade_config_" + name + "_" + std::to_string(::getpid()));
     std::error_code ignored;
     std::filesystem::remove_all(dir, ignored);
     std::filesystem::create_directories(dir);
@@ -351,7 +351,7 @@ TEST_CASE(
         const auto file = dir / "broken.json";
         std::ofstream(file) << "{ this is not JSON";
         Gem::Courtier::GMPICascadeConfig config;
-        CHECK_THROWS_AS(config.load(file.string()), geneva_exception);
+        CHECK_THROWS_AS(config.load(file.string()), gem_exception);
     }
 
     std::error_code ignored;
@@ -365,14 +365,14 @@ TEST_CASE(
     using Gem::Courtier::GMPICascadeConfig;
     using std::chrono::microseconds;
     CHECK_NOTHROW(GMPICascadeConfig{}.check());
-    CHECK_THROWS_AS(GMPICascadeConfig{.groupSize = 0}.check(), geneva_exception);
-    CHECK_THROWS_AS(GMPICascadeConfig{.pauseMin = microseconds(0)}.check(), geneva_exception);
+    CHECK_THROWS_AS(GMPICascadeConfig{.groupSize = 0}.check(), gem_exception);
+    CHECK_THROWS_AS(GMPICascadeConfig{.pauseMin = microseconds(0)}.check(), gem_exception);
     // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): the value that is refused
     constexpr auto UNKNOWN_LAYOUT = static_cast<Gem::Courtier::GMPICascadeLayout>(7);
-    CHECK_THROWS_AS((GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()), geneva_exception);
+    CHECK_THROWS_AS((GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()), gem_exception);
     CHECK_THROWS_AS(
         (GMPICascadeConfig{.pauseMin = microseconds(20), .pauseMax = microseconds(10)}.check()),
-        geneva_exception
+        gem_exception
     );
     CHECK_NOTHROW(
         (GMPICascadeConfig{.groupSize = 1, .pauseMin = microseconds(1), .pauseMax = microseconds(1)}

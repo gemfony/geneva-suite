@@ -2527,7 +2527,7 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
         {"The server was built from another commit",
          OTHER_COMMIT,
          Gem::Common::genevaCommit(),
-         GENEVA_VERSION_STRING}
+         GEM_VERSION_STRING}
     ));
     glogger.resetLogTargets();
 }

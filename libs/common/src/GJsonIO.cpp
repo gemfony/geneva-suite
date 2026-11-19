@@ -49,7 +49,7 @@ namespace {
  *
  * @return The shared parse options
  */
-boost::json::parse_options genevaParseOptions() {
+boost::json::parse_options gemParseOptions() {
     boost::json::parse_options opts;
     opts.allow_comments = true;
     opts.allow_trailing_commas = true;
@@ -132,9 +132,9 @@ namespace Gem::Common {
  */
 boost::json::value parseJsonString(std::string_view text, std::string_view context) {
     std::error_code ec;
-    boost::json::value result = boost::json::parse(text, ec, {}, genevaParseOptions());
+    boost::json::value result = boost::json::parse(text, ec, {}, gemParseOptions());
     if(ec) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::parseJsonString(): Error!" << '\n'
             << "Could not parse JSON"
@@ -155,7 +155,7 @@ boost::json::value parseJsonString(std::string_view text, std::string_view conte
 boost::json::value parseJsonFile(std::filesystem::path const &path) {
     std::ifstream ifs(path, std::ios::binary);
     if(not ifs) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::parseJsonFile(): Error!" << '\n'
             << "Could not open JSON file " << path.string() << " for reading" << '\n'
@@ -202,7 +202,7 @@ std::string prettyPrintJson(boost::json::value const &jv) {
 void writeJsonFile(std::filesystem::path const &path, boost::json::value const &jv) {
     std::ofstream ofs(path);
     if(not ofs) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::writeJsonFile(): Error!" << '\n'
             << "Could not open JSON file " << path.string() << " for writing" << '\n'
@@ -221,7 +221,7 @@ void writeJsonFile(std::filesystem::path const &path, boost::json::value const &
  */
 void applyConfigOverrides(boost::json::value &base, boost::json::value const &overrides) {
     if(not overrides.is_object()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::applyConfigOverrides(): Error!" << '\n'
             << "The override document must be a JSON object, but is of kind "
@@ -229,7 +229,7 @@ void applyConfigOverrides(boost::json::value &base, boost::json::value const &ov
         );
     }
     if(not base.is_object()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::applyConfigOverrides(): Error!" << '\n'
             << "The configuration to overlay onto must be a JSON object, but is of kind "
@@ -244,7 +244,7 @@ void applyConfigOverrides(boost::json::value &base, boost::json::value const &ov
 
         auto const it = base_obj.find(key);
         if(it == base_obj.end()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::applyConfigOverrides(): Error!" << '\n'
                 << "The override names the parameter \"" << key << "\", which the configuration"
@@ -262,7 +262,7 @@ void applyConfigOverrides(boost::json::value &base, boost::json::value const &ov
             applyConfigOverrides(target, override_value);
         }
         else {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::applyConfigOverrides(): Error!" << '\n'
                 << "The override for \"" << key << "\" does not match the structure of the"

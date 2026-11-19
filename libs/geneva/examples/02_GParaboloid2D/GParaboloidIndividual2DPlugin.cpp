@@ -34,22 +34,22 @@
  * This builds the GParaboloid2D-module artifact (libGParaboloid2D-module.so), the loadable-module packaging
  * of the same problem the GParaboloid2D-fixed executable compiles in; the generic optimizer (example 18's
  * GGenericOptimizer) runs it via --individual. This translation unit holds only the fixed extern "C" entry
- * point geneva_module_manifest(); it does NOT re-emit GParaboloidIndividual2D's archive registration (that
+ * point gem_module_manifest(); it does NOT re-emit GParaboloidIndividual2D's archive registration (that
  * lives in GParaboloidIndividual2D.cpp, compiled into both artifacts).
  */
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
 #include "GParaboloidIndividual2D.hpp"
 
 //! [modules-manifest-symbol]
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 //! [modules-manifest-symbol]
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GParaboloidIndividual2D>,
         "./config/GParaboloidIndividual2D.json",

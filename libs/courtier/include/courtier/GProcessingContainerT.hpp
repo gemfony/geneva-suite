@@ -201,7 +201,7 @@ public:
 #ifdef DEBUG
         // Check that we have been given a suitable new results vector
         if(result_cnt.size() != stored_results_cnt_.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GProcessingContainerT::markAsProcessedWith(): Vector dimensions" << '\n'
                 << "do not fit: " << result_cnt.size() << " / " << stored_results_cnt_.size()
@@ -266,7 +266,7 @@ public:
 	  * @param evaluation_time The time in seconds it took to compute @p res_vec (on a batch path
 	  *        the evaluation of the whole batch)
 	  * @return The first result after processing
-	  * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the item is
+	  * @throws gem_exception if @p res_vec is empty or the processing was not begun (the item is
 	  *         left untouched)
 	  * @throws g_processing_exception as process() does
 	  */
@@ -299,7 +299,7 @@ public:
 	  */
     [[nodiscard]] processing_result_type getStoredResult(std::size_t id = 0) const {
         if(not this->is_processed()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GProcessingContainerT::getStoredResult(): Tried to" << '\n'
                 << "retrieve stored result while the PROCESSED flag was not set" << '\n'

@@ -35,30 +35,30 @@
 
 #include "common/GExceptions.hpp"
 
-TEST_CASE("geneva_exception: basic construction and what()", "[common][exceptions]") {
-    geneva_exception const e("custom message");
+TEST_CASE("gem_exception: basic construction and what()", "[common][exceptions]") {
+    gem_exception const e("custom message");
     CHECK(std::string{e.what()} == "custom message");
 
-    // Inheritance: geneva_exception is a std::runtime_error.
-    static_assert(std::is_base_of_v<std::runtime_error, geneva_exception>);
-    static_assert(std::is_base_of_v<std::exception, geneva_exception>);
+    // Inheritance: gem_exception is a std::runtime_error.
+    static_assert(std::is_base_of_v<std::runtime_error, gem_exception>);
+    static_assert(std::is_base_of_v<std::exception, gem_exception>);
 }
 
-TEST_CASE("geneva_exception: stream-out operator prints what()", "[common][exceptions]") {
-    geneva_exception const e("payload-text");
+TEST_CASE("gem_exception: stream-out operator prints what()", "[common][exceptions]") {
+    gem_exception const e("payload-text");
     std::ostringstream oss;
     oss << e;
     CHECK(oss.str() == "payload-text");
 }
 
-TEST_CASE("g_expectation_violation: derives from geneva_exception", "[common][exceptions]") {
-    static_assert(std::is_base_of_v<geneva_exception, g_expectation_violation>);
+TEST_CASE("g_expectation_violation: derives from gem_exception", "[common][exceptions]") {
+    static_assert(std::is_base_of_v<gem_exception, g_expectation_violation>);
 
-    // Can be caught as geneva_exception, as runtime_error, and as exception.
+    // Can be caught as gem_exception, as runtime_error, and as exception.
     try {
         throw g_expectation_violation("mismatch");
     }
-    catch(const geneva_exception &g) {
+    catch(const gem_exception &g) {
         CHECK(std::string{g.what()} == "mismatch");
     }
 
@@ -78,7 +78,7 @@ TEST_CASE("g_expectation_violation: derives from geneva_exception", "[common][ex
 }
 
 TEST_CASE(
-    "raiseException macro: throws geneva_exception with the streamed message",
+    "raiseException macro: throws gem_exception with the streamed message",
     "[common][exceptions][raise]"
 ) {
     bool caught = false;
@@ -86,7 +86,7 @@ TEST_CASE(
     try {
         raiseException("detailed-error-payload");
     }
-    catch(const geneva_exception &g) {
+    catch(const gem_exception &g) {
         caught = true;
         what = g.what();
     }
@@ -110,7 +110,7 @@ TEST_CASE(
     try {
         raiseException("a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"});
     }
-    catch(const geneva_exception &g) {
+    catch(const gem_exception &g) {
         caught = true;
         what = g.what();
     }

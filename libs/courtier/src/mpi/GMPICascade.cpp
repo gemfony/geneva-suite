@@ -170,7 +170,7 @@ bool mpiUsable() noexcept {
  *                        that does; such a call throws, and every rank refuses the cascade
  * @param base The communicator whose processes form the cascade; the caller's, never freed. A
  *             communicator other than MPI_COMM_WORLD implies that the program initialized MPI.
- * @throws geneva_exception if an MPI environment exists already, if MPI has been finalized or
+ * @throws gem_exception if an MPI environment exists already, if MPI has been finalized or
  *         cannot provide MPI_THREAD_MULTIPLE, if rank 0 could not provide the configuration (rank
  *         0 rethrows what its callable threw), or if the configuration is refused by
  *         GMPICascadeConfig::check() -- on every rank alike (a rank with an environment of its own
@@ -297,7 +297,7 @@ const GMPICascadeConfig &GMPICascade::config() const noexcept {
  *
  * @param member The member's half; outlives the cascade
  * @return 0, the exit code of the process
- * @throws geneva_exception without MPI, or on a process that is not a member
+ * @throws gem_exception without MPI, or on a process that is not a member
  */
 int GMPICascade::serve(GMPIGroupMemberI &member) {
     this->requireMpi_("serve()");
@@ -327,7 +327,7 @@ int GMPICascade::serve(GMPIGroupMemberI &member) {
  * out of setUp() ends the MPI job.
  *
  * @param lifecycle The lead's lifecycle; outlives the cascade
- * @throws geneva_exception without MPI, on a process that is not a lead, after release(), after
+ * @throws gem_exception without MPI, on a process that is not a lead, after release(), after
  *         the first round() or on a second call. Before requireRole() the MPI job is ended instead, after the lifecycle was
  *         set up and the group released (setUp() and tearDown() run in step with the members')
  */
@@ -337,14 +337,14 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     this->refuseInside_("lead()");
     const std::scoped_lock lock(round_mutex_);
     if(released_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::lead(): Error!" << '\n'
             << "The group was released (release()); lead() comes before the first round" << '\n'
         );
     }
     if(announced_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::lead(): Error!" << '\n'
             << "A round was announced already; lead() comes before the first round, so that "
@@ -352,7 +352,7 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
         );
     }
     if(lifecycle_ != nullptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::lead(): Error!" << '\n'
             << "lead() was called before; a group is set up once" << '\n'
@@ -450,12 +450,12 @@ void GMPICascade::requireConfirmedRole_(std::string_view where) {
  *
  * @param consumer_role The role this process's consumer gave it (a program without a consumer
  *                      passes processRole::CLIENT on a lead)
- * @throws geneva_exception on a member (it has no consumer), or if @p consumer_role differs from
+ * @throws gem_exception on a member (it has no consumer), or if @p consumer_role differs from
  *         role(); the text names the base rank, the layout, both roles and the remedy
  */
 void GMPICascade::requireRole(processRole consumer_role) {
     if(role_ == processRole::BYSTANDER) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::requireRole(): Error!" << '\n'
             << "This process (base rank " << base_rank_ << ") is a member of the cascade; a member "
@@ -471,7 +471,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
             ? "Start the job with --consumer mpi."
             : "Start every lead with --client and a networked consumer (for example --consumer "
               "beast), and the job without the MPI consumer.";
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In GMPICascade::requireRole(): Error!" << '\n'
         << "Base rank " << base_rank_ << " of a cascade laid out " << layoutName(config_.layout)
@@ -494,7 +494,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
  *
  * @param code The exit code of the job (the error code of MPI_Abort)
  * @param reason Why the job ends; logged before it ends
- * @throws geneva_exception on a lead or a member, which end the job through the cascade's other
+ * @throws gem_exception on a lead or a member, which end the job through the cascade's other
  *         rules; nothing is ended then
  */
 void GMPICascade::abortJob(int code, std::string_view reason) {
@@ -530,7 +530,7 @@ void GMPICascade::abortJob(int code, std::string_view reason) {
  * @param config_on_rank0 Provides the configuration; called on rank 0 of base_ only
  * @return Courtier's communicator: the submitter's and the leads' in SUBMITTER_AND_GROUPS,
  *         MPI_COMM_NULL on a member and on every process in GROUPS_ONLY
- * @throws geneva_exception if rank 0 could not provide the configuration (rank 0 rethrows what
+ * @throws gem_exception if rank 0 could not provide the configuration (rank 0 rethrows what
  *         its callable threw), or if GMPICascadeConfig::check() refuses it
  */
 MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on_rank0) {
@@ -571,7 +571,7 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
         if(failure) {
             std::rethrow_exception(failure);
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::GMPICascade(): Error!" << '\n'
             << "Rank 0 of the base communicator could not provide the cascade's configuration"
@@ -680,7 +680,7 @@ void GMPICascade::refuseWithOthers_() noexcept {
  * @brief Checks that a round may be announced and announces it. Called by round() with the round
  * lock held; throws before anything is announced, so the group stays in step.
  *
- * @throws geneva_exception without MPI, on a process that is not a lead, or after release();
+ * @throws gem_exception without MPI, on a process that is not a lead, or after release();
  *         before requireRole() the group is released and the MPI job ended instead
  */
 void GMPICascade::announceRound_() {
@@ -688,7 +688,7 @@ void GMPICascade::announceRound_() {
     this->requireCascadeRole_(processRole::CLIENT, "round()");
     this->requireConfirmedRole_("round()");
     if(released_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::round(): Error!" << '\n'
             << "The group was released (release()); no round follows the stop" << '\n'
@@ -862,11 +862,11 @@ bool GMPICascade::waitForRound_() {
 /**
  * @brief Refuses a function that needs MPI in the state without MPI (configuration emission).
  * @param where The function that was called
- * @throws geneva_exception without MPI
+ * @throws gem_exception without MPI
  */
 void GMPICascade::requireMpi_(std::string_view where) const {
     if(not environment_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::" << where << ": Error!" << '\n'
             << "The cascade makes no MPI call while the configuration files are emitted "
@@ -880,11 +880,11 @@ void GMPICascade::requireMpi_(std::string_view where) const {
  * @brief Refuses a function called by a process of the wrong role, before anything is announced.
  * @param needed The role the function is for
  * @param where The function that was called
- * @throws geneva_exception unless this process has the role @p needed
+ * @throws gem_exception unless this process has the role @p needed
  */
 void GMPICascade::requireCascadeRole_(processRole needed, std::string_view where) const {
     if(role_ != needed) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPICascade::" << where << ": Error!" << '\n'
             << where << " is called on " << roleName(needed) << " of the cascade, but this "

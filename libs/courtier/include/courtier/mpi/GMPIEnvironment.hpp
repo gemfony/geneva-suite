@@ -128,7 +128,7 @@ public:
      * @param argv Pointer to the program's argv for MPI_Init_thread (may be nullptr)
      * @param base The communicator of the processes that take part; MPI_COMM_NULL for a process
      *             that takes no part
-     * @throws geneva_exception if MPI has been finalized, or if the thread level is below
+     * @throws gem_exception if MPI has been finalized, or if the thread level is below
      *         MPI_THREAD_MULTIPLE
      */
     explicit GMPIEnvironment(
@@ -148,7 +148,7 @@ public:
      * @param make_base Called once MPI is initialized and its thread level is checked; returns the
      *                 communicator of the processes that take part, or MPI_COMM_NULL for a process
      *                 that takes no part
-     * @throws geneva_exception if MPI has been finalized, or if the thread level is below
+     * @throws gem_exception if MPI has been finalized, or if the thread level is below
      *         MPI_THREAD_MULTIPLE; whatever @p make_base throws. In each case MPI is finalized
      *         again if this constructor initialized it.
      */
@@ -156,7 +156,7 @@ public:
         int finalized = 0;
         MPI_Finalized(&finalized);
         if(finalized != 0) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "MPI has been finalized in this process and cannot be used again." << '\n'
@@ -177,7 +177,7 @@ public:
             if(i_initialized_mpi_) {
                 MPI_Finalize(); // nobody else will: the destructor does not run for this object
             }
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "courtier's MPI transport requires MPI with the thread level "
@@ -276,7 +276,7 @@ public:
 
     /** @brief The rank of this process in courtier's communicator.
      *  @return The rank
-     *  @throws geneva_exception on a bystander */
+     *  @throws gem_exception on a bystander */
     [[nodiscard]] int rank() const {
         this->requireCommunicator_("rank()");
         return rank_;
@@ -302,7 +302,7 @@ public:
 
     /** @brief The number of processes in courtier's communicator.
      *  @return The size
-     *  @throws geneva_exception on a bystander */
+     *  @throws gem_exception on a bystander */
     [[nodiscard]] int size() const {
         this->requireCommunicator_("size()");
         return size_;
@@ -314,7 +314,7 @@ private:
      *  @param what The function that was asked */
     void requireCommunicator_(const char *what) const {
         if(communicator_ == MPI_COMM_NULL) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIEnvironment::" << what << ": Error!" << '\n'
                 << "This process takes no part in courtier's MPI protocol and has no "

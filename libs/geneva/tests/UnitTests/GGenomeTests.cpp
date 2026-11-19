@@ -2488,13 +2488,13 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         const std::string msg = rejectionMessage(GENEVA_TEST_NOT_A_MODULE);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "is not a Geneva module"));
-        CHECK(mentions(msg, "geneva_module_manifest"));
+        CHECK(mentions(msg, "gem_module_manifest"));
         CHECK(mentions(msg, GENEVA_TEST_NOT_A_MODULE)); // names the file the user actually passed
     }
 
     SECTION("a module built against a different module ABI") {
         // Gate 2. The module's toolchain fingerprint is this build's, so only the ABI stamp can catch it --
-        // which is the whole reason the stamp exists (GENEVA_VERSION alone cannot see this).
+        // which is the whole reason the stamp exists (GEM_VERSION alone cannot see this).
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_STALE_ABI);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "different Geneva module ABI"));
@@ -2659,7 +2659,7 @@ namespace {
 class ProbeGPUMarshaller final : public GBaseGPUMarshallerT<double> {};
 } // anonymous namespace
 
-// A runtime module may contribute a GPU marshaller (manifest kind GENEVA_CONTRIBUTION_MARSHALLER): the device
+// A runtime module may contribute a GPU marshaller (manifest kind GEM_CONTRIBUTION_MARSHALLER): the device
 // adapter that makes --consumer gpu work for a loaded problem. This pins the author helper (marshallerManifest)
 // and the registration mechanics the loader uses -- the whole marshaller (device target, GPU-config path and,
 // via the produced handle, the scalar kind) travels inside the provider with no manifest ABI change.
@@ -2669,13 +2669,13 @@ TEST_CASE(
 ) {
     // The author helper builds a one-contribution manifest tagged as the marshaller kind, carrying this host's
     // own toolchain fingerprint (so it would pass the loader's compat gate).
-    const GenevaModuleManifest *manifest =
+    const GemModuleManifest *manifest =
         marshallerManifest<ProbeGPUMarshaller, "cuda", "config/ProbeGPU.json">();
     REQUIRE(manifest != nullptr);
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
-    const GenevaContribution &contribution = manifest->contributions[0];
-    CHECK(contribution.kind == GENEVA_CONTRIBUTION_MARSHALLER);
+    const GemContribution &contribution = manifest->contributions[0];
+    CHECK(contribution.kind == GEM_CONTRIBUTION_MARSHALLER);
     CHECK(std::string(contribution.name_or_mnemonic) == "cuda");
 
     // The contribution thunk yields the marshaller provider across the plain-C void* boundary (the same
@@ -2699,7 +2699,7 @@ TEST_CASE(
     store->remove("cuda"); // start from a clean slot (independent of any other test / registration)
     CHECK(store->setOnce("cuda", provider));
 
-    const GenevaModuleManifest *other =
+    const GemModuleManifest *other =
         marshallerManifest<ProbeGPUMarshaller, "cuda", "config/OtherGPU.json">();
     auto *holder2 = static_cast<GMarshallerProviderPtr *>(other->contributions[0].make_factory());
     GMarshallerProviderPtr const provider2 = std::move(*holder2);
@@ -2736,11 +2736,11 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     // (b) The module path (the author helper an OA plugin's manifest entry point calls) produces the very
     // same handle: one contribution, tagged as the OA kind, whose thunk hands back the factory across the
     // plain-C void* boundary. Exercised here without a .so; example 20 covers the dlopen half.
-    const GenevaModuleManifest *manifest = Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
+    const GemModuleManifest *manifest = Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
     REQUIRE(manifest != nullptr);
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
-    CHECK(manifest->contributions[0].kind == GENEVA_CONTRIBUTION_OA);
+    CHECK(manifest->contributions[0].kind == GEM_CONTRIBUTION_OA);
     REQUIRE(manifest->contributions[0].make_factory != nullptr);
 
     void *raw = manifest->contributions[0].make_factory();

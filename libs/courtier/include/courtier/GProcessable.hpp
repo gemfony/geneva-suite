@@ -139,8 +139,8 @@ struct ProcessingBegunMark {
 // non-generic lifecycle base so both the courtier transports (which catch it around a process() call) and
 // any processable (GProcessingContainerT or a self-contained work item such as the geneva individual)
 // throw and catch the SAME type.
-class g_processing_exception : public geneva_exception {
-    using geneva_exception::geneva_exception;
+class g_processing_exception : public gem_exception {
+    using gem_exception::gem_exception;
 };
 
 /******************************************************************************/
@@ -261,7 +261,7 @@ public:
 
         // We do not accept setting a target state of PROCESSED via this function
         if(target_ps == processingStatus::PROCESSED) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GProcessable::set_processing_status():" << '\n'
                 << "An attempt was made to set the processing state to PROCESSED" << '\n'
@@ -288,7 +288,7 @@ public:
         }();
 
         if(not allowed) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GProcessable::set_processing_status():" << '\n'
                 << "Got invalid target processing status " << psToStr(target_ps) << '\n'
@@ -326,7 +326,7 @@ public:
      * built from the pre-processed values. The result-bearing class's completeProcessing()
      * finishes it with the results computed for the item (GProcessingContainerT, and geneva's
      * GGenome; the completion lives there because it takes that class's typed results).
-     * @throws geneva_exception if the item is not due for processing (the item is left untouched)
+     * @throws gem_exception if the item is not due for processing (the item is left untouched)
      * @throws g_processing_exception if the pre-processing fails; the failure is recorded on the
      *         item (EXCEPTION_CAUGHT), as a full processing records it
      */
@@ -550,7 +550,7 @@ protected:
      *        result vector) rather than evaluating the item in @p core
      * @param core A callable running the class-specific evaluation/processing
      * @param post A callable running the class-specific post-processing step
-     * @throws geneva_exception if @p results_given and the item's processing was begun with
+     * @throws gem_exception if @p results_given and the item's processing was begun with
      *         beginProcessing() (the item is left untouched)
      */
     template <typename core_fn_type, typename post_fn_type>
@@ -561,7 +561,7 @@ protected:
         post_fn_type &&post
     ) {
         if(results_given && processing_begun_.begun) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << context << ": Results were given to an item whose processing was"
                 << " begun with beginProcessing()." << '\n'
@@ -594,7 +594,7 @@ protected:
     void beginProcessingLifecycle_(std::string_view context) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << context << ": Function called while processing_status_ was set to "
                 << processing_status_ << '\n'
@@ -617,7 +617,7 @@ protected:
             // An error flagged during pre-processing is the funnel's to handle. Any other change
             // of the status means the pre-processing step took the item out of processing.
             if(processingStatus::DO_PROCESS != processing_status_ && not this->has_errors()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "The pre-processing step changed the processing status to "
                     << processing_status_ << "; expected " << processingStatus::DO_PROCESS << '\n'
@@ -649,7 +649,7 @@ protected:
         post_fn_type &&post
     ) {
         if(processingStatus::DO_PROCESS != processing_status_ || not processing_begun_.begun) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << context << ": Processing was completed without having been begun"
                 << " (processing_status_ is " << processing_status_ << ")" << '\n'
@@ -686,11 +686,11 @@ protected:
      * given (a completion adopts results; it never evaluates the item itself).
      * @param context The calling function's identity, used in the error text
      * @param results_given Whether a non-empty result vector was given
-     * @throws geneva_exception if @p results_given is false (the item is left untouched)
+     * @throws gem_exception if @p results_given is false (the item is left untouched)
      */
     static void requireResults_(std::string_view context, bool results_given) {
         if(not results_given) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << context << ": Error!" << '\n'
                 << "No results were given" << '\n'
@@ -825,7 +825,7 @@ protected:
      */
     void force_set_error(const std::string &error_info) {
         if(error_info.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GProcessable::force_set_error(): Error info is empty" << '\n'
             );

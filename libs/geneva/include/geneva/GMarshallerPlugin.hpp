@@ -39,7 +39,7 @@
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 // Geneva headers go here
-#include "common/GModuleManifest.hpp" // the unified module manifest (GenevaCompat + contributions)
+#include "common/GModuleManifest.hpp" // the unified module manifest (GemCompat + contributions)
 #include "geneva/GMarshallerSetup.hpp" // GGPUMarshallerProviderBase / GGPUMarshallerProviderT / the store
 
 namespace Gem::Geneva {
@@ -59,12 +59,12 @@ using GMarshallerProviderPtr = std::shared_ptr<GGPUMarshallerProviderBase>;
  * The marshaller analogue of @c oaManifest(). A loadable marshaller's source hand-writes ONE small entry
  * point that delegates here:
  * @code
- *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+ *   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
  *       return Gem::Geneva::marshallerManifest<MyMarshaller, "cuda", "config/MyGPU.json">();
  *   }
  * @endcode
  * The @c extern @c "C" wrapper is irreducible (the loader resolves the fixed, unmangled symbol
- * @c geneva_module_manifest via dlsym); everything else is this typed template. A single module may pack a
+ * @c gem_module_manifest via dlsym); everything else is this typed template. A single module may pack a
  * marshaller contribution ALONGSIDE its individual contribution (append both to a multi-entry manifest), so
  * one @c .so carries both a GPU problem and its device adapter -- the @c --individual @c foo.so @c --consumer
  * @c gpu case.
@@ -90,7 +90,7 @@ template <
     typename marshaller_type,
     Gem::Common::GFixedString DEVICE_TARGET,
     Gem::Common::GFixedString CONFIG_PATH>
-const GenevaModuleManifest *marshallerManifest() {
+const GemModuleManifest *marshallerManifest() {
     // Captureless thunk -> void*(*)(void): build the marshaller provider (device target + config path baked in
     // from the compile-time NTTPs) on the heap; the loader moves-from and deletes it, then registers the
     // provider in marshallerProviderStore().
@@ -102,15 +102,15 @@ const GenevaModuleManifest *marshallerManifest() {
             )
         );
     };
-    static const GenevaContribution contribution{
-        GENEVA_CONTRIBUTION_MARSHALLER,
+    static const GemContribution contribution{
+        GEM_CONTRIBUTION_MARSHALLER,
         DEVICE_TARGET.c_str(),
         factory_thunk
     };
-    static const GenevaModuleManifest manifest{
-        GENEVA_MODULE_ABI_STAMP,
+    static const GemModuleManifest manifest{
+        GEM_MODULE_ABI_STAMP,
         DEVICE_TARGET.c_str(),
-        GENEVA_VERSION_STRING,
+        GEM_VERSION_STRING,
         &contribution,
         1u
     };

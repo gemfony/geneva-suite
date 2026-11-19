@@ -114,14 +114,14 @@ bool isUnsigned(const std::string &s) {
 }
 
 /**
- * @brief Aborts parsing by throwing a geneva_exception that reports the offending fragment.
+ * @brief Aborts parsing by throwing a gem_exception that reports the offending fragment.
  *
  * Marked [[noreturn]]: it always throws and never returns to the caller.
  *
  * @param raw The raw (sub)string that could not be parsed, included verbatim in the error message
  */
 [[noreturn]] void fail(const std::string &raw) {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In GParameterPropertyParser::parse(): Error!" << '\n'
         << "Could not parse parameter-property fragment: " << raw << '\n'
@@ -173,7 +173,7 @@ std::size_t
 readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::string &raw) {
     for(std::size_t k = first; k < tok.size(); ++k) {
         if(not isUnsigned(tok[k])) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterPropertyParser::parse(): Error!" << '\n'
                 << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
@@ -302,7 +302,7 @@ void GParameterPropertyParser::parse() {
 
     // We only accept a single "simple-scan" entry. Complain, if more than one was found.
     if(s_spec_vec_.size() > 1) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParameterPropertyParser::parse(): Error!" << '\n'
             << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
@@ -483,7 +483,7 @@ std::size_t GParameterPropertyParser::getNSimpleScanItems() const {
     // Return the data of the first item
 #ifdef DEBUG
     if(s_spec_vec_.size() > 1) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParameterPropertyParser::getNSimpleScanItems() const: Error!" << '\n'
             << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'

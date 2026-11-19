@@ -347,7 +347,7 @@ void StandardTests_failures_expected() {
 #ifdef DEBUG
         std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
         REQUIRE(T_ptr1);
-        CHECK_THROWS_AS(T_ptr1->load(T_ptr1), geneva_exception);
+        CHECK_THROWS_AS(T_ptr1->load(T_ptr1), gem_exception);
 #endif
     }
 

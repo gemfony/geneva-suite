@@ -390,11 +390,11 @@ public:
      * (shared storage) or clones the pointee.
      *
      * @return A constant reference to the stored handle of the best item
-     * @throw geneva_exception if the queue is empty
+     * @throw gem_exception if the queue is empty
      */
     [[nodiscard]] StoredType const &best() const {
         if(data_cnt_.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFixedSizePriorityQueueT<T>::best(): Error!" << '\n'
                 << "Priority queue is empty." << '\n'
@@ -408,11 +408,11 @@ public:
      * @brief Gives non-owning access to the worst item (the back of the queue)
      *
      * @return A constant reference to the stored handle of the worst item
-     * @throw geneva_exception if the queue is empty
+     * @throw gem_exception if the queue is empty
      */
     [[nodiscard]] StoredType const &worst() const {
         if(data_cnt_.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFixedSizePriorityQueueT<T>::worst(): Error!" << '\n'
                 << "Priority queue is empty." << '\n'
@@ -436,11 +436,11 @@ public:
      *
      * @param rank The zero-based position in the ordered sequence (0 == best)
      * @return A constant reference to the stored handle at that rank
-     * @throw geneva_exception if rank is out of range
+     * @throw gem_exception if rank is out of range
      */
     [[nodiscard]] StoredType const &at(std::size_t rank) const {
         if(rank >= data_cnt_.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFixedSizePriorityQueueT<T>::at(): Error!" << '\n'
                 << "Requested rank " << rank << " but the queue holds " << data_cnt_.size()
@@ -481,11 +481,11 @@ public:
      * storage moves the value out.
      *
      * @return The stored handle of the (now removed) best item
-     * @throw geneva_exception if the queue is empty
+     * @throw gem_exception if the queue is empty
      */
     StoredType pop() {
         if(data_cnt_.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFixedSizePriorityQueueT<T>::pop(): Error!" << '\n'
                 << "Priority queue is empty." << '\n'
@@ -789,7 +789,7 @@ private:
     ) const {
 #ifdef DEBUG
         if(offered > 0 && 0 == accepted) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFixedSizePriorityQueueT<T>::" << where << ": Error!" << '\n'
                 << "None of the " << offered << " supplied items was admissible." << '\n'

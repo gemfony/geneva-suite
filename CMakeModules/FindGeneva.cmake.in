@@ -219,18 +219,18 @@ ENDIF ()
 
 IF (GENEVA_INCLUDE_DIR)
 	# Read the Geneva version from the component macros in GGlobalDefines.hpp, each of
-	# the form '#define GENEVA_VERSION_MAJOR 1' (plain decimals, the single source of truth).
+	# the form '#define GEM_VERSION_MAJOR 1' (plain decimals, the single source of truth).
 	FOREACH ( _comp MAJOR MINOR PATCH )
 		FILE (
 			STRINGS
 			${GENEVA_INCLUDE_DIR}/${GENEVA_COMMON_HEADER_PATH}
 			_RAW_VERSION_LINE
-			REGEX "#define[ \t]+GENEVA_VERSION_${_comp}[ \t]"
+			REGEX "#define[ \t]+GEM_VERSION_${_comp}[ \t]"
 			LIMIT_COUNT 1
 			LIMIT_INPUT 10000
 		)
 		STRING (
-			REGEX REPLACE ".*GENEVA_VERSION_${_comp}[ \t]+([0-9]+).*" "\\1"
+			REGEX REPLACE ".*GEM_VERSION_${_comp}[ \t]+([0-9]+).*" "\\1"
 			_VER_${_comp} "${_RAW_VERSION_LINE}"
 		)
 	ENDFOREACH ()

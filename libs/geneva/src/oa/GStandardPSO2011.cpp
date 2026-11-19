@@ -92,7 +92,7 @@ std::size_t GStandardPSO2011::getSwarmSize() const {
 
 void GStandardPSO2011::setSwarmSize(std::size_t swarm_size) {
     if(swarm_size < 2) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GStandardPSO2011::setSwarmSize(std::size_t): Error!" << '\n'
             << "Got invalid swarm size " << swarm_size << " (need at least 2)." << '\n'
@@ -112,7 +112,7 @@ std::size_t GStandardPSO2011::getNInformants() const {
 
 void GStandardPSO2011::setNInformants(std::size_t n_informants) {
     if(n_informants == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GStandardPSO2011::setNInformants(std::size_t): Error!" << '\n'
             << "Got invalid number of informants (0)." << '\n'
@@ -166,7 +166,7 @@ void GStandardPSO2011::resetToOptimizationStart_() {
  */
 void GStandardPSO2011::adjustPopulation_() {
     if(this->empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GStandardPSO2011::adjustPopulation_(): Error!" << '\n'
             << "No individuals found in the population. You need to add at least" << '\n'
@@ -198,7 +198,7 @@ void GStandardPSO2011::init() {
     n_fp_parms_ = this->at(0)->countFPParameters(activityMode::ACTIVEONLY);
 
     if(n_fp_parms_ == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GStandardPSO2011::init(): Error!" << '\n'
             << "The individual exposes no floating point parameters; Standard PSO 2011" << '\n'

@@ -203,7 +203,7 @@ public:
             x = Gem::Common::narrow<axis_t<0>>(x_undet);
         }
         catch(std::overflow_error &e) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GDataCollectorT::operator&(const T&): Error!" << '\n'
                 << "Encountered invalid cast with Gem::Common::narrow," << '\n'
@@ -296,7 +296,7 @@ public:
                 x = Gem::Common::narrow<axis_t<0>>(src);
             }
             catch(std::overflow_error &e) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GDataCollectorT::operator&(const std::vector<T>&): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
@@ -330,7 +330,7 @@ public:
                 x = Gem::Common::narrow<axis_t<0>>(src);
             }
             catch(std::overflow_error &e) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GDataCollectorT::operator&(std::span<const T>): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
@@ -521,7 +521,7 @@ public:
 	  */
     [[nodiscard]] auto getMinMaxElements() const {
         if(this->currentSize() == 0) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GDataCollectorT::getMinMaxElements(): Error!" << '\n'
                 << "Cannot determine the data range of an empty collector." << '\n'
@@ -582,7 +582,7 @@ public:
     void appendRow(std::span<const double> row) override {
         if constexpr(((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
             if(row.size() != n_axes) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GDataCollectorT::appendRow(): Error!" << '\n'
                     << "row size " << row.size() << " != axis count " << n_axes << '\n'
@@ -695,7 +695,7 @@ private:
              ...);
         }
         catch(std::overflow_error &e) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GDataCollectorT::appendRow(): Error!" << '\n'
                 << "Encountered invalid cast with Gem::Common::narrow," << '\n'
@@ -778,7 +778,7 @@ private:
             return item_t(Gem::Common::narrow<axis_t<INDICES>>(std::get<INDICES>(src))...);
         }
         catch(std::overflow_error &e) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GDataCollectorT::operator&(tuple): Error!" << '\n'
                 << "Encountered invalid cast with Gem::Common::narrow," << '\n'

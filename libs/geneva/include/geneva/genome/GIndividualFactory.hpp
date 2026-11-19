@@ -262,7 +262,7 @@ protected:
 
         auto *fg = dynamic_cast<GGenome *>(p.get());
         if(fg == nullptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GIndividualFactory::postProcess_(): Error!" << '\n'
                 << "The produced object is not a GGenome derivative" << '\n'

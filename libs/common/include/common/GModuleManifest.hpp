@@ -34,8 +34,8 @@
  * @brief The one manifest a runtime-loadable Geneva module exports.
  *
  * A module (an individual, an optimization algorithm, a monitor or a consumer) exports a single C entry
- * point, @c geneva_module_manifest(), returning a @c GenevaModuleManifest. The manifest carries the
- * toolchain-compatibility fingerprint (`GenevaCompat`, validated FIRST -- see GBuildFingerprint.hpp), the
+ * point, @c gem_module_manifest(), returning a @c GemModuleManifest. The manifest carries the
+ * toolchain-compatibility fingerprint (`GemCompat`, validated FIRST -- see GBuildFingerprint.hpp), the
  * module-ABI stamp (validated SECOND, see below) and a list of typed contributions. It is the ONLY module
  * convention the loader accepts (the earlier two-symbol individual convention has been retired).
  *
@@ -45,16 +45,16 @@
  * the loader reinterprets per @c kind.
  *
  * @par The two things a module and its host must agree on
- * 1. **The toolchain** -- `GenevaCompat`, matched exactly on every axis including @c GENEVA_VERSION.
- * 2. **This file's own contract** -- the layout of @c GenevaModuleManifest / @c GenevaContribution, the
- *    meaning of the @c GENEVA_CONTRIBUTION_* numbers, and, per kind, the C++ type the @c make_factory
- *    thunk's @c void* actually points at. `GenevaCompat` does NOT cover any of that: a Geneva version is
+ * 1. **The toolchain** -- `GemCompat`, matched exactly on every axis including @c GEM_VERSION.
+ * 2. **This file's own contract** -- the layout of @c GemModuleManifest / @c GemContribution, the
+ *    meaning of the @c GEM_CONTRIBUTION_* numbers, and, per kind, the C++ type the @c make_factory
+ *    thunk's @c void* actually points at. `GemCompat` does NOT cover any of that: a Geneva version is
  *    not bumped per commit, so during development a module and a host can carry the same
- *    @c GENEVA_VERSION and still disagree about this header. @c GENEVA_MODULE_ABI_VERSION closes that gap
+ *    @c GEM_VERSION and still disagree about this header. @c GEM_MODULE_ABI_VERSION closes that gap
  *    -- it is a plain counter, stamped into every manifest and matched exactly by the loader, and it is
  *    what turns such a disagreement into a diagnostic instead of a misread pointer.
  *
- * @par When to bump GENEVA_MODULE_ABI_VERSION
+ * @par When to bump GEM_MODULE_ABI_VERSION
  * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any
  * change to the layout of the two structs; to the numeric value or meaning of a contribution kind;
  * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g.
@@ -69,7 +69,7 @@
  */
 
 // Global checks, defines and includes needed for all of Geneva
-#include "common/GBuildFingerprint.hpp" // GenevaCompat + GENEVA_BUILD_FINGERPRINT
+#include "common/GBuildFingerprint.hpp" // GemCompat + GEM_BUILD_FINGERPRINT
 
 // Standard headers go here
 #include <cstddef>
@@ -84,31 +84,30 @@
  * bundled monitor, or an individual plus its GPU marshaller). INDIVIDUAL, OA, MARSHALLER and CONSUMER are wired
  * by the loader today; MONITOR is reserved and added when that category is modularised.
  */
-#define GENEVA_CONTRIBUTION_INDIVIDUAL 1u
-#define GENEVA_CONTRIBUTION_OA         2u
-#define GENEVA_CONTRIBUTION_MONITOR    3u
-#define GENEVA_CONTRIBUTION_CONSUMER   4u
-#define GENEVA_CONTRIBUTION_MARSHALLER 5u
+#define GEM_CONTRIBUTION_INDIVIDUAL 1u
+#define GEM_CONTRIBUTION_OA         2u
+#define GEM_CONTRIBUTION_MONITOR    3u
+#define GEM_CONTRIBUTION_CONSUMER   4u
+#define GEM_CONTRIBUTION_MARSHALLER 5u
 
 /*
  * The module-ABI version: this header's own contract (struct layouts, kind numbers, per-kind payload
  * types), stamped into every manifest and matched EXACTLY by the loader. See the file comment for the
- * bump rule. A plain counter -- it is not derived from GENEVA_VERSION and does not follow it.
+ * bump rule. A plain counter -- it is not derived from GEM_VERSION and does not follow it.
  */
 // A macro, not an enum: it is part of the plain-C contract of this header, like the kinds above.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum)
-#define GENEVA_MODULE_ABI_VERSION 5u
+#define GEM_MODULE_ABI_VERSION 5u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal
- * (a module's own version string when it is a Geneva-shipped module). GENEVA_VERSION_PRERELEASE
+ * (a module's own version string when it is a Geneva-shipped module). GEM_VERSION_PRERELEASE
  * (GGlobalDefines.hpp) carries its own leading dash and is empty for a final release. */
-#define GENEVA_MODULE_STRINGIZE_(x) #x
-#define GENEVA_MODULE_STRINGIZE(x)  GENEVA_MODULE_STRINGIZE_(x)
-#define GENEVA_VERSION_STRING                                                                      \
-    GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MAJOR)                                                  \
-    "." GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MINOR) "." GENEVA_MODULE_STRINGIZE(                 \
-        GENEVA_VERSION_PATCH                                                                       \
-    ) GENEVA_VERSION_PRERELEASE
+#define GEM_MODULE_STRINGIZE_(x) #x
+#define GEM_MODULE_STRINGIZE(x)  GEM_MODULE_STRINGIZE_(x)
+#define GEM_VERSION_STRING                                                                         \
+    GEM_MODULE_STRINGIZE(GEM_VERSION_MAJOR)                                                        \
+    "." GEM_MODULE_STRINGIZE(GEM_VERSION_MINOR) "." GEM_MODULE_STRINGIZE(GEM_VERSION_PATCH)        \
+        GEM_VERSION_PRERELEASE
 
 #ifdef __cplusplus
 extern "C" {
@@ -123,33 +122,33 @@ extern "C" {
  * The loader's cast of the factory's @c void* is unchecked, so a host refuses a consumer for
  * another item type before it calls the factory. Every other kind leaves @c subject null.
  */
-typedef struct GenevaContribution {
-    std::uint32_t kind;           /* GENEVA_CONTRIBUTION_*                                     */
-    const char *name_or_mnemonic; /* NUL-terminated; the mnemonic/name the host resolves by    */
+typedef struct GemContribution {
+    std::uint32_t kind;           /* GEM_CONTRIBUTION_*                                         */
+    const char *name_or_mnemonic; /* NUL-terminated; the mnemonic/name the host resolves by     */
     void *(*make_factory)(void);  /* returns the base factory ptr for `kind` (loader casts it)  */
-    const char *subject;          /* consumer: typeid(item type).name(); NULL for other kinds  */
-} GenevaContribution;
+    const char *subject;          /* consumer: typeid(item type).name(); NULL for other kinds   */
+} GemContribution;
 
 /**
- * @brief The single manifest a module exports via geneva_module_manifest(). Plain C.
+ * @brief The single manifest a module exports via gem_module_manifest(). Plain C.
  *
- * Field order is load-bearing and must not be rearranged without a GENEVA_MODULE_ABI_VERSION bump: the
+ * Field order is load-bearing and must not be rearranged without a GEM_MODULE_ABI_VERSION bump: the
  * loader reads @c compat first (it is self-describing via its own struct_version/struct_size, so it can be
  * read under any toolchain skew), then the stamp fields at their fixed offset right behind it
  * (the ABI version first: only a module of this version is known to have the two sizes behind
  * it), and only once BOTH gates pass does it touch anything further along.
  */
-typedef struct GenevaModuleManifest {
-    GenevaCompat compat;         /* gate 1: the toolchain, validated before any C++   */
-    std::uint32_t abi_version;   /* gate 2: == GENEVA_MODULE_ABI_VERSION              */
-    std::uint32_t manifest_size; /* sizeof(GenevaModuleManifest), for the diagnostic  */
+typedef struct GemModuleManifest {
+    GemCompat compat;            /* gate 1: the toolchain, validated before any C++   */
+    std::uint32_t abi_version;   /* gate 2: == GEM_MODULE_ABI_VERSION                 */
+    std::uint32_t manifest_size; /* sizeof(GemModuleManifest), for the diagnostic     */
     // NOLINTNEXTLINE(readability-identifier-naming) -- the plain-C fields are snake_case, as above
-    std::uint32_t contribution_size;         /* sizeof(GenevaContribution), checked with gate 2   */
-    const char *module_name;                 /* diagnostics + (later) checkpoint self-description */
-    const char *module_version;              /* the module's own version string                   */
-    const GenevaContribution *contributions; /* array of length contributions_count               */
+    std::uint32_t contribution_size;      /* sizeof(GemContribution), checked with gate 2      */
+    const char *module_name;              /* diagnostics + (later) checkpoint self-description */
+    const char *module_version;           /* the module's own version string                   */
+    const GemContribution *contributions; /* array of length contributions_count               */
     std::uint32_t contributions_count;
-} GenevaModuleManifest;
+} GemModuleManifest;
 
 #ifdef __cplusplus
 } /* extern "C" */
@@ -160,20 +159,20 @@ typedef struct GenevaModuleManifest {
  * author helpers build and the hand-written multi-contribution ones -- starts with this, so no author ever
  * spells the stamp (and cannot get it wrong or leave it stale):
  *
- *   static const GenevaModuleManifest manifest{
- *       GENEVA_MODULE_ABI_STAMP, "MyModule", "1.0.0", contributions, 2u};
+ *   static const GemModuleManifest manifest{
+ *       GEM_MODULE_ABI_STAMP, "MyModule", "1.0.0", contributions, 2u};
  */
-#define GENEVA_MODULE_ABI_STAMP                                                                    \
-    GENEVA_BUILD_FINGERPRINT, GENEVA_MODULE_ABI_VERSION,                                           \
-        (std::uint32_t)sizeof(GenevaModuleManifest), (std::uint32_t)sizeof(GenevaContribution)
+#define GEM_MODULE_ABI_STAMP                                                                       \
+    GEM_BUILD_FINGERPRINT, GEM_MODULE_ABI_VERSION, (std::uint32_t)sizeof(GemModuleManifest),       \
+        (std::uint32_t)sizeof(GemContribution)
 
 namespace Gem::Common {
 
 /** @brief The (unmangled) name of the manifest entry point the loader resolves. */
-inline constexpr const char *GENEVA_MODULE_MANIFEST_SYMBOL = "geneva_module_manifest";
+inline constexpr const char *GEM_MODULE_MANIFEST_SYMBOL = "gem_module_manifest";
 
 /** @brief Signature of the manifest entry point (used by the loader's typed symbol lookup). */
-using geneva_module_manifest_fn = const GenevaModuleManifest *();
+using gem_module_manifest_fn = const GemModuleManifest *();
 
 /******************************************************************************/
 /**
@@ -204,7 +203,7 @@ struct GFixedString {
 /*
  * A loadable module publishes its manifest by hand-writing the fixed entry point (no macro):
  *
- *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+ *   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
  *       return someManifest<...>();  // a typed helper of the library that defines the contribution
  *   }
  *

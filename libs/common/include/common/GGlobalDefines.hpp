@@ -68,11 +68,11 @@
 /**
  * The current version of the Geneva library.
  *
- * The three component macros below are the single source of truth; GENEVA_VERSION
+ * The three component macros below are the single source of truth; GEM_VERSION
  * composes them into one monotonically comparable integer
  *   major * 10000 + minor * 100 + patch
  * so that e.g. 1.99.0 → 19900 and ordinary version tests such as
- *   \#if GENEVA_VERSION >= 19900
+ *   \#if GEM_VERSION >= 19900
  * work. Each component is a plain decimal literal (no leading zero), so no value is
  * ever silently reinterpreted as octal — the historical packed-literal form (e.g.
  * "019900") was an octal literal and, once a minor/patch digit reached 8 or 9 as it
@@ -81,15 +81,14 @@
  * This is the only place where the version is written: the top-level CMakeLists.txt and the
  * installed FindGeneva.cmake read it from the macros below.
  */
-#define GENEVA_VERSION_MAJOR 1
-#define GENEVA_VERSION_MINOR 99
-#define GENEVA_VERSION_PATCH 0
+#define GEM_VERSION_MAJOR 1
+#define GEM_VERSION_MINOR 99
+#define GEM_VERSION_PATCH 0
 /* The pre-release tag, INCLUDING its leading dash (e.g. "-beta1"); an empty string literal for a
- * final release. Appended to the human-facing GENEVA_VERSION_STRING (GModuleManifest.hpp); the
- * numeric GENEVA_VERSION below is unaffected. */
-#define GENEVA_VERSION_PRERELEASE "-beta1"
-#define GENEVA_VERSION                                                                             \
-    (GENEVA_VERSION_MAJOR * 10000 + GENEVA_VERSION_MINOR * 100 + GENEVA_VERSION_PATCH)
+ * final release. Appended to the human-facing GEM_VERSION_STRING (GModuleManifest.hpp); the
+ * numeric GEM_VERSION below is unaffected. */
+#define GEM_VERSION_PRERELEASE "-beta1"
+#define GEM_VERSION (GEM_VERSION_MAJOR * 10000 + GEM_VERSION_MINOR * 100 + GEM_VERSION_PATCH)
 
 /**
  * The minimum required Boost version, encoded as an integer.

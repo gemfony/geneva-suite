@@ -37,7 +37,7 @@ namespace Gem::Common {
 // Needed to allow catching of a SIGHUP or CTRL_CLOSE_EVENT event.
 // Note that "volatile" is needed in order for the signal handler to work.
 namespace {
-volatile std::sig_atomic_t GenevaSigHupSent = 0;
+volatile std::sig_atomic_t GemSigHupSent = 0;
 } // namespace
 
 /******************************************************************************/
@@ -49,7 +49,7 @@ volatile std::sig_atomic_t GenevaSigHupSent = 0;
  */
 void sigHupHandler(int signum) {
     if(G_SIGHUP == signum) {
-        GenevaSigHupSent = 1;
+        GemSigHupSent = 1;
     }
 }
 
@@ -60,7 +60,7 @@ void sigHupHandler(int signum) {
  * @return true if a SIGHUP (or CTRL_CLOSE_EVENT) signal has been received since program start, false otherwise
  */
 bool G_SIGHUP_SENT() {
-    return (1 == GenevaSigHupSent);
+    return (1 == GemSigHupSent);
 }
 
 /******************************************************************************/

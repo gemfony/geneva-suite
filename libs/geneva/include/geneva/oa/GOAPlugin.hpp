@@ -40,7 +40,7 @@
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 // Geneva headers go here
-#include "common/GModuleManifest.hpp"  // the unified module manifest (GenevaCompat + contributions)
+#include "common/GModuleManifest.hpp"  // the unified module manifest (GemCompat + contributions)
 #include "geneva/oa/GFactoryStore.hpp" // GOAProviderPtr -- the handle the algorithm store holds
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
@@ -54,12 +54,12 @@ namespace Gem::Geneva {
  * The OA analogue of @c individualManifest(). A loadable OA's source hand-writes ONE small entry point that
  * delegates here:
  * @code
- *   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+ *   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
  *       return Gem::Geneva::oaManifest<MyOAFactory, "MyOA">();
  *   }
  * @endcode
  * The @c extern @c "C" wrapper is irreducible (the loader resolves the fixed, unmangled symbol
- * @c geneva_module_manifest via dlsym); everything else is this typed template.
+ * @c gem_module_manifest via dlsym); everything else is this typed template.
  *
  * Unlike an individual (a claim-once single slot), an OA is resolved by mnemonic against a shared store, so
  * the contribution's factory thunk hands back the algorithm's factory itself (as a @c GOAProviderPtr on the
@@ -80,7 +80,7 @@ namespace Gem::Geneva {
  * @return A pointer to this module's process-lifetime manifest
  */
 template <typename factory_type, Gem::Common::GFixedString NAME>
-const GenevaModuleManifest *oaManifest() {
+const GemModuleManifest *oaManifest() {
     static_assert(
         std::is_base_of_v<
             OptimizationAlgorithms::GOAFactoryT<OptimizationAlgorithms::GOptimizationAlgorithmBase>,
@@ -91,13 +91,9 @@ const GenevaModuleManifest *oaManifest() {
     // on the heap; the loader moves-from and deletes the holder, then registers the factory.
     static constexpr auto factory_thunk =
         +[]() -> void * { return new GOAProviderPtr(std::make_shared<factory_type>()); };
-    static const GenevaContribution contribution{
-        GENEVA_CONTRIBUTION_OA,
-        NAME.c_str(),
-        factory_thunk
-    };
-    static const GenevaModuleManifest
-        manifest{GENEVA_MODULE_ABI_STAMP, NAME.c_str(), GENEVA_VERSION_STRING, &contribution, 1u};
+    static const GemContribution contribution{GEM_CONTRIBUTION_OA, NAME.c_str(), factory_thunk};
+    static const GemModuleManifest
+        manifest{GEM_MODULE_ABI_STAMP, NAME.c_str(), GEM_VERSION_STRING, &contribution, 1u};
     return &manifest;
 }
 

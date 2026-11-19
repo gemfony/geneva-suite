@@ -217,7 +217,7 @@ void Go2::registerDefaultAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::registerDefaultAlgorithm(std::string): Error!" << '\n'
             << "Got invalid algorithm mnemonic " << mn << '\n'
@@ -239,7 +239,7 @@ void Go2::registerDefaultAlgorithm(std::string const &mn) {
 void Go2::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm) {
     // Check that the pointer isn't empty
     if(not default_algorithm) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::registerDefaultAlgorithm(): Error!" << '\n'
             << "Got empty algorithm." << '\n'
@@ -271,7 +271,7 @@ void Go2::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &plugg
         pluggable_monitors_cnt_.push_back(pluggable_om);
     }
     else {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::registerPluggableOM(): Tried to register empty pluggable optimization "
                "monitor\n"
@@ -355,7 +355,7 @@ int Go2::clientRun_() {
         Gem::Geneva::buildConsumerClient(consumer_spec_);
 
     if(not p) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::clientRun(): Error!" << '\n'
             << "Consumer \"" << consumer_name_ << "\" does not provide a networked client." << '\n'
@@ -437,7 +437,7 @@ std::size_t Go2::getNAlgorithms() const {
 void Go2::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
     // Check that the pointer is not empty
     if(not alg) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::addAlgorithm(): Error!" << '\n'
             << "Tried to register an empty pointer" << '\n'
@@ -574,7 +574,7 @@ void Go2::addAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::addAlgorithm(std::string): Error!" << '\n'
             << "Got invalid algorithm mnemonic " << mn << '\n'
@@ -637,7 +637,7 @@ void Go2::claimContentCreator_(
     };
 
     if(not cc_ptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::claimContentCreator_(): Error!" << '\n'
             << "Tried to register an empty content creator (source: " << sourceStr(source) << ")"
@@ -646,7 +646,7 @@ void Go2::claimContentCreator_(
     }
 
     if(content_creator_source_ != individualSource::NONE) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::claimContentCreator_(): Error!" << '\n'
             << "An optimization problem (individual) is already provided ("
@@ -802,7 +802,7 @@ std::uint32_t Go2::prepareInitialPopulation(std::uint32_t offset) {
 void Go2::validateCheckpointFitsFirstAlgorithm() const {
     if(cp_file_ != "empty" &&
        not algorithms_cnt_[0]->cp_personality_fits(std::filesystem::path(cp_file_))) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::optimize(): Error!" << '\n'
             << "Checkpoint file " << cp_file_ << " does not" << '\n'
@@ -830,7 +830,7 @@ void Go2::fillPopulationFromContentCreator() {
         return; // individuals were already registered directly -- nothing to create
     }
     if(not content_creator_ptr_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::optimize(): Error!" << '\n'
             << "No optimization problem (individual) is available: no content creator and no"
@@ -859,7 +859,7 @@ void Go2::createIndividualsFromContentCreator() {
         }
         else {                  // No valid item received, the factory has run empty
             if(this->empty()) { // Still empty?
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In Go2::optimize(): Error!" << '\n'
                     << "The content creator did not deliver any individuals" << '\n'
@@ -986,7 +986,7 @@ void Go2::sortIndividualsByFitness() {
 std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
     // Do some error checking
     if(this->empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
             << "No individuals found" << '\n'
@@ -994,7 +994,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
     }
 
     if(not sorted_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
             << "Tried to retrieve best individual" << '\n'
@@ -1004,7 +1004,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
 
     // Check if the best individual is processed
     if(not this->front()->is_processed() && not this->front()->is_unprocessed()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
             << "Best individual is unprocessed or has errors" << '\n'
@@ -1026,7 +1026,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() const {
     // Do some error checking
     if(this->empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::getBestGlobalIndividuals_(): Error!" << '\n'
             << "No individuals found" << '\n'
@@ -1036,7 +1036,7 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() cons
     std::vector<std::unique_ptr<gen::GGenome>> best_individuals;
     for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
         if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Go2::getBestGlobalIndividuals_(): Error!" << '\n'
                 << "Found individual in position " << pos
@@ -1057,10 +1057,10 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() cons
  *
  * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
  *
- * @return Never returns normally; always throws a geneva_exception
+ * @return Never returns normally; always throws a gem_exception
  */
 std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In Go2::getBestIterationIndividual_(): Error!" << '\n'
         << "This function should not be called" << '\n'
@@ -1073,10 +1073,10 @@ std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
  *
  * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
  *
- * @return Never returns normally; always throws a geneva_exception
+ * @return Never returns normally; always throws a gem_exception
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() const {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In Go2::getBestIterationIndividuals_(): Error!" << '\n'
         << "This function should not be called" << '\n'
@@ -1398,7 +1398,7 @@ void Go2::parseCommandLine(
         cl_vm_ = std::move(vm);
     }
     catch(const po::error &e) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Error parsing the command line:" << '\n'
             << e.what() << '\n'
@@ -1539,7 +1539,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     // --consumer more than once is ambiguous. consumer_name_ has already been resolved (config parse
     // followed by the optional command-line override) and is validated for known-ness just below.
     if(vm.count("consumer") > 1) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
             << "You may specify at most one consumer on the command line. Found "
@@ -1549,7 +1549,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
 
     // Check that the requested consumer is one the courtier setup layer can build.
     if(not Gem::Geneva::isKnownConsumer(consumer_name_)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
             << "You have requested an unknown consumer \"" << consumer_name_ << "\"." << '\n'
@@ -1564,7 +1564,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     const bool role_at_runtime = Gem::Geneva::consumerDeterminesRoleAtRuntime(consumer_name_);
     if(client_mode_ && not role_at_runtime &&
        not Gem::Geneva::consumerNeedsClient(consumer_name_)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
             << "Requested client mode even though consumer " << consumer_name_
@@ -1586,7 +1586,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     role_ = Gem::Geneva::consumerRole(consumer_spec_, client_mode_);
     const bool is_submitter = (role_ == Gem::Courtier::processRole::SUBMITTER);
     if(not role_at_runtime && is_submitter == client_mode_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
             << "Consumer " << consumer_name_ << " states the role " << static_cast<int>(role_)
@@ -1643,7 +1643,7 @@ void Go2::loadRequestedModules_() {
         } // already loaded -> skip
         LoadedModule const loaded = loadModule(path);
         if(must_carry_individual and not loaded.individual) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Go2::loadRequestedModules_(): Error!" << '\n'
                 << "'" << path
@@ -1775,7 +1775,7 @@ void Go2::resolveAlgorithmChain_(std::vector<std::string> const &mnemonics) {
         // Retrieve the algorithm provider from the global store
         std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
         if(not oaFactoryStore()->get(alg_str, p)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Go2::resolveAlgorithmChain_(): Error!" << '\n'
                 << "Got invalid algorithm mnemonic \"" << alg_str << "\"." << '\n'

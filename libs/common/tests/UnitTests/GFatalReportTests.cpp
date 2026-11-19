@@ -43,7 +43,7 @@
 TEST_CASE("the fatal report names the error and the exit code", "[common][fatal]") {
     const std::string exit_line = "\nThe program ends with the exit code 1.\n";
     CHECK(
-        Gem::Common::fatalMessage(std::make_exception_ptr(geneva_exception("bad entry"))) ==
+        Gem::Common::fatalMessage(std::make_exception_ptr(gem_exception("bad entry"))) ==
         "\nError: bad entry" + exit_line
     );
     CHECK(

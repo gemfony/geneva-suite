@@ -317,7 +317,7 @@ public:
 	  * @return A deep clone of this factory (overloaded in derived classes; throws here)
 	  */
     virtual std::shared_ptr<GFactoryT<prod_type>> clone() const {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFactoryT<prod_type>::clone(): Error!" << '\n'
             << "Function was called when it shouldn't be." << '\n'

@@ -53,16 +53,16 @@ namespace Gem::Common {
 /******************************************************************************/
 /**
  * @brief Opens a runtime module from @p module_path, validates its toolchain-compatibility
- * fingerprint (`GenevaCompat`) against this program, keeps it resident and returns its manifest.
+ * fingerprint (`GemCompat`) against this program, keeps it resident and returns its manifest.
  *
  * This is the low-level module primitive -- it dlopens and gates but does NOT hand any contribution
  * to anyone; @c loadModule() below builds on it. It:
  *  - loads the shared object with @c RTLD_GLOBAL (one symbol namespace: a single GArchive
  *    registry and single library singletons) and @c RTLD_NOW (eager resolution);
- *  - resolves @c geneva_module_manifest() and runs the two gates **before touching any C++
- *    contribution**: the @c GenevaCompat toolchain fingerprint (a compiler/stdlib/Boost/build-mode
+ *  - resolves @c gem_module_manifest() and runs the two gates **before touching any C++
+ *    contribution**: the @c GemCompat toolchain fingerprint (a compiler/stdlib/Boost/build-mode
  *    mismatch is rejected with a diagnostic naming the offending axis, rather than being mis-loaded
- *    and crashing later) and then the module-ABI stamp (@c GENEVA_MODULE_ABI_VERSION -- the module
+ *    and crashing later) and then the module-ABI stamp (@c GEM_MODULE_ABI_VERSION -- the module
  *    and this program must agree on the manifest layout, the kind numbering and each kind's payload
  *    type);
  *  - keeps the library resident for the process lifetime (its code + GArchive registrations back
@@ -73,7 +73,7 @@ namespace Gem::Common {
  * @param module_path The filesystem path to the module shared object
  * @return The module's manifest (never nullptr; throws on any failure, incl. a missing manifest)
  */
-const GenevaModuleManifest *openModule(const std::filesystem::path &module_path);
+const GemModuleManifest *openModule(const std::filesystem::path &module_path);
 
 /******************************************************************************/
 /** @brief What the loader tells a handler about the module a contribution comes from. */
@@ -99,9 +99,9 @@ struct GContributionContext {
 struct GContributionHandler {
     /// The signature of check and take
     using function_type =
-        std::function<void(const GenevaContribution &, const GContributionContext &)>;
+        std::function<void(const GemContribution &, const GContributionContext &)>;
 
-    std::uint32_t kind = 0; ///< The kind this handler serves (GENEVA_CONTRIBUTION_*)
+    std::uint32_t kind = 0; ///< The kind this handler serves (GEM_CONTRIBUTION_*)
     std::string noun;       ///< What a contribution of the kind is, for messages ("consumer")
     function_type check;    ///< Refuses a contribution without calling into the module
     function_type take;     ///< Calls the contribution's factory and takes the result over
@@ -127,7 +127,7 @@ struct GContributionHandler {
  * @param module_path The module (a shared object)
  * @param handlers One handler per kind the caller accepts; at least one, no kind twice, each
  *        with a take function. A std::array or std::vector of handlers converts to the span.
- * @throws geneva_exception for unusable handlers (before the module is opened), for a module
+ * @throws gem_exception for unusable handlers (before the module is opened), for a module
  *         that cannot be opened or does not pass a gate, for a manifest without contributions,
  *         and for a contribution that is refused; whatever a handler throws passes through
  */
@@ -149,17 +149,17 @@ void loadModule(
  * @param context The module, for the messages
  * @param noun What the contribution is, for the messages
  * @return The pointer the module handed over; never empty
- * @throws geneva_exception if the factory returns null or an empty pointer
+ * @throws gem_exception if the factory returns null or an empty pointer
  */
 template <typename ptr_type>
 [[nodiscard]] ptr_type takeContribution(
-    const GenevaContribution &contribution,
+    const GemContribution &contribution,
     const GContributionContext &context,
     std::string_view noun
 ) {
     void *raw = contribution.make_factory();
     if(raw == nullptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::takeContribution(): Error!" << '\n'
             << "The module " << context.description << " produced a null " << noun
@@ -171,7 +171,7 @@ template <typename ptr_type>
     const std::unique_ptr<ptr_type> holder(static_cast<ptr_type *>(raw));
     ptr_type result = std::move(*holder);
     if(not result) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::takeContribution(): Error!" << '\n'
             << "The module " << context.description << " returned an empty " << noun
@@ -184,7 +184,7 @@ template <typename ptr_type>
 /******************************************************************************/
 /** @brief This program's own toolchain-compatibility fingerprint (built from the host's predefined
  *  macros). Exposed for diagnostics and tests. */
-const GenevaCompat &thisHostCompat();
+const GemCompat &thisHostCompat();
 
 /**
  * @brief Returns an empty string if @p module_compat is ABI-compatible with this program, otherwise
@@ -192,7 +192,7 @@ const GenevaCompat &thisHostCompat();
  * module's manifest before touching any of its C++ contributions; exposed so tests can verify the
  * gate without a shared object.
  */
-std::string moduleCompatMismatch(const GenevaCompat &module_compat);
+std::string moduleCompatMismatch(const GemCompat &module_compat);
 
 /******************************************************************************/
 

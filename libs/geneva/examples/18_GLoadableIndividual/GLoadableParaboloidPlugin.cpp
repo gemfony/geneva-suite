@@ -40,7 +40,7 @@
  *     this plugin loaded -- which, since server and client are the same binary loading the same .so, is
  *     automatic.
  *
- *  2. The fixed entry point geneva_module_manifest(): a small extern "C" wrapper (the loader resolves this
+ *  2. The fixed entry point gem_module_manifest(): a small extern "C" wrapper (the loader resolves this
  *     unmangled symbol via dlsym) delegating to the typed helper individualManifest<Factory, Config, Name>(),
  *     which builds the module manifest -- the toolchain-compatibility fingerprint the loader validates first,
  *     plus one INDIVIDUAL contribution whose factory is the standard GIndividualFactory<Derived>. That is
@@ -49,7 +49,7 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
@@ -68,8 +68,8 @@ GEM_REGISTER_ARCHIVABLE(GLoadableParaboloid) // NOLINT
 // config-file path (auto-created with the individual's defaults if absent), and a display name.
 // clang-format off
 //! [modules-individual-glue#2]
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<GLoadableParaboloid>,
         "./config/GLoadableParaboloid.json",

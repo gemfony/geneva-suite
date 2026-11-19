@@ -1480,10 +1480,7 @@ TEST_CASE(
                 Catch::Matchers::ContainsSubstring("is not a step count")
         );
     }
-    CHECK_THROWS_AS(
-        oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
-        geneva_exception
-    );
+    CHECK_THROWS_AS(oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"), gem_exception);
 
     // The forms without a label are read as before
     gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");

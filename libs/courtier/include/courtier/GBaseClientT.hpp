@@ -175,7 +175,7 @@ public:
             r = run_state::INIT;
 
             if(not this->init()) { // Initialize the client
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GBaseClientT<T>::run(): Initialization failed. Leaving ..." << '\n'
                 );
@@ -186,23 +186,23 @@ public:
 
             r = run_state::FINALLY;
             if(not this->finally()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GBaseClientT<T>::run(): Finalization failed." << '\n'
                 );
             }
         }
-        catch(geneva_exception &e) {
-            throw geneva_exception(
+        catch(gem_exception &e) {
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GBaseClientT<T>::run() / " << rs_to_str(r) << ":" << '\n'
-                << "Caught geneva_exception" << '\n'
+                << "Caught gem_exception" << '\n'
                 << "with message" << '\n'
                 << e.what()
             );
         }
         catch(std::exception &e) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GBaseClientT<T>::run() / " << rs_to_str(r)
                 << ": Caught std::exception with message" << '\n'
@@ -210,7 +210,7 @@ public:
             );
         }
         catch(...) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GBaseClientT<T>::run() / " << rs_to_str(r) << ": Caught unknown exception."
                 << '\n'

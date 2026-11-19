@@ -68,7 +68,7 @@ GCUDADriver loadDriver_() {
     }
     catch(const std::exception &e) {
         delete library; // NOLINT(cppcoreguidelines-owning-memory)
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDADriver: the CUDA driver library " << CUDA_DRIVER_LIBRARY
             << " could not be loaded (" << e.what() << ")." << '\n'
@@ -87,7 +87,7 @@ GCUDADriver loadDriver_() {
         const CUresult result =
             getProcAddress(name, &address, CUDA_VERSION, CU_GET_PROC_ADDRESS_DEFAULT, &status);
         if(result != CUDA_SUCCESS || status != CU_GET_PROC_ADDRESS_SUCCESS || address == nullptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "GCUDADriver: the installed CUDA driver does not provide " << name
                 << " in the version of CUDA " << CUDA_VERSION / 1000 << '.'

@@ -101,8 +101,8 @@ public:
 
 // The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::consumerManifest<GMnemonicMismatchProvider, "manifest-says">();
 }

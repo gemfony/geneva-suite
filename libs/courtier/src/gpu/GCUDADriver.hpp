@@ -74,7 +74,7 @@ struct GCUDADriver {
 /**
  * @brief The CUDA driver, loaded on the first call and kept for the life of the process.
  *
- * Throws a geneva_exception naming the reason if the driver library cannot be loaded or lacks a
+ * Throws a gem_exception naming the reason if the driver library cannot be loaded or lacks a
  * function; a later call tries again.
  */
 const GCUDADriver &cudaDriver();

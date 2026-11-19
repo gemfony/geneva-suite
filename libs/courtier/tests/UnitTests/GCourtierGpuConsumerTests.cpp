@@ -482,11 +482,11 @@ TEST_CASE(
 
     // A copy of a begun item is not begun
     GFaultyContainer copy(item);
-    CHECK_THROWS_AS(copy.completeProcessing({true}), geneva_exception);
+    CHECK_THROWS_AS(copy.completeProcessing({true}), gem_exception);
 
     // Results given to a begun item belong to completeProcessing(): process() would run the
     // pre-processor a second time.
-    CHECK_THROWS_AS(item.process({true}), geneva_exception);
+    CHECK_THROWS_AS(item.process({true}), gem_exception);
     CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
     CHECK_NOTHROW(item.completeProcessing({true}));
     CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
@@ -495,5 +495,5 @@ TEST_CASE(
     item.set_processing_status(processingStatus::DO_PROCESS);
     item.beginProcessing();
     item.mark_as_due_for_processing();
-    CHECK_THROWS_AS(item.completeProcessing({true}), geneva_exception);
+    CHECK_THROWS_AS(item.completeProcessing({true}), gem_exception);
 }

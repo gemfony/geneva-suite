@@ -63,7 +63,7 @@ void setProgramIdentity(std::string identity_text) {
         return;
     }
     if(not id.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, timeAndPlace())
             << "In Gem::Common::setProgramIdentity(): Error!" << '\n'
             << "The program's identity is \"" << id << "\" and cannot become \"" << identity_text

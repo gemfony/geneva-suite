@@ -82,7 +82,7 @@ void installFatalReport() noexcept {
  * The text the fatal report prints for an exception.
  *
  * @param error The exception; empty if std::terminate() was called without one
- * @return "Error: " and the message of a geneva_exception, of any other std::exception (marked as
+ * @return "Error: " and the message of a gem_exception, of any other std::exception (marked as
  *         a standard exception) or a sentence for one of unknown type or none, then a line with the
  *         exit code (without an exception: that the program aborts)
  */
@@ -95,7 +95,7 @@ std::string fatalMessage(const std::exception_ptr &error) {
         try {
             std::rethrow_exception(error);
         }
-        catch(const geneva_exception &e) {
+        catch(const gem_exception &e) {
             text = e.what();
         }
         catch(const std::exception &e) {

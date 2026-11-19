@@ -244,7 +244,7 @@ TEST_CASE(
     "GCommonInterfaceT: toFile / fromFile round-trip in GEM_JSON mode",
     "[common][interface][serialize]"
 ) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_interface_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_interface_tests";
     std::filesystem::create_directories(base);
     auto path = base / "obj.json";
     std::filesystem::remove(path);
@@ -262,11 +262,8 @@ TEST_CASE(
 TEST_CASE("GCommonInterfaceT::fromFile: missing file throws", "[common][interface][serialize]") {
     TestObj dst(0);
     CHECK_THROWS_AS(
-        dst.fromFile(
-            std::filesystem::path("/no/such/file/geneva_xyz"),
-            serializationMode::GEM_JSON
-        ),
-        geneva_exception
+        dst.fromFile(std::filesystem::path("/no/such/file/gem_xyz"), serializationMode::GEM_JSON),
+        gem_exception
     );
 }
 

@@ -37,7 +37,7 @@
  *
  * The single-contribution author helpers (individualManifest / oaManifest / marshallerManifest) each emit a
  * one-entry manifest; a module carrying SEVERAL contributions hand-assembles the manifest from the same
- * building blocks, as shown here -- a plain array of GenevaContribution the loader walks by kind.
+ * building blocks, as shown here -- a plain array of GemContribution the loader walks by kind.
  *
  * Unlike example 18 / 21, the individual's archive tag is registered by its OWN translation unit
  * (GEM_REGISTER_ARCHIVABLE in GImageIndividual.cpp,
@@ -52,8 +52,8 @@
 #include <memory>
 
 // Geneva headers
-#include "common/GBuildFingerprint.hpp" // GENEVA_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp" // GenevaContribution / GenevaModuleManifest / kinds / version string
+#include "common/GBuildFingerprint.hpp" // GEM_BUILD_FINGERPRINT
+#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / kinds / version string
 #include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr / GGPUMarshallerProviderT
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
 #include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr
@@ -65,7 +65,7 @@
 
 namespace {
 
-// GenevaContribution / GenevaModuleManifest are plain-C types at global scope (the module manifest is a
+// GemContribution / GemModuleManifest are plain-C types at global scope (the module manifest is a
 // language-agnostic ABI boundary), so they are named unqualified below.
 
 /** @brief Contribution 1 -- the individual (claim-once). The thunk hands back a heap GIndividualFactoryPtr
@@ -91,23 +91,18 @@ void *make_marshaller() {
 }
 
 /** @brief The module manifest: two contributions in one .so, walked by kind by the loader. */
-const GenevaContribution g_contributions[] = {
-    {GENEVA_CONTRIBUTION_INDIVIDUAL, "GImageIndividual", &make_individual},
-    {GENEVA_CONTRIBUTION_MARSHALLER, "cuda", &make_marshaller},
+const GemContribution g_contributions[] = {
+    {GEM_CONTRIBUTION_INDIVIDUAL, "GImageIndividual", &make_individual},
+    {GEM_CONTRIBUTION_MARSHALLER, "cuda", &make_marshaller},
 };
 
-const GenevaModuleManifest g_manifest{
-    GENEVA_MODULE_ABI_STAMP,
-    "GImageIndividual",
-    GENEVA_VERSION_STRING,
-    g_contributions,
-    2u
-};
+const GemModuleManifest
+    g_manifest{GEM_MODULE_ABI_STAMP, "GImageIndividual", GEM_VERSION_STRING, g_contributions, 2u};
 
 } // anonymous namespace
 
 // The fixed, unmangled entry point the loader resolves via dlsym.
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return &g_manifest;
 }
