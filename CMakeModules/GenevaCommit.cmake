@@ -49,8 +49,10 @@
 #   cmake -DSOURCE_DIR=<the Geneva sources> -DOUTPUT=<the C++ source to write> -P GenevaCommit.cmake
 #
 # The program mode (-DMODE=program) takes the identity of a user's program for GENEVA_STAMP_PROGRAM
-# (GenevaProgramStamp.cmake), by the same rule 1 applied to the program's sources; the file
-# GENEVA_COMMIT belongs to the Geneva sources and is not read. Without git the identity is empty
+# (GenevaProgramStamp.cmake), by rule 1 with one difference: the program's sources may lie at any
+# depth inside the git work tree, whose HEAD is taken (and whose tracked files make it "-dirty"); a
+# user's project may well be a subdirectory of its repository. The file GENEVA_COMMIT belongs to the
+# Geneva sources and is not read. Without git the identity is empty
 # instead of a failure (the program is then not checked). -DIDENTITY=<text> gives the identity
 # instead of git. The source it writes holds one static object that calls
 # Gem::Common::setProgramIdentity() before main(), again only if its content changes. It says the
@@ -74,9 +76,10 @@ IF(MODE STREQUAL "program" AND NOT "${IDENTITY}" STREQUAL "")
 	SET(_id "${IDENTITY}")
 ENDIF()
 
-# 1. git: only if the source directory is the top of the work tree -- sources unpacked into another
-#    project's repository must not take that repository's commit. No optional locks: a build must
-#    not get in the way of a git command the user runs at the same time.
+# 1. git: for the Geneva sources only if the source directory is the top of the work tree -- sources
+#    unpacked into another project's repository must not take that repository's commit; for a
+#    user's program if the source directory is inside a work tree at all. No optional locks: a build
+#    must not get in the way of a git command the user runs at the same time.
 FIND_PROGRAM(_git git)
 IF(_git AND _id STREQUAL "")
 	EXECUTE_PROCESS(
@@ -85,7 +88,7 @@ IF(_git AND _id STREQUAL "")
 	IF(_rc EQUAL 0 AND _top)
 		FILE(REAL_PATH "${_top}" _top)
 	ENDIF()
-	IF(_rc EQUAL 0 AND _top STREQUAL _source_dir)
+	IF(_rc EQUAL 0 AND _top AND (MODE STREQUAL "program" OR _top STREQUAL _source_dir))
 		EXECUTE_PROCESS(
 			COMMAND ${_git} -C ${_source_dir} rev-parse --verify HEAD
 			RESULT_VARIABLE _rc OUTPUT_VARIABLE _head ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)

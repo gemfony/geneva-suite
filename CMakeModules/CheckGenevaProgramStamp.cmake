@@ -33,6 +33,8 @@
 #     one without it no identity, and CMake says that it is not stamped (at every configure);
 #   - a project that is a git work tree: the id of its HEAD, and "-dirty" after a change of a
 #     tracked file, taken by the build;
+#   - a project in a subdirectory of a git work tree: the id of that repository's HEAD, and
+#     "-dirty" after a change of a tracked file outside the project's directory;
 #   - a library target is refused.
 #
 # Input (passed via -D):
@@ -146,6 +148,31 @@ IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL "${_head}-dirty")
 	STRING(APPEND _problems "\n  changed tracked file: expected ${_head}-dirty, got \"${_id}\" (${_rc}): ${_out}")
 ENDIF()
 
+# A project in a subdirectory of a git work tree: the HEAD of the repository that contains it, and
+# "-dirty" once a tracked file of that repository has changed, inside the project or not
+SET(_repository "${WORK}/below")
+SET(_tree "${_repository}/project")
+_project("${_tree}" "add_executable(probe main.cpp)" "GENEVA_STAMP_PROGRAM(probe)")
+FILE(WRITE "${_repository}/elsewhere.txt" "one\n")
+_git("${_repository}" init -q)
+_git("${_repository}" add elsewhere.txt project/CMakeLists.txt project/main.cpp)
+_git("${_repository}" commit -q -m "a commit")
+_git("${_repository}" rev-parse HEAD)
+SET(_head "${_git_out}")
+_configure("${_tree}")
+_stamp_of("${_tree}" probe)
+IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL _head)
+	STRING(APPEND _problems "\n  project below the top of a git work tree: expected ${_head}, got \"${_id}\" (${_rc}): ${_out}")
+ENDIF()
+FILE(WRITE "${_repository}/elsewhere.txt" "two\n")
+EXECUTE_PROCESS(
+	COMMAND ${CMAKE_COMMAND} --build ${_tree}-build --target probe-program-stamp
+	RESULT_VARIABLE _rc OUTPUT_VARIABLE _out ERROR_VARIABLE _out)
+_stamp_of("${_tree}" probe)
+IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL "${_head}-dirty")
+	STRING(APPEND _problems "\n  changed tracked file outside the project: expected ${_head}-dirty, got \"${_id}\" (${_rc}): ${_out}")
+ENDIF()
+
 # A library is refused
 SET(_tree "${WORK}/library")
 _project("${_tree}" "add_library(probe STATIC main.cpp)" "GENEVA_STAMP_PROGRAM(probe)")
@@ -157,4 +184,4 @@ ENDIF()
 IF(_problems)
 	MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM did not stamp as it should:${_problems}")
 ENDIF()
-MESSAGE(STATUS "GENEVA_STAMP_PROGRAM stamped the three programs as it should, and refused the library")
+MESSAGE(STATUS "GENEVA_STAMP_PROGRAM stamped the four programs as it should, and refused the library")

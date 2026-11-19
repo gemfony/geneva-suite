@@ -116,8 +116,8 @@ INSTALL(TARGETS GStarterGenericOptimizer GStarterIndividual DESTINATION bin)
 #! [quickstart-cmake-declare]
 
 ################################################################################
-# Stamp both programs with the commit of this project's sources (when they are the top of a git
-# work tree; "-dirty" when a tracked file has changed). A server names it in the greeting it sends
+# Stamp both programs with the commit of this project's sources (when they are inside a git work
+# tree, at its top or in a subdirectory; "-dirty" when a tracked file has changed). A server names it in the greeting it sends
 # each client, and a client built from other sources ends instead of computing with them. Add
 # IDENTITY <text> to give a text of your own instead.
 

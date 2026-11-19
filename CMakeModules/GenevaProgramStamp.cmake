@@ -36,10 +36,11 @@
 #
 #  - With IDENTITY, <text> is the identity.
 #  - Without it, the identity is the commit of the project's sources (CMAKE_SOURCE_DIR), taken at
-#    every build by the rule of GenevaCommit.cmake: if the sources are the top of a git work tree,
-#    the id of HEAD, with "-dirty" appended when a tracked file differs from it. Sources without git
-#    give no identity: CMake says once, at configure time, that the program is not stamped, and it is
-#    not checked against a server's program (its log says so once per run).
+#    every build by the rule of GenevaCommit.cmake: if the sources are inside a git work tree (at
+#    its top or in a subdirectory), the id of its HEAD, with "-dirty" appended when a tracked file of
+#    that repository differs from it. Sources without git give no identity: CMake says once, at
+#    configure time, that the program is not stamped, and it is not checked against a server's
+#    program (its log says so once per run).
 #
 # The function writes one source into the target's build directory -- one static object whose
 # constructor calls Gem::Common::setProgramIdentity() before main() -- and adds it to the target,
@@ -93,7 +94,7 @@ FUNCTION(GENEVA_STAMP_PROGRAM _target)
 	IF("${_identity}" STREQUAL "")
 		MESSAGE(STATUS
 			"${_target} is not stamped: GENEVA_STAMP_PROGRAM was given no IDENTITY, and "
-			"${CMAKE_SOURCE_DIR} is not the top of a git work tree (or git is not installed); the "
+			"${CMAKE_SOURCE_DIR} is not inside a git work tree (or git is not installed); the "
 			"program is not checked against a server's program")
 	ELSE()
 		MESSAGE(STATUS "${_target} is stamped with the identity ${_identity}")

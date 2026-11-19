@@ -32,6 +32,8 @@
 #   - a git work tree gives the id of its HEAD, and an untracked file does not change it;
 #   - a changed tracked file appends "-dirty";
 #   - a tree without git whose GENEVA_COMMIT holds an id gives that id;
+#   - sources in a subdirectory of a git work tree do not take that repository's commit (they may
+#     be unpacked into another project's repository): their GENEVA_COMMIT gives the id;
 #   - a tree without git whose GENEVA_COMMIT holds the placeholder of the repository fails, and its
 #     text names the file.
 #
@@ -108,6 +110,17 @@ IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL _given)
 	STRING(APPEND _problems "\n  filled GENEVA_COMMIT: expected ${_given}, got \"${_id}\" (${_rc}): ${_err}")
 ENDIF()
 
+# Sources in a subdirectory of a git work tree: the id of their GENEVA_COMMIT, not the repository's
+SET(_tree "${WORK}/below/sources")
+FILE(WRITE "${_tree}/GENEVA_COMMIT" "${_given}\n")
+_git("${WORK}/below" init -q)
+_git("${WORK}/below" add sources/GENEVA_COMMIT)
+_git("${WORK}/below" commit -q -m "a commit")
+_take_commit("${_tree}")
+IF(NOT _rc EQUAL 0 OR NOT _id STREQUAL _given)
+	STRING(APPEND _problems "\n  sources below the top of a git work tree: expected ${_given}, got \"${_id}\" (${_rc}): ${_err}")
+ENDIF()
+
 # Neither
 SET(_tree "${WORK}/neither")
 FILE(WRITE "${_tree}/GENEVA_COMMIT" "$Format:%H$\n")
@@ -119,4 +132,4 @@ ENDIF()
 IF(_problems)
 	MESSAGE(FATAL_ERROR "GenevaCommit.cmake did not take the commit as it should:${_problems}")
 ENDIF()
-MESSAGE(STATUS "GenevaCommit.cmake took the commit of all four trees as it should")
+MESSAGE(STATUS "GenevaCommit.cmake took the commit of all five trees as it should")
