@@ -523,22 +523,24 @@ TEST_CASE("courtier(park): an item that is put back wakes one parked caller", "[
 /******************************************************************************/
 // The lease sweep puts an abandoned item back while a batch waits, and announces it without the
 // consumer's lock. If the batch's last result is checked in during that announcement, nobody waits
-// for the notification; the batch must notice all the same, without sleeping through another sweep
-// interval. The interval is an hour here, so a batch that sleeps does not return.
+// for the notification; the batch must notice all the same. Nothing else would wake it: with
+// nothing in flight and no give-up window the wait has no time-out, so a batch that sleeps does
+// not return.
 //
 // The arrangement: batch X has one item, which a client takes and abandons. A parked caller serves
 // whatever it is woken for, right inside the wake function (a real caller must not do that; here it
 // places the check-in exactly in the unlocked window). A second batch, Y, wakes the caller, which
-// completes Y; that completion wakes the wait of X, whose sweep puts the abandoned item back and
-// announces it -- and the caller completes X from inside that announcement.
+// completes Y and parks again. When the abandoned item's lease is due, the wait of X puts it back
+// and announces it -- and the caller completes X from inside that announcement.
 TEST_CASE(
     "courtier(park): a batch completed during the lease sweep's announcement ends at once",
     "[courtier][park]"
 ) {
     SimNetConsumer consumer;
-    consumer.setLeaseBootstrap(5ms);
-    consumer.setLeaseBounds(1ms, 5s);
-    consumer.setSweepTick(std::chrono::hours(1));
+    // Long enough for the caller to park and to complete Y before the item of X is due
+    c2::GNetworkedTimeoutConfig limits;
+    limits.reclaim_lease_ms = 500;
+    consumer.applyTimeoutConfig(limits);
 
     auto batch_x = make_tagged_batch(0, 1);
     std::atomic<bool> x_done{false};
@@ -551,7 +553,6 @@ TEST_CASE(
         abandoned = consumer.checkout();
         return static_cast<bool>(abandoned);
     }));
-    std::this_thread::sleep_for(50ms); // well past the lease
 
     // Serves until nothing is pending, then parks again with itself as the wake function.
     std::function<void()> serve = [&] {
@@ -591,13 +592,14 @@ TEST_CASE(
 TEST_CASE("courtier(park): a late return is kept when its caller parks next", "[courtier][park]") {
     SimNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
-    consumer.setLeaseBootstrap(20ms);
-    consumer.setLeaseBounds(10ms, 200ms);
-    consumer.setSweepTick(5ms);
+    c2::GNetworkedTimeoutConfig limits;
+    limits.reclaim_lease_ms = 20;
+    limits.give_up_window_ms = 200;
+    consumer.applyTimeoutConfig(limits);
 
     // Only the return of a slot that had not returned when its batch ended is kept, so a batch of
-    // two retires with the slot a slow worker holds still missing; the other slot returns, which
-    // lets the give-up window engage.
+    // two retires with the slot a slow worker holds still missing: the other slot returns, and the
+    // give-up window ends the batch.
     auto batch = make_tagged_batch(0, 2);
     std::atomic<bool> done{false};
     std::jthread submitter([&] {
@@ -648,9 +650,6 @@ TEST_CASE(
     constexpr std::size_t ITEMS = 12;
 
     SimNetConsumer consumer;
-    // The test counts evaluations, so no item may be handed out twice: a thread that is kept
-    // waiting by a busy machine must not have its item taken back by the time lease.
-    consumer.setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
     std::atomic<std::size_t> n_evaluated{0};
     std::atomic<std::size_t> n_never_woken{0};
 

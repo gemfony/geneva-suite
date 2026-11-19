@@ -39,10 +39,13 @@
 #     which builds the collection itself);
 #     every installed library, module and program must then resolve all its
 #     dependencies through its own run path (ldd, without LD_LIBRARY_PATH);
-#  3. the quickstart (libs/geneva/quickstart) is configured standalone with
-#     find_package(Geneva CONFIG) against the moved installation and GStarter is
-#     built, which also runs it once in the build tree (its configuration files are
-#     written by the program itself at build time); the quickstart is then
+#  3. the quickstart (libs/geneva/quickstart), copied into a git work tree of its
+#     own, is configured standalone with find_package(Geneva CONFIG) against the
+#     moved installation and GStarter is built, which also runs it once in the build
+#     tree (its configuration files are written by the program itself at build
+#     time); both programs carry the commit of that tree, the identity
+#     GENEVA_STAMP_PROGRAM stamps them with (the stamp's source names it and its
+#     object is part of the program's link); the quickstart is then
 #     installed, configured with CMAKE_INSTALL_RPATH_USE_LINK_PATH, and the
 #     installed GStarter is run. A program linked by hand with -L, -l and
 #     -Wl,-rpath is run as well. INSTALL ("Finding the libraries at run time on
@@ -89,6 +92,7 @@
 #   WITH_MPI         ON if the build has the MPI consumer
 #   WITH_GPU         TRUE if the build has the GPU consumer
 #   HAP_DEFINE       hap's public compile definition (empty for the default source)
+#   GIT              the git executable (may be empty: the quickstart is then not stamped)
 #   JOBS             parallel build jobs for each probe
 # and, set by this script for a lane only: LANE, ROOT, GENERATOR.
 #
@@ -193,14 +197,39 @@ FUNCTION(gip_lane_ldd)
 		"ldd: ${_n_elf} installed libraries, modules and programs resolve on their own")
 ENDFUNCTION()
 
-# 3. The quickstart: the config package must be the one of the moved installation.
+# 3. The quickstart: the config package must be the one of the moved installation. It is built as a
+#    user has it, copied out of the tree into a git work tree of its own, and its programs carry
+#    the commit of that tree (GENEVA_STAMP_PROGRAM); without git, CMake says they are not stamped.
 FUNCTION(gip_lane_quickstart)
 	gip_common_args(_args)
+	SET(_qs_src "${ROOT}/quickstart-src")
+	FILE(COPY "${SOURCE_DIR}/libs/geneva/quickstart/" DESTINATION "${_qs_src}")
+	SET(_qs_commit "")
+	IF(GIT)
+		SET(_git "${GIT}" -C "${_qs_src}" -c user.name=check -c user.email=check@localhost
+			-c commit.gpgsign=false)
+		gip_run("make the quickstart a git work tree" "${ROOT}/quickstart-git-init.log" ${_git} init -q)
+		gip_run("add the quickstart" "${ROOT}/quickstart-git-add.log" ${_git} add -A)
+		gip_run("commit the quickstart" "${ROOT}/quickstart-git-commit.log" ${_git} commit -q -m quickstart)
+		EXECUTE_PROCESS(COMMAND ${_git} rev-parse HEAD
+			OUTPUT_VARIABLE _qs_commit OUTPUT_STRIP_TRAILING_WHITESPACE)
+		IF(NOT _qs_commit MATCHES "^[0-9a-f]+$")
+			MESSAGE(FATAL_ERROR "git names no commit of the quickstart's copy: \"${_qs_commit}\"")
+		ENDIF()
+	ENDIF()
 	gip_run("configure the quickstart" "${ROOT}/quickstart-cmake.log"
-		"${CMAKE_COMMAND}" -S "${SOURCE_DIR}/libs/geneva/quickstart" -B "${ROOT}/quickstart"
+		"${CMAKE_COMMAND}" -S "${_qs_src}" -B "${ROOT}/quickstart"
 		${_args} "-DCMAKE_INSTALL_PREFIX=${ROOT}/quickstart-installed"
+		"-DGENEVA_TEST_INCLUDE_DIR=${SOURCE_DIR}/libs/geneva/tests/UnitTests"
 		-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON)
 	gip_no_warnings("configure the quickstart" "${ROOT}/quickstart-cmake.log")
+	IF(NOT GIT)
+		FILE(READ "${ROOT}/quickstart-cmake.log" _log)
+		IF(NOT _log MATCHES "GStarter is not stamped")
+			MESSAGE(FATAL_ERROR "Without git, configuring the quickstart did not say that GStarter "
+				"is not stamped:\n${_log}")
+		ENDIF()
+	ENDIF()
 	FILE(STRINGS "${ROOT}/quickstart/CMakeCache.txt" _geneva_dir REGEX "^Geneva_DIR:")
 	IF(NOT _geneva_dir STREQUAL "Geneva_DIR:PATH=${ROOT}/moved/lib/cmake/Geneva")
 		MESSAGE(FATAL_ERROR
@@ -211,6 +240,22 @@ FUNCTION(gip_lane_quickstart)
 		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH
 		"${CMAKE_COMMAND}" --build "${ROOT}/quickstart" -j ${JOBS}
 		--target GStarter GStarterGenericOptimizer GStarterIndividual)
+	# Both programs carry the commit of the quickstart's tree: their stamp sets it, and the stamp's
+	# object is linked into them. (The id is not looked for in the programs themselves: an
+	# optimizing compiler may build the string from immediate values instead of keeping it whole.)
+	IF(GIT)
+		FOREACH(_program GStarter GStarterGenericOptimizer)
+			SET(_stamp "${ROOT}/quickstart/${_program}-GenevaProgramStamp.cpp")
+			FILE(READ "${_stamp}" _stamp_source)
+			FILE(GLOB_RECURSE _stamp_object
+				"${ROOT}/quickstart/CMakeFiles/${_program}.dir/*${_program}-GenevaProgramStamp.cpp.o")
+			IF(NOT _stamp_source MATCHES "setProgramIdentity\\(\"${_qs_commit}\"\\)" OR NOT _stamp_object)
+				MESSAGE(FATAL_ERROR "${_program} does not carry the commit ${_qs_commit} of the "
+					"quickstart's tree (GENEVA_STAMP_PROGRAM): its stamp\n${_stamp_source}\n"
+					"its object: \"${_stamp_object}\"")
+			ENDIF()
+		ENDFOREACH()
+	ENDIF()
 	# The user's own install keeps the run path with CMAKE_INSTALL_RPATH_USE_LINK_PATH (INSTALL).
 	gip_run("install the quickstart" "${ROOT}/quickstart-install.log"
 		"${CMAKE_COMMAND}" --install "${ROOT}/quickstart")
@@ -448,7 +493,7 @@ ELSE()
 ENDIF()
 SET(_lane_args "")
 FOREACH(_var BUILD_DIR SOURCE_DIR CXX_COMPILER CXX_LAUNCHER BUILD_TYPE BOOST_DIR CATCH2_DIR
-		WITH_MPI WITH_GPU HAP_DEFINE JOBS ROOT)
+		WITH_MPI WITH_GPU HAP_DEFINE GIT JOBS ROOT)
 	STRING(APPEND _lane_args " '-D${_var}=${${_var}}'")
 ENDFOREACH()
 STRING(APPEND _lane_args " '-DGENERATOR=${_generator}' -P '${CMAKE_CURRENT_LIST_FILE}'")

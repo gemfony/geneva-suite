@@ -128,6 +128,9 @@ public:
         if(vm.contains("mpi_nHandlerThreads")) {
             config.nHandlerThreads = vm["mpi_nHandlerThreads"].as<std::uint32_t>();
         }
+        if(vm.contains("mpi_pingInterval")) {
+            config.pingInterval = vm["mpi_pingInterval"].as<std::size_t>();
+        }
         if(vm.contains("mpi_prefetchDepth")) {
             config.clientPrefetchDepth = vm["mpi_prefetchDepth"].as<std::size_t>();
         }
@@ -136,9 +139,6 @@ public:
         }
         if(vm.contains("mpi_firstContactLimit")) {
             config.clientFirstContactLimit = vm["mpi_firstContactLimit"].as<std::size_t>();
-        }
-        if(vm.contains("mpi_undeliveredDir")) {
-            config.clientUndeliveredDir = vm["mpi_undeliveredDir"].as<std::string>();
         }
         return config;
     }
@@ -168,8 +168,7 @@ public:
             "\t[mpi] n: how many work items a client holds at once -- the one(s) being evaluated "
             "and the next one, fetched while the current one is evaluated (1: none is fetched "
             "ahead; how many it evaluates at once: --mpi_parallelEvaluations). 2 by default, unlike "
-            "--beast_prefetchDepth: an MPI client has at most one request unanswered, so an idle "
-            "client never asks for two items. Waiting requests are served oldest first, whether "
+            "--beast_prefetchDepth. Waiting requests are served oldest first, whether "
             "their client evaluates or not: when fewer items become available than requests wait "
             "(between iterations, say), one sent while evaluating may get an item before a newer "
             "one of an idle client"
@@ -184,15 +183,16 @@ public:
             "\t[mpi] m: how many of the items a client holds (--mpi_prefetchDepth) it evaluates "
             "at the same time; from 1 to the prefetch depth"
         )(
+            "mpi_pingInterval",
+            po::value<std::size_t>()->default_value(defaults.pingInterval),
+            "\t[mpi] Keep-alive of the submitter: every rank is sent a sign of life this often (in "
+            "seconds); a rank not heard from for more than twice that time is lost, and the job is "
+            "ended when the run is over (0 == off). The clients take it from the submitter"
+        )(
             "mpi_firstContactLimit",
             po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),
             "\t[mpi] Seconds a client waits for the submitter's greeting before it gives up "
             "(0 == for as long as it runs)"
-        )(
-            "mpi_undeliveredDir",
-            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
-            "\t[mpi] Where a client saves a finished result it can no longer deliver (the "
-            "evaluated item, one file each)"
         );
     }
 };

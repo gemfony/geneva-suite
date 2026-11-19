@@ -151,8 +151,10 @@ public:
  *
  * Resolves @c spec.mnemonic against @c consumerProviderStore() and invokes the matching provider's
  * @c setup(): it constructs the consumer and -- for networked consumers -- starts the server. A
- * networked consumer (a GNetworkedConsumerT, built in or from a module) is given the timeout
- * configuration of ./config/GNetworkedConsumer.json. The freshly-built consumer is registered in
+ * networked consumer (a GNetworkedConsumerT, built in or from a module) is given the user's two
+ * time limits from ./config/GNetworkedConsumer.json (both 0, no limit, by default: a lost client is
+ * noticed by its connection; a client that hangs inside an evaluation while its process answers is
+ * noticed only if the user sets reclaim_lease_ms). The freshly-built consumer is registered in
  * GConsumerRegistry as the process's single consumer. A socket consumer whose process already holds
  * a consumer reuses it rather than binding the port again. Call it on a submitter only (see
  * consumerRole()); a provider refuses to build on any other role.

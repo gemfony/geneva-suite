@@ -72,7 +72,8 @@
  *
  * What a test can arrange: a rank that never receives (swallow(): sends to it never complete),
  * messages from a rank that has no calls of its own (inject()), and a call that throws once
- * (throwOnce()).
+ * (throwOnce()). What it records besides: the ranks a rank's poll has found silent (noteLostRank(),
+ * lostRanks()), and the tags of what waits in a mailbox (waitingTags()).
  */
 
 namespace Gem::Courtier::Tests {
@@ -102,6 +103,7 @@ public:
         Gem::Courtier::Consumers::GMPIRequest request,
         std::unique_ptr<std::string> bytes
     ) override;
+    void noteLostRank(int rank) override;
 
 private:
     std::shared_ptr<GMPIFakeWorld> world_; ///< The communicator
@@ -191,6 +193,25 @@ public:
         return n;
     }
 
+    /** @brief @param rank A rank @return The tags of the messages that wait in its mailbox, by
+     *  sender and in the order they were sent */
+    std::vector<int> waitingTags(int rank) const {
+        const std::scoped_lock lock(mutex_);
+        std::vector<int> tags;
+        for(const auto &[source, queue] : ranks_.at(static_cast<std::size_t>(rank)).mailbox) {
+            for(const auto &message : queue) {
+                tags.push_back(message.tag);
+            }
+        }
+        return tags;
+    }
+
+    /** @brief @param rank A rank @return The ranks its poll has noted as lost, in that order */
+    std::vector<int> lostRanks(int rank) const {
+        const std::scoped_lock lock(mutex_);
+        return ranks_.at(static_cast<std::size_t>(rank)).lost;
+    }
+
     /** @brief @return How many sends are under way (started, neither completed nor given up) */
     std::size_t sendsUnderWay() const {
         const std::scoped_lock lock(mutex_);
@@ -235,6 +256,7 @@ private:
         std::thread::id prober;      ///< Who the probe reported it to
         std::atomic<int> in_call{0}; ///< Calls of the receiving kind in progress
         GCounts counts;
+        std::vector<int> lost; ///< The ranks noted as lost (noteLostRank())
     };
 
     /** @brief Throws, if a fault of the kind @p where is armed on @p me; the mutex is held */
@@ -449,6 +471,11 @@ inline void GMPIFakeCalls::giveUp(
     }
     world_->requests_.erase(request);
     ++world_->ranks_.at(static_cast<std::size_t>(rank_)).counts.givenUp;
+}
+
+inline void GMPIFakeCalls::noteLostRank(int rank) {
+    const std::scoped_lock lock(world_->mutex_);
+    world_->ranks_.at(static_cast<std::size_t>(rank_)).lost.push_back(rank);
 }
 
 /******************************************************************************/

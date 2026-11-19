@@ -49,10 +49,6 @@
 #               so the ideal iteration time is twice the evaluation time.
 #
 # Environment:
-#   TREATMENT  timeout treatment written to config/GNetworkedConsumer.json
-#              (adaptive | fixed | wait_indefinitely); a test of "nothing is
-#              lost" wants wait_indefinitely, or a lost item is resubmitted
-#              after the give-up window and the loss stays hidden
 #   NVARIABLES the number of double parameters of an individual (the item's size: 8 bytes
 #              each; the configuration's 100 if unset)
 #   SRVOPTS    further options for the server (for MPI: for every rank)
@@ -111,9 +107,6 @@ d['delays']['value'] = sys.argv[2]
 if 'NVARIABLES' in os.environ:
     d['n_variables']['value'] = int(os.environ['NVARIABLES'])
 json.dump(d, open(f, 'w'), indent=1)
-if 'TREATMENT' in os.environ:
-    f = 'config/GNetworkedConsumer.json'; d = json.load(open(f))
-    d['treatment']['value'] = os.environ['TREATMENT']; json.dump(d, open(f, 'w'), indent=1)
 P
     # stdbuf need not replace itself by the program (uutils coreutils does not), so the process to
     # measure is looked up instead of taken from $!.

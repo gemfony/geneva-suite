@@ -525,6 +525,22 @@ ELSE()
 ENDIF()
 
 ################################################################################
+# The commit of the sources (CMakeModules/GenevaCommit.cmake): taken here once, so that a tree that
+# does not say which commit it is does not configure, and again at every build, before the common
+# library is compiled (libs/common/src/CMakeLists.txt), so that a commit made after the configure is
+# seen. The one source it writes defines Gem::Common::genevaCommit().
+SET(GENEVA_COMMIT_SOURCE ${CMAKE_BINARY_DIR}/libs/common/src/GGenevaCommit.cpp)
+EXECUTE_PROCESS(
+	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GENEVA_COMMIT_SOURCE}
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+	RESULT_VARIABLE _geneva_commit_rc
+	ERROR_VARIABLE _geneva_commit_error
+)
+IF(NOT _geneva_commit_rc EQUAL 0)
+	MESSAGE(FATAL_ERROR "${_geneva_commit_error}")
+ENDIF()
+
+################################################################################
 # Include directories, libraries
 
 INCLUDE_DIRECTORIES (
@@ -728,6 +744,10 @@ INSTALL(
 	# examples do (GenevaConfig.cmake includes the former; the latter must sit next to it).
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaConfigMaterialization.cmake
 	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaRunQuiet.cmake
+	# The stamp of a program (GENEVA_STAMP_PROGRAM; GenevaConfig.cmake includes it) and the script
+	# that takes the commit of a tree for it, which must sit next to it.
+	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaProgramStamp.cmake
+	${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
 	DESTINATION ${GENEVA_INSTALL_CMAKEDIR}
 )
 
@@ -739,6 +759,8 @@ INSTALL(
 # sanitizer build: a program built without -fsanitize cannot run against instrumented libraries.
 IF (GENEVA_BUILD_TESTS)
 	IF (GENEVA_SANITIZER STREQUAL "none")
+		# git makes the quickstart's copy a work tree of its own, whose commit its programs carry
+		FIND_PACKAGE(Git QUIET)
 		ADD_TEST(
 			NAME GenevaInstalledPackageProbes
 			COMMAND ${CMAKE_COMMAND}
@@ -752,6 +774,7 @@ IF (GENEVA_BUILD_TESTS)
 				-DWITH_MPI=${GENEVA_BUILD_WITH_MPI_CONSUMER}
 				-DWITH_GPU=${GENEVA_INSTALLED_WITH_GPU}
 				-DHAP_DEFINE=${GENEVA_HAP_PUBLIC_DEFINE}
+				-DGIT=${GIT_EXECUTABLE}
 				-DJOBS=4
 				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckInstalledPackage.cmake
 		)
@@ -848,6 +871,33 @@ IF (GENEVA_BUILD_TESTS)
 	ENDFOREACH()
 	SET_TESTS_PROPERTIES(CheckFigureTitlesRule_labelled PROPERTIES
 		PASS_REGULAR_EXPRESSION "one pad, two titles: the canvas label \"A figure\"")
+
+	# Where a build takes the commit of the sources from (GenevaCommit.cmake), on made-up source
+	# trees, and how a program is stamped with it. Need git, to make the work trees among them.
+	FIND_PACKAGE(Git QUIET)
+	IF (GIT_FOUND)
+		ADD_TEST(
+			NAME GenevaCommitSources
+			COMMAND ${CMAKE_COMMAND} -DSCRIPT=${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
+				-DGIT=${GIT_EXECUTABLE} -DWORK=${CMAKE_BINARY_DIR}/GenevaCommitSources
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaCommit.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaCommitSources PROPERTIES LABELS "conventions" TIMEOUT 60)
+		GENEVA_TEST_SIZE(GenevaCommitSources S)
+		# How GENEVA_STAMP_PROGRAM (GenevaProgramStamp.cmake) stamps a user's program, in made-up
+		# projects (configured, not compiled).
+		ADD_TEST(
+			NAME GenevaProgramStamp
+			COMMAND ${CMAKE_COMMAND} -DMODULE=${PROJECT_SOURCE_DIR}/CMakeModules/GenevaProgramStamp.cmake
+				-DGIT=${GIT_EXECUTABLE} -DCXX_COMPILER=${CMAKE_CXX_COMPILER}
+				-DWORK=${CMAKE_BINARY_DIR}/GenevaProgramStamp
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckGenevaProgramStamp.cmake
+		)
+		SET_TESTS_PROPERTIES(GenevaProgramStamp PROPERTIES LABELS "conventions" TIMEOUT 120)
+		GENEVA_TEST_SIZE(GenevaProgramStamp M)
+	ELSE ()
+		MESSAGE(STATUS "GenevaCommitSources and GenevaProgramStamp not registered: git not found")
+	ENDIF ()
 
 	# The runner of the tests that start MPI jobs (GenevaMpiTest.cmake) gives two runs at the same
 	# time two directories for Open MPI's shared-memory files and removes each, also after a

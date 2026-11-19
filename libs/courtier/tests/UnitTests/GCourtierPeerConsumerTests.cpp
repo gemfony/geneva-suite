@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -82,7 +83,6 @@ using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
 using Gem::Courtier::Tests::GInProcessListenerRef;
 using Gem::Courtier::Tests::GInProcessPeer;
-using Gem::Courtier::Tests::GInProcessPeerWatch;
 using Gem::Courtier::Tests::GInProcessRoute;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
@@ -99,7 +99,7 @@ bool eventually(condition_type condition) {
 }
 
 /******************************************************************************/
-/** @brief The shell under test, with its protected answer to "time lease?" made public */
+/** @brief The shell under test, on the in-process listener */
 class Shell final : public Gem::Courtier::GPeerConsumerT<GFaultyContainer> {
 public:
     /** @brief @param listener The in-process listener the shell owns a reference to
@@ -111,20 +111,15 @@ public:
     /** @brief @param listener The listener the shell owns @param n_threads The session threads */
     Shell(std::unique_ptr<Gem::Courtier::Consumers::GListenerI> listener, std::size_t n_threads)
       : Gem::Courtier::GPeerConsumerT<GFaultyContainer>("Shell", std::move(listener), n_threads, BIN) {
-        // Nothing is given up on time: a lost item must come back through the session's lease.
-        Gem::Courtier::GNetworkedTimeoutConfig config;
-        config.treatment = "wait_indefinitely";
-        this->applyTimeoutConfig(config);
+        // No time limit (the default): a lost item must come back through the session's lease.
     }
-
-    using Gem::Courtier::GPeerConsumerT<GFaultyContainer>::usesTimeLease;
 };
 
 /******************************************************************************/
 /**
  * A client that sends its requests by hand: some PULLs when the connection is open, and for every
- * WORK either a RETURN of the evaluated item (which asks for the next) or nothing (it holds the
- * item). It records what it got and how its connection ended.
+ * WORK either the RESULT of the evaluated item and a PULL for the next, or nothing (it holds the
+ * item). It records what it got (the server's HELLO not counted) and how its connection ended.
  */
 class ScriptedClient : public std::enable_shared_from_this<ScriptedClient> {
 public:
@@ -238,9 +233,12 @@ private:
     /** @brief A message from the server, on the peer's executor @param message Its bytes */
     void received_(std::string &&message) {
         const std::string bytes{std::move(message)};
-        n_frames_.fetch_add(1);
         GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
         Gem::Courtier::wireDecode(bytes, frame, nullptr, BIN);
+        if(frame.kind() == GFrameKind::HELLO) {
+            return;
+        }
+        n_frames_.fetch_add(1);
         if(frame.kind() != GFrameKind::WORK) {
             return;
         }
@@ -254,6 +252,7 @@ private:
                 frame.setOutcome(std::move(outcome));
             }
             this->send_(frame);
+            this->send_(GCommandContainerT<GFaultyContainer>{GFrameKind::PULL});
         }
     }
 
@@ -302,7 +301,7 @@ long long msSince(std::chrono::steady_clock::time_point since) {
 /******************************************************************************/
 /**
  * The end of a run: every client is told RUN_ENDED, the parked ones and those that wait for
- * nothing alike, and the shell does not wait out its grace when they confirm.
+ * nothing alike, and the shell does not wait out its grace when their connections end.
  */
 TEST_CASE(
     "GPeerConsumerT: at the stop forty clients hear RUN_ENDED and the registry empties",
@@ -311,7 +310,7 @@ TEST_CASE(
     constexpr std::size_t N_PARKED = 20;
     constexpr std::size_t N_IDLE = 20;
     auto listener = std::make_shared<GInProcessListener>(
-        GInProcessListener::Options{.closeGrace = 2s, .stopGrace = 3s}
+        GInProcessListener::Options{.stopGrace = 3s}
     );
     // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
@@ -338,7 +337,7 @@ TEST_CASE(
         CHECK(listener->workEnded());
     }
     for(const auto &role : roles) {
-        // The server's end has seen the acknowledgement; the client's onClosed may still be due.
+        // The server's end has ended; the client's onClosed may still be due.
         CHECK(eventually([&] { return role->closed() == "CLOSED_THERE:RUN_ENDED"; }));
         CHECK(role->nFrames() == 0);
     }
@@ -384,11 +383,10 @@ TEST_CASE(
 
     SECTION("a client that dies unnoticed is counted until the transport notices") {
         // The server's ends ignore a close (the client's close never arrives, as from a host
-        // that is gone), and the listener does not detect a loss
+        // that is gone), and the listener has no keep-alive
         auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-            .serverFaults = GInProcessFaults{.acknowledgeClose = false},
-            .stopGrace = 300ms,
-            .detectsLoss = false
+            .serverFaults = GInProcessFaults{.ignoreClose = true},
+            .stopGrace = 300ms
         });
         GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
         IoThreads clients;
@@ -410,75 +408,9 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** A client that never confirms the end keeps the shell no longer than the listener's grace. */
-TEST_CASE(
-    "GPeerConsumerT: a client that never confirms the end costs the stop one grace",
-    "[courtier][peer][shell]"
-) {
-    constexpr auto STOP_GRACE = 500ms;
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
-        .closeGrace = 10s, // the peer itself would wait this long
-        .stopGrace = STOP_GRACE
-    });
-    // The connector goes after the threads its client ends run on (GInProcessConnector)
-    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
-    IoThreads clients;
-    auto role = std::make_shared<ScriptedClient>(0, true);
-    {
-        Shell shell{listener, 2};
-        shell.startServer();
-        role->connect(connector, clients.executor());
-        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
-
-        const auto stop_began = std::chrono::steady_clock::now();
-        shell.stopServer();
-        const auto stop_ms = msSince(stop_began);
-        INFO("stopServer() took " << stop_ms << " ms");
-        CHECK(stop_ms >= STOP_GRACE.count());
-        CHECK(stop_ms < STOP_GRACE.count() + 1000);
-        // The session that did not confirm lives until the shell goes.
-        CHECK(shell.getNActiveSessions() == 1);
-        CHECK(shell.clientsUnconfirmedAtStop() == 1);
-        CHECK(listener->workEnded());
-    }
-}
-
-/******************************************************************************/
-/** A client that does not confirm the end, whose peer gives up on it before the shell's grace has
- *  passed: it ended, but without confirming, and the stop counts it (GPeerI.hpp, rule 6). */
-TEST_CASE(
-    "GPeerConsumerT: a close the client does not confirm within the grace is counted",
-    "[courtier][peer][shell]"
-) {
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
-        .closeGrace = 200ms, // the server's end gives up long before the shell's grace
-        .stopGrace = 5s
-    });
-    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
-    IoThreads clients;
-    auto deaf = std::make_shared<ScriptedClient>(0, true);
-    {
-        Shell shell{listener, 2};
-        shell.startServer();
-        deaf->connect(connector, clients.executor());
-        REQUIRE(eventually([&] { return shell.getNActiveSessions() == 1; }));
-
-        const auto stop_began = std::chrono::steady_clock::now();
-        shell.stopServer();
-        const auto stop_ms = msSince(stop_began);
-        INFO("stopServer() took " << stop_ms << " ms");
-        CHECK(stop_ms < 2000); // the registry ran empty when the peer gave up
-        CHECK(shell.getNActiveSessions() == 0);
-        CHECK(shell.clientsUnconfirmedAtStop() == 1);
-    }
-}
-
-/******************************************************************************/
 /**
  * A client that is lost while it holds items: its session puts them back at once, and another
- * client gets them. Nothing is given up on time here (wait_indefinitely), so only the lease can.
+ * client gets them. Nothing is given up on time here (no time limit), so only the lease can.
  */
 TEST_CASE(
     "GPeerConsumerT: the items of a lost client are served to another one",
@@ -520,22 +452,6 @@ TEST_CASE(
         n_processed += (item && item->is_processed()) ? 1 : 0;
     }
     CHECK(n_processed == 4);
-}
-
-/******************************************************************************/
-/** The time lease is used exactly where the transport does not notice a lost client itself. */
-TEST_CASE(
-    "GPeerConsumerT: the time lease follows the listener's detectsLoss()",
-    "[courtier][peer][shell]"
-) {
-    auto noticing =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = true});
-    auto blind =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
-    const Shell with_loss_detection{noticing, 1};
-    const Shell without_loss_detection{blind, 1};
-    CHECK_FALSE(with_loss_detection.usesTimeLease());
-    CHECK(without_loss_detection.usesTimeLease());
 }
 
 /******************************************************************************/
@@ -729,9 +645,9 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
     }
-    /** @brief Forwards @return The in-process listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
     }
 
 private:
@@ -739,210 +655,7 @@ private:
     std::shared_ptr<StartHold> hold_;              ///< Shared with the ends
 };
 
-/**
- * A server's end with a seam after the end of its connection: its onClosed handler hands the end
- * to the session (whose connectionEnded hook runs there) and then holds the session thread -- and
- * with it the session, which leaves the registry only in its destructor -- until the test lets
- * it go. It records the first close() and what it said. It is owned by the handlers it installs on
- * the end it wraps, as a role is (rule 4).
- */
-class SeamPeer final
-  : public GPeerI
-  , public std::enable_shared_from_this<SeamPeer> {
-public:
-    /** @brief What the test shares with the ends */
-    struct Seam {
-        std::atomic<bool> closeRequested{false};       ///< close() has been called
-        std::atomic<GPeerClose> how{GPeerClose::NORMAL}; ///< What the first close() said
-        std::function<bool()> release;                  ///< Holds the session thread until true
-    };
-
-    /** @brief @param inner The end it wraps @param seam Shared with the test */
-    SeamPeer(const std::shared_ptr<GPeerI> &inner, std::shared_ptr<Seam> seam)
-      : inner_(inner)
-      , seam_(std::move(seam)) { /* nothing */
-    }
-    /** @brief Wraps the session's onClosed in the seam @param handlers See GPeerI */
-    void start(GPeerHandlers handlers) override {
-        auto inner = inner_.lock();
-        if(not inner) {
-            return;
-        }
-        inner->start(
-            GPeerHandlers{
-                .onOpen = std::move(handlers.onOpen),
-                .onMessage =
-                    [self = this->shared_from_this(), on_message = std::move(handlers.onMessage)](
-                        std::string &&message
-                    ) mutable { on_message(std::move(message)); },
-                .onClosed =
-                    [seam = seam_, on_closed = std::move(handlers.onClosed)](
-                        GPeerEnd end,
-                        GPeerClose how,
-                        std::string_view detail
-                    ) mutable {
-                        on_closed(end, how, detail);
-                        if(seam->release) {
-                            std::ignore = eventually(seam->release);
-                        }
-                    },
-            }
-        );
-    }
-    /** @brief Forwards @param message See GPeerI */
-    void send(Gem::Courtier::Consumers::GMessage message) override {
-        if(auto inner = inner_.lock()) {
-            inner->send(std::move(message));
-        }
-    }
-    /** @brief Forwards, then records the close @param how See GPeerI */
-    void close(GPeerClose how) override {
-        if(auto inner = inner_.lock()) {
-            inner->close(how);
-        }
-        if(not seam_->closeRequested.exchange(true)) {
-            seam_->how.store(how);
-        }
-    }
-    /** @brief Forwards */
-    void abort() override {
-        if(auto inner = inner_.lock()) {
-            inner->abort();
-        }
-    }
-    /** @brief Forwards @return The wrapped end's executor */
-    [[nodiscard]] boost::asio::any_io_executor executor() override {
-        auto inner = inner_.lock();
-        return inner ? inner->executor() : boost::asio::any_io_executor{};
-    }
-
-private:
-    std::weak_ptr<GPeerI> inner_; ///< The wrapped end
-    std::shared_ptr<Seam> seam_;  ///< Shared with the test
-};
-
-/** @brief The in-process listener, with every server end wrapped in a SeamPeer */
-class SeamListener final : public Gem::Courtier::Consumers::GListenerI {
-public:
-    /** @brief @param listener The in-process listener @param seam Shared with the ends */
-    SeamListener(std::shared_ptr<GInProcessListener> listener, std::shared_ptr<SeamPeer::Seam> seam)
-      : listener_(std::move(listener))
-      , seam_(std::move(seam)) { /* nothing */
-    }
-    /** @brief Wraps the ends @param executor See GListenerI @param on_peer See GListenerI */
-    void start(boost::asio::any_io_executor executor, on_peer_type on_peer) override {
-        listener_->start(
-            std::move(executor),
-            [seam = seam_, on_peer = std::move(on_peer)](
-                const std::shared_ptr<GPeerI> &peer,
-                Gem::Courtier::GWirePeerId id
-            ) mutable { on_peer(std::make_shared<SeamPeer>(peer, seam), id); }
-        );
-    }
-    /** @brief Forwards */
-    void stop() override {
-        listener_->stop();
-    }
-    /** @brief Forwards */
-    void endWork() override {
-        listener_->endWork();
-    }
-    /** @brief Forwards @return The in-process listener's grace */
-    [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
-        return listener_->stopGrace();
-    }
-    /** @brief Forwards @return The in-process listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
-    }
-
-private:
-    std::shared_ptr<GInProcessListener> listener_; ///< The in-process listener
-    std::shared_ptr<SeamPeer::Seam> seam_;         ///< Shared with the ends
-};
-
 } /* anonymous namespace */
-
-/**
- * A client whose connection ends unconfirmed while the shell waits for the end of the run -- here
- * its own close crosses the shell's -- is counted once by clientsUnconfirmedAtStop(), also when its
- * session is still in the registry when the shell counts (the seam holds it between the
- * connectionEnded hook and the session's destructor beyond the grace).
- */
-TEST_CASE(
-    "GPeerConsumerT: a client whose close ends unconfirmed at the stop is counted once",
-    "[courtier][peer][shell]"
-) {
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
-        .closeGrace = 10s, // the server's end ends by the crossing close, not by its grace
-        .stopGrace = 1s
-    });
-    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
-    IoThreads clients;
-    auto role = std::make_shared<ScriptedClient>(0, true);
-    auto seam = std::make_shared<SeamPeer::Seam>();
-    {
-        Shell shell{std::make_unique<SeamListener>(listener, seam), 2};
-        seam->release = [&shell] { return shell.clientsUnconfirmedAtStop() > 0; };
-        shell.startServer();
-        role->connect(connector, clients.executor());
-        // Both ends: the client acts through its own end below, which it knows only once it is open
-        REQUIRE(eventually([&] { return role->open() && shell.getNActiveSessions() == 1; }));
-
-        auto stop = std::async(std::launch::async, [&shell] { shell.stopServer(); });
-        REQUIRE(eventually([&] { return seam->closeRequested.load(); })); // RUN_ENDED, on its way
-        role->abort(); // the client's own close arrives after the server's has gone out
-        stop.get();
-        CHECK(shell.clientsUnconfirmedAtStop() == 1);
-    }
-}
-
-/**
- * A connection that the session closed with an error before the stop and that then ends unconfirmed
- * while the shell waits for the end of the run did not fail to confirm the end of the run: it is
- * not counted (clientsUnconfirmedAtStop()). The client is given its end late on purpose, so that a
- * test that sent through the client once the server has its session, without waiting for the
- * client's end, fails every time.
- */
-TEST_CASE(
-    "GPeerConsumerT: a connection the session closed with an error is not counted at the stop",
-    "[courtier][peer][shell]"
-) {
-    constexpr auto CLIENT_END_HOLD = 500ms;
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .clientFaults = GInProcessFaults{.acknowledgeClose = false},
-        .closeGrace = 300ms, // the server's end gives up on its close long before the stop's grace
-        .stopGrace = 5s
-    });
-    // The server's session is made as soon as the connection is (on_peer is posted first); the
-    // client is given its end afterwards, here only once the test has acted through the client, or
-    // after the hold
-    auto watch = std::make_shared<GInProcessPeerWatch>();
-    const auto acted = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-    watch->setOnMade([acted, CLIENT_END_HOLD](GInProcessPeer &) {
-        std::ignore = acted->wait_for(CLIENT_END_HOLD);
-    });
-    GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener), true, watch};
-    IoThreads clients;
-    auto role = std::make_shared<ScriptedClient>(0, true);
-    auto seam = std::make_shared<SeamPeer::Seam>();
-    {
-        Shell shell{std::make_unique<SeamListener>(listener, seam), 2};
-        shell.startServer();
-        role->connect(connector, clients.executor());
-        // Both ends: a message sent before the client knows its end would go nowhere
-        REQUIRE(eventually([&] { return role->open() && shell.getNActiveSessions() == 1; }));
-        role->sendBytes("x"); // a message whose kind cannot be read: the session closes with ERROR
-        acted->count_down();
-        REQUIRE(eventually([&] { return seam->closeRequested.load(); }));
-        REQUIRE(seam->how.load() == GPeerClose::ERROR);
-
-        shell.stopServer(); // the server's end ends unconfirmed during the stop's grace
-        CHECK(shell.getNActiveSessions() == 0);
-        CHECK(shell.clientsUnconfirmedAtStop() == 0);
-    }
-}
 
 /**
  * The shell never closes a peer before that peer has been started (GPeerI.hpp, rule 2): a session
@@ -958,7 +671,6 @@ TEST_CASE(
     // The listener's own wait for the calls of on_peer gives up before the start() is let go: the
     // order of start and sign-on alone keeps rule 2 then.
     auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .closeGrace = 3s,
         .stopGrace = STOP_GRACE,
         .stopBound = 100ms
     });
@@ -1000,7 +712,7 @@ TEST_CASE(
 ) {
     constexpr auto STOP_GRACE = 3000ms;
     auto listener = std::make_shared<GInProcessListener>(
-        GInProcessListener::Options{.closeGrace = 2s, .stopGrace = STOP_GRACE}
+        GInProcessListener::Options{.stopGrace = STOP_GRACE}
     );
     // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
@@ -1040,7 +752,7 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * With the time lease (a listener that does not notice lost clients), a session's lease gives back
+ * With the user's reclaim lease (a listener without a keep-alive), a session's lease gives back
  * only its own checkout: client A holds item X until the lease puts it back, client B takes it, then
  * A is lost. A's lease must not take X from B: a third client C gets nothing, and X has been handed
  * out twice, not three times.
@@ -1050,16 +762,12 @@ TEST_CASE(
     "[courtier][peer][shell]"
 ) {
     constexpr std::int64_t LEASE_MS = 2000;
-    auto listener =
-        std::make_shared<GInProcessListener>(GInProcessListener::Options{.detectsLoss = false});
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
     IoThreads clients;
     Shell shell{listener, 2};
     Gem::Courtier::GNetworkedTimeoutConfig config;
-    config.treatment = "fixed";
-    config.fixed_lease_ms = LEASE_MS;
-    config.fixed_stall_window_ms = 600000;
-    config.sweep_tick_ms = 20;
+    config.reclaim_lease_ms = LEASE_MS;
     shell.applyTimeoutConfig(config);
     shell.startServer();
 
@@ -1197,4 +905,38 @@ TEST_CASE(
     } // the destructor returns
     CHECK(listener->nStops() == 0);
     CHECK_FALSE(listener->workEnded());
+}
+
+/******************************************************************************/
+/**
+ * A shell is started once: a second startServer() after one that succeeded is refused with an
+ * exception that says so, and changes nothing -- no further threads are reserved, and the stop
+ * ends the run as after a single start.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a shell that has been started cannot be started again",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto &budget = Gem::Common::Concurrency::threadBudget();
+    const unsigned int reserved_before = budget.reserved();
+    {
+        Shell shell{listener, 3};
+        shell.startServer();
+        const unsigned int reserved_started = budget.reserved();
+        std::string what;
+        try {
+            shell.startServer();
+        }
+        catch(const std::exception &e) {
+            what = e.what();
+        }
+        CHECK(what.find("started already") != std::string::npos);
+        CHECK(budget.reserved() == reserved_started);
+        shell.stopServer();
+        CHECK(listener->nStops() == 1);
+        CHECK(listener->workEnded());
+        CHECK(budget.reserved() == reserved_before);
+    } // the destructor's stop has nothing more to do
+    CHECK(listener->nStops() == 1);
 }

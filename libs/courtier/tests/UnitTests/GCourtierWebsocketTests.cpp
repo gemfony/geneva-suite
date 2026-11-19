@@ -39,7 +39,6 @@
 #include <atomic>
 #include <string>
 #include <cstdint>
-#include <filesystem>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -52,7 +51,6 @@
 #include <tuple>
 #include <vector>
 
-#include <unistd.h> // getpid()
 
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -270,8 +268,8 @@ TEST_CASE(
     // failure, invalid command) set close_code_ but never tore the connection down, so the
     // 1-second halt-poll timer kept io_context::run() alive forever -- the client hung instead
     // of terminating. A minimal one-shot server stands in for a crashed server process: it
-    // completes the websocket handshake, answers the client's first pull with NO_WORK (contact),
-    // closes its acceptor and hard-closes the TCP socket without a websocket close handshake. The
+    // completes the websocket handshake, greets the client with HELLO (contact), reads its first
+    // pull, closes its acceptor and hard-closes the TCP socket without a websocket close handshake. The
     // client connects again, is refused, and its run() must return BY ITSELF at its reconnect
     // limit (no flagCloseRequested from the outside).
     namespace bws = boost::beast::websocket;
@@ -294,10 +292,15 @@ TEST_CASE(
         if(ec) {
             return;
         }
+        ws.binary(true);
+        ws.write(
+            boost::asio::buffer(
+                c2::buildHello<GFaultyContainer>(BIN, std::chrono::milliseconds::zero())
+            ),
+            ec
+        );
         boost::beast::flat_buffer buf;
         ws.read(buf, ec); // the client's first PULL frame
-        const c2::GCommandContainerT<GFaultyContainer> no_work{c2::GFrameKind::NO_WORK};
-        ws.write(boost::asio::buffer(c2::wireEncode(no_work, nullptr, BIN)), ec);
         std::ignore = acceptor.close(ec); // the server process is gone: connects are refused
         // No close frame: slam the TCP connection shut like a killed server process.
         ws.next_layer().close(ec);
@@ -334,131 +337,6 @@ TEST_CASE(
         // FAILS instead of deadlocking the suite.
         client->flagCloseRequested();
     }
-}
-
-/******************************************************************************/
-// A client halts with one evaluation running; its result goes out as a RESULT (never answered) and
-// then its close. The server's end of the run (RUN_ENDED) crosses that close: the server's close
-// frame arrives after the client's has gone out, so Beast's close operation of the client reads it
-// (not the peer's own read, and without the control callback). The client must hear the end of
-// the run and save nothing (it used to report a plain close and save the result). The server is
-// written by hand from the handshake on, so that the test decides when its close goes out. (The
-// in-process pair has no second reader of a close and cannot show this.)
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario with a hand-written server; Catch2's macros count
-TEST_CASE(
-    "courtier(websocket): a halting client whose close crosses the end of the run saves nothing",
-    "[courtier][websocket][net]"
-) {
-    using boost::asio::ip::tcp;
-    const std::filesystem::path dir =
-        std::filesystem::temp_directory_path() /
-        ("geneva-crossing-run-end-" + std::to_string(::getpid()));
-    std::filesystem::remove_all(dir);
-    std::filesystem::create_directories(dir);
-
-    boost::asio::io_context server_ioc;
-    tcp::acceptor acceptor(server_ioc, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
-    const unsigned short port = acceptor.local_endpoint().port();
-    std::atomic<bool> server_ok{false};
-    std::jthread server_thread([&acceptor, &server_ok] {
-        boost::system::error_code ec;
-        tcp::socket sock = acceptor.accept(ec);
-        if(ec) {
-            return;
-        }
-        boost::beast::websocket::stream<tcp::socket> ws(std::move(sock));
-        ws.binary(true);
-        ws.accept(ec);
-        if(ec) {
-            return;
-        }
-        // Reads one frame of the client by hand (masked, as a client's are) and returns its opcode
-        auto &raw = ws.next_layer();
-        const auto read_frame = [&raw, &ec]() -> int {
-            std::array<unsigned char, 8> head{};
-            boost::asio::read(raw, boost::asio::buffer(head.data(), 2), ec);
-            const auto opcode = static_cast<int>(head[0] & 0x0FU);
-            std::uint64_t length = head[1] & 0x7FU;
-            if(length == 126) {
-                boost::asio::read(raw, boost::asio::buffer(head.data(), 2), ec);
-                length = (std::uint64_t{head[0]} << 8U) | head[1];
-            }
-            else if(length == 127) {
-                boost::asio::read(raw, boost::asio::buffer(head.data(), 8), ec);
-                length = 0;
-                for(const unsigned char byte : head) {
-                    length = (length << 8U) | byte;
-                }
-            }
-            std::vector<unsigned char> rest(length + 4); // a client's frame is masked: the mask first
-            boost::asio::read(raw, boost::asio::buffer(rest.data(), rest.size()), ec);
-            return ec ? -1 : opcode;
-        };
-        if(read_frame() != 2) { // the client's PULL (binary)
-            return;
-        }
-        auto item = std::make_unique<GFaultyContainer>(7);
-        item->mark_as_due_for_processing();
-        const c2::GCommandContainerT<GFaultyContainer> work{c2::GFrameKind::WORK, std::move(item)};
-        ws.write(boost::asio::buffer(c2::wireEncode(work, nullptr, BIN)), ec);
-        const int result = read_frame(); // the RESULT
-        const int close = read_frame();  // the client's close: it has gone out
-        // The end of the run (4000), written by hand: it crosses the client's close
-        const std::array<unsigned char, 4> run_ended{0x88, 0x02, 0x0F, 0xA0};
-        boost::asio::write(raw, boost::asio::buffer(run_ended), ec);
-        server_ok.store(result == 2 && close == 8 && not ec);
-        std::ignore = raw.shutdown(tcp::socket::shutdown_both, ec);
-        std::ignore = raw.close(ec);
-    });
-
-    auto evaluating = std::make_shared<std::atomic<bool>>(false);
-    auto release = std::make_shared<std::atomic<bool>>(false);
-    auto client = std::make_shared<ccons::GWebsocketClientT<GFaultyContainer>>(
-        c2::GWebsocketConsumerConfig{
-            .ip = "127.0.0.1",
-            .port = port,
-            .serializationMode = BIN,
-            .clientUndeliveredDir = dir.string()
-        }
-    );
-    client->setItemProcessor([evaluating, release](GFaultyContainer &item) {
-        evaluating->store(true);
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        while(not release->load() && std::chrono::steady_clock::now() < deadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
-        item.markAsProcessedWith({true});
-    });
-    std::atomic<bool> returned{false};
-    const std::jthread client_thread([client, &returned] {
-        try {
-            client->run();
-        }
-        catch(...) { // NOLINT(bugprone-empty-catch) -- a throw still counts as returning
-        }
-        returned.store(true);
-    });
-    const auto until = [](auto condition) {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
-        while(not condition() && std::chrono::steady_clock::now() < deadline) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
-        return condition();
-    };
-    REQUIRE(until([&] { return evaluating->load(); }));
-    client->flagCloseRequested(); // the halt: the result goes out, then the close
-    release->store(true);
-    const bool ended = until([&] { return returned.load(); });
-    server_thread.join();
-    CHECK(ended);
-    CHECK(server_ok.load());
-    CHECK(client->resultsSaved() == 0);
-    std::size_t n_files = 0;
-    for([[maybe_unused]] const auto &entry : std::filesystem::directory_iterator(dir)) {
-        ++n_files;
-    }
-    CHECK(n_files == 0);
-    std::filesystem::remove_all(dir);
 }
 
 /******************************************************************************/
@@ -502,13 +380,12 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A client for which there is no work is not sent away with NO_WORK to ask again after a pause:
-// its session is parked with the consumer and answers as soon as there is an item. So an idle
-// client causes no traffic, and none of the pauses that used to add to every iteration.
+// A client for which there is no work is not sent away to ask again after a pause: its session is
+// parked with the consumer and answers as soon as there is an item. So an idle client causes no
+// traffic, and none of the pauses that used to add to every iteration.
 //
-// Checked without timing: after an idle phase every client is parked and the server has not
-// answered a single request with NO_WORK; a batch is evaluated completely; afterwards every
-// client is parked again. With a prefetch depth above one a session owes several answers but is
+// Checked without timing: after an idle phase every client is parked; a batch is evaluated
+// completely; afterwards every client is parked again. With a prefetch depth above one a session owes several answers but is
 // parked once.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario, run for two prefetch depths
 TEST_CASE(
@@ -595,9 +472,6 @@ TEST_CASE(
         }
         REQUIRE(consumer->parkedCount() == CLIENTS + 1);
 
-        // A batch that makes no progress is given up after a while and submitted again, which
-        // announces its item anew; that would paper over a wake-up that went astray. Not here.
-        consumer->setTimeoutTreatment(c2::timeoutTreatment::wait_indefinitely);
         auto one_item = make_batch(1);
         auto one_batch = std::async(std::launch::async, [&] {
             consumer->processBatch(

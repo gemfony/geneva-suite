@@ -244,12 +244,11 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// A close that the other end never answers is still this end's close, but not a confirmed one
-// (GPeerI.hpp, rule 6): the connection breaks while the close handshake is under way. The break is
-// not reported as an error, and not as CLOSED_HERE either, which would claim that the other end has
-// read what was sent before the close.
+// A close whose other end vanishes is still this end's close (GPeerI.hpp, rule 6): the connection
+// breaks while the close handshake is under way. It is reported once, as CLOSED_HERE, and not as an
+// error.
 TEST_CASE(
-    "GWebsocketPeer reports its own close as unconfirmed when the other end vanishes",
+    "GWebsocketPeer reports its own close when the other end vanishes",
     "[courtier][websocket][peer]"
 ) {
     boost::asio::io_context ctx;
@@ -281,7 +280,7 @@ TEST_CASE(
     REQUIRE(runsDry(ctx));
 
     CHECK(client_seen.nClosed == 1);
-    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
     CHECK(client_weak.expired());
 }
 
@@ -289,9 +288,9 @@ TEST_CASE(
 // A close whose queued messages cannot be written: the other end shakes hands and then reads
 // nothing, so the messages handed over before the close fill the socket's buffers and the close
 // frame never goes out. The end comes at the handshake limit (or the idle limit, both 200 ms here)
-// and is this end's close, not confirmed.
+// and is this end's close.
 TEST_CASE(
-    "GWebsocketPeer reports a close whose queued messages cannot be written as unconfirmed",
+    "GWebsocketPeer reports a close whose queued messages cannot be written as its own close",
     "[courtier][websocket][peer]"
 ) {
     constexpr std::size_t N_LARGE = 8; // 24 MiB: far more than the buffers of a loopback socket
@@ -321,7 +320,7 @@ TEST_CASE(
     REQUIRE(runsDry(ctx));
 
     CHECK(client_seen.nClosed == 1);
-    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
     CHECK(client_weak.expired());
 }
 
@@ -368,18 +367,16 @@ TEST_CASE(
 /******************************************************************************/
 // What arrives after close() was called (GPeerI.hpp, rule 6). The other end is a plain Beast stream
 // on a thread of its own, so that the test decides the order of the frames; it is a client, and
-// begins its close with a code a client's end uses (1011, an error). The end under test is a
-// server's end. Whatever read the other end's close -- the peer's own read, or Beast's close
+// closes with 1011 (an error). The end under test is a server's end. Whatever read the other end's close -- the peer's own read, or Beast's close
 // operation, which does not call the control callback -- the end under test reports what it said.
 // (The in-process pair of the tests has no second reader of a close and cannot show the latter.)
 //  - The other end's message and close arrive before this end's close has gone out (its queue
 //    cannot be written: the other end reads nothing until it closes): the message is handed to
-//    the role, and the other end's close is answered; this end's close was not confirmed.
+//    the role, and the other end's close is answered by the websocket handshake; the end under
+//    test began the close and reports CLOSED_HERE.
 //  - This end's close has gone out before the other end sends its message and its own close: Beast
-//    discards the message, which the role never sees -- and the other end's close is no answer
-//    to this end's, so this end's close is not confirmed either (the other end cannot count it as
-//    an answer to its own close: it carries the server's code).
-//  - The other end answers this end's close: it is confirmed.
+//    discards the message, which the role never sees; the end reports CLOSED_HERE.
+//  - The other end answers this end's close in the websocket handshake: CLOSED_HERE.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- three linear scenarios; the count comes from the assertion macros
 TEST_CASE(
     "GWebsocketPeer delivers what arrives after close() until its own close has gone out",
@@ -483,42 +480,38 @@ TEST_CASE(
     switch(which) {
     case Order::THEIRS_FIRST:
         CHECK(server_seen.messages == std::vector<std::string>{late});
-        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // its own close came first
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE); // this end began the close
         CHECK(server_seen.how == GPeerClose::ERROR); // read by the peer's own read
         CHECK(their_code == boost::beast::websocket::close_code::internal_error); // answered
         break;
     case Order::OURS_FIRST:
         CHECK(server_seen.messages.empty()); // discarded by Beast after our close went out
-        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED); // the closes crossed
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE); // the closes crossed
         CHECK(server_seen.how == GPeerClose::ERROR); // read by Beast's close operation
-        CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL); // not an answer
         break;
     case Order::ANSWERED:
         CHECK(server_seen.messages.empty());
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
         CHECK(server_seen.how == GPeerClose::NORMAL); // the echo of its own close
-        CHECK(their_code == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
         break;
     }
 }
 
 /******************************************************************************/
-// The other end sends D. Whether a close is confirmed depends on whether the role under test gets
-// D (GPeerI.hpp, rule 6), and so on when the role asks for its own close. Its handler strand, on a
-// context of its own, does not run until the closes are over:
+// The other end sends D. What the role under test is told depends on when it asks for its own
+// close (GPeerI.hpp, rules 1 and 6). Its handler strand, on a context of its own, does not run
+// until the closes are over:
 //  - DURING_HANDSHAKE: the role closes before its end has opened; the other end sends D and
-//    closes. The role is told nothing, and the end reads nothing before its own close has gone
-//    out, so the two closes cross (both unconfirmed).
+//    closes. The role is told nothing but the end (rule 1): CLOSED_HERE.
 //  - AFTER_THEIR_CLOSE: the end has opened; the other end sends D and closes, and the end, which
 //    reads from the open on, answers that close before the role has been told of anything. The
 //    role is then told of the open and of D, and the connection was closed there.
 //  - LIVE: the end has opened and has read D; the role closes on the live connection before it
-//    has been told of the open, and the other end answers that close. The close is confirmed, so
-//    the role must be told of the open and of D (a client that sees the close confirmed forgets
-//    what it sent before it).
+//    has been told of the open. The role is told of the open and of D (what was read before its
+//    close went out), and the end reports CLOSED_HERE.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- one linear scenario; the count comes from the assertion macros
 TEST_CASE(
-    "GWebsocketPeer answers a close only for a role that is told what arrived before it",
+    "GWebsocketPeer tells a role what arrived before its close unless it closed before the open",
     "[courtier][websocket][peer]"
 ) {
     using namespace std::chrono_literals;
@@ -638,16 +631,13 @@ TEST_CASE(
     REQUIRE(done);
     CHECK(server_seen.nClosed == 1);
     if(moment == Moment::DURING_HANDSHAKE) {
-        // Not answered: the other end read this end's own close (the server's code), and the role
-        // heard nothing of D
-        CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+        // The role heard nothing of D, only its own end
         CHECK(server_seen.nOpen == 0);
         CHECK(server_seen.messages.empty());
-        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
+        CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
     }
     else if(moment == Moment::LIVE) {
-        // Answered (the other end echoed the server's code): confirmed, and the role was handed D
-        CHECK(view.get() == Gem::Courtier::GCONSUMERCLOSECODESERVERNORMAL);
+        // The role was handed D, and the end is its own close
         CHECK(server_seen.nOpen == 1);
         CHECK(server_seen.messages == std::vector<std::string>{"D"});
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE);
@@ -776,26 +766,6 @@ TEST_CASE(
         peer->abort(); // idempotent
     }
     CHECK(n_closed_calls == 1);
-}
-
-/******************************************************************************/
-// abort() of a peer whose close() had been called, and whose close had not been confirmed: the
-// teardown does not turn that close into a confirmed one (GPeerI::abort()).
-TEST_CASE(
-    "GWebsocketPeer::abort() after an unconfirmed close reports it as unconfirmed",
-    "[courtier][websocket][peer]"
-) {
-    GSeen seen;
-    {
-        boost::asio::io_context ctx;
-        auto [accepted, connecting] = connectedPair(ctx);
-        auto peer = serverEnd(std::move(accepted));
-        startRecording(peer, seen); // the handshake is posted, and never run
-        peer->close(GPeerClose::RUN_ENDED);
-        peer->abort();
-    }
-    CHECK(seen.nClosed == 1);
-    CHECK(seen.end == GPeerEnd::CLOSED_HERE_UNCONFIRMED);
 }
 
 /******************************************************************************/
@@ -1106,4 +1076,47 @@ TEST_CASE(
     CHECK(server_seen.nOpen == 0);
     CHECK(server_seen.nClosed == 1);
     CHECK(server_seen.end == GPeerEnd::FAILED);
+}
+
+/******************************************************************************/
+// A client's end starts with its own interval and takes the server's when it is told
+// (GPeerI::setKeepAlive(), from the HELLO): Beast's limits change on the live stream and hold from
+// its next timer event on. Here the end starts with 2 s (an idle limit of 4 s) and is told 100 ms
+// when it opens; the other end completes the handshake and then never reads (it answers no ping).
+// The end must report SILENT after Beast's first timer event (2 s) and the new limit, well before
+// the 4 s of the old one.
+TEST_CASE(
+    "GWebsocketPeer takes the interval it is told on the live stream",
+    "[courtier][websocket][peer]"
+) {
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    // The other end: the server's side of the handshake, then nothing until the test ends
+    const auto test_over = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    std::jthread other([socket = std::move(accepted), test_over]() mutable {
+        boost::beast::websocket::stream<tcp::socket> ws(std::move(socket));
+        boost::system::error_code ec;
+        ws.accept(ec);
+        test_over->wait();
+    });
+
+    auto client = clientEnd(std::move(connecting), {.name = "client end", .pingInterval = 2s});
+    const std::weak_ptr<GWebsocketPeer> client_weak = client;
+    GSeen seen;
+    std::chrono::steady_clock::time_point opened_at;
+    startRecording(client, seen, [&opened_at, client_weak] {
+        opened_at = std::chrono::steady_clock::now();
+        if(auto peer = client_weak.lock()) {
+            peer->setKeepAlive(100ms); // on the executor, as the client's role calls it
+        }
+    });
+    client.reset();
+    CHECK(runsDry(ctx));
+    const auto took = std::chrono::steady_clock::now() - opened_at;
+    test_over->count_down();
+
+    CHECK(seen.nOpen == 1);
+    CHECK(seen.nClosed == 1);
+    CHECK(seen.end == GPeerEnd::SILENT);
+    CHECK(took < 3s);
 }

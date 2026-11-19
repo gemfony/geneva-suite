@@ -435,6 +435,12 @@ IF(NOT COMMON_GENEVA_BUILD_INCLUDED)
 	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaConfigMaterialization.cmake)
 
 	###############################################################################
+	# The stamp of a user's program (GENEVA_STAMP_PROGRAM), shared with the installed package like
+	# the materialization above. The in-tree examples and benchmarks are not stamped: they are
+	# Geneva's own tree, whose commit the HELLO names already.
+	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaProgramStamp.cmake)
+
+	###############################################################################
 	# The test-size label helper (GENEVA_TEST_SIZE). In-tree only: it is about how THIS suite is
 	# scheduled, not about anything an installed Geneva exposes.
 	INCLUDE(${CMAKE_CURRENT_LIST_DIR}/GenevaTestSize.cmake)

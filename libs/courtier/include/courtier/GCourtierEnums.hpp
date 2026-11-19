@@ -61,44 +61,40 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * @brief The CLOSED frame vocabulary of the networked consumer/worker session protocol -- the part of a
  * message courtier itself acts on.
  *
- * A frame says what the message does to the *transport*: pull for work, hand work out, check a result
- * back in, fetch a blob. What the message MEANS to the using library (evaluate this,
- * here are the results, …) is not expressed here: it rides the frame as an opaque library tag plus a
+ * A frame says what the message does to the *transport*: greet, pull for work, hand work out, check
+ * a result back in, fetch a blob. What the message MEANS to the using library (evaluate this, here
+ * are the results, ...) is not expressed here: it rides the frame as an opaque library tag plus a
  * library-defined payload that courtier relays without interpreting (see GCommandContainerT).
  *
- * BLOB_REQUEST / BLOB_REPLY form the blob-send-once cache-miss fetch: a worker that receives a work item
- * referencing a blob id it does not hold asks the server for it (BLOB_REQUEST), and the server answers
- * from its own registry (BLOB_REPLY). Both are served entirely inside courtier, hence frames rather than
- * library tags.
- *
- * PULL asks for work; RETURN carries a processed slot's outcome (with the item, or the library's
- * payload) and asks for the next item, as a PULL would. BLOB_REPLY is empty if the server's
- * registry misses the blob.
- *
- * RESULT is a RETURN that asks for nothing: a client that has a request unanswered already sends a
- * finished result as RESULT, so that it never has more than one request with the server. The server
- * checks it in and owes no answer.
- *
- * UNREADABLE says that the last answer the server sent could not be read. It replaces the request
- * whose answer was lost: the server owes the next item. As the item that could not be read may have
- * carried a blob the client now lacks, the server sends the client its blobs afresh, and it puts
- * back what the client held (what identifies the item travels inside the item).
+ * Every message has a head, which is read first and by itself, and may have a payload:
+ *  - HELLO is the first message of every connection, from the server: its build (the commit of the
+ *    Geneva sources, Gem::Common::genevaCommit()), the identity of its program
+ *    (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
+ *    connection in milliseconds (0: none), which the server alone sets. A client built from another
+ *    commit, or whose program has another identity, ends; one that matches takes the interval
+ *    (GPeerI::setKeepAlive()).
+ *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
+ *    work answers when work is there.
+ *  - WORK carries an item; its head names the item (correlation id and lineage id, in the outcome),
+ *    so that a client that cannot read the payload can still return the item as failed.
+ *  - RESULT carries a processed item's outcome in its head and the item, or the library's payload,
+ *    in its payload. It asks for nothing.
+ *  - BLOB_REQUEST / BLOB_REPLY form the blob-send-once cache-miss fetch, served inside courtier.
+ *    BLOB_REPLY is empty if the server's registry misses the blob.
  *
  * NONE is the cleared/default state of a frame container, never a transmitted frame. The values are
- * part of the wire format and stay as they are; 5 is not used. The end of a run is not a frame: the
- * transport's close says it (GPeerClose::RUN_ENDED).
+ * part of the wire format; the gaps are kinds of earlier protocols. The end of a run is not a
+ * frame: the transport's close says it (GPeerClose::RUN_ENDED).
  */
 //! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     NONE = 0,         ///< Cleared / not yet filled in -- never sent
-    PULL = 1,         ///< worker -> server: "give me work"
-    NO_WORK = 2,      ///< server -> worker: "nothing available right now"
+    PULL = 1,         ///< worker -> server: "give me one item"
     WORK = 3,         ///< server -> worker: a work item to process
-    RETURN = 4,       ///< worker -> server: an outcome that asks for more
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob
-    RESULT = 8,       ///< worker -> server: an outcome asking for nothing
-    UNREADABLE = 9    ///< worker -> server: "I could not read your answer"
+    RESULT = 8,       ///< worker -> server: a processed item's outcome
+    HELLO = 10        ///< server -> worker: the first message, the server's build and keep-alive
 };
 //! [courtier-frame-kind]
 
@@ -108,13 +104,11 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     switch(kind) {
     case GFrameKind::NONE:
     case GFrameKind::PULL:
-    case GFrameKind::NO_WORK:
     case GFrameKind::WORK:
-    case GFrameKind::RETURN:
     case GFrameKind::BLOB_REQUEST:
     case GFrameKind::BLOB_REPLY:
     case GFrameKind::RESULT:
-    case GFrameKind::UNREADABLE:
+    case GFrameKind::HELLO:
         return true;
     }
     return false;
@@ -149,9 +143,11 @@ const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
 const Gem::Common::serializationMode GCONSUMERSERIALIZATIONMODE =
     Gem::Common::serializationMode::GEM_BINARY;
-/// Websocket keep-alive, in seconds, for both ends of a connection: after this much silence a ping
-/// is sent, and after twice as much without any inbound data the connection is closed. The same
-/// limit (twice the interval) bounds the websocket handshake and the close handshake.
+/// The keep-alive interval, in seconds, a server names in its HELLO by default (websocket and MPI;
+/// --beast_pingInterval, --mpi_pingInterval). Websocket: after this much silence a ping is sent,
+/// and after twice as much without any inbound data the connection is closed; the same limit
+/// bounds the websocket handshake and the close handshake. On a client the value holds until its
+/// server has named its own in the HELLO.
 constexpr std::size_t GBEASTCONSUMERPINGINTERVAL = 15;
 /// The limit on the websocket handshake and the close handshake when the keep-alive is switched off
 /// (a ping interval of 0), so that neither can wait forever.
@@ -159,16 +155,6 @@ constexpr std::chrono::seconds GWEBSOCKETHANDSHAKETIMEOUT{30};
 /// The websocket close code that tells a client that the run has ended and it need not come back
 /// (GPeerClose::RUN_ENDED): the first code free for applications.
 constexpr std::uint16_t GCONSUMERCLOSECODERUNENDED = 4000;
-/// The websocket close codes of the closes a server's end begins with GPeerClose::NORMAL and
-/// GPeerClose::ERROR. A client's end begins them with the standard codes (1000, 1011) and
-/// GPeerClose::RUN_ENDED with GCONSUMERCLOSECODECLIENTRUNENDED: the two ends of a connection never
-/// begin a close with the same code, so that an end can tell an answer to its close (which echoes
-/// its code) from the other end's own close crossing it (GWebsocketPeer, GPeerI.hpp rule 6).
-constexpr std::uint16_t GCONSUMERCLOSECODESERVERNORMAL = 4001;
-/// See GCONSUMERCLOSECODESERVERNORMAL
-constexpr std::uint16_t GCONSUMERCLOSECODECLIENTRUNENDED = 4002;
-/// See GCONSUMERCLOSECODESERVERNORMAL
-constexpr std::uint16_t GCONSUMERCLOSECODESERVERERROR = 4003;
 /// The largest websocket message accepted, in bytes; 0 means no limit. A work item or a result
 /// travels as one message, and its size is the user's business (the MPI transport has no cap
 /// either).
@@ -184,35 +170,23 @@ constexpr std::size_t GWEBSOCKETWRITEBUFFERBYTES = 16384;
 /// and is closed by its own idle limit if the pause lasts two ping intervals.
 constexpr std::size_t GWEBSOCKETMAXUNHANDLEDMESSAGES = 1024;
 /// How long a stopping websocket server waits, after it has told every client that the run has
-/// ended, for the clients to confirm (GListenerI::stopGrace()). A client that has not confirmed by
-/// then is cut off and sees a loss.
+/// ended, for the connections to end (GListenerI::stopGrace()). A connection that has not ended by
+/// then is cut off, and its client sees a loss.
 constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
 
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:
  */
-/// A worker of any transport that is answered with NO_WORK waits a random time between these two
-/// bounds, in milliseconds, before it asks again. Random, so that workers that were sent away together do
-/// not come back together. (A websocket client is rarely answered with NO_WORK: its request waits
-/// at the server instead.)
-constexpr std::uint32_t GCLIENTNOWORKPAUSELOWERBOUNDARYMSEC = 50;
-constexpr std::uint32_t GCLIENTNOWORKPAUSEUPPERBOUNDARYMSEC = 200;
-/// How often a socket client looks at its halt conditions (maximum run time, a close request), at
-/// its limits without a server and at the contact time of its connection.
+/// How often a networked client looks at its halt conditions (maximum run time, a close request)
+/// and at its limits without a server.
 constexpr std::chrono::seconds GCLIENTHALTPOLLINTERVAL{1};
-/// How long a networked client tries to reach a server before its first contact with one; 0: for
-/// as long as it runs (the batch system bounds it).
+/// How long a networked client tries to reach a server before its first contact with one (its
+/// HELLO); 0: for as long as it runs (the batch system bounds it).
 constexpr std::chrono::seconds GCLIENTFIRSTCONTACTLIMIT{0};
 /// How long a networked client tries to reach a server again after it has lost its connection,
-/// counted from the end of the last connection on which it had contact; 0: for as long as it runs.
+/// counted from the end of the last connection on which it had contact (a HELLO); 0: for as long
+/// as it runs.
 constexpr std::chrono::seconds GCLIENTRECONNECTLIMIT{600};
-/// How often a networked client sends a result on a connection that is lost before the result is
-/// known to have arrived; a result lost so often is given up (the server hands its item out again).
-constexpr std::uint8_t GCLIENTRESENDLIMIT = 2;
-/// A connection on which no answer has arrived counts as contact with a server once it has been
-/// open this long: a session that has no work for the client answers nothing, and a connection
-/// that is not alive is cut by the keep-alive (twice the ping interval) before this.
-constexpr std::chrono::seconds GCLIENTCONTACTTIME{60};
 /// The pause of a networked client before it tries to connect again starts at the first value
 /// and doubles with every failed attempt up to the second; the wait is drawn at random from its
 /// second half. Contact with a server sets it back to the first value.
@@ -220,37 +194,6 @@ constexpr std::chrono::milliseconds GCLIENTRECONNECTPAUSEMIN{250};
 constexpr std::chrono::milliseconds GCLIENTRECONNECTPAUSEMAX{30'000};
 /// How long a socket server waits after a failed accept before it accepts again.
 constexpr std::chrono::milliseconds GCONSUMERACCEPTRETRYPAUSE{100};
-
-/******************************************************************************
- * Defaults of the timeout treatment of the networked consumers (see GNetworkedConsumerT and
- * GNetworkedTimeoutConfig, which both take their defaults from here):
- */
-constexpr double GNETWORKEDEMAALPHA = 0.25;   ///< Weight of a new sample in the mean return time
-constexpr double GNETWORKEDLEASEFACTOR = 4.0; ///< Reclaim lease = factor * mean return time
-constexpr double GNETWORKEDSTALLFACTOR = 8.0; ///< Give-up window = factor * mean return time
-constexpr std::chrono::milliseconds GNETWORKEDLEASEBOOTSTRAP{
-    10'000
-}; ///< Lease before a return was seen
-constexpr std::chrono::milliseconds GNETWORKEDMINLEASE{200};     ///< Lower clamp on the lease
-constexpr std::chrono::milliseconds GNETWORKEDMAXLEASE{300'000}; ///< Upper clamp on the lease
-constexpr std::chrono::milliseconds GNETWORKEDMINSTALL{
-    2'000
-}; ///< Lower clamp on the give-up window
-constexpr std::chrono::milliseconds GNETWORKEDMAXSTALL{
-    600'000
-}; ///< Upper clamp on the give-up window
-constexpr std::chrono::milliseconds GNETWORKEDSWEEPTICK{
-    50
-}; ///< How often a waiting batch looks again
-constexpr std::chrono::milliseconds GNETWORKEDFIXEDSTALLWINDOW{
-    300'000
-}; ///< Give-up window, "fixed"
-constexpr std::chrono::milliseconds GNETWORKEDFIXEDLEASE{300'000}; ///< Reclaim lease, "fixed"
-/// The window and the lease of the treatment "wait_indefinitely". A finite but very large value
-/// (100 years) rather than milliseconds::max(): it is compared against a steady_clock (nanosecond)
-/// duration, and max() would overflow int64 when the comparison promotes it to nanoseconds,
-/// whereas 100 years in ns (~3.15e18) stays well within range and can never elapse in a real run.
-constexpr std::chrono::milliseconds GNETWORKEDNEVERWINDOW{100LL * 365 * 24 * 3600 * 1000};
 
 /******************************************************************************
  * Constants specifically for the GPU consumer:
@@ -264,16 +207,15 @@ constexpr unsigned int GGPUCONSUMERBLOCKX = 256;
 /// The rank of the submitter in courtier's communicator
 constexpr int RANK_MASTER_NODE = 0;
 /// The message tags of the MPI transport's ends (GMPIPeer): the greeting of the submitter's
-/// listener, a message of the role, a close (with what it says), and the answer to a close.
+/// listener, a message of the role, and a close (with what it says); and the empty sign of life the
+/// poll sends every rank once per keep-alive interval (GMPIPollCore), which the receiving poll
+/// takes and hands to nobody.
 constexpr int TAG_PEER_OPEN = 46;
 constexpr int TAG_PEER_MESSAGE = 47;
 constexpr int TAG_PEER_CLOSE = 48;
-constexpr int TAG_PEER_CLOSE_ACK = 49;
+constexpr int TAG_PEER_PING = 49;
 /// The number of threads the sessions of the MPI consumer run on, by default (MPIConsumerConfig)
 constexpr std::uint32_t GMPICONSUMERSESSIONTHREADS = 2;
-/// How long a closing end of the MPI transport (GMPIPeer) waits for the other end's answer to its
-/// close; the MPI consumer's stop grace is this and a second (GMPIListener::stopGrace()).
-constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 
 /******************************************************************************
  * Constants of the MPI poll core (transport/GMPIPollCore.hpp), the defaults of GMPIPollTiming:
@@ -282,10 +224,6 @@ constexpr std::chrono::seconds GMPICONSUMERSHUTDOWNGRACE{10};
 /// doubles up to the upper one. A received message and a started send reset it.
 constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMIN{50};
 constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEMAX{1'000};
-/// The longest pause of the MPI poll while the owner of every end it receives for is busy (a client
-/// that evaluates has no use for an answer before its evaluation ends): the pause then doubles up to
-/// this instead. A started send ends the pause at once, as always.
-constexpr std::chrono::microseconds GMPIPEERPOLLPAUSEBUSY{50'000};
 /// How many messages the MPI poll receives in one go before it lets other handlers of its
 /// executor have their turn.
 constexpr int GMPIPEERPOLLROUNDS = 16;
@@ -396,13 +334,11 @@ template <>
 inline constexpr auto numeric_enum_values_v<Gem::Courtier::GFrameKind> = std::array{
     Gem::Courtier::GFrameKind::NONE,
     Gem::Courtier::GFrameKind::PULL,
-    Gem::Courtier::GFrameKind::NO_WORK,
     Gem::Courtier::GFrameKind::WORK,
-    Gem::Courtier::GFrameKind::RETURN,
     Gem::Courtier::GFrameKind::BLOB_REQUEST,
     Gem::Courtier::GFrameKind::BLOB_REPLY,
     Gem::Courtier::GFrameKind::RESULT,
-    Gem::Courtier::GFrameKind::UNREADABLE
+    Gem::Courtier::GFrameKind::HELLO
 };
 template <>
 inline constexpr auto numeric_enum_values_v<Gem::Courtier::consumerType> = numeric_enum_range<

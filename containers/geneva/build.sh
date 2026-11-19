@@ -90,11 +90,23 @@ fi
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${HERE}/../.." && pwd)"
 
+# The build context holds no .git, so the commit of the checkout goes in as a build argument, by the
+# rule of CMakeModules/GenevaCommit.cmake: the HEAD id, "-dirty" when a tracked file differs from it.
+# Outside a git checkout nothing is passed, and the configure in the image says what to do.
+COMMIT_ARG=()
+if COMMIT="$(git -C "${ROOT}" rev-parse --verify HEAD 2>/dev/null)"; then
+	if [ -n "$(git --no-optional-locks -C "${ROOT}" status --porcelain --untracked-files=no)" ]; then
+		COMMIT="${COMMIT}-dirty"
+	fi
+	COMMIT_ARG=(--build-arg GENEVA_COMMIT="${COMMIT}")
+fi
+
 set -x
 exec "${ENGINE}" build \
 	-f "${HERE}/Containerfile" \
 	-t "${TAG}" \
 	--build-arg WITH_CUDA="${WITH_CUDA}" \
 	--build-arg RUN_TESTS="${RUN_TESTS}" \
+	"${COMMIT_ARG[@]}" \
 	"${EXTRA[@]}" \
 	"${ROOT}"

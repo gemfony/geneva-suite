@@ -56,12 +56,14 @@ namespace Gem::Courtier {
  * as long as it likes over a message without its connection, or any other, missing a ping.
  *
  * The end of a run (stopServer()): every client is told that the run has ended (close code
- * GCONSUMERCLOSECODERUNENDED) and the server waits for the clients to confirm, at most the stop
+ * GCONSUMERCLOSECODERUNENDED) and the server waits for the connections to end, at most the stop
  * grace (GWEBSOCKETCONSUMERSTOPGRACE by default); see GPeerConsumerT.
  *
  * Lost clients: with the keep-alive on (a ping interval above 0) a lost client ends its connection
- * by the idle limit and what it held is put back at once; without it the consumer reclaims items
- * by the time lease.
+ * by the idle limit and what it held is put back at once; without it a client that vanishes
+ * without a TCP reset is not noticed. There is no time limit by default: a client that hangs
+ * inside an evaluation while its process answers is not noticed unless the user sets
+ * reclaim_lease_ms (GNetworkedTimeoutConfig).
  *
  * @tparam processable_type The work-item type handed to clients and reconciled back into the batch
  */
@@ -80,7 +82,7 @@ public:
      *         pingInterval (seconds of silence after which a ping is sent; after twice that time
      *         without any inbound data the client is presumed gone; 0 switches this off) and
      *         verboseControlFrames. The client members (ip, clientPrefetchDepth, ...) are ignored.
-     *  @param stop_grace How long stopServer() waits for the clients to confirm the end of the run */
+     *  @param stop_grace How long stopServer() waits for the connections to end */
     explicit GWebsocketConsumerT(
         const config_type &config,
         std::chrono::milliseconds stop_grace = GWEBSOCKETCONSUMERSTOPGRACE

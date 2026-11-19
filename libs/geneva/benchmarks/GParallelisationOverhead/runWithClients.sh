@@ -84,11 +84,6 @@
 #            server has begun to wait for its clients (default 0: with the others)
 #   SERVER_PORT  the port the websocket server tries first (default: one drawn at random from
 #            15000 to 16999); a port another process holds is replaced by another one
-#   TIMEOUT_TREATMENT  the networked consumer's timeout treatment (the key
-#            "treatment" of config/GNetworkedConsumer.json: adaptive, fixed or
-#            wait_indefinitely; unset: the configuration's). A check that every
-#            evaluation is done exactly once sets wait_indefinitely: under load an
-#            adaptive lease may give an item to a second client.
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients of
@@ -170,11 +165,6 @@ for f, dl in [(f, delays) for f in glob.glob('config/*Individual.json')] + \
     if os.environ.get('POLL_PAUSES') and 'poll_pause_min' in d:
         low, high = os.environ['POLL_PAUSES'].split(':')
         d['poll_pause_min']['value'] = int(low); d['poll_pause_max']['value'] = int(high)
-    json.dump(d, open(f, 'w'), indent=1)
-# The timeout treatment of the networked consumer
-f = 'config/GNetworkedConsumer.json'
-if os.environ.get('TIMEOUT_TREATMENT'):
-    d = json.load(open(f)); d['treatment']['value'] = os.environ['TIMEOUT_TREATMENT']
     json.dump(d, open(f, 'w'), indent=1)
 # Only GSubClientOverhead has sub-clients: its individual's file holds the poll pauses
 if int(group) != 1 and not any('poll_pause_min' in json.load(open(f))

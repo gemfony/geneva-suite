@@ -123,6 +123,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/GenevaIndividualModule.cmake")
 # in-tree Geneva examples (the required GenevaRunQuiet.cmake helper is installed next to this file).
 include("${CMAKE_CURRENT_LIST_DIR}/GenevaConfigMaterialization.cmake")
 
+# The stamp of a program (GENEVA_STAMP_PROGRAM): its identity, by default the commit of the project's
+# own sources, which a server names in its HELLO and a client compares (GenevaCommit.cmake, which
+# takes the commit, is installed next to it).
+include("${CMAKE_CURRENT_LIST_DIR}/GenevaProgramStamp.cmake")
+
 # Convenience list of all imported targets, mirroring the legacy
 # GENEVA_LIBRARIES variable (now holding imported targets instead of paths).
 set(GENEVA_LIBRARIES

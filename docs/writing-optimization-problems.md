@@ -228,3 +228,21 @@ See `examples/18_GLoadableIndividual/` for the end-to-end reference: a loadable 
 generic optimizer that loads it, and the CTest that doubles as the single-process-singleton proof. To ship
 an *optimization algorithm* rather than a problem, `examples/20_GLoadableOA/README.md` is the same story one
 layer up.
+
+### Stamping a program with its build
+
+A server of the networked consumers greets each client with the commit of Geneva and the identity
+of the user's program; a client whose program has another identity ends instead of computing with
+other code. A program gets its identity from one line of CMake per executable:
+
+```cmake
+GENEVA_STAMP_PROGRAM(MyOptimizer)                        # the commit of this project's sources
+GENEVA_STAMP_PROGRAM(MyOptimizer IDENTITY "release-7")   # or a text of one's own
+```
+
+Without `IDENTITY` the identity is the commit of the project's sources, taken from git at every build
+when the project is inside a git work tree, at its top or in a subdirectory (the id of that
+repository's HEAD, `-dirty` appended when one of its tracked files has changed); without git the program is not stamped, CMake says so, and a client logs once that its
+program is not checked. A program may also call `Gem::Common::setProgramIdentity()` itself, before it
+makes its consumer. Only executables are stamped; a loadable module is checked by the module loader.
+The quick start's template stamps its two programs.

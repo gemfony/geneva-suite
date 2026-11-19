@@ -67,8 +67,8 @@
  *
  *  1. **Two phases.** Nothing is reported before GPeerI::start(); onOpen precedes any onMessage.
  *     A peer that cannot be opened reports onClosed (GPeerEnd::FAILED) without onOpen.
- *  2. **One executor, serialized.** send() and setOwnerBusy() are called on the peer's
- *     executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
+ *  2. **One executor, serialized.** send() and setKeepAlive() are called on the
+ *     peer's executor; abort() only at teardown (see there); close() and executor() from any thread; start() from any thread, once, before
  *     anything else. start() puts its work on the executor, and a close() made from any thread
  *     after start() has returned is ordered after that work. On a server the handlers run on the
  *     executor the shell hands to the listener, and the transport moves the bytes, and makes and
@@ -76,7 +76,7 @@
  *     time in a handler without its connection, or another, falling silent, and without a client
  *     that connects meanwhile waiting for it. A client's handlers run on the executor given to the
  *     connector, which the transport shares: a client keeps its handlers short
- *     (GPrefetchingClientT encodes and decodes on its compute pool).
+ *     (GPeerClientT encodes and decodes on its compute pool).
  *  3. **No handler runs inside a call** of GPeerI, abort() excepted (see there). A failure found in
  *     send() is posted to the executor, not reported inline: the role's member function that
  *     called send() is still on the stack.
@@ -87,44 +87,26 @@
  *     context, as GWebsocketPeer does).
  *  5. **onClosed at most once**, and exactly once while the executor runs. A peer whose pending
  *     work is discarded with its context ends without it. A role therefore releases what it holds
- *     in its destructor, never in onClosed. A peer that this end closed reports
- *     GPeerEnd::CLOSED_HERE only if the other end confirmed the close (rule 6), and
- *     GPeerEnd::CLOSED_HERE_UNCONFIRMED otherwise -- when its grace or time limit passed, when what
- *     was queued could not be written, when the close ended with an error, when the other end's
- *     close came before this end's had gone out, or when it crossed this end's close.
+ *     in its destructor, never in onClosed.
  *  6. **A close sends what was handed over before it.** Messages handed to send() before close()
- *     reach the other end, in order, before the close does; what the close says (GPeerClose)
- *     reaches the other end too. After close() a send() is dropped. What arrives after close()
- *     has been called is still delivered to the role until this end's close has gone out: the
- *     other end sent it before it knew of the close, and the role decides what it means (a
- *     session checks a late result in and answers nothing, a client starts no evaluation). What
- *     arrives after this end's close has gone out may be dropped. Where an end opens is the
- *     transport's choice: one that must answer the other end while its role is busy (a
- *     keep-alive; GWebsocketPeer, when its handshake has completed) opens on its own threads and
- *     reads from then on, without waiting for the role's executor, which may be busy for any time
- *     (rule 2); one without (GMPIPeer, the in-process pair of the tests) may open on the role's
- *     executor. Either way, a role that asks for the close before its end has opened is told
- *     nothing (rule 1), and its end reads nothing before its close has gone out, so that what
- *     arrived for it can never be confirmed to the other end; a role whose end has opened is told
- *     of the open and of what was read before its close went out, also when its close() came
- *     before onOpen had run. abort() is the exception: it ends at once and may cut what has not
- *     been sent.
- *     **Confirmed** means: the other end answered this end's close -- it sent its own close only
- *     after this end's close had arrived there, and so after its role had been handed everything
- *     that arrived before. For the websocket transport that is a close frame, read after ours was
- *     written, that echoes our close code (the two ends begin their closes with codes of their
- *     own, GWebsocketPeer); for the in-process pair of the tests its acknowledgement. Only a
- *     confirmed close (CLOSED_HERE) proves that everything handed to send() before close() has
- *     been handed to the other end's role; an unconfirmed one (CLOSED_HERE_UNCONFIRMED) proves
- *     nothing about it. The other end's own close is no answer, also when it arrives after this
- *     end's close had been sent (the two crossed): what this end sent may have arrived there after
- *     the other end's close had gone out, and been dropped. A transport whose close carries no
- *     answer of the other end (a message passing library, say) confirms a close only by an answer
- *     it sends for that purpose, after its role has been handed what arrived before the close.
- *     "Before" is the order of the calls: a send() that has returned before close() is called
- *     (on the same thread, or ordered by the role). A send() on the executor and a close() from
- *     another thread at the same moment are not ordered; the message may be dropped. Nothing is
- *     lost by that: the server's lease puts back what the client held.
+ *     are written, in order, before the close, and what the close says (GPeerClose) goes with it.
+ *     After close() a send() is dropped. What arrives after close() has been called is still
+ *     delivered to the role until this end's close has gone out: the other end sent it before it
+ *     knew of the close, and the role decides what it means (a session checks a late result in and
+ *     answers nothing, a client starts no evaluation). What arrives after this end's close has gone
+ *     out may be dropped. Where an end opens is the transport's choice: one that must answer the
+ *     other end while its role is busy (a keep-alive; GWebsocketPeer, when its handshake has
+ *     completed) opens on its own threads and reads from then on, without waiting for the role's
+ *     executor, which may be busy for any time (rule 2); one without (GMPIPeer, the in-process pair
+ *     of the tests) may open on the role's executor. Either way, a role that asks for the close
+ *     before its end has opened is told nothing but the end (rule 1); a role whose end has opened
+ *     is told of the open and of what was read before its close went out, also when its close()
+ *     came before onOpen had run. A close proves nothing about what the other end received: nothing
+ *     waits for an answer to it, and the server's lease puts back what a client held. "Before" is
+ *     the order of the calls: a send() that has returned before close() is called (on the same
+ *     thread, or ordered by the role); a send() on the executor and a close() from another thread
+ *     at the same moment are not ordered, and the message may be dropped. abort() is the
+ *     exception: it ends at once and may cut what has not been sent.
  *  7. **The transport's own work** (an accept loop, a poll, its I/O threads: whatever it runs
  *     besides its peers' handlers) ends with GListenerI::endWork() on the server and with the
  *     destruction of the GConnectorI on the client; both happen when no handler runs any more, and
@@ -160,11 +142,10 @@ inline GMessage makeMessage(std::string bytes) {
 /******************************************************************************/
 /** @brief Why a connection ended. */
 enum class GPeerEnd : Gem::Common::ENUMBASETYPE {
-    CLOSED_HERE = 0,  ///< This end closed it, and the other end confirmed the close (rule 6)
+    CLOSED_HERE = 0,  ///< This end closed it; it says nothing about the other end (rule 6)
     CLOSED_THERE = 1, ///< The other end closed it in the regular way
     SILENT = 2,       ///< The other end was not heard from within the transport's limit
-    FAILED = 3,       ///< The transport failed, or a message could not be sent
-    CLOSED_HERE_UNCONFIRMED = 4 ///< This end closed it, and the other end did not confirm (rule 6)
+    FAILED = 3        ///< The transport failed, or a message could not be sent
 };
 
 /** @brief What a regular close says; each transport maps it to what it can carry. */
@@ -185,9 +166,8 @@ struct GPeerHandlers {
     /// One complete message has arrived. The role may take the string.
     std::move_only_function<void(std::string &&)> onMessage;
     /// The connection is over. Called at most once, and exactly once while the executor runs
-    /// (rule 5). The second argument is what the other end's close said, if one arrived (an
-    /// acknowledgement may echo this end's own close); NORMAL if none arrived. The third is a
-    /// description for the log.
+    /// (rule 5). The second argument is what the other end's close said, if one arrived; NORMAL
+    /// if none arrived. The third is a description for the log.
     std::move_only_function<void(GPeerEnd, GPeerClose, std::string_view)> onClosed;
 };
 
@@ -229,10 +209,9 @@ public:
      *  connector's peers do their I/O there). A listener's peers are not aborted: endWork() lets
      *  them go. Calls onClosed itself (if the peer has not ended) and drops the handlers. A peer
      *  aborted before the work of its start() has run does not open afterwards. What onClosed
-     *  then says: CLOSED_HERE for a peer that had not been closed before (the teardown is this
-     *  end's own end, and nothing was sent that a role waits to see proven); for a peer whose
-     *  close() had been called and not confirmed, CLOSED_HERE_UNCONFIRMED; for a peer that had
-     *  ended and whose report had not run, the end it had found. */
+     *  then says: CLOSED_HERE for a peer that had not ended, whatever was called before (the
+     *  teardown is this end's own end); for a peer that had ended and whose report had not run,
+     *  the end it had found. */
     virtual void abort() = 0;
 
     /** @brief The executor all handlers of this peer run on. From any thread. */
@@ -246,11 +225,12 @@ public:
         return std::numeric_limits<std::size_t>::max();
     }
 
-    /** @brief Tells the transport whether the owner of this peer (a client) is busy: every one of
-     *  its evaluation slots is taken, so that nothing that may arrive is needed before an
-     *  evaluation ends. On the executor. A polling transport may look less often while its owner is
-     *  busy; the default ignores it. */
-    virtual void setOwnerBusy(bool) { /* nothing */
+    /** @brief The keep-alive interval the other end has named (0: none): a client's role calls it
+     *  when its server's HELLO has named the interval (GListenerI::keepAlive()), which the server
+     *  alone sets. On the executor. A transport with signs of life of its own uses it from then on
+     *  (a websocket end its ping interval and idle limit, an MPI end its poll's ticks); one without
+     *  ignores it, as the default does. */
+    virtual void setKeepAlive(std::chrono::milliseconds) { /* nothing */
     }
 };
 
@@ -284,7 +264,8 @@ public:
      *  session's work then goes onto the executor). May throw (a port that cannot be bound); a
      *  start() that throws leaves the listener as if it had not been started: it holds nothing of
      *  the executor and of on_peer, and runs nothing. Its owner then calls neither stop() nor
-     *  endWork(), and does not call start() again. */
+     *  endWork(), and does not call start() again. A failing allocation need not be undone: it
+     *  ends the program through the fatal report (common/GFatalReport.hpp). */
     virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
 
     /** @brief No new peers from here on, and none on its way: when stop() returns, no call of
@@ -306,10 +287,10 @@ public:
      *  for the peers to end (rule 8). */
     [[nodiscard]] virtual std::chrono::milliseconds stopGrace() const = 0;
 
-    /** @brief Whether the loss of a client ends its peer by itself, within a bounded time (a
-     *  transport without a keep-alive answers false). If not, the consumer reclaims items by the
-     *  time lease. */
-    [[nodiscard]] virtual bool detectsLoss() const = 0;
+    /** @brief The keep-alive interval of the server's ends (0: none). The sessions name it to
+     *  their clients in the HELLO, and a client's end takes it (GPeerI::setKeepAlive()): the
+     *  server alone sets it. */
+    [[nodiscard]] virtual std::chrono::milliseconds keepAlive() const = 0;
 
     /** @brief Tells the clients that are waiting for a server which will never start that the run
      *  has ended (GPeerClose::RUN_ENDED), and waits for them, at most stopGrace(). Called once, by

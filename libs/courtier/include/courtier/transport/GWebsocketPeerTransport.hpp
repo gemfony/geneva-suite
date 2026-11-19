@@ -85,7 +85,9 @@ namespace Gem::Courtier::Consumers {
  *
  * Loss of a client: with the keep-alive on (a ping interval above 0) a connection whose client is
  * gone ends by the idle limit; without it a client that vanishes without a TCP reset may never be
- * noticed, and detectsLoss() says so.
+ * noticed. The ping interval is the server's: keepAlive() names it, the
+ * sessions name it to their clients in the HELLO, and a client's end takes it from there
+ * (GWebsocketPeer::setKeepAlive()).
  */
 class GWebsocketListener final : public GListenerI {
 public:
@@ -117,8 +119,8 @@ public:
     void endWork() override;
     /** @brief How long the shell waits for its clients at the end of a run. */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override;
-    /** @brief Whether a lost client ends its connection by itself: with the keep-alive on. */
-    [[nodiscard]] bool detectsLoss() const override;
+    /** @brief The ping interval of the server's ends, which their clients take from the HELLO */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override;
 
     /** @brief The port: the one asked for before start() (0: the system chooses), the bound one
      *  afterwards. Any thread. */

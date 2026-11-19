@@ -67,7 +67,6 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GPeerConsumerT.hpp"
 #include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GMPIPeerTransport.hpp"
@@ -82,6 +81,7 @@ using Gem::Courtier::Consumers::GMPIListener;
 using Gem::Courtier::Consumers::GMPIPeerOptions;
 using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::ExecutorHold;
 using Gem::Courtier::Tests::GMPIFakeWorld;
 using Gem::Courtier::Tests::makeRole;
 using Gem::Courtier::Tests::Role;
@@ -90,8 +90,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr auto PATIENCE = 5s;       // how long a test waits for something that is due at once
-constexpr auto CLOSE_GRACE = 300ms; // the ends' wait for an answer, where it matters
+constexpr auto PATIENCE = 5s; // how long a test waits for something that is due at once
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
 template <typename condition_type>
@@ -99,10 +98,10 @@ bool eventually(condition_type condition) {
     return Gem::Courtier::Tests::eventually(condition, PATIENCE);
 }
 
-/** @brief @param grace The close grace @return The options of the tests' ends: the drain at the
- *  end of the work is short too (some tests have ranks that never receive) */
-GMPIPeerOptions optionsWith(std::chrono::milliseconds grace = CLOSE_GRACE) {
-    GMPIPeerOptions options{.name = "test", .closeGrace = grace};
+/** @brief @return The options of the tests' ends: the drain at the end of the work is short (some
+ *  tests have ranks that never receive) */
+GMPIPeerOptions optionsWith() {
+    GMPIPeerOptions options{.name = "test"};
     options.poll.drainGrace = 300ms;
     return options;
 }
@@ -325,7 +324,6 @@ TEST_CASE(
     CHECK(one.role().events().empty());
 
     master.start();
-    CHECK(master.listener().nPeers() == 3);
     REQUIRE(eventually([&] {
         return one.role().events().size() == 1 && two.role().events().size() == 1 &&
                three.role().events().size() == 1;
@@ -346,66 +344,25 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * A client whose role closes before the greeting has arrived: the close is answered by a master
- * that starts within the grace (CLOSED_HERE, without onOpen); without one it is unconfirmed at the
- * grace.
+ * A client whose role closes before the greeting has arrived ends at once, without onOpen, with
+ * CLOSED_HERE (whether a master is there or not); a master that starts later sees that rank's end
+ * closed.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a close before the greeting", "[courtier][mpi]") {
     auto world = std::make_shared<GMPIFakeWorld>(2);
-
-    SECTION("a master that starts answers it") {
-        Master master(world, optionsWith(5s));
-        Client client(world, 1, optionsWith(5s));
-        REQUIRE(eventually([&] { return world->counts(1).probes > 0; })); // the poll runs
-        client.role().close(GPeerClose::NORMAL);
-        REQUIRE(eventually([&] { return world->counts(1).sends == 1; })); // the close is out
-        master.start();
-        REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-        CHECK(client.role().events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
-        REQUIRE(eventually([&] {
-            const auto role = master.role(1);
-            REQUIRE(role != nullptr);
-            return role != nullptr && role->nClosed() == 1;
-        }));
-    }
-
-    SECTION("without a master it is not confirmed") {
-        Client client(world, 1);
-        REQUIRE(eventually([&] { return world->counts(1).probes > 0; }));
-        const auto begin = std::chrono::steady_clock::now();
-        client.role().close(GPeerClose::NORMAL);
-        REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-        const auto took = std::chrono::steady_clock::now() - begin;
-        CHECK(took >= CLOSE_GRACE);
-        CHECK(
-            client.role().events() ==
-            std::vector<std::string>{"closed:CLOSED_HERE_UNCONFIRMED:NORMAL"}
-        );
-    }
-}
-
-/******************************************************************************/
-/** A close that the other end never answers ends unconfirmed at the grace (rule 6). */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
-TEST_CASE("MPI transport: a close that is never answered", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(2); // rank 1 never receives: nobody polls there
-    Master master(world);
+    Master master(world, optionsWith());
+    Client client(world, 1, optionsWith());
+    REQUIRE(eventually([&] { return world->counts(1).probes > 0; })); // the poll runs
+    client.role().close(GPeerClose::NORMAL);
+    REQUIRE(eventually([&] { return client.role().nClosed() == 1; })); // at once, without a master
+    CHECK(client.role().events() == std::vector<std::string>{"closed:CLOSED_HERE:NORMAL"});
+    REQUIRE(eventually([&] { return world->counts(1).sends == 1; })); // the close is out
     master.start();
-    REQUIRE(eventually([&] { return master.role(1) != nullptr; }));
-    const auto role = master.role(1);
-    REQUIRE(role != nullptr);
-    REQUIRE(eventually([&] { return role->events().size() == 1; }));
-
-    const auto begin = std::chrono::steady_clock::now();
-    role->close(GPeerClose::RUN_ENDED);
-    REQUIRE(eventually([&] { return role->nClosed() == 1; }));
-    const auto took = std::chrono::steady_clock::now() - begin;
-    CHECK(took >= CLOSE_GRACE);
-    CHECK(took < CLOSE_GRACE + 2s);
-    CHECK(role->events().back() == "closed:CLOSED_HERE_UNCONFIRMED:NORMAL");
-    CHECK(master.listener().stopGrace() == CLOSE_GRACE + 1s);
-    CHECK_FALSE(master.listener().detectsLoss());
+    REQUIRE(eventually([&] {
+        const auto role = master.role(1);
+        return role != nullptr && role->nClosed() == 1;
+    }));
 }
 
 /******************************************************************************/
@@ -435,8 +392,8 @@ TEST_CASE("MPI transport: a message longer than the limit", "[courtier][mpi]") {
 /******************************************************************************/
 /**
  * A poll that fails ends every end of the process as FAILED, also one not started yet -- and every
- * client rank is told (a close that says ERROR): MPI has no keep-alive, and a client that is not
- * told waits for ever.
+ * client rank is told (a close that says ERROR): a client that is not told waits until its
+ * keep-alive finds the submitter silent, or for ever without one.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a failed poll ends every end", "[courtier][mpi]") {
@@ -600,6 +557,7 @@ TEST_CASE("MPI transport: the listener's stop and end", "[courtier][mpi]") {
     master.pool().join();
     master.listener().endWork();
     CHECK(master.rolesLetGo());
+    CHECK(master.listener().stopGrace() == 1s); // a constant: nothing waits for an answer
 }
 
 /******************************************************************************/
@@ -691,15 +649,14 @@ TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
 /******************************************************************************/
 /**
  * The poll of the submitter runs on a thread of its own: a session that takes longer over a message
- * than the poll's drain grace changes nothing for its client, whose close is answered (not ended by
- * its timer).
+ * than the poll's drain grace changes nothing for its client.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a slow session does not hold up the poll", "[courtier][mpi]") {
     // One session thread, held by rank 1's session while it handles a message: the poll has a
-    // thread of its own, so rank 2's message is received meanwhile, and rank 1's close is answered.
+    // thread of its own, so rank 2's message is received meanwhile, and rank 1's close arrives.
     auto world = std::make_shared<GMPIFakeWorld>(3);
-    GMPIPeerOptions options = optionsWith(5s);
+    GMPIPeerOptions options = optionsWith();
     Master master(world, options, 1);
     Client one(world, 1, options);
     Client two(world, 2, options);
@@ -777,40 +734,9 @@ TEST_CASE(
 
 /******************************************************************************/
 /**
- * A client's end whose owner is busy makes its poll look far less often (it has no use for an
- * answer while it evaluates); a send of the end still goes out and is looked after at once.
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
-TEST_CASE("MPI transport: a busy owner makes its poll look less often", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(2);
-    Master master(world);
-    Client client(world, 1);
-    master.start();
-    REQUIRE(eventually([&] { return client.role().events().size() == 1; }));
-
-    const auto looks = [&] {
-        std::this_thread::sleep_for(300ms);
-        const auto before = world->counts(1).probes;
-        std::this_thread::sleep_for(500ms);
-        return world->counts(1).probes - before;
-    };
-    const auto idle = looks();
-    boost::asio::post(client.executor(), [&client] { client.role().setOwnerBusy(true); });
-    const auto busy = looks();
-    INFO("looks in 500 ms: idle " << idle << ", busy " << busy);
-    CHECK(busy * 10 <= idle);
-
-    // The end of the run reaches a busy client all the same
-    client.role().close(GPeerClose::NORMAL);
-    REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
-    CHECK(client.role().events().back() == "closed:CLOSED_HERE:NORMAL");
-}
-
-/******************************************************************************/
-/**
  * A submitter that never starts tells the clients that wait for its greeting that the run has ended;
- * they end without having been opened. A rank that does not answer is waited for at most the stop
- * grace.
+ * they end without having been opened. Nothing waits for an answer: the announcement returns before
+ * the stop grace, also when a rank never receives.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
 TEST_CASE("MPI transport: a listener that never starts announces the end", "[courtier][mpi]") {
@@ -832,13 +758,9 @@ TEST_CASE("MPI transport: a listener that never starts announces the end", "[cou
     if(all_there) {
         REQUIRE(eventually([&] { return two->role().nClosed() == 1; }));
         CHECK(two->role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-        CHECK(took < listener->stopGrace());
     }
-    else {
-        // rank 2 never receives: its answer does not come; its end gives up at the close grace
-        CHECK(took >= CLOSE_GRACE);
-        CHECK(took < listener->stopGrace() + 2s);
-    }
+    // rank 2, if it is not there, never receives: nothing waits for it beyond the drain
+    CHECK(took < listener->stopGrace());
 }
 
 /******************************************************************************/
@@ -863,9 +785,6 @@ TEST_CASE(
         2,
         Gem::Common::serializationMode::GEM_BINARY
     );
-    Gem::Courtier::GNetworkedTimeoutConfig timeouts;
-    timeouts.treatment = "wait_indefinitely";
-    shell.applyTimeoutConfig(timeouts);
     shell.startServer();
 
     GMPIPeerOptions limited_options = optionsWith();
@@ -897,7 +816,6 @@ TEST_CASE(
     CHECK(
         limited->connectionEnd() == Gem::Courtier::Consumers::GPeerEnd::CLOSED_THERE
     ); // told the end
-    CHECK(limited->resultsSaved() == 0);
     CHECK_FALSE(limited->terminalErrorFlagged());
     CHECK(unlimited->getNProcessed() > 0);
 }
@@ -950,10 +868,9 @@ TEST_CASE(
             client->run();
             returned.store(true);
         });
-        REQUIRE(eventually([&] { return client->connections() == 1; }));
-        // Past the limit, and past the halt poll that looks at it, the client still waits
-        const auto polls = client->haltPolls();
-        REQUIRE(eventually([&] { return client->haltPolls() >= polls + 2; }));
+        REQUIRE(eventually([&] { return shell.connectedClients() == 1U; })); // greeted, it asks
+        // Past the limit, and past two halt polls that look at it, the client still waits
+        std::this_thread::sleep_for(1s + 2 * Gem::Courtier::GCLIENTHALTPOLLINTERVAL + 500ms);
         CHECK_FALSE(returned.load());
         shell.stopServer();
         CHECK(eventually([&] { return returned.load(); }));
@@ -991,8 +908,6 @@ TEST_CASE("MPI transport: a communicator of one rank is refused at the start", "
         });
         CHECK(what.find("has no client rank") != std::string::npos);
         CHECK(what.find("at least two processes") != std::string::npos);
-        CHECK(listener.nPeers() == 0);
-        CHECK_FALSE(listener.pollCounts().has_value()); // no poll was made
         pool.join();
     }
 
@@ -1013,33 +928,54 @@ TEST_CASE("MPI transport: a communicator of one rank is refused at the start", "
 
 /******************************************************************************/
 /**
- * A start() that throws after the poll was set up (here: the first greeting cannot be sent) ends
- * the work as endWork() does: the clients that wait are told, and the closes are drained (every
- * receive takes a while here, so a close given up at once would be gone before its client read it).
- * The shell counts such a listener as not started and destroys its context before the listener,
- * as the pool here is: the poll must have let go of that context by then.
+ * The signs of life on the ends: the submitter's end of a rank that has been heard from and then
+ * neither sends nor receives ends as SILENT after more than two intervals and at most three (and a
+ * margin); the loss is noted with the calls, and the rank is sent a close that says ERROR, which it
+ * reads when it runs again.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
-TEST_CASE("MPI transport: a start that throws tells the clients", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(3);
-    Client one(world, 1);
-    Client two(world, 2);
+TEST_CASE("MPI transport: the end of a rank that falls silent ends as SILENT", "[courtier][mpi]") {
+    constexpr auto INTERVAL = 100ms;
+    constexpr auto MARGIN = 300ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    GMPIPeerOptions options = optionsWith();
+    options.poll.keepAlive = INTERVAL;
+    Master master(world, options);
+    Client client(world, 1); // without an interval of its own: it sends nothing by itself
+    master.start();
     REQUIRE(eventually([&] {
-        return world->counts(1).probes > 0 && world->counts(2).probes > 0;
-    })); // they wait for the greeting
-    world->delayReceives(50ms);
-    {
-        GMPIListener listener(world->calls(0), optionsWith());
-        Pool pool(1);
-        world->throwOnce(0, GMPIFakeWorld::GFault::SEND);
-        CHECK_THROWS(
-            listener.start(pool.executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {})
-        );
-        CHECK(listener.pollCounts().has_value()); // the poll had been set up
-        pool.join();
-    }
-    REQUIRE(eventually([&] { return one.role().nClosed() == 1 && two.role().nClosed() == 1; }));
-    CHECK(one.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-    CHECK(two.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-    world->delayReceives(0ms);
+        const auto role = master.role(1);
+        return role != nullptr && role->events().size() == 1 &&
+               client.role().events().size() == 1;
+    }));
+    const auto role = master.role(1);
+
+    // The client's role says one thing and then nothing; then its rank does not run at all
+    const auto spoke_at = std::chrono::steady_clock::now();
+    boost::asio::post(client.executor(), [&client] { client.role().send("a last word"); });
+    ExecutorHold stopped(client.executor());
+    REQUIRE(eventually([&] { return role->nClosed() == 1; }));
+    const auto silent_after = std::chrono::steady_clock::now() - spoke_at;
+    CHECK(role->events() == std::vector<std::string>{"open", "msg:a last word", "closed:SILENT:NORMAL"});
+    CHECK(silent_after > 2 * INTERVAL);
+    CHECK(silent_after <= 3 * INTERVAL + MARGIN);
+    CHECK(world->lostRanks(0) == std::vector<int>{1});
+    const auto tags = world->waitingTags(1);
+    CHECK(std::ranges::find(tags, Gem::Courtier::TAG_PEER_CLOSE) != tags.end());
+
+    stopped.release();
+    REQUIRE(eventually([&] { return client.role().nClosed() == 1; }));
+    CHECK(client.role().events().back() == "closed:CLOSED_THERE:ERROR");
+}
+
+/******************************************************************************/
+/** The listener names the poll's keep-alive interval to its clients (0: none). */
+TEST_CASE("MPI transport: the listener names the keep-alive interval", "[courtier][mpi]") {
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    const GMPIListener without(world->calls(0), optionsWith());
+    CHECK(without.keepAlive() == 0ms);
+    GMPIPeerOptions options = optionsWith();
+    options.poll.keepAlive = 1500ms;
+    const GMPIListener with(world->calls(0), options);
+    CHECK(with.keepAlive() == 1500ms);
 }

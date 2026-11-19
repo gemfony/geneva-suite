@@ -71,12 +71,13 @@ public:
      *        serializationMode (the wire format), verboseControlFrames (log every control frame
      *        received), clientPrefetchDepth (n: how many work items the client holds at once; 0
      *        is treated as 1), clientParallelEvaluations (m: how many of them it evaluates at the
-     *        same time; between 1 and n, else the client is refused), pingInterval (seconds of silence after which a ping is sent;
-     *        after twice that time without any inbound data the connection ends; 0 switches this
-     *        off), clientFirstContactLimit (seconds the client tries to reach the server before
-     *        it gives up; 0: no limit) and clientReconnectLimit (seconds it tries to reach it again
-     *        after a lost connection; 0: no limit) and clientUndeliveredDir (where results that
-     *        cannot be delivered are saved). nThreads is ignored.
+     *        same time; between 1 and n, else the client is refused), pingInterval (seconds of
+     *        silence after which a ping is sent; after twice that time without any inbound data
+     *        the connection ends; 0 switches this off; on a client the value holds until its
+     *        server has named its own in the HELLO), clientFirstContactLimit (seconds the client
+     *        tries to reach the server before it gives up; 0: no limit) and clientReconnectLimit
+     *        (seconds it tries to reach it again after a lost connection; 0: no limit). nThreads
+     *        is ignored.
      */
     explicit GWebsocketClientT(const config_type &config)
       : GPeerClientT<processable_type>(
@@ -96,8 +97,7 @@ public:
                 .prefetchDepth = config.clientPrefetchDepth,
                 .parallelEvaluations = config.clientParallelEvaluations,
                 .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit),
-                .reconnectLimit = std::chrono::seconds(config.clientReconnectLimit),
-                .undeliveredDir = config.clientUndeliveredDir
+                .reconnectLimit = std::chrono::seconds(config.clientReconnectLimit)
             }
         ) { /* nothing */
     }

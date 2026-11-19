@@ -44,6 +44,7 @@
 #include <future>
 #include <initializer_list>
 #include <memory>
+#include <utility>
 #include <mutex>
 #include <span>
 #include <stdexcept>
@@ -65,6 +66,7 @@
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
+#include "GCapturedLog.hpp"
 #include "GTcpRelay.hpp"
 
 namespace {
@@ -80,8 +82,8 @@ enum class CodecRun : int {
     NONE = 0,
     SERVER_ENCODES = 1, ///< the server writes the WORK frame
     CLIENT_DECODES = 2, ///< the client reads the WORK frame
-    CLIENT_ENCODES = 3, ///< the client writes the RETURN frame
-    SERVER_DECODES = 4  ///< the server reads the RETURN frame
+    CLIENT_ENCODES = 3, ///< the client writes the RESULT frame
+    SERVER_DECODES = 4  ///< the server reads the RESULT frame
 };
 
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
@@ -195,6 +197,7 @@ using Gem::Courtier::GSubmissionPolicy;
 using Gem::Courtier::GWebsocketConsumerT;
 using Gem::Courtier::Consumers::GWebsocketClientT;
 using namespace std::chrono_literals;
+using Gem::Courtier::Tests::CapturedLog;
 namespace Websocket = boost::beast::websocket;
 
 namespace {
@@ -216,6 +219,29 @@ std::shared_ptr<GWebsocketConsumerT<item_type>> startedServer(std::size_t n_thre
     consumer->startServer();
     return consumer;
 }
+
+/** @brief Asks a client to close when it goes, however the test leaves its scope: a client that
+ *  is not asked goes on (it connects again) and the thread that runs it is never joined. Declared
+ *  after that thread, so that it goes first. */
+template <typename client_type>
+class ClosesAtEnd {
+public:
+    /** @brief @param client The client */
+    explicit ClosesAtEnd(std::shared_ptr<client_type> client)
+      : client_(std::move(client)) { /* nothing */
+    }
+    /** @brief Asks the client to close */
+    ~ClosesAtEnd() {
+        client_->flagCloseRequested();
+    }
+    ClosesAtEnd(const ClosesAtEnd &) = delete;
+    ClosesAtEnd(ClosesAtEnd &&) = delete;
+    ClosesAtEnd &operator=(const ClosesAtEnd &) = delete;
+    ClosesAtEnd &operator=(ClosesAtEnd &&) = delete;
+
+private:
+    std::shared_ptr<client_type> client_; ///< The client
+};
 
 /** @brief A client for @p port with the same keep-alive as the servers of these tests. */
 template <typename item_type>
@@ -254,40 +280,6 @@ struct HandDrivenPeer {
         ws.handshake("127.0.0.1", "/");
         ws.binary(true);
     }
-};
-
-/** @brief A log target that keeps what is logged, so that a test can look at it. */
-class CapturedLog final : public Gem::Common::GBaseLogTarget {
-public:
-    /** @brief Keeps @p message */
-    void log(std::string const &message) const override {
-        const std::scoped_lock lock(mutex_);
-        lines_.push_back(message);
-    }
-    /** @brief Keeps @p message, preceded by @p extension */
-    void logWithSource(std::string const &message, std::string const &extension) const override {
-        std::string line = extension;
-        line.append(": ").append(message);
-        this->log(line);
-    }
-    /** @return Whether a line logged so far contains all of @p parts */
-    [[nodiscard]] bool hasLineWith(std::initializer_list<std::string_view> parts) const {
-        const std::scoped_lock lock(mutex_);
-        for(const auto &line : lines_) {
-            bool all = true;
-            for(const auto part : parts) {
-                all = all && line.contains(part);
-            }
-            if(all) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-private:
-    mutable std::mutex mutex_; ///< Guards lines_ (the logger may call from any thread)
-    mutable std::vector<std::string> lines_; ///< What was logged, in order
 };
 
 } /* anonymous namespace */
@@ -459,135 +451,114 @@ TEST_CASE(
     client->flagCloseRequested();
 }
 
+namespace {
+
+/** @brief Reads the next message of a hand-driven client @param peer The client
+ *  @return It, decoded */
+GCommandContainerT<GFaultyContainer> readFrame(HandDrivenPeer &peer) {
+    boost::beast::flat_buffer buffer;
+    peer.ws.read(buffer);
+    GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+    Gem::Courtier::container_from_string(boost::beast::buffers_to_string(buffer.data()), frame, BIN);
+    return frame;
+}
+
+/** @brief A batch of one item that may end without a usable result: its slot is then filled with
+ *  a clone of a template, so that the test, not the policy, judges it
+ *  @param consumer The server @param items The batch @return It, running */
+std::future<void> tolerantBatch(
+    const std::shared_ptr<GWebsocketConsumerT<GFaultyContainer>> &consumer,
+    std::vector<std::unique_ptr<GFaultyContainer>> &items
+) {
+    return std::async(std::launch::async, [consumer, &items] {
+        auto policy = GSubmissionPolicy::clone_on_partial_return();
+        policy.fatal_on_none_returned = false;
+        auto clone_template = std::make_unique<GFaultyContainer>(99, fault_mode::NONE);
+        clone_template->markAsProcessedWith({true});
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            policy,
+            std::move(clone_template)
+        );
+    });
+}
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+// The head of a message is read first: a result whose payload cannot be read still names its item,
+// which then fails, and the connection goes on; a message whose head cannot be read ends the
+// connection, and the item the client held is handed out again.
+
 TEST_CASE(
-    "courtier(websocket): a request the server cannot decode is answered with NO_WORK",
+    "courtier(websocket): a result whose payload cannot be read fails its item",
     "[courtier][websocket][liveness][net]"
 ) {
     auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
+    auto batch = tolerantBatch(consumer, items);
+
     HandDrivenPeer peer(consumer->getPort());
+    REQUIRE(readFrame(peer).kind() == GFrameKind::HELLO);
+    peer.ws.write(
+        boost::asio::buffer(
+            Gem::Courtier::container_to_string(
+                GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+                BIN
+            )
+        )
+    );
+    auto work = readFrame(peer);
+    REQUIRE(work.kind() == GFrameKind::WORK);
+    Gem::Courtier::processWorkFrame(work, "hand-driven client");
+    Gem::Courtier::makeReturnFrame(work);
+    const std::string result = Gem::Courtier::container_to_string(work, BIN);
+    peer.ws.write(boost::asio::buffer(result.substr(0, result.size() - 8))); // the payload is cut
+
+    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        consumer->stopServer(); // releases the waiting batch, so the test ends
+    }
+    batch.get();
+    CHECK(consumer->requeuedCount() == 0);      // failed, not handed out again
+    CHECK(consumer->getNActiveSessions() == 1); // and the connection goes on
+}
+
+TEST_CASE(
+    "courtier(websocket): a message whose head cannot be read ends the connection",
+    "[courtier][websocket][liveness][net]"
+) {
+    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
+    std::vector<std::unique_ptr<GFaultyContainer>> items;
+    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
+    auto batch = std::async(std::launch::async, [&] {
+        consumer->processBatch(
+            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
+            GSubmissionPolicy::full_success_or_fatal()
+        );
+    });
+
+    HandDrivenPeer peer(consumer->getPort());
+    REQUIRE(readFrame(peer).kind() == GFrameKind::HELLO);
+    peer.ws.write(
+        boost::asio::buffer(
+            Gem::Courtier::container_to_string(
+                GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
+                BIN
+            )
+        )
+    );
+    REQUIRE(readFrame(peer).kind() == GFrameKind::WORK); // the hand-driven client holds the item
 
     peer.ws.write(boost::asio::buffer(std::string("this is not a frame")));
     boost::beast::flat_buffer buffer;
     boost::system::error_code ec;
     peer.ws.read(buffer, ec);
-    REQUIRE_FALSE(ec); // the connection must stay open: closing it would end a real client
-
-    GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
-    Gem::Courtier::container_from_string(
-        boost::beast::buffers_to_string(buffer.data()),
-        reply,
-        BIN
-    );
-    CHECK(reply.kind() == GFrameKind::NO_WORK);
-}
-
-TEST_CASE(
-    "courtier(websocket): a frame a client must not send is answered with NO_WORK",
-    "[courtier][websocket][liveness][net]"
-) {
-    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
-
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
-    auto batch = std::async(std::launch::async, [&] {
-        consumer->processBatch(
-            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
-            GSubmissionPolicy::full_success_or_fatal()
-        );
-    });
-
-    HandDrivenPeer peer(consumer->getPort());
-    const auto answer_to = [&peer](const std::string &request) {
-        peer.ws.write(boost::asio::buffer(request));
-        boost::beast::flat_buffer buffer;
-        boost::system::error_code ec;
-        peer.ws.read(buffer, ec);
-        REQUIRE_FALSE(ec); // the connection must stay open: closing it would end a real client
-        GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
-        Gem::Courtier::container_from_string(
-            boost::beast::buffers_to_string(buffer.data()),
-            reply,
-            BIN
-        );
-        return reply.kind();
-    };
-    const std::string pull = Gem::Courtier::container_to_string(
-        GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
-        BIN
-    );
-
-    // The hand-driven client takes the only item (the batch may need a moment to be registered).
-    REQUIRE(eventually([&] { return answer_to(pull) == GFrameKind::WORK; }));
-    CHECK(consumer->requeuedCount() == 0);
-
-    // WORK travels from the server to the client only: the session does not act on it, refuses it
-    // and, as for any message it cannot handle, gives back what the client held.
-    const GCommandContainerT<GFaultyContainer> wrong_way{
-        GFrameKind::WORK,
-        std::make_unique<GFaultyContainer>(0, fault_mode::NONE)
-    };
-    CHECK(answer_to(Gem::Courtier::container_to_string(wrong_way, BIN)) == GFrameKind::NO_WORK);
-    CHECK(consumer->requeuedCount() == 1);
-    CHECK(consumer->getNActiveSessions() == 1);
-
-    // Another client can now evaluate the item.
-    auto client = matchingClient<GFaultyContainer>(consumer->getPort());
-    const std::jthread client_thread([client] { client->run(); });
-    const bool done = batch.wait_for(PATIENCE) == std::future_status::ready;
-    CHECK(done);
-    if(not done) {
-        consumer->stopServer(); // releases the waiting batch, so the test ends
-        batch.wait();
-    }
-    client->flagCloseRequested();
-}
-
-/******************************************************************************/
-// The connection stays open after a refused request, so the session's end no longer puts its
-// items back -- and a websocket session has no time lease that would. A session that had to refuse
-// a request therefore gives back what it holds, at once: the refused message may have been the
-// result of one of its items.
-TEST_CASE(
-    "courtier(websocket): a session that refuses a request gives back the items it holds",
-    "[courtier][websocket][liveness][net]"
-) {
-    auto consumer = startedServer<GFaultyContainer>(/*n_threads=*/2);
-
-    std::vector<std::unique_ptr<GFaultyContainer>> items;
-    items.push_back(std::make_unique<GFaultyContainer>(0, fault_mode::NONE));
-    auto batch = std::async(std::launch::async, [&] {
-        consumer->processBatch(
-            std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
-            GSubmissionPolicy::full_success_or_fatal()
-        );
-    });
-
-    HandDrivenPeer peer(consumer->getPort());
-    const auto answer_to = [&peer](const std::string &request) {
-        peer.ws.write(boost::asio::buffer(request));
-        boost::beast::flat_buffer buffer;
-        peer.ws.read(buffer);
-        GCommandContainerT<GFaultyContainer> reply{GFrameKind::NONE};
-        Gem::Courtier::container_from_string(
-            boost::beast::buffers_to_string(buffer.data()),
-            reply,
-            BIN
-        );
-        return reply.kind();
-    };
-    const std::string pull = Gem::Courtier::container_to_string(
-        GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
-        BIN
-    );
-
-    // The hand-driven client takes the only item (the batch may need a moment to be registered).
-    REQUIRE(eventually([&] { return answer_to(pull) == GFrameKind::WORK; }));
-    CHECK(consumer->requeuedCount() == 0);
-
-    // Its result comes back unreadable.
-    CHECK(answer_to("this is not a frame") == GFrameKind::NO_WORK);
-    CHECK(consumer->requeuedCount() == 1); // put back right away, with the client still connected
-    CHECK(consumer->getNActiveSessions() == 1);
+    CHECK(ec == Websocket::error::closed); // the session closed the connection
+    CHECK(peer.ws.reason().code == Websocket::close_code::internal_error); // GPeerClose::ERROR
+    REQUIRE(eventually([&] { return consumer->requeuedCount() == 1; })); // the item is back
 
     // Another client can now evaluate the item.
     auto client = matchingClient<GFaultyContainer>(consumer->getPort());
@@ -625,6 +596,7 @@ TEST_CASE(
         return frame;
     };
 
+    REQUIRE(next_frame().kind() == GFrameKind::HELLO); // the first message of the connection
     const std::string pull = Gem::Courtier::container_to_string(
         GCommandContainerT<GFaultyContainer>{GFrameKind::PULL},
         BIN
@@ -632,10 +604,14 @@ TEST_CASE(
     for(std::size_t i = 0; i < PULLS; ++i) {
         peer.ws.write(boost::asio::buffer(pull));
     }
-    // A message the server answers at once (it refuses it). Messages are handled in order, so
+    // A message the server answers at once: a blob request. Messages are handled in order, so
     // when this answer is here the session has seen all three pulls: it is parked, owing three.
-    peer.ws.write(boost::asio::buffer(std::string("this is not a frame")));
-    REQUIRE(next_frame().kind() == GFrameKind::NO_WORK);
+    peer.ws.write(
+        boost::asio::buffer(
+            Gem::Courtier::buildBlobRequest<GFaultyContainer>(Gem::Courtier::GWireBlobId{1, 2}, BIN)
+        )
+    );
+    REQUIRE(next_frame().kind() == GFrameKind::BLOB_REPLY);
     REQUIRE(consumer->parkedCount() == 1);
 
     std::vector<std::unique_ptr<GFaultyContainer>> items;
@@ -659,7 +635,7 @@ TEST_CASE(
         }
     });
 
-    // All three items arrive before the client returns anything (a return would be a pull again).
+    // All three items arrive before the client returns anything.
     std::vector<GCommandContainerT<GFaultyContainer>> work;
     work.reserve(PULLS);
     for(std::size_t i = 0; i < PULLS; ++i) {
@@ -743,9 +719,6 @@ TEST_CASE(
     INFO((standard ? "the seam throws a std::exception" : "the seam throws an int"));
     checkInsThrowStandard.store(standard);
     auto consumer = startedServer<GSimpleContainer>(/*n_threads=*/2);
-    // No giving up on a slot that makes no progress: a slot left in flight would otherwise be
-    // declared missing after a while and filled like a failed one, and the test could not tell.
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     auto client = matchingClient<GSimpleContainer>(consumer->getPort());
     const std::jthread client_thread([client] { client->run(); });
 
@@ -800,7 +773,6 @@ void runSlowCodecCase(const SlowCodecCase &c) {
     glogger.addLogTarget(log);
 
     auto consumer = startedServer<GSlowCodecItem>(c.serverThreads);
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     std::vector<std::shared_ptr<GWebsocketClientT<GSlowCodecItem>>> clients;
     std::vector<std::jthread> client_threads;
     clients.reserve(c.clients);
@@ -905,7 +877,6 @@ TEST_CASE(
     "[courtier][websocket][liveness][net]"
 ) {
     auto consumer = startedServer<GRandomNumberContainer>(/*n_threads=*/2);
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GRandomNumberContainer>(relay.port());
     std::atomic<int> n_evaluated{0};
@@ -950,10 +921,11 @@ TEST_CASE(
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GFaultyContainer>(relay.port());
     const std::jthread client_thread([client] { client->run(); });
-    REQUIRE(eventually([&] { return client->connections() == 1; }));
+    const ClosesAtEnd close_at_end(client); // also when a REQUIRE below fails
+    REQUIRE(eventually([&] { return consumer->connectedClients() == 1U; })); // it has asked
 
     relay.freeze(); // half-open at both ends: nothing passes, nothing is closed
-    REQUIRE(eventually([&] { return client->connections() == 2; }));
+    REQUIRE(eventually([&] { return relay.nConnections() == 2; })); // it connects again
     CHECK(client->losses() == 1);
 
     std::vector<std::unique_ptr<GFaultyContainer>> items;
@@ -973,5 +945,4 @@ TEST_CASE(
         consumer->stopServer();
         batch.wait();
     }
-    client->flagCloseRequested();
 }

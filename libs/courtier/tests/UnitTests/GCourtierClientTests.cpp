@@ -28,288 +28,24 @@
  ********************************************************************************/
 
 /**
- * Tests of the client pipeline of the networked clients (GPrefetchingClientT) that need no
- * server: a probe client stands in for a transport and drives the pipeline's timers by hand.
+ * Tests of what a client does with a work item that need no server: processWorkFrame() (how an
+ * item is processed, and how a failure of its processing comes back) and the RESULT of an item
+ * that failed with nothing to return (makeFailedResult()).
  */
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <atomic>
-#include <chrono>
-#include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 
-#include <boost/asio.hpp>
-
-#include "courtier/GCommandContainerT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessingContainerT.hpp"
-#include "courtier/GWireProtocolT.hpp"
-#include "courtier/transport/GPrefetchingClientT.hpp"
 
 using Gem::Courtier::GCommandContainerT;
 using Gem::Courtier::GFaultyContainer;
-using Gem::Courtier::Consumers::GPrefetchingClientT;
-using namespace std::chrono_literals;
-
-namespace {
-
-/** @brief A client without a transport. It supplies the hooks the pipeline calls and lets a test
- *  arrange the order in which the pipeline's timer handlers run.
- *  @tparam item_type The work item */
-template <typename item_type>
-class ProbeClientT final
-  : public GPrefetchingClientT<ProbeClientT<item_type>, item_type>
-  , public std::enable_shared_from_this<ProbeClientT<item_type>> {
-    friend class GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
-    using pipeline_base = GPrefetchingClientT<ProbeClientT<item_type>, item_type>;
-    using pipeline_base::computing_;
-    using pipeline_base::io_context_;
-    using pipeline_base::pending_pulls_;
-
-public:
-    ProbeClientT()
-      : pipeline_base("ProbeClient", /*prefetch_depth=*/1) { /* nothing */
-    }
-
-    /**
-     * @brief Arranges for the client to stop its timers at a moment when the halt-poll timer has
-     * already expired and its handler is queued.
-     *
-     * The halt poll expires after one second. A second timer, which stops the pipeline's timers,
-     * expires just before it. The calling thread then sleeps past both, so that the io context,
-     * once it runs, finds both expired and queues their handlers together, the stop first. The stop
-     * therefore runs while the halt-poll handler is queued: too late to cancel it.
-     */
-    void stopWhileHaltPollIsQueued() {
-        this->start_halt_timer();
-        stop_timer_.expires_after(900ms);
-        stop_timer_.async_wait([this]([[maybe_unused]] boost::system::error_code ec) {
-            this->stopPipelineTimers_();
-        });
-        std::this_thread::sleep_for(1100ms);
-    }
-
-    /** @brief Counts one request as sent and unanswered, as refill_() would. On the io thread
-     *  (the test's thread, while the io context does not run). */
-    void expectAnswer() {
-        ++pending_pulls_;
-    }
-
-    /** @brief Hands a message from the server to the pipeline, as a transport does.
-     *  @param message The encoded frame */
-    void receive(std::string message) {
-        this->dispatch_message_(std::move(message));
-    }
-
-    /** @brief Runs the io context on this thread until @p condition holds, at most for @p limit.
-     *  The condition is evaluated between two handlers, i.e. as the io thread sees the books.
-     *  @return Whether the condition held in time */
-    template <typename condition_type>
-    [[nodiscard]] bool runUntil(condition_type condition, std::chrono::milliseconds limit) {
-        const auto give_up_at = std::chrono::steady_clock::now() + limit;
-        while(not condition() && std::chrono::steady_clock::now() < give_up_at) {
-            if(io_context_.stopped()) {
-                io_context_.restart();
-            }
-            io_context_.run_one_for(10ms);
-        }
-        return condition();
-    }
-
-    /** @return The items being evaluated, as the io thread counts them */
-    [[nodiscard]] std::size_t computing() const {
-        return computing_;
-    }
-    /** @return The requests sent and not answered yet, as the io thread counts them */
-    [[nodiscard]] std::size_t pendingPulls() const {
-        return pending_pulls_;
-    }
-    /** @brief Decodes the last result handed to the transport @param frame Receives it */
-    void lastResult(Gem::Courtier::GCommandContainerT<item_type> &frame) const {
-        Gem::Courtier::container_from_string(
-            last_result_,
-            frame,
-            Gem::Common::serializationMode::GEM_BINARY
-        );
-    }
-
-    /** @return How many messages could not be read */
-    [[nodiscard]] std::size_t nUnreadable() const {
-        return n_unreadable_;
-    }
-
-    /** @return The encoded results handed to the transport so far */
-    [[nodiscard]] std::size_t nResults() const {
-        return n_results_;
-    }
-
-    /** @brief Runs the io context for at most @p limit.
-     *  @return Whether it ran out of work, i.e. whether a client's run() would have returned */
-    [[nodiscard]] bool runsOutOfWork(std::chrono::milliseconds limit) {
-        io_context_.run_for(limit);
-        return io_context_.stopped();
-    }
-
-private:
-    void run_() override { /* the tests drive the pipeline directly */
-    }
-    void refill_() { /* no transport to pull from */
-    }
-    /** @brief Every result asks for the next item, as a client without look-ahead does
-     *  @return RETURN */
-    [[nodiscard]] Gem::Courtier::GFrameKind resultKindHint_() const {
-        return Gem::Courtier::GFrameKind::RETURN;
-    }
-    /** @brief Keeps the result as the transport would send it; a RETURN is a request again
-     *  @param bytes The encoded result @param error Why it could not be encoded
-     *  @param frame The result's frame */
-    void sendResult_(
-        std::string bytes,
-        const std::string &error,
-        Gem::Courtier::GCommandContainerT<item_type> frame,
-        [[maybe_unused]] std::unique_ptr<item_type> item
-    ) {
-        if(frame.kind() == Gem::Courtier::GFrameKind::RETURN) {
-            ++pending_pulls_;
-        }
-        if(error.empty() && not bytes.empty()) {
-            ++n_results_;
-            last_result_ = std::move(bytes);
-        }
-    }
-    void when_decoded_(Gem::Courtier::GFrameKind /*kind*/) { /* nothing to act on */
-    }
-    void when_unreadable_(const std::string & /*error*/) {
-        ++n_unreadable_;
-    }
-    void haltShutdown_() { /* no transport to close */
-    }
-
-    boost::asio::steady_timer stop_timer_{io_context_};
-    std::size_t n_results_ = 0;                   ///< Encoded results handed to the transport
-    std::string last_result_;                     ///< The last result handed to the transport
-    std::size_t n_unreadable_ = 0;                ///< Messages that could not be read (io thread)
-};
-
-using ProbeClient = ProbeClientT<GFaultyContainer>;
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<bool> slowDropArmed{false}; ///< The next GSlowDropItem destroyed takes its time
-
-/** @brief A work item whose destruction takes 500 ms once it has been evaluated: the compute
- *  pool's handler, which holds the evaluated item, is then destroyed long after it has handed the
- *  result to the io thread. */
-class GSlowDropItem final : public Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool> {
-    friend struct Gem::Weft::access;
-
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>>(
-            ar,
-            "GProcessingContainerT_GSlowDropItem",
-            *this
-        );
-    }
-
-public:
-    GSlowDropItem()
-      : Gem::Courtier::GProcessingContainerT<GSlowDropItem, bool>(1) { /* nothing */
-    }
-    GSlowDropItem(const GSlowDropItem &) = default;
-    GSlowDropItem(GSlowDropItem &&) = delete;
-    GSlowDropItem &operator=(const GSlowDropItem &) = delete;
-    GSlowDropItem &operator=(GSlowDropItem &&) = delete;
-    /** @brief Takes its time if it was evaluated with the slow drop armed */
-    ~GSlowDropItem() override {
-        if(slow_) {
-            std::this_thread::sleep_for(500ms);
-        }
-    }
-
-private:
-    /** @brief Marks this item to be dropped slowly */
-    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override {
-        slow_ = slowDropArmed.exchange(false);
-    }
-
-    bool slow_ = false; ///< Its destruction takes its time
-};
-
-/** @brief A work item whose return seam (GWireProtocolT::buildReturn(), below) throws something
- *  that is not a std::exception: what follows its evaluation fails on the compute thread. */
-class GReturnThrowsItem final
-  : public Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool> {
-    friend struct Gem::Weft::access;
-
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<
-            Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>>(
-            ar,
-            "GProcessingContainerT_GReturnThrowsItem",
-            *this
-        );
-    }
-
-public:
-    GReturnThrowsItem()
-      : Gem::Courtier::GProcessingContainerT<GReturnThrowsItem, bool>(1) { /* nothing */
-    }
-
-private:
-    /** @brief Nothing to evaluate */
-    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
-    }
-};
-
-} /* anonymous namespace */
-
-namespace Gem::Courtier {
-/** @brief The wire seam of GReturnThrowsItem: the default one, except that building the return
- *  throws something that is not a std::exception. */
-template <>
-struct GWireProtocolT<GReturnThrowsItem> {
-    using payload_type = GNoLibraryPayload;
-    static std::uint32_t workTag() {
-        return 0;
-    }
-    static bool buildReturn(
-        [[maybe_unused]] const GReturnThrowsItem &item,
-        [[maybe_unused]] std::uint32_t &tag,
-        [[maybe_unused]] payload_type &payload
-    ) {
-        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
-    }
-    static void applyReturn(
-        GReturnThrowsItem &slot,
-        [[maybe_unused]] std::uint32_t tag,
-        [[maybe_unused]] const payload_type *payload,
-        const GReturnThrowsItem *item
-    ) {
-        if(item != nullptr) {
-            slot.absorbResultsFrom(*item);
-        }
-    }
-};
-} /* namespace Gem::Courtier */
-
-TEST_CASE(
-    "courtier(client): a timer that had expired when the client stopped does not arm itself again",
-    "[courtier][client]"
-) {
-    // A client stops its timers when it tears its transport down, so that its run() can return.
-    // The handler of a timer that has already expired cannot be cancelled any more; it used to
-    // re-arm the halt poll, and the client then never terminated.
-    auto client = std::make_shared<ProbeClient>();
-    client->stopWhileHaltPollIsQueued();
-    CHECK(client->runsOutOfWork(1500ms));
-}
 
 /******************************************************************************/
 // An item whose processing throws something other than a g_processing_exception -- here the
@@ -449,127 +185,36 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// The io thread keeps the books of the pipeline, also while it does no codec work: a WORK frame is
-// decoded on the compute pool, but it reaches the io thread before its item is evaluated. From
-// then until the result the item counts as computing and the request it answers as answered --
-// the state look-ahead, the busy rule and the end of a run are decided on.
+// An item that failed with nothing to return (its payload could not be read, its processing or its
+// return threw, its result could not be encoded) goes back as a RESULT of the outcome alone: the ids
+// from the head of its WORK name it, it is flagged, and the frame carries no result.
 
 TEST_CASE(
-    "courtier(client): the io thread counts an item as computing while it is evaluated",
-    "[courtier][client]"
-) {
-    using Gem::Courtier::fault_mode;
-    using Gem::Courtier::GFrameKind;
-    using Gem::Courtier::processingStatus;
-
-    auto item = std::make_unique<GFaultyContainer>(0, fault_mode::SLEEP, /*sleep_ms=*/1000);
-    item->set_processing_status(processingStatus::DO_PROCESS);
-    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK, std::move(item)};
-
-    auto client = std::make_shared<ProbeClient>();
-    client->expectAnswer();
-    client->receive(
-        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
-    );
-
-    // While the item sleeps in its evaluation the io thread knows of it.
-    REQUIRE(client->runUntil([&client] { return client->computing() == 1; }, 800ms));
-    CHECK(client->pendingPulls() == 0);
-    CHECK(client->getNProcessed() == 0); // the evaluation is not over yet
-
-    // Then its result: one encoded RETURN, which is a request again.
-    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
-    CHECK(client->computing() == 0);
-    CHECK(client->pendingPulls() == 1);
-    CHECK(client->getNProcessed() == 1);
-}
-
-/******************************************************************************/
-/**
- * The compute pool's handler gives up its hold on the client as soon as it has handed the result to
- * the io thread. Were it to keep it until the handler is destroyed (here: until the evaluated item
- * has been dropped, 500 ms later), the client could see its last other owner go meanwhile -- the
- * thread whose run() has returned -- and be destroyed on a thread of its own pool, which cannot
- * join itself (seen once as a crash at the end of a test).
- */
-TEST_CASE(
-    "courtier(client): the compute pool does not hold the client after the result is handed over",
+    "courtier(client): a failed item is returned as a RESULT of its ids without a result",
     "[courtier][client]"
 ) {
     using Gem::Courtier::GFrameKind;
     using Gem::Courtier::processingStatus;
+    constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
-    auto item = std::make_unique<GSlowDropItem>();
-    item->set_processing_status(processingStatus::DO_PROCESS);
-    const GCommandContainerT<GSlowDropItem> work{GFrameKind::WORK, std::move(item)};
+    Gem::Courtier::GProcessingOutcome named;
+    named.correlation_id = 4711;
+    named.submission_uuid = {17, 18};
+    GCommandContainerT<GFaultyContainer> frame{
+        GFrameKind::WORK,
+        std::make_unique<GFaultyContainer>(0)
+    };
+    frame.setTag(3);
+    frame.setOutcome(named);
+    Gem::Courtier::makeFailedResult(frame, frame.outcome(), "it could not be read");
 
-    auto client = std::make_shared<ProbeClientT<GSlowDropItem>>();
-    slowDropArmed.store(true);
-    client->expectAnswer();
-    client->receive(
-        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
-    );
-    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
-    std::this_thread::sleep_for(100ms); // the pool's handler is still dropping the item
-    CHECK(client.use_count() == 1);
-    std::this_thread::sleep_for(600ms); // whatever the outcome, the pool is done with the client
-}
-
-/******************************************************************************/
-/**
- * No exception of any type leaves a compute-pool thread: when what follows the evaluation throws
- * something that is not a std::exception (here the library's return seam, GWireProtocolT::
- * buildReturn()), the item is returned to the server as failed -- its outcome alone,
- * ERROR_FLAGGED, with its correlation id -- and the client goes on.
- */
-TEST_CASE(
-    "courtier(client): a non-std exception after the evaluation returns the item as failed",
-    "[courtier][client]"
-) {
-    using Gem::Courtier::GFrameKind;
-    using Gem::Courtier::processingStatus;
-
-    auto item = std::make_unique<GReturnThrowsItem>();
-    item->set_processing_status(processingStatus::DO_PROCESS);
-    item->setCorrelationId(4711);
-    const GCommandContainerT<GReturnThrowsItem> work{GFrameKind::WORK, std::move(item)};
-
-    auto client = std::make_shared<ProbeClientT<GReturnThrowsItem>>();
-    client->expectAnswer();
-    client->receive(
-        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
-    );
-    REQUIRE(client->runUntil([&client] { return client->nResults() == 1; }, 5000ms));
-    CHECK(client->computing() == 0);
-    GCommandContainerT<GReturnThrowsItem> returned{GFrameKind::NONE};
-    client->lastResult(returned);
-    CHECK(returned.kind() == GFrameKind::RETURN);
-    CHECK(returned.item() == nullptr);
-    CHECK(returned.outcome().status == processingStatus::ERROR_FLAGGED);
-    CHECK(returned.outcome().correlation_id == 4711);
-}
-
-/******************************************************************************/
-/**
- * Nothing a server sends can end a client: a WORK frame that decodes but carries no work item is a
- * message that cannot be read (its kind and payload disagree). It is not counted as WORK, nothing
- * is evaluated, and the client reports it (UNREADABLE).
- */
-TEST_CASE(
-    "courtier(client): a WORK frame without a work item cannot be read",
-    "[courtier][client]"
-) {
-    using Gem::Courtier::GFrameKind;
-
-    const GCommandContainerT<GFaultyContainer> work{GFrameKind::WORK};
-    auto client = std::make_shared<ProbeClient>();
-    client->expectAnswer();
-    client->receive(
-        Gem::Courtier::container_to_string(work, Gem::Common::serializationMode::GEM_BINARY)
-    );
-    REQUIRE(client->runUntil([&client] { return client->nUnreadable() == 1; }, 2000ms));
-    CHECK(client->runsOutOfWork(200ms));
-    CHECK(client->computing() == 0);
-    CHECK(client->nResults() == 0);
-    CHECK(client->pendingPulls() == 1); // the request whose answer was lost is still owed
+    GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
+    Gem::Courtier::container_from_string(Gem::Courtier::container_to_string(frame, BIN), got, BIN);
+    CHECK(got.kind() == GFrameKind::RESULT);
+    CHECK(got.tag() == 3);
+    CHECK(got.payloadEmpty());
+    CHECK(got.outcome().correlation_id == 4711);
+    CHECK(got.outcome().submission_uuid == named.submission_uuid);
+    CHECK(got.outcome().status == processingStatus::ERROR_FLAGGED);
+    CHECK(got.outcome().error_descriptions.contains("it could not be read"));
 }

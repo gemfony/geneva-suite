@@ -1738,11 +1738,11 @@ TEST_CASE("An evaluation return is small and does not scale with the individual"
     const std::size_t bulky_item_size = bulky->toString(mode::GEM_BINARY).size();
     REQUIRE(bulky_item_size > 10 * lean_item_size); // the leaf data really does dominate
 
-    // Build the RETURN frame each of them produces, exactly as a worker client does.
+    // Build the RESULT frame each of them produces, exactly as a worker client does.
     auto frame_size = [](std::unique_ptr<GGenome> item) {
         c2::GCommandContainerT<GGenome> frame{c2::GFrameKind::WORK, std::move(item)};
         c2::makeReturnFrame(frame);
-        CHECK(frame.kind() == c2::GFrameKind::RETURN);
+        CHECK(frame.kind() == c2::GFrameKind::RESULT);
         CHECK(frame.tag() ==
               static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::evaluation));
         CHECK(frame.item() == nullptr);          // no individual travels back
@@ -1811,9 +1811,6 @@ public:
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::checkin;
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLateReturnBuffer;
     using Gem::Courtier::GNetworkedConsumerT<GGenome>::retainedOriginalCount;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLeaseBootstrap;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setLeaseBounds;
-    using Gem::Courtier::GNetworkedConsumerT<GGenome>::setSweepTick;
 };
 
 } // namespace Gem::Tests
@@ -1828,9 +1825,10 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
 
     Gem::Tests::LateReturnConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
-    consumer.setLeaseBootstrap(20ms);
-    consumer.setLeaseBounds(10ms, 200ms);
-    consumer.setSweepTick(5ms);
+    c2::GNetworkedTimeoutConfig limits; // the batch must end with the victim's slot open
+    limits.reclaim_lease_ms = 20;
+    limits.give_up_window_ms = 200;
+    consumer.applyTimeoutConfig(limits);
 
     constexpr std::size_t N = 3;
     constexpr std::size_t VICTIM = 1; // first dispatch round -> batch id 0 -> correlation id == slot index
@@ -2509,7 +2507,6 @@ TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][p
     CHECK(config.clientPrefetchDepth == defaults.clientPrefetchDepth);
     CHECK(config.clientParallelEvaluations == defaults.clientParallelEvaluations);
     CHECK(config.clientFirstContactLimit == defaults.clientFirstContactLimit);
-    CHECK(config.clientUndeliveredDir == defaults.clientUndeliveredDir);
 }
 #endif
 

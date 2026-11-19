@@ -86,7 +86,6 @@ ENDFUNCTION()
 geneva_courtier_test(GWireBlobRegistryTests  S  GWireBlobRegistryTests.cpp)
 geneva_courtier_test(GProcessableIdentityTests S  GProcessableIdentityTests.cpp)
 geneva_courtier_test(GCommandContainerSerializationTests S  GCommandContainerSerializationTests.cpp)
-geneva_courtier_test(GServerSessionLogicTests  S  GServerSessionLogicTests.cpp)
 geneva_courtier_test(GProcessingStatusTests    S  GProcessingStatusTests.cpp)
 geneva_courtier_test(GCourtierPolicyTests      S  GCourtierPolicyTests.cpp)
 geneva_courtier_test(GCourtierConsumerConfigTests S  GCourtierConsumerConfigTests.cpp)
@@ -107,8 +106,10 @@ geneva_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp 
 	GInProcessTestSupport.hpp)
 geneva_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
-geneva_courtier_test(GCourtierPeerClientTests  M  GCourtierPeerClientTests.cpp GInProcessPeer.hpp
-	GInProcessTestSupport.hpp)
+geneva_courtier_test(GCourtierPeerClientTests  M  SPEC "~[programidentity]" GCourtierPeerClientTests.cpp
+	GCapturedLog.hpp GInProcessPeer.hpp GInProcessTestSupport.hpp)
+# The identity of the program is one per process and is set by the case this entry runs
+geneva_courtier_test_entry(GCourtierPeerClientProgramTests GCourtierPeerClientTests S "[programidentity]")
 geneva_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
 # run() returns only once no evaluation of the client runs any more, also when it is asked to close
 # while one runs
@@ -132,7 +133,7 @@ geneva_courtier_test(GCourtierMpiPollCoreTests M  GCourtierMpiPollCoreTests.cpp 
 geneva_courtier_test(GCourtierMpiPeerTests     M  GCourtierMpiPeerTests.cpp GMPIFakeCalls.hpp
 	GInProcessTestSupport.hpp GPeerTestRole.hpp)
 geneva_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourtierWebsocketLivenessTests.cpp
-	GTcpRelay.hpp)
+	GCapturedLog.hpp GTcpRelay.hpp)
 # A connection survives a message that takes one end three ping intervals to encode or decode: six
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
 geneva_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")
@@ -164,8 +165,8 @@ ENDFOREACH()
 
 # The MPI consumer fixes its rank layout at launch, so it is exercised as a multi-process program
 # under mpirun (1 master + 2 workers, unless an entry says otherwise) rather than as an in-process
-# Catch2 test. Every entry runs the items with the time lease off (wait_indefinitely): an item that is
-# lost makes the entry hang until ctest ends it.
+# Catch2 test. Every entry runs the items without a time limit (the default): an item that is lost
+# makes the entry hang until ctest ends it.
 IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	ADD_EXECUTABLE(GCourtierMpiExerciser GCourtierMpiExerciser.cpp)
 	# The exercisers build the MPI consumer and its client directly, so they -- and only they -- link
@@ -228,7 +229,7 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 	geneva_courtier_mpi_scenario(GCourtierMpiSoakTest 5 soak)
 	# The end of a run: the master stops while every client waits at it, while every client
 	# evaluates, before the last client has started, and after a client has left. Each time every
-	# client still there is told and confirms, within a bound.
+	# client still there is told and ends, within a bound.
 	geneva_courtier_mpi_scenario(GCourtierMpiStopParkedTest 3 stop-parked)
 	geneva_courtier_mpi_scenario(GCourtierMpiStopEvaluatingTest 3 stop-evaluating)
 	geneva_courtier_mpi_scenario(GCourtierMpiStopLateRankTest 3 stop-late-rank --lateMs=3000)
@@ -293,6 +294,32 @@ IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
 				WORKING_DIRECTORY ${_dir})
 		SET_TESTS_PROPERTIES(${_name} PROPERTIES LABELS "courtier" PROCESSORS 3)
 		GENEVA_TEST_SIZE(${_name} M)
+	ENDFOREACH()
+
+	# Signs of life over real MPI (a keep-alive of 1 s; ../CheckJobEnds.cmake: a non-zero end, what
+	# the job must say, a bound of 30 s): a client rank that stops itself (SIGSTOP) in the middle of
+	# a run is found silent, the submitter finishes the run with the other client, and the job is
+	# ended where MPI would be finalized (MPI_Finalize would wait for the stopped rank); a submitter
+	# that stops itself is found silent by its clients, which end the job the same way.
+	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/silent-end)
+	FILE(MAKE_DIRECTORY ${_dir})
+	FOREACH(_scenario client-stops submitter-stops)
+		IF(_scenario STREQUAL "client-stops")
+			SET(_expect "OK: 120/120 items processed")
+		ELSE()
+			# The first client that ends the job may end the other before it says so
+			SET(_expect "found its submitter silent")
+		ENDIF()
+		GENEVA_ADD_MPI_TEST(NAME GCourtierMpiSilent_${_scenario} TIMEOUT 60
+				COMMAND ${CMAKE_COMMAND}
+					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiExerciser>;--scenario=${_scenario};${MPIEXEC_POSTFLAGS}"
+					-DEXPECT_EXIT=nonzero
+					"-DEXPECT=${_expect};MPI_Finalize would wait for them: the job is ended"
+					-DLIMIT=30
+					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
+				WORKING_DIRECTORY ${_dir})
+		SET_TESTS_PROPERTIES(GCourtierMpiSilent_${_scenario} PROPERTIES LABELS "courtier" PROCESSORS 3)
+		GENEVA_TEST_SIZE(GCourtierMpiSilent_${_scenario} M)
 	ENDFOREACH()
 
 	# The MPI transport's ends over real MPI: a client rank is told when the submitter's end for it

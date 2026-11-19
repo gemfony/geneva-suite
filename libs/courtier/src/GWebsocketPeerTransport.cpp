@@ -71,7 +71,7 @@ constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
  * @param options How the peer of every connection is set up (name, frame type, control-frame
  *        logging, ping interval)
  * @param n_threads The number of I/O threads; 0 means one per hardware thread
- * @param stop_grace How long the shell waits for the clients to confirm the end of a run
+ * @param stop_grace How long the shell waits for the connections to end at the end of a run
  */
 GWebsocketListener::GWebsocketListener(
     std::string name,
@@ -333,9 +333,9 @@ std::chrono::milliseconds GWebsocketListener::stopGrace() const {
 }
 
 /******************************************************************************/
-/** @return Whether a lost client ends its connection by itself: only with the keep-alive on */
-bool GWebsocketListener::detectsLoss() const {
-    return options_.pingInterval > std::chrono::milliseconds::zero();
+/** @return The ping interval of the server's ends, named to their clients in the HELLO */
+std::chrono::milliseconds GWebsocketListener::keepAlive() const {
+    return options_.pingInterval;
 }
 
 /******************************************************************************/

@@ -61,8 +61,8 @@ namespace Gem::Courtier {
  * size. This header provides the TRANSPORT-AGNOSTIC plumbing that lets a serializer send each distinct
  * payload once and reference it by a content id thereafter. Delivery on a connection is ordered, so a
  * client always has the blob before it meets its id; a client that cannot read an item (a blob it
- * lacks) says so (UNREADABLE), and the server forgets what that peer holds and sends its blobs in full
- * again.
+ * lacks) returns it as failed (a RESULT without a result), and the server forgets what that peer
+ * holds and sends its blobs in full again.
  *
  * It lives in the courtier (consumer/session) layer so all transports -- websocket, MPI --
  * inherit it once, and it knows NOTHING about what a blob contains: a blob is an OPAQUE serialized string
@@ -213,7 +213,7 @@ struct GWireSerializationContext {
     /** @brief Worker-side cache-miss fetch: given a blob id whose content is absent locally, returns the
      *  serialized blob, or a std::unexpected carrying the failure reason. The value is always a
      *  non-empty blob. Null on the server side, and in courtier's clients, which rely on ordered
-     *  delivery instead (a miss throws, and the client reports the item as unreadable); a hook for a
+     *  delivery instead (a miss throws, and the client returns the item as failed); a hook for a
      *  transport that can fetch. */
     std::function<std::expected<std::string, std::string>(const GWireBlobId &)> fetch_blob;
 };

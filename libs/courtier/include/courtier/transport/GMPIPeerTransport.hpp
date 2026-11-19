@@ -40,7 +40,6 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -50,7 +49,6 @@
 // Boost headers go here
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 
 // Geneva headers go here
@@ -75,35 +73,35 @@
  * the binding to MPI (GMPICalls) is part of libgemfony-courtier-mpi, and the tests run the transport
  * on an in-memory stand-in for MPI.
  *
- * **What travels.** One message of the role is one MPI message with the tag TAG_PEER_MESSAGE. Three
+ * **What travels.** One message of the role is one MPI message with the tag TAG_PEER_MESSAGE. Two
  * control messages carry what a socket carries by itself: TAG_PEER_OPEN, the greeting the
  * submitter's listener sends every client rank when it starts (a client's end opens on it: there is
- * no connection to make, and the greeting is what tells a client that its master is there);
- * TAG_PEER_CLOSE, a close with what it says (one byte, GPeerClose); TAG_PEER_CLOSE_ACK, the answer
- * to a close, which echoes it. MPI keeps the messages of one rank to another in the order they were
- * sent, whatever their tags, and the poll hands them to the peer in that order.
+ * no connection to make, and the greeting is what tells a client that its master is there); and
+ * TAG_PEER_CLOSE, a close with what it says (one byte, GPeerClose). MPI keeps the messages of one
+ * rank to another in the order they were sent, whatever their tags, and the poll hands them to the
+ * peer in that order.
  *
  * **The close (GPeerI.hpp, rule 6).** close() sends TAG_PEER_CLOSE after everything handed to send()
- * before it. A peer that receives a close answers it with TAG_PEER_CLOSE_ACK after it has handed its
- * role every message that arrived before the close, and reports GPeerEnd::CLOSED_THERE; the closing
- * peer reports GPeerEnd::CLOSED_HERE when the answer arrives. That answer is the only confirmation:
- * a close of the other end that crosses this end's close is no answer (both report
- * GPeerEnd::CLOSED_HERE_UNCONFIRMED), and neither is the passing of the close grace without one. A
- * peer whose role has called close() still hands it every message that arrives until its own close
- * has been sent; what arrives afterwards is dropped. A peer whose role asked for the close before it
- * was told of the open handles nothing that has arrived until its own close has been sent, so that
- * it can never confirm to the other end what no role received.
+ * before it, and the end finishes at once with GPeerEnd::CLOSED_HERE. A peer that receives a close
+ * finishes with GPeerEnd::CLOSED_THERE and answers nothing. A peer whose role has called close()
+ * still hands it every message that arrives until its own close has been sent; what arrives
+ * afterwards reaches an end that has finished and is dropped. A peer whose role asked for the close
+ * before it was told of the open is told nothing but its end (rule 1).
  *
- * **Ends.** There is no keep-alive: a rank that dies ends the job (the communicator has
- * MPI_ERRORS_ARE_FATAL), and the items of a rank that hangs come back by the consumer's time lease
- * (GMPIListener::detectsLoss() is false). A failure of the poll ends every peer of the process with
- * GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
+ * **Ends.** The poll keeps the signs of life (GMPIPollCore, its class comment): with a keep-alive
+ * interval -- the submitter's comes with its options (GMPIPollTiming::keepAlive), a client takes the
+ * submitter's from the HELLO (setKeepAlive()) -- a rank that has been heard from and then not for
+ * more than two intervals is silent: its end tells it with a close (GPeerClose::ERROR) and reports
+ * GPeerEnd::SILENT, and the job is ended where MPI would be finalized (GMPIEnvironment), since
+ * MPI_Finalize would wait for that rank. GMPIListener::keepAlive() names the interval (0: none).
+ * A rank that dies ends the job (the communicator has MPI_ERRORS_ARE_FATAL). A failure
+ * of the poll ends every peer of the process with GPeerEnd::FAILED. A message longer than the peer's limit (MPI counts in int) is not sent; the peer
  * ends with GPeerEnd::FAILED, reported on its executor, and tells the other end with a close
  * (GPeerClose::ERROR).
  *
  * **Rules a change of this file must keep** (each is relied on elsewhere):
- *  - Every message between two ranks -- the role's, the greeting, a close, an answer, and any kind
- *    added later (a ping, say) -- is started through GMPIPollCore::startSend() from a context
+ *  - Every message between two ranks -- the role's, the greeting, a close, the poll's ping, and
+ *    any kind added later -- is started through GMPIPollCore::startSend() from a context
  *    that serializes the sender (an end's strand; the listener's start() before it posts on_peer),
  *    and received only by the poll. That one ordered path is what makes "the close comes after
  *    everything sent before it" and "nothing arrived since" true; a message sent another way could
@@ -112,16 +110,14 @@
  *    hands the ends to the shell); a client's end drops a message of the role that comes before it,
  *    with a warning, and stays open (GPeerI.hpp, rule 1: nothing reaches the role before onOpen).
  *  - Every way an end ends tells the other rank once (tellOther_()), unless it knows: a client
- *    has no keep-alive and would otherwise wait for ever. A new way to end must go through
+ *    without a keep-alive would otherwise wait for ever. A new way to end must go through
  *    finish_() after tellOther_(), or through endOfWork() before the poll's shutdown(). After
  *    shutdown() a send is dropped, so what must arrive is sent and drained before it
  *    (GMPIListener::endWork() does: tell, drainSends(), shutdown()).
  *  - An end's state is touched on its strand, and off it only when no handler runs (abort(),
  *    discard(), endOfWork()).
- *  - The busy count of the poll must balance: an end tells it of changes only (busy_told_), and an
- *    end that ends busy says "not busy" first.
  *  - On a client the poll runs on the client's io thread: anything that blocks that thread (a
- *    decode, an evaluation) stops the poll, and with it the answers the submitter waits for.
+ *    decode, an evaluation) stops the poll, and with it the messages the submitter waits for.
  *  - A receive is a blocking MPI_Recv on the one poll thread. On the submitter a long message
  *    from one rank holds up the messages of every other rank for its length; measured, the
  *    submitter's receives took 0.01 to 0.1 % of a run (Geneva's results are small), so the receive
@@ -136,8 +132,6 @@ namespace Gem::Courtier::Consumers {
 struct GMPIPeerOptions {
     /// Who the transport works for, for the log and the thread budget
     std::string name = "GMPIPeer";
-    /// How long a closing peer waits for the other end's answer (GPeerI.hpp, rule 6)
-    std::chrono::milliseconds closeGrace = GMPICONSUMERSHUTDOWNGRACE;
     /// The longest message the peer sends; MPI counts in int
     std::size_t maxMessageBytes = static_cast<std::size_t>(INT_MAX);
     /// How the poll paces itself
@@ -155,7 +149,7 @@ struct GMPIPeerOptions {
  * (the client waits for its master as long as its own limit says, GPeerClientOptions). What arrives
  * before the end has been started waits for it.
  *
- * Threads: everything but start(), close(), executor() and the busy flag happens on the peer's
+ * Threads: everything but start(), close() and executor() happens on the peer's
  * strand; abort() and discard() when no handler of the peer runs any more. Ownership: the poll holds
  * the peer (as its receiver) until GMPIPollCore::shutdown(), and handlers posted to the strand hold
  * it too; the peer refers to the poll weakly. It is made with std::make_shared.
@@ -204,9 +198,9 @@ public:
     [[nodiscard]] std::size_t maxMessageBytes() const override;
     /** @brief The strand every handler of this end runs on (also the poll's receiver executor) */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
-    /** @brief Tells the poll whether the owner is busy (a client: every evaluation slot taken):
-     *  while every end it receives for has a busy owner, it looks less often. On the strand. */
-    void setOwnerBusy(bool) override;
+    /** @brief The keep-alive interval the submitter named: the poll's ticks take it
+     *  (GMPIPollCore::setKeepAlive()). On the strand. */
+    void setKeepAlive(std::chrono::milliseconds) override;
 
     /***************************************************************************/
     // GMPIPollReceiverI
@@ -217,12 +211,12 @@ public:
     void discard() override;
     /** @brief The poll has failed: the end reports GPeerEnd::FAILED */
     void pollFailed(const std::string &) override;
+    /** @brief The other rank has fallen silent: the end tells it and reports GPeerEnd::SILENT */
+    void silent() override;
 
     /***************************************************************************/
     /** @brief The other end's rank. Any thread. @return The rank */
     [[nodiscard]] int rank() const noexcept;
-    /** @brief What the owner said last through setOwnerBusy(). Any thread. @return Whether busy */
-    [[nodiscard]] bool ownerBusy() const noexcept;
     /** @brief Whether the end has ended. Any thread. @return Whether it has */
     [[nodiscard]] bool ended() const noexcept;
     /** @brief The work of the transport ends: an end that has not ended tells the other rank, if
@@ -236,7 +230,6 @@ private:
         NEW,     ///< Not started
         WAITING, ///< Started; waits for the greeting
         OPEN,    ///< Open
-        CLOSING, ///< Its close has been sent; waits for the answer
         ENDED    ///< Over
     };
 
@@ -269,10 +262,8 @@ private:
     std::weak_ptr<GMPIPollCore> core_; ///< The poll of this process (it holds this end)
     boost::asio::strand<boost::asio::any_io_executor> strand_; ///< Serializes this end
     boost::asio::any_io_executor executor_; ///< The strand, as executor() hands it out
-    boost::asio::steady_timer close_timer_; ///< Bounds the wait for the answer to a close
     int rank_;                              ///< The other end
     GOpening opening_;                      ///< When this end opens
-    std::chrono::milliseconds close_grace_; ///< How long a close waits for its answer
     std::size_t max_message_bytes_;         ///< The longest message sent
     std::string name_;                      ///< For the log
 
@@ -280,15 +271,13 @@ private:
     GState state_ = GState::NEW; ///< On the strand
     bool role_open_ = false;     ///< On the strand: the role was told of the open
     /// On the strand: the other rank knows that the connection is over -- it was sent this end's
-    /// close or an answer to its own, or it closed itself (tellOther_())
+    /// close, or it closed itself (tellOther_())
     bool other_told_ = false;
     std::deque<GArrival> waiting_; ///< On the strand: what arrived before it could be handled
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
     /// The end found before start()'s work ran (abort(), a failed poll), reported when it runs
     std::optional<GEndReport> unreported_;
-    std::atomic<bool> owner_busy_{false}; ///< What setOwnerBusy() was told last
-    bool busy_told_ = false;              ///< On the strand: the poll counts this end as busy
-    std::atomic<bool> ended_{false};      ///< The end has ended
+    std::atomic<bool> ended_{false}; ///< The end has ended
 };
 
 /******************************************************************************/
@@ -307,13 +296,16 @@ private:
  * and joins the poll's thread, ends the poll (GMPIPollCore::shutdown(): sends that have not
  * completed are given up, the peers are let go) and shuts the poll's context down.
  *
- * Loss of a client: not noticed (detectsLoss() is false): a rank that dies ends the whole job, and
- * the items of a rank that hangs come back by the consumer's time lease.
+ * Loss of a client: with a keep-alive interval (GMPIPollTiming::keepAlive of the options; keepAlive()
+ * names it, and the sessions name it to their clients) a client rank that falls silent ends its
+ * end as GPeerEnd::SILENT, and the shell's lease puts back what it held. Without one a client
+ * that hangs is not noticed; its items come back only by a reclaim lease the user has set
+ * (GNetworkedTimeoutConfig). A rank that dies ends the whole job.
  *
  * A submitter whose consumer is stopped without having been started has never greeted its clients,
  * which wait for that without a limit by default: announceEndWithoutStart() closes every client
- * rank with GPeerClose::RUN_ENDED instead (an end waiting for the greeting answers such a close), on
- * the poll's own thread, and waits for the answers, at most the stop grace.
+ * rank with GPeerClose::RUN_ENDED instead (an end waiting for the greeting ends on such a close), on
+ * the poll's own thread, and drains the sends; it waits for no answer.
  */
 class GMPIListener final : public GListenerI {
 public:
@@ -335,24 +327,18 @@ public:
     void stop() override;
     /** @brief Joins the poll's thread, ends the poll and shuts its context down */
     void endWork() override;
-    /** @brief The peers' close grace and a margin, so that a peer whose close is not answered
-     *  ends by itself within it */
+    /** @brief A constant bound: an end finishes as soon as its close has been handed to the poll */
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override;
-    /** @brief false: the time lease reclaims the items of a rank that hangs */
-    [[nodiscard]] bool detectsLoss() const override;
-    /** @brief For a submitter that never started: tells every client rank that the run has ended,
-     *  and waits for their answers, at most stopGrace() */
+    /** @brief The keep-alive interval of the poll (GMPIPollTiming::keepAlive; 0: none) */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override;
+    /** @brief For a submitter that never started: tells every client rank that the run has ended
+     *  and drains the sends; waits for no answer */
     void announceEndWithoutStart() override;
-
-    /** @brief The number of client ranks (the peers made by start()). Any thread. */
-    [[nodiscard]] std::size_t nPeers() const noexcept;
-    /** @brief What the poll has done; empty before start(). Any thread. @return The counts */
-    [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;
 
 private:
     [[nodiscard]] std::vector<std::shared_ptr<GMPIPeer>>
     makePeers_(const std::shared_ptr<GMPIPollCore> &, const boost::asio::any_io_executor &) const;
-    void startPoll_(const std::shared_ptr<GMPIPollCore> &);
+    void startPoll_();
     void handOver_(std::vector<std::shared_ptr<GMPIPeer>>);
     void tellEnds_();
     void joinPoll_();
@@ -362,13 +348,13 @@ private:
 
     GIoContext poll_context_; ///< Where the poll runs
     std::optional<boost::asio::executor_work_guard<GIoContext::executor_type>> work_guard_;
-    mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
-    std::shared_ptr<GMPIPollCore> core_; ///< Made by start(); declared after its context
+    /// Made by start(); declared after its context. Touched by the owner's calls only, one at a
+    /// time (GListenerI)
+    std::shared_ptr<GMPIPollCore> core_;
 
     on_peer_type on_peer_; ///< Set by start(), called on the poll's thread, dropped by endWork()
     /// The calls of on_peer that have been posted and have not returned, by rank (stop() waits)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> on_peer_calls_;
-    std::atomic<std::size_t> n_peers_{0}; ///< The peers made by start()
     /// The peers made by start(), to be told the end of the work (tellEnds_()); start() and endWork()
     std::vector<std::weak_ptr<GMPIPeer>> peers_;
 
@@ -385,7 +371,9 @@ private:
  * (RANK_MASTER_NODE), made at once and once -- an MPI client has one connection for the whole run
  * (reconnectable() is false). The poll runs on the executor given to connect(), the client's io
  * thread, and so does the peer (GPeerI.hpp, rule 7); the poll's chain ends by itself once the peer
- * has ended and its sends have completed, which lets the client's io context run out of work.
+ * has ended and its sends have completed, which lets the client's io context run out of work. The
+ * poll's ticks start when the client's role hands the end the submitter's keep-alive interval
+ * (GMPIPeer::setKeepAlive()), unless the options name one already.
  * The destructor ends the poll (GMPIPollCore::shutdown()).
  */
 class GMPIConnector final : public GConnectorI {
@@ -408,14 +396,12 @@ public:
     /** @brief @return false: one connection for the whole run */
     [[nodiscard]] bool reconnectable() const override;
 
-    /** @brief What the poll has done; empty before connect(). Any thread. @return The counts */
-    [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;
-
 private:
-    std::shared_ptr<GMPICallsI> calls_;  ///< The MPI calls on courtier's communicator
-    GMPIPeerOptions options_;            ///< How the peer and the poll are set up
-    mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
-    std::shared_ptr<GMPIPollCore> core_; ///< Made by the first connect()
+    std::shared_ptr<GMPICallsI> calls_; ///< The MPI calls on courtier's communicator
+    GMPIPeerOptions options_;           ///< How the peer and the poll are set up
+    /// Made by the first connect(); touched by connect() and the destructor, never at the same
+    /// time (GConnectorI)
+    std::shared_ptr<GMPIPollCore> core_;
     std::weak_ptr<GMPIPeer> peer_;       ///< The end made by connect(); told at the end of the work
     /// Set by cancel() and by the destructor; shared with the handler that reports the peer
     std::shared_ptr<std::atomic<bool>> cancelled_ = std::make_shared<std::atomic<bool>>(false);

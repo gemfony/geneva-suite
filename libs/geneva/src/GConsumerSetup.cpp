@@ -63,7 +63,7 @@
 #include "hap/GRandomFactory.hpp" // setGpuRandomNumbersAllowed() -- a client draws no GPU numbers
 
 // The concrete courtier consumers -- known ONLY here.
-#include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file timeout treatment
+#include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file time limits
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -178,9 +178,6 @@ public:
         if(vm.contains("beast_reconnectLimit")) {
             config.clientReconnectLimit = vm["beast_reconnectLimit"].as<std::size_t>();
         }
-        if(vm.contains("beast_undeliveredDir")) {
-            config.clientUndeliveredDir = vm["beast_undeliveredDir"].as<std::string>();
-        }
         return config;
     }
 
@@ -213,7 +210,8 @@ public:
             po::value<std::size_t>()->default_value(defaults.pingInterval),
             "\t[beast] Keep-alive, for server and client: seconds of silence after which a ping is "
             "sent; the connection is closed after twice that time without any inbound data "
-            "(0 == off)")(
+            "(0 == off). The server names its value to its clients; on a client the value holds "
+            "until its server has named its own in the HELLO")(
             "beast_verboseControlFrames",
             po::value<bool>()->default_value(defaults.verboseControlFrames)->implicit_value(true),
             "\t[beast] Announce ping/pong/close frames")(
@@ -233,11 +231,7 @@ public:
             "beast_reconnectLimit",
             po::value<std::size_t>()->default_value(defaults.clientReconnectLimit),
             "\t[beast] Seconds a client that has lost its connection tries to reach its server "
-            "again (0 == for as long as it runs)")(
-            "beast_undeliveredDir",
-            po::value<std::string>()->default_value(defaults.clientUndeliveredDir),
-            "\t[beast] Where a client saves a finished result it can no longer deliver (the "
-            "evaluated item, one file each)");
+            "again (0 == for as long as it runs)");
     }
 };
 
@@ -484,11 +478,11 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::Consum
 
     auto consumer = provider->setup(spec);
 
-    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read their SERVER-side timeout /
-    // death-detection treatment from a config file (created with scale-free adaptive defaults if absent), so
-    // a user can select "fixed" / "wait_indefinitely" or tune the adaptive lease purely via the config --
-    // no command line. Applied once here for whichever networked consumer was built; local / GPU consumers
-    // (not GNetworkedConsumerT) are unaffected.
+    // Networked consumers (websocket / MPI, both GNetworkedConsumerT) read the user's two time limits
+    // -- the reclaim lease and the give-up window, both 0 (none) by default -- from a config file
+    // (created with the defaults if absent); no command line. A negative value ends the program with
+    // an exception that names its key. Applied once here for whichever networked consumer was built;
+    // local / GPU consumers (not GNetworkedConsumerT) are unaffected.
     if(auto *networked = dynamic_cast<c2::GNetworkedConsumerT<gen::GGenome> *>(consumer.get())) {
         c2::GNetworkedTimeoutConfig timeout_cfg;
         timeout_cfg.load("./config/GNetworkedConsumer.json");
@@ -497,7 +491,7 @@ std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildConsumer(const c2::Consum
     else if(Gem::Common::GParserBuilder::updateInPlace()) {
         // --update-configs (build-time materialization) forces the local thread-pool consumer, so no
         // networked consumer is built above and its config would be missed. Materialize it here too --
-        // loading it under update-in-place writes/refreshes the file with scale-free adaptive defaults --
+        // loading it under update-in-place writes/refreshes the file with its defaults --
         // so GNetworkedConsumer.json joins every binary's emitted config set, like its other configs.
         c2::GNetworkedTimeoutConfig timeout_cfg;
         timeout_cfg.load("./config/GNetworkedConsumer.json");

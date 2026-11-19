@@ -68,7 +68,8 @@ struct GWebsocketConsumerConfig {
     /// decode the messages); 0: as many as the machine has hardware threads
     std::size_t nThreads = GCONSUMERLISTENERTHREADS;
     /// Both: seconds of silence after which a ping is sent; the connection is closed after
-    /// twice that time without inbound data (0: off)
+    /// twice that time without inbound data (0: off). The server names its value to its clients;
+    /// on a client the value holds until its server has named its own in the HELLO.
     std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;
     /// Both: whether ping, pong and close frames are announced in the log
     bool verboseControlFrames = false;
@@ -87,9 +88,6 @@ struct GWebsocketConsumerConfig {
     /// Client: seconds it tries to reach the server again after it has lost its connection (0: for
     /// as long as it runs)
     std::size_t clientReconnectLimit = static_cast<std::size_t>(GCLIENTRECONNECTLIMIT.count());
-    /// Client: where a finished result that can no longer be delivered is saved (its evaluated
-    /// item, one file each; see GPeerClientT)
-    std::string clientUndeliveredDir = ".";
 };
 
 /******************************************************************************/

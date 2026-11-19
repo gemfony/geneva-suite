@@ -29,7 +29,7 @@
 
 // The end of a run on the websocket transport: the server tells every client that the run has
 // ended, and waits for them, bounded (GPeerConsumerT::stopServer(), GPeerI.hpp rule 8). Clients that
-// evaluate, clients that wait for work, clients that confirm at once, and a connection that never
+// evaluate, clients that wait for work, clients that end at once, and a connection that never
 // reads.
 
 #include <catch2/catch_test_macros.hpp>
@@ -51,7 +51,6 @@
 
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
-#include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
 
@@ -97,9 +96,6 @@ GWebsocketConsumerConfig serverConfig(std::size_t n_threads, std::size_t ping = 
 std::shared_ptr<consumer_type>
 startedServer(const GWebsocketConsumerConfig &config, std::chrono::milliseconds stop_grace) {
     auto consumer = std::make_shared<consumer_type>(config, stop_grace);
-    Gem::Courtier::GNetworkedTimeoutConfig timeouts;
-    timeouts.treatment = "wait_indefinitely";
-    consumer->applyTimeoutConfig(timeouts);
     consumer->startServer();
     return consumer;
 }
@@ -228,9 +224,9 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-/** T7.3: forty clients that confirm at once: the stop takes far less than the grace. */
+/** T7.3: forty clients that end at once: the stop takes far less than the grace. */
 TEST_CASE(
-    "courtier(websocket): a stop whose clients confirm takes far less than the grace",
+    "courtier(websocket): a stop whose clients end at once takes far less than the grace",
     "[courtier][websocket][stop]"
 ) {
     constexpr std::size_t N = 40;
@@ -309,9 +305,9 @@ public:
     [[nodiscard]] std::chrono::milliseconds stopGrace() const override {
         return listener_->stopGrace();
     }
-    /** @brief Forwards @return The websocket listener's answer */
-    [[nodiscard]] bool detectsLoss() const override {
-        return listener_->detectsLoss();
+    /** @brief Forwards @return The listener's interval */
+    [[nodiscard]] std::chrono::milliseconds keepAlive() const override {
+        return listener_->keepAlive();
     }
     /** @brief @return The port the websocket listener has bound */
     [[nodiscard]] unsigned short getPort() const {

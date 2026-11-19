@@ -90,6 +90,8 @@ public:
     std::size_t testSome(std::span<GMPIRequest>) override;
     /** @brief MPI_Cancel and MPI_Request_free; the bytes are kept */
     void giveUp(GMPIRequest, std::unique_ptr<std::string>) override;
+    /** @brief Tells the environment (GMPIEnvironment::noteLostRank()) */
+    void noteLostRank(int) override;
 
 private:
     std::shared_ptr<GMPIEnvironment> environment_; ///< Keeps MPI initialized

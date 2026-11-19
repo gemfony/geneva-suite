@@ -65,7 +65,6 @@ int main(int argc, char **argv) {
                 .pingInterval = 0
             }
         );
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
     consumer->startServer();
     std::cout << consumer->getPort() << '\n' << std::flush;
 

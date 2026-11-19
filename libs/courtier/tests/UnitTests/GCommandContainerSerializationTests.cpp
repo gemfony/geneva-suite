@@ -29,8 +29,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "common/GCommonEnums.hpp"
 #include "courtier/GCommandContainerT.hpp"
@@ -104,15 +106,26 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
     for(const auto mode : ALL_MODES) {
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 
-        // --- payload-free control frames -------------------------------------------------------
-        for(const auto kind : {GFrameKind::PULL, GFrameKind::NO_WORK, GFrameKind::UNREADABLE}) {
-            test_container_type sent{kind};
+        // --- the payload-free PULL ----------------------------------------------------------------
+        {
+            const test_container_type sent{GFrameKind::PULL};
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == kind);
-            CHECK(got.item() == nullptr);
-            CHECK(got.blobRequest() == nullptr);
-            CHECK(got.blobReply() == nullptr);
+            CHECK(got.kind() == GFrameKind::PULL);
+            CHECK(got.payloadEmpty());
+        }
+
+        // --- the HELLO: a build, a program and the keep-alive interval in the head -----------
+        {
+            test_container_type sent{GFrameKind::NONE};
+            sent.setHello("1.2.3-test", "a program", std::chrono::milliseconds(2500));
+            test_container_type got{GFrameKind::NONE};
+            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
+            CHECK(got.kind() == GFrameKind::HELLO);
+            CHECK(got.build() == "1.2.3-test");
+            CHECK(got.program() == "a program");
+            CHECK(got.keepAlive() == std::chrono::milliseconds(2500));
+            CHECK(got.payloadEmpty());
         }
 
         // --- the blob cache-miss fetch pair ----------------------------------------------------
@@ -139,9 +152,9 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.blobReply()->blob == "the-serialized-blob");
         }
 
-        // --- a RETURN frame: the processing outcome travels with it ----------------------------
+        // --- a RESULT frame: the processing outcome travels with it ----------------------------
         {
-            test_container_type sent{GFrameKind::RETURN};
+            test_container_type sent{GFrameKind::RESULT};
             GProcessingOutcome outcome;
             outcome.status = processingStatus::ERROR_FLAGGED;
             outcome.error_descriptions = "the worker complained";
@@ -152,7 +165,7 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
 
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == GFrameKind::RETURN);
+            CHECK(got.kind() == GFrameKind::RESULT);
             CHECK(got.outcome().status == processingStatus::ERROR_FLAGGED);
             CHECK(got.outcome().error_descriptions == "the worker complained");
             CHECK(got.outcome().processing_time == 1.5);
@@ -160,9 +173,8 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.item() != nullptr);
         }
 
-        // --- a RESULT frame: a RETURN that asks for nothing. Its outcome travels with it, the
-        // lineage id among it: the server's check-in routes the result by the one and checks it
-        // by the other ---------------------------------------------------------------------------
+        // --- a RESULT's outcome carries the lineage id too: the server's check-in routes the result
+        // by the correlation id and checks it by the lineage id ----------------------------------
         {
             test_container_type sent{GFrameKind::RESULT};
             GProcessingOutcome outcome;
@@ -208,10 +220,43 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
         CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
 
         // The highest kind there is still decodes.
-        const test_container_type last{GFrameKind::UNREADABLE};
+        test_container_type last{GFrameKind::NONE};
+        last.setHello("build", "", std::chrono::milliseconds::zero());
         REQUIRE_NOTHROW(container_from_string(container_to_string(last, mode), got, mode));
-        CHECK(got.kind() == GFrameKind::UNREADABLE);
+        CHECK(got.kind() == GFrameKind::HELLO);
     }
 }
 
 /******************************************************************************/
+
+/******************************************************************************/
+/**
+ * The head of a frame is read first and by itself: a WORK whose payload cannot be read still names
+ * its item (correlation id and lineage id) and its kind, so that its reader can fail exactly that
+ * item. A message whose head cannot be read is refused as a whole.
+ */
+TEST_CASE("The head of a frame is read by itself", "[courtier][serialization]") {
+    for(const auto mode : ALL_MODES) {
+        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+
+        auto sent = makeWorkFrame();
+        GProcessingOutcome named;
+        named.correlation_id = 0x7777;
+        named.submission_uuid = {5, 6};
+        sent.setOutcome(named);
+        const std::string message = container_to_string(sent, mode);
+
+        test_container_type got{GFrameKind::NONE};
+        const std::string cut = message.substr(0, message.size() - 8);
+        std::string_view payload;
+        REQUIRE_NOTHROW(payload = frameHeadFromString(std::string_view{cut}, got, mode));
+        CHECK(got.kind() == GFrameKind::WORK);
+        CHECK(got.tag() == 7);
+        CHECK(got.outcome().correlation_id == 0x7777);
+        CHECK(got.outcome().submission_uuid == named.submission_uuid);
+        CHECK_THROWS(framePayloadFromString(payload, got, mode)); // the payload is cut
+
+        CHECK_THROWS(frameHeadFromString(std::string_view{"xy"}, got, mode));
+        CHECK_THROWS(frameHeadFromString(std::string_view{message.substr(0, 6)}, got, mode));
+    }
+}

@@ -64,11 +64,14 @@ struct MPIConsumerConfig {
     /// 0: as many as the machine has hardware threads. The poll that receives for every session
     /// runs on a thread of its own besides them.
     std::uint32_t nHandlerThreads{GMPICONSUMERSESSIONTHREADS};
+    /// Server: the keep-alive interval in seconds (0: off). Every rank is sent a sign of life that
+    /// often; a rank not heard from for more than twice that long is lost, and the job is ended
+    /// where MPI would be finalized. The clients take it from the HELLO.
+    std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;
     /// Client: n, how many work items it holds at once -- the one(s) being evaluated and those
     /// fetched ahead, so that the transfer of the next item overlaps the evaluation of the
-    /// current one (1: it asks for the next item when it returns the current one). An MPI client
-    /// has at most one request unanswered (look-ahead, see GPeerClientT). How many items it
-    /// evaluates at the same time is clientParallelEvaluations.
+    /// current one (1: it asks for the next item when it returns the current one). How many items
+    /// it evaluates at the same time is clientParallelEvaluations.
     std::size_t clientPrefetchDepth = 2;
     /// Client: m, how many of the items it holds (clientPrefetchDepth) it evaluates at the same
     /// time; 1 by default; from 1 to clientPrefetchDepth
@@ -77,9 +80,6 @@ struct MPIConsumerConfig {
     /// as it runs)
     std::size_t clientFirstContactLimit =
         static_cast<std::size_t>(GCLIENTFIRSTCONTACTLIMIT.count());
-    /// Client: where a finished result that can no longer be delivered is saved (its evaluated
-    /// item, one file each; see GPeerClientT)
-    std::string clientUndeliveredDir = ".";
 };
 
 /******************************************************************************/

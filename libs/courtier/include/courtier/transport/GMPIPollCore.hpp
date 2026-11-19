@@ -39,7 +39,6 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -66,25 +65,12 @@ struct GMPIPollTiming {
     std::chrono::microseconds pauseMin = GMPIPEERPOLLPAUSEMIN;
     /// The longest pause: without traffic the pause doubles up to it
     std::chrono::microseconds pauseMax = GMPIPEERPOLLPAUSEMAX;
-    /// The longest pause while the owner of every receiver that has not ended is busy
-    /// (receiverBusy()); not below pauseMax
-    std::chrono::microseconds pauseBusy = GMPIPEERPOLLPAUSEBUSY;
     /// How many messages one link of the chain receives before it lets other handlers run
     int rounds = GMPIPEERPOLLROUNDS;
     /// How long the chain waits, after the last receiver has ended, for sends to complete
     std::chrono::milliseconds drainGrace = GMPIPEERDRAINGRACE;
-};
-
-/******************************************************************************/
-/** @brief How much the poll has done; each count a snapshot. */
-struct GMPIPollCounts {
-    std::uint64_t received = 0; ///< Messages received
-    std::uint64_t sent = 0;     ///< Sends started
-    std::uint64_t polls = 0;    ///< Links of the chain that ran
-    std::uint64_t givenUp = 0;  ///< Sends given up by shutdown(), because they had not completed
-    /// How long the poll was inside receives (a blocking MPI_Recv of a message the probe reported)
-    std::chrono::nanoseconds receiving{0};
-    std::chrono::nanoseconds longestReceive{0}; ///< The longest of them
+    /// The keep-alive interval the ticks start with (0: none; see setKeepAlive())
+    std::chrono::milliseconds keepAlive{0};
 };
 
 /******************************************************************************/
@@ -118,10 +104,15 @@ public:
      *  GPeerI.hpp). Called by GMPIPollCore::shutdown(), when no handler runs any more. */
     virtual void discard() = 0;
 
-    /** @brief The poll has failed and receives nothing more (GMPIPollCore::failure()): no
+    /** @brief The poll has failed and receives nothing more; the argument is why: no
      *  received() follows. Once, on executor(), after every message received before the failure.
      *  The connection to the rank is lost; its peer reports GPeerEnd::FAILED. */
     virtual void pollFailed(const std::string &) = 0;
+
+    /** @brief The receiver's rank has been heard from and then not for more than two keep-alive
+     *  intervals (GMPIPollCore::setKeepAlive()): the connection to it is lost; its peer reports
+     *  GPeerEnd::SILENT. Once, on executor(), after every message received from the rank. */
+    virtual void silent() = 0;
 };
 
 /******************************************************************************/
@@ -136,13 +127,7 @@ public:
  * GMPIPollTiming::rounds messages through a post, so that other handlers of the executor get their
  * turn --, otherwise after a pause that grows from GMPIPollTiming::pauseMin to pauseMax. A
  * received message and a started send reset the pause, and a started send ends a pause that is
- * under way (the "kick"): the answer to a send is what the poll waits for. While the owner of every
- * receiver that has not ended is busy (receiverBusy(); a client whose evaluation slots are all
- * taken) and no send of this process is under way, the pause grows to GMPIPollTiming::pauseBusy
- * instead: nothing that may arrive is needed before an evaluation ends, and the end of a busy
- * spell is a kick too. (A send under way may need this process's MPI calls to make progress -- a
- * large message on a transport whose data moves only when its sender looks -- so it keeps the
- * short pause.)
+ * under way (the "kick"): the answer to a send is what the poll waits for.
  *
  * Where it runs is its owner's choice and makes no difference to it: on a master an io context of
  * its own with one thread (no handler of a session holds it up), on a client the client's io
@@ -155,8 +140,8 @@ public:
  * A call that throws inside a link -- a probe, a receive, the hand-over of a message to its
  * receiver, the take-over or the test of the sends -- is fatal for the transport in this process:
  * the message it concerns cannot be skipped (it stays in MPI's queue and a new look would meet it
- * again). The poll logs it, ends its chain, keeps the reason (failure()) and tells every receiver
- * once (GMPIPollReceiverI::pollFailed()), so that its peer ends as failed; nothing is received any
+ * again). The poll logs it, ends its chain and tells every receiver once, with the reason
+ * (GMPIPollReceiverI::pollFailed()), so that its peer ends as failed; nothing is received any
  * more. shutdown() still gives up the sends that are under way. No exception leaves a link, and
  * so none leaves the run() of the executor.
  *
@@ -166,6 +151,18 @@ public:
  * client this is what lets io_context::run() return. shutdown() ends the poll in any case and gives
  * up the sends that have not completed; its owner calls it when no handler of the executors runs
  * any more.
+ *
+ * Signs of life (setKeepAlive(); the interval I comes with the timing or later, 0: none). A timer of
+ * the chain's strand ticks every I. A tick receives what is there first, then sends an empty
+ * TAG_PEER_PING to every rank with a live receiver, and calls a rank silent that has been heard
+ * from (any message of it, a ping too) and then not for more than 2 I: it is logged, noted with the
+ * calls (GMPICallsI::noteLostRank()) and its receiver is told (GMPIPollReceiverI::silent()), once.
+ * Every tick pings, whatever else was sent, so something arrives from a healthy rank at least every
+ * I plus the jitter of the timers; neither end answers a ping, so a verdict needs more than two
+ * intervals without anything. A rank never heard from is not judged. A tick
+ * that runs more than I/2 after it was due (the process did not run: a suspended job, a starved
+ * host) judges nobody and starts every rank's time afresh. A ping that arrives counts as heard and
+ * goes no further. All of this is state of the strand.
  *
  * Sends that must arrive (the last closes of the ends) are drained before shutdown()
  * (drainSends()): shutdown() gives up what has not completed, and a given-up send may be taken back
@@ -212,9 +209,10 @@ public:
      *  after its last startSend(). From any thread. */
     void receiverEnded(int);
 
-    /** @brief A receiver tells that its owner has become busy, or is busy no more; on changes only,
-     *  and a receiver that ends busy says so first. From any thread. */
-    void receiverBusy(bool);
+    /** @brief Starts the ticks of the signs of life with the interval (see the class comment), or
+     *  changes it; 0 stops them. From any thread; the ticks of a poll not started yet start with
+     *  start(). */
+    void setKeepAlive(std::chrono::milliseconds);
 
     /***************************************************************************/
     /** @brief Waits, at most the given time, for the sends under way to complete -- the last closes
@@ -222,22 +220,9 @@ public:
      *  executors runs any more, before shutdown(). @return The sends still under way */
     std::size_t drainSends(std::chrono::milliseconds);
 
-    /** @brief Ends the poll's work and gives up the sends that have not completed. When no handler
-     *  of the executors runs any more; idempotent. */
+    /** @brief Ends the poll's work, gives up the sends that have not completed and logs what the
+     *  poll has done. When no handler of the executors runs any more; idempotent. */
     std::size_t shutdown();
-
-    /** @brief Whether the chain has ended (by itself, through a failure, or through shutdown()).
-     *  From any thread. */
-    [[nodiscard]] bool chainEnded() const noexcept;
-
-    /** @brief Why the chain has failed, if it has. From any thread. */
-    [[nodiscard]] std::optional<std::string> failure() const;
-
-    /** @brief How much the poll has done. From any thread. */
-    [[nodiscard]] GMPIPollCounts counts() const noexcept;
-
-    /** @brief The timing the poll was made with. From any thread. */
-    [[nodiscard]] const GMPIPollTiming &timing() const noexcept;
 
 private:
     /***************************************************************************/
@@ -247,21 +232,34 @@ private:
         std::unique_ptr<std::string> bytes; ///< Must stay where they are until the send is over
     };
 
+    /** @brief What the keep-alive knows of one rank; on the strand */
+    struct GLife {
+        std::chrono::steady_clock::time_point heard{}; ///< When it was last heard from
+        bool everHeard = false;                        ///< Whether it has been heard from at all
+        bool silent = false; ///< It was judged silent (and is not judged again)
+    };
+
     /***************************************************************************/
     /** @brief One link of the chain; no exception leaves it */
     void poll_();
     /** @brief The work of one link */
     void link_();
-    /** @brief The chain fails: it ends, and every receiver is told once; never throws */
+    /** @brief The chain fails: it ends, and every receiver is told once (see there) */
     void fail_(const std::exception_ptr &) noexcept;
     /** @brief Receives and posts one message, if one is there */
     bool receiveOne_();
-    /** @brief Takes over the sends started since the last look */
+    /** @brief Takes over the sends started since the last look, and counts them */
     void takeStarted_();
     /** @brief Frees the sends that have completed */
     void reap_();
     /** @brief A send was started: no pause */
     void kick_();
+    /** @brief Sets the interval and (re)arms the ticks; on the strand */
+    void keepAlive_(std::chrono::milliseconds);
+    /** @brief Arms the next tick; on the strand */
+    void armTick_();
+    /** @brief One tick of the signs of life; on the strand */
+    void tick_();
     /** @brief Counts one receiver as ended */
     void ended_(int);
     /** @brief Whether a rank is one of the communicator's */
@@ -275,6 +273,7 @@ private:
     int size_;                          ///< The number of ranks of the communicator
     boost::asio::strand<boost::asio::any_io_executor> strand_; ///< The chain's own strand
     boost::asio::steady_timer timer_;                          ///< The pause between two links
+    boost::asio::steady_timer tick_timer_; ///< The ticks of the signs of life
 
     /// The receiver of every rank, by rank (empty for the others), and the executor it is posted
     /// to. Filled before the chain starts and not changed afterwards (until shutdown()), so it is
@@ -284,23 +283,16 @@ private:
 
     /// Sends that were started and that the chain has not taken over yet
     Gem::Common::Concurrency::GMPMCQueueT<GStartedSend, 0> started_;
-    std::atomic<bool> kick_pending_{false};      ///< A kick is on its way to the strand
-    std::atomic<std::size_t> busy_receivers_{0}; ///< Receivers whose owner is busy (receiverBusy())
-    std::atomic<bool> started_chain_{false};     ///< start() has been called
-    std::atomic<bool> chain_ended_{false};       ///< No further link runs
-    std::atomic<bool> shut_down_{false};         ///< shutdown() has run
+    std::atomic<bool> kick_pending_{false};  ///< A kick is on its way to the strand
+    std::atomic<bool> started_chain_{false}; ///< start() has been called
+    std::atomic<bool> chain_ended_{false};   ///< No further link runs
+    std::atomic<bool> shut_down_{false};     ///< shutdown() has run
     std::atomic<int> sends_in_progress_{
         0
     }; ///< startSend() calls under way; shutdown() waits for them
 
-    std::atomic<std::uint64_t> n_received_{0};        ///< Messages received
-    std::atomic<std::uint64_t> n_sent_{0};            ///< Sends started
-    std::atomic<std::uint64_t> n_polls_{0};           ///< Links that ran
-    std::atomic<std::uint64_t> n_given_up_{0};        ///< Sends given up
-    std::atomic<std::int64_t> receiving_ns_{0};       ///< Time inside receives, in ns
-    std::atomic<std::int64_t> longest_receive_ns_{0}; ///< The longest receive, in ns
-
-    // Touched by the chain only (on its strand), and by shutdown() when no handler runs:
+    // Touched by the chain only (on its strand), and by drainSends() and shutdown() when no handler
+    // runs:
     std::chrono::microseconds pause_;                   ///< The next pause
     std::vector<GMPIRequest> requests_;                 ///< Sends under way
     std::vector<std::unique_ptr<std::string>> buffers_; ///< Their bytes, same order
@@ -308,9 +300,15 @@ private:
     std::size_t live_receivers_ = 0;                    ///< Receivers that have not ended
     /// Set when the last receiver has ended
     std::optional<std::chrono::steady_clock::time_point> drain_deadline_;
-
-    mutable std::mutex failure_mutex_;   ///< Guards failure_
-    std::optional<std::string> failure_; ///< Why the chain failed, if it did
+    std::chrono::milliseconds keep_alive_; ///< The interval of the ticks (0: none)
+    std::vector<GLife> life_;              ///< What the keep-alive knows, by rank
+    // What the poll has done, for the last line of the log (shutdown())
+    std::uint64_t n_received_ = 0;                ///< Messages received
+    std::uint64_t n_sent_ = 0;                    ///< Sends started (counted when taken over)
+    std::uint64_t n_polls_ = 0;                   ///< Links that ran
+    std::uint64_t n_pings_ = 0;                   ///< Pings sent
+    std::chrono::nanoseconds receiving_{0};       ///< Time inside receives
+    std::chrono::nanoseconds longest_receive_{0}; ///< The longest receive
 };
 
 /******************************************************************************/

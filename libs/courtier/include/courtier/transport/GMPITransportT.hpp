@@ -60,16 +60,14 @@ namespace Gem::Courtier::Consumers {
  * It opens when the submitter's consumer has started (its greeting), and waits for that as long as
  * clientFirstContactLimit says (0: as long as it runs; a master that never starts MPI leaves it
  * waiting until the job ends). It then asks for work; with nothing to do its request waits at the
- * submitter, and the next item reaches it as soon as there is one. It has at most one request
- * unanswered (look-ahead): with the default depth of 2 it holds the next item while it evaluates
- * the current one.
+ * submitter, and the next item reaches it as soon as there is one. With the default depth of 2 it
+ * holds the next item while it evaluates the current one.
  *
  * It ends when the submitter announces the end of the run, and when one of its own halt
  * conditions holds (a time or an item limit, a close request): it sends the results of the
  * evaluations that run and closes; the submitter goes on with the other clients and hands out
  * again what this one held. An MPI client has one connection for the whole run: a client whose
- * connection ends otherwise does not connect again, and saves what it could not deliver
- * (clientUndeliveredDir; see GPeerClientT).
+ * connection ends otherwise does not connect again (see GPeerClientT).
  *
  * The client must be held by a std::shared_ptr. It holds the environment, and with it MPI
  * initialized, for as long as it exists.
@@ -88,8 +86,8 @@ public:
      *
      * @param environment The process's MPI environment; must not be null
      * @param config Reads serializationMode, clientPrefetchDepth (n), clientParallelEvaluations
-     *        (m; between 1 and n, else the client is refused), clientFirstContactLimit and
-     *        clientUndeliveredDir. nHandlerThreads is the server's.
+     *        (m; between 1 and n, else the client is refused) and clientFirstContactLimit.
+     *        nHandlerThreads is the server's.
      * @throws geneva_exception if @p environment is null or the role of this process is not
      *         CLIENT
      */
@@ -104,9 +102,7 @@ public:
                 .mode = config.serializationMode,
                 .prefetchDepth = config.clientPrefetchDepth,
                 .parallelEvaluations = config.clientParallelEvaluations,
-                .lookAhead = true,
-                .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit),
-                .undeliveredDir = config.clientUndeliveredDir
+                .firstContactLimit = std::chrono::seconds(config.clientFirstContactLimit)
             }
         ) { /* nothing */
     }

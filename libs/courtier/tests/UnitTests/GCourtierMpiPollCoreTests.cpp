@@ -33,6 +33,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -40,7 +41,6 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -63,6 +63,7 @@ using Gem::Courtier::Consumers::GMPIPollCore;
 using Gem::Courtier::Consumers::GMPIPollReceiverI;
 using Gem::Courtier::Consumers::GMPIPollTiming;
 using Gem::Courtier::Tests::eventually;
+using Gem::Courtier::Tests::ExecutorHold;
 using Gem::Courtier::Tests::GMPIFakeWorld;
 
 using namespace std::chrono_literals;
@@ -179,6 +180,15 @@ public:
         messages_at_failure_ = messages_.size();
     }
 
+    void silent() override {
+        silents_.fetch_add(1);
+    }
+
+    /** @brief @return How often silent() was called */
+    int silents() const {
+        return silents_.load();
+    }
+
     /** @brief @return The reasons pollFailed() was called with */
     std::vector<std::string> failures() const {
         const std::scoped_lock lock(mutex_);
@@ -216,6 +226,7 @@ private:
     std::vector<std::string> failures_;
     std::size_t messages_at_failure_ = 0;
     std::atomic<int> discards_{0};
+    std::atomic<int> silents_{0};
 };
 
 } /* anonymous namespace */
@@ -227,8 +238,6 @@ TEST_CASE("The defaults of the poll's timing are the constants and an unusable t
     CHECK(timing.pauseMax == Gem::Courtier::GMPIPEERPOLLPAUSEMAX);
     CHECK(timing.rounds == Gem::Courtier::GMPIPEERPOLLROUNDS);
     CHECK(timing.drainGrace == Gem::Courtier::GMPIPEERDRAINGRACE);
-    CHECK(timing.pauseBusy == Gem::Courtier::GMPIPEERPOLLPAUSEBUSY);
-    CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEBUSY == 50ms);
     CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEMIN == 50us);
     CHECK(Gem::Courtier::GMPIPEERPOLLPAUSEMAX == 1ms);
     CHECK(Gem::Courtier::GMPIPEERPOLLROUNDS == 16);
@@ -256,13 +265,6 @@ TEST_CASE("The defaults of the poll's timing are the constants and an unusable t
             world->calls(0),
             threads.executor(),
             GMPIPollTiming{.rounds = 0}
-        )
-    );
-    CHECK_THROWS(
-        std::make_shared<GMPIPollCore>(
-            world->calls(0),
-            threads.executor(),
-            GMPIPollTiming{.pauseMax = 2ms, .pauseBusy = 1ms}
         )
     );
 }
@@ -331,7 +333,7 @@ TEST_CASE("A send during the longest pause is followed by a look within a bound"
     auto core = std::make_shared<GMPIPollCore>(
         world->calls(1),
         threads.executor(),
-        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s, .pauseBusy = 30s}
+        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s}
     );
     core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
     core->start();
@@ -412,12 +414,10 @@ TEST_CASE(
     thread.join_all();
     REQUIRE(ended);
     CHECK(took.load() >= GRACE - 20ms);
-    CHECK(core->chainEnded());
 
     const std::size_t given_up = core->shutdown();
     io.shutdown();
     CHECK(given_up == 1);
-    CHECK(core->counts().givenUp == 1);
     CHECK(world->counts(1).givenUp == 1);
     CHECK(world->sendsUnderWay() == 0);
     CHECK(world->violations().empty());
@@ -484,8 +484,8 @@ TEST_CASE("Two ends that answer each other drain and their runs return without t
     CHECK(client->shutdown() == 0);
     master_io.shutdown();
     client_io.shutdown();
-    CHECK(master->counts().received == 1);
-    CHECK(client->counts().received == 1);
+    CHECK(world->counts(0).receives == 1);
+    CHECK(world->counts(1).receives == 1);
     CHECK(world->sendsUnderWay() == 0);
     CHECK(world->violations().empty());
 }
@@ -605,7 +605,6 @@ TEST_CASE("shutdown() gives up what has not completed and lets go of every recei
 
     threads.join();
     CHECK(core->shutdown() == 2);
-    CHECK(core->chainEnded());
     CHECK(one->discards() == 1);
     CHECK(two->discards() == 1);
     CHECK(world->counts(0).givenUp == 2);
@@ -664,17 +663,18 @@ TEST_CASE("A call of the poll that throws ends the chain and tells every receive
     REQUIRE(eventually([&] { return one->count() == 1; }, 5s));
     core->startSend(2, 50, "swallowed"); // never completes: shutdown() gives it up
     REQUIRE(eventually([&] { return world->counts(0).probes >= 3; }, 5s));
-    CHECK(core->failure() == std::nullopt);
+    CHECK(one->failures().empty());
+    CHECK(two->failures().empty());
 
     world->throwOnce(0, fault, standard);
     world->inject(1, 0, 51, "the message the fault strikes");
 
-    CHECK(eventually([&] { return core->chainEnded(); }, 5s));
     CHECK(
         eventually([&] { return one->failures().size() == 1 && two->failures().size() == 1; }, 5s)
     );
     CHECK(poll_threads.escaped() == 0);
-    CHECK(core->failure().has_value());
+    const auto reasons = one->failures();
+    CHECK((reasons.size() == 1 && not reasons.front().empty())); // the reason is told
 
     // Nothing is delivered afterwards, and nothing more is looked for
     const auto probes = world->counts(0).probes;
@@ -750,64 +750,6 @@ TEST_CASE("A poll whose owner did not call shutdown() gives up its sends when it
 }
 
 /******************************************************************************/
-TEST_CASE("While every receiver's owner is busy the poll looks far less often") {
-    auto world = std::make_shared<GMPIFakeWorld>(2);
-    Threads threads(1);
-    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
-    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
-    core->start();
-    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
-
-    // The looks of 500 ms, after the pause has grown to its bound
-    const auto looks = [&] {
-        std::this_thread::sleep_for(200ms);
-        const auto before = world->counts(1).probes;
-        std::this_thread::sleep_for(500ms);
-        return world->counts(1).probes - before;
-    };
-    const auto idle = looks();
-    core->receiverBusy(true);
-    const auto busy = looks();
-    core->receiverBusy(false);
-    const auto idle_again = looks();
-    INFO("looks in 500 ms: idle " << idle << ", busy " << busy << ", idle again " << idle_again);
-    CHECK(busy * 10 <= idle);
-    CHECK(busy * 10 <= idle_again);
-
-    std::ignore = finish(core, {&threads});
-    CHECK(world->violations().empty());
-}
-
-/******************************************************************************/
-TEST_CASE("A send while every owner is busy and the end of a busy spell are followed by a look") {
-    // Every pause is 30 s: a look that comes sooner comes from a kick.
-    auto world = std::make_shared<GMPIFakeWorld>(2);
-    Threads threads(1);
-    auto core = std::make_shared<GMPIPollCore>(
-        world->calls(1),
-        threads.executor(),
-        GMPIPollTiming{.pauseMin = 30s, .pauseMax = 30s, .pauseBusy = 30s}
-    );
-    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
-    core->receiverBusy(true);
-    core->start();
-    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
-    std::this_thread::sleep_for(100ms); // the chain sleeps now
-    const auto asleep = world->counts(1).probes;
-
-    core->startSend(0, 50, "a result");
-    CHECK(eventually([&] { return world->counts(1).probes > asleep; }, 5s));
-
-    std::this_thread::sleep_for(100ms); // asleep once more
-    const auto asleep_again = world->counts(1).probes;
-    core->receiverBusy(false);
-    CHECK(eventually([&] { return world->counts(1).probes > asleep_again; }, 5s));
-
-    std::ignore = finish(core, {&threads});
-    CHECK(world->violations().empty());
-}
-
-/******************************************************************************/
 TEST_CASE("The sends under way are looked at once per link and not once per message received") {
     // A send that never completes stays under way; then many messages arrive at once.
     constexpr int N_MESSAGES = 160;
@@ -825,59 +767,178 @@ TEST_CASE("The sends under way are looked at once per link and not once per mess
     core->start();
     REQUIRE(eventually([&] { return receiver->count() == N_MESSAGES; }, 10s));
 
+    // Every look at the sends tests the one under way (the fake counts those looks)
     const auto counts = world->counts(1);
-    const auto polls = core->counts().polls;
-    INFO("links " << polls << ", looks at the sends " << counts.testSomes);
-    CHECK(counts.testSomes <= polls);
-    CHECK(polls < static_cast<std::uint64_t>(N_MESSAGES)); // more than one message per link
+    INFO("messages received " << counts.receives << ", looks at the sends " << counts.testSomes);
+    CHECK(counts.receives == static_cast<std::uint64_t>(N_MESSAGES));
+    CHECK(counts.testSomes < counts.receives); // more than one message per look
 
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
 }
 
 /******************************************************************************/
-TEST_CASE("A send under way keeps the pause short while every owner is busy") {
+// The signs of life (GMPIPollCore, its class comment): short intervals, so that every case takes
+// well under a second.
+
+namespace {
+
+/** @brief Ends the polls of two ranks as finish() ends one: no handler of either runs any more
+ *  before either is shut down (a poll that ran on alone could find the other silent) */
+void finishTwo(
+    std::shared_ptr<GMPIPollCore> &first,
+    std::shared_ptr<GMPIPollCore> &second,
+    Threads &first_threads,
+    Threads &second_threads
+) {
+    first_threads.join();
+    second_threads.join();
+    std::ignore = first->shutdown();
+    std::ignore = second->shutdown();
+    first_threads.shutdown();
+    second_threads.shutdown();
+    first.reset();
+    second.reset();
+}
+
+/** @brief @param tags Tags @param tag A tag @return How often @p tag is among @p tags */
+std::size_t countOf(const std::vector<int> &tags, int tag) {
+    return static_cast<std::size_t>(std::ranges::count(tags, tag));
+}
+
+} /* anonymous namespace */
+
+/******************************************************************************/
+TEST_CASE("Signs of life: two ends that send nothing stay open over several intervals by pings") {
+    constexpr auto INTERVAL = 50ms;
     auto world = std::make_shared<GMPIFakeWorld>(2);
-    world->swallow(0); // what is sent to rank 0 stays under way
+    Threads zero_threads(1);
+    Threads one_threads(1);
+    const GMPIPollTiming timing{.keepAlive = INTERVAL};
+    auto zero = std::make_shared<GMPIPollCore>(world->calls(0), zero_threads.executor(), timing);
+    auto one = std::make_shared<GMPIPollCore>(world->calls(1), one_threads.executor(), timing);
+    auto from_one = std::make_shared<Receiver>(zero_threads.executor());
+    auto from_zero = std::make_shared<Receiver>(one_threads.executor());
+    zero->addReceiver(1, from_one);
+    one->addReceiver(0, from_zero);
+    zero->start();
+    one->start();
+
+    std::this_thread::sleep_for(8 * INTERVAL);
+    finishTwo(zero, one, zero_threads, one_threads);
+    CHECK(from_one->silents() == 0);
+    CHECK(from_zero->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    CHECK(world->lostRanks(1).empty());
+    // Each was sent a ping about every interval, and none reached a receiver
+    CHECK(world->counts(0).receives >= 4);
+    CHECK(world->counts(1).receives >= 4);
+    CHECK(from_one->count() == 0);
+    CHECK(from_zero->count() == 0);
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("Signs of life: a rank that was never heard from is not judged") {
+    constexpr auto INTERVAL = 30ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
     Threads threads(1);
-    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
-    core->addReceiver(0, std::make_shared<Receiver>(threads.executor()));
-    core->receiverBusy(true);
+    auto core = std::make_shared<GMPIPollCore>(
+        world->calls(0),
+        threads.executor(),
+        GMPIPollTiming{.keepAlive = INTERVAL}
+    );
+    auto from_one = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(1, from_one); // rank 1 has no poll: it never sends
     core->start();
-    REQUIRE(eventually([&] { return world->counts(1).probes >= 1; }, 5s));
 
-    const auto looks = [&] {
-        std::this_thread::sleep_for(200ms);
-        const auto before = world->counts(1).probes;
-        std::this_thread::sleep_for(500ms);
-        return world->counts(1).probes - before;
-    };
-    const auto busy = looks();
-    core->startSend(0, 50, "a large result, say");
-    const auto busy_sending = looks();
-    INFO("looks in 500 ms: busy " << busy << ", busy with a send under way " << busy_sending);
-    CHECK(busy * 10 <= busy_sending);
-
+    std::this_thread::sleep_for(10 * INTERVAL);
+    const auto pings = countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING);
     std::ignore = finish(core, {&threads});
+    CHECK(from_one->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    CHECK(pings >= 5); // it was sent signs of life all the same
     CHECK(world->violations().empty());
 }
 
 /******************************************************************************/
-TEST_CASE("The poll counts the time it spends in receives") {
+TEST_CASE("Signs of life: a late tick judges nobody and starts every rank's time afresh") {
+    constexpr auto INTERVAL = 100ms;
     auto world = std::make_shared<GMPIFakeWorld>(2);
-    world->delayReceives(5ms);
-    Threads threads(1);
-    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
-    auto receiver = std::make_shared<Receiver>(threads.executor());
-    core->addReceiver(0, receiver);
-    for(int i = 0; i < 3; ++i) {
-        world->inject(0, 1, 50, std::to_string(i));
+    Threads zero_threads(1);
+    Threads one_threads(1);
+    const GMPIPollTiming timing{.keepAlive = INTERVAL};
+    auto zero = std::make_shared<GMPIPollCore>(world->calls(0), zero_threads.executor(), timing);
+    auto one = std::make_shared<GMPIPollCore>(world->calls(1), one_threads.executor(), timing);
+    auto from_one = std::make_shared<Receiver>(zero_threads.executor());
+    zero->addReceiver(1, from_one);
+    one->addReceiver(0, std::make_shared<Receiver>(one_threads.executor()));
+    zero->start();
+    one->start();
+    REQUIRE(eventually([&] { return world->counts(0).receives >= 1; }, 5s)); // rank 1 was heard
+
+    {
+        const ExecutorHold one_stopped(one_threads.executor()); // rank 1 falls silent for good
+        std::size_t pings_before = 0;
+        {
+            // Rank 0 does not run for longer than one and a half intervals: its tick comes late,
+            // when rank 1 has been silent for more than two intervals
+            const ExecutorHold zero_stopped(zero_threads.executor());
+            std::this_thread::sleep_for(3 * INTERVAL);
+            pings_before = countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING);
+        }
+        // The late tick has run when its ping is there (a rank judged silent gets none): it has
+        // judged nobody
+        REQUIRE(eventually(
+            [&] {
+                return countOf(world->waitingTags(1), Gem::Courtier::TAG_PEER_PING) > pings_before;
+            },
+            5s
+        ));
+        CHECK(from_one->silents() == 0);
+        const auto released = clock_type::now();
+        // Its time began afresh: it is judged after two more intervals without anything
+        REQUIRE(eventually([&] { return from_one->silents() == 1; }, 5s));
+        CHECK(clock_type::now() - released > 2 * INTERVAL - 30ms);
     }
+    finishTwo(zero, one, zero_threads, one_threads);
+    CHECK(world->lostRanks(0) == std::vector<int>{1});
+    CHECK(world->violations().empty());
+}
+
+/******************************************************************************/
+TEST_CASE("Signs of life: a message other than a ping counts as a sign of life") {
+    constexpr auto INTERVAL = 100ms;
+    auto world = std::make_shared<GMPIFakeWorld>(2);
+    Threads threads(1);
+    auto core = std::make_shared<GMPIPollCore>(
+        world->calls(0),
+        threads.executor(),
+        GMPIPollTiming{.keepAlive = INTERVAL}
+    );
+    auto from_one = std::make_shared<Receiver>(threads.executor());
+    core->addReceiver(1, from_one);
     core->start();
-    REQUIRE(eventually([&] { return receiver->count() == 3; }, 5s));
-    const auto counts = core->counts();
-    CHECK(counts.receiving >= 15ms);
-    CHECK(counts.longestReceive >= 5ms);
-    CHECK(counts.longestReceive <= counts.receiving);
+
+    // Rank 1 has no poll of its own, so it sends no pings: it is heard once by a ping (injected),
+    // then only by other messages, more often than the interval
+    world->inject(1, 0, Gem::Courtier::TAG_PEER_PING, std::string{});
+    const auto until = clock_type::now() + 6 * INTERVAL;
+    while(clock_type::now() < until) {
+        world->inject(1, 0, Gem::Courtier::TAG_PEER_MESSAGE, "a sign of life");
+        std::this_thread::sleep_for(INTERVAL / 10);
+    }
+    const auto tags = world->waitingTags(1);
     std::ignore = finish(core, {&threads});
+    CHECK(from_one->silents() == 0);
+    CHECK(world->lostRanks(0).empty());
+    // Rank 0 pinged it at every tick all the same
+    CHECK(countOf(tags, Gem::Courtier::TAG_PEER_PING) >= 4);
+    // The messages reached the receiver; the ping did not
+    const auto messages = from_one->messages();
+    CHECK(messages.size() >= 20);
+    CHECK(std::ranges::all_of(messages, [](const auto &message) {
+        return message.first == Gem::Courtier::TAG_PEER_MESSAGE;
+    }));
+    CHECK(world->violations().empty());
 }

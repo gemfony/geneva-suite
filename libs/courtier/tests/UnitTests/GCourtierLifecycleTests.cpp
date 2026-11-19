@@ -196,9 +196,6 @@ TEST_CASE(
     constexpr std::size_t FAILING_FROM = 1000; // the processor throws for items numbered from here
 
     auto consumer = startedServer();
-    // Nothing may be resubmitted behind the test's back: the call count is exact, and a lost item
-    // cannot hide behind a resubmission.
-    consumer->setTimeoutTreatment(Gem::Courtier::timeoutTreatment::wait_indefinitely);
 
     // GFaultyContainer's own process_() stores the result true; the processor stores false. A
     // socket client may call it from several compute threads at once: the counter is atomic.
