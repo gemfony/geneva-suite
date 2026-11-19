@@ -68,8 +68,11 @@ constexpr char DATA = 0;  ///< A message of the role follows
 constexpr char CLOSE = 1; ///< One byte follows: the GPeerClose
 constexpr char GONE = 2;  ///< The will: the other end's broker connection was lost
 
-/// MQTT's largest packet; every client accepts it, and sends it unless the broker names less
-constexpr std::uint32_t MQTT_MAX_PACKET = 268'435'455;
+/// The largest packet every MQTT client of the transport accepts (its maximum_packet_size), which
+/// bounds what it sends too: mosquitto 2.1's default limit of a broker. Boost.MQTT5 (1.92) gives
+/// every client a read buffer of this size and fills it when it connects (impl/assemble_op.hpp), so
+/// MQTT's own maximum (268,435,455 bytes) would cost every client 256 MiB and 0.1 s.
+constexpr std::uint32_t MQTT_MAX_PACKET = 2'000'000;
 /// What a PUBLISH of QoS 0 adds to its topic and to the role's message: the fixed header (1), the
 /// remaining length (at most 4), the topic's length (2), the properties' length (1) and the first
 /// byte of the payload (1)
@@ -361,8 +364,8 @@ void GMqttPeer::drop_() {
 
 /******************************************************************************/
 /**
- * The broker has answered the subscription: the end can carry what fits into the broker's largest
- * packet, reads from now on, and is ready -- a client's end once it has joined.
+ * The broker has answered the subscription: the end can carry what fits into a packet both the
+ * broker and the other end accept, reads from now on, and is ready -- a client's end once it has joined.
  *
  * @param error Why the subscription failed; empty if it did not
  */
@@ -374,10 +377,13 @@ void GMqttPeer::subscribed_(const std::string &error) {
         this->notReady_("the broker refused the subscription to " + in_topic_ + ": " + error);
         return;
     }
-    const std::size_t broker_max =
-        link_->client.connack_property(mqtt::prop::maximum_packet_size).value_or(MQTT_MAX_PACKET);
+    // The other end accepts MQTT_MAX_PACKET, the broker what its CONNACK named
+    const std::size_t packet_max = std::min<std::size_t>(
+        MQTT_MAX_PACKET,
+        link_->client.connack_property(mqtt::prop::maximum_packet_size).value_or(MQTT_MAX_PACKET)
+    );
     const std::size_t overhead = PUBLISH_OVERHEAD + out_topic_.size();
-    max_message_bytes_ = broker_max > overhead ? broker_max - overhead : 0;
+    max_message_bytes_ = packet_max > overhead ? packet_max - overhead : 0;
     this->read_();
     if(side_ == GSide::SERVER) {
         this->becomeReady_();
@@ -661,8 +667,8 @@ void GMqttPeer::send(GMessage message) {
                     GPeerEnd::FAILED,
                     GPeerClose::NORMAL,
                     std::format(
-                        "a message of {} bytes was not sent: a packet the broker accepts carries "
-                        "at most {} bytes",
+                        "a message of {} bytes was not sent: a packet the broker and the other "
+                        "end accept carries at most {} bytes",
                         message->size(),
                         self->max_message_bytes_
                     ),
@@ -800,7 +806,8 @@ boost::asio::any_io_executor GMqttPeer::executor() {
 }
 
 /******************************************************************************/
-/** @return The longest message of the role that fits into a packet the broker accepts */
+/** @return The longest message of the role that fits into a packet the broker and the other end
+ *  accept */
 std::size_t GMqttPeer::maxMessageBytes() const {
     return max_message_bytes_;
 }

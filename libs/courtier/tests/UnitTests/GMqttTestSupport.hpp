@@ -171,13 +171,16 @@ public:
             peers_.push_back(std::move(peer));
         });
     }
-    /** @brief Stops the listener, joins the handlers' threads and ends the listener's work */
+    /** @brief Stops the listener, lets go of the ends, joins the handlers' threads and ends the
+     *  listener's work */
     ~MqttServer() {
         listener_->stop();
+        {
+            const std::scoped_lock lock(mutex_);
+            peers_.clear(); // an end nobody started holds the handlers' context until it goes
+        }
         handlers_.join();
         listener_->endWork();
-        const std::scoped_lock lock(mutex_);
-        peers_.clear();
     }
     MqttServer(const MqttServer &) = delete;
     MqttServer(MqttServer &&) = delete;

@@ -36,8 +36,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
+#include <fstream>
 #include <future>
 #include <memory>
 #include <string>
@@ -111,6 +113,20 @@ std::pair<GPeerHandlers, std::future<Ended>> endWatch() {
     };
 }
 
+/** @brief @return The resident memory of this process, in KiB (Linux: VmRSS of /proc/self/status) */
+std::size_t residentKiB() {
+    std::ifstream status("/proc/self/status");
+    std::string key;
+    std::size_t value = 0;
+    while(status >> key) {
+        if(key == "VmRSS:") {
+            status >> value;
+            return value;
+        }
+    }
+    return 0;
+}
+
 /** @brief A port that refuses connections for as long as this object lives: it is bound and does
  *  not listen */
 class ClosedPort {
@@ -181,6 +197,43 @@ TEST_CASE(
     CHECK(server_role->events() == expected);
     CHECK(client_role->events().back() == "closed:CLOSED_HERE:NORMAL");
     CHECK(server.nPeers() == 1);
+}
+
+/******************************************************************************/
+/**
+ * What a connection costs in memory: Boost.MQTT5 keeps a read buffer of the size of a client's own
+ * packet limit and fills it when the client connects. With MQTT's maximum as that limit every
+ * MQTT client took 256 MiB; with the transport's limit (2,000,000 bytes) four connections -- eight
+ * MQTT clients in this process -- take a few MiB.
+ */
+TEST_CASE("MQTT transport: a connection costs its ends a few megabytes", "[courtier][mqtt]") {
+    constexpr std::size_t N_CONNECTIONS = 4;
+    const GMqttOptions options = mqttTestOptions();
+    MqttServer server(options);
+    JoinableIo client_io(1);
+    GMqttConnector connector(options);
+
+    const std::size_t before = residentKiB();
+    std::vector<std::shared_ptr<Role>> roles;
+    for(std::size_t i = 0; i < N_CONNECTIONS; ++i) {
+        auto [client_end, error] =
+            mqttConnect(connector, boost::asio::make_strand(client_io.executor()));
+        REQUIRE(client_end);
+        REQUIRE(eventually([&] { return server.nPeers() == i + 1; }));
+        roles.push_back(makeRole());
+        roles.back()->start(client_end);
+        roles.push_back(makeRole());
+        roles.back()->start(server.peer(i));
+    }
+    const std::size_t after = residentKiB();
+    CHECK(after < before + 64 * 1024);
+
+    for(const auto &role : roles) {
+        role->close(GPeerClose::NORMAL);
+    }
+    CHECK(eventually([&] {
+        return std::ranges::all_of(roles, [](const auto &role) { return role->nClosed() == 1; });
+    }));
 }
 
 /******************************************************************************/

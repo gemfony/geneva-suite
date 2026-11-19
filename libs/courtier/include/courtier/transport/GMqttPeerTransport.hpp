@@ -108,8 +108,10 @@
  * MQTT keep-alive afterwards, so it keeps its own (setKeepAlive() says so in the log when the two
  * differ).
  *
- * **Size.** Every MQTT client accepts packets up to MQTT's maximum and reads the broker's maximum
- * from its CONNACK; maxMessageBytes() is what fits into a packet the broker accepts. A message
+ * **Size.** Every MQTT client accepts packets of up to 2,000,000 bytes (mosquitto 2.1's default
+ * limit of a broker; a fixed limit, since Boost.MQTT5 keeps a read buffer of that size for every
+ * client) and reads the broker's limit from its CONNACK; maxMessageBytes() is what fits into a
+ * packet both accept. A message
  * handed to send() beyond that is not published: the end fails (FAILED) with both sizes in the
  * log. The roles check the length first and fail the item instead (GPeerI::maxMessageBytes()).
  *
@@ -189,7 +191,8 @@ public:
     void abort() override;
     /** @brief The strand all handlers of this end run on. Any thread. */
     [[nodiscard]] boost::asio::any_io_executor executor() override;
-    /** @brief The longest message a packet the broker accepts can carry. Any thread. */
+    /** @brief The longest message a packet the broker and the other end accept can carry. Any
+     *  thread. */
     [[nodiscard]] std::size_t maxMessageBytes() const override;
     /** @brief Notes the interval the server named; the MQTT keep-alive stays as it connected */
     void setKeepAlive(std::chrono::milliseconds) override;

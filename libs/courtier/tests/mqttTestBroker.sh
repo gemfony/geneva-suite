@@ -36,9 +36,11 @@
 #
 # The tests that use it read <dir>/port; each uses a topic prefix of its own, so that tests that run
 # at the same time do not see each other. The broker runs without a configuration file
-# (mosquitto -p): where mosquitto is confined by an AppArmor profile (Ubuntu), it may read its
-# configuration only from /etc/mosquitto. It then listens on the loopback interface only and takes
-# packets of up to 2,000,000 bytes (mosquitto 2.1). Its output goes to <dir>/broker.log.
+# (mosquitto -p): where mosquitto is confined by an AppArmor profile (Ubuntu 26.10 ships one), it
+# may read a configuration only from /etc/mosquitto, so none of the build directory can be used,
+# and no setting either (set_tcp_nodelay, for one, stays off). Without one it listens on the
+# loopback interface only and takes packets of up to 2,000,000 bytes (mosquitto 2.1). Its output
+# goes to <dir>/broker.log.
 ################################################################################
 
 set -u
