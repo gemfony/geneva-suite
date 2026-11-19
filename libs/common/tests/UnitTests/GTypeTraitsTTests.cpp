@@ -53,27 +53,34 @@ struct HasCommonInterface : public gemfony_common_interface_indicator {};
 struct DerivedFromCommonInterface : public HasCommonInterface {};
 
 struct HasCompare {
-    void compare([[maybe_unused]] int value) const {}
+    void compare([[maybe_unused]] int value) const {
+    }
 };
 
 struct HasClone {
-    void clone() const {}
+    void clone() const {
+    }
 };
 
 struct HasLoad {
-    void load([[maybe_unused]] int value) {}
+    void load([[maybe_unused]] int value) {
+    }
 };
 
 struct HasAll : public gemfony_common_interface_indicator {
-    void compare([[maybe_unused]] int value) const {}
-    void clone() const {}
-    void load([[maybe_unused]] int value) {}
+    void compare([[maybe_unused]] int value) const {
+    }
+    void clone() const {
+    }
+    void load([[maybe_unused]] int value) {
+    }
 };
 
 // Different return / argument signatures should still satisfy the predicate
 // — the requires-clause only takes the address of the member.
 struct HasUnusualCompare {
-    static std::string compare([[maybe_unused]] double first, [[maybe_unused]] double second) noexcept {
+    static std::string
+    compare([[maybe_unused]] double first, [[maybe_unused]] double second) noexcept {
         return {};
     }
 };
@@ -82,26 +89,26 @@ struct HasUnusualCompare {
 // Compile-time checks: if any of these flips, the file no longer compiles.
 
 static_assert(not has_gemfony_common_interface<HasNothing>::value);
-static_assert(    has_gemfony_common_interface<HasCommonInterface>::value);
-static_assert(    has_gemfony_common_interface<DerivedFromCommonInterface>::value);
+static_assert(has_gemfony_common_interface<HasCommonInterface>::value);
+static_assert(has_gemfony_common_interface<DerivedFromCommonInterface>::value);
 static_assert(not has_gemfony_common_interface<int>::value);
 static_assert(not has_gemfony_common_interface<std::string>::value);
-static_assert(    has_gemfony_common_interface<HasAll>::value);
+static_assert(has_gemfony_common_interface<HasAll>::value);
 
 static_assert(not has_compare_member<HasNothing>::value);
-static_assert(    has_compare_member<HasCompare>::value);
-static_assert(    has_compare_member<HasAll>::value);
-static_assert(    has_compare_member<HasUnusualCompare>::value);
+static_assert(has_compare_member<HasCompare>::value);
+static_assert(has_compare_member<HasAll>::value);
+static_assert(has_compare_member<HasUnusualCompare>::value);
 
 static_assert(not has_clone_member<HasNothing>::value);
-static_assert(    has_clone_member<HasClone>::value);
-static_assert(    has_clone_member<HasAll>::value);
+static_assert(has_clone_member<HasClone>::value);
+static_assert(has_clone_member<HasAll>::value);
 // std::shared_ptr has no public clone() method.
 static_assert(not has_clone_member<std::shared_ptr<int>>::value);
 
 static_assert(not has_load_member<HasNothing>::value);
-static_assert(    has_load_member<HasLoad>::value);
-static_assert(    has_load_member<HasAll>::value);
+static_assert(has_load_member<HasLoad>::value);
+static_assert(has_load_member<HasAll>::value);
 
 } // namespace
 

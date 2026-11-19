@@ -74,8 +74,8 @@
 
 // Standard headers
 #include <algorithm>
-#include <csignal>
 #include <cmath>
+#include <csignal>
 #include <cstdlib>
 #include <format>
 #include <iostream>
@@ -131,32 +131,48 @@ namespace {
  */
 // Summary statistics over the per-item relative errors: logs min/median/mean/max and the within-tolerance
 // fraction, and returns that fraction (which drives the pass/fail decision).
-double reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, double pass_fraction) {
+double
+reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, double pass_fraction) {
     std::vector<double> sorted = rel;
     std::sort(sorted.begin(), sorted.end());
     const double relMin = sorted.front();
     const double relMax = sorted.back();
     const double relMedian = sorted[sorted.size() / 2];
     const double relMean = std::accumulate(rel.begin(), rel.end(), 0.0) / static_cast<double>(n);
-    const std::size_t within =
-        static_cast<std::size_t>(std::count_if(rel.begin(), rel.end(), [&](double r) { return r <= rel_tol; }));
+    const std::size_t within = static_cast<std::size_t>(
+        std::count_if(rel.begin(), rel.end(), [&](double r) { return r <= rel_tol; })
+    );
     const double withinFraction = static_cast<double>(within) / static_cast<double>(n);
 
     glogger << std::format(
-                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  max={:.3e}",
-                   n, relMin, relMedian, relMean, relMax)
+                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
+                   "max={:.3e}",
+                   n,
+                   relMin,
+                   relMedian,
+                   relMean,
+                   relMax
+               )
             << '\n'
             << std::format(
                    "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
-                   rel_tol, within, n, 100.0 * withinFraction, 100.0 * pass_fraction)
+                   rel_tol,
+                   within,
+                   n,
+                   100.0 * withinFraction,
+                   100.0 * pass_fraction
+               )
             << '\n'
             << GLOGGING;
 
     return withinFraction;
 }
 
-int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &factory, int n,
-                   const std::string &consumerConfig) {
+int runParityCheck(
+    const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &factory,
+    int n,
+    const std::string &consumerConfig
+) {
     using gen::GGenome;
 
     // Generous RELATIVE tolerance: the device kernel accumulates in the selected scalar (float by default)
@@ -181,7 +197,7 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
     cpuInds.reserve(static_cast<std::size_t>(n));
     gpuBatch.reserve(static_cast<std::size_t>(n));
     for(int i = 0; i < n; ++i) {
-        auto ind = factory->get(); // a fresh random genome
+        auto ind = factory->get();        // a fresh random genome
         gpuBatch.push_back(ind->clone()); // identical-genome copy for the device path
         cpuInds.push_back(ind);
     }
@@ -202,7 +218,8 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
         std::make_shared<gpu::GGPUConsumerT<GGenome, gimage_fp_t>>(consumerConfig, marshaller);
     consumer->processBatch(
         std::span<std::unique_ptr<GGenome>>(gpuBatch.data(), gpuBatch.size()),
-        Gem::Courtier::GSubmissionPolicy::full_success_or_fatal());
+        Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+    );
 
     std::vector<double> fitness_gpu(static_cast<std::size_t>(n));
     for(int i = 0; i < n; ++i) {
@@ -218,7 +235,11 @@ int runParityCheck(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &
         if(i < nShow) {
             glogger << std::format(
                            "  item {:3d}:  cpu={:.9g}  gpu={:.9g}  rel-err={:.3e}",
-                           i, fitness_cpu[i], fitness_gpu[i], rel[i])
+                           i,
+                           fitness_cpu[i],
+                           fitness_gpu[i],
+                           rel[i]
+                       )
                     << '\n'
                     << GLOGGING;
         }
@@ -248,24 +269,43 @@ int main(int argc, char **argv) {
 
     Gem::Common::GParserBuilder gpb;
     gpb.registerFileParameter<std::string>(
-        "target_image", targetFile, std::string("./pictures/ml-small.png"),
+        "target_image",
+        targetFile,
+        std::string("./pictures/ml-small.png"),
         Gem::Common::VAR_IS_ESSENTIAL,
         "The target image (PNG) the triangle superimposition should resemble;"
-        " also defines the canvas resolution");
+        " also defines the canvas resolution"
+    );
     gpb.registerFileParameter<std::string>(
-        "gpu_config", consumerConfig, std::string(GIMAGE_DEFAULT_GPUCONFIG),
+        "gpu_config",
+        consumerConfig,
+        std::string(GIMAGE_DEFAULT_GPUCONFIG),
         Gem::Common::VAR_IS_ESSENTIAL,
-        "The courtier GPU consumer configuration file (backend + kernel selection)");
+        "The courtier GPU consumer configuration file (backend + kernel selection)"
+    );
     gpb.registerFileParameter<bool>(
-        "log_images", logImages, true, Gem::Common::VAR_IS_SECONDARY,
-        "Whether to write the best candidate image to ./results/ after each iteration");
+        "log_images",
+        logImages,
+        true,
+        Gem::Common::VAR_IS_SECONDARY,
+        "Whether to write the best candidate image to ./results/ after each iteration"
+    );
     gpb.registerFileParameter<bool>(
-        "emit_best_only", emitBestOnly, true, Gem::Common::VAR_IS_SECONDARY,
-        "When logging images, only emit one for iterations that improved the best result");
+        "emit_best_only",
+        emitBestOnly,
+        true,
+        Gem::Common::VAR_IS_SECONDARY,
+        "When logging images, only emit one for iterations that improved the best result"
+    );
     gpb.registerFileParameter<int>(
-        "parity_check_n", parityCheckN, 0, Gem::Common::VAR_IS_SECONDARY,
-        "If > 0: run a GPU/CPU parity check over this many random individuals (CPU evaluate() vs the"
-        " CUDA kernel) and exit, instead of optimizing; 0 == off (normal optimization run)");
+        "parity_check_n",
+        parityCheckN,
+        0,
+        Gem::Common::VAR_IS_SECONDARY,
+        "If > 0: run a GPU/CPU parity check over this many random individuals (CPU evaluate() vs "
+        "the"
+        " CUDA kernel) and exit, instead of optimizing; 0 == off (normal optimization run)"
+    );
     gpb.parseConfigFile("./config/GImageGeneral.json");
 
     // Go2 parses its own framework options from the command line / its own config file and, in its

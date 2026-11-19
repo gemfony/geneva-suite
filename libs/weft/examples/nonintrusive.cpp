@@ -80,19 +80,20 @@ void gem_archive_serialize(archive_type &ar, Trajectory &t) {
 int main() {
     const vendor::Trajectory original{
         .name = "orbit",
-        .points = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {-1.0, 0.0, 0.5}}};
+        .points = {{1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {-1.0, 0.0, 0.5}}
+    };
 
     // Binary round trip.
     std::string bytes;
     {
         Gem::Weft::GBinaryOArchive oa;
-        oa &original;
+        oa & original;
         bytes = oa.str();
     }
     vendor::Trajectory from_binary;
     {
         Gem::Weft::GBinaryIArchive ia(bytes);
-        ia &from_binary;
+        ia & from_binary;
     }
     assert(from_binary == original);
 
@@ -100,13 +101,13 @@ int main() {
     std::string text;
     {
         Gem::Weft::GJsonOArchive oa;
-        oa &original;
+        oa & original;
         text = oa.str();
     }
     vendor::Trajectory from_json;
     {
         Gem::Weft::GJsonIArchive ia(text);
-        ia &from_json;
+        ia & from_json;
     }
     assert(from_json == original);
 

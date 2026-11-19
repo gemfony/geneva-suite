@@ -98,9 +98,11 @@ public:
      *
      *  @param configFile Path to the config file selecting the backend and the kernel
      *  @param marshaller The problem-specific flatten/scatter helper (shared ownership) */
-    GGPUConsumerT(const std::string &configFile,
-                  std::shared_ptr<GGPUEvaluableI<processable_type, scalar_type>> marshaller)
-        : marshaller_(std::move(marshaller)) {
+    GGPUConsumerT(
+        const std::string &configFile,
+        std::shared_ptr<GGPUEvaluableI<processable_type, scalar_type>> marshaller
+    )
+      : marshaller_(std::move(marshaller)) {
         cfg_.load(configFile);
     }
 
@@ -223,7 +225,8 @@ private:
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGPUConsumerT::dispatch_(): Error!" << '\n'
                     << "The GPU consumer requires a UNIFORM item geometry across a batch, but item "
-                    << i << " has " << marshaller_->itemDimension(items[i]) << " parameters while item 0"
+                    << i << " has " << marshaller_->itemDimension(items[i])
+                    << " parameters while item 0"
                     << " has " << dim_sz << "." << '\n'
                     << "Submit work items of a single geometry to the GPU consumer (one problem /"
                     << " item geometry per consumer)." << '\n'
@@ -247,8 +250,14 @@ private:
         // batch reports as its processing time.
         const auto evaluation_start = std::chrono::steady_clock::now();
         backend_->evaluate(
-            params_.data(), n, dim, pconst_.data(), pconst_.size(), results_.data(),
-            marshaller_->parallelWorkPerItem());
+            params_.data(),
+            n,
+            dim,
+            pconst_.data(),
+            pconst_.size(),
+            results_.data(),
+            marshaller_->parallelWorkPerItem()
+        );
         const double evaluation_time =
             std::chrono::duration<double>(std::chrono::steady_clock::now() - evaluation_start)
                 .count();
@@ -273,7 +282,8 @@ private:
                 << "The '" << toString(kind) << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'
                 << "The GPU consumer is device-only; to run on the CPU use a CPU consumer instead"
-                << " (e.g. --consumer stc), which runs the work item's own process()." << '\n');
+                << " (e.g. --consumer stc), which runs the work item's own process()." << '\n'
+            );
         }
         backend_ = makeBackend<scalar_type>(kind);
         backend_->initialize(cfg_.kernelSpec());
@@ -283,21 +293,23 @@ private:
     }
 
     /***************************************************************************/
-    std::shared_ptr<GGPUEvaluableI<processable_type, scalar_type>> marshaller_; ///< Problem-specific flatten/scatter
-    GGPUConsumerConfig cfg_;                          ///< backend + kernel selection
-    std::unique_ptr<GGPUDeviceBackendI<scalar_type>> backend_;    ///< The device backend (lazy)
+    std::shared_ptr<GGPUEvaluableI<processable_type, scalar_type>>
+        marshaller_;                                           ///< Problem-specific flatten/scatter
+    GGPUConsumerConfig cfg_;                                   ///< backend + kernel selection
+    std::unique_ptr<GGPUDeviceBackendI<scalar_type>> backend_; ///< The device backend (lazy)
 
-    std::vector<scalar_type> params_;     ///< Reused host parameter buffer (avoids per-round reallocation)
-    std::vector<scalar_type> results_;    ///< Reused host result buffer
-    std::vector<std::size_t> due_slots_;  ///< Reused: the batch positions of the due slots
-    std::vector<item_ptr> due_items_;     ///< Reused: the due items of a partial batch
+    std::vector<scalar_type>
+        params_; ///< Reused host parameter buffer (avoids per-round reallocation)
+    std::vector<scalar_type> results_;   ///< Reused host result buffer
+    std::vector<std::size_t> due_slots_; ///< Reused: the batch positions of the due slots
+    std::vector<item_ptr> due_items_;    ///< Reused: the due items of a partial batch
     // A value plus a "has it been built" flag, kept as two members rather than folded into a
     // std::optional or a load-once cell. Neither fits: the blob is REBUILT every round when the
     // marshaller reports it as non-static, so this is not a load-once constant, and the flag is
     // read together with problemConstantsStatic() rather than on its own. The pair also lets the
     // vector keep its capacity across rounds, which an optional's reset would throw away.
-    std::vector<std::byte> pconst_;  ///< Cached problem-constant blob (built once when static)
-    bool pconst_built_ = false;      ///< Whether pconst_ has been built
+    std::vector<std::byte> pconst_; ///< Cached problem-constant blob (built once when static)
+    bool pconst_built_ = false;     ///< Whether pconst_ has been built
 
     /// The one thread that owns the device: every batch is queued to it (see the class comment),
     /// and it alone touches the members above after construction. Declared last, so it is joined

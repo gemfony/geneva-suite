@@ -273,7 +273,7 @@ private:
     int size_;                          ///< The number of ranks of the communicator
     boost::asio::strand<boost::asio::any_io_executor> strand_; ///< The chain's own strand
     boost::asio::steady_timer timer_;                          ///< The pause between two links
-    boost::asio::steady_timer tick_timer_; ///< The ticks of the signs of life
+    boost::asio::steady_timer tick_timer_;                     ///< The ticks of the signs of life
 
     /// The receiver of every rank, by rank (empty for the others), and the executor it is posted
     /// to. Filled before the chain starts and not changed afterwards (until shutdown()), so it is

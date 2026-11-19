@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
             std::cout << "  raw fitness[" << c << "] = " << best->raw_fitness(c) << '\n';
         }
     }
-    for(auto const& [i, x] : std::views::enumerate(v)) {
+    for(auto const &[i, x] : std::views::enumerate(v)) {
         std::cout << "  x[" << i << "] = " << x << '\n';
     }
     return 0;

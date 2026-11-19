@@ -60,9 +60,9 @@
  */
 template <Gem::Hap::randomSource S>
 double run_measurement(std::uint32_t packageSize, std::uint32_t nCycles, double lo, double hi) {
-    Gem::Hap::GRandomT<S>                  gr;
-    std::vector<double>                    payload(packageSize);
-    std::uniform_real_distribution<double>  uniform_real(lo, hi);
+    Gem::Hap::GRandomT<S> gr;
+    std::vector<double> payload(packageSize);
+    std::uniform_real_distribution<double> uniform_real(lo, hi);
 
     std::chrono::system_clock::time_point const startTime = std::chrono::system_clock::now();
     for(std::uint32_t c = 0; c < nCycles; c++) {
@@ -72,7 +72,7 @@ double run_measurement(std::uint32_t packageSize, std::uint32_t nCycles, double 
         std::sort(payload.begin(), payload.end());
     }
     std::chrono::system_clock::time_point const endTime = std::chrono::system_clock::now();
-    std::chrono::duration<double>         const duration = endTime - startTime;
+    std::chrono::duration<double> const duration = endTime - startTime;
 
     return static_cast<double>(nCycles * packageSize) / duration.count();
 }
@@ -160,19 +160,35 @@ int main(int argc, char **argv) {
     double throughput = 0.;
     if(source == "queue") {
         throughput = run_measurement<Gem::Hap::randomSource::QUEUE>(
-            packageSize, nCycles, lowerBoundary, upperBoundary);
+            packageSize,
+            nCycles,
+            lowerBoundary,
+            upperBoundary
+        );
     }
     else if(source == "local") {
         throughput = run_measurement<Gem::Hap::randomSource::LOCAL>(
-            packageSize, nCycles, lowerBoundary, upperBoundary);
+            packageSize,
+            nCycles,
+            lowerBoundary,
+            upperBoundary
+        );
     }
     else if(source == "staged") {
         throughput = run_measurement<Gem::Hap::randomSource::STAGED>(
-            packageSize, nCycles, lowerBoundary, upperBoundary);
+            packageSize,
+            nCycles,
+            lowerBoundary,
+            upperBoundary
+        );
     }
     else if(source == "quarantine") {
         throughput = run_measurement<Gem::Hap::randomSource::QUARANTINE>(
-            packageSize, nCycles, lowerBoundary, upperBoundary);
+            packageSize,
+            nCycles,
+            lowerBoundary,
+            upperBoundary
+        );
     }
     else {
         std::cerr << "Error: unknown source '" << source

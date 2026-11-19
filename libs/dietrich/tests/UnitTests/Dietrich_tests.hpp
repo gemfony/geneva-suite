@@ -97,7 +97,8 @@ void StandardTests_no_failure_expected() {
     // quietly lost the facet would keep passing while no longer exercising it.
     static_assert(
         std::derived_from<T, Gem::Common::GSelfTestable>,
-        "StandardTests_no_failure_expected<T>: T must opt into the Gem::Common::GSelfTestable facet."
+        "StandardTests_no_failure_expected<T>: T must opt into the Gem::Common::GSelfTestable "
+        "facet."
     );
     using root_t = category_root_t<T>;
     GEqualityPrinter gep(
@@ -259,8 +260,8 @@ void StandardTests_no_failure_expected() {
         }
         else {
             std::cout << "Internal (de-)serialization test for object with name "
-                      << typeid(T).name() << " not run because original objects are identical / GEM_JSON"
-                      << '\n';
+                      << typeid(T).name()
+                      << " not run because original objects are identical / GEM_JSON" << '\n';
         }
     }
 
@@ -308,8 +309,8 @@ void StandardTests_no_failure_expected() {
         }
         else {
             std::cout << "External (de-)serialization test for object with name "
-                      << typeid(T).name() << " not run because original objects are identical / GEM_JSON"
-                      << '\n';
+                      << typeid(T).name()
+                      << " not run because original objects are identical / GEM_JSON" << '\n';
         }
     }
 

@@ -67,9 +67,9 @@ class GFaultInjector {
 public:
     /** @brief The kind of fault to inject for a given evaluation. */
     enum class Fault : std::uint8_t {
-        NONE = 0,       ///< Inject nothing; the evaluation proceeds normally
-        THROW = 1,      ///< Abort the evaluation with an exception (-> EXCEPTION_CAUGHT)
-        FLAG_ERROR = 2  ///< Abort the evaluation with a flagged error (-> ERROR_FLAGGED)
+        NONE = 0,      ///< Inject nothing; the evaluation proceeds normally
+        THROW = 1,     ///< Abort the evaluation with an exception (-> EXCEPTION_CAUGHT)
+        FLAG_ERROR = 2 ///< Abort the evaluation with a flagged error (-> ERROR_FLAGGED)
     };
 
     /** @brief The virtual destructor. */

@@ -37,16 +37,15 @@
 #include <ranges>
 #include <vector>
 
-
 #include "common/GExceptions.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "hap/GRandomT.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
@@ -62,9 +61,12 @@ namespace Gem::Tests {
  */
 class AdaptCfgIndividual : public GGenomeT<AdaptCfgIndividual> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    AdaptCfgIndividual() { buildGenome(); }
+    AdaptCfgIndividual() {
+        buildGenome();
+    }
     AdaptCfgIndividual(const AdaptCfgIndividual &) = default;
 
 protected:
@@ -72,7 +74,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -172,7 +177,10 @@ TEST_CASE(
 
 /******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent stochastic robustness test: the fold/write-fold invariants over the SAME per-rep before/after state are tightly coupled and would only be scattered by splitting
-TEST_CASE("GAdaption: runAdaptionKernels mutates within bounds (config-driven)", "[flat][adaptcfg]") {
+TEST_CASE(
+    "GAdaption: runAdaptionKernels mutates within bounds (config-driven)",
+    "[flat][adaptcfg]"
+) {
     Gem::Hap::GRandomT<Gem::Hap::randomSource::QUEUE> gr;
 
     // Robust over repeats -- stochastic adaption must keep producing in-bounds changes.
@@ -222,7 +230,9 @@ TEST_CASE("GAdaption: runAdaptionKernels mutates within bounds (config-driven)",
             CHECK(store_d[k] >= -0.5);
             CHECK(store_d[k] < 0.5);
             const double tol = 8. * std::numeric_limits<double>::epsilon() * 10.;
-            CHECK(std::abs(after[k] - store_d[k] * 10.) <= tol); // external == internal * scale (anchor 0)
+            CHECK(
+                std::abs(after[k] - store_d[k] * 10.) <= tol
+            ); // external == internal * scale (anchor 0)
         }
         std::span<const std::int32_t> const store_i = ind.internalInt32Values();
         REQUIRE(store_i.size() == iv.size());
@@ -267,7 +277,8 @@ TEST_CASE("GAdaption: readAdaptionSigmas + resetAdaptionState round-trip", "[fla
     CHECK(moved); // sigma self-adapted away from the seed
 
     oa::resetAdaptionState(scratch, cfg);
-    std::vector<double> const sig_reset = oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+    std::vector<double> const sig_reset =
+        oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
     REQUIRE(sig_reset.size() == 3);
     for(double const s : sig_reset) {
         CHECK(s == 0.5); // back to the configured seed
@@ -299,12 +310,22 @@ TEST_CASE("GAdaptionConfig: biGauss is authorable by label", "[flat][adaptcfg]")
     AdaptCfgIndividual const ind;
     auto cfg = authoredConfig(ind);
 
-    CHECK_NOTHROW(cfg.forLabel("position").biGauss(
-        /*sigma1*/ 0.25, /*sigma_sigma1*/ 0.8, /*min_sigma1*/ 1e-3, /*max_sigma1*/ 2.,
-        /*sigma2*/ 0.15, /*sigma_sigma2*/ 0.8, /*min_sigma2*/ 1e-3, /*max_sigma2*/ 2.,
-        /*delta*/ 0.05, /*sigma_delta*/ 0.8, /*min_delta*/ 0., /*max_delta*/ 0.5,
-        /*ad_prob*/ 1.
-    ));
+    CHECK_NOTHROW(cfg.forLabel("position")
+                      .biGauss(
+                          /*sigma1*/ 0.25,
+                          /*sigma_sigma1*/ 0.8,
+                          /*min_sigma1*/ 1e-3,
+                          /*max_sigma1*/ 2.,
+                          /*sigma2*/ 0.15,
+                          /*sigma_sigma2*/ 0.8,
+                          /*min_sigma2*/ 1e-3,
+                          /*max_sigma2*/ 2.,
+                          /*delta*/ 0.05,
+                          /*sigma_delta*/ 0.8,
+                          /*min_delta*/ 0.,
+                          /*max_delta*/ 0.5,
+                          /*ad_prob*/ 1.
+                      ));
 
     // Both "position" groups became bi-Gauss groups with the requested start sigmas ...
     CHECK(cfg.doubleGroups()[0].has_bigauss);

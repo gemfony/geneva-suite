@@ -225,8 +225,8 @@ private:
     std::unordered_map<id_type, Entry, hash_type> blobs_; ///< id -> (blob, lru node)
     mutable std::list<id_type> lru_;                      ///< recency list (front == MRU)
     std::unordered_map<peer_type, std::unordered_set<id_type, hash_type>>
-        peer_acked_; ///< per-peer set of ids the peer holds
-    std::size_t capacity_ = 0;                                           ///< max blobs retained (0 == unbounded)
+        peer_acked_;           ///< per-peer set of ids the peer holds
+    std::size_t capacity_ = 0; ///< max blobs retained (0 == unbounded)
 };
 
 /******************************************************************************/

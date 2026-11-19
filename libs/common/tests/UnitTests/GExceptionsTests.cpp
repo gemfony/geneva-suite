@@ -57,32 +57,38 @@ TEST_CASE("g_expectation_violation: derives from geneva_exception", "[common][ex
     // Can be caught as geneva_exception, as runtime_error, and as exception.
     try {
         throw g_expectation_violation("mismatch");
-    } catch(const geneva_exception &g) {
+    }
+    catch(const geneva_exception &g) {
         CHECK(std::string{g.what()} == "mismatch");
     }
 
     try {
         throw g_expectation_violation("mismatch-2");
-    } catch(const std::runtime_error &r) {
+    }
+    catch(const std::runtime_error &r) {
         CHECK(std::string{r.what()} == "mismatch-2");
     }
 
     try {
         throw g_expectation_violation("mismatch-3");
-    } catch(const std::exception &e) {
+    }
+    catch(const std::exception &e) {
         CHECK(std::string{e.what()} == "mismatch-3");
     }
 }
 
-TEST_CASE("raiseException macro: throws geneva_exception with the streamed message",
-          "[common][exceptions][raise]") {
+TEST_CASE(
+    "raiseException macro: throws geneva_exception with the streamed message",
+    "[common][exceptions][raise]"
+) {
     bool caught = false;
     std::string what;
     try {
         raiseException("detailed-error-payload");
-    } catch(const geneva_exception &g) {
+    }
+    catch(const geneva_exception &g) {
         caught = true;
-        what   = g.what();
+        what = g.what();
     }
     REQUIRE(caught);
 
@@ -95,15 +101,18 @@ TEST_CASE("raiseException macro: throws geneva_exception with the streamed messa
     CHECK(what.contains("near line "));
 }
 
-TEST_CASE("raiseException macro: payload may chain streamable values",
-          "[common][exceptions][raise]") {
+TEST_CASE(
+    "raiseException macro: payload may chain streamable values",
+    "[common][exceptions][raise]"
+) {
     bool caught = false;
     std::string what;
     try {
         raiseException("a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"});
-    } catch(const geneva_exception &g) {
+    }
+    catch(const geneva_exception &g) {
         caught = true;
-        what   = g.what();
+        what = g.what();
     }
     REQUIRE(caught);
     CHECK(what.contains("a=42"));

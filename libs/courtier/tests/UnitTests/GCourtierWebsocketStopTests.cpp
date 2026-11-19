@@ -271,7 +271,9 @@ namespace {
 class HeldOnPeerListener final : public Gem::Courtier::Consumers::GListenerI {
 public:
     /** @brief @param listener The websocket listener */
-    explicit HeldOnPeerListener(std::unique_ptr<Gem::Courtier::Consumers::GWebsocketListener> listener)
+    explicit HeldOnPeerListener(
+        std::unique_ptr<Gem::Courtier::Consumers::GWebsocketListener> listener
+    )
       : listener_(std::move(listener)) { /* nothing */
     }
     /** @brief Holds every call of on_peer @param executor See GListenerI @param on_peer See GListenerI */
@@ -333,7 +335,8 @@ private:
  * (GListenerI::stop()).
  */
 TEST_CASE(
-    "courtier(websocket): a client whose session is on its way at the stop is told the run has ended",
+    "courtier(websocket): a client whose session is on its way at the stop is told the run has "
+    "ended",
     "[courtier][websocket][stop]"
 ) {
     constexpr auto GRACE = 5s;

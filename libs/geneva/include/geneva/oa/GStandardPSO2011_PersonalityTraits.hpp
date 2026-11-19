@@ -70,13 +70,16 @@ public:
 
     /** @brief Sets the particle's index in the swarm (PSO-vocabulary alias for setPopulationPosition).
      *  @param particle The particle's index in the swarm */
-    void setParticle(std::size_t particle) { this->setPopulationPosition(particle); }
+    void setParticle(std::size_t particle) {
+        this->setPopulationPosition(particle);
+    }
     /** @brief Retrieves the particle's index in the swarm (PSO-vocabulary alias for getPopulationPosition).
      *  @return The particle's index in the swarm */
-    [[nodiscard]] std::size_t getParticle() const { return this->getPopulationPosition(); }
+    [[nodiscard]] std::size_t getParticle() const {
+        return this->getPopulationPosition();
+    }
 };
 
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

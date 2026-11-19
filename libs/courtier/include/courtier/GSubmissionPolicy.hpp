@@ -86,7 +86,7 @@ struct GSubmissionPolicy {
     /** @brief Floor under every policy: if NOTHING usable came back at all,
      *  terminate fatally */
     bool fatal_on_none_returned = true;
-//! [courtier-submission-policy#2]
+    //! [courtier-submission-policy#2]
 
     /***************************************************************************/
     /** @brief For a submitter that needs every value (Geneva's gradient descents and parameter
@@ -96,10 +96,8 @@ struct GSubmissionPolicy {
      *  @param max_resub Maximum number of times a MISSING item is resubmitted
      *  @param max_failed_retries Maximum number of times a FAILED item is re-evaluated (rides out transient crashes)
      *  @return A fatal-on-unresolved submission policy with the given resubmission/retry budgets */
-    static GSubmissionPolicy full_success_or_fatal(
-        std::size_t max_resub = 5,
-        std::size_t max_failed_retries = 0
-    ) {
+    static GSubmissionPolicy
+    full_success_or_fatal(std::size_t max_resub = 5, std::size_t max_failed_retries = 0) {
         GSubmissionPolicy p;
         p.unresolved_action = on_unresolved::fatal;
         p.max_resubmissions = max_resub;

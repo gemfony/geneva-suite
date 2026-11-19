@@ -39,8 +39,8 @@
 #include <memory>
 #include <vector>
 
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 
 namespace gen = Gem::Geneva::Genome;
@@ -57,7 +57,8 @@ namespace {
 template <std::size_t N_DIM>
 class SpherePSO : public gen::GGenomeT<SpherePSO<N_DIM>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SpherePSO() {
         gen::GGenomeBuilder b;
@@ -136,7 +137,7 @@ TEST_CASE("Standard PSO 2011 parameter validation", "[spso2011]") {
     pso->setNInformants(5);
     CHECK(pso->getNInformants() == 5);
 
-    CHECK_THROWS(pso->setSwarmSize(1));  // need at least 2 particles
+    CHECK_THROWS(pso->setSwarmSize(1));   // need at least 2 particles
     CHECK_THROWS(pso->setNInformants(0)); // need at least 1 informant
 }
 

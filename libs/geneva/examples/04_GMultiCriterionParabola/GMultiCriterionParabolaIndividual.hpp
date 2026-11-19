@@ -48,9 +48,9 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
 
 namespace Gem::Geneva {
 
@@ -134,4 +134,3 @@ using GMultiCriterionParabolaIndividualFactory =
 /******************************************************************************/
 
 }
-

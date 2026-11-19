@@ -48,11 +48,11 @@
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
-#include "common/GSelfTestable.hpp"
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -109,7 +109,7 @@ const targetFunction GO_DEF_TARGETFUNCTION = targetFunction::PARABOLA;
 class GStarterIndividual
   : public gen::GGenomeT<GStarterIndividual>
   , public Gem::Common::GSelfTestable {
-//! [quickstart-individual-decl#1]
+    //! [quickstart-individual-decl#1]
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
     // reach the private localMembers_() below (from which serialize/load_/compare_/clone_/name_ derive).
@@ -137,13 +137,13 @@ class GStarterIndividual
 
     ///////////////////////////////////////////////////////////////////////
 
-//! [quickstart-individual-decl#2]
+    //! [quickstart-individual-decl#2]
 public:
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     //! [weft-local-members#3]
     static constexpr std::string_view class_name = "GStarterIndividual";
     //! [weft-local-members#3]
-//! [quickstart-individual-decl#2]
+    //! [quickstart-individual-decl#2]
 
     /** @brief The default constructor */
     GStarterIndividual();
@@ -233,8 +233,8 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GStarterIndividual::addContent(): Error!" << '\n'
-                << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size()
-                << " / " << upperBoundaries.size() << '\n'
+                << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size() << " / "
+                << upperBoundaries.size() << '\n'
             );
         }
 
@@ -321,4 +321,3 @@ using GStarterIndividualFactory =
 
 } /* namespace Geneva */
 } /* namespace Gem */
-

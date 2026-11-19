@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -56,14 +55,15 @@ constexpr std::uint64_t N = 1'000'000;
 } // namespace
 
 TEST_CASE("Hap quality: uniform Kolmogorov-Smirnov", "[hap][quality]") {
-    GRandom                                rng;
+    GRandom rng;
     std::uniform_real_distribution<double> u(0., 1.);
-    std::vector<double>                    v;
+    std::vector<double> v;
     v.reserve(N);
-    for (std::uint64_t i = 0; i < N; ++i) v.push_back(u(rng));
+    for(std::uint64_t i = 0; i < N; ++i)
+        v.push_back(u(rng));
     std::sort(v.begin(), v.end());
     double d = 0.;
-    for (std::uint64_t i = 0; i < N; ++i) {
+    for(std::uint64_t i = 0; i < N; ++i) {
         double const hi = static_cast<double>(i + 1) / static_cast<double>(N);
         double const lo = static_cast<double>(i) / static_cast<double>(N);
         d = std::max(d, std::max(hi - v[i], v[i] - lo));
@@ -73,12 +73,13 @@ TEST_CASE("Hap quality: uniform Kolmogorov-Smirnov", "[hap][quality]") {
 }
 
 TEST_CASE("Hap quality: chi-squared frequency (256 buckets)", "[hap][quality]") {
-    GRandom                    rng;
+    GRandom rng;
     std::vector<std::uint64_t> buckets(256, 0);
-    for (std::uint64_t i = 0; i < N; ++i) buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
+    for(std::uint64_t i = 0; i < N; ++i)
+        buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
     const double expected = static_cast<double>(N) / 256.0;
-    double       chi2     = 0.;
-    for (auto o : buckets) {
+    double chi2 = 0.;
+    for(auto o : buckets) {
         double const diff = static_cast<double>(o) - expected;
         chi2 += diff * diff / expected;
     }
@@ -87,27 +88,33 @@ TEST_CASE("Hap quality: chi-squared frequency (256 buckets)", "[hap][quality]") 
 }
 
 TEST_CASE("Hap quality: lag-1 serial correlation", "[hap][quality]") {
-    GRandom                                rng;
+    GRandom rng;
     std::uniform_real_distribution<double> u(0., 1.);
-    std::vector<double>                    v;
+    std::vector<double> v;
     v.reserve(N);
-    for (std::uint64_t i = 0; i < N; ++i) v.push_back(u(rng));
+    for(std::uint64_t i = 0; i < N; ++i)
+        v.push_back(u(rng));
     double mean = 0.;
-    for (double const x : v) mean += x;
+    for(double const x : v)
+        mean += x;
     mean /= static_cast<double>(N);
     double num = 0., den = 0.;
-    for (std::uint64_t i = 0; i + 1 < N; ++i) num += (v[i] - mean) * (v[i + 1] - mean);
-    for (double const x : v) den += (x - mean) * (x - mean);
+    for(std::uint64_t i = 0; i + 1 < N; ++i)
+        num += (v[i] - mean) * (v[i + 1] - mean);
+    for(double const x : v)
+        den += (x - mean) * (x - mean);
     double const r = num / den;
     // SE ~= 1/sqrt(N) = 1e-3; 0.005 is ~5 sigma
     REQUIRE(std::abs(r) < 0.005);
 }
 
 TEST_CASE("Hap quality: monobit (global bit balance)", "[hap][quality]") {
-    GRandom       rng;
+    GRandom rng;
     std::uint64_t ones = 0;
-    for (std::uint64_t i = 0; i < N; ++i)
-        ones += static_cast<std::uint64_t>(__builtin_popcountll(static_cast<unsigned long long>(rng())));
+    for(std::uint64_t i = 0; i < N; ++i)
+        ones += static_cast<std::uint64_t>(
+            __builtin_popcountll(static_cast<unsigned long long>(rng()))
+        );
     double const fraction = static_cast<double>(ones) / static_cast<double>(N * 64);
     // 6.4e7 bits, SE ~= 6.25e-5; 5e-4 is ~8 sigma
     REQUIRE(std::abs(fraction - 0.5) < 0.0005);
@@ -120,14 +127,15 @@ TEST_CASE("Hap quality: STAGED source statistics", "[hap][quality][staged]") {
     // buffer swaps and several pool refills -- so these checks exercise the chunk
     // boundaries and the refill seam, not just one buffer's worth of numbers.
     SECTION("uniform Kolmogorov-Smirnov") {
-        GRandomT<randomSource::STAGED>         rng;
+        GRandomT<randomSource::STAGED> rng;
         std::uniform_real_distribution<double> u(0., 1.);
-        std::vector<double>                    v;
+        std::vector<double> v;
         v.reserve(N);
-        for (std::uint64_t i = 0; i < N; ++i) v.push_back(u(rng));
+        for(std::uint64_t i = 0; i < N; ++i)
+            v.push_back(u(rng));
         std::sort(v.begin(), v.end());
         double d = 0.;
-        for (std::uint64_t i = 0; i < N; ++i) {
+        for(std::uint64_t i = 0; i < N; ++i) {
             double const hi = static_cast<double>(i + 1) / static_cast<double>(N);
             double const lo = static_cast<double>(i) / static_cast<double>(N);
             d = std::max(d, std::max(hi - v[i], v[i] - lo));
@@ -136,11 +144,12 @@ TEST_CASE("Hap quality: STAGED source statistics", "[hap][quality][staged]") {
     }
     SECTION("chi-squared frequency (256 buckets)") {
         GRandomT<randomSource::STAGED> rng;
-        std::vector<std::uint64_t>     buckets(256, 0);
-        for (std::uint64_t i = 0; i < N; ++i) buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
+        std::vector<std::uint64_t> buckets(256, 0);
+        for(std::uint64_t i = 0; i < N; ++i)
+            buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
         const double expected = static_cast<double>(N) / 256.0;
-        double       chi2     = 0.;
-        for (auto o : buckets) {
+        double chi2 = 0.;
+        for(auto o : buckets) {
             double const diff = static_cast<double>(o) - expected;
             chi2 += diff * diff / expected;
         }
@@ -148,10 +157,11 @@ TEST_CASE("Hap quality: STAGED source statistics", "[hap][quality][staged]") {
     }
     SECTION("monobit (global bit balance)") {
         GRandomT<randomSource::STAGED> rng;
-        std::uint64_t                  ones = 0;
-        for (std::uint64_t i = 0; i < N; ++i)
+        std::uint64_t ones = 0;
+        for(std::uint64_t i = 0; i < N; ++i)
             ones += static_cast<std::uint64_t>(
-                __builtin_popcountll(static_cast<unsigned long long>(rng())));
+                __builtin_popcountll(static_cast<unsigned long long>(rng()))
+            );
         double const fraction = static_cast<double>(ones) / static_cast<double>(N * 64);
         REQUIRE(std::abs(fraction - 0.5) < 0.0005);
     }
@@ -163,14 +173,15 @@ TEST_CASE("Hap quality: QUARANTINE source statistics", "[hap][quality][quarantin
     // these checks exercise the rotation and the (benign-race) in-place reads, not
     // just one pool's worth of numbers.
     SECTION("uniform Kolmogorov-Smirnov") {
-        GRandomT<randomSource::QUARANTINE>     rng;
+        GRandomT<randomSource::QUARANTINE> rng;
         std::uniform_real_distribution<double> u(0., 1.);
-        std::vector<double>                    v;
+        std::vector<double> v;
         v.reserve(N);
-        for (std::uint64_t i = 0; i < N; ++i) v.push_back(u(rng));
+        for(std::uint64_t i = 0; i < N; ++i)
+            v.push_back(u(rng));
         std::sort(v.begin(), v.end());
         double d = 0.;
-        for (std::uint64_t i = 0; i < N; ++i) {
+        for(std::uint64_t i = 0; i < N; ++i) {
             double const hi = static_cast<double>(i + 1) / static_cast<double>(N);
             double const lo = static_cast<double>(i) / static_cast<double>(N);
             d = std::max(d, std::max(hi - v[i], v[i] - lo));
@@ -179,11 +190,12 @@ TEST_CASE("Hap quality: QUARANTINE source statistics", "[hap][quality][quarantin
     }
     SECTION("chi-squared frequency (256 buckets)") {
         GRandomT<randomSource::QUARANTINE> rng;
-        std::vector<std::uint64_t>         buckets(256, 0);
-        for (std::uint64_t i = 0; i < N; ++i) buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
+        std::vector<std::uint64_t> buckets(256, 0);
+        for(std::uint64_t i = 0; i < N; ++i)
+            buckets[static_cast<std::uint64_t>(rng()) >> 56]++;
         const double expected = static_cast<double>(N) / 256.0;
-        double       chi2     = 0.;
-        for (auto o : buckets) {
+        double chi2 = 0.;
+        for(auto o : buckets) {
             double const diff = static_cast<double>(o) - expected;
             chi2 += diff * diff / expected;
         }
@@ -191,10 +203,11 @@ TEST_CASE("Hap quality: QUARANTINE source statistics", "[hap][quality][quarantin
     }
     SECTION("monobit (global bit balance)") {
         GRandomT<randomSource::QUARANTINE> rng;
-        std::uint64_t                      ones = 0;
-        for (std::uint64_t i = 0; i < N; ++i)
+        std::uint64_t ones = 0;
+        for(std::uint64_t i = 0; i < N; ++i)
             ones += static_cast<std::uint64_t>(
-                __builtin_popcountll(static_cast<unsigned long long>(rng())));
+                __builtin_popcountll(static_cast<unsigned long long>(rng()))
+            );
         double const fraction = static_cast<double>(ones) / static_cast<double>(N * 64);
         REQUIRE(std::abs(fraction - 0.5) < 0.0005);
     }
@@ -205,13 +218,15 @@ TEST_CASE("Hap quality: scalar xoshiro256++ engine contract", "[hap][quality]") 
     // is library-private and is covered above via the proxy).
     SECTION("reproducible from a fixed seed") {
         xoshiro256pp a(12345ULL), b(12345ULL);
-        for (int i = 0; i < 1000; ++i) REQUIRE(a() == b());
+        for(int i = 0; i < 1000; ++i)
+            REQUIRE(a() == b());
     }
     SECTION("different seeds diverge") {
         xoshiro256pp a(1ULL), b(2ULL);
-        bool         differ = false;
-        for (int i = 0; i < 1000 && !differ; ++i)
-            if (a() != b()) differ = true;
+        bool differ = false;
+        for(int i = 0; i < 1000 && !differ; ++i)
+            if(a() != b())
+                differ = true;
         REQUIRE(differ);
     }
     SECTION("full 64-bit range advertised") {

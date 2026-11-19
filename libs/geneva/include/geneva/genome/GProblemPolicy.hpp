@@ -41,11 +41,11 @@
 // Geneva header files go here
 #include "common/GArchiveNamed.hpp"               // archive_named (named-member emitter)
 #include "common/GCommonHelperFunctionsT.hpp"     // copyCloneableSmartPointer
-#include "common/GCommonMathHelperFunctionsT.hpp"  // grational_sigmoid
+#include "common/GCommonMathHelperFunctionsT.hpp" // grational_sigmoid
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "geneva/genome/GMultiConstraintT.hpp"            // GPreEvaluationValidityCheckT
-#include "geneva/GOptimizationEnums.hpp"           // maxMode, evaluationPolicy, the sigmoid constants
+#include "geneva/GOptimizationEnums.hpp"       // maxMode, evaluationPolicy, the sigmoid constants
+#include "geneva/genome/GMultiConstraintT.hpp" // GPreEvaluationValidityCheckT
 
 namespace Gem::Geneva::Genome {
 
@@ -131,9 +131,13 @@ public:
     // Optimization direction
 
     /** @brief Sets the optimization direction. @param mode MAXIMIZE or MINIMIZE */
-    void setMaxMode(maxMode const &mode) { maxmode_ = mode; }
+    void setMaxMode(maxMode const &mode) {
+        maxmode_ = mode;
+    }
     /** @brief @return The optimization direction (MAXIMIZE or MINIMIZE) */
-    [[nodiscard]] maxMode getMaxMode() const { return maxmode_; }
+    [[nodiscard]] maxMode getMaxMode() const {
+        return maxmode_;
+    }
 
     /** @brief @return The worst-case evaluation value for the current direction
      *  (lowest representable double in MAXIMIZE mode, highest in MINIMIZE mode) */
@@ -152,15 +156,21 @@ public:
     // Evaluation policy for invalid solutions
 
     /** @brief Sets the policy applied to invalid solutions. @param eval_policy The evaluation policy */
-    void setEvaluationPolicy(evaluationPolicy eval_policy) { eval_policy_ = eval_policy; }
+    void setEvaluationPolicy(evaluationPolicy eval_policy) {
+        eval_policy_ = eval_policy;
+    }
     /** @brief @return The evaluation policy applied to invalid solutions */
-    [[nodiscard]] evaluationPolicy getEvaluationPolicy() const { return eval_policy_; }
+    [[nodiscard]] evaluationPolicy getEvaluationPolicy() const {
+        return eval_policy_;
+    }
 
     /***************************************************************************/
     // Sigmoid transform parameters
 
     /** @brief @return The sigmoid steepness value */
-    [[nodiscard]] double getSteepness() const { return sigmoid_steepness_; }
+    [[nodiscard]] double getSteepness() const {
+        return sigmoid_steepness_;
+    }
     /**
      * @brief Sets the sigmoid steepness (must be > 0).
      * @param steepness The new sigmoid steepness value
@@ -177,7 +187,9 @@ public:
     }
 
     /** @brief @return The sigmoid barrier (extreme) value */
-    [[nodiscard]] double getBarrier() const { return sigmoid_extremes_; }
+    [[nodiscard]] double getBarrier() const {
+        return sigmoid_extremes_;
+    }
     /**
      * @brief Sets the sigmoid barrier / extreme value (must be > 0).
      * @param barrier The new sigmoid barrier (extreme) value
@@ -211,10 +223,12 @@ public:
      * @brief Registers a constraint with this policy. The constraint is cloned, so the policy owns its
      * own copy and distinct policies never share one constraint object. Throws on an empty pointer.
      */
-    void registerConstraint(const std::shared_ptr<GPreEvaluationValidityCheckT<GGenome>>& c_ptr);
+    void registerConstraint(const std::shared_ptr<GPreEvaluationValidityCheckT<GGenome>> &c_ptr);
 
     /** @brief @return true if a constraint object is registered with this policy */
-    [[nodiscard]] bool hasConstraint() const { return static_cast<bool>(constraint_ptr_); }
+    [[nodiscard]] bool hasConstraint() const {
+        return static_cast<bool>(constraint_ptr_);
+    }
 
     /**
      * @brief Checks whether a candidate fulfils the registered constraint. If no constraint is

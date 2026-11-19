@@ -47,8 +47,8 @@
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -125,7 +125,10 @@ private:
     template <typename self_type>
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
-            Gem::Common::make_member("default_n_neighborhood_members_", self.default_n_neighborhood_members_),
+            Gem::Common::make_member(
+                "default_n_neighborhood_members_",
+                self.default_n_neighborhood_members_
+            ),
             Gem::Common::make_member("c_personal_", self.c_personal_),
             Gem::Common::make_member("c_neighborhood_", self.c_neighborhood_),
             Gem::Common::make_member("c_global_", self.c_global_),
@@ -135,9 +138,15 @@ private:
             Gem::Common::make_member("repulsion_threshold_", self.repulsion_threshold_),
             Gem::Common::make_member("velocity_range_percentage_", self.velocity_range_percentage_),
             Gem::Common::make_member("n_neighborhoods_", self.n_neighborhoods_),
-            Gem::Common::make_member("n_neighborhood_members_cnt_", self.n_neighborhood_members_cnt_),
+            Gem::Common::make_member(
+                "n_neighborhood_members_cnt_",
+                self.n_neighborhood_members_cnt_
+            ),
             Gem::Common::make_cloneable_member("global_best_ptr_", self.global_best_ptr_),
-            Gem::Common::make_cloneable_container_member("neighborhood_bests_cnt_", self.neighborhood_bests_cnt_)
+            Gem::Common::make_cloneable_container_member(
+                "neighborhood_bests_cnt_",
+                self.neighborhood_bests_cnt_
+            )
         );
     }
     ///////////////////////////////////////////////////////////////////////
@@ -148,7 +157,10 @@ public:
     /**
      * @brief Initialization with neighborhood sizes and amount of individuals in each neighborhood.
      */
-    GSwarmAlgorithm(const std::size_t &n_neighborhoods, const std::size_t &default_n_neighborhood_members);
+    GSwarmAlgorithm(
+        const std::size_t &n_neighborhoods,
+        const std::size_t &default_n_neighborhood_members
+    );
     /**
      * @brief A standard copy constructor
      */
@@ -313,7 +325,9 @@ protected:
     /** @brief The swarm reuses late returns: a particle that returns asynchronously is re-attached to its
      *  neighborhood and folded into the next iteration (no age window -- the base default keeps all ages).
      *  @return true (the swarm algorithm reaps late returns) */
-    bool reapsLateReturns() const override { return true; }
+    bool reapsLateReturns() const override {
+        return true;
+    }
 
     /** @brief Resets the settings of this population to what was configured when the optimize()-call was issued */
     void resetToOptimizationStart_() override;
@@ -373,10 +387,11 @@ protected:
     void updateIndividualPositions(
         const std::size_t &neighborhood,
         const std::unique_ptr<gen::GGenome> &ind, // the population slot being moved (borrowed)
-        const std::shared_ptr<gen::GGenome>& neighborhood_best,      // neighborhood best
-        const std::shared_ptr<gen::GGenome>& global_best,      // global best
-        std::tuple<double, double, double, double> constants      // c_personal / c_neighborhood / c_global / c_velocity
-    );                                                  // (velocity now lives on the slot's OA scratch)
+        const std::shared_ptr<gen::GGenome> &neighborhood_best, // neighborhood best
+        const std::shared_ptr<gen::GGenome> &global_best,       // global best
+        std::tuple<double, double, double, double>
+            constants // c_personal / c_neighborhood / c_global / c_velocity
+    );                // (velocity now lives on the slot's OA scratch)
 
     /**
      * @brief Adjusts the velocity vector so that its values don't exceed the allowed value range.
@@ -417,7 +432,7 @@ protected:
         DEFAULTCPERSONAL; ///< A factor for multiplication of personal best distances
     double c_neighborhood_ =
         DEFAULTCNEIGHBORHOOD; ///< A factor for multiplication of neighborhood best distances
-    double c_global_ = DEFAULTCGLOBAL; ///< A factor for multiplication of global best distances
+    double c_global_ = DEFAULTCGLOBAL;     ///< A factor for multiplication of global best distances
     double c_velocity_ = DEFAULTCVELOCITY; ///< A factor for multiplication of velocities
 
     updateRule update_rule_ = DEFAULTUPDATERULE; ///< Specifies how the parameters are updated
@@ -427,8 +442,10 @@ protected:
     std::uint32_t repulsion_threshold_ =
         DEFREPULSIONTHRESHOLD; ///< The number of stalls until the swarm algorithm switches to repulsion instead of attraction
 
-    double vel_max_ = 0.; ///< The dimensionless velocity cap (a fraction of the normalized unit interval); recomputed in init() (transient)
-    std::size_t n_fp_parms_ = 0; ///< The number of active floating point parameters; recomputed in init() (transient)
+    double vel_max_ =
+        0.; ///< The dimensionless velocity cap (a fraction of the normalized unit interval); recomputed in init() (transient)
+    std::size_t n_fp_parms_ =
+        0; ///< The number of active floating point parameters; recomputed in init() (transient)
 
     double velocity_range_percentage_ =
         DEFAULTVELOCITYRANGEPERCENTAGE; ///< Indicates the percentage of a value range used for the initialization of the velocity
@@ -447,7 +464,6 @@ private:
     /** @brief Updates the fitness of all individuals */
     void evaluatePopulation_() override;
 
-
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
      */
@@ -465,5 +481,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

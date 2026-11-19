@@ -38,8 +38,8 @@
 
 // Geneva headers go here
 #include "common/GReflectiveInterfaceT.hpp"
-#include "geneva/GPersonalityTraits.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/GPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -81,12 +81,16 @@ public:
      * @brief Sets the position of the individual in the population.
      * @param pop_pos The individual's position in the population
      */
-    void setPopulationPosition(std::size_t pop_pos) { pop_pos_ = pop_pos; }
+    void setPopulationPosition(std::size_t pop_pos) {
+        pop_pos_ = pop_pos;
+    }
     /**
      * @brief Retrieves the position of the individual in the population.
      * @return The individual's stored position in the population
      */
-    [[nodiscard]] std::size_t getPopulationPosition() const { return pop_pos_; }
+    [[nodiscard]] std::size_t getPopulationPosition() const {
+        return pop_pos_;
+    }
 
 protected:
     /***************************************************************************/
@@ -118,4 +122,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

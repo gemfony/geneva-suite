@@ -139,4 +139,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

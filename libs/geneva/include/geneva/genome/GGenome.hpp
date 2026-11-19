@@ -50,31 +50,31 @@
 #include <boost/json.hpp>
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"
+#include "common/GCommonHelperFunctionsT.hpp"
+#include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "courtier/GWireProtocolT.hpp"           // the wire-protocol seam (befriended below)
+#include "common/GReflectiveInterfaceT.hpp"
+#include "common/GSerializableFunctionObjectT.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::chrono time_point (GProcessable timing)
+#include "courtier/GProcessable.hpp"              // the non-generic processing-lifecycle base
+#include "courtier/GWireProtocolT.hpp"            // the wire-protocol seam (befriended below)
 #include "courtier/GWireSerializationContext.hpp" // layout send-once: the wire (de)serialization context
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/Interface/GRateableI.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
+#include "geneva/genome/GAuxiliaryStore.hpp" // the OA-owned scratch (personality + per-group adaption PODs)
+#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeLayout.hpp"
 #include "geneva/genome/GGenomeLayoutSerialization.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GIndividualProcessingResult.hpp"
+#include "geneva/genome/GMultiConstraintT.hpp" // GPreEvaluationValidityCheckT (registered on the shared policy)
+#include "geneva/genome/GProblemPolicy.hpp"
+#include "hap/GRandomT.hpp"
 #include <random>
 #include <ranges>
 #include <utility>
-#include "common/GCommonHelperFunctionsT.hpp"
-#include "common/GCommonInterfaceT.hpp"
-#include "common/GSerializableFunctionObjectT.hpp"
-#include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::chrono time_point (GProcessable timing)
-#include "courtier/GProcessable.hpp" // the non-generic processing-lifecycle base
-#include "geneva/genome/GMultiConstraintT.hpp" // GPreEvaluationValidityCheckT (registered on the shared policy)
-#include "geneva/Interface/GRateableI.hpp"
-#include "geneva/genome/GAuxiliaryStore.hpp" // the OA-owned scratch (personality + per-group adaption PODs)
-#include "geneva/genome/GIndividualProcessingResult.hpp"
-#include "geneva/genome/GProblemPolicy.hpp"
-#include "hap/GRandomT.hpp"
 
 namespace Gem::Geneva::Genome {
 
@@ -142,8 +142,14 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
             Gem::Common::make_member("post_processing_disabled_", self.post_processing_disabled_),
             Gem::Common::make_member("assigned_iteration_", self.assigned_iteration_),
             Gem::Common::make_member("validity_level_", self.validity_level_),
-            Gem::Common::make_uncompared_cloneable_member("pre_processor_ptr_", self.pre_processor_ptr_),
-            Gem::Common::make_uncompared_cloneable_member("post_processor_ptr_", self.post_processor_ptr_),
+            Gem::Common::make_uncompared_cloneable_member(
+                "pre_processor_ptr_",
+                self.pre_processor_ptr_
+            ),
+            Gem::Common::make_uncompared_cloneable_member(
+                "post_processor_ptr_",
+                self.post_processor_ptr_
+            ),
             Gem::Common::make_uncompared_member("policy_", self.policy_),
             Gem::Common::make_uncompared_member("stored_results_cnt_", self.stored_results_cnt_),
             Gem::Courtier::make_wire_omitted_ptr_member("scratch_", self.scratch_),
@@ -160,7 +166,9 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
      *  hand-written load_()'s setLayout() call did. The cache also re-keys lazily on the next access, so
      *  this is the eager, explicit form of that invalidation.
      *  @see setLayout(), cachedCount() */
-    void postLoad_() { counts_layout_sp_.reset(); }
+    void postLoad_() {
+        counts_layout_sp_.reset();
+    }
 
     /**
      * @brief Serialises the genome: every member plus the shared structural layout, the latter either by
@@ -247,7 +255,8 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
         }
 
         std::string blob;
-        bool have = (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
+        bool have =
+            (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
         std::string fetch_error;
         if(not have && ctx != nullptr && ctx->fetch_blob) {
             // The fetch resolves a cache miss over the network; on success it yields a non-empty blob, on
@@ -267,7 +276,8 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::load(): Error!" << '\n'
-                << "An id-only layout reference could not be resolved (cache miss with no usable fetch)."
+                << "An id-only layout reference could not be resolved (cache miss with no usable "
+                   "fetch)."
                 << '\n'
                 << (fetch_error.empty() ? std::string{} : ("Fetch failure: " + fetch_error + '\n'))
             );
@@ -315,7 +325,9 @@ public:
 
     /** @brief Direct, shared access to the structural layout (problem metadata).
      *  @return A shared handle to the immutable layout describing bounds, grouping and adaption config */
-    std::shared_ptr<const GGenomeLayout> getLayout() const noexcept { return layout_; }
+    std::shared_ptr<const GGenomeLayout> getLayout() const noexcept {
+        return layout_;
+    }
 
     /***************************************************************************/
     // Access to the raw INTERNAL (normalized) value arrays (the OA-owned adaption kernels write here).
@@ -350,17 +362,22 @@ public:
      *  @param dst The destination buffer (must be large enough)
      *  @param am The activity mode selecting which parameters are written
      *  @return The number of values written into dst */
-    std::size_t streamlineInto(double *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+    std::size_t
+    streamlineInto(double *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
         return streamlineIntoImpl<double>(dst, layout_->d, dv_, am);
     }
     /** @brief Bulk-flatten the float channel (see the double overload).
      *  @param dst The destination buffer. @param am The activity mode. @return The number written */
-    std::size_t streamlineInto(float *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+    std::size_t
+    streamlineInto(float *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
         return streamlineIntoImpl<float>(dst, layout_->f, fv_, am);
     }
     /** @brief Bulk-flatten the int32 channel (see the double overload).
      *  @param dst The destination buffer. @param am The activity mode. @return The number written */
-    std::size_t streamlineInto(std::int32_t *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+    std::size_t streamlineInto(
+        std::int32_t *dst,
+        activityMode const &am = activityMode::DEFAULTACTIVITYMODE
+    ) const {
         return streamlineIntoImpl<std::int32_t>(dst, layout_->i, iv_, am);
     }
 
@@ -429,8 +446,8 @@ protected:
     bool modify_GUnitTests_();
     /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
     void specificTestsNoFailureExpected_GUnitTests_();
-private:
 
+private:
     /** @brief Installs a new shared layout and invalidates the parameter-count cache.
      *  @param layout The new shared, immutable layout (the count cache is re-keyed to it) */
     void setLayout(std::shared_ptr<const GGenomeLayout> layout) {
@@ -444,10 +461,13 @@ private:
      *  @param am The activity mode. @return The cache column index */
     static std::size_t amIndex(activityMode const &am) {
         switch(am) {
-        case activityMode::ACTIVEONLY: return 1;
-        case activityMode::INACTIVEONLY: return 2;
+        case activityMode::ACTIVEONLY:
+            return 1;
+        case activityMode::INACTIVEONLY:
+            return 2;
         case activityMode::ALLPARAMETERS: // == DEFAULTACTIVITYMODE
-        default: return 0;
+        default:
+            return 0;
         }
     }
 
@@ -494,10 +514,13 @@ private:
      *  @return true if the parameter should be included under the given activity mode */
     static bool amMatch(std::uint8_t active, activityMode const &am) {
         switch(am) {
-        case activityMode::ACTIVEONLY: return active != 0;
-        case activityMode::INACTIVEONLY: return active == 0;
+        case activityMode::ACTIVEONLY:
+            return active != 0;
+        case activityMode::INACTIVEONLY:
+            return active == 0;
         case activityMode::ALLPARAMETERS: // == DEFAULTACTIVITYMODE
-        default: return true;
+        default:
+            return true;
         }
     }
 
@@ -519,12 +542,16 @@ private:
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::externalValue(): Error!" << '\n'
                     << "Internal coordinate " << stored << " of bounded parameter " << k
-                    << " is outside the canonical interval [-0.5, 0.5) -- a write path failed to fold." << '\n'
+                    << " is outside the canonical interval [-0.5, 0.5) -- a write path failed to "
+                       "fold."
+                    << '\n'
                 );
             }
 #endif /* DEBUG */
             return ngClampHalfOpen<T>(
-                ngInternalToExternal<T>(stored, scale, anchor), ch.lower[k], ch.upper[k]
+                ngInternalToExternal<T>(stored, scale, anchor),
+                ch.lower[k],
+                ch.upper[k]
             );
         }
         else {
@@ -542,7 +569,10 @@ private:
      *  @return The normalized internal coordinate to store */
     template <typename T>
     static T externalToInternalChecked(
-        ChannelLayout<T> const &ch, T x, std::size_t k, bool allow_upper_bound = false
+        ChannelLayout<T> const &ch,
+        T x,
+        std::size_t k,
+        bool allow_upper_bound = false
     ) {
         static_assert(std::is_floating_point_v<T>, "FP-only external write");
         const T scale = ngScale<T>(ch, k);
@@ -558,9 +588,9 @@ private:
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::externalToInternalChecked(): Error!" << '\n'
                     << "External value " << x << " is outside the "
-                    << (allow_upper_bound ? "range [" : "half-open range [")
-                    << ch.lower[k] << ", " << ch.upper[k] << (allow_upper_bound ? "]" : ")")
-                    << " of bounded parameter " << k << '\n'
+                    << (allow_upper_bound ? "range [" : "half-open range [") << ch.lower[k] << ", "
+                    << ch.upper[k] << (allow_upper_bound ? "]" : ")") << " of bounded parameter "
+                    << k << '\n'
                 );
             }
             return ngClampHalfOpen<T>(ngExternalToInternal<T>(x, scale, anchor), T(-0.5), T(0.5));
@@ -576,7 +606,10 @@ private:
      *  @param ch The channel layout. @param store The internal value storage. @param am The activity mode */
     template <typename T>
     void streamlineImpl(
-        std::vector<T> &out, ChannelLayout<T> const &ch, std::vector<T> const &store, activityMode const &am
+        std::vector<T> &out,
+        ChannelLayout<T> const &ch,
+        std::vector<T> const &store,
+        activityMode const &am
     ) const {
         out.clear();
         for(std::size_t k = 0; k < store.size(); ++k) {
@@ -592,7 +625,10 @@ private:
      *  @return The number of values written into dst */
     template <typename T>
     std::size_t streamlineIntoImpl(
-        T *dst, ChannelLayout<T> const &ch, std::vector<T> const &store, activityMode const &am
+        T *dst,
+        ChannelLayout<T> const &ch,
+        std::vector<T> const &store,
+        activityMode const &am
     ) const {
         std::size_t n = 0;
         for(std::size_t k = 0; k < store.size(); ++k) {
@@ -625,7 +661,10 @@ private:
      *  @param ch The channel layout. @param store The storage to update. @param am The activity mode */
     template <typename T>
     void assignImpl(
-        std::vector<T> const &in, ChannelLayout<T> const &ch, std::vector<T> &store, activityMode const &am
+        std::vector<T> const &in,
+        ChannelLayout<T> const &ch,
+        std::vector<T> &store,
+        activityMode const &am
     ) {
         std::size_t pos = 0;
         for(std::size_t k = 0; k < store.size(); ++k) {
@@ -646,7 +685,10 @@ private:
      *  @param ch The channel layout. @param store The internal value storage. @param am The activity mode */
     template <typename T>
     void streamlineInternalImpl(
-        std::vector<T> &out, ChannelLayout<T> const &ch, std::vector<T> const &store, activityMode const &am
+        std::vector<T> &out,
+        ChannelLayout<T> const &ch,
+        std::vector<T> const &store,
+        activityMode const &am
     ) const {
         out.clear();
         for(std::size_t k = 0; k < store.size(); ++k) {
@@ -661,7 +703,10 @@ private:
      *  @param ch The channel layout. @param store The storage to update. @param am The activity mode */
     template <typename T>
     void assignInternalImpl(
-        std::vector<T> const &in, ChannelLayout<T> const &ch, std::vector<T> &store, activityMode const &am
+        std::vector<T> const &in,
+        ChannelLayout<T> const &ch,
+        std::vector<T> &store,
+        activityMode const &am
     ) {
         static_assert(std::is_floating_point_v<T>, "the internal write is FP-only");
         std::size_t pos = 0;
@@ -692,7 +737,10 @@ private:
      *  @param ch The channel layout. @param am The activity mode */
     template <typename T>
     void boundariesImpl(
-        std::vector<T> &l, std::vector<T> &u, ChannelLayout<T> const &ch, activityMode const &am
+        std::vector<T> &l,
+        std::vector<T> &u,
+        ChannelLayout<T> const &ch,
+        activityMode const &am
     ) const {
         l.clear();
         u.clear();
@@ -752,7 +800,12 @@ private:
 
     /** @brief Randomly initialises a floating-point channel's active parameters. */
     template <typename T>
-    bool randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, activityMode const &am, Gem::Hap::GRandomBase &gr);
+    bool randomInitFP(
+        std::vector<T> &store,
+        ChannelLayout<T> const &ch,
+        activityMode const &am,
+        Gem::Hap::GRandomBase &gr
+    );
     /** @brief Randomly initialises the int32 channel's active parameters. */
     bool randomInitInt(activityMode const &am, Gem::Hap::GRandomBase &gr);
     /** @brief Randomly initialises the bool channel's active parameters. */
@@ -763,69 +816,116 @@ private:
     // to the templated helpers above). The algorithms reach these through the base's streamline<T>() etc.
 
     /** @brief Streamlines the double channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<double> &v, activityMode const &am) const { streamlineImpl<double>(v, layout_->d, dv_, am); }
+    virtual void streamline_(std::vector<double> &v, activityMode const &am) const {
+        streamlineImpl<double>(v, layout_->d, dv_, am);
+    }
     /** @brief Streamlines the float channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<float> &v, activityMode const &am) const { streamlineImpl<float>(v, layout_->f, fv_, am); }
+    virtual void streamline_(std::vector<float> &v, activityMode const &am) const {
+        streamlineImpl<float>(v, layout_->f, fv_, am);
+    }
     /** @brief Streamlines the int32 channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<std::int32_t> &v, activityMode const &am) const { streamlineImpl<std::int32_t>(v, layout_->i, iv_, am); }
+    virtual void streamline_(std::vector<std::int32_t> &v, activityMode const &am) const {
+        streamlineImpl<std::int32_t>(v, layout_->i, iv_, am);
+    }
     /** @brief Streamlines the bool channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<bool> &v, activityMode const &am) const { streamlineBool(v, am); }
+    virtual void streamline_(std::vector<bool> &v, activityMode const &am) const {
+        streamlineBool(v, am);
+    }
 
     /** @brief Assigns v into the double channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<double> const &v, activityMode const &am) { assignImpl<double>(v, layout_->d, dv_, am); }
+    virtual void assignValueVector_(std::vector<double> const &v, activityMode const &am) {
+        assignImpl<double>(v, layout_->d, dv_, am);
+    }
     /** @brief Assigns v into the float channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<float> const &v, activityMode const &am) { assignImpl<float>(v, layout_->f, fv_, am); }
+    virtual void assignValueVector_(std::vector<float> const &v, activityMode const &am) {
+        assignImpl<float>(v, layout_->f, fv_, am);
+    }
     /** @brief Assigns v into the int32 channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<std::int32_t> const &v, activityMode const &am) { assignImpl<std::int32_t>(v, layout_->i, iv_, am); }
+    virtual void assignValueVector_(std::vector<std::int32_t> const &v, activityMode const &am) {
+        assignImpl<std::int32_t>(v, layout_->i, iv_, am);
+    }
     /** @brief Assigns v into the bool channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<bool> const &v, activityMode const &am) { assignBool(v, am); }
+    virtual void assignValueVector_(std::vector<bool> const &v, activityMode const &am) {
+        assignBool(v, am);
+    }
 
     /** @brief @param am Activity mode. @return The number of matching double parameters (cached). */
-    virtual std::size_t countParametersDouble_(activityMode const &am) const { return cachedCount(0, am); }
+    virtual std::size_t countParametersDouble_(activityMode const &am) const {
+        return cachedCount(0, am);
+    }
     /** @brief @param am Activity mode. @return The number of matching float parameters (cached). */
-    virtual std::size_t countParametersFloat_(activityMode const &am) const { return cachedCount(1, am); }
+    virtual std::size_t countParametersFloat_(activityMode const &am) const {
+        return cachedCount(1, am);
+    }
     /** @brief @param am Activity mode. @return The number of matching int32 parameters (cached). */
-    virtual std::size_t countParametersInt32_(activityMode const &am) const { return cachedCount(2, am); }
+    virtual std::size_t countParametersInt32_(activityMode const &am) const {
+        return cachedCount(2, am);
+    }
     /** @brief @param am Activity mode. @return The number of matching bool parameters (cached). */
-    virtual std::size_t countParametersBool_(activityMode const &am) const { return cachedCount(3, am); }
+    virtual std::size_t countParametersBool_(activityMode const &am) const {
+        return cachedCount(3, am);
+    }
 
     /** @brief Collects double-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void boundaries_(std::vector<double> &l, std::vector<double> &u, activityMode const &am) const { boundariesImpl<double>(l, u, layout_->d, am); }
+    virtual void
+    boundaries_(std::vector<double> &l, std::vector<double> &u, activityMode const &am) const {
+        boundariesImpl<double>(l, u, layout_->d, am);
+    }
     /** @brief Collects float-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void boundaries_(std::vector<float> &l, std::vector<float> &u, activityMode const &am) const { boundariesImpl<float>(l, u, layout_->f, am); }
+    virtual void
+    boundaries_(std::vector<float> &l, std::vector<float> &u, activityMode const &am) const {
+        boundariesImpl<float>(l, u, layout_->f, am);
+    }
     /** @brief Collects int32-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void boundaries_(std::vector<std::int32_t> &l, std::vector<std::int32_t> &u, activityMode const &am) const { boundariesImpl<std::int32_t>(l, u, layout_->i, am); }
+    virtual void boundaries_(
+        std::vector<std::int32_t> &l,
+        std::vector<std::int32_t> &u,
+        activityMode const &am
+    ) const {
+        boundariesImpl<std::int32_t>(l, u, layout_->i, am);
+    }
     /** @brief Collects bool-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void boundaries_(std::vector<bool> &l, std::vector<bool> &u, activityMode const &am) const { boundariesBool(l, u, am); }
+    virtual void
+    boundaries_(std::vector<bool> &l, std::vector<bool> &u, activityMode const &am) const {
+        boundariesBool(l, u, am);
+    }
 
     /** @brief Reads the raw internal double channel into v. @param v Output vector. @param am Activity mode. */
-    virtual void streamlineInternal_(std::vector<double> &v, activityMode const &am) const { streamlineInternalImpl<double>(v, layout_->d, dv_, am); }
+    virtual void streamlineInternal_(std::vector<double> &v, activityMode const &am) const {
+        streamlineInternalImpl<double>(v, layout_->d, dv_, am);
+    }
     /** @brief Reads the raw internal float channel into v. @param v Output vector. @param am Activity mode. */
-    virtual void streamlineInternal_(std::vector<float> &v, activityMode const &am) const { streamlineInternalImpl<float>(v, layout_->f, fv_, am); }
+    virtual void streamlineInternal_(std::vector<float> &v, activityMode const &am) const {
+        streamlineInternalImpl<float>(v, layout_->f, fv_, am);
+    }
 
     /** @brief Internal-writes (folds) v into the double channel's active slots. @param v Internal values. @param am Activity mode. */
-    virtual void assignValueVectorInternal_(std::vector<double> const &v, activityMode const &am) { assignInternalImpl<double>(v, layout_->d, dv_, am); }
+    virtual void assignValueVectorInternal_(std::vector<double> const &v, activityMode const &am) {
+        assignInternalImpl<double>(v, layout_->d, dv_, am);
+    }
     /** @brief Internal-writes (folds) v into the float channel's active slots. @param v Internal values. @param am Activity mode. */
-    virtual void assignValueVectorInternal_(std::vector<float> const &v, activityMode const &am) { assignInternalImpl<float>(v, layout_->f, fv_, am); }
+    virtual void assignValueVectorInternal_(std::vector<float> const &v, activityMode const &am) {
+        assignInternalImpl<float>(v, layout_->f, fv_, am);
+    }
 
     /***************************************************************************/
     // Data: the four contiguous value channels + the shared structural layout.
 
-    std::vector<double> dv_;        ///< the double channel values (internal representation)
-    std::vector<float> fv_;         ///< the float channel values (internal representation)
-    std::vector<std::int32_t> iv_;  ///< the int32 channel values (internal representation)
-    std::vector<std::uint8_t> bv_;  ///< the bool channel values (1/0)
+    std::vector<double> dv_;       ///< the double channel values (internal representation)
+    std::vector<float> fv_;        ///< the float channel values (internal representation)
+    std::vector<std::int32_t> iv_; ///< the int32 channel values (internal representation)
+    std::vector<std::uint8_t> bv_; ///< the bool channel values (1/0)
 
     /** @brief The shared, immutable structural descriptor (bounds / grouping / adaption config) */
     std::shared_ptr<const GGenomeLayout> layout_ = std::make_shared<const GGenomeLayout>();
-
 
     /***************************************************************************/
     // The layout-keyed parameter-count cache (watertight: re-keyed whenever the shared layout changes;
     // holding the shared_ptr pins the layout while cached, so pointer comparison can never alias). All
     // mutable, because the count accessors are logically const.
 
-    mutable std::shared_ptr<const GGenomeLayout> counts_layout_sp_; ///< the layout the cache is keyed to
+    mutable std::shared_ptr<const GGenomeLayout>
+        counts_layout_sp_; ///< the layout the cache is keyed to
     mutable std::array<std::array<std::size_t, 3>, 4>
         counts_cache_{}; ///< [channel: d/f/i/b][activity mode: ALL/ACTIVEONLY/INACTIVEONLY]
 
@@ -833,10 +933,8 @@ private:
     // ---- Folded in from the former GOptimizableEntity category root ----
 
 public:
-
     using payload_type = GGenome;
     using result_type = individual_processing_result;
-
 
     /***************************************************************************/
     // Processing: the result store + the evaluation orchestration.
@@ -903,7 +1001,9 @@ public:
     [[nodiscard]] individual_processing_result getStoredResult(std::size_t id = 0) const;
 
     /** @brief @return The number of result slots held by this candidate */
-    [[nodiscard]] std::size_t getNStoredResults() const { return stored_results_cnt_.size(); }
+    [[nodiscard]] std::size_t getNStoredResults() const {
+        return stored_results_cnt_.size();
+    }
 
     /** @brief Read-only retrieval of the whole result store (no PROCESSED-flag precondition, unlike
      *  getStoredResult()), used to carry results across a return reconciliation. @return The result store */
@@ -915,12 +1015,16 @@ public:
     // Pre-/post-processing (used by nested / post-optimizing algorithms).
 
     /** @brief @return true if pre-processing is currently allowed (not vetoed) */
-    [[nodiscard]] bool mayBePreProcessed() const noexcept { return not pre_processing_disabled_; }
+    [[nodiscard]] bool mayBePreProcessed() const noexcept {
+        return not pre_processing_disabled_;
+    }
     /** @brief Allow or veto pre-processing. @param veto true to disable, false to allow */
-    void vetoPreProcessing(bool veto) noexcept { pre_processing_disabled_ = veto; }
+    void vetoPreProcessing(bool veto) noexcept {
+        pre_processing_disabled_ = veto;
+    }
     /** @brief Registers a pre-processor (ignored if empty). @param pre_processor_ptr The processor */
     void registerPreProcessor(
-        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>>& pre_processor_ptr
+        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>> &pre_processor_ptr
     ) {
         if(pre_processor_ptr) {
             pre_processor_ptr_ = pre_processor_ptr;
@@ -928,12 +1032,17 @@ public:
     }
 
     /** @brief @return true if post-processing is currently allowed (not vetoed) */
-    [[nodiscard]] bool mayBePostProcessed() const { return not post_processing_disabled_; }
+    [[nodiscard]] bool mayBePostProcessed() const {
+        return not post_processing_disabled_;
+    }
     /** @brief Allow or veto post-processing. @param veto true to disable, false to allow */
-    void vetoPostProcessing(bool veto) { post_processing_disabled_ = veto; }
+    void vetoPostProcessing(bool veto) {
+        post_processing_disabled_ = veto;
+    }
     /** @brief Registers a post-processor (ignored if empty). @param post_processor_ptr The processor */
     void registerPostProcessor(
-        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>>& post_processor_ptr
+        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>>
+            &post_processor_ptr
     ) {
         if(post_processor_ptr) {
             post_processor_ptr_ = post_processor_ptr;
@@ -945,7 +1054,9 @@ public:
         return post_processor_ptr_;
     }
     /** @brief Removes any registered post-processor */
-    void clearPostProcessor() { post_processor_ptr_.reset(); }
+    void clearPostProcessor() {
+        post_processor_ptr_.reset();
+    }
 
     /***************************************************************************/
     // Fitness accessors / multi-criterion support.
@@ -955,7 +1066,9 @@ public:
      */
     void setResult(std::size_t id, double value);
     /** @brief @return true if more than one fitness criterion is present */
-    [[nodiscard]] bool hasMultipleFitnessCriteria() const { return this->getNStoredResults() > 1; }
+    [[nodiscard]] bool hasMultipleFitnessCriteria() const {
+        return this->getNStoredResults() > 1;
+    }
     /**
      * @brief Retrieve the (raw, transformed) fitness tuple at a given evaluation position.
      */
@@ -971,39 +1084,67 @@ public:
     /** @brief Installs the shared problem policy (the 1:N feasibility/ranking rules). */
     void setPolicy(std::shared_ptr<GProblemPolicy> policy);
     /** @brief @return The shared problem policy referenced by this candidate */
-    [[nodiscard]] std::shared_ptr<GProblemPolicy> getPolicy() const { return policy_; }
+    [[nodiscard]] std::shared_ptr<GProblemPolicy> getPolicy() const {
+        return policy_;
+    }
 
     /** @brief Sets the optimization direction on the shared policy. @param mode MAXIMIZE or MINIMIZE */
-    void setMaxMode(maxMode const &mode) { policy_->setMaxMode(mode); }
+    void setMaxMode(maxMode const &mode) {
+        policy_->setMaxMode(mode);
+    }
     /** @brief @return The optimization direction from the shared policy */
-    [[nodiscard]] maxMode getMaxMode() const { return policy_->getMaxMode(); }
+    [[nodiscard]] maxMode getMaxMode() const {
+        return policy_->getMaxMode();
+    }
     /** @brief @return The worst-case evaluation value for the current direction */
-    [[nodiscard]] virtual double getWorstCase() const { return policy_->getWorstCase(); }
+    [[nodiscard]] virtual double getWorstCase() const {
+        return policy_->getWorstCase();
+    }
     /** @brief @return The best-case evaluation value for the current direction */
-    [[nodiscard]] virtual double getBestCase() const { return policy_->getBestCase(); }
+    [[nodiscard]] virtual double getBestCase() const {
+        return policy_->getBestCase();
+    }
 
     /** @brief Sets the policy for invalid solutions. @param eval_policy The evaluation policy */
-    void setEvaluationPolicy(evaluationPolicy eval_policy) { policy_->setEvaluationPolicy(eval_policy); }
+    void setEvaluationPolicy(evaluationPolicy eval_policy) {
+        policy_->setEvaluationPolicy(eval_policy);
+    }
     /** @brief @return The evaluation policy for invalid solutions */
-    [[nodiscard]] evaluationPolicy getEvaluationPolicy() const { return policy_->getEvaluationPolicy(); }
+    [[nodiscard]] evaluationPolicy getEvaluationPolicy() const {
+        return policy_->getEvaluationPolicy();
+    }
 
     /** @brief @return The sigmoid steepness from the shared policy */
-    [[nodiscard]] double getSteepness() const { return policy_->getSteepness(); }
+    [[nodiscard]] double getSteepness() const {
+        return policy_->getSteepness();
+    }
     /** @brief Sets the sigmoid steepness on the shared policy. @param steepness The steepness (> 0) */
-    void setSteepness(double steepness) { policy_->setSteepness(steepness); }
+    void setSteepness(double steepness) {
+        policy_->setSteepness(steepness);
+    }
     /** @brief @return The sigmoid barrier from the shared policy */
-    [[nodiscard]] double getBarrier() const { return policy_->getBarrier(); }
+    [[nodiscard]] double getBarrier() const {
+        return policy_->getBarrier();
+    }
     /** @brief Sets the sigmoid barrier on the shared policy. @param barrier The barrier (> 0) */
-    void setBarrier(double barrier) { policy_->setBarrier(barrier); }
+    void setBarrier(double barrier) {
+        policy_->setBarrier(barrier);
+    }
 
     /** @brief @return The computed validity level of this candidate (<= 1 means feasible) */
-    [[nodiscard]] double getValidityLevel() const { return validity_level_; }
+    [[nodiscard]] double getValidityLevel() const {
+        return validity_level_;
+    }
     /** @brief @return true if this candidate fulfils its constraints (validity level <= 1) */
-    [[nodiscard]] bool constraintsFulfilled() const { return validity_level_ <= 1.; }
+    [[nodiscard]] bool constraintsFulfilled() const {
+        return validity_level_ <= 1.;
+    }
     /** @brief @return true if this candidate is a valid solution (meant for processed candidates) */
     [[nodiscard]] bool isValid() const;
     /** @brief @return true if this candidate is an invalid solution */
-    [[nodiscard]] bool isInValid() const { return not this->isValid(); }
+    [[nodiscard]] bool isInValid() const {
+        return not this->isValid();
+    }
 
     /***************************************************************************/
     // Iteration bookkeeping (per individual). The stall count and best-known fitness are OA state and
@@ -1015,11 +1156,15 @@ public:
         assigned_iteration_ = parent_alg_iteration;
     }
     /** @brief @return The parent algorithm's current iteration */
-    [[nodiscard]] std::uint32_t getAssignedIteration() const { return assigned_iteration_; }
+    [[nodiscard]] std::uint32_t getAssignedIteration() const {
+        return assigned_iteration_;
+    }
 
     /** @brief @return The number of adaptions performed during the last adaption (read from the OA
      *  scratch, where the adaption machinery records it; 0 if no scratch is attached) */
-    [[nodiscard]] std::size_t getNAdaptions() const { return scratch_ ? scratch_->getNAdaptions() : 0; }
+    [[nodiscard]] std::size_t getNAdaptions() const {
+        return scratch_ ? scratch_->getNAdaptions() : 0;
+    }
 
     /**
      * @brief Public constraint check used by the OA-owned adaption retry loop. Feasibility is a concrete
@@ -1049,9 +1194,13 @@ public:
 
     /** @brief The optimization-algorithm-owned scratch (personality + POD adaption state).
      *  @return A reference to the scratch store */
-    GAuxiliaryStore &scratch() noexcept { return *scratch_; }
+    GAuxiliaryStore &scratch() noexcept {
+        return *scratch_;
+    }
     /** @brief The OA-owned scratch (const). @return A const reference to the scratch store */
-    [[nodiscard]] const GAuxiliaryStore &scratch() const noexcept { return *scratch_; }
+    [[nodiscard]] const GAuxiliaryStore &scratch() const noexcept {
+        return *scratch_;
+    }
 
     /**
      * @brief Converts the personality base pointer to the desired type. Only accessible when
@@ -1106,7 +1255,9 @@ public:
     }
 
     /** @brief Resets the OA-owned scratch (personality + any POD blocks held on this entity) */
-    void resetPersonality() { scratch_->clearScratch(); }
+    void resetPersonality() {
+        scratch_->clearScratch();
+    }
 
     /** @brief A string identifier for the current personality.
      *  @return The personality's name(), or "PERSONALITY_NONE" if no personality is set */
@@ -1260,7 +1411,9 @@ public:
         }
         if(n_float > 0) {
             std::vector<float> float_vec;
-            float_vec.append_range(par_vec | std::views::drop(n_double)); // each double implicitly narrowed to float
+            float_vec.append_range(
+                par_vec | std::views::drop(n_double)
+            ); // each double implicitly narrowed to float
             this->assignValueVector<float>(float_vec, am);
         }
     }
@@ -1335,7 +1488,9 @@ public:
         }
         if(n_float > 0) {
             std::vector<float> float_vec;
-            float_vec.append_range(par_vec | std::views::drop(n_double)); // each double implicitly narrowed to float
+            float_vec.append_range(
+                par_vec | std::views::drop(n_double)
+            ); // each double implicitly narrowed to float
             this->assignValueVectorInternal_(float_vec, am);
         }
         // As with the external assign, modifying the parameters marks the item for reprocessing.
@@ -1354,16 +1509,20 @@ public:
         static_assert(
             std::is_same_v<val_type, double> || std::is_same_v<val_type, float> ||
                 std::is_same_v<val_type, std::int32_t> || std::is_same_v<val_type, bool>,
-            "GGenome::getVarVal<>(): unsupported value type (use double, float, std::int32_t or bool)"
+            "GGenome::getVarVal<>(): unsupported value type (use double, float, std::int32_t or "
+            "bool)"
         );
 
-        if constexpr (std::is_same_v<val_type, double>) {
+        if constexpr(std::is_same_v<val_type, double>) {
             return this->getVarVal_d_(idx);
-        } else if constexpr (std::is_same_v<val_type, float>) {
+        }
+        else if constexpr(std::is_same_v<val_type, float>) {
             return this->getVarVal_f_(idx);
-        } else if constexpr (std::is_same_v<val_type, std::int32_t>) {
+        }
+        else if constexpr(std::is_same_v<val_type, std::int32_t>) {
             return this->getVarVal_i_(idx);
-        } else { // bool, by the static_assert above
+        }
+        else { // bool, by the static_assert above
             return this->getVarVal_b_(idx);
         }
     }
@@ -1371,10 +1530,6 @@ public:
     /***************************************************************************/
     // Algorithm-facing genome operations (declared here so the algorithms reach them through the base;
     // the flat genome implements them over its value channels).
-
-
-
-
 
     /***************************************************************************/
     // Randomization.
@@ -1424,12 +1579,18 @@ protected:
     /** @brief Records the feasibility (validity) level -- normally filled by fulfillsConstraints() during
      *  evaluation; exposed here so a return reconciliation can carry the worker-computed value.
      *  @param validity_level The validity level (<= 1 == feasible) */
-    void setValidityLevel(double validity_level) { validity_level_ = validity_level; }
+    void setValidityLevel(double validity_level) {
+        validity_level_ = validity_level;
+    }
 
     /** @brief @return A reference to the shared problem policy (for the genome's feasibility check) */
-    GProblemPolicy &policy() { return *policy_; }
+    GProblemPolicy &policy() {
+        return *policy_;
+    }
     /** @brief @return A const reference to the shared problem policy */
-    [[nodiscard]] const GProblemPolicy &policy() const { return *policy_; }
+    [[nodiscard]] const GProblemPolicy &policy() const {
+        return *policy_;
+    }
 
     /***************************************************************************/
     // Secondary-result combiners (the user's evaluate() may return one of these).
@@ -1480,7 +1641,9 @@ private:
     // GRateableI surface (read the stored results).
 
     /** @brief @param id The criterion index. @return The stored raw fitness for that criterion */
-    [[nodiscard]] double raw_fitness_(std::size_t id) const final { return this->getStoredResult(id).rawFitness(); }
+    [[nodiscard]] double raw_fitness_(std::size_t id) const final {
+        return this->getStoredResult(id).rawFitness();
+    }
     /** @brief @param id The criterion index. @return The stored transformed fitness for that criterion */
     [[nodiscard]] double transformed_fitness_(std::size_t id) const final {
         return this->getStoredResult(id).transformedFitness();
@@ -1496,11 +1659,6 @@ private:
     // template). Implemented by the concrete flat genome. These are the entire seam that makes value
     // access genome-agnostic; each overload takes the per-type value/boundary vector(s) and the
     // activityMode controlling which parameters participate.
-
-
-
-
-
 
     // The INTERNAL (normalized) FP channels (§2.3): only double/float have an internal/external
     // distinction (int / bool are not normalized).
@@ -1589,14 +1747,18 @@ private:
     void postProcess_();
 
     /** @brief Sets every raw and transformed fitness to the same value. @param val The value */
-    void setAllFitnessTo(double val) { this->setAllFitnessTo(val, val); }
+    void setAllFitnessTo(double val) {
+        this->setAllFitnessTo(val, val);
+    }
     /** @brief Sets every raw fitness to raw_value and every transformed fitness to transformed_value. */
     void setAllFitnessTo(double raw_value, double transformed_value);
 
     /** @brief Resets every stored result to a default-constructed value */
     void clear_stored_results_vec();
     /** @brief Bridges the GProcessable status machine to the result store (clears it on a status reset) */
-    void clearStoredResults_() override { this->clear_stored_results_vec(); }
+    void clearStoredResults_() override {
+        this->clear_stored_results_vec();
+    }
 
     /** @brief Creates a deep clone of this object (supplied by the concrete leaf). @return A heap copy */
     [[nodiscard]] GGenome *clone_() const override = 0;
@@ -1613,13 +1775,16 @@ private:
         post_processor_ptr_; ///< Actions to be performed after processing
 
     std::vector<individual_processing_result> stored_results_cnt_ =
-        std::vector<individual_processing_result>(1, individual_processing_result()); ///< The result store
+        std::vector<individual_processing_result>(
+            1,
+            individual_processing_result()
+        ); ///< The result store
 
     /** @brief The shared, problem-uniform feasibility / ranking policy (referenced 1:N) */
     std::shared_ptr<GProblemPolicy> policy_ = std::make_shared<GProblemPolicy>();
 
     std::uint32_t assigned_iteration_ = 0; ///< The parent algorithm's optimization-cycle iteration
-    double validity_level_ = 0.;        ///< How valid the current solution is (<= 1 == feasible)
+    double validity_level_ = 0.;           ///< How valid the current solution is (<= 1 == feasible)
 
     /** @brief The OA-owned scratch (personality object + per-group adaption POD blocks). Always allocated
      *  (so the accessors never null-check); deep-copied on clone/load; serialized only on a checkpoint

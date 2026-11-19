@@ -28,19 +28,19 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GTestIndividual1.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "hap/GRandomLeasePool.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
-#include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/oa/GAdaption.hpp"
+#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
+#include "hap/GRandomLeasePool.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -85,7 +85,8 @@ GTestIndividual1::GTestIndividual1() {
  * @return A shared pointer to a freshly built adaption config whose double group carries the Gauss adaptor
  *         settings (sigma 0.025, sigma_sigma 0.1, min_sigma 1e-3, max_sigma 1.0, ad_prob 1.0)
  */
-std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> GTestIndividual1::getAdaptionConfig() const {
+std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
+GTestIndividual1::getAdaptionConfig() const {
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
     auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
@@ -107,7 +108,10 @@ std::vector<double> GTestIndividual1::evaluate() {
     this->streamline(par_vec);
 
     return {std::ranges::fold_left(
-        par_vec | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+        par_vec | std::views::transform([](double x) { return x * x; }),
+        0.,
+        std::plus{}
+    )};
 }
 
 // Note: The following code is designed to mainly test parent classes
@@ -198,7 +202,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
         auto gr_lease = Gem::Hap::randomLeasePool().acquire();
         for(std::size_t i = 0; i < n_tests; i++) {
             // Change the parameters without instantly triggering fitness calculation
-            CHECK_NOTHROW(OptimizationAlgorithms::runAdaptionKernels(*p_test, scratch, *cfg, *gr_lease));
+            CHECK_NOTHROW(
+                OptimizationAlgorithms::runAdaptionKernels(*p_test, scratch, *cfg, *gr_lease)
+            );
             // The dirty flag should not have been set yet (done in adapt() )
             INFO("Processing status = " << p_test->getProcessingStatusAsStr() << ", i = " << i);
             CHECK((p_test->is_processed() || p_test->is_unprocessed()));
@@ -249,7 +255,11 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
 
         // Modify p_test2
         std::size_t n_adaptions = 0;
-        CHECK_NOTHROW(n_adaptions = OptimizationAlgorithms::StandaloneAdapter(*p_test2, p_test2->getAdaptionConfig()).adapt(*p_test2));
+        CHECK_NOTHROW(
+            n_adaptions =
+                OptimizationAlgorithms::StandaloneAdapter(*p_test2, p_test2->getAdaptionConfig())
+                    .adapt(*p_test2)
+        );
         // Make sure adaptions were indeed performed
         CHECK(n_adaptions > 0);
         // Check that it is dirty
@@ -367,7 +377,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
             gen::GAuxiliaryStore scratch;
             cfg->installInto(scratch);
             auto gr_lease = Gem::Hap::randomLeasePool().acquire();
-            CHECK_NOTHROW(OptimizationAlgorithms::runAdaptionKernels(*p_test1, scratch, *cfg, *gr_lease));
+            CHECK_NOTHROW(
+                OptimizationAlgorithms::runAdaptionKernels(*p_test1, scratch, *cfg, *gr_lease)
+            );
         }
         // We need to manually mark the individual as dirty
         CHECK_NOTHROW(p_test1->mark_as_due_for_processing());
@@ -397,8 +409,8 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
     //------------------------------------------------------------------------------
 
     { // Check setting and retrieval of the current personality status and whether the personalities
-      // themselves can be accessed. The personality is OA scratch carried on the individual itself
-      // (in its GAuxiliaryStore), exercised here via the personality surface on GGenome.
+        // themselves can be accessed. The personality is OA scratch carried on the individual itself
+        // (in its GAuxiliaryStore), exercised here via the personality surface on GGenome.
         auto ind = this->clone();
         std::shared_ptr<GPersonalityTraits> p_pt;
 
@@ -412,9 +424,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
         CHECK(ind->getPersonality() == "PERSONALITY_NONE");
 
         // Set the personality type to EA
-        CHECK_NOTHROW(ind->setPersonality(
-            std::make_shared<oa::GEvolutionaryAlgorithm_PersonalityTraits>()
-        ));
+        CHECK_NOTHROW(
+            ind->setPersonality(std::make_shared<oa::GEvolutionaryAlgorithm_PersonalityTraits>())
+        );
         INFO(
             "\n"
             << "ind->getPersonality() = " << ind->getPersonality() << "\n"
@@ -436,9 +448,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
         p_pt.reset();
 
         // Set the personality type to CGD
-        CHECK_NOTHROW(ind->setPersonality(
-            std::make_shared<oa::GConjugateGradientDescent_PersonalityTraits>()
-        ));
+        CHECK_NOTHROW(
+            ind->setPersonality(std::make_shared<oa::GConjugateGradientDescent_PersonalityTraits>())
+        );
         INFO(
             "\n"
             << "ind->getPersonality() = " << ind->getPersonality() << "\n"
@@ -448,7 +460,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
 
         // Try to retrieve a GConjugateGradientDescent_PersonalityTraits object and check that the smart pointer actually points somewhere
         std::shared_ptr<oa::GConjugateGradientDescent_PersonalityTraits> p_pt_cgd;
-        CHECK_NOTHROW(p_pt_cgd = ind->getPersonalityTraits<oa::GConjugateGradientDescent_PersonalityTraits>());
+        CHECK_NOTHROW(
+            p_pt_cgd = ind->getPersonalityTraits<oa::GConjugateGradientDescent_PersonalityTraits>()
+        );
         CHECK(p_pt_cgd);
         p_pt_cgd.reset();
 
@@ -458,9 +472,9 @@ void GTestIndividual1::specificTestsNoFailureExpected_GUnitTests_() {
         p_pt.reset();
 
         // Set the personality type to SWARM
-        CHECK_NOTHROW(ind->setPersonality(
-            std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()
-        ));
+        CHECK_NOTHROW(
+            ind->setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>())
+        );
         INFO(
             "\n"
             << "ind->getPersonality() = " << ind->getPersonality() << "\n"
@@ -509,7 +523,6 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
 #ifdef GEM_TESTING
     using namespace Gem::Geneva;
 
-
     //------------------------------------------------------------------------------
 
 #ifdef DEBUG
@@ -524,36 +537,25 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
 
     //------------------------------------------------------------------------------
 
+    //------------------------------------------------------------------------------
 
     //------------------------------------------------------------------------------
 
+    //------------------------------------------------------------------------------
 
     //------------------------------------------------------------------------------
 
+    //------------------------------------------------------------------------------
 
     //------------------------------------------------------------------------------
 
+    //------------------------------------------------------------------------------
 
     //------------------------------------------------------------------------------
 
-
     //------------------------------------------------------------------------------
 
-
     //------------------------------------------------------------------------------
-
-
-    //------------------------------------------------------------------------------
-
-
-    //------------------------------------------------------------------------------
-
-
-    //------------------------------------------------------------------------------
-
-
-    //------------------------------------------------------------------------------
-
 
     //------------------------------------------------------------------------------
 
@@ -580,9 +582,9 @@ void GTestIndividual1::specificTestsFailuresExpected_GUnitTests_() {
         auto ind = this->clone();
 
         // Make sure the personality type is set to SWARM
-        CHECK_NOTHROW(ind->setPersonality(
-            std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()
-        ));
+        CHECK_NOTHROW(
+            ind->setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>())
+        );
 
         // Trying to retrieve an EA personality object should throw
         CHECK_THROWS_AS(

@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
@@ -36,6 +35,7 @@
 #include "common/GLogger.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cstddef>
 #include <memory>
 #include <tuple>
@@ -44,7 +44,9 @@
 #include <catch2/catch_test_macros.hpp>
 #endif /* GEM_TESTING */
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits
+) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -139,7 +141,9 @@ bool GSwarmAlgorithm_PersonalityTraits::checkNoPositionUpdateAndReset() {
  *
  * @param p A shared pointer to the personally best individual to be registered
  */
-void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(const std::shared_ptr<gen::GGenome>& p) {
+void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
+    const std::shared_ptr<gen::GGenome> &p
+) {
     // Some error checking
 #ifdef DEBUG
     // Does it point anywhere ?
@@ -261,7 +265,6 @@ bool GSwarmAlgorithm_PersonalityTraits::modify_GUnitTests_() {
 #ifdef GEM_TESTING
     bool result = false;
 
-
     this->setNeighborhood(this->getNeighborhood() + 1);
     result = true;
 
@@ -280,7 +283,6 @@ bool GSwarmAlgorithm_PersonalityTraits::modify_GUnitTests_() {
 // NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GSwarmAlgorithm_PersonalityTraits: a sequence of independent, self-scoped CHECK blocks, one per swarm-personality flag/state scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
 void GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests_() {
 #ifdef GEM_TESTING
-
 
     //---------------------------------------------------------------------------
 

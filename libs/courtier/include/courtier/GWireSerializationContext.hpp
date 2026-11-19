@@ -48,7 +48,7 @@
 // Geneva headers go here
 
 #include "common/GArchiveNamed.hpp" // archive_named (the blob-frame payload structs)
-#include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
+#include "common/GCommonEnums.hpp"  // Gem::Common::serializationMode
 #include "common/GMemberReflectionT.hpp" // member_desc / load_copy_ptr / cmp_skip (the wire-omitted-ptr descriptor)
 #include "common/concurrency/GContentAddressedStoreT.hpp" // the generic store GWireBlobRegistry specializes
 
@@ -141,7 +141,9 @@ struct GBlobReply {
 struct GWireBlobIdHash {
     /** @brief @param id The id to hash. @return A size_t hash of the id. */
     static std::size_t operator()(const GWireBlobId &id) noexcept {
-        return static_cast<std::size_t>(id[0] ^ (id[1] + 0x9E3779B97F4A7C15ULL + (id[0] << 6) + (id[0] >> 2)));
+        return static_cast<std::size_t>(
+            id[0] ^ (id[1] + 0x9E3779B97F4A7C15ULL + (id[0] << 6) + (id[0] >> 2))
+        );
     }
 };
 
@@ -164,10 +166,11 @@ struct GWireBlobIdHash {
  * carries it, and a client keeps every blob it has received.
  */
 class GWireBlobRegistry
-    : public Gem::Common::Concurrency::GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash> {
+  : public Gem::Common::Concurrency::
+        GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash> {
 public:
-    using base_type =
-        Gem::Common::Concurrency::GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash>;
+    using base_type = Gem::Common::Concurrency::
+        GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash>;
 
     GWireBlobRegistry() = default;
 
@@ -178,11 +181,15 @@ public:
 
     /** @brief Whether a peer is known to already hold a given blob (domain alias for base peerHas).
      *  @param peer The peer (session) to query. @param id The blob id. @return true iff recorded. */
-    bool peerHasBlob(GWirePeerId peer, const GWireBlobId &id) const { return peerHas(peer, id); }
+    bool peerHasBlob(GWirePeerId peer, const GWireBlobId &id) const {
+        return peerHas(peer, id);
+    }
 
     /** @brief Records that a peer now holds a given blob (domain alias for base markPeerHas).
      *  @param peer The peer (session). @param id The blob id the peer now holds. */
-    void markPeerHasBlob(GWirePeerId peer, const GWireBlobId &id) { markPeerHas(peer, id); }
+    void markPeerHasBlob(GWirePeerId peer, const GWireBlobId &id) {
+        markPeerHas(peer, id);
+    }
 };
 
 /******************************************************************************/
@@ -194,10 +201,10 @@ public:
  * and always for checkpoint/file serialization) the item falls back to its self-contained full encoding.
  */
 struct GWireSerializationContext {
-    bool enabled = false;       ///< master switch: false -> the item's full, self-contained encoding
+    bool enabled = false; ///< master switch: false -> the item's full, self-contained encoding
     Gem::Common::serializationMode mode =
         Gem::Common::serializationMode::GEM_BINARY; ///< the format the surrounding archive uses
-    GWirePeerId peer = 0;       ///< server: the destination session; worker: 0 (single upstream)
+    GWirePeerId peer = 0; ///< server: the destination session; worker: 0 (single upstream)
     GWireBlobRegistry *registry = nullptr; ///< the shared blob store + ack tracker (not owned)
 
     /// Whether this endpoint may reference a blob BY ID instead of inlining it.
@@ -236,7 +243,9 @@ public:
         t_current_ = ctx;
     }
     /** @brief Restores the previously-active context. */
-    ~GWireSerializationScope() { t_current_ = prev_; }
+    ~GWireSerializationScope() {
+        t_current_ = prev_;
+    }
 
     GWireSerializationScope(const GWireSerializationScope &) = delete;
     GWireSerializationScope &operator=(const GWireSerializationScope &) = delete;
@@ -245,7 +254,9 @@ public:
 
     /** @brief The context active on this thread, or nullptr if none (or it is disabled, treated as none
      *  by callers). @return The current context pointer, or nullptr. */
-    static const GWireSerializationContext *current() noexcept { return t_current_; }
+    static const GWireSerializationContext *current() noexcept {
+        return t_current_;
+    }
 
 private:
     const GWireSerializationContext *prev_;
@@ -297,7 +308,9 @@ struct ser_wire_omitted_ptr {
         else {
             ptr_type loaded;
             Gem::Common::archive_named(ar, name, loaded);
-            if(loaded) { ref = std::move(loaded); } // omitted -> null -> leave ref (the default) untouched
+            if(loaded) {
+                ref = std::move(loaded);
+            } // omitted -> null -> leave ref (the default) untouched
         }
     }
 };
@@ -317,9 +330,11 @@ struct ser_wire_omitted_ptr {
 template <typename T>
 Gem::Common::member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>
 make_wire_omitted_ptr_member(const char *name, T &ref) {
-    return Gem::Common::member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>{
-        name, ref
-    };
+    return Gem::Common::
+        member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>{
+            name,
+            ref
+        };
 }
 
 /******************************************************************************/

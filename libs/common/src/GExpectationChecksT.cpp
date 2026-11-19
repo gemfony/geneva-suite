@@ -323,7 +323,7 @@ void compare(
     case Gem::Common::expectation::FP_SIMILARITY:
     case Gem::Common::expectation::EQUALITY:
         expectation_str = "FP_SIMILARITY / EQUALITY";
-        if((x == Gem::Common::tribool::True  && y == Gem::Common::tribool::True) ||
+        if((x == Gem::Common::tribool::True && y == Gem::Common::tribool::True) ||
            (x == Gem::Common::tribool::False && y == Gem::Common::tribool::False) ||
            (x == Gem::Common::tribool::Indeterminate && y == Gem::Common::tribool::Indeterminate)) {
             expectation_met = true;
@@ -332,7 +332,7 @@ void compare(
 
     case Gem::Common::expectation::INEQUALITY:
         expectation_str = "INEQUALITY";
-        if((x != Gem::Common::tribool::True  || y != Gem::Common::tribool::True) &&
+        if((x != Gem::Common::tribool::True || y != Gem::Common::tribool::True) &&
            (x != Gem::Common::tribool::False || y != Gem::Common::tribool::False) &&
            (x != Gem::Common::tribool::Indeterminate || y != Gem::Common::tribool::Indeterminate)) {
             expectation_met = true;
@@ -342,8 +342,7 @@ void compare(
 
     if(not expectation_met) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
-        error << "Expectation of " << expectation_str << " was violated for parameters "
-              << '\n'
+        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x << '\n'
               << y_name << " = " << y << '\n'

@@ -44,8 +44,8 @@
 // Geneva header files go here
 #include "common/GCommonHelperFunctionsT.hpp" // g_convert_and_compare
 #include "common/GCommonInterfaceT.hpp"       // GCommonInterfaceT, gemfony_common_root_t
-#include "common/GExpectationChecksT.hpp"     // GToken, expectation, compare_base_t, g_compare_members
-#include "common/GMemberReflectionT.hpp"      // g_load_members, serialize_members
+#include "common/GExpectationChecksT.hpp" // GToken, expectation, compare_base_t, g_compare_members
+#include "common/GMemberReflectionT.hpp"  // g_load_members, serialize_members
 
 namespace Gem::Common {
 
@@ -154,8 +154,7 @@ struct GReflectiveInterfaceAccess {
  */
 template <typename T>
 concept ReflectiveInterfaceManaged =
-    requires(T &t) { GReflectiveInterfaceAccess::members(t); } &&
-    requires {
+    requires(T &t) { GReflectiveInterfaceAccess::members(t); } && requires {
         { T::class_name } -> std::convertible_to<std::string_view>;
     };
 
@@ -258,7 +257,8 @@ protected:
      * only through GReflectiveInterfaceAccess (a friend of every managed class), the same
      * routing localMembers_() uses.
      */
-    void postLoad_() {}
+    void postLoad_() {
+    }
 
 private:
     ///////////////////////////////////////////////////////////////////////
@@ -328,8 +328,11 @@ private:
      * @param limit The tolerance for floating-point comparisons (unused: per-member
      *              tolerance is applied inside g_compare_members / compare_base_t)
      */
-    void compare_(Root const &cp, Gem::Common::expectation const &e, [[maybe_unused]] double const &limit)
-        const override {
+    void compare_(
+        Root const &cp,
+        Gem::Common::expectation const &e,
+        [[maybe_unused]] double const &limit
+    ) const override {
         static_assert(
             ReflectiveInterfaceManaged<derived_type>,
             "GReflectiveInterfaceBaseT: derived_type must declare its own localMembers_() and a "

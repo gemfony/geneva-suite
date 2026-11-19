@@ -146,7 +146,8 @@ void wireDecodePayload(
  * @return The serialized HELLO
  */
 template <typename processable_type>
-std::string buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
+std::string
+buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
     GCommandContainerT<processable_type> hello{GFrameKind::NONE};
     hello.setHello(
         std::string(Gem::Common::genevaCommit()),

@@ -105,8 +105,10 @@ class GPreallocatedMPMCQueueT final {
      *  uninitialised by the slot's constructor and only ever constructed/destroyed explicitly). */
     union Slot {
         T value_;
-        Slot() noexcept {}  // leave the storage uninitialised
-        ~Slot() noexcept {} // the owning queue destroys live elements explicitly
+        Slot() noexcept {
+        } // leave the storage uninitialised
+        ~Slot() noexcept {
+        } // the owning queue destroys live elements explicitly
     };
 
     /// The semaphores never exceed CAP permits (free_ starts at CAP; items_ tops out at CAP), so CAP
@@ -151,7 +153,8 @@ public:
                 idx = next_index(idx);
             }
             count_.store(0, std::memory_order_relaxed);
-        } catch(...) { // NOLINT(bugprone-empty-catch) — a destructor must not throw
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) — a destructor must not throw
         }
     }
 
@@ -396,9 +399,10 @@ private:
         {
             std::scoped_lock const lock(tail_mtx_);
             try {
-                ::new(static_cast<void *>(std::addressof(ring_[tail_].value_)))
+                ::new (static_cast<void *>(std::addressof(ring_[tail_].value_)))
                     T(std::forward<U>(item));
-            } catch(...) {
+            }
+            catch(...) {
                 // The element constructor threw, so the slot stays empty and nothing is published.
                 // Give the reserved free_ permit back -- otherwise capacity would shrink by one for
                 // the queue's lifetime -- and propagate, leaving the queue unchanged (the strong
@@ -410,7 +414,7 @@ private:
             tail_ = next_index(tail_);
         }
         count_.fetch_add(1, std::memory_order_relaxed); // observers only
-        items_.release();                               // publish: synchronises with the consumer's acquire
+        items_.release(); // publish: synchronises with the consumer's acquire
     }
 
     /*************************************************************************/
@@ -436,15 +440,15 @@ private:
     /*************************************************************************/
     std::unique_ptr<Slot[]> ring_; ///< The preallocated ring storage (CAP slots)
 
-    std::mutex tail_mtx_;          ///< Serialises producers (guards tail_)
-    std::mutex head_mtx_;          ///< Serialises consumers (guards head_)
-    std::size_t tail_ = 0;        ///< Index of the next free slot to push into (under tail_mtx_)
-    std::size_t head_ = 0;        ///< Index of the next item to pop (under head_mtx_)
+    std::mutex tail_mtx_;  ///< Serialises producers (guards tail_)
+    std::mutex head_mtx_;  ///< Serialises consumers (guards head_)
+    std::size_t tail_ = 0; ///< Index of the next free slot to push into (under tail_mtx_)
+    std::size_t head_ = 0; ///< Index of the next item to pop (under head_mtx_)
 
     std::counting_semaphore<sem_max_> free_{
         static_cast<std::ptrdiff_t>(CAP)
     }; ///< Empty-slot permits
-    std::counting_semaphore<sem_max_> items_{0};                              ///< Filled-slot permits
+    std::counting_semaphore<sem_max_> items_{0}; ///< Filled-slot permits
 
     std::atomic<std::size_t> count_{0}; ///< Live item count, for observers only (not correctness)
     std::atomic<bool> closed_{false};   ///< Set by close(); terminal

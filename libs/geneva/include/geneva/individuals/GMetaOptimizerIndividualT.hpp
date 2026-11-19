@@ -50,18 +50,18 @@
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSelfTestable.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
+#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GTunableManifest.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::Individuals {
 
@@ -173,7 +173,6 @@ const std::string GMETAOPT_DEF_INDCONFIG =
 const std::string GMETAOPT_DEF_SUBEACONFIG =
     "./config/GSubEvolutionaryAlgorithm.json"; ///< The default configuration file for the (sub-)evolutionary algorithms
 
-
 /******************************************************************************/
 /**
  * This individual performs "meta optimization" in the sense that parameters of
@@ -244,11 +243,10 @@ public:
             // it only when present, otherwise copy the (null) factory as-is. The
             // previous unconditional (cp.ind_factory_)->clone() dereferenced a null
             // pointer when copying/cloning a default-constructed object.
-            cp.ind_factory_
-                ? Gem::Common::convertSmartPointer<
-                      Gem::Common::GFactoryT<gen::GGenome>,
-                      typename ind_type::FACTORYTYPE>((cp.ind_factory_)->clone())
-                : std::shared_ptr<typename ind_type::FACTORYTYPE>()
+            cp.ind_factory_ ? Gem::Common::convertSmartPointer<
+                                  Gem::Common::GFactoryT<gen::GGenome>,
+                                  typename ind_type::FACTORYTYPE>((cp.ind_factory_)->clone())
+                            : std::shared_ptr<typename ind_type::FACTORYTYPE>()
         ) { /* nothing */
     }
 
@@ -452,7 +450,7 @@ public:
      */
     //! [meta.addcontent]
     static void addContent(
-        const std::shared_ptr<GMetaOptimizerIndividualT<ind_type>>& p,
+        const std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> &p,
         const std::vector<oa::TunableParam> &manifest
     ) {
         gen::GGenomeBuilder b;
@@ -466,7 +464,7 @@ public:
                      static_cast<std::int32_t>(tp.init),
                      static_cast<std::int32_t>(tp.lower),
                      static_cast<std::int32_t>(tp.upper)
-                 )
+                )
                     .label(tp.name);
             }
         }
@@ -490,7 +488,7 @@ public:
      */
     std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
         auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
-        cfg->groupInt32(0).flip(1.);                            // n_parents
+        cfg->groupInt32(0).flip(1.);                             // n_parents
         cfg->groupInt32(1).intGauss(0.025, 0.2, 0.001, 0.5, 1.); // n_children
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i).gauss(0.025, 0.2, 0.001, 0.5, 1.);
@@ -544,24 +542,18 @@ public:
                << "population::n_children = " << nch << '\n'
                << "population::amalgamation_likelihood = " << amalgamation << '\n'
                << "individual::ad_prob_range = " << ad_prob_range << '\n'
-               << "individual::ad_prob_start_percentage_ptr = "
-               << ad_prob_start_percentage << '\n'
+               << "individual::ad_prob_start_percentage_ptr = " << ad_prob_start_percentage << '\n'
                << "individual::ad_prob = "
-               << min_ad_prob + (ad_prob_range * ad_prob_start_percentage)
-               << '\n'
+               << min_ad_prob + (ad_prob_range * ad_prob_start_percentage) << '\n'
                << "individual::min_ad_prob = " << min_ad_prob << '\n'
-               << "individual::max_ad_prob = "
-               << min_ad_prob + ad_prob_range << '\n'
+               << "individual::max_ad_prob = " << min_ad_prob + ad_prob_range << '\n'
                << "individual::adapt_ad_prob = " << adapt_adprob << '\n'
                << "individual::sigmarange_ptr = " << sigmarange << '\n'
-               << "individual::sigma_range_percentage_ptr = " << sigma_range_percentage
-               << '\n'
-               << "individual::sigma1 = "
-               << minsigma + (sigmarange * sigma_range_percentage)
+               << "individual::sigma_range_percentage_ptr = " << sigma_range_percentage << '\n'
+               << "individual::sigma1 = " << minsigma + (sigmarange * sigma_range_percentage)
                << '\n'
                << "individual::min_sigma1 = " << minsigma << '\n'
-               << "individual::max_sigma1 = " << minsigma + sigmarange
-               << '\n'
+               << "individual::max_sigma1 = " << minsigma + sigmarange << '\n'
                << "individual::sigma_sigma1 = " << sigmasigma << '\n'
                << "================================================================================"
                   "============"
@@ -578,12 +570,11 @@ public:
      *
      * @param factory The sub-individual factory to clone and store (must not be empty)
      */
-    void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE>& factory) {
+    void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GMetaOptimizerIndividualT<T>::registerIndividualFactory(): Error!"
-                << '\n'
+                << "In GMetaOptimizerIndividualT<T>::registerIndividualFactory(): Error!" << '\n'
                 << "Individual is empty" << '\n'
             );
         }
@@ -702,7 +693,8 @@ protected:
         // safe because this individual is evaluated by GMetaEvolutionaryAlgorithm on its own orchestration
         // pool -- distinct from that work consumer -- so the inner submission never starves the pool this
         // evaluation runs on.
-        std::shared_ptr<oa::GEvolutionaryAlgorithm> const ea_ptr = ea.get<oa::GEvolutionaryAlgorithm>();
+        std::shared_ptr<oa::GEvolutionaryAlgorithm> const ea_ptr =
+            ea.get<oa::GEvolutionaryAlgorithm>();
 
         populateSubEA(*ea_ptr, pop_size, n_parents, sub_adaption_config, amalgamation_likelihood);
         configureSubEAStopCriteria(*ea_ptr);
@@ -712,8 +704,7 @@ protected:
         ea_ptr->optimize();
 
         // Book-keeping from the completed run.
-        auto const best_individual =
-            ea_ptr->getBestGlobalIndividual<gen::GGenome>();
+        auto const best_individual = ea_ptr->getBestGlobalIndividual<gen::GGenome>();
         const std::uint32_t iterations_consumed = ea_ptr->getIteration();
         measurements.solver_calls.push_back(
             static_cast<double>(((iterations_consumed + 1) * n_children) + n_parents)
@@ -803,7 +794,12 @@ protected:
             std::cout << "Starting measurement " << opt + 1 << " / " << n_runs_per_optimization_
                       << '\n';
             runOneSubOptimization(
-                ea, pop_size, n_parents, n_children, sub_adaption_config, amalgamation_likelihood,
+                ea,
+                pop_size,
+                n_parents,
+                n_children,
+                sub_adaption_config,
+                amalgamation_likelihood,
                 measurements
             );
         }
@@ -845,8 +841,16 @@ protected:
         );
         for(std::size_t i = 0; i < sub_adaption_config->doubleGroups().size(); i++) {
             sub_adaption_config->groupDouble(i).gauss(
-                start_sigma, sigma_sigma, min_sigma, max_sigma, start_ad_prob, adapt_ad_prob, 1,
-                Gem::Geneva::adaptionMode::WITHPROBABILITY, min_ad_prob, max_ad_prob
+                start_sigma,
+                sigma_sigma,
+                min_sigma,
+                max_sigma,
+                start_ad_prob,
+                adapt_ad_prob,
+                1,
+                Gem::Geneva::adaptionMode::WITHPROBABILITY,
+                min_ad_prob,
+                max_ad_prob
             );
         }
         return sub_adaption_config;
@@ -862,8 +866,7 @@ protected:
      * @return The raw result vector for this meta-individual
      */
     std::vector<double> assembleEvaluationResult(const SubRunMeasurements &measurements) {
-        std::tuple<double, double> sd =
-            Gem::Common::GStandardDeviation(measurements.solver_calls);
+        std::tuple<double, double> sd = Gem::Common::GStandardDeviation(measurements.solver_calls);
         std::tuple<double, double> itmean =
             Gem::Common::GStandardDeviation(measurements.iterations);
         std::tuple<double, double> best_mean =
@@ -943,9 +946,12 @@ protected:
         // Change the parameter settings (only when the genome has actually been built). The adaption
         // state + logic are OA-owned; a standalone individual drives them via a self-owned
         // scratch + config (StandaloneAdapter).
-        if(this->template countParameters<std::int32_t>() + this->template countParameters<double>() > 0) {
+        if(this->template countParameters<std::int32_t>() +
+               this->template countParameters<double>() >
+           0) {
             // The genome is structure-only; drive the self-owned adaption via the authored meta config.
-            Gem::Geneva::OptimizationAlgorithms::StandaloneAdapter(*this, getAdaptionConfig()).adapt(*this);
+            Gem::Geneva::OptimizationAlgorithms::StandaloneAdapter(*this, getAdaptionConfig())
+                .adapt(*this);
             result = true;
         }
 
@@ -986,6 +992,7 @@ protected:
         );
 #endif /* GEM_TESTING */
     }
+
 private:
     /***************************************************************************/
     /**
@@ -1018,8 +1025,9 @@ private:
 
     /***************************************************************************/
 
-    std::size_t n_runs_per_optimization_; ///< The number of runs performed for each (sub-)optimization
-    double fitness_target_;             ///< The quality target to be reached by
+    std::size_t
+        n_runs_per_optimization_; ///< The number of runs performed for each (sub-)optimization
+    double fitness_target_;       ///< The quality target to be reached by
     std::uint32_t iteration_threshold_; ///< The maximum allowed number of iterations
     metaOptimizationTarget mo_target_;  ///< The target used for the meta-optimization
     std::string
@@ -1090,7 +1098,7 @@ public:
      *
      * @param factory The sub-individual factory to clone and store (must not be empty)
      */
-    void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE>& factory) {
+    void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -1445,9 +1453,24 @@ protected:
                     }
                 }
             };
-        override_knob(n::n_parents, double(init_n_parents_), double(n_parents_lb_), double(n_parents_ub_));
-        override_knob(n::n_children, double(init_n_children_), double(n_children_lb_), double(n_children_ub_));
-        override_knob(n::amalgamation, init_amalgamation_lklh_, amalgamation_lklh_lb_, amalgamation_lklh_ub_);
+        override_knob(
+            n::n_parents,
+            double(init_n_parents_),
+            double(n_parents_lb_),
+            double(n_parents_ub_)
+        );
+        override_knob(
+            n::n_children,
+            double(init_n_children_),
+            double(n_children_lb_),
+            double(n_children_ub_)
+        );
+        override_knob(
+            n::amalgamation,
+            init_amalgamation_lklh_,
+            amalgamation_lklh_lb_,
+            amalgamation_lklh_ub_
+        );
         override_knob(n::min_ad_prob, init_min_ad_prob_, min_ad_prob_lb_, min_ad_prob_ub_);
         override_knob(n::ad_prob_range, init_ad_prob_range_, ad_prob_range_lb_, ad_prob_range_ub_);
         override_knob(n::ad_prob_start_pct, init_ad_prob_start_percentage_, 0., 1.);
@@ -1475,8 +1498,7 @@ private:
      * @param gpb The GParserBuilder to which the new object's configuration options are added
      * @return Items of the desired type
      */
-    std::shared_ptr<gen::GGenome>
-    getObject_(Gem::Common::GParserBuilder &gpb) override {
+    std::shared_ptr<gen::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
         // Will hold the result
         std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> target(
             new GMetaOptimizerIndividualT<ind_type>()
@@ -1518,8 +1540,10 @@ private:
 
     double init_ad_prob_range_ =
         GMETAOPT_DEF_INITADPROBRANGE; ///< The initial range for the variation of ad_prob
-    double ad_prob_range_lb_ = GMETAOPT_DEF_ADPROBRANGE_LB; ///< The lower boundary for ad_prob_range
-    double ad_prob_range_ub_ = GMETAOPT_DEF_ADPROBRANGE_UB; ///< The upper boundary for ad_prob_range
+    double ad_prob_range_lb_ =
+        GMETAOPT_DEF_ADPROBRANGE_LB; ///< The lower boundary for ad_prob_range
+    double ad_prob_range_ub_ =
+        GMETAOPT_DEF_ADPROBRANGE_UB; ///< The upper boundary for ad_prob_range
 
     double init_ad_prob_start_percentage_ =
         GMETAOPT_DEF_INITADPROBSTARTPERCENTAGE; ///< The start value for ad_prob relative to the allowed value range
@@ -1607,9 +1631,7 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
      *  a transient GDataLog at INFOINIT, filled in INFOPROCESSING and written at INFOEND. */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(
-            Gem::Common::make_member("file_name_", self.file_name_)
-        );
+        return std::make_tuple(Gem::Common::make_member("file_name_", self.file_name_));
     }
 
 public:
@@ -1619,7 +1641,7 @@ public:
      *
      * @param file_name The name of the file the recorded plots are written to
      */
-    GOptOptMonitorT(const std::string& file_name)
+    GOptOptMonitorT(const std::string &file_name)
       : file_name_(file_name) { /* nothing -- the progress curves live in a transient data log */
     }
 
@@ -1673,7 +1695,10 @@ protected:
     void load_(const oa::GBasePluggableOM *cp) override {
         // Check that we are dealing with a GOptOptMonitorT<ind_type> reference independent of this object and convert the pointer
         const GOptOptMonitorT<ind_type> *p_load =
-            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(cp, this);
+            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
+                cp,
+                this
+            );
 
         // Trigger loading of our parent class'es data
         // Load the parent classes' data ...
@@ -1704,13 +1729,16 @@ protected:
     void compare_(
         const oa::GBasePluggableOM &cp,
         const Gem::Common::expectation &e,
-        [[maybe_unused]] const double & limit
+        [[maybe_unused]] const double &limit
     ) const override {
         using namespace Gem::Common;
 
         // Check that we are dealing with a GOptOptMonitorT<ind_type> reference independent of this object and convert the pointer
         const GOptOptMonitorT<ind_type> *p_load =
-            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(cp, this);
+            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
+                cp,
+                this
+            );
 
         GToken token("GOptOptMonitorT", e);
 
@@ -1781,7 +1809,8 @@ private:
      * @param im The current stage of the information cycle (init, processing or end)
      * @param goa A pointer to the optimization algorithm the monitor is attached to
      */
-    void informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    void
+    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         using namespace Gem::Common;
         using namespace Gem::Dietrich; // GPlotSpec / plotKind / graphPlotMode
 
@@ -1801,7 +1830,8 @@ private:
                 {"Lower sigma boundary as a function of the iteration", "Lower sigma boundary"},
                 {"Upper sigma boundary as a function of the iteration", "Upper sigma boundary"},
                 {"Development of the sigma range as a function of the iteration", "Sigma range"},
-                {"Development of the adaption strength as a function of the iteration", "Sigma-Sigma"}
+                {"Development of the adaption strength as a function of the iteration",
+                 "Sigma-Sigma"}
             };
 
             data_log_.emplace("Progress information", 2, 4);
@@ -1820,10 +1850,9 @@ private:
 
         case Gem::Geneva::infoMode::INFOPROCESSING: {
             // Convert the base pointer to the target type
-            auto const *const ea =
-                static_cast<oa::GEvolutionaryAlgorithm const *const>(
-                    goa
-                ); // NOLINT(cppcoreguidelines-init-variables)
+            auto const *const ea = static_cast<oa::GEvolutionaryAlgorithm const *const>(
+                goa
+            ); // NOLINT(cppcoreguidelines-init-variables)
 
             // Extract the requested data. First retrieve the best individual.
             // It can always be found in the first position with evolutionary algorithms

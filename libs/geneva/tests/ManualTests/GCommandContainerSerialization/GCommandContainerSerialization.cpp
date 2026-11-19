@@ -137,7 +137,9 @@ int main(int argc, char **argv) {
 
         // Add the object to a new WORK frame
         Gem::Courtier::GCommandContainerT<gen::GGenome> gcc1(
-            Gem::Courtier::GFrameKind::WORK, fi_ptr->clone());
+            Gem::Courtier::GFrameKind::WORK,
+            fi_ptr->clone()
+        );
 
         // Prepare a frame for de-serialization
         Gem::Courtier::GCommandContainerT<gen::GGenome> gcc2(Gem::Courtier::GFrameKind::NONE);

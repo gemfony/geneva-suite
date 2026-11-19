@@ -34,11 +34,11 @@
 
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
-#include "geneva/genome/GMultiConstraintT.hpp"
-#include "geneva/genome/GIndividualMultiConstraint.hpp"
-#include "geneva/genome/GGenomeMultiConstraint.hpp"
-#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeMultiConstraint.hpp"
+#include "geneva/genome/GIndividualMultiConstraint.hpp"
+#include "geneva/genome/GMultiConstraintT.hpp"
+#include "geneva/individuals/GFunctionIndividual.hpp"
 
 namespace gen = Gem::Geneva::Genome;
 
@@ -53,19 +53,24 @@ namespace gen = Gem::Geneva::Genome;
  * with an EMPTY check vector (constraints silently dropped on the wire / in checkpoints).
  * Before the fix the EQUALITY compare below throws (size mismatch); after it, it passes.
  */
-TEST_CASE("GCheckCombinerT: serialization preserves the contained validity checks", "[constraint]") {
+TEST_CASE(
+    "GCheckCombinerT: serialization preserves the contained validity checks",
+    "[constraint]"
+) {
     using Gem::Geneva::GCheckCombinerT;
-    using Gem::Geneva::Individuals::GSphereConstraint;
-    using Gem::Geneva::Individuals::GDoubleSumConstraint;
     using Gem::Geneva::validityCheckCombinerPolicy;
+    using Gem::Geneva::Individuals::GDoubleSumConstraint;
+    using Gem::Geneva::Individuals::GSphereConstraint;
 
     GCheckCombinerT<gen::GGenome> original;
-    original.setCombinerPolicy(validityCheckCombinerPolicy::ADDINVALID); // non-default, to also pin the policy
+    original.setCombinerPolicy(
+        validityCheckCombinerPolicy::ADDINVALID
+    ); // non-default, to also pin the policy
     original.addCheck(std::make_shared<GSphereConstraint>(2.5));
     original.addCheck(std::make_shared<GDoubleSumConstraint>(1.25));
 
-    for(auto mode : {Gem::Common::serializationMode::GEM_BINARY,
-                     Gem::Common::serializationMode::GEM_JSON}) {
+    for(auto mode :
+        {Gem::Common::serializationMode::GEM_BINARY, Gem::Common::serializationMode::GEM_JSON}) {
         const std::string archived = original.toString(mode);
 
         GCheckCombinerT<gen::GGenome> restored;

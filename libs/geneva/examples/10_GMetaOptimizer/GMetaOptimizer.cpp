@@ -73,11 +73,10 @@ int main(int argc, char **argv) {
 
     // Create a factory for GMetaOptimizerIndividual objects and perform
     // any necessary initial work.
-    std::shared_ptr<gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>> const gmoi_ptr(
-        new gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>(
+    std::shared_ptr<gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>> const
+        gmoi_ptr(new gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>(
             "./config/GMetaOptimizerIndividual.json"
-        )
-    );
+        ));
 
     // Add a pluggable optimization monitor (targeted at evolutionary algorithms) and register
     // it with Go2.
@@ -102,7 +101,8 @@ int main(int argc, char **argv) {
     if(go.updateConfigsMode()) {
         gfi_ptr->get();
         oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>(
-            "./config/GSubEvolutionaryAlgorithm.json")
+            "./config/GSubEvolutionaryAlgorithm.json"
+        )
             .get<oa::GOptimizationAlgorithmBase>();
     }
 

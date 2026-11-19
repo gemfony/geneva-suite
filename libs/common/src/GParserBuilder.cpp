@@ -35,7 +35,6 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <system_error>
 #include <ios>
 #include <iostream>
 #include <mutex>
@@ -44,6 +43,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 // Other Geneva headers whose symbols are used directly
@@ -287,7 +287,7 @@ GParsableI &GParsableI::operator<<(commentLevel const &cl) {
  * @param nc A nextComment tag object that triggers the level increment (unused)
  * @return A reference to this object (to allow chaining)
  */
-GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const & nc) {
+GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const &nc) {
 #ifdef DEBUG
     if(comment_.empty()) {
         throw geneva_exception(
@@ -615,8 +615,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
-                << "Base-directory " << config_base_dir_.string() << " is not a directory"
-                << '\n'
+                << "Base-directory " << config_base_dir_.string() << " is not a directory" << '\n'
             );
         }
 
@@ -631,8 +630,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
     file_existed = std::filesystem::exists(config_path);
     if(not file_existed) {
         glogger << "Note: In GParserBuilder::parseConfigFile():" << '\n'
-                << "Configuration file " << config_path.string() << " does not exist."
-                << '\n'
+                << "Configuration file " << config_path.string() << " does not exist." << '\n'
                 << "We will try to create a file with default values for you." << '\n'
                 << GLOGGING;
 
@@ -660,8 +658,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
-                << config_path.string() << " does not have the required extension \".json\""
-                << '\n'
+                << config_path.string() << " does not have the required extension \".json\"" << '\n'
             );
         }
     }
@@ -695,10 +692,12 @@ void GParserBuilder::reportAndRewriteConfigFile(
         }
     }
     if(not dropped.empty()) {
-        glogger << "Note: In GParserBuilder::reportAndRewriteConfigFile(): " << config_path.string() << '\n'
+        glogger << "Note: In GParserBuilder::reportAndRewriteConfigFile(): " << config_path.string()
+                << '\n'
                 << "dropping " << dropped.size()
                 << " stale key(s) no registered parameter consumes: "
-                << (dropped | std::views::join_with(std::string(", ")) | std::ranges::to<std::string>())
+                << (dropped | std::views::join_with(std::string(", ")) |
+                    std::ranges::to<std::string>())
                 << '\n'
                 << GLOGGING;
     }
@@ -707,7 +706,10 @@ void GParserBuilder::reportAndRewriteConfigFile(
         rewrite_header.empty()
             ? std::string("This configuration file was automatically created by GParserBuilder;")
             : rewrite_header;
-    this->atomicReplaceConfigFile_(config_path, this->buildConfigDocument_(header, true /* write_all */));
+    this->atomicReplaceConfigFile_(
+        config_path,
+        this->buildConfigDocument_(header, true /* write_all */)
+    );
 }
 
 /******************************************************************************/
@@ -828,7 +830,8 @@ void GParserBuilder::writeConfigFile(
         // must also create a missing config DIRECTORY -- otherwise, on a fresh run directory with
         // no config/ folder, writing the very first config (e.g. Go2's own) would fail and abort
         // the whole program via GTERMINATION before any config could be created.
-        const std::filesystem::path target_dir = std::filesystem::path(config_file).remove_filename();
+        const std::filesystem::path target_dir =
+            std::filesystem::path(config_file).remove_filename();
         if(not target_dir.empty()) {
             if(std::filesystem::exists(target_dir)) {
                 if(not std::filesystem::is_directory(target_dir)) {
@@ -897,7 +900,8 @@ void GParserBuilder::writeConfigFile(
  * @param write_all Whether to also emit non-essential options
  * @return The assembled JSON document (a JSON object at the root)
  */
-boost::json::value GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
+boost::json::value
+GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
     if(file_parameter_proxies_.empty()) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -1102,8 +1106,7 @@ bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
         usage << desc;
         glogger << "Error on the command line: " << e.what() << '\n'
                 << '\n'
-                << usage.str()
-                << LOGEXIT(EXIT_FAILURE);
+                << usage.str() << LOGEXIT(EXIT_FAILURE);
     }
     catch(...) {
         // Anything other than a program_options error here is an unexpected INTERNAL fault, so the

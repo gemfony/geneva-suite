@@ -92,7 +92,10 @@ protected:
 
     /** @brief Allow access to this class'es compare_ function */
     friend void Gem::Common::compare_base_t<GRandomSearch_PersonalityTraits>(
-        GRandomSearch_PersonalityTraits const &, GRandomSearch_PersonalityTraits const &, Gem::Common::GToken &);
+        GRandomSearch_PersonalityTraits const &,
+        GRandomSearch_PersonalityTraits const &,
+        Gem::Common::GToken &
+    );
 
     /** @brief Searches for compliance with expectations with respect to another object of the same type.
      *  @param cp The other object to be compared against (as a GPersonalityTraits)
@@ -118,4 +121,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

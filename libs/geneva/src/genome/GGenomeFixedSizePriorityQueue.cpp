@@ -28,11 +28,11 @@
  ********************************************************************************/
 
 #include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GFixedSizePriorityQueueT.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -51,9 +51,7 @@ namespace Gem::Geneva::Genome {
 	 *
 	 * @param max_size The maximum number of items the priority queue may hold
 	 */
-GGenomeFixedSizePriorityQueue::GGenomeFixedSizePriorityQueue(
-    const std::size_t &max_size
-)
+GGenomeFixedSizePriorityQueue::GGenomeFixedSizePriorityQueue(const std::size_t &max_size)
   : Gem::Common::GReflectiveInterfaceT<
         GGenomeFixedSizePriorityQueue,
         Gem::Common::GUniquePtrFixedSizePriorityQueueT<GGenome>>(
@@ -108,9 +106,7 @@ std::string GGenomeFixedSizePriorityQueue::getCleanStatus() const {
 	 * @param item_ptr A constant reference to the individual to be checked
 	 * @return true if the pointer is non-empty and its item has been processed, false otherwise
 	 */
-bool GGenomeFixedSizePriorityQueue::isValid(
-    const std::unique_ptr<GGenome> &item_ptr
-) const {
+bool GGenomeFixedSizePriorityQueue::isValid(const std::unique_ptr<GGenome> &item_ptr) const {
     // The base implementation rejects an empty handle
     if(not Gem::Common::GUniquePtrFixedSizePriorityQueueT<GGenome>::isValid(item_ptr)) {
         return false;
@@ -129,9 +125,7 @@ bool GGenomeFixedSizePriorityQueue::isValid(
 	 * @param item_ptr A constant reference to the individual to be evaluated
 	 * @return The min-only transformed fitness of the item (its primary evaluation criterion)
 	 */
-double GGenomeFixedSizePriorityQueue::evaluation(
-    const std::unique_ptr<GGenome> &item_ptr
-) const {
+double GGenomeFixedSizePriorityQueue::evaluation(const std::unique_ptr<GGenome> &item_ptr) const {
     return minOnly_transformed_fitness(*item_ptr);
 }
 

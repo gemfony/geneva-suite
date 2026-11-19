@@ -81,9 +81,14 @@ public:
      *  @param results_out Output buffer receiving n_items result values
      *  @param threads_per_item Requested intra-item parallelism (default 1 == one thread per item) */
     virtual void evaluate(
-        const scalar_type *params, int n_items, int dim,
-        const std::byte *pconst, std::size_t pconst_size,
-        scalar_type *results_out, int threads_per_item = 1) = 0;
+        const scalar_type *params,
+        int n_items,
+        int dim,
+        const std::byte *pconst,
+        std::size_t pconst_size,
+        scalar_type *results_out,
+        int threads_per_item = 1
+    ) = 0;
 
     /** @brief A short human-readable backend name (for logging).
      *  @return The backend's name */

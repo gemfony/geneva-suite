@@ -825,16 +825,16 @@ private:
 
     LinkState state_ = LinkState::CONNECTING;   ///< Where the client is with its connection
     GPeerClose close_how_ = GPeerClose::NORMAL; ///< What an ending client's close says
-    GPeerEnd end_ = GPeerEnd::FAILED;    ///< How the last connection ended (read after run())
-    std::uint64_t connection_ = 0;       ///< The number of the current (or last) connection
-    bool attempting_ = false;            ///< The connector is making an attempt
-    bool peer_live_ = false;             ///< A peer has been started and has not ended
-    bool peer_opened_ = false;           ///< The current peer has opened
-    bool contact_on_connection_ = false; ///< The HELLO has arrived on the current connection
-    bool contact_ever_ = false;          ///< A HELLO has arrived on some connection
+    GPeerEnd end_ = GPeerEnd::FAILED;     ///< How the last connection ended (read after run())
+    std::uint64_t connection_ = 0;        ///< The number of the current (or last) connection
+    bool attempting_ = false;             ///< The connector is making an attempt
+    bool peer_live_ = false;              ///< A peer has been started and has not ended
+    bool peer_opened_ = false;            ///< The current peer has opened
+    bool contact_on_connection_ = false;  ///< The HELLO has arrived on the current connection
+    bool contact_ever_ = false;           ///< A HELLO has arrived on some connection
     bool program_unchecked_told_ = false; ///< The log has said that the program is not checked
-    clock::time_point run_started_at_;   ///< When run_() began
-    clock::time_point last_contact_end_; ///< The end of the last connection with contact
+    clock::time_point run_started_at_;    ///< When run_() began
+    clock::time_point last_contact_end_;  ///< The end of the last connection with contact
     std::chrono::milliseconds pause_length_ = GCLIENTRECONNECTPAUSEMIN; ///< The next pause, at most
     std::size_t max_message_bytes_ = std::numeric_limits<std::size_t>::max(); ///< The transport's
 

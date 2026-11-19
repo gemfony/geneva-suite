@@ -34,7 +34,6 @@
 #include <random>
 #include <string>
 
-
 namespace Gem::Courtier {
 
 /******************************************************************************/

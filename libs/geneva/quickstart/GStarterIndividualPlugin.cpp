@@ -16,9 +16,9 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp"          // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GenevaModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/genome/GIndividualPlugin.hpp"    // Gem::Geneva::individualManifest<>
+#include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
 #include "GStarterIndividual.hpp"
 
@@ -26,5 +26,6 @@ extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifes
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GStarterIndividual>,
-        "./config/GStarterIndividual.json", "GStarterIndividual">();
+        "./config/GStarterIndividual.json",
+        "GStarterIndividual">();
 }

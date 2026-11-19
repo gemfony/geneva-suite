@@ -27,10 +27,10 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -67,7 +67,10 @@ using Gem::Common::to_string;
  * @param c_y_div The number of pad rows
  */
 GDataLog::GDataLog(std::string canvas_label, std::size_t c_x_div, std::size_t c_y_div)
-  : canvas_label_(std::move(canvas_label)), c_x_div_(c_x_div), c_y_div_(c_y_div) { /* nothing */ }
+  : canvas_label_(std::move(canvas_label))
+  , c_x_div_(c_x_div)
+  , c_y_div_(c_y_div) { /* nothing */
+}
 
 /******************************************************************************/
 /**

@@ -58,39 +58,45 @@ namespace {
  * A minimal processing container whose process_() behaviour is selectable:
  * succeed with a fixed result, flag a user error, or throw.
  */
-class StatusProbeContainer
-  : public GProcessingContainerT<StatusProbeContainer, double> {
+class StatusProbeContainer : public GProcessingContainerT<StatusProbeContainer, double> {
     ///////////////////////////////////////////////////////////////////////
 
     friend struct Gem::Weft::access;
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<GProcessingContainerT<StatusProbeContainer, double>>(
-            ar, "GProcessingContainerT_StatusProbeContainer", *this);
+            ar,
+            "GProcessingContainerT_StatusProbeContainer",
+            *this
+        );
     }
     ///////////////////////////////////////////////////////////////////////
 
 public:
-    enum class Mode { SUCCEED, FLAG_ERROR, THROW };
+    enum class Mode {
+        SUCCEED,
+        FLAG_ERROR,
+        THROW
+    };
 
-    explicit StatusProbeContainer(Mode mode) : mode_(mode) {
+    explicit StatusProbeContainer(Mode mode)
+      : mode_(mode) {
         this->mark_as_due_for_processing();
     }
     StatusProbeContainer() = default; // deserialization only
 
 private:
-    void process_(
-        [[maybe_unused]] const std::vector<double> &res_vec = std::vector<double>()
-    ) final {
+    void
+    process_([[maybe_unused]] const std::vector<double> &res_vec = std::vector<double>()) final {
         switch(mode_) {
-            case Mode::SUCCEED:
-                this->registerResult(0, 42.);
-                break;
-            case Mode::FLAG_ERROR:
-                this->force_set_error("StatusProbeContainer: user-flagged error\n");
-                break;
-            case Mode::THROW:
-                throw std::runtime_error("StatusProbeContainer: thrown from process_()");
+        case Mode::SUCCEED:
+            this->registerResult(0, 42.);
+            break;
+        case Mode::FLAG_ERROR:
+            this->force_set_error("StatusProbeContainer: user-flagged error\n");
+            break;
+        case Mode::THROW:
+            throw std::runtime_error("StatusProbeContainer: thrown from process_()");
         }
     }
 
@@ -102,12 +108,16 @@ private:
 class RecordingPostProcessor
   : public Gem::Common::GSerializableFunctionObjectT<StatusProbeContainer> {
 public:
-    explicit RecordingPostProcessor(bool *hit) : hit_(hit) {}
+    explicit RecordingPostProcessor(bool *hit)
+      : hit_(hit) {
+    }
     RecordingPostProcessor() = default;
 
 protected:
     bool process_([[maybe_unused]] StatusProbeContainer &p) override {
-        if(hit_ != nullptr) { *hit_ = true; }
+        if(hit_ != nullptr) {
+            *hit_ = true;
+        }
         return true;
     }
 

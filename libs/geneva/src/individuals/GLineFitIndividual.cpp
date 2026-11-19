@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GLineFitIndividual.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
@@ -38,6 +37,7 @@
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
@@ -82,7 +82,8 @@ GLineFitIndividual::GLineFitIndividual(const std::vector<std::tuple<double, doub
  * @return A shared pointer to a freshly built adaption config whose double groups each carry the Gauss
  *         adaptor settings (sigma 0.025, sigma_sigma 0.1, min_sigma 0.0001, max_sigma 0.4, ad_prob 1.0)
  */
-std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> GLineFitIndividual::getAdaptionConfig() const {
+std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
+GLineFitIndividual::getAdaptionConfig() const {
     // Single-sourced with the factory hook (Inv 14): both build the identical line-fit Gauss config.
     return buildAdaptionConfig(*this, Config{});
 }
@@ -96,8 +97,12 @@ std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> GLineFitIndividual:
  */
 void GLineFitIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
     gpb.registerFileParameter<std::string>(
-        "data_file", c.data_file, std::string{}, Gem::Common::VAR_IS_ESSENTIAL,
-        "The path of a whitespace-separated \"x y\" data-point file (one point per line, '#' comments);"
+        "data_file",
+        c.data_file,
+        std::string{},
+        Gem::Common::VAR_IS_ESSENTIAL,
+        "The path of a whitespace-separated \"x y\" data-point file (one point per line, '#' "
+        "comments);"
     );
 }
 
@@ -129,8 +134,14 @@ gen::GenomeData GLineFitIndividual::buildGenome([[maybe_unused]] const Config &c
  *         adaptor settings (sigma 0.025, sigma_sigma 0.1, min_sigma 0.0001, max_sigma 0.4, ad_prob 1.0)
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GLineFitIndividual::buildAdaptionConfig(const gen::GGenome &sample, [[maybe_unused]] const Config &c) {
-    auto cfg = OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(sample);
+GLineFitIndividual::buildAdaptionConfig(
+    const gen::GGenome &sample,
+    [[maybe_unused]] const Config &c
+) {
+    auto cfg =
+        OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(
+            sample
+        );
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         // sigma, sigma_sigma, min_sigma, max_sigma, ad_prob
         cfg->groupDouble(i).gauss(0.025, 0.1, 0.0001, 0.4, 1.);

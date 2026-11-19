@@ -54,10 +54,12 @@ struct Product {
 
 class TestFactory : public GFactoryT<Product> {
 public:
-    explicit TestFactory(std::filesystem::path const &p) : GFactoryT<Product>(p) {}
+    explicit TestFactory(std::filesystem::path const &p)
+      : GFactoryT<Product>(p) {
+    }
 
-    int init_calls       = 0;
-    int describe_calls   = 0;
+    int init_calls = 0;
+    int describe_calls = 0;
     int post_process_calls = 0;
     int get_object_calls = 0;
 
@@ -66,7 +68,7 @@ protected:
         ++init_calls;
     }
 
-    void describeLocalOptions_([[maybe_unused]] GParserBuilder & gpb) override {
+    void describeLocalOptions_([[maybe_unused]] GParserBuilder &gpb) override {
         ++describe_calls;
     }
 
@@ -78,8 +80,7 @@ protected:
     }
 
 private:
-    std::shared_ptr<Product>
-    getObject_([[maybe_unused]] GParserBuilder & gpb) override {
+    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
         ++get_object_calls;
         return std::make_shared<Product>();
     }
@@ -89,7 +90,9 @@ private:
 // in play. Used to exercise the clone() success path of the base.
 class ClonableFactory : public TestFactory {
 public:
-    explicit ClonableFactory(std::filesystem::path const &p) : TestFactory(p) {}
+    explicit ClonableFactory(std::filesystem::path const &p)
+      : TestFactory(p) {
+    }
 
     std::shared_ptr<GFactoryT<Product>> clone() const override {
         return std::make_shared<ClonableFactory>(*this);
@@ -98,11 +101,10 @@ public:
 
 // Creates and returns a path to a config file with the given content. The
 // content does not need to be parseable for tests of write/path behaviour.
-std::filesystem::path make_config(std::string const &tag,
-                                  std::string const &content = "{}") {
+std::filesystem::path make_config(std::string const &tag, std::string const &content = "{}") {
     auto base = std::filesystem::temp_directory_path() / "geneva_factory_tests";
     std::filesystem::create_directories(base);
-    auto p = base / (tag + ".json");   // GParserBuilder enforces .json
+    auto p = base / (tag + ".json"); // GParserBuilder enforces .json
     {
         std::ofstream o(p);
         o << content;
@@ -122,16 +124,14 @@ std::filesystem::path unreachable_config(std::string const &file_name) {
 // ---------------------------------------------------------------------------
 // Construction / accessors
 
-TEST_CASE("GFactoryT: stores the config path verbatim",
-          "[common][factory]") {
+TEST_CASE("GFactoryT: stores the config path verbatim", "[common][factory]") {
     auto p = make_config("ctor");
     TestFactory const f(p);
     CHECK(f.getConfigFilePath() == p);
     CHECK(f.getConfigFileName() == p.string());
 }
 
-TEST_CASE("GFactoryT::setConfigFile updates the stored path",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::setConfigFile updates the stored path", "[common][factory]") {
     auto p1 = make_config("set_a");
     auto p2 = make_config("set_b");
     TestFactory f(p1);
@@ -144,30 +144,28 @@ TEST_CASE("GFactoryT::setConfigFile updates the stored path",
 // exists and is empty, which is enough because the factory's `describeLocalOptions_`
 // is a no-op.
 
-TEST_CASE("GFactoryT::get() runs init→describe→getObject→postProcess",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::get() runs init→describe→getObject→postProcess", "[common][factory]") {
     auto p = make_config("pipeline");
     TestFactory f(p);
 
     auto prod = f.get();
     REQUIRE(prod);
-    CHECK(prod->payload == 42);              // postProcess_ wrote the marker
+    CHECK(prod->payload == 42); // postProcess_ wrote the marker
 
-    CHECK(f.init_calls         == 1);
-    CHECK(f.describe_calls     == 1);
-    CHECK(f.get_object_calls   == 1);
+    CHECK(f.init_calls == 1);
+    CHECK(f.describe_calls == 1);
+    CHECK(f.get_object_calls == 1);
     CHECK(f.post_process_calls == 1);
 
     auto prod2 = f.get();
     REQUIRE(prod2);
-    CHECK(f.init_calls         == 1);          // init only happens once
-    CHECK(f.describe_calls     == 2);
-    CHECK(f.get_object_calls   == 2);
+    CHECK(f.init_calls == 1); // init only happens once
+    CHECK(f.describe_calls == 2);
+    CHECK(f.get_object_calls == 2);
     CHECK(f.post_process_calls == 2);
 }
 
-TEST_CASE("GFactoryT::operator() forwards to get()",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::operator() forwards to get()", "[common][factory]") {
     auto p = make_config("op_call");
     TestFactory f(p);
     auto prod = f();
@@ -175,8 +173,7 @@ TEST_CASE("GFactoryT::operator() forwards to get()",
     CHECK(prod->payload == 42);
 }
 
-TEST_CASE("GFactoryT::get() throws when the config path cannot be opened",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::get() throws when the config path cannot be opened", "[common][factory]") {
     // Point at a directory that cannot exist + lacks the .json extension. The
     // wrapper's parse step throws either way.
     TestFactory f(unreachable_config("geneva_does_not_exist.cfg"));
@@ -190,22 +187,30 @@ struct PolyProduct {
     virtual ~PolyProduct() = default;
     int payload{0};
 };
-struct DerivedProduct : PolyProduct { int extra = 7; };
+struct DerivedProduct : PolyProduct {
+    int extra = 7;
+};
 
 class DerivedFactory : public GFactoryT<PolyProduct> {
 public:
-    explicit DerivedFactory(std::filesystem::path const &p) : GFactoryT<PolyProduct>(p) {}
+    explicit DerivedFactory(std::filesystem::path const &p)
+      : GFactoryT<PolyProduct>(p) {
+    }
+
 protected:
-    void postProcess_([[maybe_unused]] std::shared_ptr<PolyProduct> &p) override {}
+    void postProcess_([[maybe_unused]] std::shared_ptr<PolyProduct> &p) override {
+    }
 
 private:
-    std::shared_ptr<PolyProduct> getObject_([[maybe_unused]] GParserBuilder & gpb) override {
+    std::shared_ptr<PolyProduct> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
         return std::make_shared<DerivedProduct>();
     }
 };
 
-TEST_CASE("GFactoryT::get_as: downcasts the produced product to a derived type",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT::get_as: downcasts the produced product to a derived type",
+    "[common][factory]"
+) {
     auto p = make_config("derived");
     DerivedFactory f(p);
     auto derived = f.get_as<DerivedProduct>();
@@ -216,15 +221,16 @@ TEST_CASE("GFactoryT::get_as: downcasts the produced product to a derived type",
 // ---------------------------------------------------------------------------
 // clone(): default impl is a "trap"; an overriding subclass succeeds.
 
-TEST_CASE("GFactoryT::clone() in the base throws (intentional trap)",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::clone() in the base throws (intentional trap)", "[common][factory]") {
     auto p = make_config("clone_trap");
     TestFactory const f(p);
     CHECK_THROWS_AS(f.clone(), geneva_exception);
 }
 
-TEST_CASE("GFactoryT::clone() in a subclass that overrides it returns a copy",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT::clone() in a subclass that overrides it returns a copy",
+    "[common][factory]"
+) {
     auto p = make_config("clone_ok");
     ClonableFactory const f(p);
     auto cp = f.clone();
@@ -235,13 +241,12 @@ TEST_CASE("GFactoryT::clone() in a subclass that overrides it returns a copy",
 // ---------------------------------------------------------------------------
 // load(): copies path / initialized flags from another factory.
 
-TEST_CASE("GFactoryT::load() copies path/initialized from a sibling factory",
-          "[common][factory]") {
+TEST_CASE("GFactoryT::load() copies path/initialized from a sibling factory", "[common][factory]") {
     auto p1 = make_config("load_src");
     auto p2 = make_config("load_dst");
 
     auto src = std::make_shared<TestFactory>(p1);
-    src->get();   // trigger initialized_ = true
+    src->get(); // trigger initialized_ = true
 
     TestFactory dst(p2);
     dst.load(src);
@@ -255,8 +260,10 @@ TEST_CASE("GFactoryT::load() copies path/initialized from a sibling factory",
 // ---------------------------------------------------------------------------
 // Copy / move semantics — init_mutex_ requires user-defined ops.
 
-TEST_CASE("GFactoryT: copy construction preserves config path / counters semantics",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT: copy construction preserves config path / counters semantics",
+    "[common][factory]"
+) {
     auto p = make_config("copy_ctor");
     TestFactory const src(p);
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization) -- intentional copy: this test checks copy construction
@@ -264,16 +271,14 @@ TEST_CASE("GFactoryT: copy construction preserves config path / counters semanti
     CHECK(dst.getConfigFilePath() == p);
 }
 
-TEST_CASE("GFactoryT: move construction transfers the config path",
-          "[common][factory]") {
+TEST_CASE("GFactoryT: move construction transfers the config path", "[common][factory]") {
     auto p = make_config("move_ctor");
     TestFactory src(p);
     TestFactory const dst(std::move(src));
     CHECK(dst.getConfigFilePath() == p);
 }
 
-TEST_CASE("GFactoryT: copy assignment is supported",
-          "[common][factory]") {
+TEST_CASE("GFactoryT: copy assignment is supported", "[common][factory]") {
     auto p1 = make_config("assign_a");
     auto p2 = make_config("assign_b");
     TestFactory const a(p1);
@@ -282,8 +287,7 @@ TEST_CASE("GFactoryT: copy assignment is supported",
     CHECK(b.getConfigFilePath() == p1);
 }
 
-TEST_CASE("GFactoryT: move assignment is supported",
-          "[common][factory]") {
+TEST_CASE("GFactoryT: move assignment is supported", "[common][factory]") {
     auto p1 = make_config("massign_a");
     auto p2 = make_config("massign_b");
     TestFactory a(p1);
@@ -300,7 +304,9 @@ namespace {
 /** @brief A factory that reads one integer option, so the applied configuration is observable. */
 class ValueReadingFactory : public GFactoryT<Product> {
 public:
-    explicit ValueReadingFactory(std::filesystem::path const &p) : GFactoryT<Product>(p) {}
+    explicit ValueReadingFactory(std::filesystem::path const &p)
+      : GFactoryT<Product>(p) {
+    }
 
     int last_value = -1; ///< the value the most recent get() saw in the configuration
 
@@ -309,7 +315,8 @@ protected:
         gpb.registerFileParameter<int>("observed", -1, [this](int v) { last_value = v; })
             << "An observable integer option";
     }
-    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {}
+    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {
+    }
 
 private:
     std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
@@ -325,8 +332,10 @@ std::filesystem::path make_value_config(std::string const &tag, int value) {
 
 } // namespace
 
-TEST_CASE("GFactoryT: the config document is parsed once and re-applied to every product",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT: the config document is parsed once and re-applied to every product",
+    "[common][factory]"
+) {
     auto p = make_value_config("cache_reuse", 11);
     ValueReadingFactory f(p);
 
@@ -339,8 +348,10 @@ TEST_CASE("GFactoryT: the config document is parsed once and re-applied to every
     CHECK(f.last_value == 11);
 }
 
-TEST_CASE("GFactoryT: assignment re-keys the factory and drops the parse cache",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT: assignment re-keys the factory and drops the parse cache",
+    "[common][factory]"
+) {
     auto p_a = make_value_config("cache_key_a", 1);
     auto p_b = make_value_config("cache_key_b", 2);
 
@@ -380,8 +391,10 @@ TEST_CASE("GFactoryT: assignment re-keys the factory and drops the parse cache",
     }
 }
 
-TEST_CASE("GFactoryT: a failed parse is not cached -- the next get() retries",
-          "[common][factory]") {
+TEST_CASE(
+    "GFactoryT: a failed parse is not cached -- the next get() retries",
+    "[common][factory]"
+) {
     // A file that does not exist: the parse throws out of the fill, which must leave the cache
     // empty rather than record a failure. (The load-once cell's throwing-producer contract.)
     ValueReadingFactory f(unreachable_config("geneva_does_not_exist.json"));
@@ -403,22 +416,30 @@ namespace {
 
 class CountedInitFactory : public GFactoryT<Product> {
 public:
-    explicit CountedInitFactory(std::filesystem::path const &p) : GFactoryT<Product>(p) {}
+    explicit CountedInitFactory(std::filesystem::path const &p)
+      : GFactoryT<Product>(p) {
+    }
     std::atomic<int> init_count{0};
+
 protected:
-    void init_() override { ++init_count; }
-    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {}
+    void init_() override {
+        ++init_count;
+    }
+    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {
+    }
 
 private:
-    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder & gpb) override {
+    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
         return std::make_shared<Product>();
     }
 };
 
 } // namespace
 
-TEST_CASE("GFactoryT::globalInit: init_() called exactly once under concurrent first-get()",
-          "[common][factory][concurrency]") {
+TEST_CASE(
+    "GFactoryT::globalInit: init_() called exactly once under concurrent first-get()",
+    "[common][factory][concurrency]"
+) {
     auto p = make_config("concurrent");
     CountedInitFactory f(p);
 
@@ -431,11 +452,16 @@ TEST_CASE("GFactoryT::globalInit: init_() called exactly once under concurrent f
             while(not go.load()) {
                 std::this_thread::yield();
             }
-            try { f.get(); } catch(...) { /* swallow parse errors — we only care about init_() */ }
+            try {
+                f.get();
+            }
+            catch(...) { /* swallow parse errors — we only care about init_() */
+            }
         });
     }
     go.store(true);
-    for(auto &t : ts) t.join();
+    for(auto &t : ts)
+        t.join();
 
     CHECK(f.init_count.load() == 1);
 }

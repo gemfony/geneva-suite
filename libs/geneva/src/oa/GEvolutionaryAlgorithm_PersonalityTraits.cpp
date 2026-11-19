@@ -28,13 +28,15 @@
  ********************************************************************************/
 
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GEvolutionaryAlgorithm_PersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GEvolutionaryAlgorithm_PersonalityTraits
+) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -55,7 +57,6 @@ const std::string GEvolutionaryAlgorithm_PersonalityTraits::nickname = "ea"; // 
 std::string GEvolutionaryAlgorithm_PersonalityTraits::getMnemonic() const {
     return GEvolutionaryAlgorithm_PersonalityTraits::nickname;
 }
-
 
 /******************************************************************************/
 

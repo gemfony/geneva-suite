@@ -34,18 +34,18 @@
 // Standard headers go here
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <bitset>
+#include <chrono>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
-#include <memory>
 #include <filesystem>
 #include <forward_list>
 #include <iterator>
 #include <list>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -510,7 +510,7 @@ public:
     template <typename T>
     derived_type &operator&(const array_wrapper_t<T> &a) {
         d().begin_raw(a.count);
-        for (std::size_t i = 0; i < a.count; ++i) {
+        for(std::size_t i = 0; i < a.count; ++i) {
             d().begin_elem();
             process(a.data[i]);
             d().end_elem();
@@ -528,7 +528,9 @@ public:
     /** @brief Serializes an unnamed value. @param v The value to save. */
     template <typename T>
     derived_type &operator&(const T &v) {
-        return process(const_cast<T &>(v)); // save never mutates; const_cast lets one serialize() serve both directions
+        return process(
+            const_cast<T &>(v)
+        ); // save never mutates; const_cast lets one serialize() serve both directions
     }
 
     /** @brief Boost-style save alias. @param v The value to save. */
@@ -560,36 +562,45 @@ private:
         // sees one non-const U&, whether the value arrived through a const
         // container/member (e.g. a by-value save of a const layout) or not.
         U &v = const_cast<U &>(v_in);
-        if constexpr (std::is_same_v<U, bool>) {
+        if constexpr(std::is_same_v<U, bool>) {
             d().put_bool(v);
-        } else if constexpr (std::is_enum_v<U>) {
+        }
+        else if constexpr(std::is_enum_v<U>) {
             auto raw = static_cast<std::underlying_type_t<U>>(v);
             d().put_scalar(raw);
-        } else if constexpr (std::is_integral_v<U>) {
+        }
+        else if constexpr(std::is_integral_v<U>) {
             d().put_scalar(v);
-        } else if constexpr (std::is_floating_point_v<U>) {
+        }
+        else if constexpr(std::is_floating_point_v<U>) {
             d().put_fp(v);
-        } else if constexpr (detail::is_string_v<U>) {
+        }
+        else if constexpr(detail::is_string_v<U>) {
             d().put_string(std::string_view{v});
-        } else if constexpr (detail::is_path_v<U>) {
+        }
+        else if constexpr(detail::is_path_v<U>) {
             d().put_string(v.string());
-        } else if constexpr (detail::is_atomic<U>::value) {
+        }
+        else if constexpr(detail::is_atomic<U>::value) {
             typename U::value_type held = v.load();
             process(held);
-        } else if constexpr (detail::is_chrono_duration<U>::value) {
+        }
+        else if constexpr(detail::is_chrono_duration<U>::value) {
             typename U::rep count = v.count();
             process(count);
-        } else if constexpr (detail::is_optional<U>::value) {
+        }
+        else if constexpr(detail::is_optional<U>::value) {
             d().begin_object();
             bool present = v.has_value();
             d().member("present");
             process(present);
-            if (present) {
+            if(present) {
                 d().member("value");
                 process(*v);
             }
             d().end_object();
-        } else if constexpr (detail::is_complex<U>::value) {
+        }
+        else if constexpr(detail::is_complex<U>::value) {
             typename U::value_type re = v.real();
             typename U::value_type im = v.imag();
             d().begin_object();
@@ -598,16 +609,19 @@ private:
             d().member("im");
             process(im);
             d().end_object();
-        } else if constexpr (detail::is_bitset<U>::value) {
+        }
+        else if constexpr(detail::is_bitset<U>::value) {
             std::string bits = v.to_string();
             process(bits);
-        } else if constexpr (std::is_same_v<U, std::monostate>) {
+        }
+        else if constexpr(std::is_same_v<U, std::monostate>) {
             // The canonical EMPTY variant alternative. It carries no state, but the codecs are
             // structural (the JSON driver needs a value for every member it opened), so it is written
             // as an empty object -- the same shape a stateless serializable class produces.
             d().begin_object();
             d().end_object();
-        } else if constexpr (detail::is_variant<U>::value) {
+        }
+        else if constexpr(detail::is_variant<U>::value) {
             std::size_t idx = v.index();
             d().begin_object();
             d().member("index");
@@ -615,41 +629,45 @@ private:
             d().member("value");
             std::visit([this](auto &alt) { process(alt); }, v);
             d().end_object();
-        } else if constexpr (detail::is_forward_list<U>::value) {
+        }
+        else if constexpr(detail::is_forward_list<U>::value) {
             std::size_t n = static_cast<std::size_t>(std::distance(v.begin(), v.end()));
             d().begin_seq(n);
-            for (auto &e : v) {
+            for(auto &e : v) {
                 d().begin_elem();
                 process(e);
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_pair<U>::value) {
+        }
+        else if constexpr(detail::is_pair<U>::value) {
             d().begin_object();
             d().member("first");
             process(v.first);
             d().member("second");
             process(v.second);
             d().end_object();
-        } else if constexpr (detail::is_tuple<U>::value) {
+        }
+        else if constexpr(detail::is_tuple<U>::value) {
             d().begin_seq(std::tuple_size_v<U>);
             std::apply(
-                [&](auto &...elems) {
-                    ((d().begin_elem(), process(elems), d().end_elem()), ...);
-                },
-                v);
+                [&](auto &...elems) { ((d().begin_elem(), process(elems), d().end_elem()), ...); },
+                v
+            );
             d().end_seq();
-        } else if constexpr (detail::is_std_array<U>::value) {
+        }
+        else if constexpr(detail::is_std_array<U>::value) {
             d().begin_seq(v.size());
-            for (auto &e : v) {
+            for(auto &e : v) {
                 d().begin_elem();
                 process(e);
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_map<U>::value) {
+        }
+        else if constexpr(detail::is_map<U>::value) {
             d().begin_seq(v.size());
-            for (auto &kv : v) {
+            for(auto &kv : v) {
                 d().begin_elem();
                 d().begin_object();
                 d().member("key");
@@ -660,24 +678,27 @@ private:
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_vector_bool_v<U>) {
+        }
+        else if constexpr(detail::is_vector_bool_v<U>) {
             d().begin_seq(v.size());
-            for (bool bit : v) {
+            for(bool bit : v) {
                 d().begin_elem();
                 process(bit);
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_sequence<U>::value) {
+        }
+        else if constexpr(detail::is_sequence<U>::value) {
             d().begin_seq(v.size());
-            for (auto &e : v) {
+            for(auto &e : v) {
                 d().begin_elem();
                 process(e);
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_smart_ptr<U>::value) {
-            if constexpr (detail::has_common_root<typename U::element_type>) {
+        }
+        else if constexpr(detail::is_smart_ptr<U>::value) {
+            if constexpr(detail::has_common_root<typename U::element_type>) {
                 // POLYMORPHIC owning pointer (element type is a GCommonInterfaceT
                 // hierarchy root): dispatched through the registry by
                 // gem_serialize_pointer, an ADL customization point defined in
@@ -687,7 +708,8 @@ private:
                 // via ADL on the archive type; a TU serializing such a pointer must
                 // include GArchivePolymorphic.hpp (registration sites / choke points do).
                 gem_serialize_pointer(d(), v);
-            } else {
+            }
+            else {
                 // NON-polymorphic owning pointer to a concrete, final type (no
                 // hierarchy / no derived types): the analogue of Boost serializing a
                 // shared_ptr<Concrete> by value. No tag/registry -- just a present
@@ -697,13 +719,14 @@ private:
                 bool present = static_cast<bool>(v);
                 d().member("present");
                 process(present);
-                if (present) {
+                if(present) {
                     d().member("value");
                     process(*v);
                 }
                 d().end_object();
             }
-        } else {
+        }
+        else {
             static_assert(
                 detail::serializable_class<derived_type, U>,
                 "GOArchiveT: type is neither a supported primitive/container/pointer nor a "
@@ -717,7 +740,10 @@ private:
                 access::serialize(d(), v);
             }
             else {
-                gem_archive_serialize(d(), v); // ADL: non-intrusive free serializer in U's namespace
+                gem_archive_serialize(
+                    d(),
+                    v
+                ); // ADL: non-intrusive free serializer in U's namespace
             }
             d().end_object();
         }
@@ -771,7 +797,7 @@ public:
     template <typename T>
     derived_type &operator&(const array_wrapper_t<T> &a) {
         d().begin_raw();
-        for (std::size_t i = 0; i < a.count; ++i) {
+        for(std::size_t i = 0; i < a.count; ++i) {
             d().begin_elem();
             process(a.data[i]);
             d().end_elem();
@@ -806,45 +832,55 @@ private:
     template <typename T>
     derived_type &process(T &v) {
         using U = std::remove_cv_t<T>;
-        if constexpr (std::is_same_v<U, bool>) {
+        if constexpr(std::is_same_v<U, bool>) {
             d().get_bool(v);
-        } else if constexpr (std::is_enum_v<U>) {
+        }
+        else if constexpr(std::is_enum_v<U>) {
             std::underlying_type_t<U> raw{};
             d().get_scalar(raw);
             v = static_cast<U>(raw);
-        } else if constexpr (std::is_integral_v<U>) {
+        }
+        else if constexpr(std::is_integral_v<U>) {
             d().get_scalar(v);
-        } else if constexpr (std::is_floating_point_v<U>) {
+        }
+        else if constexpr(std::is_floating_point_v<U>) {
             d().get_fp(v);
-        } else if constexpr (detail::is_string_v<U>) {
+        }
+        else if constexpr(detail::is_string_v<U>) {
             d().get_string(v);
-        } else if constexpr (detail::is_path_v<U>) {
+        }
+        else if constexpr(detail::is_path_v<U>) {
             std::string s;
             d().get_string(s);
             v = std::filesystem::path{s};
-        } else if constexpr (detail::is_atomic<U>::value) {
+        }
+        else if constexpr(detail::is_atomic<U>::value) {
             typename U::value_type held{};
             process(held);
             v.store(held);
-        } else if constexpr (detail::is_chrono_duration<U>::value) {
+        }
+        else if constexpr(detail::is_chrono_duration<U>::value) {
             typename U::rep count{};
             process(count);
             v = U(count);
-        } else if constexpr (detail::is_optional<U>::value) {
+        }
+        else if constexpr(detail::is_optional<U>::value) {
             d().enter_object();
             bool present = false;
             d().member("present");
             process(present);
-            if (present) {
+            if(present) {
                 typename U::value_type tmp{};
                 d().member("value");
                 process(tmp);
                 v = std::move(tmp);
-            } else {
+            }
+            else {
                 v.reset();
             }
             d().leave_object();
-        } else if constexpr (detail::is_complex<U>::value) {
+        }
+        else if constexpr(detail::is_complex<U>::value) {
             typename U::value_type re{};
             typename U::value_type im{};
             d().enter_object();
@@ -854,16 +890,19 @@ private:
             process(im);
             d().leave_object();
             v = U{re, im};
-        } else if constexpr (detail::is_bitset<U>::value) {
+        }
+        else if constexpr(detail::is_bitset<U>::value) {
             std::string bits;
             process(bits);
             v = U{bits};
-        } else if constexpr (std::is_same_v<U, std::monostate>) {
+        }
+        else if constexpr(std::is_same_v<U, std::monostate>) {
             // The canonical EMPTY variant alternative -- written as an empty object (see the saving
             // side); consume that object so the stream position stays in step.
             d().enter_object();
             d().leave_object();
-        } else if constexpr (detail::is_variant<U>::value) {
+        }
+        else if constexpr(detail::is_variant<U>::value) {
             d().enter_object();
             std::size_t idx = 0;
             d().member("index");
@@ -881,11 +920,12 @@ private:
                  ...);
             }(std::make_index_sequence<std::variant_size_v<U>>{});
             d().leave_object();
-        } else if constexpr (detail::is_forward_list<U>::value) {
+        }
+        else if constexpr(detail::is_forward_list<U>::value) {
             std::size_t n = d().begin_seq();
             v.clear();
             auto it = v.before_begin();
-            for (std::size_t i = 0; i < n; ++i) {
+            for(std::size_t i = 0; i < n; ++i) {
                 d().begin_elem();
                 typename U::value_type e{};
                 process(e);
@@ -893,33 +933,36 @@ private:
                 it = v.insert_after(it, std::move(e));
             }
             d().end_seq();
-        } else if constexpr (detail::is_pair<U>::value) {
+        }
+        else if constexpr(detail::is_pair<U>::value) {
             d().enter_object();
             d().member("first");
             process(const_cast<std::remove_const_t<typename U::first_type> &>(v.first));
             d().member("second");
             process(v.second);
             d().leave_object();
-        } else if constexpr (detail::is_tuple<U>::value) {
+        }
+        else if constexpr(detail::is_tuple<U>::value) {
             d().begin_seq();
             std::apply(
-                [&](auto &...elems) {
-                    ((d().begin_elem(), process(elems), d().end_elem()), ...);
-                },
-                v);
+                [&](auto &...elems) { ((d().begin_elem(), process(elems), d().end_elem()), ...); },
+                v
+            );
             d().end_seq();
-        } else if constexpr (detail::is_std_array<U>::value) {
+        }
+        else if constexpr(detail::is_std_array<U>::value) {
             d().begin_seq();
-            for (auto &e : v) {
+            for(auto &e : v) {
                 d().begin_elem();
                 process(e);
                 d().end_elem();
             }
             d().end_seq();
-        } else if constexpr (detail::is_map<U>::value) {
+        }
+        else if constexpr(detail::is_map<U>::value) {
             std::size_t n = d().begin_seq();
             v.clear();
-            for (std::size_t i = 0; i < n; ++i) {
+            for(std::size_t i = 0; i < n; ++i) {
                 d().begin_elem();
                 d().enter_object();
                 typename U::key_type key{};
@@ -933,11 +976,12 @@ private:
                 v.emplace(std::move(key), std::move(mapped));
             }
             d().end_seq();
-        } else if constexpr (detail::is_vector_bool_v<U>) {
+        }
+        else if constexpr(detail::is_vector_bool_v<U>) {
             std::size_t n = d().begin_seq();
             v.clear();
             v.reserve(n);
-            for (std::size_t i = 0; i < n; ++i) {
+            for(std::size_t i = 0; i < n; ++i) {
                 d().begin_elem();
                 bool bit = false;
                 process(bit);
@@ -945,50 +989,57 @@ private:
                 v.push_back(bit);
             }
             d().end_seq();
-        } else if constexpr (detail::is_sequence<U>::value) {
+        }
+        else if constexpr(detail::is_sequence<U>::value) {
             std::size_t n = d().begin_seq();
             v.clear();
-            for (std::size_t i = 0; i < n; ++i) {
+            for(std::size_t i = 0; i < n; ++i) {
                 d().begin_elem();
                 typename U::value_type elem{};
                 process(elem);
                 d().end_elem();
-                if constexpr (detail::is_set_like_v<U>) {
+                if constexpr(detail::is_set_like_v<U>) {
                     v.insert(std::move(elem));
-                } else {
+                }
+                else {
                     v.push_back(std::move(elem));
                 }
             }
             d().end_seq();
-        } else if constexpr (detail::is_smart_ptr<U>::value) {
-            if constexpr (detail::has_common_root<typename U::element_type>) {
+        }
+        else if constexpr(detail::is_smart_ptr<U>::value) {
+            if constexpr(detail::has_common_root<typename U::element_type>) {
                 // POLYMORPHIC owning pointer -- see the matching note in GOArchiveT.
                 gem_serialize_pointer(d(), v);
-            } else {
+            }
+            else {
                 // NON-polymorphic owning pointer to a concrete type -- see GOArchiveT.
                 d().enter_object();
                 bool present = false;
                 d().member("present");
                 process(present);
-                if (present) {
+                if(present) {
                     using Pointee = typename U::element_type;
                     // reset(ptr) serves unique_ptr and shared_ptr alike. A publicly
                     // default-constructible pointee is built inline; one whose default ctor is
                     // private (kept only for de-serialization) is built through the access shim
                     // it befriends -- the concrete-pointer analogue of the polymorphic factory seam.
-                    if constexpr (std::is_default_constructible_v<Pointee>) {
+                    if constexpr(std::is_default_constructible_v<Pointee>) {
                         v.reset(new Pointee());
-                    } else {
+                    }
+                    else {
                         v.reset(access::construct_raw<Pointee>());
                     }
                     d().member("value");
                     process(*v);
-                } else {
+                }
+                else {
                     v.reset();
                 }
                 d().leave_object();
             }
-        } else {
+        }
+        else {
             static_assert(
                 detail::serializable_class<derived_type, U>,
                 "GIArchiveT: type is neither a supported primitive/container/pointer nor a "
@@ -1002,7 +1053,10 @@ private:
                 access::serialize(d(), v);
             }
             else {
-                gem_archive_serialize(d(), v); // ADL: non-intrusive free serializer in U's namespace
+                gem_archive_serialize(
+                    d(),
+                    v
+                ); // ADL: non-intrusive free serializer in U's namespace
             }
             d().leave_object();
         }

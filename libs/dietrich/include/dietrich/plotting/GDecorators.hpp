@@ -30,11 +30,10 @@
 #pragma once
 
 #include "common/GReflectiveInterfaceT.hpp"
-#include "dietrich/plotting/GPlotEnums.hpp"
 #include "common/GSelfTestable.hpp"
+#include "dietrich/plotting/GPlotEnums.hpp"
 
 namespace Gem::Dietrich {
-
 
 /******************************************************************************/
 /**
@@ -69,8 +68,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecorator<dimensions::Dim2, coordinate_type>
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GDecorator<dimensions::Dim2, coordinate_type>,
-        GCommonInterfaceT<GDecorator<dimensions::Dim2, coordinate_type>>
-    > {
+        GCommonInterfaceT<GDecorator<dimensions::Dim2, coordinate_type>>> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // (empty) localMembers_(); this abstract root is never reconstructed on load.
@@ -163,7 +161,7 @@ class GMarker
         // clone_() returns the hierarchy root (GDecorator<Dim2>). A covariant return to the
         // CRTP-self would need GMarker complete at the base's clone_ declaration, which it
         // is not; clone_ is private, so the wider return is not observable.
-    >
+        >
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
@@ -215,7 +213,8 @@ public:
 	  * @param pos A running index that disambiguates the names of the generated plot objects
 	  * @return A string holding the plotting code that draws this marker
 	  */
-    [[nodiscard]] std::string decoratorData(const std::string &indent, const std::size_t &pos) const override {
+    [[nodiscard]] std::string
+    decoratorData(const std::string &indent, const std::size_t &pos) const override {
         std::ostringstream data; // NOLINT(cppcoreguidelines-init-variables)
 
         data << indent << "TMarker * tm_" << pos << " = new TMarker("
@@ -289,7 +288,8 @@ protected:
      *  rendered objects. */
     bool modify_GUnitTests_() override {
         coordinates_ = std::tuple<coordinate_type, coordinate_type>(
-            static_cast<coordinate_type>(1), static_cast<coordinate_type>(2)
+            static_cast<coordinate_type>(1),
+            static_cast<coordinate_type>(2)
         );
         size_ += 1.0;
         return true;
@@ -325,8 +325,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecorator<dimensions::Dim3, coordinate_type>
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GDecorator<dimensions::Dim3, coordinate_type>,
-        GCommonInterfaceT<GDecorator<dimensions::Dim3, coordinate_type>>
-    > {
+        GCommonInterfaceT<GDecorator<dimensions::Dim3, coordinate_type>>> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // (empty) localMembers_(); this abstract root is never reconstructed on load.
@@ -371,7 +370,8 @@ public:
 	  * @param pos A running index that disambiguates the names of the generated plot objects
 	  * @return A string holding the plotting code that renders this decoration
 	  */
-    [[nodiscard]] virtual std::string decoratorData(const std::string &indent, const std::size_t &pos) const = 0;
+    [[nodiscard]] virtual std::string
+    decoratorData(const std::string &indent, const std::size_t &pos) const = 0;
 
     /***************************************************************************/
     /**
@@ -432,8 +432,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecoratorContainer<dimensions::Dim2, coordinate_type>
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GDecoratorContainer<dimensions::Dim2, coordinate_type>,
-        GCommonInterfaceT<GDecoratorContainer<dimensions::Dim2, coordinate_type>>
-    >
+        GCommonInterfaceT<GDecoratorContainer<dimensions::Dim2, coordinate_type>>>
   , public GPtrContainerT<GDecorator<dimensions::Dim2, coordinate_type>> {
     ///////////////////////////////////////////////////////////////////////
     // This class multiply-inherits GPtrContainerT for its container BEHAVIOUR, but
@@ -480,7 +479,8 @@ class GDecoratorContainer<dimensions::Dim2, coordinate_type>
 
 public:
     /** @brief The class name, consumed by the GReflectiveInterfaceBaseT-generated name_() / compare token. */
-    static constexpr std::string_view class_name = "GDecoratorContainer<dimensions::Dim2, coordinate_type>";
+    static constexpr std::string_view class_name =
+        "GDecoratorContainer<dimensions::Dim2, coordinate_type>";
 
     /***************************************************************************/
     // Defaulted constructors, destructor and assignment operators
@@ -563,8 +563,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecoratorContainer_2D
   : public Gem::Common::GReflectiveInterfaceT<
         GDecoratorContainer_2D<coordinate_type>,
-        GDecoratorContainer<dimensions::Dim2, coordinate_type>
-    >
+        GDecoratorContainer<dimensions::Dim2, coordinate_type>>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
@@ -590,8 +589,7 @@ public:
     // Relay to the parent class'es constructors (propagated down through the mixin's inherited ctors).
     using Gem::Common::GReflectiveInterfaceT<
         GDecoratorContainer_2D<coordinate_type>,
-        GDecoratorContainer<dimensions::Dim2, coordinate_type>
-    >::GReflectiveInterfaceT;
+        GDecoratorContainer<dimensions::Dim2, coordinate_type>>::GReflectiveInterfaceT;
 
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceT base from class_name and the empty localMembers_() declaration above.
@@ -601,14 +599,17 @@ protected:
     /** @brief Applies test-only modifications: appends a marker so the decorator list is non-empty.
      *  Never invoked on rendered objects. */
     bool modify_GUnitTests_() override {
-        this->push_back(std::make_shared<GMarker<coordinate_type>>(
-            std::tuple<coordinate_type, coordinate_type>(
-                static_cast<coordinate_type>(1), static_cast<coordinate_type>(2)
-            ),
-            gMarker::closedCircle,
-            gColor::black,
-            0.1
-        ));
+        this->push_back(
+            std::make_shared<GMarker<coordinate_type>>(
+                std::tuple<coordinate_type, coordinate_type>(
+                    static_cast<coordinate_type>(1),
+                    static_cast<coordinate_type>(2)
+                ),
+                gMarker::closedCircle,
+                gColor::black,
+                0.1
+            )
+        );
         return true;
     }
 
@@ -627,8 +628,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecoratorContainer<dimensions::Dim3, coordinate_type>
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GDecoratorContainer<dimensions::Dim3, coordinate_type>,
-        GCommonInterfaceT<GDecoratorContainer<dimensions::Dim3, coordinate_type>>
-    >
+        GCommonInterfaceT<GDecoratorContainer<dimensions::Dim3, coordinate_type>>>
   , public GPtrContainerT<GDecorator<dimensions::Dim3, coordinate_type>> {
     ///////////////////////////////////////////////////////////////////////
     // Multiply-inherits GPtrContainerT for container BEHAVIOUR; that base's sole
@@ -669,7 +669,8 @@ class GDecoratorContainer<dimensions::Dim3, coordinate_type>
 
 public:
     /** @brief The class name, consumed by the GReflectiveInterfaceBaseT-generated name_() / compare token. */
-    static constexpr std::string_view class_name = "GDecoratorContainer<dimensions::Dim3, coordinate_type>";
+    static constexpr std::string_view class_name =
+        "GDecoratorContainer<dimensions::Dim3, coordinate_type>";
 
     /***************************************************************************/
     // Defaulted constructors, destructor and assignment operators
@@ -754,8 +755,7 @@ template <Gem::Common::arithmetic coordinate_type>
 class GDecoratorContainer_3D
   : public Gem::Common::GReflectiveInterfaceT<
         GDecoratorContainer_3D<coordinate_type>,
-        GDecoratorContainer<dimensions::Dim3, coordinate_type>
-    > {
+        GDecoratorContainer<dimensions::Dim3, coordinate_type>> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach this class's (empty) localMembers_().
@@ -780,14 +780,12 @@ public:
     // Relay to the parent class'es constructors (propagated down through the mixin's inherited ctors).
     using Gem::Common::GReflectiveInterfaceT<
         GDecoratorContainer_3D<coordinate_type>,
-        GDecoratorContainer<dimensions::Dim3, coordinate_type>
-    >::GReflectiveInterfaceT;
+        GDecoratorContainer<dimensions::Dim3, coordinate_type>>::GReflectiveInterfaceT;
 
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceT base from class_name and the empty localMembers_() declaration above.
 
 protected:
-
     /***************************************************************************/
 };
 

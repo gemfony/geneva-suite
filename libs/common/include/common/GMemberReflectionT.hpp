@@ -35,15 +35,15 @@
 // Standard headers go here
 #include <atomic>
 #include <tuple>
-#include <utility>
 #include <type_traits>
+#include <utility>
 
 // Boost headers go here
 
 // Gemfony headers go here
-#include "weft/GArchive.hpp"
 #include "common/GArchiveNamed.hpp" // archive_named / archive_named_base (the named member / base emitters)
 #include "common/GCommonHelperFunctionsT.hpp"
+#include "weft/GArchive.hpp"
 
 namespace Gem::Common {
 
@@ -224,8 +224,12 @@ struct load_copy_ptr {
     template <typename dst_type, typename src_type>
     static void load(dst_type &dst, const src_type &src) {
         using element_t = typename dst_type::element_type;
-        if(src) { dst = std::make_unique<element_t>(*src); }
-        else { dst.reset(); }
+        if(src) {
+            dst = std::make_unique<element_t>(*src);
+        }
+        else {
+            dst.reset();
+        }
     }
 };
 

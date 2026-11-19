@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -93,7 +92,6 @@ constexpr int GNUPLOT_SURFACE_GRID = 50;
 // int32 numpy array, while a double column is unchanged. Declared first so the
 // gnuplot, matplotlib and data sections below can all use them.
 
-
 /** @brief The double-typed value vector behind a column. Only valid for a column known
  *  to be float64 (the graph plotters, whose axes are always double); throws otherwise. */
 const std::vector<double> &asDoubleColumn(const GPlotColumn &c) {
@@ -116,24 +114,25 @@ std::string datasetSpec(const GBasePlotter &p, scriptKind k, const std::string &
     EmitStream spec; // NOLINT(cppcoreguidelines-init-variables)
     // How the series is drawn (GBasePlotter::drawStyle()); gnuplot's key draws its sample from it.
     const GDrawStyle style = p.drawStyle();
-    const std::string lines_points = style.line ? (style.markers ? "linespoints" : "lines") : "points pointtype 7";
+    const std::string lines_points =
+        style.line ? (style.markers ? "linespoints" : "lines") : "points pointtype 7";
     switch(k) {
-        case scriptKind::g2d:
-            spec << "with " << (style.fill ? "filledcurves y1=0" : lines_points) << " " << title;
-            break;
-        case scriptKind::g2ed:
-            spec << "with " << (style.line ? "xyerrorlines" : "xyerrorbars") << " " << title;
-            break;
-        case scriptKind::g3d:
-            // A colour map of the graph's own drawing arguments is drawn as its points: gnuplot's
-            // pm3d needs gridded data (a projection gives it).
-            spec << "with " << (style.colour_map ? "points pointtype 7" : lines_points) << " " << title;
-            break;
-        case scriptKind::g4d:
-            spec << "using 1:2:3:4 with points palette pointtype 7 " << title;
-            break;
-        default: // unreachable: validateScriptPads rejected the histogram kinds up front
-            break;
+    case scriptKind::g2d:
+        spec << "with " << (style.fill ? "filledcurves y1=0" : lines_points) << " " << title;
+        break;
+    case scriptKind::g2ed:
+        spec << "with " << (style.line ? "xyerrorlines" : "xyerrorbars") << " " << title;
+        break;
+    case scriptKind::g3d:
+        // A colour map of the graph's own drawing arguments is drawn as its points: gnuplot's
+        // pm3d needs gridded data (a projection gives it).
+        spec << "with " << (style.colour_map ? "points pointtype 7" : lines_points) << " " << title;
+        break;
+    case scriptKind::g4d:
+        spec << "using 1:2:3:4 with points palette pointtype 7 " << title;
+        break;
+    default: // unreachable: validateScriptPads rejected the histogram kinds up front
+        break;
     }
     if(p.lineWidth() > 0 && (k == scriptKind::g2d || k == scriptKind::g2ed)) {
         spec << " linewidth " << p.lineWidth();
@@ -156,13 +155,20 @@ std::string keyClause(const std::vector<GLegendEntry> &entries, std::size_t seri
 /** @brief gnuplot's name of a legend corner ("bottom right", ...); AUTO has none */
 std::string gnuplotKeyPosition(legendPosition position) {
     switch(position) {
-        case legendPosition::TOP_LEFT:     return "top left";
-        case legendPosition::TOP_RIGHT:    return "top right";
-        case legendPosition::BOTTOM_LEFT:  return "bottom left";
-        case legendPosition::BOTTOM_RIGHT: return "bottom right";
-        case legendPosition::CENTER_RIGHT: return "right center";
-        case legendPosition::AUTO:         break;
-        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
+    case legendPosition::TOP_LEFT:
+        return "top left";
+    case legendPosition::TOP_RIGHT:
+        return "top right";
+    case legendPosition::BOTTOM_LEFT:
+        return "bottom left";
+    case legendPosition::BOTTOM_RIGHT:
+        return "bottom right";
+    case legendPosition::CENTER_RIGHT:
+        return "right center";
+    case legendPosition::AUTO:
+        break;
+    case legendPosition::FREEST:
+        break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -177,41 +183,41 @@ std::string datasetRows(const GBasePlotter &p, scriptKind k, const std::string &
     // Graph plotters are always float64, so each column is read as a double vector.
     const auto cols = p.dataColumns();
     switch(k) {
-        case scriptKind::g2d: {
-            const auto &x = asDoubleColumn(cols[0]);
-            const auto &y = asDoubleColumn(cols[1]);
-            for(std::size_t i = 0; i < x.size(); ++i) {
-                rows << indent << x[i] << ' ' << y[i] << '\n';
-            }
-        } break;
-        case scriptKind::g2ed: {
-            const auto &x  = asDoubleColumn(cols[0]);
-            const auto &ex = asDoubleColumn(cols[1]);
-            const auto &y  = asDoubleColumn(cols[2]);
-            const auto &ey = asDoubleColumn(cols[3]);
-            for(std::size_t i = 0; i < x.size(); ++i) {
-                rows << indent << x[i] << ' ' << y[i] << ' ' << ex[i] << ' ' << ey[i] << '\n';
-            }
-        } break;
-        case scriptKind::g3d: {
-            const auto &x = asDoubleColumn(cols[0]);
-            const auto &y = asDoubleColumn(cols[1]);
-            const auto &z = asDoubleColumn(cols[2]);
-            for(std::size_t i = 0; i < x.size(); ++i) {
-                rows << indent << x[i] << ' ' << y[i] << ' ' << z[i] << '\n';
-            }
-        } break;
-        case scriptKind::g4d: {
-            const auto &x = asDoubleColumn(cols[0]);
-            const auto &y = asDoubleColumn(cols[1]);
-            const auto &z = asDoubleColumn(cols[2]);
-            const auto &w = asDoubleColumn(cols[3]);
-            for(std::size_t i = 0; i < x.size(); ++i) {
-                rows << indent << x[i] << ' ' << y[i] << ' ' << z[i] << ' ' << w[i] << '\n';
-            }
-        } break;
-        default: // unreachable: validateScriptPads rejected the histogram kinds up front
-            break;
+    case scriptKind::g2d: {
+        const auto &x = asDoubleColumn(cols[0]);
+        const auto &y = asDoubleColumn(cols[1]);
+        for(std::size_t i = 0; i < x.size(); ++i) {
+            rows << indent << x[i] << ' ' << y[i] << '\n';
+        }
+    } break;
+    case scriptKind::g2ed: {
+        const auto &x = asDoubleColumn(cols[0]);
+        const auto &ex = asDoubleColumn(cols[1]);
+        const auto &y = asDoubleColumn(cols[2]);
+        const auto &ey = asDoubleColumn(cols[3]);
+        for(std::size_t i = 0; i < x.size(); ++i) {
+            rows << indent << x[i] << ' ' << y[i] << ' ' << ex[i] << ' ' << ey[i] << '\n';
+        }
+    } break;
+    case scriptKind::g3d: {
+        const auto &x = asDoubleColumn(cols[0]);
+        const auto &y = asDoubleColumn(cols[1]);
+        const auto &z = asDoubleColumn(cols[2]);
+        for(std::size_t i = 0; i < x.size(); ++i) {
+            rows << indent << x[i] << ' ' << y[i] << ' ' << z[i] << '\n';
+        }
+    } break;
+    case scriptKind::g4d: {
+        const auto &x = asDoubleColumn(cols[0]);
+        const auto &y = asDoubleColumn(cols[1]);
+        const auto &z = asDoubleColumn(cols[2]);
+        const auto &w = asDoubleColumn(cols[3]);
+        for(std::size_t i = 0; i < x.size(); ++i) {
+            rows << indent << x[i] << ' ' << y[i] << ' ' << z[i] << ' ' << w[i] << '\n';
+        }
+    } break;
+    default: // unreachable: validateScriptPads rejected the histogram kinds up front
+        break;
     }
     return rows.str();
 }
@@ -246,13 +252,20 @@ void emitDatablocks(
             pad.push_back(sp.get());
         }
         for(const auto *dp : pad) {
-            result << "$D" << db_idx << " << EOD" << '\n'
-                   << datasetRows(*dp, classifyForScript(*dp, false, "GnuplotEmitter::emitDocument()", "gnuplot"), "") << "EOD" << '\n';
+            result
+                << "$D" << db_idx << " << EOD" << '\n'
+                << datasetRows(
+                       *dp,
+                       classifyForScript(*dp, false, "GnuplotEmitter::emitDocument()", "gnuplot"),
+                       ""
+                   )
+                << "EOD" << '\n';
             // A projected surface is drawn with pm3d, which needs gridded data: the scattered points
             // are interpolated onto a regular grid ONCE, into $Gn, and the gridding is switched off
             // again so that the pad's overlays keep their own points.
             if(projectionOf(*dp) != surfaceProjection::NONE) {
-                result << "set dgrid3d " << GNUPLOT_SURFACE_GRID << "," << GNUPLOT_SURFACE_GRID << '\n'
+                result << "set dgrid3d " << GNUPLOT_SURFACE_GRID << "," << GNUPLOT_SURFACE_GRID
+                       << '\n'
                        << "set table $G" << db_idx << '\n'
                        << "splot $D" << db_idx << " using 1:2:3" << '\n'
                        << "unset table" << '\n'
@@ -398,11 +411,20 @@ void emitMultiplot(
                 if(three_d && castsFloorShadow(*pad[i])) {
                     // The points' shadows on the floor, small and grey, drawn before the points.
                     result << "$D" << db_ref << " using 1:2:(" << z_floor
-                           << ") with points pointtype 7 pointsize 0.3 linecolor rgb \"gray60\" notitle, ";
+                           << ") with points pointtype 7 pointsize 0.3 linecolor rgb \"gray60\" "
+                              "notitle, ";
                 }
                 result << "$D" << db_ref << ' '
-                       << datasetSpec(*pad[i], classifyForScript(*pad[i], false, "GnuplotEmitter::emitDocument()", "gnuplot"),
-                                      keyClause(entries, i));
+                       << datasetSpec(
+                              *pad[i],
+                              classifyForScript(
+                                  *pad[i],
+                                  false,
+                                  "GnuplotEmitter::emitDocument()",
+                                  "gnuplot"
+                              ),
+                              keyClause(entries, i)
+                          );
             }
             ++db_ref;
         }
@@ -453,7 +475,10 @@ std::string GnuplotEmitter::emitDocument(const GPlotDesigner &gpd) const {
     // the graph plotters); a 2-d and a 3-d graph cannot share one pad.
     validateScriptPads(gpd.plotters_cnt_, false, "GnuplotEmitter::emitDocument()", "gnuplot");
     warnPadOverflow(
-        "GnuplotEmitter::emitDocument()", gpd.getCanvasLabel(), gpd.plotters_cnt_.size(), max_plots
+        "GnuplotEmitter::emitDocument()",
+        gpd.getCanvasLabel(),
+        gpd.plotters_cnt_.size(),
+        max_plots
     );
 
     // gnuplot cannot read an inline `'-'` dataset from inside a `set multiplot` block, so every dataset
@@ -461,11 +486,19 @@ std::string GnuplotEmitter::emitDocument(const GPlotDesigner &gpd) const {
     // the multiplot grid (pass 2). Both passes walk the plotters in the same order, so `$Dn` lines up.
     emitDatablocks(result, gpd.plotters_cnt_, max_plots);
     result << '\n';
-    emitMultiplot(result, gpd.plotters_cnt_, max_plots, rows, cols, gpd.getCanvasLabel(), gpd.getShowCanvasLabel(), gpd.indent());
+    emitMultiplot(
+        result,
+        gpd.plotters_cnt_,
+        max_plots,
+        rows,
+        cols,
+        gpd.getCanvasLabel(),
+        gpd.getShowCanvasLabel(),
+        gpd.indent()
+    );
 
     return result.str();
 }
-
 
 /******************************************************************************/
 } /* namespace Gem::Dietrich */

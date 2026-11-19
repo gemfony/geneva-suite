@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -120,8 +119,12 @@ GHistogram1D::GHistogram1D(const std::size_t &n_bins_x, const std::tuple<double,
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the ROOT TH1D histogram (using explicit or auto-detected range)
  */
-std::string
-GHistogram1D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1D::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -155,8 +158,12 @@ GHistogram1D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the ROOT TH1D histogram with this plotter's data values
  */
-std::string
-GHistogram1D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1D::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -166,8 +173,8 @@ GHistogram1D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
     const auto &x_col = this->column<0>();
     const std::size_t n = this->currentSize();
     for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
-        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter] << ");"
-                  << (pos_counter == 0 ? comment : ("")) << '\n';
+        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter]
+                  << ");" << (pos_counter == 0 ? comment : ("")) << '\n';
     }
     body_data << '\n';
 
@@ -184,8 +191,12 @@ GHistogram1D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code setting titles and drawing the ROOT TH1D histogram
  */
-std::string
-GHistogram1D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1D::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
@@ -200,10 +211,10 @@ GHistogram1D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
     // Check whether custom drawing arguments have been set
     std::string const d_a = this->drawingArguments(is_secondary);
 
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
+    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
+                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n'
                 << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
                 << '\n';
 
@@ -246,7 +257,8 @@ std::string GHistogram1D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GHistogram1D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GHistogram1D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     return std::string("histD") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -353,8 +365,12 @@ GHistogram1I::GHistogram1I(const std::size_t &n_bins_x, const std::tuple<double,
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the ROOT TH1I integer histogram
  */
-std::string
-GHistogram1I::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1I::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -379,8 +395,12 @@ GHistogram1I::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the ROOT TH1I histogram with this plotter's integer data values
  */
-std::string
-GHistogram1I::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1I::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -409,8 +429,12 @@ GHistogram1I::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code setting titles and drawing the ROOT TH1I histogram
  */
-std::string
-GHistogram1I::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram1I::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
@@ -425,10 +449,10 @@ GHistogram1I::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
     // Check whether custom drawing arguments have been set
     std::string const d_a = this->drawingArguments(is_secondary);
 
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
+    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
+                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n'
                 << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
                 << '\n';
 
@@ -471,7 +495,8 @@ std::string GHistogram1I::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GHistogram1I::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GHistogram1I::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     return std::string("histI") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -619,8 +644,12 @@ GHistogram2D::GHistogram2D(const std::size_t &n_bins_x, const std::size_t &n_bin
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the ROOT TH2D histogram (using explicit or auto-detected ranges)
  */
-std::string
-GHistogram2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram2D::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -630,8 +659,7 @@ GHistogram2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
     if(min_x_ != max_x_ && min_y_ != max_y_) {
         header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
                     << hist_name << "\"," << n_bins_x_ << ", " << min_x_ << ", " << max_x_ << ","
-                    << n_bins_y_ << ", " << min_y_ << ", " << max_y_ << ");"
-                    << comment << '\n'
+                    << n_bins_y_ << ", " << min_y_ << ", " << max_y_ << ");" << comment << '\n'
                     << '\n';
     }
     else { // // automatic range detection
@@ -639,8 +667,8 @@ GHistogram2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
 
         header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
                     << hist_name << "\"," << n_bins_x_ << ", " << std::get<0>(minmax) << ", "
-                    << std::get<1>(minmax) << "," << n_bins_y_ << ", " << std::get<2>(minmax) << ", "
-                    << std::get<3>(minmax) << ");" << comment << '\n'
+                    << std::get<1>(minmax) << "," << n_bins_y_ << ", " << std::get<2>(minmax)
+                    << ", " << std::get<3>(minmax) << ");" << comment << '\n'
                     << '\n';
     }
 
@@ -657,8 +685,12 @@ GHistogram2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the ROOT TH2D histogram with this plotter's (x, y) data values
  */
-std::string
-GHistogram2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram2D::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     const std::string comment = dsMarkerComment(ds_marker_);
@@ -669,8 +701,9 @@ GHistogram2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
     const auto &y_col = this->column<1>();
     const std::size_t n = this->currentSize();
     for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
-        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter] << ", "
-                  << y_col[pos_counter] << ");" << (pos_counter == 0 ? comment : ("")) << '\n';
+        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter]
+                  << ", " << y_col[pos_counter] << ");" << (pos_counter == 0 ? comment : (""))
+                  << '\n';
     }
 
     body_data << '\n';
@@ -688,8 +721,12 @@ GHistogram2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id,
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code setting titles and drawing the ROOT TH2D histogram
  */
-std::string
-GHistogram2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GHistogram2D::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
@@ -704,10 +741,10 @@ GHistogram2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_i
     // Check whether custom drawing arguments have been set
     std::string const d_a = this->drawingArguments(is_secondary);
 
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
+    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
+                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n'
                 << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
                 << '\n';
 
@@ -821,7 +858,8 @@ std::string GHistogram2D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GHistogram2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GHistogram2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     return std::string("hist2D") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -838,7 +876,9 @@ std::optional<tddropt> GHistogram2D::drawingOptionNamed(const std::string &name)
         return std::nullopt;
     }
     GHistogram2D probe(1, 1);
-    for(auto v = static_cast<ENUMBASETYPE>(tddropt::TDEMPTY); v <= static_cast<ENUMBASETYPE>(tddropt::SURFONECYL); ++v) {
+    for(auto v = static_cast<ENUMBASETYPE>(tddropt::TDEMPTY);
+        v <= static_cast<ENUMBASETYPE>(tddropt::SURFONECYL);
+        ++v) {
         probe.set2DOpt(static_cast<tddropt>(v));
         if(probe.drawingArguments(false) == name) {
             return static_cast<tddropt>(v);
@@ -966,7 +1006,6 @@ GPlotSpec GHistogram2D::plotSpec() const {
 
 // name_(), compare_(), clone_() and load_() for GHistogram2D are generated by
 // Gem::Common::GReflectiveInterfaceT from class_name and localMembers_().
-
 
 /******************************************************************************/
 } /* namespace Gem::Dietrich */

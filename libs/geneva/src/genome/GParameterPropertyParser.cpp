@@ -309,9 +309,10 @@ void GParameterPropertyParser::parse() {
             << "maximum of 1 is allowed" << '\n'
         );
     }
-    if(s_spec_vec_.size() == 1) { // If we did find a "simple scan" entry, we will discard the other entries.
+    if(s_spec_vec_.size() ==
+       1) { // If we did find a "simple scan" entry, we will discard the other entries.
         if(not d_spec_vec_.empty() || not f_spec_vec_.empty() || not i_spec_vec_.empty() ||
-                not b_spec_vec_.empty()) {
+           not b_spec_vec_.empty()) {
             glogger << "In GParameterPropertyParser::parse(): Warning!" << '\n'
                     << "You have specified both a simple-scan component and explicit" << '\n'
                     << "scan-components. The explicit components will be discarded." << '\n'
@@ -342,7 +343,8 @@ std::vector<std::pair<char, std::string>> GParameterPropertyParser::tokenizeRaw(
     std::size_t i = 0;
     const std::size_t n = s.size();
     auto skipSep = [&]() {
-        while(i < n && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' || s[i] == ',')) {
+        while(i < n &&
+              (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' || s[i] == ',')) {
             ++i;
         }
     };
@@ -384,25 +386,38 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
     const std::vector<std::string> tok = splitOnComma(content);
 
     if(type == 'd') {
-        d_spec_vec_.push_back(makeNumericSpec<double>(
-            tok,
-            [](const std::string &t, const std::string &raw) { return t.empty() ? (fail(raw), 0.0) : std::stod(t); },
-            content
-        ));
+        d_spec_vec_.push_back(
+            makeNumericSpec<double>(
+                tok,
+                [](const std::string &t, const std::string &raw) {
+                    return t.empty() ? (fail(raw), 0.0) : std::stod(t);
+                },
+                content
+            )
+        );
     }
     else if(type == 'f') {
-        f_spec_vec_.push_back(makeNumericSpec<float>(
-            tok,
-            [](const std::string &t, const std::string &raw) { return t.empty() ? (fail(raw), 0.0f) : std::stof(t); },
-            content
-        ));
+        f_spec_vec_.push_back(
+            makeNumericSpec<float>(
+                tok,
+                [](const std::string &t, const std::string &raw) {
+                    return t.empty() ? (fail(raw), 0.0f) : std::stof(t);
+                },
+                content
+            )
+        );
     }
     else if(type == 'i') {
-        i_spec_vec_.push_back(makeNumericSpec<std::int32_t>(
-            tok,
-            [](const std::string &t, const std::string &raw) { return t.empty() ? (fail(raw), static_cast<std::int32_t>(0)) : static_cast<std::int32_t>(std::stoi(t)); },
-            content
-        ));
+        i_spec_vec_.push_back(
+            makeNumericSpec<std::int32_t>(
+                tok,
+                [](const std::string &t, const std::string &raw) {
+                    return t.empty() ? (fail(raw), static_cast<std::int32_t>(0))
+                                     : static_cast<std::int32_t>(std::stoi(t));
+                },
+                content
+            )
+        );
     }
     else if(type == 'b') {
         applyBoolFragment(tok, content);
@@ -432,7 +447,8 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
  * @param content The original fragment content (for error messages)
  */
 void GParameterPropertyParser::applyBoolFragment(
-    std::vector<std::string> const &tok, std::string const &content
+    std::vector<std::string> const &tok,
+    std::string const &content
 ) {
     if(tok.empty() || tok[0].empty()) {
         fail(content);

@@ -46,17 +46,17 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
 #include "geneva/oa/GHesseError.hpp"
 #include "geneva/oa/GLineSearch.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 #endif /* GEM_TESTING */
@@ -86,10 +86,12 @@ enum class gradientMethod : std::uint8_t {
  * minimum once the descent has converged. Opt-in (off by default).
  */
 enum class errorEstimationMode : std::uint8_t {
-    NONE = 0,     ///< No error estimate (the default)
-    DIAGONAL = 1, ///< Cheap, always-affordable parameter-fixed (parabolic) errors from the Hessian diagonal
-    FULL = 2,     ///< Full Hessian -> covariance -> correlation-aware errors (small dimension only)
-    MINOS = 3     ///< MINOS asymmetric errors: profiled (re-minimised) UP-contour bounds, low dimension only
+    NONE = 0, ///< No error estimate (the default)
+    DIAGONAL =
+        1, ///< Cheap, always-affordable parameter-fixed (parabolic) errors from the Hessian diagonal
+    FULL = 2, ///< Full Hessian -> covariance -> correlation-aware errors (small dimension only)
+    MINOS =
+        3 ///< MINOS asymmetric errors: profiled (re-minimised) UP-contour bounds, low dimension only
 };
 
 // Numeric streaming opt-in for the two enums above; must precede their first
@@ -120,7 +122,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 constexpr std::size_t DEFAULTCGDSTARTINGPOINTS = 1;
 constexpr double DEFAULTCGDFINITESTEP = 0.001;
 constexpr double DEFAULTCGDSTEPSIZE = 0.1;
-constexpr std::size_t DEFAULTCGDLBFGSMEMORY = 10; ///< Default L-BFGS history size m (gradient_method = 5 only)
+constexpr std::size_t DEFAULTCGDLBFGSMEMORY =
+    10; ///< Default L-BFGS history size m (gradient_method = 5 only)
 
 /******************************************************************************/
 /**
@@ -232,7 +235,11 @@ public:
     /**
      * @brief Initialization with the number of starting points and step parameters.
      */
-    GConjugateGradientDescent(const std::size_t &n_starting_points, const double &finite_step, const double &step_size);
+    GConjugateGradientDescent(
+        const std::size_t &n_starting_points,
+        const double &finite_step,
+        const double &step_size
+    );
     /**
      * @brief A standard copy constructor.
      */
@@ -378,7 +385,8 @@ protected:
     /**
      * @brief Computes the normalised finite-difference (proxy) gradient of one starting point
      */
-    std::vector<double> computeProxyGradient_(std::size_t starting_point, double parent_fitness) const;
+    std::vector<double>
+    computeProxyGradient_(std::size_t starting_point, double parent_fitness) const;
 
     /**
      * @brief Builds the L-BFGS quasi-Newton direction -H_k g_k, updating the curvature history
@@ -418,7 +426,6 @@ private:
     /** @brief Triggers fitness calculation of a number of individuals */
     void evaluatePopulation_() override;
 
-
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
      */
@@ -435,40 +442,42 @@ private:
      * given starting point, submitted through the same consumer the algorithm uses, and returns one
      * min-only fitness per probe.
      */
-    std::vector<double> evaluateProbes(
-        std::size_t starting_point,
-        std::vector<std::vector<double>> const &points
-    );
+    std::vector<double>
+    evaluateProbes(std::size_t starting_point, std::vector<std::vector<double>> const &points);
 
     /***************************************************************************/
     // Data
 
     std::size_t n_starting_points_ =
-        DEFAULTCGDSTARTINGPOINTS;   ///< The number of starting positions in the parameter space
-    std::size_t n_fp_parms_first_ = 0; ///< The amount of active floating point values per individual
+        DEFAULTCGDSTARTINGPOINTS; ///< The number of starting positions in the parameter space
+    std::size_t n_fp_parms_first_ =
+        0; ///< The amount of active floating point values per individual
 
     double finite_step_ =
         DEFAULTCGDFINITESTEP; ///< The size of the difference-quotient step (per mill of the range)
     double step_size_ =
         DEFAULTCGDSTEPSIZE; ///< Multiplicative factor for the initial trial step (the line search refines it)
 
-    gradientMethod gradient_method_ =
-        gradientMethod::CONJUGATE_PR_PLUS; ///< Conjugate (PR+) by default; STEEPEST_DESCENT == the former GD
+    gradientMethod gradient_method_ = gradientMethod::
+        CONJUGATE_PR_PLUS; ///< Conjugate (PR+) by default; STEEPEST_DESCENT == the former GD
 
-    bool central_differences_ = false; ///< O(h^2) central gradient (two probes/direction) vs O(h) forward (one)
+    bool central_differences_ =
+        false; ///< O(h^2) central gradient (two probes/direction) vs O(h) forward (one)
 
-    std::size_t lbfgs_memory_ = DEFAULTCGDLBFGSMEMORY; ///< L-BFGS history size m ((s,y) pairs kept); LBFGS mode only
+    std::size_t lbfgs_memory_ =
+        DEFAULTCGDLBFGSMEMORY; ///< L-BFGS history size m ((s,y) pairs kept); LBFGS mode only
 
     errorEstimationMode error_estimation_ =
         errorEstimationMode::NONE; ///< Whether to estimate parameter errors at convergence (opt-in)
     double error_up_ = 1.;         ///< The MINUIT error definition UP (1 = chi^2, 0.5 = -logL)
 
-    GHesseErrorResult last_error_estimate_; ///< The most recent error estimate (transient; not serialized)
+    GHesseErrorResult
+        last_error_estimate_; ///< The most recent error estimate (transient; not serialized)
 
     double adjusted_finite_step_ =
         0.; ///< Dimensionless difference-quotient step (finite_step_/1000, a fraction of the normalized
-            ///< parameter range); recomputed in init() (transient). Uniform across parameters now that the
-            ///< step is taken in the normalized internal coordinate, so no per-parameter boundary vectors.
+    ///< parameter range); recomputed in init() (transient). Uniform across parameters now that the
+    ///< step is taken in the normalized internal coordinate, so no per-parameter boundary vectors.
 
     // The per-starting-point conjugate-gradient memory (g_{k-1} / d_{k-1} / history-valid flag) now
     // lives on the OA scratch of each starting point's central individual slot, as POD blocks keyed
@@ -479,4 +488,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

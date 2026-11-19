@@ -66,10 +66,11 @@ public:
     /** @brief An easy identifier for the class */
     static const std::string nickname; // Initialized in the .cpp definition file
     /** @brief The name emitted by name_() */
-    static constexpr std::string_view class_name{"GGeneralizedSimulatedAnnealing_PersonalityTraits"};
+    static constexpr std::string_view class_name{
+        "GGeneralizedSimulatedAnnealing_PersonalityTraits"
+    };
 };
 
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

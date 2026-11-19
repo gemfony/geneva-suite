@@ -46,12 +46,12 @@
 // Boost headers
 
 // Geneva headers
-#include "common/GArchiveNamed.hpp"             // archive_named (named-member emitter)
-#include "common/GCommonHelperFunctions.hpp"    // timeAndPlace
-#include "common/GErrorStreamer.hpp"            // g_error_streamer, DO_LOG
+#include "common/GArchiveNamed.hpp"          // archive_named (named-member emitter)
+#include "common/GCommonHelperFunctions.hpp" // timeAndPlace
+#include "common/GErrorStreamer.hpp"         // g_error_streamer, DO_LOG
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "courtier/GCourtierEnums.hpp"          // processingStatus, dispatchState, the id typedefs
+#include "courtier/GCourtierEnums.hpp"           // processingStatus, dispatchState, the id typedefs
 #include "courtier/GCourtierHelperFunctions.hpp" // psToStr
 #include "courtier/GProcessingOutcome.hpp"       // the transportable lifecycle record
 
@@ -93,10 +93,14 @@ struct LineageId {
     SUBMISSION_UUID_TYPE value = mint_submission_uuid();
 
     LineageId() = default;
-    LineageId(const LineageId & /* cp */) : value(mint_submission_uuid()) { /* a copy is a new item */ }
+    LineageId(const LineageId & /* cp */)
+      : value(mint_submission_uuid()) { /* a copy is a new item */
+    }
     LineageId(LineageId &&) noexcept = default;
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- deliberate: assignment keeps our own lineage (see block comment above)
-    LineageId &operator=(const LineageId & /* cp */) { return *this; /* keep our own lineage on load */ }
+    LineageId &operator=(const LineageId & /* cp */) {
+        return *this; /* keep our own lineage on load */
+    }
     LineageId &operator=(LineageId &&) noexcept = default;
     ~LineageId() = default;
 };
@@ -201,10 +205,14 @@ public:
     // Processing status
 
     /** @brief @return The current processing status of this work item */
-    [[nodiscard]] processingStatus getProcessingStatus() const noexcept { return processing_status_; }
+    [[nodiscard]] processingStatus getProcessingStatus() const noexcept {
+        return processing_status_;
+    }
 
     /** @brief @return A string representation of the current processing status (debugging) */
-    [[nodiscard]] std::string getProcessingStatusAsStr() const noexcept { return psToStr(processing_status_); }
+    [[nodiscard]] std::string getProcessingStatusAsStr() const noexcept {
+        return psToStr(processing_status_);
+    }
 
     /** @brief @return true if the item carries the PROCESSED flag */
     [[nodiscard]] bool is_processed() const noexcept {
@@ -334,9 +342,13 @@ public:
      * transport layer (a (batch_id, slot) token in the courtier networked consumers).
      * @param id The transport correlation id to store on this work item
      */
-    void setCorrelationId(const CORRELATION_ID_TYPE &id) noexcept { correlation_id_ = id; }
+    void setCorrelationId(const CORRELATION_ID_TYPE &id) noexcept {
+        correlation_id_ = id;
+    }
     /** @brief @return The transport correlation id stored on this work item (see setCorrelationId()) */
-    [[nodiscard]] CORRELATION_ID_TYPE getCorrelationId() const noexcept { return correlation_id_; }
+    [[nodiscard]] CORRELATION_ID_TYPE getCorrelationId() const noexcept {
+        return correlation_id_;
+    }
 
     /**
      * @brief The stable, per-item lineage id (D11). Minted once at construction, preserved across
@@ -346,7 +358,9 @@ public:
      * after it has been resubmitted under a new correlation id.
      * @return This work item's 128-bit lineage id
      */
-    [[nodiscard]] SUBMISSION_UUID_TYPE getSubmissionUuid() const noexcept { return submission_uuid_.value; }
+    [[nodiscard]] SUBMISSION_UUID_TYPE getSubmissionUuid() const noexcept {
+        return submission_uuid_.value;
+    }
     /**
      * @brief Overwrites the lineage id. Used only to RESTORE a source's identity onto a stand-in copy:
      * a plain clone mints a fresh id, but a copy that stands in for an existing item (a consumer's
@@ -356,7 +370,9 @@ public:
      * that handed it out, and check-in drops a result whose id names another process.
      * @param uuid The lineage id to stamp onto this work item
      */
-    void setSubmissionUuid(const SUBMISSION_UUID_TYPE &uuid) noexcept { submission_uuid_.value = uuid; }
+    void setSubmissionUuid(const SUBMISSION_UUID_TYPE &uuid) noexcept {
+        submission_uuid_.value = uuid;
+    }
 
     /**
      * @brief Sets the courtier per-batch scheduling state. This is transient, server-side-only
@@ -364,9 +380,13 @@ public:
      * the slot is awaiting a client / in flight / done within one dispatch round.
      * @param s The new per-batch dispatch/scheduling state for this work item
      */
-    void setDispatchState(dispatchState s) noexcept { dispatch_state_ = s; }
+    void setDispatchState(dispatchState s) noexcept {
+        dispatch_state_ = s;
+    }
     /** @brief @return The current per-batch dispatch/scheduling state (see setDispatchState()) */
-    [[nodiscard]] dispatchState getDispatchState() const noexcept { return dispatch_state_; }
+    [[nodiscard]] dispatchState getDispatchState() const noexcept {
+        return dispatch_state_;
+    }
 
     /***************************************************************************/
     // Timing
@@ -391,7 +411,9 @@ public:
     }
 
     /** @brief @return The accumulated error descriptions stored during processing */
-    [[nodiscard]] std::string getStoredErrorDescriptions() const { return stored_error_descriptions_; }
+    [[nodiscard]] std::string getStoredErrorDescriptions() const {
+        return stored_error_descriptions_;
+    }
 
     /***************************************************************************/
     // Retained-state transfer (server-side return reconciliation)
@@ -476,7 +498,9 @@ public:
      *
      * @param src The returned, evaluated item whose results + lifecycle are absorbed into this one
      */
-    void absorbResultsFrom(const GProcessable &src) { this->absorbResultsFrom_(src); }
+    void absorbResultsFrom(const GProcessable &src) {
+        this->absorbResultsFrom_(src);
+    }
 
     /**
      * @brief Replaces this work item's content in place with a deep copy of @p src, keeping this item's
@@ -491,7 +515,9 @@ public:
      * @param src The source item to deep-copy into this one
      * @return true if the in-place content copy was performed; false if unsupported (caller should replace)
      */
-    [[nodiscard]] bool loadContentFrom(const GProcessable &src) { return this->loadContentFrom_(src); }
+    [[nodiscard]] bool loadContentFrom(const GProcessable &src) {
+        return this->loadContentFrom_(src);
+    }
 
 protected:
     /***************************************************************************/
@@ -747,7 +773,8 @@ protected:
      * status is reset. The base has no result store, so the default is a no-op; GProcessingContainerT
      * overrides it to clear its result vector.
      */
-    virtual void clearStoredResults_() { /* no result store in the base */ }
+    virtual void clearStoredResults_() { /* no result store in the base */
+    }
 
     /**
      * @brief Hook: the pre-processing step of the processing lifecycle -- runs the item's
@@ -776,7 +803,9 @@ protected:
      * and the state that does not travel on the wire).
      * @param src The returned item whose lifecycle state is absorbed
      */
-    virtual void absorbResultsFrom_(const GProcessable &src) { GProcessable::operator=(src); }
+    virtual void absorbResultsFrom_(const GProcessable &src) {
+        GProcessable::operator=(src);
+    }
 
     /**
      * @brief Hook behind loadContentFrom(): performs an in-place deep copy of @p src into this item.
@@ -785,7 +814,9 @@ protected:
      * @param src The source item to copy in place
      * @return true if the in-place copy was performed; false in the base (unsupported)
      */
-    virtual bool loadContentFrom_([[maybe_unused]] const GProcessable &src) { return false; }
+    virtual bool loadContentFrom_([[maybe_unused]] const GProcessable &src) {
+        return false;
+    }
 
     /**
      * @brief Lets derived classes flag a custom error condition. Sets the ERROR_FLAGGED status and

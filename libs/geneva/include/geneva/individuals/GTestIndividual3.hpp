@@ -49,12 +49,12 @@
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSelfTestable.hpp"
 #include "common/GSingletonT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "common/GSelfTestable.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 
 namespace Gem::Geneva::Individuals {
 
@@ -110,4 +110,3 @@ protected:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::Individuals */
-

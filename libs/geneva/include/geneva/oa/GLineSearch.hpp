@@ -111,8 +111,7 @@ struct GLineSearchResult {
 class GLineSearch {
 public:
     /** @brief Evaluates a batch of points and returns one (min-only) objective value per point. */
-    using eval_fn_t =
-        std::function<std::vector<double>(const std::vector<std::vector<double>> &)>;
+    using eval_fn_t = std::function<std::vector<double>(const std::vector<std::vector<double>> &)>;
 
     /***************************************************************************/
     /**

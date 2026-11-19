@@ -90,7 +90,8 @@
  * final release. Appended to the human-facing GENEVA_VERSION_STRING (GModuleManifest.hpp); the
  * numeric GENEVA_VERSION below is unaffected. */
 #define GENEVA_VERSION_PRERELEASE "-beta1"
-#define GENEVA_VERSION (GENEVA_VERSION_MAJOR * 10000 + GENEVA_VERSION_MINOR * 100 + GENEVA_VERSION_PATCH)
+#define GENEVA_VERSION                                                                             \
+    (GENEVA_VERSION_MAJOR * 10000 + GENEVA_VERSION_MINOR * 100 + GENEVA_VERSION_PATCH)
 
 /**
  * The minimum required Boost version, encoded as an integer.

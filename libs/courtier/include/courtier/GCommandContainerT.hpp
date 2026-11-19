@@ -242,7 +242,8 @@ public:
         reset(GFrameKind::HELLO);
         head_.build = std::move(build);
         head_.program = std::move(program);
-        head_.keepAlive = keep_alive.count() > 0 ? static_cast<std::uint64_t>(keep_alive.count()) : 0;
+        head_.keepAlive =
+            keep_alive.count() > 0 ? static_cast<std::uint64_t>(keep_alive.count()) : 0;
     }
     /** @brief @return The build a HELLO announces */
     [[nodiscard]] const std::string &build() const noexcept {
@@ -254,7 +255,9 @@ public:
     }
     /** @brief @return The keep-alive interval a HELLO names (0: none) */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const noexcept {
-        return std::chrono::milliseconds(static_cast<std::chrono::milliseconds::rep>(head_.keepAlive));
+        return std::chrono::milliseconds(
+            static_cast<std::chrono::milliseconds::rep>(head_.keepAlive)
+        );
     }
 
     //-------------------------------------------------------------------------

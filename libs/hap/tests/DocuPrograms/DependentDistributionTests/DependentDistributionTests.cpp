@@ -84,7 +84,9 @@ int main(int argc, char **argv) {
     std::shared_ptr<GHistogram1D> const x4_ptr(new GHistogram1D(NBINS, 0., 1.));
 
     std::shared_ptr<GHistogram1D> const sum1_extract_ptr(new GHistogram1D(NBINS, 0., 1.)); // 1 - x1
-    std::shared_ptr<GHistogram1D> const sum2_extract_ptr(new GHistogram1D(NBINS, 0., 1.)); // 1 - (x1+x2)
+    std::shared_ptr<GHistogram1D> const sum2_extract_ptr(
+        new GHistogram1D(NBINS, 0., 1.)
+    ); // 1 - (x1+x2)
     std::shared_ptr<GHistogram1D> const sum3_extract_ptr(
         new GHistogram1D(NBINS, 0., 1.)
     ); // 1 - (x1+x2+x3)
@@ -92,9 +94,13 @@ int main(int argc, char **argv) {
         new GHistogram1D(NBINS, 0., 1.)
     ); // 1 - (x1+x2+x3+x4)
 
-    std::shared_ptr<GHistogram1D> const sum1_all_ptr(new GHistogram1D(NBINS, 0., 1.));  // 1 - x1
-    std::shared_ptr<GHistogram1D> const sum2_all_ptr(new GHistogram1D(NBINS, -1., 1.)); // 1 - (x1+x2)
-    std::shared_ptr<GHistogram1D> const sum3_all_ptr(new GHistogram1D(NBINS, -2., 1.)); // 1 - (x1+x2+x3)
+    std::shared_ptr<GHistogram1D> const sum1_all_ptr(new GHistogram1D(NBINS, 0., 1.)); // 1 - x1
+    std::shared_ptr<GHistogram1D> const sum2_all_ptr(
+        new GHistogram1D(NBINS, -1., 1.)
+    ); // 1 - (x1+x2)
+    std::shared_ptr<GHistogram1D> const sum3_all_ptr(
+        new GHistogram1D(NBINS, -2., 1.)
+    ); // 1 - (x1+x2+x3)
     std::shared_ptr<GHistogram1D> const sum4_all_ptr(
         new GHistogram1D(NBINS, -3., 1.)
     ); // 1 - (x1+x2+x3+x4)

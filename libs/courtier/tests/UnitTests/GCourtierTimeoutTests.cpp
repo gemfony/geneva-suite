@@ -71,8 +71,11 @@ namespace {
 
 using item_ptr = std::unique_ptr<GFaultyContainer>;
 
-std::vector<item_ptr> make_batch(std::size_t n, const std::vector<std::size_t> &faulty = {},
-                                 fault_mode fm = fault_mode::THROW_PROCESSING) {
+std::vector<item_ptr> make_batch(
+    std::size_t n,
+    const std::vector<std::size_t> &faulty = {},
+    fault_mode fm = fault_mode::THROW_PROCESSING
+) {
     std::vector<item_ptr> v;
     v.reserve(n);
     for(std::size_t i = 0; i < n; ++i) {
@@ -103,7 +106,10 @@ public:
 };
 
 /** @brief How the driver mistreats a chosen item the first time it sees it. */
-enum class misbehave { abandon, requeue_it };
+enum class misbehave {
+    abandon,
+    requeue_it
+};
 
 /**
  * Runs @p batch through a SimNetConsumer with a driver thread that processes items, but the FIRST
@@ -137,7 +143,9 @@ void run_with_misbehaviour(std::vector<item_ptr> &batch, misbehave mode, victim_
         const std::size_t id = p->get_stored_number();
         if(victim(id) && mistreated_once.insert(id).second) {
             if(mode == misbehave::requeue_it) {
-                consumer.requeue(p->getCorrelationId()); // immediate put-back (as a websocket session-death would do)
+                consumer.requeue(
+                    p->getCorrelationId()
+                ); // immediate put-back (as a websocket session-death would do)
             }
             // mode == abandon: simply drop it -- never check it in; the reclaim lease must recover it
             continue;
@@ -164,8 +172,10 @@ void run_full_batch(LateNetConsumer &consumer, std::size_t n) {
     auto batch = make_batch(n);
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
-        consumer.processBatch(std::span<item_ptr>(batch.data(), batch.size()),
-                              c2::GSubmissionPolicy::full_success_or_fatal());
+        consumer.processBatch(
+            std::span<item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::full_success_or_fatal()
+        );
         finished.store(true);
     });
     while(not finished.load()) {
@@ -227,8 +237,10 @@ std::vector<std::unique_ptr<typename consumer_type::item_type>> run_abandoning_f
     std::vector<batch_item_ptr> slow(victims.size());
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
-        consumer.processBatch(std::span<batch_item_ptr>(batch.data(), batch.size()),
-                              c2::GSubmissionPolicy::clone_on_partial_return());
+        consumer.processBatch(
+            std::span<batch_item_ptr>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::clone_on_partial_return()
+        );
         finished.store(true);
     });
     while(not finished.load()) {
@@ -279,7 +291,9 @@ class GLateFaultItem final : public c2::GProcessingContainerT<GLateFaultItem, bo
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<c2::GProcessingContainerT<GLateFaultItem, bool>>(
-            ar, "GProcessingContainerT_GLateFaultItem", *this
+            ar,
+            "GProcessingContainerT_GLateFaultItem",
+            *this
         );
         Gem::Common::archive_named(ar, "stored_number_", stored_number_);
     }
@@ -378,22 +392,28 @@ std::vector<std::unique_ptr<GLateFaultItem>> make_late_fault_batch(std::size_t n
 
 /******************************************************************************/
 
-TEST_CASE("courtier(timeout): the reclaim lease recovers abandoned (dead-client) items",
-          "[courtier][timeout]") {
+TEST_CASE(
+    "courtier(timeout): the reclaim lease recovers abandoned (dead-client) items",
+    "[courtier][timeout]"
+) {
     auto batch = make_batch(40);
     run_with_misbehaviour(batch, misbehave::abandon, [](std::size_t id) { return id % 4 == 0; });
     CHECK(count_processed(batch) == 40); // every item came back despite the "deaths"
 }
 
-TEST_CASE("courtier(timeout): an explicit requeue (session-death put-back) loses nothing",
-          "[courtier][timeout]") {
+TEST_CASE(
+    "courtier(timeout): an explicit requeue (session-death put-back) loses nothing",
+    "[courtier][timeout]"
+) {
     auto batch = make_batch(40);
     run_with_misbehaviour(batch, misbehave::requeue_it, [](std::size_t id) { return id % 3 == 0; });
     CHECK(count_processed(batch) == 40);
 }
 
-TEST_CASE("courtier(timeout): every item abandoned once is still recovered",
-          "[courtier][timeout]") {
+TEST_CASE(
+    "courtier(timeout): every item abandoned once is still recovered",
+    "[courtier][timeout]"
+) {
     auto batch = make_batch(24);
     run_with_misbehaviour(batch, misbehave::abandon, [](std::size_t) { return true; });
     CHECK(count_processed(batch) == 24);
@@ -401,8 +421,10 @@ TEST_CASE("courtier(timeout): every item abandoned once is still recovered",
 
 /******************************************************************************/
 
-TEST_CASE("courtier(clone): unresolved slots are refilled from the supplied template",
-          "[courtier][clone]") {
+TEST_CASE(
+    "courtier(clone): unresolved slots are refilled from the supplied template",
+    "[courtier][clone]"
+) {
     // A representative, already-evaluated template the algorithm hands down.
     constexpr std::size_t TEMPLATE_ID = 9999;
     auto tmpl = std::make_unique<GFaultyContainer>(TEMPLATE_ID, fault_mode::NONE);
@@ -416,8 +438,11 @@ TEST_CASE("courtier(clone): unresolved slots are refilled from the supplied temp
     const std::vector<std::size_t> faulty{2, 5, 9};
     auto batch = make_batch(12, faulty, fault_mode::THROW_PROCESSING);
 
-    consumer->processBatch(std::span<std::unique_ptr<GFaultyContainer>>(batch.data(), batch.size()),
-                           c2::GSubmissionPolicy::clone_on_partial_return(), std::move(tmpl));
+    consumer->processBatch(
+        std::span<std::unique_ptr<GFaultyContainer>>(batch.data(), batch.size()),
+        c2::GSubmissionPolicy::clone_on_partial_return(),
+        std::move(tmpl)
+    );
 
     CHECK(count_processed(batch) == 12); // no slot left unevaluated
     // The throwing slots must hold clones of the TEMPLATE (not of a surviving sibling).
@@ -450,11 +475,13 @@ TEST_CASE(
     consumer.checkin(std::move(slow[0])); // its batch has retired -> a late arrival
 
     CHECK(consumer.lateReturnBufferSize() == 1);   // held for a later getLateReturns() to reap
-    CHECK(consumer.lateReturnDroppedCount() == 0);  // nothing dropped
+    CHECK(consumer.lateReturnDroppedCount() == 0); // nothing dropped
 }
 
-TEST_CASE("courtier(late): getLateReturns() drains the buffer and transfers the items",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): getLateReturns() drains the buffer and transfers the items",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 8);
 
@@ -470,21 +497,23 @@ TEST_CASE("courtier(late): getLateReturns() drains the buffer and transfers the 
 
     auto reaped = consumer.getLateReturns(); // a submitter's reaper drains via this hook
     REQUIRE(reaped.size() == 2);
-    CHECK(consumer.lateReturnBufferSize() == 0);             // buffer emptied
-    CHECK(reaped[0]->get_stored_number() == 2);              // FIFO / arrival order preserved
+    CHECK(consumer.lateReturnBufferSize() == 0); // buffer emptied
+    CHECK(reaped[0]->get_stored_number() == 2);  // FIFO / arrival order preserved
     CHECK(reaped[1]->get_stored_number() == 1);
-    CHECK(consumer.getLateReturns().empty());                // a second drain yields nothing
+    CHECK(consumer.getLateReturns().empty()); // a second drain yields nothing
 }
 
-TEST_CASE("courtier(late): buffering disabled (default) counts the drop but holds nothing",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): buffering disabled (default) counts the drop but holds nothing",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer; // default cap == 0 -> buffering disabled
 
     deliver_late(consumer, 1, 0);
     deliver_late(consumer, 2, 1);
 
-    CHECK(consumer.lateReturnBufferSize() == 0);    // nothing retained
-    CHECK(consumer.lateReturnDroppedCount() == 2);  // but the drops are observable, not silent
+    CHECK(consumer.lateReturnBufferSize() == 0);   // nothing retained
+    CHECK(consumer.lateReturnDroppedCount() == 2); // but the drops are observable, not silent
 }
 
 TEST_CASE(
@@ -492,7 +521,10 @@ TEST_CASE(
     "[courtier][latereturn]"
 ) {
     LateNetConsumer consumer;
-    consumer.setLateReturnBuffer(/*cap*/ 2, /*ttl_rounds*/ 1000); // large TTL: only capacity evicts here
+    consumer.setLateReturnBuffer(
+        /*cap*/ 2,
+        /*ttl_rounds*/ 1000
+    ); // large TTL: only capacity evicts here
 
     // Two rounds, because the retained originals are bounded by the same cap of 2.
     auto first_batch = make_batch(4);
@@ -517,8 +549,10 @@ TEST_CASE(
     CHECK(reaped[1]->get_stored_number() == 1);
 }
 
-TEST_CASE("courtier(late): a buffered entry is evicted once it ages past its TTL in rounds",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): a buffered entry is evicted once it ages past its TTL in rounds",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 100, /*ttl_rounds*/ 2); // TTL of 2 dispatch rounds
 
@@ -545,10 +579,15 @@ TEST_CASE("courtier(late): a buffered entry is evicted once it ages past its TTL
 // reaped rather than dropped; only one with no retained original to apply it to is dropped.
 /******************************************************************************/
 
-TEST_CASE("courtier(late): a payload-only late return is applied to a retained original",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): a payload-only late return is applied to a retained original",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
-    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
+    consumer.setLateReturnBuffer(
+        /*cap*/ 8,
+        /*ttl_rounds*/ 100
+    ); // buffering on -> originals are retained
 
     // Abandon slot 2 forever: the batch retires with it MISSING, so its original (stored id 2) is retained
     // under its correlation id (slot index, batch_id 0).
@@ -565,12 +604,14 @@ TEST_CASE("courtier(late): a payload-only late return is applied to a retained o
 
     auto reaped = consumer.getLateReturns();
     REQUIRE(reaped.size() == 1);
-    CHECK(reaped[0]->get_stored_number() == 2);  // the item came from the retained original
-    CHECK(reaped[0]->is_processed());            // ... carrying the returned outcome
+    CHECK(reaped[0]->get_stored_number() == 2); // the item came from the retained original
+    CHECK(reaped[0]->is_processed());           // ... carrying the returned outcome
 }
 
-TEST_CASE("courtier(late): a payload-only late return with no retained original is dropped",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): a payload-only late return with no retained original is dropped",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
     consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100);
 
@@ -588,10 +629,15 @@ TEST_CASE("courtier(late): a payload-only late return with no retained original 
 // Phase-6 aging-store consolidation has the retention aging characterized directly, not just indirectly.
 /******************************************************************************/
 
-TEST_CASE("courtier(late): a retained original ages out of the retention store past its TTL",
-          "[courtier][latereturn]") {
+TEST_CASE(
+    "courtier(late): a retained original ages out of the retention store past its TTL",
+    "[courtier][latereturn]"
+) {
     LateNetConsumer consumer;
-    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 2); // small TTL: the retained clone must age out
+    consumer.setLateReturnBuffer(
+        /*cap*/ 8,
+        /*ttl_rounds*/ 2
+    ); // small TTL: the retained clone must age out
 
     // Abandon slot 2 forever so the batch retires with it MISSING -> its original is retained (as in the
     // applied case above), but here the slow worker NEVER returns a result to apply.
@@ -605,7 +651,7 @@ TEST_CASE("courtier(late): a retained original ages out of the retention store p
         run_full_batch(consumer, 1);
     }
     CHECK(consumer.retainedOriginalCount() == 0); // aged out, not retained forever
-    CHECK(consumer.lateReturnBufferSize() == 0);   // no result ever arrived, so nothing was buffered
+    CHECK(consumer.lateReturnBufferSize() == 0);  // no result ever arrived, so nothing was buffered
 }
 
 /******************************************************************************/
@@ -695,7 +741,10 @@ TEST_CASE(
     const bool carries_item = GENERATE(true, false);
     INFO((carries_item ? "the late result carries its item" : "the late result is payload-only"));
     LateFaultConsumer consumer;
-    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
+    consumer.setLateReturnBuffer(
+        /*cap*/ 8,
+        /*ttl_rounds*/ 100
+    ); // buffering on -> originals are retained
 
     auto batch = make_late_fault_batch(3);
     auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2});
@@ -710,10 +759,10 @@ TEST_CASE(
     else {
         CHECK_NOTHROW(deliver_late_payloadonly(consumer, /*corr*/ 2));
     }
-    CHECK(applicationsToFail.load() == 0);          // the application did throw
-    CHECK(consumer.lateReturnDroppedCount() == 1);  // the result is dropped and counted
-    CHECK(consumer.lateReturnBufferSize() == 0);    // nothing is parked
-    CHECK(consumer.retainedOriginalCount() == 0);   // and its retained original is gone with it
+    CHECK(applicationsToFail.load() == 0);         // the application did throw
+    CHECK(consumer.lateReturnDroppedCount() == 1); // the result is dropped and counted
+    CHECK(consumer.lateReturnBufferSize() == 0);   // nothing is parked
+    CHECK(consumer.retainedOriginalCount() == 0);  // and its retained original is gone with it
 
     // The consumer goes on: a following batch runs as usual
     auto next = make_late_fault_batch(3);
@@ -728,9 +777,13 @@ TEST_CASE(
 // when an unreturned item is handed out again or given up -- orthogonal to the algorithm's
 // GSubmissionPolicy. Because an evaluation may run from microseconds to weeks, neither has a
 // default: both are 0, no limit.
-TEST_CASE("courtier(timeout): the two time limits are read from the config file", "[courtier][timeout][config]") {
+TEST_CASE(
+    "courtier(timeout): the two time limits are read from the config file",
+    "[courtier][timeout][config]"
+) {
     SECTION("an absent config file materializes the two limits, both 0") {
-        const auto path = std::filesystem::temp_directory_path() / "geneva_nettimeout_defaults.json";
+        const auto path =
+            std::filesystem::temp_directory_path() / "geneva_nettimeout_defaults.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig cfg;
         cfg.load(path.string()); // absent -> written with defaults, then read back
@@ -740,7 +793,8 @@ TEST_CASE("courtier(timeout): the two time limits are read from the config file"
     }
 
     SECTION("non-default values round-trip through the JSON config file") {
-        const auto path = std::filesystem::temp_directory_path() / "geneva_nettimeout_roundtrip.json";
+        const auto path =
+            std::filesystem::temp_directory_path() / "geneva_nettimeout_roundtrip.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig w;
         w.reclaim_lease_ms = 1234;
@@ -758,10 +812,16 @@ TEST_CASE("courtier(timeout): the two time limits are read from the config file"
         SimNetConsumer consumer;
         c2::GNetworkedTimeoutConfig lease;
         lease.reclaim_lease_ms = -1;
-        CHECK_THROWS_WITH(consumer.applyTimeoutConfig(lease), ContainsSubstring("reclaim_lease_ms"));
+        CHECK_THROWS_WITH(
+            consumer.applyTimeoutConfig(lease),
+            ContainsSubstring("reclaim_lease_ms")
+        );
         c2::GNetworkedTimeoutConfig window;
         window.give_up_window_ms = -5;
-        CHECK_THROWS_WITH(consumer.applyTimeoutConfig(window), ContainsSubstring("give_up_window_ms"));
+        CHECK_THROWS_WITH(
+            consumer.applyTimeoutConfig(window),
+            ContainsSubstring("give_up_window_ms")
+        );
     }
 }
 
@@ -836,10 +896,7 @@ TEST_CASE(
     CHECK(SimNetConsumer::maxBatchSize() == std::size_t{16'777'216}); // 2^24
 }
 
-TEST_CASE(
-    "courtier(routing): a return for a put-back slot is accepted",
-    "[courtier][routing]"
-) {
+TEST_CASE("courtier(routing): a return for a put-back slot is accepted", "[courtier][routing]") {
     auto batch = make_batch(1);
     SimNetConsumer consumer;
 
@@ -963,7 +1020,7 @@ TEST_CASE(
     "[courtier][routing]"
 ) {
     constexpr std::size_t N = 4;
-    constexpr std::size_t BAD = 1; // the item whose clone throws
+    constexpr std::size_t BAD = 1;               // the item whose clone throws
     const bool standard = GENERATE(true, false); // a std::exception, or an int
     INFO((standard ? "the clone throws a std::exception" : "the clone throws an int"));
     auto batch = make_batch(N);
@@ -1098,4 +1155,3 @@ TEST_CASE(
     CHECK(processing_time(batch[0]) != FOREIGN_TIME);
     CHECK(consumer.foreignReturnCount() == 1);
 }
-

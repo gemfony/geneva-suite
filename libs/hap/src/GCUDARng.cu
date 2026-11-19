@@ -62,9 +62,14 @@ std::atomic<bool> g_cudaShuttingDown{false};
  * @return true if the call succeeded, false on any error or during shutdown
  */
 inline bool checkCuda(cudaError_t st, char const *what) {
-    if (st == cudaSuccess) return true;
-    if (st == cudaErrorCudartUnloading) { g_cudaShuttingDown.store(true, std::memory_order_relaxed); return false; }
-    if (g_cudaShuttingDown.load(std::memory_order_relaxed)) return false;
+    if(st == cudaSuccess)
+        return true;
+    if(st == cudaErrorCudartUnloading) {
+        g_cudaShuttingDown.store(true, std::memory_order_relaxed);
+        return false;
+    }
+    if(g_cudaShuttingDown.load(std::memory_order_relaxed))
+        return false;
     std::fprintf(stderr, "GCudaRNG: CUDA call failed (%s): %s\n", what, cudaGetErrorString(st));
     return false;
 }
@@ -76,19 +81,26 @@ inline bool checkCuda(cudaError_t st, char const *what) {
  * @return true if the call succeeded, false on any error or during shutdown
  */
 inline bool checkCurand(curandStatus_t st, char const *what) {
-    if (st == CURAND_STATUS_SUCCESS) return true;
-    if (g_cudaShuttingDown.load(std::memory_order_relaxed)) return false;
+    if(st == CURAND_STATUS_SUCCESS)
+        return true;
+    if(g_cudaShuttingDown.load(std::memory_order_relaxed))
+        return false;
     // cuRAND has no dedicated "runtime unloading" status: at process teardown the CUDA runtime unloads
     // (atexit) while producer threads may still call generate(), and cuRAND reports that as a generic
     // CURAND_STATUS_LAUNCH_FAILURE -- which arrives BEFORE any cudaXxx call has set g_cudaShuttingDown. So
     // probe the runtime with a cheap no-op (cudaFree(nullptr)): if IT reports unloading, this cuRAND
     // failure is benign shutdown noise -- flag it (so peer threads go quiet) and suppress. Only a failure
     // seen while the runtime is genuinely alive is a real error worth reporting.
-    if (cudaFree(nullptr) == cudaErrorCudartUnloading) {
+    if(cudaFree(nullptr) == cudaErrorCudartUnloading) {
         g_cudaShuttingDown.store(true, std::memory_order_relaxed);
         return false;
     }
-    std::fprintf(stderr, "GCudaRNG: cuRAND call failed (%s), status %d\n", what, static_cast<int>(st));
+    std::fprintf(
+        stderr,
+        "GCudaRNG: cuRAND call failed (%s), status %d\n",
+        what,
+        static_cast<int>(st)
+    );
     return false;
 }
 
@@ -97,7 +109,9 @@ inline bool checkCurand(curandStatus_t st, char const *what) {
  *
  * @return true once any backend has observed a shutdown-related CUDA error
  */
-bool cudaShuttingDown() noexcept { return g_cudaShuttingDown.load(std::memory_order_relaxed); }
+bool cudaShuttingDown() noexcept {
+    return g_cudaShuttingDown.load(std::memory_order_relaxed);
+}
 
 } // namespace
 
@@ -124,7 +138,7 @@ bool GCudaRNG::deviceAvailable() noexcept {
 GCudaRNG::GCudaRNG(std::uint64_t seed) {
     // A failed call marks the backend as failed (failed()); its owner then switches to the CPU engine.
     cudaStream_t stream{};
-    if (!checkCuda(cudaStreamCreate(&stream), "cudaStreamCreate")) {
+    if(!checkCuda(cudaStreamCreate(&stream), "cudaStreamCreate")) {
         failed_ = true;
         return;
     }
@@ -132,24 +146,31 @@ GCudaRNG::GCudaRNG(std::uint64_t seed) {
 
     curandGenerator_t gen{};
     // Philox4-32-10: fast, high-quality, no per-thread state setup needed.
-    if (!checkCurand(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_PHILOX4_32_10),
-                     "curandCreateGenerator")) {
+    if(!checkCurand(
+           curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_PHILOX4_32_10),
+           "curandCreateGenerator"
+       )) {
         failed_ = true;
         return;
     }
     gen_ = gen;
-    failed_ = !checkCurand(curandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)),
-                           "curandSetPseudoRandomGeneratorSeed")
-              || !checkCurand(curandSetStream(gen, stream), "curandSetStream");
+    failed_ = !checkCurand(
+                  curandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)),
+                  "curandSetPseudoRandomGeneratorSeed"
+              ) ||
+              !checkCurand(curandSetStream(gen, stream), "curandSetStream");
 }
 
 /**
  * @brief Destroys the cuRAND generator, frees the device buffer and destroys the CUDA stream.
  */
 GCudaRNG::~GCudaRNG() {
-    if (gen_ != nullptr) curandDestroyGenerator(static_cast<curandGenerator_t>(gen_));
-    if (d_buf_ != nullptr) cudaFree(d_buf_);
-    if (stream_ != nullptr) cudaStreamDestroy(static_cast<cudaStream_t>(stream_));
+    if(gen_ != nullptr)
+        curandDestroyGenerator(static_cast<curandGenerator_t>(gen_));
+    if(d_buf_ != nullptr)
+        cudaFree(d_buf_);
+    if(stream_ != nullptr)
+        cudaStreamDestroy(static_cast<cudaStream_t>(stream_));
 }
 
 /**
@@ -163,7 +184,8 @@ GCudaRNG::~GCudaRNG() {
  * @param n The number of 64-bit values to generate
  */
 void GCudaRNG::generate(result_type *dst, std::size_t n) {
-    if (n == 0 || cudaShuttingDown()) return;
+    if(n == 0 || cudaShuttingDown())
+        return;
 
     // A failed GPU call must never leave dst unfilled: the caller would then ship stale/uninitialised
     // memory as "random numbers" (corrupting any consumer, e.g. an optimizer fed non-random values).
@@ -173,9 +195,10 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
     // shutdown is handled by the early return above (cudaShuttingDown()). The failure also sets failed_,
     // and the owning GFillBackend then moves to its CPU engine for good.
     auto cpuFallback = [this, dst, n]() {
-        if (!cudaShuttingDown()) failed_ = true;
+        if(!cudaShuttingDown())
+            failed_ = true;
         thread_local std::mt19937_64 eng{std::random_device{}()};
-        for (std::size_t i = 0; i < n; ++i) {
+        for(std::size_t i = 0; i < n; ++i) {
             dst[i] = static_cast<result_type>(eng());
         }
     };
@@ -184,9 +207,10 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
     // 64-bit result_type, so we request 2*n words of raw uniform bits.
     const std::size_t words = 2 * n;
 
-    if (words > d_words_) {
-        if (d_buf_ != nullptr) cudaFree(d_buf_);
-        if (!checkCuda(cudaMalloc(&d_buf_, words * sizeof(std::uint32_t)), "cudaMalloc")) {
+    if(words > d_words_) {
+        if(d_buf_ != nullptr)
+            cudaFree(d_buf_);
+        if(!checkCuda(cudaMalloc(&d_buf_, words * sizeof(std::uint32_t)), "cudaMalloc")) {
             d_buf_ = nullptr;
             d_words_ = 0;
             cpuFallback();
@@ -196,19 +220,31 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
     }
 
     auto stream = static_cast<cudaStream_t>(stream_);
-    if (!checkCurand(curandGenerate(static_cast<curandGenerator_t>(gen_),
-                                    static_cast<unsigned int *>(d_buf_), words),
-                     "curandGenerate")) {
+    if(!checkCurand(
+           curandGenerate(
+               static_cast<curandGenerator_t>(gen_),
+               static_cast<unsigned int *>(d_buf_),
+               words
+           ),
+           "curandGenerate"
+       )) {
         cpuFallback();
         return;
     }
-    if (!checkCuda(cudaMemcpyAsync(dst, d_buf_, words * sizeof(std::uint32_t),
-                                   cudaMemcpyDeviceToHost, stream),
-                   "cudaMemcpyAsync")) {
+    if(!checkCuda(
+           cudaMemcpyAsync(
+               dst,
+               d_buf_,
+               words * sizeof(std::uint32_t),
+               cudaMemcpyDeviceToHost,
+               stream
+           ),
+           "cudaMemcpyAsync"
+       )) {
         cpuFallback();
         return;
     }
-    if (!checkCuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize")) {
+    if(!checkCuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize")) {
         cpuFallback();
     }
 }

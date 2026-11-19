@@ -82,19 +82,28 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Lazily-self-computed flavour: getOrCompute()
 
-TEST_CASE("GLoadOnceCellT: getOrCompute computes once and returns a stable reference", "[common][cell]") {
+TEST_CASE(
+    "GLoadOnceCellT: getOrCompute computes once and returns a stable reference",
+    "[common][cell]"
+) {
     GLoadOnceCellT<int> cell;
     int computeCount = 0;
 
     CHECK_FALSE(cell.loaded());
 
-    const int &first = cell.getOrCompute([&computeCount]() { ++computeCount; return 42; });
+    const int &first = cell.getOrCompute([&computeCount]() {
+        ++computeCount;
+        return 42;
+    });
     CHECK(cell.loaded());
     CHECK(first == 42);
     CHECK(computeCount == 1);
 
     // The producer is not run again; the cached value (and its address) are stable.
-    const int &second = cell.getOrCompute([&computeCount]() { ++computeCount; return 99; });
+    const int &second = cell.getOrCompute([&computeCount]() {
+        ++computeCount;
+        return 99;
+    });
     CHECK(second == 42);
     CHECK(computeCount == 1);
     CHECK(&first == &second);
@@ -147,11 +156,17 @@ TEST_CASE("GLoadOnceCellT: a throwing producer does not consume the fill", "[com
 
     // The load-once guarantee must not turn a *failed* fill into a permanently empty cell: this is
     // what a caller filling from a failure-prone source (a config file, a parse) relies on.
-    CHECK_THROWS(cell.getOrCompute([&attempts]() -> int { ++attempts; throw std::runtime_error("nope"); }));
+    CHECK_THROWS(cell.getOrCompute([&attempts]() -> int {
+        ++attempts;
+        throw std::runtime_error("nope");
+    }));
     CHECK_FALSE(cell.loaded());
     CHECK(attempts == 1);
 
-    CHECK(cell.getOrCompute([&attempts]() { ++attempts; return 5; }) == 5);
+    CHECK(cell.getOrCompute([&attempts]() {
+        ++attempts;
+        return 5;
+    }) == 5);
     CHECK(cell.loaded());
     CHECK(attempts == 2);
 }
@@ -176,11 +191,13 @@ TEST_CASE("GLoadOnceCellT: concurrent first calls fill exactly once", "[common][
             });
         });
     }
-    for(auto &th : threads) { th.join(); }
+    for(auto &th : threads) {
+        th.join();
+    }
 
-    CHECK(computeCount.load() == 1);       // the producer ran exactly once despite the race
+    CHECK(computeCount.load() == 1); // the producer ran exactly once despite the race
     CHECK(cell.loaded());
     for(int t = 0; t < nThreads; ++t) {
-        CHECK(results[t] == 7);            // every thread observed the single filled value
+        CHECK(results[t] == 7); // every thread observed the single filled value
     }
 }

@@ -32,12 +32,12 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
 #include <memory>
-#include <algorithm>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -52,8 +52,8 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "courtier/GCourtierEnums.hpp"       // processingStatus
-#include "courtier/GProcessable.hpp"          // the non-generic work-item lifecycle base
+#include "courtier/GCourtierEnums.hpp" // processingStatus
+#include "courtier/GProcessable.hpp"   // the non-generic work-item lifecycle base
 #include "courtier/GSubmissionPolicy.hpp"
 
 namespace Gem::Courtier {
@@ -93,12 +93,15 @@ public:
      *  produce late returns. Networked consumers override this. The arguments are the maximum number
      *  of late-return items to buffer (cap; 0 disables late-return buffering) and the number of
      *  dispatch rounds a buffered late return is kept before being discarded (ttl_rounds). */
-    virtual void enableLateReturns(std::size_t /*cap*/, std::uint64_t /*ttl_rounds*/) {}
+    virtual void enableLateReturns(std::size_t /*cap*/, std::uint64_t /*ttl_rounds*/) {
+    }
 
     /** @brief Hands back (transfers ownership of) the work items the consumer buffered as late returns,
      *  emptying the buffer. Default: none. Networked consumers override this to drain their buffer.
      *  @return The buffered late-return items (ownership transferred); empty if the consumer buffers none */
-    virtual std::vector<item_ptr> getLateReturns() { return {}; }
+    virtual std::vector<item_ptr> getLateReturns() {
+        return {};
+    }
 
     /***************************************************************************/
     /** @brief How many clients are connected to this consumer now: the one question about its
@@ -107,7 +110,9 @@ public:
      *  cannot tell answers std::nullopt (GNetworkedConsumerT); one that can, its count. From any
      *  thread.
      *  @return The number of connected clients, or std::nullopt if this consumer cannot tell */
-    [[nodiscard]] virtual std::optional<std::size_t> connectedClients() const { return 0; }
+    [[nodiscard]] virtual std::optional<std::size_t> connectedClients() const {
+        return 0;
+    }
 
     /***************************************************************************/
     /**
@@ -121,8 +126,11 @@ public:
      *        unresolved slots (if null, the first successfully evaluated sibling is used instead)
      */
     // NOLINTNEXTLINE(readability-function-size) -- one coherent reconciliation state machine (dispatch round, per-slot pending/resolved/unresolved classification against the submission policy, then clone/fatal reconciliation) sharing the same per-slot state vectors throughout; splitting would scatter the tightly-coupled loop state
-    void processBatch(std::span<item_ptr> items, const GSubmissionPolicy &policy,
-                      item_ptr clone_template = nullptr) {
+    void processBatch(
+        std::span<item_ptr> items,
+        const GSubmissionPolicy &policy,
+        item_ptr clone_template = nullptr
+    ) {
         using Gem::Courtier::processingStatus;
 
         const std::size_t n = items.size();
@@ -130,14 +138,18 @@ public:
             return;
         }
 
-        enum class slot { pending, resolved, unresolved };
+        enum class slot {
+            pending,
+            resolved,
+            unresolved
+        };
         std::vector<slot> state(n, slot::pending);
         std::vector<std::size_t> resubmits(n, 0);
         std::vector<std::size_t> failed_retries(n, 0);
         bool any_success = false;
 
         // Mark every (non-null) slot due for processing. Null slots are treated as resolved.
-        for(auto&& [item, item_state] : std::views::zip(items, state)) {
+        for(auto &&[item, item_state] : std::views::zip(items, state)) {
             if(item) {
                 item->set_processing_status(processingStatus::DO_PROCESS);
             }
@@ -153,8 +165,8 @@ public:
             // resolved/unresolved slots are not.) There is no temporary working vector: the consumer
             // evaluates the batch span IN PLACE, processing exactly the slots whose status is DO_PROCESS
             // and writing each (possibly replaced) result straight back into its own slot.
-            const bool any_pending = std::ranges::any_of(
-                std::views::zip(state, items), [](auto &&slot_and_item) {
+            const bool any_pending =
+                std::ranges::any_of(std::views::zip(state, items), [](auto &&slot_and_item) {
                     auto &&[s, item] = slot_and_item;
                     return s == slot::pending && item &&
                            item->getProcessingStatus() == processingStatus::DO_PROCESS;
@@ -169,8 +181,8 @@ public:
             // slot carries its (possibly replaced) result on return, and non-DO_PROCESS slots are skipped.
             this->dispatch_(items);
 
-            for(auto&& [item, item_state, item_resubmits, item_failed_retries] :
-                    std::views::zip(items, state, resubmits, failed_retries)) {
+            for(auto &&[item, item_state, item_resubmits, item_failed_retries] :
+                std::views::zip(items, state, resubmits, failed_retries)) {
                 if(item_state != slot::pending) {
                     continue;
                 }
@@ -179,8 +191,10 @@ public:
                     item_state = slot::resolved;
                     any_success = true;
                 }
-                else if(st == processingStatus::EXCEPTION_CAUGHT ||
-                        st == processingStatus::ERROR_FLAGGED) {
+                else if(
+                    st == processingStatus::EXCEPTION_CAUGHT ||
+                    st == processingStatus::ERROR_FLAGGED
+                ) {
                     // FAILED: retry only to ride out *transient* crashes; a deterministic crash
                     // will keep failing, so the budget terminates in "unresolved".
                     if(item_failed_retries < policy.max_failed_retries) {
@@ -218,7 +232,7 @@ public:
         }
 
         // Reconcile the unresolved slots per the policy.
-        for(auto&& [item, item_state] : std::views::zip(items, state)) {
+        for(auto &&[item, item_state] : std::views::zip(items, state)) {
             if(item_state != slot::unresolved) {
                 continue;
             }
@@ -303,7 +317,9 @@ public:
      *  construction otherwise. A function is needed only for an item type that has no fitting
      *  clone() and must not be copy-constructed, or to copy in a special way (a test double).
      *  @param fn The deep-clone functor taking a borrowed source item and returning a fresh owning copy */
-    void setCloneFunction(std::function<item_ptr(const item_ptr &)> fn) { clone_fn_ = std::move(fn); }
+    void setCloneFunction(std::function<item_ptr(const item_ptr &)> fn) {
+        clone_fn_ = std::move(fn);
+    }
 
 private:
     /***************************************************************************/
@@ -322,7 +338,8 @@ private:
      *  @param dest The unresolved slot to refill (its owning pointer, so a fallback can replace it)
      *  @param items The batch, scanned for a successfully evaluated sibling when no template is given
      *  @param clone_template An explicit clone source; if empty, the first processed item of @p items is used */
-    void refill_slot_(item_ptr &dest, std::span<item_ptr> items, const item_ptr &clone_template) const {
+    void
+    refill_slot_(item_ptr &dest, std::span<item_ptr> items, const item_ptr &clone_template) const {
         // Items are uniquely owned, so the source is only borrowed (a pointer to the chosen owner).
         const item_ptr *src = &clone_template;
         if(not *src) {

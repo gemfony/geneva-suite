@@ -63,9 +63,12 @@ TEST_CASE("GHap autoProducerThreadCount is hardware-derived and clamped", "[hap]
     else {
         // Exactly the clamp(hw / divisor, floor, cap) the helper documents.
         const unsigned int scaled = std::max<unsigned int>(
-            Gem::Hap::DEFAULT01PRODUCERTHREADS, hw / Gem::Hap::PRODUCERTHREADS_HW_DIVISOR);
-        const std::uint16_t expected =
-            static_cast<std::uint16_t>(std::min<unsigned int>(scaled, Gem::Hap::MAXAUTOPRODUCERTHREADS));
+            Gem::Hap::DEFAULT01PRODUCERTHREADS,
+            hw / Gem::Hap::PRODUCERTHREADS_HW_DIVISOR
+        );
+        const std::uint16_t expected = static_cast<std::uint16_t>(
+            std::min<unsigned int>(scaled, Gem::Hap::MAXAUTOPRODUCERTHREADS)
+        );
         REQUIRE(n == expected);
     }
 }
@@ -77,7 +80,9 @@ TEST_CASE("GHap factory exposes supply-health counters", "[hap][standard]") {
     // Draw a few containers; a healthy supply hands them out (producers auto-start on first access).
     bool got = false;
     for(int i = 0; i < 100 && not got; ++i) {
-        if(auto p = factory->getNewRandomContainer()) { got = true; }
+        if(auto p = factory->getNewRandomContainer()) {
+            got = true;
+        }
     }
     REQUIRE(got);
 
@@ -95,13 +100,18 @@ TEST_CASE("GHap factory exposes supply-health counters", "[hap][standard]") {
 // threads are already running. On the unfixed code the started-threads branch launched the missing
 // threads but never stored the new count, so the getter kept the stale value and every subsequent
 // grow request re-computed its delta from that stale count, silently spawning duplicate producers.
-TEST_CASE("GHap setNProducerThreads keeps its count in step with the running pool", "[hap][standard]") {
+TEST_CASE(
+    "GHap setNProducerThreads keeps its count in step with the running pool",
+    "[hap][standard]"
+) {
     auto factory = Gem::Hap::randomFactory();
 
     // Ensure the producer threads are running (they start lazily on the first draw).
     bool got = false;
     for(int i = 0; i < 100 && not got; ++i) {
-        if(auto p = factory->getNewRandomContainer()) { got = true; }
+        if(auto p = factory->getNewRandomContainer()) {
+            got = true;
+        }
     }
     REQUIRE(got);
 

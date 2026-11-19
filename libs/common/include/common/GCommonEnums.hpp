@@ -283,7 +283,9 @@ enum class tribool : Gem::Common::ENUMBASETYPE {
  * @param t The tribool value to be tested
  * @return true if @p t equals tribool::Indeterminate, false otherwise
  */
-inline bool indeterminate(tribool t) noexcept { return t == tribool::Indeterminate; }
+inline bool indeterminate(tribool t) noexcept {
+    return t == tribool::Indeterminate;
+}
 
 /**
  * @brief Puts a Gem::Common::tribool into a stream.

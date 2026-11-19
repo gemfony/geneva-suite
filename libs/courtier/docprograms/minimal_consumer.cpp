@@ -49,8 +49,8 @@
 #include <span>
 #include <vector>
 
-#include "courtier/GBaseConsumerT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 
 using namespace Gem::Courtier;

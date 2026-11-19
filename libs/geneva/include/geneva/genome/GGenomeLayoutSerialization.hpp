@@ -42,9 +42,9 @@
 
 // Geneva headers go here
 #include "common/GMemberReflectionT.hpp" // Gem::Common::archive_named (named-member emitter)
-#include "weft/GBinaryArchive.hpp"        // Gem::Weft::GBinary[IO]Archive -- the wire-blob codec
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenomeLayout.hpp"
+#include "weft/GBinaryArchive.hpp" // Gem::Weft::GBinary[IO]Archive -- the wire-blob codec
 
 /******************************************************************************/
 /**
@@ -165,8 +165,8 @@ bool channelGroupsUniform(const ChannelLayout<T> &c) {
     for(const auto &g : c.groups) {
         for(std::uint32_t k = g.start + 1; k < g.start + g.len; ++k) {
             if(c.lower[k] != c.lower[g.start] || c.upper[k] != c.upper[g.start] ||
-               c.init_lower[k] != c.init_lower[g.start] || c.init_upper[k] != c.init_upper[g.start] ||
-               c.fold[k] != c.fold[g.start]) {
+               c.init_lower[k] != c.init_lower[g.start] ||
+               c.init_upper[k] != c.init_upper[g.start] || c.fold[k] != c.fold[g.start]) {
                 return false;
             }
         }
@@ -187,7 +187,11 @@ void saveChannelLayout(archive_type &ar, const ChannelLayout<T> &c) {
     using Gem::Common::archive_named;
     bool compact = channelGroupsUniform<T>(c);
     archive_named(ar, "compact", compact);
-    archive_named(ar, "groups", c.groups); // const referent -> T deduces const; both backends save it
+    archive_named(
+        ar,
+        "groups",
+        c.groups
+    ); // const referent -> T deduces const; both backends save it
     if(compact) {
         // One representative value-set per group; per-value arrays + `active` are rebuilt on load.
         std::vector<T> g_lower, g_upper, g_init_lower, g_init_upper;
@@ -244,9 +248,10 @@ void loadChannelLayout(archive_type &ar, ChannelLayout<T> &c) {
         archive_named(ar, "g_init_upper", g_init_upper);
         archive_named(ar, "g_fold", g_fold);
         // The groups tile [0, size()) contiguously, so size == past-the-end of the last group.
-        const std::size_t size = c.groups.empty()
-                                     ? 0
-                                     : static_cast<std::size_t>(c.groups.back().start + c.groups.back().len);
+        const std::size_t size =
+            c.groups.empty()
+                ? 0
+                : static_cast<std::size_t>(c.groups.back().start + c.groups.back().len);
         c.lower.assign(size, T{});
         c.upper.assign(size, T{});
         c.init_lower.assign(size, T{});

@@ -45,9 +45,9 @@
 #include <sstream>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <type_traits>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
 // Boost headers go here
@@ -257,8 +257,7 @@ private:
      */
     template <typename base_type>
         requires std::is_base_of_v<base_type, T>
-    identity<base_type>
-    to() const {
+    identity<base_type> to() const {
         auto const &x_conv = dynamic_cast<base_type const &>(x);
         auto const &y_conv = dynamic_cast<base_type const &>(y);
 
@@ -282,9 +281,7 @@ private:
  */
 template <typename T>
 std::ostream &operator<<(std::ostream &s, identity<T> const &i) {
-    s << "Identity:" << '\n'
-      << "x_name = " << i.x_name << '\n'
-      << "y_name = " << i.y_name << '\n';
+    s << "Identity:" << '\n' << "x_name = " << i.x_name << '\n' << "y_name = " << i.y_name << '\n';
     return s;
 }
 
@@ -390,8 +387,10 @@ identity<base_type> getBaseIdentity(
  *       present only to match the common compare() signature for non-FP types.
  */
 template <typename basic_type>
-    requires (!std::is_floating_point_v<basic_type> &&
-              !Gem::Common::has_gemfony_common_interface<basic_type>::value)
+    requires (
+        !std::is_floating_point_v<basic_type> &&
+        !Gem::Common::has_gemfony_common_interface<basic_type>::value
+    )
 void compare(
     basic_type const &x,
     basic_type const &y,
@@ -422,8 +421,7 @@ void compare(
 
     if(not expectation_met) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
-        error << "Expectation of " << expectation_str << " was violated for parameters "
-              << '\n'
+        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x << '\n'
               << y_name << " = " << y << '\n'
@@ -483,8 +481,7 @@ void compare(
 
     if(not expectation_met) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
-        error << "Expectation of " << expectation_str << " was violated for parameters "
-              << '\n'
+        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x.time_since_epoch().count() << '\n'
               << y_name << " = " << y.time_since_epoch().count() << '\n'
@@ -544,8 +541,7 @@ void compare(
 
     if(not expectation_met) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
-        error << "Expectation of " << expectation_str << " was violated for parameters "
-              << '\n'
+        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x.count() << '\n'
               << y_name << " = " << y.count() << '\n'
@@ -604,8 +600,7 @@ void compare(
     if(not expectation_met) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
 
-        error << "Expectation of " << expectation_str << " was violated for parameters "
-              << '\n'
+        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x << '\n'
               << y_name << " = " << y << '\n'
@@ -829,8 +824,7 @@ void compare(
         }
 
         if(x.size() != y.size()) {
-            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size()
-                  << '\n'
+            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
                   << y_name << ".size() = " << y.size() << '\n';
             break; // expectationMet is false here
         }
@@ -930,8 +924,7 @@ void compare(
         }
 
         if(x.size() != y.size()) {
-            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size()
-                  << '\n'
+            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
                   << y_name << ".size() = " << y.size() << '\n';
             break; // expectationMet is false here
         }
@@ -1031,8 +1024,7 @@ void compare(
             }
             catch(g_expectation_violation &g) {
                 error << "Content of " << x_name << " and " << y_name << " differ." << '\n'
-                      << "Thus the expectation of " << expectation_str
-                      << " was violated:" << '\n'
+                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
                       << g.what() << '\n';
                 break; // Terminate the switch statement
             }
@@ -1052,8 +1044,7 @@ void compare(
         catch(g_expectation_violation &g) {
             // If we catch an expectation violation for expectation "inequality",
             // we simply break the switch statement so that expectationMet remains to be false
-            error << "Content of " << x_name << " and " << y_name << " are equal/similar."
-                  << '\n'
+            error << "Content of " << x_name << " and " << y_name << " are equal/similar." << '\n'
                   << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
                   << g.what() << '\n';
             break;
@@ -1113,8 +1104,7 @@ void compare(
                   << "Thus the expectation of " << expectation_str << " was violated" << '\n';
             break; // The expectation was clearly not met
         }
-        if(not x &&
-                not y) { // No content to check. Both smart pointers can be considered equal
+        if(not x && not y) { // No content to check. Both smart pointers can be considered equal
             expectation_met = true;
             break;
         }
@@ -1127,8 +1117,7 @@ void compare(
             }
             catch(g_expectation_violation &g) {
                 error << "Content of " << x_name << " and " << y_name << " differ." << '\n'
-                      << "Thus the expectation of " << expectation_str
-                      << " was violated:" << '\n'
+                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
                       << g.what() << '\n';
                 break; // Terminate the switch statement
             }
@@ -1146,8 +1135,7 @@ void compare(
             expectation_met = true;
             break;
         }
-        if(not x &&
-                not y) { // No content to check. Both smart pointers can be considered equal
+        if(not x && not y) { // No content to check. Both smart pointers can be considered equal
             error << "Both smart pointers are empty and are thus considered equal." << '\n'
                   << "Thus the expectation of " << expectation_str << " was violated:" << '\n';
             break; // The expectation was not met
@@ -1160,8 +1148,7 @@ void compare(
         catch(g_expectation_violation &g) {
             // If we catch an expectation violation for expectation "inequality",
             // we simply break the switch statement so that expectationMet remains to be false
-            error << "Content of " << x_name << " and " << y_name << " are equal/similar."
-                  << '\n'
+            error << "Content of " << x_name << " and " << y_name << " are equal/similar." << '\n'
                   << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
                   << g.what() << '\n';
             break;
@@ -1265,8 +1252,7 @@ void compare(
             if(x_ptr && not y_ptr) {
                 error << "Smart pointer " << x_name << "[" << index << "] holds content while "
                       << y_name << "[" << index << "]  does not." << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated"
-                      << '\n';
+                      << "Thus the expectation of " << expectation_str << " was violated" << '\n';
                 found_deviation = true;
                 break; // terminate the loop
             }
@@ -1274,14 +1260,13 @@ void compare(
                 error << "Smart pointer " << x_name << "[" << index
                       << "] doesn't hold content while " << y_name << "[" << index << "]  does."
                       << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated"
-                      << '\n';
+                      << "Thus the expectation of " << expectation_str << " was violated" << '\n';
                 found_deviation = true;
                 break; // terminate the loop
             }
             if(not x_ptr &&
-                    not y_ptr) { // No content to check. Both smart pointers can be considered equal
-                continue;        // Go on with next iteration in the loop
+               not y_ptr) { // No content to check. Both smart pointers can be considered equal
+                continue;   // Go on with next iteration in the loop
             }
 
             // At this point we know that both pointers have content. We can now check the content
@@ -1292,8 +1277,7 @@ void compare(
             catch(g_expectation_violation &g) {
                 error << "Content of " << x_name << "[" << index << "] and " << y_name << "["
                       << index << "] differs." << '\n'
-                      << "Thus the expectation of " << expectation_str
-                      << " was violated:" << '\n'
+                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
                       << g.what() << '\n';
                 found_deviation = true;
                 break; // Terminate the loop
@@ -1324,7 +1308,7 @@ void compare(
                 break; // terminate the loop
             }
             if(not x_ptr &&
-                    not y_ptr) { // No content to check. Both smart pointers can be considered equal
+               not y_ptr) { // No content to check. Both smart pointers can be considered equal
                 continue; // Go on with next iteration in the loop - there is nothing to check here
             }
 
@@ -1345,8 +1329,7 @@ void compare(
             expectation_met = true;
         }
         else {
-            error << "The two containers " << x_name << " and " << y_name << " are equal."
-                  << '\n'
+            error << "The two containers " << x_name << " and " << y_name << " are equal." << '\n'
                   << "Thus the expectation of " << expectation_str << " was violated:" << '\n';
         }
     } break;
@@ -1448,7 +1431,8 @@ void compare_t(identity<T> const &data, GToken &token) {
     }
     catch(...) {
         throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << "Caught unknown exception" << '\n'
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "Caught unknown exception" << '\n'
         );
     }
 }
@@ -1489,7 +1473,8 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
     }
     catch(...) {
         throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << "Caught unknown exception" << '\n'
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "Caught unknown exception" << '\n'
         );
     }
 }

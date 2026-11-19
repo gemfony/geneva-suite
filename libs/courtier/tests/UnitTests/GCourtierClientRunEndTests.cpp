@@ -41,9 +41,9 @@
 #include <span>
 #include <vector>
 
+#include "GDemoProcessingContainers.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
-#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GPeerClientT.hpp"

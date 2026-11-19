@@ -33,12 +33,11 @@
 #include <tuple>
 #include <type_traits>
 
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp" // getMinMax, used by project<I>()
+#include "common/GReflectiveInterfaceT.hpp"
 #include "dietrich/plotting/GBasePlotter.hpp"
 
 namespace Gem::Dietrich {
-
 
 // Only forward-declared here: project<I>() returns freshly filled 1-d histograms,
 // and GHistogram1D (GHistogramPlots.hpp) itself derives from a collector defined
@@ -65,7 +64,8 @@ class GHistogram1D;
  * @tparam Ts The numeric component types of each stored data item (one per axis)
  */
 template <typename... Ts>
-class GDataCollectorT : public Gem::Common::GReflectiveInterfaceBaseT<GDataCollectorT<Ts...>, GBasePlotter> {
+class GDataCollectorT
+  : public Gem::Common::GReflectiveInterfaceBaseT<GDataCollectorT<Ts...>, GBasePlotter> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // private localMembers_(); this abstract collector is never reconstructed on load.
@@ -181,7 +181,7 @@ public:
 	  * @param item_undet The data item to be added to the collection
 	  */
     template <typename... Us>
-        requires(sizeof...(Us) == sizeof...(Ts))
+        requires (sizeof...(Us) == sizeof...(Ts))
     void operator&(const std::tuple<Us...> &item_undet) {
         pushItem(narrowItem(item_undet), std::make_index_sequence<n_axes>{});
     }
@@ -194,7 +194,7 @@ public:
 	  * @param x_undet The data item to be added to the collection
 	  */
     template <typename U>
-        requires(n_axes == 1)
+        requires (n_axes == 1)
     void operator&(const U &x_undet) {
         axis_t<0> x = axis_t<0>(0);
 
@@ -252,7 +252,7 @@ public:
 	  * @param cnt_undet A vector of data items of undetermined type, to be added
 	  */
     template <typename... Us>
-        requires(sizeof...(Us) == sizeof...(Ts))
+        requires (sizeof...(Us) == sizeof...(Ts))
     void operator&(const std::vector<std::tuple<Us...>> &cnt_undet) {
         this->reserve(this->currentSize() + cnt_undet.size());
         for(auto const &item_undet : cnt_undet) {
@@ -269,7 +269,7 @@ public:
 	  * @param cnt_undet A span of data items of undetermined type, to be added
 	  */
     template <typename... Us>
-        requires(sizeof...(Us) == sizeof...(Ts))
+        requires (sizeof...(Us) == sizeof...(Ts))
     void operator&(std::span<const std::tuple<Us...>> cnt_undet) {
         this->reserve(this->currentSize() + cnt_undet.size());
         for(auto const &item_undet : cnt_undet) {
@@ -285,7 +285,7 @@ public:
 	  * @param x_cnt_undet A collection of data items of undetermined type, to be added
 	  */
     template <typename U>
-        requires(n_axes == 1)
+        requires (n_axes == 1)
     void operator&(const std::vector<U> &x_cnt_undet) {
         axis_t<0> x = axis_t<0>(0);
 
@@ -319,7 +319,7 @@ public:
 	  * @param x_cnt_undet A span of data items of undetermined type, to be added
 	  */
     template <typename U>
-        requires(n_axes == 1)
+        requires (n_axes == 1)
     void operator&(std::span<const U> x_cnt_undet) {
         axis_t<0> x = axis_t<0>(0);
 
@@ -416,7 +416,8 @@ public:
         if(range == std::tuple<axis_t<I>, axis_t<I>>{}) {
             const auto extremes = Gem::Common::getMinMax(this->asTuples());
             my_range = std::tuple<double, double>(
-                std::get<2 * I>(extremes), std::get<2 * I + 1>(extremes)
+                std::get<2 * I>(extremes),
+                std::get<2 * I + 1>(extremes)
             );
         }
 
@@ -424,11 +425,14 @@ public:
         std::shared_ptr<hist_type> result(new hist_type(nBins, my_range));
         if constexpr(I == 0) {
             result->setXAxisLabel(this->xAxisLabel());
-        } else if constexpr(I == 1) {
+        }
+        else if constexpr(I == 1) {
             result->setXAxisLabel(this->yAxisLabel());
-        } else if constexpr(I == 2) {
+        }
+        else if constexpr(I == 2) {
             result->setXAxisLabel(this->zAxisLabel());
-        } else {
+        }
+        else {
             result->setXAxisLabel("w"); // GBasePlotter labels only three axes
         }
         result->setYAxisLabel("Number of entries");
@@ -456,28 +460,28 @@ public:
 
     /** @brief Projects the data onto the x-axis (see project<0>()) */
     template <std::size_t I = 0>
-        requires((I == 0) && (n_axes >= 1))
+        requires ((I == 0) && (n_axes >= 1))
     [[nodiscard]] auto projectX(std::size_t nBins, std::tuple<axis_t<I>, axis_t<I>> range) const {
         return this->template project<I>(nBins, range);
     }
 
     /** @brief Projects the data onto the y-axis (see project<1>()) */
     template <std::size_t I = 1>
-        requires((I == 1) && (n_axes >= 2))
+        requires ((I == 1) && (n_axes >= 2))
     [[nodiscard]] auto projectY(std::size_t nBins, std::tuple<axis_t<I>, axis_t<I>> range) const {
         return this->template project<I>(nBins, range);
     }
 
     /** @brief Projects the data onto the z-axis (see project<2>()) */
     template <std::size_t I = 2>
-        requires((I == 2) && (n_axes >= 3))
+        requires ((I == 2) && (n_axes >= 3))
     [[nodiscard]] auto projectZ(std::size_t nBins, std::tuple<axis_t<I>, axis_t<I>> range) const {
         return this->template project<I>(nBins, range);
     }
 
     /** @brief Projects the data onto the w-axis (see project<3>()) */
     template <std::size_t I = 3>
-        requires((I == 3) && (n_axes >= 4))
+        requires ((I == 3) && (n_axes >= 4))
     [[nodiscard]] auto projectW(std::size_t nBins, std::tuple<axis_t<I>, axis_t<I>> range) const {
         return this->template project<I>(nBins, range);
     }
@@ -554,9 +558,10 @@ public:
 	  *         neither double nor int32)
 	  */
     [[nodiscard]] std::vector<GPlotColumn> dataColumns() const override {
-        if constexpr (((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
+        if constexpr(((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
             return dataColumnsImpl_(std::make_index_sequence<n_axes>{});
-        } else {
+        }
+        else {
             return {};
         }
     }
@@ -575,7 +580,7 @@ public:
 	  * @param row One value per axis, in column order (size must equal the axis count)
 	  */
     void appendRow(std::span<const double> row) override {
-        if constexpr (((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
+        if constexpr(((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
             if(row.size() != n_axes) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -584,7 +589,8 @@ public:
                 );
             }
             appendRowImpl_(row, std::make_index_sequence<n_axes>{});
-        } else {
+        }
+        else {
             GBasePlotter::appendRow(row); // unsupported axis type: rejected with a clear message
         }
     }
@@ -618,10 +624,19 @@ protected:
     template <std::size_t I>
     static constexpr const char *columnName_() {
         constexpr const char *names[] = {
-            "column_0", "column_1", "column_2", "column_3",
-            "column_4", "column_5", "column_6", "column_7"
+            "column_0",
+            "column_1",
+            "column_2",
+            "column_3",
+            "column_4",
+            "column_5",
+            "column_6",
+            "column_7"
         };
-        static_assert(I < (sizeof(names) / sizeof(names[0])), "GDataCollectorT: too many axes for column naming");
+        static_assert(
+            I < (sizeof(names) / sizeof(names[0])),
+            "GDataCollectorT: too many axes for column naming"
+        );
         return names[I];
     }
 
@@ -835,8 +850,7 @@ template <typename x_type, typename y_type>
 class GDataCollector2ET
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GDataCollector2ET<x_type, y_type>,
-        GDataCollectorT<x_type, x_type, y_type, y_type>
-    > {
+        GDataCollectorT<x_type, x_type, y_type, y_type>> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // (empty) localMembers_(); this abstract collector is never reconstructed on load.
@@ -867,13 +881,13 @@ public:
 
     ~GDataCollector2ET() override = default;
 
-    GDataCollector2ET<x_type, y_type> &operator=(GDataCollector2ET<x_type, y_type> const &) = default;
+    GDataCollector2ET<x_type, y_type> &
+    operator=(GDataCollector2ET<x_type, y_type> const &) = default;
     GDataCollector2ET<x_type, y_type> &operator=(GDataCollector2ET<x_type, y_type> &&) = default;
 
     // load_(), compare_(), name_() and clone_() are generated by the
     // Gem::Common::GReflectiveInterfaceBaseT base (clone_ stays pure -- this is abstract)
     // from class_name and the empty localMembers_() declaration above.
 };
-
 
 } /* namespace Gem::Dietrich */

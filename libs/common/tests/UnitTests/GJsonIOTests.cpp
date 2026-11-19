@@ -52,8 +52,10 @@ std::filesystem::path scratch(std::string const &tag) {
 // ---------------------------------------------------------------------------
 // prettyPrintJson layout: one member / element per line, four-space indent.
 
-TEST_CASE("prettyPrintJson: objects and arrays print one entry per line",
-          "[common][json-io][pretty]") {
+TEST_CASE(
+    "prettyPrintJson: objects and arrays print one entry per line",
+    "[common][json-io][pretty]"
+) {
     json::object obj;
     obj["comment"] = json::array{"line one", "line two", "line three"};
     obj["value"] = "42";
@@ -78,8 +80,7 @@ TEST_CASE("prettyPrintJson: objects and arrays print one entry per line",
     CHECK(out.find("\n    \"comment\"") != std::string::npos);
 }
 
-TEST_CASE("prettyPrintJson: empty containers are compact",
-          "[common][json-io][pretty]") {
+TEST_CASE("prettyPrintJson: empty containers are compact", "[common][json-io][pretty]") {
     CHECK(prettyPrintJson(json::value(json::object{})) == "{}");
     CHECK(prettyPrintJson(json::value(json::array{})) == "[]");
 }
@@ -87,8 +88,10 @@ TEST_CASE("prettyPrintJson: empty containers are compact",
 // ---------------------------------------------------------------------------
 // Round-trip: pretty-print then parse yields an equal value.
 
-TEST_CASE("parse/prettyPrint round-trip preserves structure and values",
-          "[common][json-io][roundtrip]") {
+TEST_CASE(
+    "parse/prettyPrint round-trip preserves structure and values",
+    "[common][json-io][roundtrip]"
+) {
     json::value original = json::parse(R"({
         "name": "geneva",
         "nested": { "a": "1", "b": "2" },
@@ -112,8 +115,10 @@ TEST_CASE("parse/prettyPrint round-trip preserves structure and values",
 // duplicate object keys to one (silent data loss). Using a JSON array instead, all
 // elements survive.
 
-TEST_CASE("multi-element array survives round-trip (no dup-key collapse)",
-          "[common][json-io][roundtrip][regression]") {
+TEST_CASE(
+    "multi-element array survives round-trip (no dup-key collapse)",
+    "[common][json-io][roundtrip][regression]"
+) {
     json::value v = json::array{"1", "1", "1"};
     json::value back = parseJsonString(prettyPrintJson(v), "vector");
     REQUIRE(back.is_array());
@@ -124,28 +129,31 @@ TEST_CASE("multi-element array survives round-trip (no dup-key collapse)",
 // ---------------------------------------------------------------------------
 // Parser leniency: comments and trailing commas are tolerated.
 
-TEST_CASE("parseJsonString: tolerates comments and trailing commas",
-          "[common][json-io][lenient]") {
-    json::value v = parseJsonString(R"({
+TEST_CASE("parseJsonString: tolerates comments and trailing commas", "[common][json-io][lenient]") {
+    json::value v = parseJsonString(
+        R"({
         // a line comment
         "a": "1",
         "b": "2",   /* a block comment */
-    })", "lenient");
+    })",
+        "lenient"
+    );
     REQUIRE(v.is_object());
     CHECK(v.get_object().at("a").as_string() == "1");
     CHECK(v.get_object().at("b").as_string() == "2");
 }
 
-TEST_CASE("parseJsonString: throws a geneva_exception on malformed input",
-          "[common][json-io][error]") {
+TEST_CASE(
+    "parseJsonString: throws a geneva_exception on malformed input",
+    "[common][json-io][error]"
+) {
     CHECK_THROWS_AS(parseJsonString("{ not valid ", "bad"), geneva_exception);
 }
 
 // ---------------------------------------------------------------------------
 // File I/O: writeJsonFile then parseJsonFile round-trips and appends a newline.
 
-TEST_CASE("writeJsonFile / parseJsonFile round-trip",
-          "[common][json-io][file]") {
+TEST_CASE("writeJsonFile / parseJsonFile round-trip", "[common][json-io][file]") {
     const auto path = scratch("roundtrip.json");
     json::value v = json::object{{"k", "v"}, {"list", json::array{"a", "b"}}};
 
@@ -161,8 +169,10 @@ TEST_CASE("writeJsonFile / parseJsonFile round-trip",
     std::filesystem::remove(path);
 }
 
-TEST_CASE("parseJsonFile: throws a geneva_exception for a missing file",
-          "[common][json-io][error]") {
+TEST_CASE(
+    "parseJsonFile: throws a geneva_exception for a missing file",
+    "[common][json-io][error]"
+) {
     CHECK_THROWS_AS(parseJsonFile(scratch("does_not_exist.json")), geneva_exception);
 }
 
@@ -215,23 +225,27 @@ TEST_CASE(
     applyConfigOverrides(cfg, json::parse(R"({ "consumer": "gpu" })"));
 
     auto const &node = cfg.get_object().at("consumer").get_object();
-    CHECK(node.at("value").as_string() == "gpu");      // the override wins
-    CHECK(node.at("default").as_string() == "stc");    // the code-owned default is untouched
+    CHECK(node.at("value").as_string() == "gpu");   // the override wins
+    CHECK(node.at("default").as_string() == "stc"); // the code-owned default is untouched
     CHECK(node.at("comment") == json::array{"The consumer to use"});
 }
 
-TEST_CASE("applyConfigOverrides: a value's native type is preserved through the override",
-          "[common][json-io][override]") {
+TEST_CASE(
+    "applyConfigOverrides: a value's native type is preserved through the override",
+    "[common][json-io][override]"
+) {
     json::value cfg = sampleConfig();
     applyConfigOverrides(cfg, json::parse(R"({ "max_iteration": 10 })"));
 
     auto const &value = cfg.get_object().at("max_iteration").get_object().at("value");
-    REQUIRE(value.is_int64());                          // stays a number, not a string
+    REQUIRE(value.is_int64()); // stays a number, not a string
     CHECK(value.as_int64() == 10);
 }
 
-TEST_CASE("applyConfigOverrides: an array value is replaced wholesale",
-          "[common][json-io][override]") {
+TEST_CASE(
+    "applyConfigOverrides: an array value is replaced wholesale",
+    "[common][json-io][override]"
+) {
     json::value cfg = sampleConfig();
     applyConfigOverrides(cfg, json::parse(R"({ "algo_config_files": ["x.json"] })"));
 
@@ -241,8 +255,7 @@ TEST_CASE("applyConfigOverrides: an array value is replaced wholesale",
     CHECK(value.as_array().at(0).as_string() == "x.json");
 }
 
-TEST_CASE("applyConfigOverrides: recurses into a group node",
-          "[common][json-io][override]") {
+TEST_CASE("applyConfigOverrides: recurses into a group node", "[common][json-io][override]") {
     json::value cfg = sampleConfig();
     applyConfigOverrides(cfg, json::parse(R"({
         "touched_termination": { "touched_termination_active": true }
@@ -254,8 +267,10 @@ TEST_CASE("applyConfigOverrides: recurses into a group node",
     CHECK(group.at("termination_file").get_object().at("value").as_string() == "empty");
 }
 
-TEST_CASE("applyConfigOverrides: parameters not named in the override are left untouched",
-          "[common][json-io][override]") {
+TEST_CASE(
+    "applyConfigOverrides: parameters not named in the override are left untouched",
+    "[common][json-io][override]"
+) {
     json::value cfg = sampleConfig();
     json::value const before = cfg;
     applyConfigOverrides(cfg, json::parse(R"({ "consumer": "gpu" })"));
@@ -264,23 +279,33 @@ TEST_CASE("applyConfigOverrides: parameters not named in the override are left u
     CHECK(cfg.get_object().at("algo_config_files") == before.get_object().at("algo_config_files"));
 }
 
-TEST_CASE("applyConfigOverrides: an unknown parameter name throws (stale/mistyped override)",
-          "[common][json-io][override][error]") {
+TEST_CASE(
+    "applyConfigOverrides: an unknown parameter name throws (stale/mistyped override)",
+    "[common][json-io][override][error]"
+) {
     json::value cfg = sampleConfig();
-    CHECK_THROWS_AS(applyConfigOverrides(cfg, json::parse(R"({ "no_such_param": 1 })")),
-                    geneva_exception);
+    CHECK_THROWS_AS(
+        applyConfigOverrides(cfg, json::parse(R"({ "no_such_param": 1 })")),
+        geneva_exception
+    );
 }
 
-TEST_CASE("applyConfigOverrides: a shape mismatch against a group throws",
-          "[common][json-io][override][error]") {
+TEST_CASE(
+    "applyConfigOverrides: a shape mismatch against a group throws",
+    "[common][json-io][override][error]"
+) {
     json::value cfg = sampleConfig();
     // touched_termination is a group; a scalar override cannot target it.
-    CHECK_THROWS_AS(applyConfigOverrides(cfg, json::parse(R"({ "touched_termination": 3 })")),
-                    geneva_exception);
+    CHECK_THROWS_AS(
+        applyConfigOverrides(cfg, json::parse(R"({ "touched_termination": 3 })")),
+        geneva_exception
+    );
 }
 
-TEST_CASE("applyConfigOverrides: a non-object override document throws",
-          "[common][json-io][override][error]") {
+TEST_CASE(
+    "applyConfigOverrides: a non-object override document throws",
+    "[common][json-io][override][error]"
+) {
     json::value cfg = sampleConfig();
     CHECK_THROWS_AS(applyConfigOverrides(cfg, json::value(42)), geneva_exception);
 }

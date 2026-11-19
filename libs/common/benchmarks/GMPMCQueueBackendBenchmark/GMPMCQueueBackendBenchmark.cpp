@@ -117,9 +117,11 @@ RunResult run(int n, long long total_items) {
             }
         });
     }
-    for(auto &t : prod) t.join();
+    for(auto &t : prod)
+        t.join();
     q.close();
-    for(auto &t : cons) t.join();
+    for(auto &t : cons)
+        t.join();
     const auto t1 = clk::now();
 
     RunResult r;
@@ -145,22 +147,38 @@ int main(int argc, char **argv) {
     int max_n = 16;
     for(int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
-        if(a == "--quick") quick = true;
-        else if(a == "--items" && i + 1 < argc) total_items = std::atoll(argv[++i]);
-        else if(a == "--max" && i + 1 < argc) max_n = std::atoi(argv[++i]);
+        if(a == "--quick")
+            quick = true;
+        else if(a == "--items" && i + 1 < argc)
+            total_items = std::atoll(argv[++i]);
+        else if(a == "--max" && i + 1 < argc)
+            max_n = std::atoi(argv[++i]);
     }
-    if(max_n < 1) max_n = 1;
-    if(max_n > 64) max_n = 64;
+    if(max_n < 1)
+        max_n = 1;
+    if(max_n > 64)
+        max_n = 64;
 
     // Fixed total work per configuration, so the wall-clock stays bounded as N grows.
     const long long items = (total_items > 0) ? total_items : (quick ? 1'000'000 : 8'000'000);
 
-    std::printf("GMPMCQueueT backend throughput sweep (capacity=%zu, fixed total=%lld items)\n",
-                CAP, items);
-    std::printf("readers == writers; each row runs N producers + N consumers%s\n",
-                quick ? " (quick)" : "");
-    std::printf("%-4s | %14s | %14s | %8s | %s\n",
-                "N", "Deque Mit/s", "Prealloc Mit/s", "P/D", "conserve");
+    std::printf(
+        "GMPMCQueueT backend throughput sweep (capacity=%zu, fixed total=%lld items)\n",
+        CAP,
+        items
+    );
+    std::printf(
+        "readers == writers; each row runs N producers + N consumers%s\n",
+        quick ? " (quick)" : ""
+    );
+    std::printf(
+        "%-4s | %14s | %14s | %8s | %s\n",
+        "N",
+        "Deque Mit/s",
+        "Prealloc Mit/s",
+        "P/D",
+        "conserve"
+    );
     std::printf("-----+----------------+----------------+----------+---------\n");
 
     for(int n = 1; n <= max_n; ++n) {
@@ -170,11 +188,19 @@ int main(int argc, char **argv) {
         const double pm = mitems_per_s(p);
         const double ratio = (dm > 0.0) ? (pm / dm) : 0.0;
         const bool ok = d.conserved && p.conserved;
-        std::printf("%-4d | %14.2f | %14.2f | %8.2f | %s\n",
-                    n, dm, pm, ratio, ok ? "OK" : "*** FAIL ***");
+        std::printf(
+            "%-4d | %14.2f | %14.2f | %8.2f | %s\n",
+            n,
+            dm,
+            pm,
+            ratio,
+            ok ? "OK" : "*** FAIL ***"
+        );
     }
 
-    std::printf("\nP/D > 1.0 means the preallocated ring was faster than the deque queue at that "
-                "reader/writer count.\n");
+    std::printf(
+        "\nP/D > 1.0 means the preallocated ring was faster than the deque queue at that "
+        "reader/writer count.\n"
+    );
     return 0;
 }

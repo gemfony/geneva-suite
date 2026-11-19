@@ -58,8 +58,10 @@ TEST_CASE("GAgingStoreT: non-copyable and holds move-only values", "[common][agi
 // ---------------------------------------------------------------------------
 // Keyed face
 
-TEST_CASE("GAgingStoreT: retain/takeRetained round-trip; take removes; miss yields nullopt",
-          "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: retain/takeRetained round-trip; take removes; miss yields nullopt",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(/*cap*/ 8, /*ttl*/ 100);
     s.retain(7, std::make_unique<int>(42));
@@ -70,11 +72,14 @@ TEST_CASE("GAgingStoreT: retain/takeRetained round-trip; take removes; miss yiel
     auto v = s.takeRetained(7);
     REQUIRE(v.has_value());
     CHECK(**v == 42);
-    CHECK(s.retainedSize() == 0);                // take removed it
-    CHECK_FALSE(s.takeRetained(7).has_value());  // gone now
+    CHECK(s.retainedSize() == 0);               // take removed it
+    CHECK_FALSE(s.takeRetained(7).has_value()); // gone now
 }
 
-TEST_CASE("GAgingStoreT: retain overwrites an existing key; dropRetained removes", "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: retain overwrites an existing key; dropRetained removes",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(8, 100);
     s.retain(1, std::make_unique<int>(10));
@@ -93,7 +98,10 @@ TEST_CASE("GAgingStoreT: retain overwrites an existing key; dropRetained removes
 // ---------------------------------------------------------------------------
 // FIFO face
 
-TEST_CASE("GAgingStoreT: park/drainParked preserves FIFO order and empties", "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: park/drainParked preserves FIFO order and empties",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(8, 100);
     CHECK(s.park(std::make_unique<int>(1)) == 0); // no eviction under cap
@@ -129,7 +137,10 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Aging: both faces evict past the TTL horizon as the epoch advances.
 
-TEST_CASE("GAgingStoreT: advanceEpochAndEvict ages out both faces past the TTL", "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: advanceEpochAndEvict ages out both faces past the TTL",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(/*cap*/ 100, /*ttl*/ 2);
 
@@ -147,8 +158,10 @@ TEST_CASE("GAgingStoreT: advanceEpochAndEvict ages out both faces past the TTL",
     CHECK(s.parkedSize() == 0);
 }
 
-TEST_CASE("GAgingStoreT: advanceEpochAndEvict bounds the keyed face to cap (oldest epoch first)",
-          "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: advanceEpochAndEvict bounds the keyed face to cap (oldest epoch first)",
+    "[common][aging-store]"
+) {
     MoStore s;
     s.configure(/*cap*/ 2, /*ttl*/ 1000);
 
@@ -164,7 +177,10 @@ TEST_CASE("GAgingStoreT: advanceEpochAndEvict bounds the keyed face to cap (olde
     CHECK(s.takeRetained(12).has_value());
 }
 
-TEST_CASE("GAgingStoreT: buffering() tracks the capacity (0 -> disabled)", "[common][aging-store]") {
+TEST_CASE(
+    "GAgingStoreT: buffering() tracks the capacity (0 -> disabled)",
+    "[common][aging-store]"
+) {
     MoStore s;
     CHECK_FALSE(s.buffering()); // default cap is 0 -> retention disabled
     s.configure(4, 8);
@@ -177,9 +193,15 @@ TEST_CASE("GAgingStoreT: buffering() tracks the capacity (0 -> disabled)", "[com
 // Concurrency: conservation under churn. Whatever is produced is either drained
 // or counted as evicted -- never silently lost or duplicated.
 
-TEST_CASE("GAgingStoreT: concurrent park/drain/advance conserves every item", "[common][aging-store][concurrency]") {
+TEST_CASE(
+    "GAgingStoreT: concurrent park/drain/advance conserves every item",
+    "[common][aging-store][concurrency]"
+) {
     IntStore s;
-    s.configure(/*cap*/ 64, /*ttl*/ 1'000'000); // huge ttl: only the cap evicts, deterministically counted
+    s.configure(
+        /*cap*/ 64,
+        /*ttl*/ 1'000'000
+    ); // huge ttl: only the cap evicts, deterministically counted
 
     constexpr int kProducers = 6;
     constexpr int kPerProducer = 20000;
@@ -209,7 +231,10 @@ TEST_CASE("GAgingStoreT: concurrent park/drain/advance conserves every item", "[
             std::this_thread::yield();
         }
         while(producing.load(std::memory_order_acquire)) {
-            evicted.fetch_add(static_cast<long>(s.advanceEpochAndEvict()), std::memory_order_relaxed);
+            evicted.fetch_add(
+                static_cast<long>(s.advanceEpochAndEvict()),
+                std::memory_order_relaxed
+            );
             std::this_thread::yield();
         }
     });

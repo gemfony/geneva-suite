@@ -42,8 +42,8 @@
 #include <functional>
 #include <memory>
 #include <ranges>
-#include <sstream>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -54,12 +54,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
-#include "geneva/genome/GGenome.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
-#include "geneva/genome/GGenomeT.hpp"
 #include "courtier/GWireSerializationContext.hpp" // the worker-side wire scope
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GProblemStoreT.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 #include "common/GSerializableFunctionObjectT.hpp"    // the pre-processor of process(evaluation)
 #include "geneva/individuals/GFunctionIndividual.hpp" // GSphereConstraint
@@ -68,7 +68,7 @@
 #include "courtier/gpu/GGPUConsumer.hpp" // the GPU path, on a host stand-in backend
 #include "geneva/genome/GBaseGPUMarshallerT.hpp"
 
-using namespace Gem::Geneva;        // activityMode, serializationMode helpers
+using namespace Gem::Geneva; // activityMode, serializationMode helpers
 using namespace Gem::Geneva::Genome;
 using Catch::Approx;
 
@@ -82,27 +82,38 @@ namespace Gem::Tests {
  */
 class NewSphere : public GGenomeT<NewSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    NewSphere() { buildGenome(3, 2, 4); }
-    NewSphere(std::size_t nd, std::size_t ni, std::size_t nb) { buildGenome(nd, ni, nb); }
+    NewSphere() {
+        buildGenome(3, 2, 4);
+    }
+    NewSphere(std::size_t nd, std::size_t ni, std::size_t nb) {
+        buildGenome(nd, ni, nb);
+    }
     NewSphere(const NewSphere &) = default;
 
     /** @brief Rebuilds this individual's genome with a different structure (re-keys the count cache). */
-    void rebuild(std::size_t nd, std::size_t ni, std::size_t nb) { buildGenome(nd, ni, nb); }
+    void rebuild(std::size_t nd, std::size_t ni, std::size_t nb) {
+        buildGenome(nd, ni, nb);
+    }
 
 protected:
     std::vector<double> evaluate() override {
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
     void buildGenome(std::size_t nd, std::size_t ni, std::size_t nb) {
         GGenomeBuilder b;
-        b.addDoubleGroup(nd, -10., 10.).init(1.0); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(nd, -10., 10.)
+            .init(1.0); // structure only; the adaptor lives on the OA config
         if(ni > 0) {
             b.addInt32Group(ni, -5, 5);
         }
@@ -135,7 +146,8 @@ namespace Gem::Tests {
  */
 class SeamSphere : public GGenomeT<SeamSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SeamSphere() {
         GGenomeBuilder b;
@@ -150,7 +162,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -170,7 +185,8 @@ private:
  */
 class SeamMulti : public GGenomeT<SeamMulti> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SeamMulti() {
         GGenomeBuilder b;
@@ -186,7 +202,11 @@ protected:
     std::vector<double> evaluate() override {
         std::vector<double> v;
         this->streamline<double>(v);
-        return std::vector<double>{v.at(0) * v.at(0), 2. * v.at(1) * v.at(1), 3. * v.at(2) * v.at(2)};
+        return std::vector<double>{
+            v.at(0) * v.at(0),
+            2. * v.at(1) * v.at(1),
+            3. * v.at(2) * v.at(2)
+        };
     }
 
 private:
@@ -200,7 +220,7 @@ private:
 } // namespace Gem::Tests
 
 GEM_REGISTER_ARCHIVABLE(Gem::Tests::SeamSphere) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::SeamMulti) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::SeamMulti)  // NOLINT
 
 using Gem::Tests::SeamMulti;
 using Gem::Tests::SeamSphere;
@@ -224,7 +244,10 @@ TEST_CASE("GGenome: a fresh flat individual evaluates and reaches PROCESSED", "[
 /******************************************************************************/
 // The output operator of GFunctionIndividual wrote its dump to std::cout and returned the stream it
 // was given untouched, so printing an individual into a file or a string produced nothing.
-TEST_CASE("GFunctionIndividual: operator<< writes to the stream it is given", "[candidate][print]") {
+TEST_CASE(
+    "GFunctionIndividual: operator<< writes to the stream it is given",
+    "[candidate][print]"
+) {
     gind::GFunctionIndividual ind; // the default demo function, the parabola
     GGenomeBuilder b;
     b.addDoubleGroup(2, -10., 10.).init(1.0);
@@ -246,7 +269,10 @@ TEST_CASE("GFunctionIndividual: operator<< writes to the stream it is given", "[
 // The pointer overload of GFunctionIndividual's output operator dereferenced its argument without a
 // check, so printing an empty pointer (e.g. the result of a run that produced no individual) was
 // undefined behaviour -- a crash in practice.
-TEST_CASE("GFunctionIndividual: operator<< prints an empty pointer as (null)", "[candidate][print]") {
+TEST_CASE(
+    "GFunctionIndividual: operator<< prints an empty pointer as (null)",
+    "[candidate][print]"
+) {
     const std::unique_ptr<gind::GFunctionIndividual> empty;
     std::ostringstream out;
     out << empty;
@@ -348,7 +374,10 @@ TEST_CASE("GGenome: clone is independent of the original", "[candidate]") {
 }
 
 /******************************************************************************/
-TEST_CASE("GGenome: countParameters is cached and re-keyed on layout change", "[candidate][cache]") {
+TEST_CASE(
+    "GGenome: countParameters is cached and re-keyed on layout change",
+    "[candidate][cache]"
+) {
     NewSphere ind(3, 2, 4); // 3 doubles, 2 int32, 4 bool, 0 float
 
     SECTION("counts are correct and stable across repeated queries (cache hit)") {
@@ -401,7 +430,10 @@ TEST_CASE("GGenome: countParameters is cached and re-keyed on layout change", "[
  * evaluation hook now that evaluate() is gone. Dispatch is by the vtable: no per-instance thunk,
  * no factory install.
  */
-TEST_CASE("GGenome: a single-criterion individual evaluates via evaluate()", "[candidate][evaluator]") {
+TEST_CASE(
+    "GGenome: a single-criterion individual evaluates via evaluate()",
+    "[candidate][evaluator]"
+) {
     SeamSphere a;
     a.assignValueVector<double>(std::vector<double>{2.0, -3.0, 4.0}); // sum of squares == 29
     CHECK(a.process().rawFitness() == Approx(29.0));
@@ -415,9 +447,14 @@ TEST_CASE("GGenome: a single-criterion individual evaluates via evaluate()", "[c
  * Path B: evaluate() RETURNS the full raw result vector, so every criterion of a multi-criterion individual
  * is populated from the one return value (runEvaluation_ writes the secondaries).
  */
-TEST_CASE("GGenome: member evaluate() populates all criteria (multi-criterion)", "[candidate][evaluator]") {
+TEST_CASE(
+    "GGenome: member evaluate() populates all criteria (multi-criterion)",
+    "[candidate][evaluator]"
+) {
     SeamMulti ind;
-    ind.assignValueVector<double>(std::vector<double>{2.0, 3.0, 4.0}); // criteria: {4, 2*9=18, 3*16=48}
+    ind.assignValueVector<double>(
+        std::vector<double>{2.0, 3.0, 4.0}
+    ); // criteria: {4, 2*9=18, 3*16=48}
     REQUIRE(ind.getNStoredResults() == 3u);
     ind.process();
 
@@ -479,7 +516,8 @@ namespace Gem::Tests {
 
 class ErrorFlaggingSphere : public GGenomeT<ErrorFlaggingSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ErrorFlaggingSphere() {
         GGenomeBuilder b;

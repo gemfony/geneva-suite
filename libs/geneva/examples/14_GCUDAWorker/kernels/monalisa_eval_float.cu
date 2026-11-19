@@ -31,12 +31,15 @@
 #define MONALISA_MAXTRI 1000
 
 extern "C" __global__ void evaluate(
-    const float *params, int n_items, int dim,
-    const unsigned char *pconst, int pconst_size,
+    const float *params,
+    int n_items,
+    int dim,
+    const unsigned char *pconst,
+    int pconst_size,
     float *fitness,
-    int threads_per_item)
-{
-    if (threads_per_item < 1) {
+    int threads_per_item
+) {
+    if(threads_per_item < 1) {
         threads_per_item = 1;
     }
 
@@ -52,9 +55,9 @@ extern "C" __global__ void evaluate(
 
     // Fast path: one block == one item (blockDim.x == threads_per_item). Cache this item's triangle
     // corners once into shared memory, then every pixel-thread of the block reads them.
-    if (blockDim.x == (unsigned)threads_per_item) {
+    if(blockDim.x == (unsigned)threads_per_item) {
         const int item = blockIdx.x;
-        if (item >= n_items) {
+        if(item >= n_items) {
             return;
         }
         const int stripe = threadIdx.x;
@@ -62,7 +65,7 @@ extern "C" __global__ void evaluate(
         // NT is clamped to MONALISA_MAXTRI so the shared array can never overflow. With the cap at 1000
         // this covers the example-14 1000-triangle workload; any triangles beyond the cap are ignored.
         int NT = NT_full;
-        if (NT > MONALISA_MAXTRI) {
+        if(NT > MONALISA_MAXTRI) {
             NT = MONALISA_MAXTRI;
         }
         const float bgR = p[10 * NT_full + 0];
@@ -81,7 +84,7 @@ extern "C" __global__ void evaluate(
         // kernel uses the fast __cosf/__sinf intrinsics (the double kernel has no such intrinsic): corners
         // are computed only once per item, not per pixel, so the reduced precision barely shifts edge
         // pixels while giving the best GPU time for this FP32 personality.
-        for (int t = threadIdx.x; t < NT; t += blockDim.x) {
+        for(int t = threadIdx.x; t < NT; t += blockDim.x) {
             const float *tri = p + t * 10;
             const float cx = tri[0] * W;
             const float cy = tri[1] * H;
@@ -90,7 +93,7 @@ extern "C" __global__ void evaluate(
             s_circle[t * 3 + 0] = cx;
             s_circle[t * 3 + 1] = cy;
             s_circle[t * 3 + 2] = radius_px * radius_px;
-            for (int k = 0; k < 3; ++k) {
+            for(int k = 0; k < 3; ++k) {
                 const float ang = tri[3 + k] * twoPi;
                 s_corners[t * 6 + k * 2 + 0] = cx + radius * __cosf(ang) * scale;
                 s_corners[t * 6 + k * 2 + 1] = cy + radius * __sinf(ang) * scale;
@@ -100,19 +103,19 @@ extern "C" __global__ void evaluate(
 
         // This thread renders the pixels pix where (pix % threads_per_item == stripe).
         float partial = 0.0f;
-        for (long long pix = stripe; pix < nPixels; pix += threads_per_item) {
+        for(long long pix = stripe; pix < nPixels; pix += threads_per_item) {
             const int x = (int)(pix % W);
             const int y = (int)(pix / W);
             const float px = x + 0.5f;
             const float py = y + 0.5f;
             float r = bgR, g = bgG, b = bgB;
-            for (int t = 0; t < NT; ++t) {
+            for(int t = 0; t < NT; ++t) {
                 // Circumcircle reject: skip this triangle unless the pixel lies inside its bounding circle.
                 const float ccx = s_circle[t * 3 + 0];
                 const float ccy = s_circle[t * 3 + 1];
                 const float cr2 = s_circle[t * 3 + 2];
                 const float ddx = px - ccx, ddy = py - ccy;
-                if (ddx * ddx + ddy * ddy > cr2) {
+                if(ddx * ddx + ddy * ddy > cr2) {
                     continue;
                 }
                 const float *c = s_corners + t * 6;
@@ -122,7 +125,7 @@ extern "C" __global__ void evaluate(
                 const float d3 = (px - x1) * (y3 - y1) - (py - y1) * (x3 - x1);
                 const bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
                 const bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-                if (!(hasNeg && hasPos)) {
+                if(!(hasNeg && hasPos)) {
                     const float *tri = p + t * 10;
                     const float a = tri[9];
                     r = (1.0f - a) * r + a * tri[6];
@@ -149,7 +152,7 @@ extern "C" __global__ void evaluate(
     const long long gid = (long long)blockIdx.x * blockDim.x + threadIdx.x;
     const int item = (int)(gid / threads_per_item);
     const int stripe = (int)(gid % threads_per_item);
-    if (item >= n_items) {
+    if(item >= n_items) {
         return;
     }
     const float *p = params + (long long)item * dim;
@@ -159,26 +162,29 @@ extern "C" __global__ void evaluate(
     const float bgB = p[10 * NT + 2];
 
     float partial = 0.0f;
-    for (long long pix = stripe; pix < nPixels; pix += threads_per_item) {
+    for(long long pix = stripe; pix < nPixels; pix += threads_per_item) {
         const int x = (int)(pix % W);
         const int y = (int)(pix / W);
         const float px = x + 0.5f;
         const float py = y + 0.5f;
         float r = bgR, g = bgG, b = bgB;
-        for (int t = 0; t < NT; ++t) {
+        for(int t = 0; t < NT; ++t) {
             const float *tri = p + t * 10;
             const float cx = tri[0] * W;
             const float cy = tri[1] * H;
             const float radius = tri[2];
             const float a0 = tri[3] * twoPi, a1 = tri[4] * twoPi, a2 = tri[5] * twoPi;
-            const float x1 = cx + radius * __cosf(a0) * scale, y1 = cy + radius * __sinf(a0) * scale;
-            const float x2 = cx + radius * __cosf(a1) * scale, y2 = cy + radius * __sinf(a1) * scale;
-            const float x3 = cx + radius * __cosf(a2) * scale, y3 = cy + radius * __sinf(a2) * scale;
+            const float x1 = cx + radius * __cosf(a0) * scale,
+                        y1 = cy + radius * __sinf(a0) * scale;
+            const float x2 = cx + radius * __cosf(a1) * scale,
+                        y2 = cy + radius * __sinf(a1) * scale;
+            const float x3 = cx + radius * __cosf(a2) * scale,
+                        y3 = cy + radius * __sinf(a2) * scale;
             const float minx = fminf(x1, fminf(x2, x3));
             const float maxx = fmaxf(x1, fmaxf(x2, x3));
             const float miny = fminf(y1, fminf(y2, y3));
             const float maxy = fmaxf(y1, fmaxf(y2, y3));
-            if (px < minx || px > maxx || py < miny || py > maxy) {
+            if(px < minx || px > maxx || py < miny || py > maxy) {
                 continue;
             }
             const float d1 = (px - x2) * (y1 - y2) - (py - y2) * (x1 - x2);
@@ -186,7 +192,7 @@ extern "C" __global__ void evaluate(
             const float d3 = (px - x1) * (y3 - y1) - (py - y1) * (x3 - x1);
             const bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
             const bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-            if (!(hasNeg && hasPos)) {
+            if(!(hasNeg && hasPos)) {
                 const float a = tri[9];
                 r = (1.0f - a) * r + a * tri[6];
                 g = (1.0f - a) * g + a * tri[7];

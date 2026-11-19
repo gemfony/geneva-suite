@@ -51,15 +51,15 @@
 
 #include <boost/program_options.hpp>
 
+#include "GAlgorithmBenchmarkRunner.hpp"
+#include "GBenchmarkGPUMarshaller.hpp"
+#include "GBenchmarkResultWriter.hpp"
 #include "common/GConfigEmission.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/GenevaInitializer.hpp"
-#include "GAlgorithmBenchmarkRunner.hpp"
-#include "GBenchmarkGPUMarshaller.hpp"
-#include "GBenchmarkResultWriter.hpp"
 
 namespace po = boost::program_options;
 using namespace Gem::Geneva;
@@ -100,8 +100,11 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
         << "The number of independent runs per algorithm entry";
     gpb.registerFileParameter("n_dimensions", cfg.nDimensions, cfg.nDimensions)
         << "The parameter dimension of the optimization problem";
-    gpb.registerFileParameter("individual_config", cfg.individualConfigFile, cfg.individualConfigFile)
-        << "The path to the GFunctionIndividual configuration file";
+    gpb.registerFileParameter(
+        "individual_config",
+        cfg.individualConfigFile,
+        cfg.individualConfigFile
+    ) << "The path to the GFunctionIndividual configuration file";
     gpb.registerFileParameter("output_dir", cfg.outputDir, cfg.outputDir)
         << "The directory into which the output CSV files are written";
     gpb.registerFileParameter("batch_size", cfg.batchSize, cfg.batchSize)
@@ -118,18 +121,18 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
 
     gpb.parseConfigFile(configFile);
 
-    if (algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
+    if(algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GCUDAOptBenchmark loadConfig(): Error!" << '\n'
-            << "The algo_tags (" << algoTags.size() << "), algo_mnemonics ("
-            << algoMnemonics.size() << ") and algo_config_files (" << algoConfigFiles.size()
+            << "The algo_tags (" << algoTags.size() << "), algo_mnemonics (" << algoMnemonics.size()
+            << ") and algo_config_files (" << algoConfigFiles.size()
             << ") vectors must all have the same length." << '\n'
         );
     }
 
     cfg.algorithms.clear();
-    for (std::size_t i = 0; i < algoTags.size(); ++i) {
+    for(std::size_t i = 0; i < algoTags.size(); ++i) {
         cfg.algorithms.push_back(AlgorithmEntry{algoTags[i], algoMnemonics[i], algoConfigFiles[i]});
     }
 
@@ -147,7 +150,7 @@ int main(int argc, char **argv) {
     // exit without benchmarking. The GPU consumer constructor only loads its config (the backend/kernel
     // are acquired lazily on the first dispatch), so no device is required. Handled before the
     // program-options parser, which would otherwise reject the unregistered switch.
-    if (Gem::Common::configEmissionRequested(argc, argv)) {
+    if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
         Gem::Geneva::GenevaInitializer const gi;
         BenchmarkConfig const cfg = loadConfig(configFile);
@@ -158,16 +161,17 @@ int main(int argc, char **argv) {
     }
 
     po::options_description desc("GCUDAOptBenchmark options");
-    desc.add_options()
-        ("help,h",   "Show help message")
-        ("config,c", po::value<std::string>(&configFile),
-                     "Path to GCUDAOptBenchmark.json (default: config/GCUDAOptBenchmark.json)");
+    desc.add_options()("help,h", "Show help message")(
+        "config,c",
+        po::value<std::string>(&configFile),
+        "Path to GCUDAOptBenchmark.json (default: config/GCUDAOptBenchmark.json)"
+    );
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
 
-    if (vm.count("help")) {
+    if(vm.count("help")) {
         std::cout << desc << std::endl;
         return 0;
     }
@@ -177,12 +181,13 @@ int main(int argc, char **argv) {
     BenchmarkConfig cfg;
     try {
         cfg = loadConfig(configFile);
-    } catch (const std::exception &e) {
+    }
+    catch(const std::exception &e) {
         std::cerr << "Failed to parse config '" << configFile << "': " << e.what() << std::endl;
         return 1;
     }
 
-    if (cfg.algorithms.empty()) {
+    if(cfg.algorithms.empty()) {
         std::cerr << "No algorithm entries in config. Nothing to do." << std::endl;
         return 1;
     }
@@ -190,11 +195,11 @@ int main(int argc, char **argv) {
     std::filesystem::create_directories(cfg.outputDir);
 
     std::cout << "GCUDAOptBenchmark\n"
-              << "  function   : " << cfg.functionName  << "\n"
-              << "  dimensions : " << cfg.nDimensions   << "\n"
-              << "  runs/algo  : " << cfg.nRuns          << "\n"
+              << "  function   : " << cfg.functionName << "\n"
+              << "  dimensions : " << cfg.nDimensions << "\n"
+              << "  runs/algo  : " << cfg.nRuns << "\n"
               << "  algorithms : " << cfg.algorithms.size() << "\n"
-              << "  output dir : " << cfg.outputDir      << "\n"
+              << "  output dir : " << cfg.outputDir << "\n"
               << std::endl;
 
     // Initialize Geneva — must outlive the runner and all optimization.
@@ -213,7 +218,7 @@ int main(int argc, char **argv) {
     GAlgorithmBenchmarkRunner runner(cfg);
     const auto results = runner.run();
 
-    for (const auto &r : results) {
+    for(const auto &r : results) {
         GBenchmarkResultWriter::writeRawCSV(r, cfg.outputDir);
     }
     GBenchmarkResultWriter::writeSummaryCSV(results, cfg.outputDir);

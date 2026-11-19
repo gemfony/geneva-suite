@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 // Standalone AArch64/NEON self-test for Hap's GXoshiro256ppSIMD.hpp.
 // Cross-compiled for aarch64 and run under qemu-aarch64 (user mode), since the
 // build host is x86_64. Validates the NEON SIMD engine WITHOUT the full Geneva
@@ -55,54 +54,80 @@ using namespace Gem::Hap;
 using u64 = std::uint64_t;
 
 int main() {
-    const u64 seed   = 0xDEADBEEFCAFEF00DULL;
-    int       errors = 0;
+    const u64 seed = 0xDEADBEEFCAFEF00DULL;
+    int errors = 0;
 
     static_assert(xoshiro256pp_simd::LANES == 2, "NEON build must expose 2 lanes");
 
     // ---- 1. Known-answer: NEON lane 0 == scalar xoshiro256pp(seed) ----------
     xoshiro256pp_simd e(seed);
-    std::vector<u64>  buf(2000);
+    std::vector<u64> buf(2000);
     e.generate(buf.data(), buf.size()); // interleaved: even=lane0, odd=lane1
     xoshiro256pp ref(seed);
     int laneMismatch = 0;
-    for (int k = 0; k < 1000; ++k) {
+    for(int k = 0; k < 1000; ++k) {
         u64 r = ref();
-        if (buf[2 * k] != r) {
-            if (laneMismatch < 3)
-                std::printf("  lane0 mismatch @%d: %016llx != %016llx\n", k,
-                            (unsigned long long)buf[2 * k], (unsigned long long)r);
+        if(buf[2 * k] != r) {
+            if(laneMismatch < 3)
+                std::printf(
+                    "  lane0 mismatch @%d: %016llx != %016llx\n",
+                    k,
+                    (unsigned long long)buf[2 * k],
+                    (unsigned long long)r
+                );
             ++laneMismatch;
         }
     }
-    if (laneMismatch) { std::printf("FAIL known-answer: %d/1000 lane0 mismatches\n", laneMismatch); ++errors; }
-    else              std::printf("PASS known-answer: lane0 == scalar xoshiro256pp(seed) over 1000 draws\n");
+    if(laneMismatch) {
+        std::printf("FAIL known-answer: %d/1000 lane0 mismatches\n", laneMismatch);
+        ++errors;
+    }
+    else
+        std::printf("PASS known-answer: lane0 == scalar xoshiro256pp(seed) over 1000 draws\n");
 
     // ---- 2. Lane independence: lane1 must not equal lane0 -------------------
     bool independent = false;
-    for (int k = 0; k < 1000 && !independent; ++k)
-        if (buf[2 * k + 1] != buf[2 * k]) independent = true;
-    if (!independent) { std::printf("FAIL independence: lane1 == lane0\n"); ++errors; }
-    else              std::printf("PASS independence: lane1 is a distinct stream\n");
+    for(int k = 0; k < 1000 && !independent; ++k)
+        if(buf[2 * k + 1] != buf[2 * k])
+            independent = true;
+    if(!independent) {
+        std::printf("FAIL independence: lane1 == lane0\n");
+        ++errors;
+    }
+    else
+        std::printf("PASS independence: lane1 is a distinct stream\n");
 
     // ---- 3. operator() (buffered single draw) matches generate() ordering ---
     xoshiro256pp_simd e2(seed);
     int opMismatch = 0;
-    for (int i = 0; i < 200; ++i)
-        if (e2() != buf[i]) ++opMismatch;
-    if (opMismatch) { std::printf("FAIL operator(): %d/200 mismatches vs generate()\n", opMismatch); ++errors; }
-    else            std::printf("PASS operator(): buffered single-draw matches generate()\n");
+    for(int i = 0; i < 200; ++i)
+        if(e2() != buf[i])
+            ++opMismatch;
+    if(opMismatch) {
+        std::printf("FAIL operator(): %d/200 mismatches vs generate()\n", opMismatch);
+        ++errors;
+    }
+    else
+        std::printf("PASS operator(): buffered single-draw matches generate()\n");
 
     // ---- 4. Monobit sanity over a larger sample ----------------------------
     xoshiro256pp_simd e3(0x12345678ULL);
-    std::vector<u64>  big(1 << 20); // ~1M values
+    std::vector<u64> big(1 << 20); // ~1M values
     e3.generate(big.data(), big.size());
     u64 ones = 0;
-    for (u64 v : big) ones += (u64)__builtin_popcountll((unsigned long long)v);
+    for(u64 v : big)
+        ones += (u64)__builtin_popcountll((unsigned long long)v);
     double frac = (double)ones / ((double)big.size() * 64.0);
-    if (frac < 0.49 || frac > 0.51) { std::printf("FAIL monobit: bit fraction %.5f\n", frac); ++errors; }
-    else                            std::printf("PASS monobit: bit fraction %.5f (~0.5)\n", frac);
+    if(frac < 0.49 || frac > 0.51) {
+        std::printf("FAIL monobit: bit fraction %.5f\n", frac);
+        ++errors;
+    }
+    else
+        std::printf("PASS monobit: bit fraction %.5f (~0.5)\n", frac);
 
-    std::printf(errors ? "\nNEON self-test: FAILED (%d)\n" : "\nNEON self-test: ALL PASS\n", errors);
+    std::printf(
+        errors ? "\nNEON self-test: FAILED (%d)\n" : "\nNEON self-test: ALL PASS\n",
+        errors
+    );
     return errors ? 1 : 0;
 }

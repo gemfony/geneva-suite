@@ -62,12 +62,17 @@
 // write, in-place reader, atomic_ref copy-out) to the named range, which is
 // exactly the pool buffer.
 #if defined(__SANITIZE_THREAD__) || (defined(__has_feature) && __has_feature(thread_sanitizer))
-extern "C" void AnnotateBenignRaceSized(const char *file, int line, const volatile void *mem,
-                                        unsigned long size, const char *description);
-#define GEM_ANNOTATE_BENIGN_RACE(addr, size, desc) \
+extern "C" void AnnotateBenignRaceSized(
+    const char *file,
+    int line,
+    const volatile void *mem,
+    unsigned long size,
+    const char *description
+);
+#define GEM_ANNOTATE_BENIGN_RACE(addr, size, desc)                                                 \
     AnnotateBenignRaceSized(__FILE__, __LINE__, (addr), (size), (desc))
 #else
-#define GEM_ANNOTATE_BENIGN_RACE(addr, size, desc) ((void) 0)
+#define GEM_ANNOTATE_BENIGN_RACE(addr, size, desc) ((void)0)
 #endif
 
 namespace Gem::Common::Concurrency {
@@ -162,9 +167,11 @@ class GSPSCStagingRingT {
     );
 
     // Aligned 64-bit access must be tear-free for the benign old-or-new read to hold.
-    static_assert(std::atomic_ref<std::uint64_t>::is_always_lock_free,
-                  "GSPSCStagingRingT requires lock-free aligned 64-bit access (its benign race relies "
-                  "on tear-free old-or-new reads); this platform does not provide it.");
+    static_assert(
+        std::atomic_ref<std::uint64_t>::is_always_lock_free,
+        "GSPSCStagingRingT requires lock-free aligned 64-bit access (its benign race relies "
+        "on tear-free old-or-new reads); this platform does not provide it."
+    );
 
 public:
     /** @brief The word type stored in the ring. */
@@ -183,8 +190,11 @@ public:
             pool.resize(PoolWords);
             // Mark the pool storage as an intentional benign race (no-op unless built
             // under ThreadSanitizer); see the note at the top of this file.
-            GEM_ANNOTATE_BENIGN_RACE(pool.data(), PoolWords * sizeof(word_type),
-                                     "GSPSCStagingRingT: benign refill-vs-stale-reader race (aligned 64-bit)");
+            GEM_ANNOTATE_BENIGN_RACE(
+                pool.data(),
+                PoolWords * sizeof(word_type),
+                "GSPSCStagingRingT: benign refill-vs-stale-reader race (aligned 64-bit)"
+            );
         }
         // Fill the initial N_POOLS generations (pool k holds generation k).
         for(int k = 0; k < N_POOLS; ++k) {
@@ -211,7 +221,7 @@ public:
      * @return Pointer to CHUNK_WORDS words inside one of the pools
      */
     const word_type *claimSpan() {
-        const std::uint64_t s   = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
+        const std::uint64_t s = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
         const std::size_t k = static_cast<std::size_t>((s / CHUNKS_PER_POOL) % N_POOLS);
         const std::size_t off = (s % CHUNKS_PER_POOL) * CHUNK_WORDS;
         return pools_[k].data() + off;
@@ -226,10 +236,10 @@ public:
      * @param dst Destination buffer (at least CHUNK_WORDS words)
      */
     void copyChunkInto(word_type *dst) {
-        const std::uint64_t s   = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
+        const std::uint64_t s = chunk_seq_.fetch_add(1, std::memory_order_relaxed);
         const std::size_t k = static_cast<std::size_t>((s / CHUNKS_PER_POOL) % N_POOLS);
         const std::size_t off = (s % CHUNKS_PER_POOL) * CHUNK_WORDS;
-        word_type          *src = pools_[k].data() + off;
+        word_type *src = pools_[k].data() + off;
         for(std::size_t i = 0; i < CHUNK_WORDS; ++i) {
             dst[i] = std::atomic_ref<word_type>(src[i]).load(std::memory_order_relaxed);
         }
@@ -247,7 +257,7 @@ private:
         while(not stop_.load(std::memory_order_relaxed)) {
             const std::uint64_t lead = chunk_seq_.load(std::memory_order_relaxed) / CHUNKS_PER_POOL;
             const std::uint64_t target = lead + static_cast<std::uint64_t>(N_POOLS - 1);
-            const std::uint64_t fs     = filled_seq_.load(std::memory_order_relaxed);
+            const std::uint64_t fs = filled_seq_.load(std::memory_order_relaxed);
             if(fs < target) {
                 const std::uint64_t next = fs + 1;
                 fillPool(static_cast<int>(next % N_POOLS));
@@ -259,17 +269,17 @@ private:
         }
     }
 
-    fill_function                           fill_;          ///< injected bulk-fill source (chosen once)
-    std::vector<std::vector<word_type>> pools_;             ///< N_POOLS rotating pools
-    std::atomic<std::uint64_t>              chunk_seq_{0};  ///< monotonic claim cursor (chunk index)
-    std::atomic<std::uint64_t>              filled_seq_{0}; ///< highest pool generation filled
-    std::atomic<bool>                       stop_{false};   ///< shutdown flag for the producer thread
+    fill_function fill_;                        ///< injected bulk-fill source (chosen once)
+    std::vector<std::vector<word_type>> pools_; ///< N_POOLS rotating pools
+    std::atomic<std::uint64_t> chunk_seq_{0};   ///< monotonic claim cursor (chunk index)
+    std::atomic<std::uint64_t> filled_seq_{0};  ///< highest pool generation filled
+    std::atomic<bool> stop_{false};             ///< shutdown flag for the producer thread
     /// This ring's one background refill producer, accounted in the process-wide thread
     /// budget for the ring's lifetime (Fixed: the design needs exactly one producer).
     GThreadBudget::Reservation producer_budget_{
         threadBudget().reserve("staging-ring", 1, ThreadElasticity::Fixed)
     };
-    std::thread                             producer_;      ///< the single refill thread (never waits on readers)
+    std::thread producer_; ///< the single refill thread (never waits on readers)
 };
 
 /******************************************************************************/

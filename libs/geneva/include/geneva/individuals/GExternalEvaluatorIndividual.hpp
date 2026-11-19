@@ -52,13 +52,13 @@
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
-#include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/genome/GIndividualFactory.hpp"
 #include "hap/GRandomT.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 class GAdaptionConfigBase;
@@ -98,7 +98,6 @@ constexpr std::size_t GEEI_DEF_NRESULTS = 1;
 const std::string GEEI_DEF_STARTMODE = "random";
 const std::string GEEI_DEF_RUNID = "empty";
 constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
-
 
 /******************************************************************************/
 /**
@@ -152,8 +151,7 @@ public:
     static constexpr std::string_view class_name = "GExternalEvaluatorIndividual";
 
     /***************************************************************************/
-    using FACTORYTYPE =
-        Gem::Geneva::Genome::GIndividualFactory<GExternalEvaluatorIndividual>;
+    using FACTORYTYPE = Gem::Geneva::Genome::GIndividualFactory<GExternalEvaluatorIndividual>;
 
     /** @brief The default constructor */
     GExternalEvaluatorIndividual();
@@ -204,7 +202,7 @@ public:
     /**
      * @brief Allows to assign a run-id to this individual
      */
-    void setRunId(const std::string& run_id);
+    void setRunId(const std::string &run_id);
     /**
      * @brief Allows to retrieve the run-id assigned to this individual
      */
@@ -312,7 +310,10 @@ protected:
 #ifdef GEM_TESTING
         gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
 #else  /* GEM_TESTING */
-        Gem::Common::condnotset("GExternalEvaluatorIndividual::specificTestsNoFailureExpected_GUnitTests", "GEM_TESTING");
+        Gem::Common::condnotset(
+            "GExternalEvaluatorIndividual::specificTestsNoFailureExpected_GUnitTests",
+            "GEM_TESTING"
+        );
 #endif /* GEM_TESTING */
     }
 
@@ -343,7 +344,7 @@ private:
         custom_options_; ///< Any custom options that need to be provided to the external program
     std::string parameter_file_base_name_; ///< The base name to be assigned to the parameter_file
     std::size_t n_results_; ///< The number of results to be expected from the evaluation function
-    std::string run_id_;      ///< Identifies this run with a unique id
+    std::string run_id_;    ///< Identifies this run with a unique id
     bool remove_exec_temporaries_; ///< Indicates whether temporary files should be removed
 };
 

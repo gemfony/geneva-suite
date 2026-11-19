@@ -47,8 +47,8 @@
 #include <string>
 #include <vector>
 
-#include "common/GParserBuilder.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "common/GParserBuilder.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
@@ -76,14 +76,16 @@ int runServer(unsigned short port, std::size_t n, std::size_t fault_every) {
     items.reserve(n);
     for(std::size_t i = 0; i < n; ++i) {
         const bool faulty = fault_every > 0 && (i % fault_every == 0);
-        items.push_back(std::make_unique<GFaultyContainer>(
-            i, faulty ? fault_mode::THROW_PROCESSING : fault_mode::NONE
-        ));
+        items.push_back(
+            std::make_unique<GFaultyContainer>(
+                i,
+                faulty ? fault_mode::THROW_PROCESSING : fault_mode::NONE
+            )
+        );
     }
 
-    const auto policy = fault_every > 0
-        ? c2::GSubmissionPolicy::clone_on_partial_return()
-        : c2::GSubmissionPolicy::full_success_or_fatal();
+    const auto policy = fault_every > 0 ? c2::GSubmissionPolicy::clone_on_partial_return()
+                                        : c2::GSubmissionPolicy::full_success_or_fatal();
 
     consumer->processBatch(
         std::span<std::unique_ptr<GFaultyContainer>>(items.data(), items.size()),
@@ -102,7 +104,8 @@ int runServer(unsigned short port, std::size_t n, std::size_t fault_every) {
         std::cout << "[server] OK: " << processed << "/" << n << " items processed\n" << std::flush;
         return 0;
     }
-    std::cout << "[server] FAIL: only " << processed << "/" << n << " items processed\n" << std::flush;
+    std::cout << "[server] FAIL: only " << processed << "/" << n << " items processed\n"
+              << std::flush;
     return 1;
 }
 
@@ -142,14 +145,25 @@ int main(int argc, char **argv) {
         Gem::Common::GCL_IMPLICIT_ALLOWED,
         true
     );
-    gpb.registerCLParameter("beast_ip", beast_ip, std::string("127.0.0.1"),
-                            "server ip/host the beast client connects to");
-    gpb.registerCLParameter("beast_port", beast_port, static_cast<unsigned short>(10000),
-                            "the beast server's TCP port");
-    gpb.registerCLParameter("nWorkItems", n, 200uz,
-                            "number of work items the server submits");
-    gpb.registerCLParameter("faultEvery", fault_every, 0uz,
-                            "every K-th item throws (0 = none); switches to clone-on-partial-return");
+    gpb.registerCLParameter(
+        "beast_ip",
+        beast_ip,
+        std::string("127.0.0.1"),
+        "server ip/host the beast client connects to"
+    );
+    gpb.registerCLParameter(
+        "beast_port",
+        beast_port,
+        static_cast<unsigned short>(10000),
+        "the beast server's TCP port"
+    );
+    gpb.registerCLParameter("nWorkItems", n, 200uz, "number of work items the server submits");
+    gpb.registerCLParameter(
+        "faultEvery",
+        fault_every,
+        0uz,
+        "every K-th item throws (0 = none); switches to clone-on-partial-return"
+    );
 
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;

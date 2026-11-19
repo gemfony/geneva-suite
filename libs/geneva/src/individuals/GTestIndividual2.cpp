@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GTestIndividual2.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -37,6 +36,7 @@
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -142,7 +142,8 @@ GTestIndividual2::~GTestIndividual2() { /* nothing */
  *
  * @return A shared pointer to the freshly built adaption configuration covering all double groups
  */
-std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase> GTestIndividual2::getAdaptionConfig() const {
+std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
+GTestIndividual2::getAdaptionConfig() const {
     namespace oa = Gem::Geneva::OptimizationAlgorithms;
     auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
@@ -166,7 +167,10 @@ std::vector<double> GTestIndividual2::evaluate() {
 
     // Calculate the value of the parabola
     return {std::ranges::fold_left(
-        par_vec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }), 0., std::plus{})};
+        par_vec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }),
+        0.,
+        std::plus{}
+    )};
 }
 
 /******************************************************************************/

@@ -54,17 +54,17 @@
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
+#include "common/GContainerT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
-#include "common/GContainerT.hpp"
 #include "common/GSingletonT.hpp"
 #include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
-#include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/genome/GIndividualFactory.hpp"
 #include "hap/GRandomT.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -104,7 +104,7 @@ struct trainingSet {
     /**
      * @brief The constructor.
      */
-    trainingSet(const std::size_t & n_input, const std::size_t & n_output);
+    trainingSet(const std::size_t &n_input, const std::size_t &n_output);
 
     // Rule of zero: with std::vector data members the compiler-generated
     // copy/move/assignment operations are deep, self-assignment-safe and
@@ -120,19 +120,16 @@ struct trainingSet {
     /**
      * @brief Searches for compliance with expectations with respect to another object of the same type.
      */
-    virtual void compare(
-        const trainingSet & cp
-        ,
-        const Gem::Common::expectation & e
-        ,
-        const double & limit
-    ) const;
+    virtual void
+    compare(const trainingSet &cp, const Gem::Common::expectation &e, const double &limit) const;
 
     /***************************************************************************/
     // Local data
 
-    std::size_t nInputNodes = 0;  ///< The number of input nodes (== Input.size(); kept for the archive layout)
-    std::size_t nOutputNodes = 0; ///< The number of output nodes (== Output.size(); kept for the archive layout)
+    std::size_t nInputNodes =
+        0; ///< The number of input nodes (== Input.size(); kept for the archive layout)
+    std::size_t nOutputNodes =
+        0; ///< The number of output nodes (== Output.size(); kept for the archive layout)
 
     std::vector<double> Input;  ///< Holds the input data
     std::vector<double> Output; ///< Holds the output data
@@ -165,7 +162,10 @@ class networkData : public Gem::Common::GPodContainerT<std::size_t> {
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<Gem::Common::GPodContainerT<std::size_t>>(
-            ar, "GStdSimpleVectorInterfaceT_size_t", *this);
+            ar,
+            "GStdSimpleVectorInterfaceT_size_t",
+            *this
+        );
         Gem::Common::archive_named(ar, "init_range_", init_range_);
         Gem::Common::archive_named(ar, "data_", data_);
     }
@@ -177,16 +177,16 @@ public:
     /**
      * @brief Initialization with the amount of entries.
      */
-    explicit networkData(const std::size_t & array_size);
+    explicit networkData(const std::size_t &array_size);
 
     /**
      * @brief Initialization with data from file.
      */
-    explicit networkData(const std::string & network_data_file);
+    explicit networkData(const std::string &network_data_file);
     /**
      * @brief The copy constructor.
      */
-    networkData(const networkData & cp);
+    networkData(const networkData &cp);
 
     /** @brief A standard destructor. */
     ~networkData() override;
@@ -194,37 +194,31 @@ public:
     /**
      * @brief Copies the data of another networkData object.
      */
-    networkData &operator=(const networkData & cp);
+    networkData &operator=(const networkData &cp);
 
     /**
      * @brief Searches for compliance with expectations with respect to another object of the same type.
      */
-    virtual void compare(
-        const networkData & cp
-        ,
-        const Gem::Common::expectation & e
-        ,
-        const double & limit
-    ) const;
+    virtual void
+    compare(const networkData &cp, const Gem::Common::expectation &e, const double &limit) const;
 
     /**
      * @brief Saves the data of this struct to disc.
      */
-    void saveToDisk(const std::string & network_data_file) const;
+    void saveToDisk(const std::string &network_data_file) const;
     /**
      * @brief Loads training data from the disc.
      */
-    void loadFromDisk(const std::string & network_data_file);
+    void loadFromDisk(const std::string &network_data_file);
 
     /**
      * @brief Adds a new training set to the collection. Requires the network architecture to be defined already.
      */
-    void addTrainingSet(std::shared_ptr<trainingSet> t_s, const std::size_t & pos);
+    void addTrainingSet(std::shared_ptr<trainingSet> t_s, const std::size_t &pos);
     /**
      * @brief Retrieves the training set at a given position.
      */
-    std::optional<std::shared_ptr<trainingSet>>
-    getTrainingSet(const std::size_t & pos) const;
+    std::optional<std::shared_ptr<trainingSet>> getTrainingSet(const std::size_t &pos) const;
 
     /**
      * @brief Retrieves the number of input nodes of this network.
@@ -238,7 +232,7 @@ public:
     /**
      * @brief Saves this data set in ROOT format for visual inspection.
      */
-    void toROOT(const std::string & output_file, const double & min, const double & max);
+    void toROOT(const std::string &output_file, const double &min, const double &max);
 
     /**
      * @brief Allows to check whether an initialization range has been set.
@@ -391,30 +385,40 @@ public:
      * @brief Emits a name for this architecture.
      * @return The name of this architecture class
      */
-    [[nodiscard]] std::string name() const override { return "GNeuralNetworkArchitecture"; }
+    [[nodiscard]] std::string name() const override {
+        return "GNeuralNetworkArchitecture";
+    }
     /**
      * @brief The number of floating-point genome entries this architecture expects.
      * @return The total number of weights across all layers
      */
-    [[nodiscard]] std::size_t expectedFPSize() const override { return total_weights_; }
+    [[nodiscard]] std::size_t expectedFPSize() const override {
+        return total_weights_;
+    }
 
     /**
      * @brief The number of layers (input + hidden + output).
      * @return The number of layers
      */
-    [[nodiscard]] std::size_t nLayers() const { return layer_sizes_.size(); }
+    [[nodiscard]] std::size_t nLayers() const {
+        return layer_sizes_.size();
+    }
     /**
      * @brief The number of nodes in layer l.
      * @param l The layer index (0 = input layer)
      * @return The number of nodes in layer l
      */
-    [[nodiscard]] std::size_t layerSize(std::size_t l) const { return layer_sizes_.at(l); }
+    [[nodiscard]] std::size_t layerSize(std::size_t l) const {
+        return layer_sizes_.at(l);
+    }
     /**
      * @brief The offset of layer l's weights into the flat genome.
      * @param l The layer index (0 = input layer)
      * @return The offset of layer l's first weight within the flat weight genome
      */
-    [[nodiscard]] std::size_t layerOffset(std::size_t l) const { return offsets_.at(l); }
+    [[nodiscard]] std::size_t layerOffset(std::size_t l) const {
+        return offsets_.at(l);
+    }
     /**
      * @brief The number of weights owned by layer l.
      * @param l The layer index (0 = input layer)
@@ -429,7 +433,6 @@ private:
     std::vector<std::size_t> offsets_;     ///< per-layer weight offset into the flat genome
     std::size_t total_weights_ = 0;        ///< total number of weights
 };
-
 
 namespace detail {
 /******************************************************************************/
@@ -564,20 +567,16 @@ public:
      * @brief A constructor which initializes the individual with a suitable set of network layers.
      */
     GNeuralNetworkIndividual(
-        [[maybe_unused]] const double & min,
-        [[maybe_unused]] const double & max
-        ,
-        [[maybe_unused]] const double & sigma,
-        [[maybe_unused]] const double & sigma_sigma
-        ,
-        [[maybe_unused]] const double & min_sigma,
-        [[maybe_unused]] const double & max_sigma
-        ,
-        [[maybe_unused]] const double & ad_prob,
-        [[maybe_unused]] const double & adapt_ad_prob
-        ,
-        [[maybe_unused]] const double & min_ad_prob,
-        [[maybe_unused]] const double & max_ad_prob
+        [[maybe_unused]] const double &min,
+        [[maybe_unused]] const double &max,
+        [[maybe_unused]] const double &sigma,
+        [[maybe_unused]] const double &sigma_sigma,
+        [[maybe_unused]] const double &min_sigma,
+        [[maybe_unused]] const double &max_sigma,
+        [[maybe_unused]] const double &ad_prob,
+        [[maybe_unused]] const double &adapt_ad_prob,
+        [[maybe_unused]] const double &min_ad_prob,
+        [[maybe_unused]] const double &max_ad_prob
     );
     /**
      * @brief A standard copy constructor.
@@ -591,20 +590,16 @@ public:
      * @brief Initialization according to user-specifications.
      */
     void init(
-        [[maybe_unused]] const double & min,
-        [[maybe_unused]] const double & max
-        ,
-        [[maybe_unused]] const double & sigma,
-        [[maybe_unused]] const double & sigma_sigma
-        ,
-        [[maybe_unused]] const double & min_sigma,
-        [[maybe_unused]] const double & max_sigma
-        ,
-        [[maybe_unused]] const double & ad_prob,
-        [[maybe_unused]] const double & adapt_ad_prob
-        ,
-        [[maybe_unused]] const double & min_ad_prob,
-        [[maybe_unused]] const double & max_ad_prob
+        [[maybe_unused]] const double &min,
+        [[maybe_unused]] const double &max,
+        [[maybe_unused]] const double &sigma,
+        [[maybe_unused]] const double &sigma_sigma,
+        [[maybe_unused]] const double &min_sigma,
+        [[maybe_unused]] const double &max_sigma,
+        [[maybe_unused]] const double &ad_prob,
+        [[maybe_unused]] const double &adapt_ad_prob,
+        [[maybe_unused]] const double &min_ad_prob,
+        [[maybe_unused]] const double &max_ad_prob
     );
 
     /**

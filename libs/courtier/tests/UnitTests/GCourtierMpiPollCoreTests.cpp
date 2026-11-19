@@ -123,7 +123,7 @@ public:
 
 private:
     std::atomic<int> escaped_{0}; ///< Exceptions that have left run()
-    GIoContext ctx_; ///< The context
+    GIoContext ctx_;              ///< The context
     boost::asio::executor_work_guard<GIoContext::executor_type> guard_ =
         boost::asio::make_work_guard(ctx_);
     GThreadGroup threads_; ///< Its threads

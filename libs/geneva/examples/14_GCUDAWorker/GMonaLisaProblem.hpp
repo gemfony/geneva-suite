@@ -65,7 +65,8 @@
  */
 namespace Gem::Geneva::MonaLisa {
 
-constexpr gimage_fp_t RSF_FACTOR = gimage_fp_t(0.04); ///< rational-saturation-function factor (matches example 14)
+constexpr gimage_fp_t RSF_FACTOR =
+    gimage_fp_t(0.04); ///< rational-saturation-function factor (matches example 14)
 
 /** @brief The target image, loaded once from a PNG: width/height and W*H*3 RGB scalars in [0,1]. */
 struct Target {
@@ -79,7 +80,9 @@ inline Target &mutableTarget() {
     static Target t;
     return t;
 }
-inline const Target &target() { return mutableTarget(); }
+inline const Target &target() {
+    return mutableTarget();
+}
 
 /** @brief Loads @p path (PNG) into the process-wide target. Throws on failure. */
 inline void loadTarget(const std::string &path) {
@@ -132,8 +135,14 @@ inline bool pointInTriangle(gimage_fp_t px, gimage_fp_t py, const gimage_fp_t *c
  * @brief Renders the flat genome @p params (dim = 10*NT+3) over a @p W x @p H canvas and returns the
  * rational-saturation deviation from @p targetRGB (W*H*3). Corners are precomputed once per triangle.
  */
-inline gimage_fp_t score(const gimage_fp_t *params, int dim, int W, int H, const gimage_fp_t *targetRGB,
-                         std::vector<gimage_fp_t> &cornerScratch) {
+inline gimage_fp_t score(
+    const gimage_fp_t *params,
+    int dim,
+    int W,
+    int H,
+    const gimage_fp_t *targetRGB,
+    std::vector<gimage_fp_t> &cornerScratch
+) {
     const int NT = (dim - 3) / 10;
     const gimage_fp_t bgR = params[10 * NT + 0];
     const gimage_fp_t bgG = params[10 * NT + 1];
@@ -176,8 +185,8 @@ inline gimage_fp_t score(const gimage_fp_t *params, int dim, int W, int H, const
  * row-major, 3 bytes per pixel) using the SAME alpha-blend rasterisation as score(). This is what the
  * image-output monitor saves to disk so the evolving candidate can be watched as a picture.
  */
-inline void renderToRGB(const gimage_fp_t *params, int dim, int W, int H,
-                        std::vector<unsigned char> &rgb_out) {
+inline void
+renderToRGB(const gimage_fp_t *params, int dim, int W, int H, std::vector<unsigned char> &rgb_out) {
     const int NT = (dim - 3) / 10;
     const gimage_fp_t bgR = params[10 * NT + 0];
     const gimage_fp_t bgG = params[10 * NT + 1];
@@ -190,7 +199,9 @@ inline void renderToRGB(const gimage_fp_t *params, int dim, int W, int H,
 
     rgb_out.resize(static_cast<std::size_t>(W) * H * 3);
     auto toByte = [](gimage_fp_t v) -> unsigned char {
-        return static_cast<unsigned char>(std::clamp(v, gimage_fp_t(0), gimage_fp_t(1)) * gimage_fp_t(255) + gimage_fp_t(0.5));
+        return static_cast<unsigned char>(
+            std::clamp(v, gimage_fp_t(0), gimage_fp_t(1)) * gimage_fp_t(255) + gimage_fp_t(0.5)
+        );
     };
     for(int y = 0; y < H; ++y) {
         for(int x = 0; x < W; ++x) {

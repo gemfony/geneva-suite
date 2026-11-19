@@ -41,8 +41,8 @@
 #include <utility>
 
 // Geneva headers go here
-#include "common/concurrency/GBlockingMPMCQueueT.hpp"
 #include "common/GCommonEnums.hpp" // for DEFAULTBUFFERSIZE
+#include "common/concurrency/GBlockingMPMCQueueT.hpp"
 #include "common/concurrency/GPreallocatedMPMCQueueT.hpp"
 #include "common/concurrency/GQueueCommon.hpp"
 
@@ -124,7 +124,9 @@ public:
      */
     template <typename U>
         requires std::constructible_from<T, U &&>
-    [[nodiscard]] bool try_push(U &&item) { return impl_.try_push(std::forward<U>(item)); }
+    [[nodiscard]] bool try_push(U &&item) {
+        return impl_.try_push(std::forward<U>(item));
+    }
 
     /**
      * @brief Pushes an item, blocking until space is available
@@ -134,7 +136,9 @@ public:
      */
     template <typename U>
         requires std::constructible_from<T, U &&>
-    [[nodiscard]] bool push(U &&item) { return impl_.push(std::forward<U>(item)); }
+    [[nodiscard]] bool push(U &&item) {
+        return impl_.push(std::forward<U>(item));
+    }
 
     /**
      * @brief Pushes an item, blocking until space is available or the timeout elapses
@@ -159,12 +163,16 @@ public:
      * @brief Attempts to pop an item without blocking
      * @return The dequeued item, or std::nullopt if the queue was empty
      */
-    [[nodiscard]] std::optional<T> try_pop() { return impl_.try_pop(); }
+    [[nodiscard]] std::optional<T> try_pop() {
+        return impl_.try_pop();
+    }
     /**
      * @brief Pops an item, blocking until one is available
      * @return The dequeued item, or std::nullopt if the queue was closed and drained
      */
-    [[nodiscard]] std::optional<T> pop() { return impl_.pop(); }
+    [[nodiscard]] std::optional<T> pop() {
+        return impl_.pop();
+    }
 
     /**
      * @brief Pops an item, blocking until one is available or the timeout elapses
@@ -183,37 +191,51 @@ public:
     // --- lifecycle and observers (forwarded verbatim) ---
 
     /** @brief Closes the queue; blocked producers/consumers are released */
-    void close() { impl_.close(); }
+    void close() {
+        impl_.close();
+    }
     /**
      * @brief Reports whether the queue has been closed
      * @return true if close() has been called, false otherwise
      */
-    [[nodiscard]] bool is_closed() const { return impl_.is_closed(); }
+    [[nodiscard]] bool is_closed() const {
+        return impl_.is_closed();
+    }
     /**
      * @brief The queue's capacity
      * @return The maximum number of elements the queue may hold (0 means unbounded)
      */
-    [[nodiscard]] static constexpr std::size_t capacity() noexcept { return impl_type::capacity(); }
+    [[nodiscard]] static constexpr std::size_t capacity() noexcept {
+        return impl_type::capacity();
+    }
     /**
      * @brief Whether the queue is bounded
      * @return true if the queue has a finite capacity, false if it is unbounded
      */
-    [[nodiscard]] static constexpr bool bounded() noexcept { return impl_type::bounded(); }
+    [[nodiscard]] static constexpr bool bounded() noexcept {
+        return impl_type::bounded();
+    }
     /**
      * @brief The current number of elements in the queue
      * @return The number of enqueued elements at the moment of the call
      */
-    [[nodiscard]] std::size_t size() const { return impl_.size(); }
+    [[nodiscard]] std::size_t size() const {
+        return impl_.size();
+    }
     /**
      * @brief The currently available free space in the queue
      * @return The number of additional elements that can be enqueued before the queue is full
      */
-    [[nodiscard]] std::size_t remaining_space() const { return impl_.remaining_space(); }
+    [[nodiscard]] std::size_t remaining_space() const {
+        return impl_.remaining_space();
+    }
     /**
      * @brief Whether the queue is currently empty
      * @return true if the queue holds no elements, false otherwise
      */
-    [[nodiscard]] bool empty() const { return impl_.empty(); }
+    [[nodiscard]] bool empty() const {
+        return impl_.empty();
+    }
 
 private:
     impl_type impl_;

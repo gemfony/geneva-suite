@@ -54,15 +54,14 @@
 #include <memory>
 #include <vector>
 
-
 #include "geneva/GOptimizationEnums.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
-#include "geneva/genome/GGenomeLayout.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeLayout.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
@@ -75,10 +74,15 @@ namespace Gem::Tests {
  *  read/write/round-trip contract under offset / narrow boxes. */
 class NgBoxIndividual : public GGenomeT<NgBoxIndividual> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    NgBoxIndividual() { build(3, -10., 10.); }
-    NgBoxIndividual(std::size_t n, double lo, double hi) { build(n, lo, hi); }
+    NgBoxIndividual() {
+        build(3, -10., 10.);
+    }
+    NgBoxIndividual(std::size_t n, double lo, double hi) {
+        build(n, lo, hi);
+    }
     NgBoxIndividual(const NgBoxIndividual &) = default;
 
     std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
@@ -119,9 +123,12 @@ private:
  *  genome -- exercising bounded/unbounded coexistence (§2.5). */
 class NgMixedIndividual : public GGenomeT<NgMixedIndividual> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    NgMixedIndividual() { build(); }
+    NgMixedIndividual() {
+        build();
+    }
     NgMixedIndividual(const NgMixedIndividual &) = default;
 
     std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
@@ -163,10 +170,13 @@ private:
  *  (vector-of-starts groups, random-init helpers). */
 class NgErgoIndividual : public GGenomeT<NgErgoIndividual> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     NgErgoIndividual() = default;
-    explicit NgErgoIndividual(const GenomeData &g) { this->setGenome(g); }
+    explicit NgErgoIndividual(const GenomeData &g) {
+        this->setGenome(g);
+    }
     NgErgoIndividual(const NgErgoIndividual &) = default;
 
 protected:
@@ -190,9 +200,9 @@ private:
 
 } // namespace Gem::Tests
 
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::NgBoxIndividual) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::NgBoxIndividual)   // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Tests::NgMixedIndividual) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::NgErgoIndividual) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::NgErgoIndividual)  // NOLINT
 
 using Gem::Tests::NgBoxIndividual;
 using Gem::Tests::NgErgoIndividual;
@@ -204,8 +214,8 @@ namespace {
  *  correctly-rounded (not necessarily bit-identical) under the normalized long-double
  *  transfer to come (§2.1) -- so this assertion is durable across the transition. */
 bool faithful(double a, double b) {
-    const double tol = 8. * std::numeric_limits<double>::epsilon()
-                       * std::max({1.0, std::abs(a), std::abs(b)});
+    const double tol =
+        8. * std::numeric_limits<double>::epsilon() * std::max({1.0, std::abs(a), std::abs(b)});
     return std::abs(a - b) <= tol;
 }
 
@@ -254,7 +264,9 @@ TEST_CASE(
     const std::vector<Box> boxes = {
         {0., 1., {0.0, 0.5, 0.999}},
         {-5., 5., {-4.9, 0.0, 4.9}},
-        {1e6, 1e6 + 1., {1e6 + 0.1, 1e6 + 0.5, 1e6 + 0.9}}, // offset + narrow: the cancellation case
+        {1e6,
+         1e6 + 1.,
+         {1e6 + 0.1, 1e6 + 0.5, 1e6 + 0.9}}, // offset + narrow: the cancellation case
         {-1., 1e4, {-0.9, 1234.5, 9999.0}},
     };
     for(const auto &bx : boxes) {
@@ -269,8 +281,8 @@ TEST_CASE(
         // documented trade-off: a parameter's meaningful resolution is a fraction of its own range.
         const double scale = bx.hi - bx.lo;
         for(std::size_t i = 0; i < out.size(); ++i) {
-            const double tol = 8. * std::numeric_limits<double>::epsilon()
-                               * std::max({1.0, scale, std::abs(bx.vals[i])});
+            const double tol = 8. * std::numeric_limits<double>::epsilon() *
+                               std::max({1.0, scale, std::abs(bx.vals[i])});
             CHECK(std::abs(out[i] - bx.vals[i]) <= tol);
         }
     }
@@ -294,7 +306,10 @@ TEST_CASE("normalized-genome: bounded and unbounded coexist on one genome", "[no
 }
 
 /******************************************************************************/
-TEST_CASE("normalized-genome: randomInit keeps constrained values in range", "[normalized-genome]") {
+TEST_CASE(
+    "normalized-genome: randomInit keeps constrained values in range",
+    "[normalized-genome]"
+) {
     NgBoxIndividual ind(64, -3., 7.);
     ind.randomInit(activityMode::ALLPARAMETERS);
     std::vector<double> out;
@@ -315,7 +330,10 @@ struct Box {
     double hi;
 };
 const std::vector<Box> kBoxes = {
-    {0., 1.}, {-5., 5.}, {1e6, 1e6 + 1.}, {-1., 1e4} // last two: offset / narrow (cancellation case)
+    {0., 1.},
+    {-5., 5.},
+    {1e6, 1e6 + 1.},
+    {-1., 1e4} // last two: offset / narrow (cancellation case)
 };
 } // namespace
 
@@ -362,8 +380,11 @@ TEST_CASE(
             const double u = ngExternalToInternal<double>(x, scale, anchor);
             const double uf = ngFoldInternal<double>(u);
             // affine map back, then enforce the half-open contract in external coordinates
-            const double ext_new =
-                ngClampHalfOpen<double>(ngInternalToExternal<double>(uf, scale, anchor), bx.lo, bx.hi);
+            const double ext_new = ngClampHalfOpen<double>(
+                ngInternalToExternal<double>(uf, scale, anchor),
+                bx.lo,
+                bx.hi
+            );
 
             CHECK(faithful(ext_new, ext_old));
             CHECK(ext_new >= bx.lo);
@@ -440,7 +461,7 @@ TEST_CASE(
     std::vector<double> u;
     ind.streamlineFPInternal(u);
     REQUIRE(u.size() == 1);
-    const double overshoot = 0.45;   // a deliberately out-of-[-0.5,0.5) internal coordinate
+    const double overshoot = 0.45; // a deliberately out-of-[-0.5,0.5) internal coordinate
     CHECK_NOTHROW(ind.assignFPValueVectorInternal(std::vector<double>{0.5 + overshoot}));
 
     std::vector<double> u_after;
@@ -467,13 +488,18 @@ TEST_CASE(
     "[normalized-genome]"
 ) {
     GGenomeBuilder b;
-    b.addDoubleGroup(std::vector<double>{0.1, 0.4, -0.2}, -1., 1.);  // bounded, n inferred = 3
-    b.addDoublePlainGroup(std::vector<double>{5.0, -7.0}, -2., 2.);  // plain: starts beyond the perimeter
+    b.addDoubleGroup(std::vector<double>{0.1, 0.4, -0.2}, -1., 1.); // bounded, n inferred = 3
+    b.addDoublePlainGroup(
+        std::vector<double>{5.0, -7.0},
+        -2.,
+        2.
+    ); // plain: starts beyond the perimeter
     NgErgoIndividual const ind(b.build());
     std::vector<double> out;
     ind.streamline<double>(out);
     REQUIRE(out.size() == 5);
-    const std::vector<double> expect{0.1, 0.4, -0.2, 5.0, -7.0}; // plain starts (5, -7) legally exceed [-2,2)
+    const std::vector<double>
+        expect{0.1, 0.4, -0.2, 5.0, -7.0}; // plain starts (5, -7) legally exceed [-2,2)
     for(std::size_t i = 0; i < expect.size(); ++i) {
         CHECK(faithful(out[i], expect[i]));
     }
@@ -495,17 +521,17 @@ TEST_CASE(
     "[normalized-genome]"
 ) {
     GGenomeBuilder b;
-    b.addDoubleRandom(-3., 7.);       // bounded single (no throwaway start needed)
-    b.addDoublePlainRandom(-2., 2.);  // plain single with init perimeter [-2, 2)
+    b.addDoubleRandom(-3., 7.);      // bounded single (no throwaway start needed)
+    b.addDoublePlainRandom(-2., 2.); // plain single with init perimeter [-2, 2)
     NgErgoIndividual ind(b.build());
     ind.randomInit(activityMode::ALLPARAMETERS);
     std::vector<double> out;
     ind.streamline<double>(out);
     REQUIRE(out.size() == 2);
     CHECK(out[0] >= -3.);
-    CHECK(out[0] < 7.);   // a bounded parameter stays within its range
+    CHECK(out[0] < 7.); // a bounded parameter stays within its range
     CHECK(out[1] >= -2.);
-    CHECK(out[1] < 2.);   // an unbounded parameter random-inits within its perimeter
+    CHECK(out[1] < 2.); // an unbounded parameter random-inits within its perimeter
 }
 
 /******************************************************************************/

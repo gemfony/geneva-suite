@@ -35,7 +35,6 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 
-
 namespace Gem::Geneva::Genome {
 /******************************************************************************/
 /**
@@ -83,7 +82,7 @@ individual_processing_result::individual_processing_result(
  */
 individual_processing_result::individual_processing_result(
     const double raw_fitness,
-    const std::function<double(double)>& f
+    const std::function<double(double)> &f
 )
   : raw_fitness_(raw_fitness) {
     if(f) {
@@ -93,7 +92,8 @@ individual_processing_result::individual_processing_result(
     else {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In individual_processing_result(double, std::function<double(double)>): Error!" << '\n'
+            << "In individual_processing_result(double, std::function<double(double)>): Error!"
+            << '\n'
             << "Received an empty transformation function." << '\n'
         );
     }
@@ -127,7 +127,9 @@ double individual_processing_result::transformedFitness() const {
      *
      * @param f A function mapping the raw fitness to a transformed fitness; must not be empty.
      */
-void individual_processing_result::setTransformedFitnessWith(const std::function<double(double)>& f) {
+void individual_processing_result::setTransformedFitnessWith(
+    const std::function<double(double)> &f
+) {
     if(f) {
         transformed_fitness_ = f(raw_fitness_);
         transformed_fitness_set_ = true;
@@ -212,7 +214,7 @@ void individual_processing_result::reset(
  */
 void individual_processing_result::reset(
     const double raw_fitness,
-    const std::function<double(double)>& f
+    const std::function<double(double)> &f
 ) {
     if(f) {
         raw_fitness_ = raw_fitness;

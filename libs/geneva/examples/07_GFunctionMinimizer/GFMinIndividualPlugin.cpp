@@ -49,5 +49,6 @@ extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifes
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GFMinIndividual>,
-        "./config/GFMinIndividual.json", "GFMinIndividual">();
+        "./config/GFMinIndividual.json",
+        "GFMinIndividual">();
 }

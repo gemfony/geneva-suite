@@ -34,8 +34,8 @@
 #include "GFMinIndividual.hpp"
 
 #include "geneva/oa/GAdaption.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
 #include <algorithm>
 #include <any>
@@ -145,7 +145,10 @@ std::vector<double> GFMinIndividual::evaluate() {
  */
 double GFMinIndividual::parabola(const std::vector<double> &parVec) {
     return std::ranges::fold_left(
-        parVec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }), 0., std::plus{});
+        parVec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }),
+        0.,
+        std::plus{}
+    );
 }
 
 /******************************************************************************/
@@ -154,7 +157,10 @@ double GFMinIndividual::parabola(const std::vector<double> &parVec) {
  */
 double GFMinIndividual::noisyParabola(const std::vector<double> &parVec) {
     const double xsquared = std::ranges::fold_left(
-        parVec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }), 0., std::plus{});
+        parVec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }),
+        0.,
+        std::plus{}
+    );
 
     return (cos(xsquared) + 2.) * xsquared;
 }
@@ -172,55 +178,91 @@ void GFMinIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c
     comment = "";
     comment += "The probability for random adaptions of values in evolutionary algorithms;";
     gpb.registerFileParameter<double>(
-        "ad_prob", c.ad_prob, GFI_DEF_ADPROB, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "ad_prob",
+        c.ad_prob,
+        GFI_DEF_ADPROB,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The sigma for gauss-adaption in ES;";
     gpb.registerFileParameter<double>(
-        "sigma", c.sigma, GFI_DEF_SIGMA, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "sigma",
+        c.sigma,
+        GFI_DEF_SIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "Influences the self-adaption of gauss-mutation in ES;";
     gpb.registerFileParameter<double>(
-        "sigma_sigma", c.sigma_sigma, GFI_DEF_SIGMASIGMA, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "sigma_sigma",
+        c.sigma_sigma,
+        GFI_DEF_SIGMASIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The minimum amount value of sigma;";
     gpb.registerFileParameter<double>(
-        "min_sigma", c.min_sigma, GFI_DEF_MINSIGMA, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "min_sigma",
+        c.min_sigma,
+        GFI_DEF_MINSIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The maximum amount value of sigma;";
     gpb.registerFileParameter<double>(
-        "max_sigma", c.max_sigma, GFI_DEF_MAXSIGMA, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "max_sigma",
+        c.max_sigma,
+        GFI_DEF_MAXSIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The number of dimensions used for the demo function;";
     gpb.registerFileParameter<std::size_t>(
-        "par_dim", c.par_dim, GFI_DEF_PARDIM, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "par_dim",
+        c.par_dim,
+        GFI_DEF_PARDIM,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The lower boundary of the initialization range for parameters;";
     gpb.registerFileParameter<double>(
-        "min_var", c.min_var, GFI_DEF_MINVAR, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "min_var",
+        c.min_var,
+        GFI_DEF_MINVAR,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The upper boundary of the initialization range for parameters;";
     gpb.registerFileParameter<double>(
-        "max_var", c.max_var, GFI_DEF_MAXVAR, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "max_var",
+        c.max_var,
+        GFI_DEF_MAXVAR,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "Specifies which target function should be used:;0: Parabola;1: Berlich;";
     gpb.registerFileParameter<targetFunction>(
-        "target_function", c.target_function, GO_DEF_TARGETFUNCTION, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "target_function",
+        c.target_function,
+        GO_DEF_TARGETFUNCTION,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 }
 
@@ -232,7 +274,11 @@ void GFMinIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c
  */
 gen::GenomeData GFMinIndividual::buildGenome(const Config &c) {
     gen::GGenomeBuilder b;
-    b.addDoubleGroup(c.par_dim, c.min_var, c.max_var); // structure only; the adaptor lives on the OA config
+    b.addDoubleGroup(
+        c.par_dim,
+        c.min_var,
+        c.max_var
+    ); // structure only; the adaptor lives on the OA config
     return b.build();
 }
 

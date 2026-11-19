@@ -64,7 +64,7 @@ TEST_CASE("GContentAddressedStoreT: put/has/tryGet round-trip", "[common][conten
 
     std::string out = "stale";
     CHECK_FALSE(s.tryGet(1, out));
-    CHECK(out == "stale");                 // miss leaves out untouched
+    CHECK(out == "stale"); // miss leaves out untouched
 
     s.put(1, "blob-1");
     CHECK(s.has(1));
@@ -73,10 +73,13 @@ TEST_CASE("GContentAddressedStoreT: put/has/tryGet round-trip", "[common][conten
     CHECK(out == "blob-1");
 }
 
-TEST_CASE("GContentAddressedStoreT: put is idempotent and overwrites in place", "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: put is idempotent and overwrites in place",
+    "[common][content-store]"
+) {
     Store s;
     s.put(1, "first");
-    s.put(1, "second");                    // same id -> overwrite, not a second entry
+    s.put(1, "second"); // same id -> overwrite, not a second entry
     CHECK(s.size() == 1);
     std::string out;
     REQUIRE(s.tryGet(1, out));
@@ -86,41 +89,49 @@ TEST_CASE("GContentAddressedStoreT: put is idempotent and overwrites in place", 
 // ---------------------------------------------------------------------------
 // LRU capacity eviction + recency
 
-TEST_CASE("GContentAddressedStoreT: capacity bound evicts the least-recently-used", "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: capacity bound evicts the least-recently-used",
+    "[common][content-store]"
+) {
     Store s;
     s.setCapacity(2);
     s.put(1, "a");
     s.put(2, "b");
-    s.put(3, "c");                         // exceeds cap 2 -> id 1 (oldest) evicted
+    s.put(3, "c"); // exceeds cap 2 -> id 1 (oldest) evicted
     CHECK(s.size() == 2);
     CHECK_FALSE(s.has(1));
     CHECK(s.has(2));
     CHECK(s.has(3));
 }
 
-TEST_CASE("GContentAddressedStoreT: a tryGet refreshes recency so the touched id survives",
-          "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: a tryGet refreshes recency so the touched id survives",
+    "[common][content-store]"
+) {
     Store s;
     s.setCapacity(2);
     s.put(1, "a");
-    s.put(2, "b");                         // recency (MRU->LRU): 2, 1
+    s.put(2, "b"); // recency (MRU->LRU): 2, 1
 
     std::string out;
-    REQUIRE(s.tryGet(1, out));             // touch 1 -> recency: 1, 2
-    s.put(3, "c");                         // evict LRU == 2, not 1
-    CHECK(s.has(1));                       // survived because it was touched
-    CHECK_FALSE(s.has(2));                 // evicted
+    REQUIRE(s.tryGet(1, out)); // touch 1 -> recency: 1, 2
+    s.put(3, "c");             // evict LRU == 2, not 1
+    CHECK(s.has(1));           // survived because it was touched
+    CHECK_FALSE(s.has(2));     // evicted
     CHECK(s.has(3));
 }
 
-TEST_CASE("GContentAddressedStoreT: shrinking the capacity evicts down immediately", "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: shrinking the capacity evicts down immediately",
+    "[common][content-store]"
+) {
     Store s;
     s.put(1, "a");
     s.put(2, "b");
     s.put(3, "c");
-    s.put(4, "d");                         // unbounded so far
+    s.put(4, "d"); // unbounded so far
     CHECK(s.size() == 4);
-    s.setCapacity(2);                      // shrink -> evicts the two LRU (1, 2)
+    s.setCapacity(2); // shrink -> evicts the two LRU (1, 2)
     CHECK(s.size() == 2);
     CHECK(s.has(3));
     CHECK(s.has(4));
@@ -152,14 +163,16 @@ TEST_CASE("GContentAddressedStoreT: per-peer ack set/query/forget", "[common][co
     CHECK_FALSE(s.peerHas(8, 2));
     CHECK(s.trackedPeers() == 2);
 
-    s.forgetPeer(7);                       // session 7 ended
+    s.forgetPeer(7); // session 7 ended
     CHECK_FALSE(s.peerHas(7, 1));
-    CHECK(s.peerHas(8, 1));                // peer 8 unaffected
+    CHECK(s.peerHas(8, 1)); // peer 8 unaffected
     CHECK(s.trackedPeers() == 1);
 }
 
-TEST_CASE("GContentAddressedStoreT: evicting a blob also clears it from every peer's ack set",
-          "[common][content-store]") {
+TEST_CASE(
+    "GContentAddressedStoreT: evicting a blob also clears it from every peer's ack set",
+    "[common][content-store]"
+) {
     // The critical invariant: after a blob is evicted, no peer may still be recorded as holding it --
     // otherwise the source would reference an id by content it can no longer answer (a deadlock).
     Store s;
@@ -170,9 +183,9 @@ TEST_CASE("GContentAddressedStoreT: evicting a blob also clears it from every pe
     REQUIRE(s.peerHas(7, 1));
     REQUIRE(s.peerHas(8, 1));
 
-    s.put(2, "b");                         // cap 1 -> id 1 evicted
+    s.put(2, "b"); // cap 1 -> id 1 evicted
     CHECK_FALSE(s.has(1));
-    CHECK_FALSE(s.peerHas(7, 1));          // ack cleared on eviction
+    CHECK_FALSE(s.peerHas(7, 1)); // ack cleared on eviction
     CHECK_FALSE(s.peerHas(8, 1));
 }
 
@@ -190,8 +203,10 @@ TEST_CASE("GContentAddressedStoreT: clear resets blobs and acks", "[common][cont
 // ---------------------------------------------------------------------------
 // Concurrency: many threads put / tryGet / mark must stay consistent and bounded.
 
-TEST_CASE("GContentAddressedStoreT: concurrent put/get/ack remains consistent and bounded",
-          "[common][content-store][concurrency]") {
+TEST_CASE(
+    "GContentAddressedStoreT: concurrent put/get/ack remains consistent and bounded",
+    "[common][content-store][concurrency]"
+) {
     Store s;
     constexpr int kCap = 64;
     s.setCapacity(kCap);
@@ -212,7 +227,8 @@ TEST_CASE("GContentAddressedStoreT: concurrent put/get/ack remains consistent an
                 s.put(id, "v");
                 s.markPeerHas(w, id);
                 std::string out;
-                (void)s.tryGet(id, out);    // may already be evicted under churn; just must not corrupt
+                (void)
+                    s.tryGet(id, out); // may already be evicted under churn; just must not corrupt
             }
         });
     }

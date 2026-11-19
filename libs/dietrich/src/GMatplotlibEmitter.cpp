@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -95,8 +94,8 @@ std::string lineWidthArgument(const GBasePlotter &p) {
 
 /** @brief The keyword arguments of a line plot drawn as a style says: a line, markers, or both */
 std::string mplLineAndMarker(const GDrawStyle &style) {
-    return std::string(", marker=\"") + (style.markers ? "o" : "none") + "\""
-        + (style.line ? "" : ", linestyle=\"none\"");
+    return std::string(", marker=\"") + (style.markers ? "o" : "none") + "\"" +
+           (style.line ? "" : ", linestyle=\"none\"");
 }
 
 /** @brief matplotlib's format string of a style: "-o", "o", "-", or "none" */
@@ -113,13 +112,20 @@ std::string mplFormat(const GDrawStyle &style) {
 /** @brief matplotlib's name of a legend corner ("lower right", ...); AUTO has none */
 std::string matplotlibLegendLocation(legendPosition position) {
     switch(position) {
-        case legendPosition::TOP_LEFT:     return "upper left";
-        case legendPosition::TOP_RIGHT:    return "upper right";
-        case legendPosition::BOTTOM_LEFT:  return "lower left";
-        case legendPosition::BOTTOM_RIGHT: return "lower right";
-        case legendPosition::CENTER_RIGHT: return "center right";
-        case legendPosition::AUTO:         break;
-        case legendPosition::FREEST:       break; // resolved before (GBasePlotter::legendPlace())
+    case legendPosition::TOP_LEFT:
+        return "upper left";
+    case legendPosition::TOP_RIGHT:
+        return "upper right";
+    case legendPosition::BOTTOM_LEFT:
+        return "lower left";
+    case legendPosition::BOTTOM_RIGHT:
+        return "lower right";
+    case legendPosition::CENTER_RIGHT:
+        return "center right";
+    case legendPosition::AUTO:
+        break;
+    case legendPosition::FREEST:
+        break; // resolved before (GBasePlotter::legendPlace())
     }
     return {};
 }
@@ -128,12 +134,8 @@ std::string matplotlibLegendLocation(legendPosition position) {
  *  written as inline Python list literals; `ax` is a 2-d Axes for g2d/g2ed/hist*, a 3-d Axes for
  *  g3d/g4d. `fig` is the figure name (used for the g4d/hist2d colourbar). All statements are emitted at
  *  column 0 -- Python is whitespace-sensitive, so no indentation is applied. */
-std::string mplPlotCall(
-    const GBasePlotter &p,
-    scriptKind k,
-    const std::string &ax,
-    const std::string &fig
-) {
+std::string
+mplPlotCall(const GBasePlotter &p, scriptKind k, const std::string &ax, const std::string &fig) {
     EmitStream call; // NOLINT(cppcoreguidelines-init-variables)
     const std::string label = backslashEscape(p.plotLabel());
     // Columns in storage order (see plotSpec().columns); histogram bin counts come
@@ -144,104 +146,108 @@ std::string mplPlotCall(
     // How the series is drawn: the one description its legend sample comes from as well.
     const GDrawStyle style = scriptStyle(p);
     switch(k) {
-        case scriptKind::g2d: {
-            if(style.fill) {
-                call << "_a = " << ax << ".fill_between(" << bracketedRowCol(cols[0]) << ", "
-                     << bracketedRowCol(cols[1]) << ", label=\"" << label << "\")" << '\n'
-                     << "_c = _a.get_facecolor()[0]" << '\n';
-            } else {
-                call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                     << bracketedRowCol(cols[1]) << mplLineAndMarker(style) << ", label=\"" << label
-                     << "\"" << lineWidthArgument(p) << ")" << '\n'
-                     << "_c = _a[0].get_color()" << '\n';
-            }
-        } break;
-        case scriptKind::g2ed: {
-            call << "_a = " << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[2]) << ", xerr=" << bracketedRowCol(cols[1])
-                 << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"" << mplFormat(style)
-                 << "\", label=\"" << label << "\"" << lineWidthArgument(p) << ")" << '\n'
+    case scriptKind::g2d: {
+        if(style.fill) {
+            call << "_a = " << ax << ".fill_between(" << bracketedRowCol(cols[0]) << ", "
+                 << bracketedRowCol(cols[1]) << ", label=\"" << label << "\")" << '\n'
+                 << "_c = _a.get_facecolor()[0]" << '\n';
+        }
+        else {
+            call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                 << bracketedRowCol(cols[1]) << mplLineAndMarker(style) << ", label=\"" << label
+                 << "\"" << lineWidthArgument(p) << ")" << '\n'
                  << "_c = _a[0].get_color()" << '\n';
-        } break;
-        case scriptKind::g3d: {
-            if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
-                // A surface over the scattered (x, y) points, and the same colour map as filled
-                // contours on the floor or ceiling of the box; the z range is pinned to the data so
-                // the map lies exactly at its minimum or maximum.
-                auto [z_lo, z_hi] = columnRange(cols[2]);
-                if(not(z_hi > z_lo)) {
-                    z_hi = z_lo + 1.; // a flat surface still needs a z range to be drawn in
-                }
-                const double plane = (proj == surfaceProjection::FLOOR) ? z_lo : z_hi;
-                // matplotlib sorts 3-d artists by a computed depth, which puts a map and a path drawn
-                // at the same height in arbitrary order; a fixed order is used instead: the map, then
-                // the surface, then the pad's overlays (default zorder 2), which therefore stay visible.
-                call << ax << ".computed_zorder = False" << '\n'
-                     << "_x = " << bracketedRowCol(cols[0]) << '\n'
-                     << "_y = " << bracketedRowCol(cols[1]) << '\n'
-                     << "_z = " << bracketedRowCol(cols[2]) << '\n';
-                if(drawsSurface(p)) {
-                    call << "_surf = " << ax
-                         << ".plot_trisurf(_x, _y, _z, cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1, label=\""
-                         << label << "\")" << '\n';
-                }
-                call << ax << ".tricontourf(_x, _y, _z, zdir=\"z\", offset=" << plane
-                     << ", levels=20, cmap=\"viridis\", zorder=0)" << '\n'
-                     << ax << ".set_zlim(" << z_lo << ", " << z_hi << ")" << '\n';
-                if(drawsSurface(p)) {
-                    call << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
-                }
-                call << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+        }
+    } break;
+    case scriptKind::g2ed: {
+        call << "_a = " << ax << ".errorbar(" << bracketedRowCol(cols[0]) << ", "
+             << bracketedRowCol(cols[2]) << ", xerr=" << bracketedRowCol(cols[1])
+             << ", yerr=" << bracketedRowCol(cols[3]) << ", fmt=\"" << mplFormat(style)
+             << "\", label=\"" << label << "\"" << lineWidthArgument(p) << ")" << '\n'
+             << "_c = _a[0].get_color()" << '\n';
+    } break;
+    case scriptKind::g3d: {
+        if(const surfaceProjection proj = projectionOf(p); proj != surfaceProjection::NONE) {
+            // A surface over the scattered (x, y) points, and the same colour map as filled
+            // contours on the floor or ceiling of the box; the z range is pinned to the data so
+            // the map lies exactly at its minimum or maximum.
+            auto [z_lo, z_hi] = columnRange(cols[2]);
+            if(not(z_hi > z_lo)) {
+                z_hi = z_lo + 1.; // a flat surface still needs a z range to be drawn in
             }
-            else if(style.colour_map) {
-                // A colour-mapped surface of its own drawing arguments (ROOT's SURF, COL, ...).
-                call << "_surf = " << ax << ".plot_trisurf(" << bracketedRowCol(cols[0]) << ", "
-                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                     << ", cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1)" << '\n'
-                     << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n'
-                     << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+            const double plane = (proj == surfaceProjection::FLOOR) ? z_lo : z_hi;
+            // matplotlib sorts 3-d artists by a computed depth, which puts a map and a path drawn
+            // at the same height in arbitrary order; a fixed order is used instead: the map, then
+            // the surface, then the pad's overlays (default zorder 2), which therefore stay visible.
+            call << ax << ".computed_zorder = False" << '\n'
+                 << "_x = " << bracketedRowCol(cols[0]) << '\n'
+                 << "_y = " << bracketedRowCol(cols[1]) << '\n'
+                 << "_z = " << bracketedRowCol(cols[2]) << '\n';
+            if(drawsSurface(p)) {
+                call << "_surf = " << ax
+                     << ".plot_trisurf(_x, _y, _z, cmap=\"viridis\", linewidth=0, alpha=0.85, "
+                        "zorder=1, label=\""
+                     << label << "\")" << '\n';
             }
-            else {
-                if(castsFloorShadow(p)) {
-                    // The points' shadows on the floor, small and grey, drawn before the points.
-                    call << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", " << bracketedRowCol(cols[1])
-                         << ", zs=" << ax << ".get_zlim()[0], s=2, c=\"0.6\", zorder=1)" << '\n';
-                }
-                // Points (red, as ROOT draws them), a line through them, or a line alone.
-                call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
-                     << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2]) << mplLineAndMarker(style)
-                     << (style.markers ? ", markersize=3" : "") << (style.line ? "" : ", color=\"red\"")
-                     << lineWidthArgument(p) << ", label=\"" << label << "\", zorder=2)" << '\n'
-                     << "_c = _a[0].get_color()" << '\n';
+            call << ax << ".tricontourf(_x, _y, _z, zdir=\"z\", offset=" << plane
+                 << ", levels=20, cmap=\"viridis\", zorder=0)" << '\n'
+                 << ax << ".set_zlim(" << z_lo << ", " << z_hi << ")" << '\n';
+            if(drawsSurface(p)) {
+                call << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n';
             }
-        } break;
-        case scriptKind::g4d: {
-            // 3-d scatter coloured by the w-component, with a colourbar.
-            call << "_sc = " << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", "
+            call << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+        }
+        else if(style.colour_map) {
+            // A colour-mapped surface of its own drawing arguments (ROOT's SURF, COL, ...).
+            call << "_surf = " << ax << ".plot_trisurf(" << bracketedRowCol(cols[0]) << ", "
                  << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
-                 << ", c=" << bracketedRowCol(cols[3]) << ", cmap=\"viridis\", label=\"" << label
-                 << "\")" << '\n'
-                 << fig << ".colorbar(_sc, ax=" << ax << ")" << '\n'
+                 << ", cmap=\"viridis\", linewidth=0, alpha=0.85, zorder=1)" << '\n'
+                 << fig << ".colorbar(_surf, ax=" << ax << ", shrink=0.6)" << '\n'
                  << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
-        } break;
-        case scriptKind::hist1d:
-        case scriptKind::hist1i: {
-            // A 1-d histogram of the raw samples (float64 or int32); same matplotlib call.
-            // A histogram spec always carries its bin counts; the fallback is unreachable
-            call << "_a = " << ax << ".hist(" << bracketedRowCol(cols[0]) << ", bins="
-                 << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", label=\"" << label
-                 << "\")" << '\n'
-                 << "_c = _a[2][0].get_facecolor()" << '\n';
-        } break;
-        case scriptKind::hist2d: {
-            // A histogram spec always carries its bin counts; the fallbacks are unreachable
-            call << "_h = " << ax << ".hist2d(" << bracketedRowCol(cols[0]) << ", "
-                 << bracketedRowCol(cols[1]) << ", bins=["
-                 << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", "
-                 << spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD) << "])" << '\n'
-                 << fig << ".colorbar(_h[3], ax=" << ax << ")" << '\n'
-                 << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
-        } break;
+        }
+        else {
+            if(castsFloorShadow(p)) {
+                // The points' shadows on the floor, small and grey, drawn before the points.
+                call << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", "
+                     << bracketedRowCol(cols[1]) << ", zs=" << ax
+                     << ".get_zlim()[0], s=2, c=\"0.6\", zorder=1)" << '\n';
+            }
+            // Points (red, as ROOT draws them), a line through them, or a line alone.
+            call << "_a = " << ax << ".plot(" << bracketedRowCol(cols[0]) << ", "
+                 << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
+                 << mplLineAndMarker(style) << (style.markers ? ", markersize=3" : "")
+                 << (style.line ? "" : ", color=\"red\"") << lineWidthArgument(p) << ", label=\""
+                 << label << "\", zorder=2)" << '\n'
+                 << "_c = _a[0].get_color()" << '\n';
+        }
+    } break;
+    case scriptKind::g4d: {
+        // 3-d scatter coloured by the w-component, with a colourbar.
+        call << "_sc = " << ax << ".scatter(" << bracketedRowCol(cols[0]) << ", "
+             << bracketedRowCol(cols[1]) << ", " << bracketedRowCol(cols[2])
+             << ", c=" << bracketedRowCol(cols[3]) << ", cmap=\"viridis\", label=\"" << label
+             << "\")" << '\n'
+             << fig << ".colorbar(_sc, ax=" << ax << ")" << '\n'
+             << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+    } break;
+    case scriptKind::hist1d:
+    case scriptKind::hist1i: {
+        // A 1-d histogram of the raw samples (float64 or int32); same matplotlib call.
+        // A histogram spec always carries its bin counts; the fallback is unreachable
+        call << "_a = " << ax << ".hist(" << bracketedRowCol(cols[0])
+             << ", bins=" << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", label=\""
+             << label << "\")" << '\n'
+             << "_c = _a[2][0].get_facecolor()" << '\n';
+    } break;
+    case scriptKind::hist2d: {
+        // A histogram spec always carries its bin counts; the fallbacks are unreachable
+        call << "_h = " << ax << ".hist2d(" << bracketedRowCol(cols[0]) << ", "
+             << bracketedRowCol(cols[1]) << ", bins=["
+             << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", "
+             << spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD) << "])" << '\n'
+             << fig << ".colorbar(_h[3], ax=" << ax << ")" << '\n'
+             << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
+    } break;
     }
     return call.str();
 }
@@ -274,7 +280,10 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
     // share one pad (one is a flat Axes, the other an mplot3d Axes).
     validateScriptPads(gpd.plotters_cnt_, true, "MatplotlibEmitter::emitDocument()", "matplotlib");
     warnPadOverflow(
-        "MatplotlibEmitter::emitDocument()", gpd.getCanvasLabel(), gpd.plotters_cnt_.size(), max_plots
+        "MatplotlibEmitter::emitDocument()",
+        gpd.getCanvasLabel(),
+        gpd.plotters_cnt_.size(),
+        max_plots
     );
 
     // NOTE: Python is whitespace-sensitive, so every statement below is emitted at column 0 (the
@@ -290,7 +299,8 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
            << "from matplotlib.lines import Line2D" << '\n'
            << "from matplotlib.patches import Patch" << '\n'
            << "from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 (registers the 3d projection)"
-           << '\n' << '\n'
+           << '\n'
+           << '\n'
            // A legend sample made from the pad's legend description: a line, markers, both, or a
            // filled box, in the colour its series is drawn in.
            << "def _legend_sample(colour, sample, width):" << '\n'
@@ -313,7 +323,8 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
     // primary-and-secondary plotters into it (secondaries overlay on the same Axes).
     for(const auto &[idx, p] :
         gpd.plotters_cnt_ | std::views::enumerate | std::views::take(max_plots)) {
-        const std::size_t pad_idx = static_cast<std::size_t>(idx) + 1; // matplotlib subplot indices start at 1
+        const std::size_t pad_idx =
+            static_cast<std::size_t>(idx) + 1; // matplotlib subplot indices start at 1
 
         const scriptKind k =
             classifyForScript(*p, true, "MatplotlibEmitter::emitDocument()", "matplotlib");
@@ -339,11 +350,17 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
 
         // The primary plotter, then any secondary plotters overlaid on the same Axes; the colour
         // each series is drawn in is kept for its legend sample.
-        result << "_colours = []" << '\n' << mplPlotCall(*p, k, "ax", "fig") << "_colours.append(_c)" << '\n';
+        result << "_colours = []" << '\n'
+               << mplPlotCall(*p, k, "ax", "fig") << "_colours.append(_c)" << '\n';
         for(const auto &sp : p->secondaryPlotters()) {
             result << mplPlotCall(
                           *sp,
-                          classifyForScript(*sp, true, "MatplotlibEmitter::emitDocument()", "matplotlib"),
+                          classifyForScript(
+                              *sp,
+                              true,
+                              "MatplotlibEmitter::emitDocument()",
+                              "matplotlib"
+                          ),
                           "ax",
                           "fig"
                       )
@@ -381,7 +398,6 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
 
     return result.str();
 }
-
 
 /******************************************************************************/
 } /* namespace Gem::Dietrich */

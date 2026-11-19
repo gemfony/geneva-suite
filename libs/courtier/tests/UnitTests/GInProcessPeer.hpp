@@ -493,7 +493,7 @@ private:
     GInProcessFaults faults_;               ///< How this end misbehaves
     /** @brief What the two ends of a pair share: where each one is, while it exists */
     struct Link {
-        std::mutex mutex;                        ///< Guards ends, and every post to an end
+        std::mutex mutex;                       ///< Guards ends, and every post to an end
         std::array<GInProcessPeer *, 2> ends{}; ///< Non-owning; null once that end is destroyed
         std::atomic<bool> severed{false};       ///< sever() was called: nothing is delivered
     };
@@ -503,13 +503,15 @@ private:
 
     Gem::Courtier::Consumers::GPeerHandlers handlers_; ///< On the strand; dropped at the end
     state state_ = state::NEW;                         ///< On the strand
-    bool role_open_ = false; ///< On the strand: the role was told of the open (or had no onOpen)
-    std::deque<Arrival> early_;                        ///< On the strand: what came before onOpen
+    bool role_open_ = false;    ///< On the strand: the role was told of the open (or had no onOpen)
+    std::deque<Arrival> early_; ///< On the strand: what came before onOpen
 
     std::atomic<bool> close_requested_{false}; ///< close() was called, or the end has ended
     std::atomic<bool> ended_{false};           ///< For the test: the end has ended
-    std::atomic<std::chrono::milliseconds::rep> keep_alive_ms_{-1}; ///< For the test: setKeepAlive()
-    std::atomic<std::size_t> n_delivered_{0};  ///< For the test: messages given to the role
+    std::atomic<std::chrono::milliseconds::rep> keep_alive_ms_{
+        -1
+    }; ///< For the test: setKeepAlive()
+    std::atomic<std::size_t> n_delivered_{0}; ///< For the test: messages given to the role
 };
 
 /******************************************************************************/
@@ -525,10 +527,10 @@ class GInProcessListener final : public Gem::Courtier::Consumers::GListenerI {
 public:
     /** @brief What a test sets for the pairs this listener makes */
     struct Options {
-        GInProcessFaults serverFaults{};            ///< How the server ends misbehave
-        GInProcessFaults clientFaults{};            ///< How the client ends misbehave
-        std::chrono::milliseconds stopGrace{2000};  ///< What stopGrace() answers
-        std::chrono::milliseconds keepAlive{0};     ///< What keepAlive() answers
+        GInProcessFaults serverFaults{};           ///< How the server ends misbehave
+        GInProcessFaults clientFaults{};           ///< How the client ends misbehave
+        std::chrono::milliseconds stopGrace{2000}; ///< What stopGrace() answers
+        std::chrono::milliseconds keepAlive{0};    ///< What keepAlive() answers
         bool startThrows = false; ///< start() throws, as one whose port cannot be bound
         /// How long stop() waits for the calls of on_peer under way
         std::chrono::milliseconds stopBound{1000};
@@ -900,9 +902,9 @@ public:
     }
 
 private:
-    std::shared_ptr<GInProcessRoute> route_;     ///< Where the server is
-    bool reconnectable_;                         ///< What reconnectable() answers
-    std::shared_ptr<GInProcessPeerWatch> watch_; ///< Where the client ends are recorded, or empty
+    std::shared_ptr<GInProcessRoute> route_;       ///< Where the server is
+    bool reconnectable_;                           ///< What reconnectable() answers
+    std::shared_ptr<GInProcessPeerWatch> watch_;   ///< Where the client ends are recorded, or empty
     std::shared_ptr<std::atomic<bool>> cancelled_; ///< The flag of the last attempt
 };
 

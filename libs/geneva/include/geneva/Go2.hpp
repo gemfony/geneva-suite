@@ -167,8 +167,7 @@ public:
      *  selection. Used to plug in a custom consumer (e.g. a GPU consumer) that Go2 does not know how to
      *  build itself; it becomes the process's single consumer that every algorithm submits through. Call
      *  after construction and before optimize(). */
-    void registerConsumer(
-        std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
+    void registerConsumer(std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer);
 
     /** @brief The consumer this run submits through, on the submitting process: the one given to
      *  registerConsumer(), or the one of the chosen mnemonic, which is built here if the run has
@@ -215,7 +214,7 @@ public:
      * @brief Allows to register a content creator (a factory producing the individuals to be optimized).
      */
     void
-        registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr);
+    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr);
 
     /**
      * @brief @return The registered content-creator factory (compiled-in or loaded from a plugin), or an
@@ -395,8 +394,7 @@ private:
     /**
      * @brief Retrieves a list of the globally best individuals found.
      */
-    std::vector<std::unique_ptr<gen::GGenome>>
-    getBestGlobalIndividuals_() const final;
+    std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
     /**
      * @brief Retrieves the best individual found in the current iteration.
      */
@@ -404,8 +402,7 @@ private:
     /**
      * @brief Retrieves a list of the best individuals found in the current iteration.
      */
-    std::vector<std::unique_ptr<gen::GGenome>>
-    getBestIterationIndividuals_() const final;
+    std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
 
     /**
      * @brief Returns one-word information about the type of optimization algorithm.

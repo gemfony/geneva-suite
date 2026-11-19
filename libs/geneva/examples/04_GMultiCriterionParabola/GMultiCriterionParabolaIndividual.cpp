@@ -34,9 +34,9 @@
 #include "GMultiCriterionParabolaIndividual.hpp"
 
 #include "geneva/genome/GProblemStoreT.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GMultiCriterionParabolaIndividual) // NOLINT
 
@@ -89,25 +89,40 @@ std::vector<double> GMultiCriterionParabolaIndividual::evaluate() {
  * Registers the config-file options (parabola bounds and the list of minima), binding them to the
  * passed Config.
  */
-void GMultiCriterionParabolaIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
+void GMultiCriterionParabolaIndividual::describeConfig(
+    Gem::Common::GParserBuilder &gpb,
+    Config &c
+) {
     std::string comment;
 
     comment = "";
     comment += "The lower boundary of the parabola;";
     gpb.registerFileParameter<double>(
-        "par_min", c.par_min, c.par_min, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "par_min",
+        c.par_min,
+        c.par_min,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "The upper boundary of the parabola;";
     gpb.registerFileParameter<double>(
-        "par_max", c.par_max, c.par_max, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "par_max",
+        c.par_max,
+        c.par_max,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 
     comment = "";
     comment += "A list of optima, encoded as a string;";
     gpb.registerFileParameter<std::string>(
-        "minima", c.minima, c.minima, Gem::Common::VAR_IS_ESSENTIAL, comment
+        "minima",
+        c.minima,
+        c.minima,
+        Gem::Common::VAR_IS_ESSENTIAL,
+        comment
     );
 }
 
@@ -161,11 +176,21 @@ void GMultiCriterionParabolaIndividual::applyConfig(
  * @return A shared pointer to the populated OA-owned adaption config
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GMultiCriterionParabolaIndividual::buildAdaptionConfig(const gen::GGenome &sample, [[maybe_unused]] const Config &c) {
-    auto cfg = OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(sample);
+GMultiCriterionParabolaIndividual::buildAdaptionConfig(
+    const gen::GGenome &sample,
+    [[maybe_unused]] const Config &c
+) {
+    auto cfg =
+        OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(
+            sample
+        );
     for(std::size_t npar = 0; npar < cfg->doubleGroups().size(); npar++) {
         cfg->groupDouble(npar).gauss(
-            DEFAULTSIGMA, DEFAULTSIGMASIGMA, DEFAULTMINSIGMA, DEFAULTMAXSIGMA, DEFAULTADPROB
+            DEFAULTSIGMA,
+            DEFAULTSIGMASIGMA,
+            DEFAULTMINSIGMA,
+            DEFAULTMAXSIGMA,
+            DEFAULTADPROB
         );
     }
     return cfg;

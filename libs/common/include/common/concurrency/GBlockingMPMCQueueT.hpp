@@ -45,7 +45,7 @@
 #include <utility>
 
 // Geneva headers go here
-#include "common/GCommonEnums.hpp"   // for DEFAULTBUFFERSIZE
+#include "common/GCommonEnums.hpp" // for DEFAULTBUFFERSIZE
 
 namespace Gem::Common::Concurrency {
 
@@ -123,7 +123,8 @@ public:
             close();
             std::scoped_lock const lock(mutex_);
             container_.clear();
-        } catch(...) { // NOLINT(bugprone-empty-catch) — a destructor must not throw
+        }
+        catch(...) { // NOLINT(bugprone-empty-catch) — a destructor must not throw
         }
     }
 
@@ -197,9 +198,9 @@ public:
     push_wait(U &&item, std::chrono::duration<rep_type, period_type> const &timeout) {
         {
             std::unique_lock lock(mutex_);
-            if(not not_full_.wait_for(
-                   lock, timeout, [this]() -> bool { return closed_ || not full_unlocked(); }
-               )) {
+            if(not not_full_.wait_for(lock, timeout, [this]() -> bool {
+                   return closed_ || not full_unlocked();
+               })) {
                 return false; // timed out with no space
             }
             if(closed_) {
@@ -275,9 +276,9 @@ public:
         std::optional<T> result;
         {
             std::unique_lock lock(mutex_);
-            if(not not_empty_.wait_for(
-                   lock, timeout, [this]() -> bool { return closed_ || not container_.empty(); }
-               )) {
+            if(not not_empty_.wait_for(lock, timeout, [this]() -> bool {
+                   return closed_ || not container_.empty();
+               })) {
                 return std::nullopt; // timed out with no item
             }
             if(not container_.empty()) {
@@ -370,11 +371,11 @@ private:
     }
 
     /*************************************************************************/
-    mutable std::mutex mutex_;            ///< Guards container_ and closed_
-    std::condition_variable not_empty_;   ///< Signalled when an item becomes available
-    std::condition_variable not_full_;    ///< Signalled when space becomes available
-    container_type container_;            ///< The actual data store (FIFO: push front, pop back)
-    bool closed_ = false;                 ///< Set by close(); terminal
+    mutable std::mutex mutex_;          ///< Guards container_ and closed_
+    std::condition_variable not_empty_; ///< Signalled when an item becomes available
+    std::condition_variable not_full_;  ///< Signalled when space becomes available
+    container_type container_;          ///< The actual data store (FIFO: push front, pop back)
+    bool closed_ = false;               ///< Set by close(); terminal
 };
 
 /******************************************************************************/

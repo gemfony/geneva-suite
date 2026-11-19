@@ -96,9 +96,8 @@ int main(int argc, char **argv) {
         << GFILE;
 
     // Output to registered logging targets with a given extension
-    glogger(std::string("extension"))
-        << "And yet another information " << 9 << " " << 10 << '\n'
-        << GLOGGING;
+    glogger(std::string("extension")) << "And yet another information " << 9 << " " << 10 << '\n'
+                                      << GLOGGING;
 
     // Output to stdout
     glogger << "std::out-information" << '\n' << GSTDOUT;

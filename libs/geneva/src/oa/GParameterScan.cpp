@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/oa/GParameterScan.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -37,10 +36,11 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
+#include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
-#include "geneva/genome/GParameterPropertyParser.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -52,10 +52,10 @@
 #include <utility>
 #include <vector>
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GBScanPar) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GBScanPar)     // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GInt32ScanPar) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GDScanPar) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GFScanPar) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GDScanPar)     // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GFScanPar)     // NOLINT
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GParameterScan) // NOLINT
 
@@ -77,10 +77,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  */
 template <>
 std::vector<bool> fillWithData<bool>(
-    [[maybe_unused]] std::size_t n_steps
-    ,
-    [[maybe_unused]] bool lower
-    ,
+    [[maybe_unused]] std::size_t n_steps,
+    [[maybe_unused]] bool lower,
     [[maybe_unused]] bool upper
 ) {
     std::vector<bool> result;
@@ -105,8 +103,7 @@ std::vector<bool> fillWithData<bool>(
  */
 template <>
 std::vector<std::int32_t> fillWithData<std::int32_t>(
-    std::size_t n_steps
-    ,
+    std::size_t n_steps,
     std::int32_t lower,
     std::int32_t upper // inclusive
 ) {
@@ -123,8 +120,8 @@ std::vector<std::int32_t> fillWithData<std::int32_t>(
 
     for(std::size_t i = 0; i < n_steps; i++) {
         const double v = static_cast<double>(lower) +
-            (static_cast<double>(upper - lower) * static_cast<double>(i) /
-                static_cast<double>(n_steps - 1));
+                         (static_cast<double>(upper - lower) * static_cast<double>(i) /
+                          static_cast<double>(n_steps - 1));
         result.push_back(static_cast<std::int32_t>(std::llround(v)));
     }
 
@@ -154,7 +151,9 @@ std::vector<float> fillWithData<float>(std::size_t n_steps, float lower, float u
     }
 
     for(std::size_t i = 0; i < n_steps; i++) {
-        result.push_back(lower + ((upper - lower) * static_cast<float>(i) / static_cast<float>(n_steps - 1)));
+        result.push_back(
+            lower + ((upper - lower) * static_cast<float>(i) / static_cast<float>(n_steps - 1))
+        );
     }
 
     return result;
@@ -183,7 +182,9 @@ std::vector<double> fillWithData<double>(std::size_t n_steps, double lower, doub
     }
 
     for(std::size_t i = 0; i < n_steps; i++) {
-        result.push_back(lower + ((upper - lower) * static_cast<double>(i) / static_cast<double>(n_steps - 1)));
+        result.push_back(
+            lower + ((upper - lower) * static_cast<double>(i) / static_cast<double>(n_steps - 1))
+        );
     }
 
     return result;
@@ -343,8 +344,7 @@ std::tuple<double, double> GParameterScan::cycleLogic_() {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterScan::cycleLogic(): Error!" << '\n'
-                << "Individual in position " << (it - this->begin()) << " is not processed"
-                << '\n'
+                << "Individual in position " << (it - this->begin()) << " is not processed" << '\n'
             );
         }
 #endif
@@ -535,10 +535,14 @@ void GParameterScan::randomInitPopulation() {
  * @brief Resets all parameter objects (booleans, integers, floats and doubles) to their start position.
  */
 void GParameterScan::resetParameterObjects() {
-    for(auto &p : b_cnt_)     p->resetPosition();
-    for(auto &p : int32_cnt_) p->resetPosition();
-    for(auto &p : f_cnt_)     p->resetPosition();
-    for(auto &p : d_cnt_)     p->resetPosition();
+    for(auto &p : b_cnt_)
+        p->resetPosition();
+    for(auto &p : int32_cnt_)
+        p->resetPosition();
+    for(auto &p : f_cnt_)
+        p->resetPosition();
+    for(auto &p : d_cnt_)
+        p->resetPosition();
     // simple_scan_items_ is NOT reset here: it is set by the user via setNSimpleScans()
     // and must survive across resetParameterObjects() calls within a single optimize() run.
 }
@@ -737,7 +741,7 @@ void GParameterScan::evaluatePopulation_() {
  * @param par_str A specification string describing the parameters to scan (e.g. "d(0, -10., 10., 100)"),
  *                or a simple-scan request; must not be empty
  */
-void GParameterScan::setParameterSpecs(const std::string& par_str) {
+void GParameterScan::setParameterSpecs(const std::string &par_str) {
     // Check that the parameter string isn't empty
     if(par_str.empty()) {
         throw geneva_exception(
@@ -799,9 +803,7 @@ void GParameterScan::setParameterSpecs(const std::string& par_str) {
         auto i_end = std::get<1>(t_i);
         for(; i_cit != i_end;
             ++i_cit) { // Note: i_cit is already set to the begin of the double parameter arrays
-            int32_cnt_.push_back(
-                std::make_shared<GInt32ScanPar>(*i_cit, scan_randomly_)
-            );
+            int32_cnt_.push_back(std::make_shared<GInt32ScanPar>(*i_cit, scan_randomly_));
         }
 
         // Retrieve boolean parameters
@@ -953,8 +955,7 @@ void GParameterScan::adjustPopulation_() {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParameterScan::adjustPopulation(): Error!" << '\n'
-            << "You didn't add any individuals to the collection. We need at least one."
-            << '\n'
+            << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
 

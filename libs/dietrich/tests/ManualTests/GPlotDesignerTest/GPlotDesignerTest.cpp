@@ -118,7 +118,11 @@ std::shared_ptr<GGraph3D> projectedSurface(surfaceProjection where, const std::s
     path->setDrawLines(true);
     for(std::size_t k = 0; k < 20; ++k) {
         double const t = static_cast<double>(k) / 19.;
-        (*path) & std::tuple<double, double, double>(1.8 * (1. - t) * std::cos(6. * t), 1.8 * (1. - t) * std::sin(6. * t), plane);
+        (*path) & std::tuple<double, double, double>(
+                      1.8 * (1. - t) * std::cos(6. * t),
+                      1.8 * (1. - t) * std::sin(6. * t),
+                      plane
+                  );
     }
     surface->registerSecondaryPlotter(path);
     return surface;
@@ -128,14 +132,8 @@ std::shared_ptr<GGraph3D> projectedSurface(surfaceProjection where, const std::s
 
 // NOLINTNEXTLINE(readability-function-size) -- single demo main driving the ROOT/gnuplot/matplotlib backends end to end with the same graph/histogram/function data
 int main(int argc, char **argv) {
-    std::tuple<double, double> const minMaxX(
-        -std::numbers::pi,
-        std::numbers::pi
-    );
-    std::tuple<double, double> const minMaxY(
-        -std::numbers::pi,
-        std::numbers::pi
-    );
+    std::tuple<double, double> const minMaxX(-std::numbers::pi, std::numbers::pi);
+    std::tuple<double, double> const minMaxY(-std::numbers::pi, std::numbers::pi);
 
     std::shared_ptr<GGraph2D> const gsin_ptr(new GGraph2D());
     gsin_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
@@ -154,8 +152,7 @@ int main(int argc, char **argv) {
     gsin_ptr->registerSecondaryPlotter(gcos_ptr_2);
 
     for(std::size_t i = 0; i < 1000; i++) {
-        double const x = 2 * std::numbers::pi * static_cast<double>(i) / 1000. -
-                   std::numbers::pi;
+        double const x = 2 * std::numbers::pi * static_cast<double>(i) / 1000. - std::numbers::pi;
 
         (*gsin_ptr) & std::tuple<double, double>(x, sin(x));
         (*gcos_ptr) & std::tuple<double, double>(x, cos(x));
@@ -205,21 +202,26 @@ int main(int argc, char **argv) {
     gpd.registerPlotter(noisyParabola_plotter_2D_ptr);
     // The floor projection's legend is placed in a corner: its labels are longer than the box is
     // wide at the fixed text size of a placed legend, so ROOT must draw them smaller.
-    auto floor_projection = projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor");
+    auto floor_projection =
+        projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor");
     floor_projection->setLegendPosition(legendPosition::TOP_LEFT);
     gpd.registerPlotter(floor_projection);
-    gpd.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling"));
+    gpd.registerPlotter(
+        projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling")
+    );
     gpd.registerPlotter(decadesGraph("a power law with logarithmic axes"));
     // Labels too long for a legend: on a 3-d pad with a palette, where the band may grow only to
     // the palette, and in a 2-d corner, where even the grown box is too narrow for the label.
     {
         auto surface = projectedSurface(surfaceProjection::FLOOR, "a surface");
         surface->secondaryPlotters().front()->setPlotLabel(
-            "a path whose label is far too long for the band at the top left of the pad");
+            "a path whose label is far too long for the band at the top left of the pad"
+        );
         gpd.registerPlotter(surface);
         auto power = decadesGraph(
             "a power law whose label is longer than any legend box can be, so that it has to be "
-            "shortened at its end, marked with three dots");
+            "shortened at its end, marked with three dots"
+        );
         power->setLegendPosition(legendPosition::TOP_LEFT);
         gpd.registerPlotter(power);
         // Two labelled 4-d graphs of different ranges in one pad: one frame for both, a marker
@@ -299,16 +301,19 @@ int main(int argc, char **argv) {
         (*gp_cos_ptr) & std::tuple<double, double>(x, std::cos(x));
 
         double const t = 4 * std::numbers::pi * static_cast<double>(i) / 200.;
-        (*gp_helix_ptr) &
-            std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
+        (*gp_helix_ptr) & std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
     GPlotDesigner gpd_gnuplot("Graphs through gnuplot", 2, 3);
     gpd_gnuplot.setPlotBackend(Gem::Dietrich::plotBackend::GNUPLOT);
     gpd_gnuplot.registerPlotter(gp_sin_ptr);
     gpd_gnuplot.registerPlotter(gp_helix_ptr);
-    gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, gnuplot"));
-    gpd_gnuplot.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, gnuplot"));
+    gpd_gnuplot.registerPlotter(
+        projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, gnuplot")
+    );
+    gpd_gnuplot.registerPlotter(
+        projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, gnuplot")
+    );
     // A pad with logarithmic axes, and a linear one after it: the scale must not carry over.
     gpd_gnuplot.registerPlotter(decadesGraph("a power law with logarithmic axes, gnuplot"));
     gpd_gnuplot.registerPlotter(gp_cos_ptr);
@@ -343,8 +348,7 @@ int main(int argc, char **argv) {
         (*mpl_cos_ptr) & std::tuple<double, double>(x, std::cos(x));
 
         double const t = 4 * std::numbers::pi * static_cast<double>(i) / 200.;
-        (*mpl_helix_ptr) &
-            std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
+        (*mpl_helix_ptr) & std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
     // Histograms are a matplotlib strength (and a gnuplot gap): a 1-d and a 2-d
@@ -384,7 +388,9 @@ int main(int argc, char **argv) {
     gpd_mpl.registerPlotter(mpl_hist1d_ptr);
     gpd_mpl.registerPlotter(mpl_hist2d_ptr);
     gpd_mpl.registerPlotter(mpl_hist1i_ptr);
-    gpd_mpl.registerPlotter(projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, matplotlib"));
+    gpd_mpl.registerPlotter(
+        projectedSurface(surfaceProjection::FLOOR, "a surface, its map on the floor, matplotlib")
+    );
     gpd_mpl.registerPlotter(decadesGraph("a power law with logarithmic axes, matplotlib"));
     gpd_mpl.writeToFile("result.py");
 
@@ -417,8 +423,7 @@ int main(int argc, char **argv) {
         (*oct_cos_ptr) & std::tuple<double, double>(x, std::cos(x));
 
         double const t = 4 * std::numbers::pi * static_cast<double>(i) / 200.;
-        (*oct_helix_ptr) &
-            std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
+        (*oct_helix_ptr) & std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
     std::shared_ptr<GHistogram1D> const oct_hist1d_ptr(new GHistogram1D(20, -4.0, 4.0));
@@ -453,7 +458,9 @@ int main(int argc, char **argv) {
     gpd_oct.registerPlotter(oct_hist1d_ptr);
     gpd_oct.registerPlotter(oct_hist2d_ptr);
     gpd_oct.registerPlotter(oct_hist1i_ptr);
-    gpd_oct.registerPlotter(projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave"));
+    gpd_oct.registerPlotter(
+        projectedSurface(surfaceProjection::CEILING, "a surface, its map on the ceiling, Octave")
+    );
     gpd_oct.registerPlotter(decadesGraph("a power law with logarithmic axes, Octave"));
     // A labelled map without its surface under unlabelled points: the map is the legend's only
     // entry, a filled sample, which must reach Octave's key.
@@ -479,8 +486,8 @@ int main(int argc, char **argv) {
     data_g2d_ptr->setXAxisLabel("x");
     data_g2d_ptr->setYAxisLabel("y");
     for(std::size_t i = 0; i < 5; i++) {
-        const double x = static_cast<double>(i);          // 0,1,2,3,4 -- exact in float64
-        const double y = static_cast<double>(i) * 0.5;     // 0,0.5,1,1.5,2 -- exact in float64
+        const double x = static_cast<double>(i);       // 0,1,2,3,4 -- exact in float64
+        const double y = static_cast<double>(i) * 0.5; // 0,0.5,1,1.5,2 -- exact in float64
         (*data_g2d_ptr) & std::tuple<double, double>(x, y);
     }
 
@@ -562,7 +569,8 @@ int main(int argc, char **argv) {
         full_g4d->setPlotLabel("g4d");
         for(std::size_t i = 0; i < 20; i++) {
             const double t = static_cast<double>(i) * 0.5;
-            (*full_g4d) & std::tuple<double, double, double, double>(std::sin(t), std::cos(t), t, t * t);
+            (*full_g4d) &
+                std::tuple<double, double, double, double>(std::sin(t), std::cos(t), t, t * t);
         }
 
         auto full_h1d = std::make_shared<GHistogram1D>(15, -4.0, 4.0);

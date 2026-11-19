@@ -46,10 +46,10 @@
 
 #include "courtier/GCourtierEnums.hpp" // processingStatus
 #include "geneva/GFaultInjector.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
@@ -61,7 +61,8 @@ namespace Gem::Tests {
 /** A minimal flat individual: a sphere over a single double group. Fresh instances are DO_PROCESS. */
 class FISphere : public GGenomeT<FISphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     FISphere() {
         GGenomeBuilder b;
@@ -75,7 +76,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -89,7 +93,9 @@ private:
 /** @brief An injector that always requests the given fault. */
 class ConstantInjector : public GFaultInjector {
 public:
-    explicit ConstantInjector(Fault fault) : fault_(fault) {}
+    explicit ConstantInjector(Fault fault)
+      : fault_(fault) {
+    }
     Fault evaluate(const GGenome & /*item*/, Gem::Hap::GRandomBase & /*gr*/) override {
         return fault_;
     }
@@ -130,7 +136,9 @@ TEST_CASE("fault injector: a THROW fault surfaces as EXCEPTION_CAUGHT", "[faulti
 
 /******************************************************************************/
 TEST_CASE("fault injector: a FLAG_ERROR fault surfaces as ERROR_FLAGGED", "[faultinj]") {
-    GFaultInjectorRegistry::set(std::make_unique<ConstantInjector>(GFaultInjector::Fault::FLAG_ERROR));
+    GFaultInjectorRegistry::set(
+        std::make_unique<ConstantInjector>(GFaultInjector::Fault::FLAG_ERROR)
+    );
 
     FISphere ind;
     REQUIRE(ind.is_due_for_processing());

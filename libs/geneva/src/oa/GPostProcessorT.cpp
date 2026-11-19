@@ -28,28 +28,28 @@
  ********************************************************************************/
 
 #include "geneva/oa/GPostProcessorT.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GSerializableFunctionObjectT.hpp"
 #include "common/concurrency/GThreadPool.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
-#include <atomic>
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include <atomic>
 #include <memory>
 #include <string>
 
 // Registration of GEvolutionaryAlgorithmPostOptimizer for the GArchive codecs: the concrete type is
 // registered once, in this translation unit.
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GEvolutionaryAlgorithmPostOptimizer)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GEvolutionaryAlgorithmPostOptimizer) // NOLINT
 
 namespace Gem::Geneva {
 

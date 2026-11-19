@@ -67,23 +67,25 @@ namespace Gem::Geneva::Genome {
 /** @brief Static, shared Gauss-adaption configuration for one group of parameters. */
 template <typename T>
 struct GaussConfig {
-    T sigma_sigma = T(0.8);                   ///< the log-normal self-adaption rate of sigma
-    T min_sigma = T(0.001);                   ///< the lower bound of sigma
-    T max_sigma = T(2.);                      ///< the upper bound of sigma
-    T min_ad_prob = T(0.);                    ///< the lower bound of the adaption probability
-    T max_ad_prob = T(1.);                    ///< the upper bound of the adaption probability
-    T adapt_ad_prob = T(0.);                  ///< the self-adaption rate of the adaption probability (0 disables)
-    T adapt_sigma_prob = T(0.);               ///< probability of a sigma self-adaption when adaption_threshold == 0
-    std::uint32_t adaption_threshold = 1;     ///< sigma self-adapts every Nth adaption (0 ⇒ use adapt_sigma_prob)
+    T sigma_sigma = T(0.8);  ///< the log-normal self-adaption rate of sigma
+    T min_sigma = T(0.001);  ///< the lower bound of sigma
+    T max_sigma = T(2.);     ///< the upper bound of sigma
+    T min_ad_prob = T(0.);   ///< the lower bound of the adaption probability
+    T max_ad_prob = T(1.);   ///< the upper bound of the adaption probability
+    T adapt_ad_prob = T(0.); ///< the self-adaption rate of the adaption probability (0 disables)
+    T adapt_sigma_prob =
+        T(0.); ///< probability of a sigma self-adaption when adaption_threshold == 0
+    std::uint32_t adaption_threshold =
+        1; ///< sigma self-adapts every Nth adaption (0 ⇒ use adapt_sigma_prob)
     adaptionMode mode = adaptionMode::WITHPROBABILITY; ///< always / with-probability / never
 };
 
 /** @brief Per-individual, per-group evolving Gauss state. POD: standard-layout, trivially copyable. */
 template <typename T>
 struct GaussState {
-    T sigma = T(1.);                          ///< the current mutation width
-    T ad_prob = T(1.);                        ///< the current adaption probability
-    std::uint32_t counter = 0;                ///< adaptions since the last sigma self-adaption
+    T sigma = T(1.);           ///< the current mutation width
+    T ad_prob = T(1.);         ///< the current adaption probability
+    std::uint32_t counter = 0; ///< adaptions since the last sigma self-adaption
 };
 
 /******************************************************************************/
@@ -176,8 +178,8 @@ std::size_t adaptGaussGroupImpl(
         const T delta = vsDelta(normal, gr, st.sigma);
         v = before + delta;
         if(v == before) {
-            const T dir = (delta < T(0.)) ? std::numeric_limits<T>::lowest()
-                                          : std::numeric_limits<T>::max();
+            const T dir =
+                (delta < T(0.)) ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
             v = std::nextafter(before, dir);
         }
     };
@@ -224,7 +226,10 @@ std::size_t adaptGaussGroup(
 ) {
     using n_param = typename Gem::Hap::g_normal_distribution<T>::param_type;
     return adaptGaussGroupImpl<T>(
-        cfg, st, values, gr,
+        cfg,
+        st,
+        values,
+        gr,
         [](Gem::Hap::g_normal_distribution<T> &normal, Gem::Hap::GRandomBase &g, T sigma) {
             return normal(g, n_param(T(0.), sigma));
         }
@@ -360,15 +365,15 @@ inline std::size_t adaptGaussIntGroup(
 
 /** @brief Static, shared flip-adaption configuration for one group of int32 / bool parameters. */
 struct FlipConfig {
-    double min_ad_prob = 0.;                  ///< the lower bound of the adaption probability
-    double max_ad_prob = 1.;                  ///< the upper bound of the adaption probability
-    double adapt_ad_prob = 0.;                ///< the self-adaption rate of the adaption probability (0 disables)
+    double min_ad_prob = 0.;   ///< the lower bound of the adaption probability
+    double max_ad_prob = 1.;   ///< the upper bound of the adaption probability
+    double adapt_ad_prob = 0.; ///< the self-adaption rate of the adaption probability (0 disables)
     adaptionMode mode = adaptionMode::WITHPROBABILITY; ///< always / with-probability / never
 };
 
 /** @brief Per-individual, per-group evolving flip state. POD: standard-layout, trivially copyable. */
 struct FlipState {
-    double ad_prob = 1.;                       ///< the current adaption probability
+    double ad_prob = 1.; ///< the current adaption probability
 };
 
 /**
@@ -467,7 +472,9 @@ inline std::size_t adaptFlipBoolGroup(
     selfAdaptFlipAdProb(cfg, st, gr);
 
     // The value step: a plain toggle (matches GBooleanAdaptor::customAdaptions); no RNG draw.
-    auto toggle = [](std::uint8_t &v) { v = v ? static_cast<std::uint8_t>(0) : static_cast<std::uint8_t>(1); };
+    auto toggle = [](std::uint8_t &v) {
+        v = v ? static_cast<std::uint8_t>(0) : static_cast<std::uint8_t>(1);
+    };
 
     std::size_t n_adapted = 0;
     if(adaptionMode::WITHPROBABILITY == cfg.mode) {
@@ -502,32 +509,34 @@ inline std::size_t adaptFlipBoolGroup(
 /** @brief Static, shared bi-gaussian configuration for one group of FP parameters. */
 template <typename T>
 struct BiGaussConfig {
-    T sigma_sigma1 = T(0.8);                   ///< the log-normal self-adaption rate of sigma1
-    T sigma_sigma2 = T(0.8);                   ///< the log-normal self-adaption rate of sigma2
-    T sigma_delta = T(0.8);                    ///< the log-normal self-adaption rate of delta
-    T min_sigma1 = T(0.001);                   ///< the lower bound of sigma1
-    T max_sigma1 = T(2.);                      ///< the upper bound of sigma1
-    T min_sigma2 = T(0.001);                   ///< the lower bound of sigma2
-    T max_sigma2 = T(2.);                      ///< the upper bound of sigma2
-    T min_delta = T(0.);                       ///< the lower bound of delta
-    T max_delta = T(2.);                       ///< the upper bound of delta
-    T min_ad_prob = T(0.);                     ///< the lower bound of the adaption probability
-    T max_ad_prob = T(1.);                     ///< the upper bound of the adaption probability
-    T adapt_ad_prob = T(0.);                   ///< the self-adaption rate of the adaption probability (0 disables)
-    T adapt_sigma_prob = T(0.);                ///< probability of a sigma self-adaption when adaption_threshold == 0
-    std::uint32_t adaption_threshold = 1;      ///< sigmas/delta self-adapt every Nth adaption (0 ⇒ use adapt_sigma_prob)
-    bool use_symmetric_sigmas = true;          ///< whether the value step uses sigma1 for both gaussians
+    T sigma_sigma1 = T(0.8); ///< the log-normal self-adaption rate of sigma1
+    T sigma_sigma2 = T(0.8); ///< the log-normal self-adaption rate of sigma2
+    T sigma_delta = T(0.8);  ///< the log-normal self-adaption rate of delta
+    T min_sigma1 = T(0.001); ///< the lower bound of sigma1
+    T max_sigma1 = T(2.);    ///< the upper bound of sigma1
+    T min_sigma2 = T(0.001); ///< the lower bound of sigma2
+    T max_sigma2 = T(2.);    ///< the upper bound of sigma2
+    T min_delta = T(0.);     ///< the lower bound of delta
+    T max_delta = T(2.);     ///< the upper bound of delta
+    T min_ad_prob = T(0.);   ///< the lower bound of the adaption probability
+    T max_ad_prob = T(1.);   ///< the upper bound of the adaption probability
+    T adapt_ad_prob = T(0.); ///< the self-adaption rate of the adaption probability (0 disables)
+    T adapt_sigma_prob =
+        T(0.); ///< probability of a sigma self-adaption when adaption_threshold == 0
+    std::uint32_t adaption_threshold =
+        1; ///< sigmas/delta self-adapt every Nth adaption (0 ⇒ use adapt_sigma_prob)
+    bool use_symmetric_sigmas = true; ///< whether the value step uses sigma1 for both gaussians
     adaptionMode mode = adaptionMode::WITHPROBABILITY; ///< always / with-probability / never
 };
 
 /** @brief Per-individual, per-group evolving bi-gaussian state. POD: trivially copyable. */
 template <typename T>
 struct BiGaussState {
-    T sigma1 = T(1.);                          ///< the current width of the first gaussian
-    T sigma2 = T(1.);                          ///< the current width of the second gaussian
-    T delta = T(0.5);                          ///< the current distance between the two gaussians
-    T ad_prob = T(1.);                         ///< the current adaption probability
-    std::uint32_t counter = 0;                 ///< adaptions since the last sigma self-adaption
+    T sigma1 = T(1.);          ///< the current width of the first gaussian
+    T sigma2 = T(1.);          ///< the current width of the second gaussian
+    T delta = T(0.5);          ///< the current distance between the two gaussians
+    T ad_prob = T(1.);         ///< the current adaption probability
+    std::uint32_t counter = 0; ///< adaptions since the last sigma self-adaption
 };
 
 /**
@@ -576,9 +585,24 @@ std::size_t adaptBiGaussGroup(
         st.sigma1 *= std::exp(normal(gr, n_param(T(0.), std::abs(cfg.sigma_sigma1))));
         st.sigma2 *= std::exp(normal(gr, n_param(T(0.), std::abs(cfg.sigma_sigma2))));
         st.delta *= std::exp(normal(gr, n_param(T(0.), std::abs(cfg.sigma_delta))));
-        Gem::Common::enforceRangeConstraint<T>(st.sigma1, cfg.min_sigma1, cfg.max_sigma1, "adaptBiGaussGroup() / sigma1");
-        Gem::Common::enforceRangeConstraint<T>(st.sigma2, cfg.min_sigma2, cfg.max_sigma2, "adaptBiGaussGroup() / sigma2");
-        Gem::Common::enforceRangeConstraint<T>(st.delta, cfg.min_delta, cfg.max_delta, "adaptBiGaussGroup() / delta");
+        Gem::Common::enforceRangeConstraint<T>(
+            st.sigma1,
+            cfg.min_sigma1,
+            cfg.max_sigma1,
+            "adaptBiGaussGroup() / sigma1"
+        );
+        Gem::Common::enforceRangeConstraint<T>(
+            st.sigma2,
+            cfg.min_sigma2,
+            cfg.max_sigma2,
+            "adaptBiGaussGroup() / sigma2"
+        );
+        Gem::Common::enforceRangeConstraint<T>(
+            st.delta,
+            cfg.min_delta,
+            cfg.max_delta,
+            "adaptBiGaussGroup() / delta"
+        );
     };
 
     // The sigma self-adaption trigger, mirroring GAdaptorT::adaptAdaption.

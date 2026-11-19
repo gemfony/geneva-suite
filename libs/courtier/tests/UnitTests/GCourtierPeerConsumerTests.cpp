@@ -57,12 +57,12 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/post.hpp>
 
+#include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GInProcessTestSupport.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp"
@@ -110,7 +110,12 @@ public:
 
     /** @brief @param listener The listener the shell owns @param n_threads The session threads */
     Shell(std::unique_ptr<Gem::Courtier::Consumers::GListenerI> listener, std::size_t n_threads)
-      : Gem::Courtier::GPeerConsumerT<GFaultyContainer>("Shell", std::move(listener), n_threads, BIN) {
+      : Gem::Courtier::GPeerConsumerT<GFaultyContainer>(
+            "Shell",
+            std::move(listener),
+            n_threads,
+            BIN
+        ) {
         // No time limit (the default): a lost item must come back through the session's lease.
     }
 };
@@ -309,9 +314,8 @@ TEST_CASE(
 ) {
     constexpr std::size_t N_PARKED = 20;
     constexpr std::size_t N_IDLE = 20;
-    auto listener = std::make_shared<GInProcessListener>(
-        GInProcessListener::Options{.stopGrace = 3s}
-    );
+    auto listener =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.stopGrace = 3s});
     // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
     IoThreads clients;
@@ -357,9 +361,8 @@ TEST_CASE(
     "[courtier][peer][shell]"
 ) {
     SECTION("a client that has said nothing is not counted; one that has ended is no longer") {
-        auto listener = std::make_shared<GInProcessListener>(
-            GInProcessListener::Options{.stopGrace = 300ms}
-        );
+        auto listener =
+            std::make_shared<GInProcessListener>(GInProcessListener::Options{.stopGrace = 300ms});
         GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
         IoThreads clients;
         auto silent = std::make_shared<ScriptedClient>(0, true);
@@ -513,8 +516,8 @@ namespace {
 struct StartHold {
     std::mutex mutex;
     std::condition_variable changed;
-    bool entered = false;    ///< A start() is held (under mutex)
-    bool closeSeen = false;  ///< A close() has arrived (under mutex)
+    bool entered = false;   ///< A start() is held (under mutex)
+    bool closeSeen = false; ///< A close() has arrived (under mutex)
     std::optional<std::chrono::steady_clock::time_point> stopAt; ///< stop() of the listener
     std::atomic<std::size_t> closesBeforeStart{0}; ///< close() calls before start() had returned
 
@@ -573,10 +576,9 @@ public:
             inner->start(
                 GPeerHandlers{
                     .onOpen = std::move(handlers.onOpen),
-                    .onMessage =
-                        [self, on_message = std::move(handlers.onMessage)](
-                            std::string &&message
-                        ) mutable { on_message(std::move(message)); },
+                    .onMessage = [self, on_message = std::move(handlers.onMessage)](
+                                     std::string &&message
+                                 ) mutable { on_message(std::move(message)); },
                     .onClosed = std::move(handlers.onClosed),
                 }
             );
@@ -670,22 +672,17 @@ TEST_CASE(
     constexpr auto STOP_GRACE = 1500ms;
     // The listener's own wait for the calls of on_peer gives up before the start() is let go: the
     // order of start and sign-on alone keeps rule 2 then.
-    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{
-        .stopGrace = STOP_GRACE,
-        .stopBound = 100ms
-    });
+    auto listener = std::make_shared<GInProcessListener>(
+        GInProcessListener::Options{.stopGrace = STOP_GRACE, .stopBound = 100ms}
+    );
     auto hold = std::make_shared<StartHold>();
     // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
     IoThreads clients;
     auto role = std::make_shared<ScriptedClient>(0, true);
     {
-        Gem::Courtier::GPeerConsumerT<GFaultyContainer> shell{
-            "Shell",
-            std::make_unique<HeldStartListener>(listener, hold),
-            2,
-            BIN
-        };
+        Gem::Courtier::GPeerConsumerT<GFaultyContainer>
+            shell{"Shell", std::make_unique<HeldStartListener>(listener, hold), 2, BIN};
         shell.startServer();
         role->connect(connector, clients.executor());
         REQUIRE(eventually([&] { return hold->wasEntered(); }));
@@ -711,9 +708,8 @@ TEST_CASE(
     "[courtier][peer][shell]"
 ) {
     constexpr auto STOP_GRACE = 3000ms;
-    auto listener = std::make_shared<GInProcessListener>(
-        GInProcessListener::Options{.stopGrace = STOP_GRACE}
-    );
+    auto listener =
+        std::make_shared<GInProcessListener>(GInProcessListener::Options{.stopGrace = STOP_GRACE});
     // The connector goes after the threads its client ends run on (GInProcessConnector)
     GInProcessConnector connector{std::make_shared<GInProcessRoute>(listener)};
     IoThreads clients;
@@ -777,11 +773,8 @@ TEST_CASE(
         policy.fatal_on_none_returned = false;
         auto clone_template = std::make_unique<GFaultyContainer>(99);
         clone_template->markAsProcessedWith({true});
-        shell.processBatch(
-            std::span(items.data(), items.size()),
-            policy,
-            std::move(clone_template)
-        );
+        shell
+            .processBatch(std::span(items.data(), items.size()), policy, std::move(clone_template));
     });
 
     auto a = std::make_shared<ScriptedClient>(1, false);
@@ -837,11 +830,8 @@ TEST_CASE(
         policy.fatal_on_none_returned = false;
         auto clone_template = std::make_unique<GFaultyContainer>(99);
         clone_template->markAsProcessedWith({true});
-        shell.processBatch(
-            std::span(items.data(), items.size()),
-            policy,
-            std::move(clone_template)
-        );
+        shell
+            .processBatch(std::span(items.data(), items.size()), policy, std::move(clone_template));
     });
     auto stranger = std::make_shared<ScriptedClient>(1, true, true);
     stranger->connect(connector, clients.executor());

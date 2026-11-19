@@ -60,9 +60,9 @@
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "weft/GArchivePolymorphic.hpp"
 
-namespace geneva = Gem::Geneva;                        // Go2 and the optimization monitors
-namespace gen = Gem::Geneva::Genome;                   // the genome and its builder
-namespace oa = Gem::Geneva::OptimizationAlgorithms;    // algorithms and their adaption
+namespace geneva = Gem::Geneva;                     // Go2 and the optimization monitors
+namespace gen = Gem::Geneva::Genome;                // the genome and its builder
+namespace oa = Gem::Geneva::OptimizationAlgorithms; // algorithms and their adaption
 
 namespace first {
 
@@ -108,6 +108,7 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
 /******************************************************************************/
 
+// clang-format off
 //! [quickstart-tour-main]
 int main(int argc, char **argv) {
     // Reads the command line and ./config/Go2.json (written with defaults if absent).
@@ -146,3 +147,4 @@ int main(int argc, char **argv) {
     return close_enough ? 0 : 1;
 }
 //! [quickstart-tour-main]
+// clang-format on

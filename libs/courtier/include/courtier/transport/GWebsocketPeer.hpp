@@ -199,15 +199,15 @@ private:
     boost::asio::steady_timer close_timer_;
     GPeerClose close_how_ = GPeerClose::NORMAL; ///< What the close says (socket's executor)
 
-    bool open_ = false; ///< The handshake has completed
-    bool closing_ = false;    ///< A close has begun, or the connection is over: nothing is queued
-    bool close_sent_ = false; ///< async_close has been issued
-    bool local_close_ = false;                 ///< This end began the close
+    bool open_ = false;        ///< The handshake has completed
+    bool closing_ = false;     ///< A close has begun, or the connection is over: nothing is queued
+    bool close_sent_ = false;  ///< async_close has been issued
+    bool local_close_ = false; ///< This end began the close
     bool close_received_ = false;              ///< The other end's close frame has arrived
-    boost::system::error_code close_error_; ///< How the close handshake ended, for the log
-    GPeerEnd end_ = GPeerEnd::FAILED;       ///< The end decided by finish_() (once finished_)
-    GPeerClose end_how_ = GPeerClose::NORMAL; ///< What the other end's close said (once finished_)
-    std::string end_detail_;                  ///< Words about the end (once finished_)
+    boost::system::error_code close_error_;    ///< How the close handshake ended, for the log
+    GPeerEnd end_ = GPeerEnd::FAILED;          ///< The end decided by finish_() (once finished_)
+    GPeerClose end_how_ = GPeerClose::NORMAL;  ///< What the other end's close said (once finished_)
+    std::string end_detail_;                   ///< Words about the end (once finished_)
     std::atomic<bool> close_requested_{false}; ///< close() was called (from any thread)
     bool finished_ = false;                    ///< The end has been decided
 

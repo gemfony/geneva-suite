@@ -32,10 +32,10 @@
  ********************************************************************************/
 
 #include "GDemoProcessingContainers.hpp"
-#include "courtier/GProcessingContainerT.hpp"
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "common/GCommonHelperFunctions.hpp"
+#include "courtier/GProcessingContainerT.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -45,7 +45,6 @@
 #include <ranges>
 #include <thread>
 #include <vector>
-
 
 namespace Gem::Courtier {
 
@@ -109,7 +108,7 @@ void GRandomNumberContainer::process_([[maybe_unused]] const std::vector<bool> &
  * @brief Prints this object's random-number container (index and value per line) to std::cout.
  */
 void GRandomNumberContainer::print() const {
-    for(auto const& [i, value] : random_numbers_ | std::views::enumerate) {
+    for(auto const &[i, value] : random_numbers_ | std::views::enumerate) {
         std::cout << i << ": " << value << '\n';
     }
 }

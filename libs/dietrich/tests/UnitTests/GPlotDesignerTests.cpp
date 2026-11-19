@@ -36,12 +36,12 @@
  * GPlotDesignerRootValidity (only when root + xvfb-run are available).
  ********************************************************************************/
 
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-#include <memory>
 #include <array>
 #include <cmath>
+#include <memory>
 #include <span>
 #include <sstream>
 #include <string>
@@ -67,9 +67,9 @@ std::string emit(const GBasePlotter &p) {
 // BUG-1: user strings must be escaped before they go into a ROOT C-string literal.
 TEST_CASE("GPlotDesigner escapes user strings in emitted ROOT literals", "[plotting]") {
     GGraph2D g;
-    g & std::tuple<double, double>(1.0, 2.0);
-    g.setXAxisLabel(std::string("a\"b"));         // an embedded double quote
-    g.setPlotLabel(std::string("line1\nline2"));   // an embedded newline
+    g &std::tuple<double, double>(1.0, 2.0);
+    g.setXAxisLabel(std::string("a\"b"));        // an embedded double quote
+    g.setPlotLabel(std::string("line1\nline2")); // an embedded newline
 
     const std::string s = emit(g);
 
@@ -85,7 +85,7 @@ TEST_CASE("GPlotDesigner escapes user strings in emitted ROOT literals", "[plott
 // default 6 significant digits, and locale-independently.
 TEST_CASE("GPlotDesigner emits full-precision coordinates", "[plotting]") {
     GGraph2D g;
-    g & std::tuple<double, double>(1.0 / 3.0, 2.0 / 3.0);
+    g &std::tuple<double, double>(1.0 / 3.0, 2.0 / 3.0);
 
     const std::string s = emit(g);
 
@@ -101,9 +101,9 @@ TEST_CASE("GPlotDesigner emits full-precision coordinates", "[plotting]") {
 TEST_CASE("GGraph3D poly-line emits every point including the first", "[plotting]") {
     GGraph3D g;
     g.setDrawLines(true);
-    g & std::tuple<double, double, double>(1., 1., 1.);
-    g & std::tuple<double, double, double>(2., 2., 2.);
-    g & std::tuple<double, double, double>(3., 3., 3.);
+    g &std::tuple<double, double, double>(1., 1., 1.);
+    g &std::tuple<double, double, double>(2., 2., 2.);
+    g &std::tuple<double, double, double>(3., 3., 3.);
 
     const std::string s = g.footerData("");
 
@@ -133,7 +133,7 @@ TEST_CASE("GGraph3D sets its axis titles after the draw command", "[plotting]") 
     g.setYAxisLabel(std::string("y_axis"));
     g.setZAxisLabel(std::string("z_axis"));
     g.setDrawingArguments(std::string("SURF2Z"));
-    g & std::tuple<double, double, double>(1., 1., 1.);
+    g &std::tuple<double, double, double>(1., 1., 1.);
 
     const std::string s = g.footerData("");
 
@@ -223,7 +223,7 @@ TEST_CASE("gnuplot backend emits a multiplot script for a GGraph2D", "[plotting]
     auto g = std::make_shared<GGraph2D>();
     (*g) & std::tuple<double, double>(1.0, 2.0);
     (*g) & std::tuple<double, double>(3.0, 4.0);
-    g->setPlotLabel(std::string("a\"b"));        // an embedded double quote (must be escaped)
+    g->setPlotLabel(std::string("a\"b")); // an embedded double quote (must be escaped)
     g->setXAxisLabel(std::string("the x axis"));
 
     GPlotDesigner gpd("gnuplot graphs", 1, 1);
@@ -291,7 +291,7 @@ TEST_CASE("matplotlib backend emits a headless plot script for a GGraph2D", "[pl
     auto g = std::make_shared<GGraph2D>();
     (*g) & std::tuple<double, double>(1.0, 2.0);
     (*g) & std::tuple<double, double>(3.0, 4.0);
-    g->setPlotLabel(std::string("a\"b"));        // an embedded double quote (must be escaped)
+    g->setPlotLabel(std::string("a\"b")); // an embedded double quote (must be escaped)
     g->setXAxisLabel(std::string("the x axis"));
 
     GPlotDesigner gpd("matplotlib graphs", 1, 1);
@@ -378,7 +378,7 @@ TEST_CASE("octave backend emits a .m script for a GGraph2D", "[plotting]") {
     auto g = std::make_shared<GGraph2D>();
     (*g) & std::tuple<double, double>(1.0, 2.0);
     (*g) & std::tuple<double, double>(3.0, 4.0);
-    g->setPlotLabel(std::string("a'b"));         // an embedded apostrophe (must be doubled)
+    g->setPlotLabel(std::string("a'b")); // an embedded apostrophe (must be doubled)
     g->setXAxisLabel(std::string("the x axis"));
 
     GPlotDesigner gpd("octave graphs", 1, 1);
@@ -481,8 +481,12 @@ TEST_CASE("data backend (CSV) emits the raw series data for a GGraph2D", "[plott
     CHECK(s.contains("# canvas: \"data csv\" c_x_div=1 c_y_div=1"));
     // The section header comment names the series, its class name, canonical plot kind,
     // (spec) role, columns and its pad / overlay placement.
-    CHECK(s.find("# series 0: \"my series\" kind=GGraph2D plotkind=graph_2d role=xy "
-                 "columns=x,y pad=0 secondary=0") != std::string::npos);
+    CHECK(
+        s.find(
+            "# series 0: \"my series\" kind=GGraph2D plotkind=graph_2d role=xy "
+            "columns=x,y pad=0 secondary=0"
+        ) != std::string::npos
+    );
     // The column-name header row.
     CHECK(s.contains("x,y"));
     // The data rows, full precision, dot decimal separator.
@@ -565,8 +569,8 @@ TEST_CASE("data backend (NPZ) emits a non-empty ZIP/.npz archive", "[plotting]")
 TEST_CASE("dataColumns reports columns generically in storage order", "[plotting]") {
     // GGraph2ED stores four float64 columns (x, ex, y, ey) -- the tricky reorder case.
     GGraph2ED g;
-    g & std::tuple<double, double, double, double>(1.0, 0.1, 2.0, 0.2);
-    g & std::tuple<double, double, double, double>(3.0, 0.3, 4.0, 0.4);
+    g &std::tuple<double, double, double, double>(1.0, 0.1, 2.0, 0.2);
+    g &std::tuple<double, double, double, double>(3.0, 0.3, 4.0, 0.4);
 
     const auto cols = g.dataColumns();
     REQUIRE(cols.size() == 4); // matches plotSpec().columns {"x","ex","y","ey"}
@@ -574,15 +578,15 @@ TEST_CASE("dataColumns reports columns generically in storage order", "[plotting
     // Each column is the float64 alternative of the type-tagged variant.
     const auto *x = std::get<const std::vector<double> *>(cols[0]);
     REQUIRE(x->size() == 2);
-    CHECK((*x)[0] == 1.0); // x
+    CHECK((*x)[0] == 1.0);                                              // x
     CHECK((*std::get<const std::vector<double> *>(cols[1]))[0] == 0.1); // ex
     CHECK((*std::get<const std::vector<double> *>(cols[2]))[0] == 2.0); // y
     CHECK((*std::get<const std::vector<double> *>(cols[3]))[1] == 0.4); // ey
 
     // The integer histogram now exports its samples as a TRUE int32 column.
     GHistogram1I hi(5, 0.0, 10.0);
-    hi & std::int32_t(2);
-    hi & std::int32_t(7);
+    hi &std::int32_t(2);
+    hi &std::int32_t(7);
     const auto icols = hi.dataColumns();
     REQUIRE(icols.size() == 1);
     const auto *iv = std::get<const std::vector<std::int32_t> *>(icols[0]); // int32 alternative
@@ -768,8 +772,12 @@ TEST_CASE("GDataLog reproduces the legacy plotter-object output byte-for-byte", 
         // real divergence between the plotting paths.
         std::vector<double> data;
         data.reserve(20);
-        for(int i = 0; i < 20; ++i) { data.push_back(0.1 * static_cast<double>(i) - 1.0); }
-        for(const double v : data) { (*h) & v; }
+        for(int i = 0; i < 20; ++i) {
+            data.push_back(0.1 * static_cast<double>(i) - 1.0);
+        }
+        for(const double v : data) {
+            (*h) & v;
+        }
         GPlotDesigner gpd_legacy("Dist", 1, 1);
         gpd_legacy.registerPlotter(h);
         const std::string legacy = gpd_legacy.plot();
@@ -792,8 +800,12 @@ TEST_CASE("GDataLog reproduces the legacy plotter-object output byte-for-byte", 
         // why per-path recomputation is not bit-reproducible across compilers).
         std::vector<double> data;
         data.reserve(20);
-        for(int i = 0; i < 20; ++i) { data.push_back(0.1 * static_cast<double>(i) - 1.0); }
-        for(const double v : data) { (*h) & v; }
+        for(int i = 0; i < 20; ++i) {
+            data.push_back(0.1 * static_cast<double>(i) - 1.0);
+        }
+        for(const double v : data) {
+            (*h) & v;
+        }
         GPlotDesigner gpd_legacy("Dist", 1, 1);
         gpd_legacy.registerPlotter(h);
         const std::string legacy = gpd_legacy.plot();
@@ -816,16 +828,23 @@ TEST_CASE("GDataLog reproduces the legacy plotter-object output byte-for-byte", 
         std::vector<std::pair<double, double>> data;
         data.reserve(12);
         for(int i = 0; i < 12; ++i) {
-            data.emplace_back(0.5 * static_cast<double>(i) - 3.0, 3.0 - 0.4 * static_cast<double>(i));
+            data.emplace_back(
+                0.5 * static_cast<double>(i) - 3.0,
+                3.0 - 0.4 * static_cast<double>(i)
+            );
         }
-        for(const auto &[x, y] : data) { h->add(x, y); }
+        for(const auto &[x, y] : data) {
+            h->add(x, y);
+        }
         GPlotDesigner gpd_legacy("Dist2D", 1, 1);
         gpd_legacy.registerPlotter(h);
         const std::string legacy = gpd_legacy.plot();
 
         GDataLog log("Dist2D", 1, 1);
         const auto id = log.declareSeries(h->plotSpec());
-        for(const auto &[x, y] : data) { log.append(id, x, y); }
+        for(const auto &[x, y] : data) {
+            log.append(id, x, y);
+        }
         CHECK(log.toDesigner().plot() == legacy);
     }
 
@@ -890,7 +909,8 @@ std::shared_ptr<GHistogram2D> TFactory_GUnitTests<GHistogram2D>() {
 template <>
 std::shared_ptr<GFunctionPlotter1D> TFactory_GUnitTests<GFunctionPlotter1D>() {
     return std::make_shared<GFunctionPlotter1D>(
-        std::string("x"), std::tuple<double, double>(-1.0, 1.0)
+        std::string("x"),
+        std::tuple<double, double>(-1.0, 1.0)
     );
 }
 template <>
@@ -903,12 +923,19 @@ std::shared_ptr<GFunctionPlotter2D> TFactory_GUnitTests<GFunctionPlotter2D>() {
 }
 template <>
 std::shared_ptr<GPlotDesigner> TFactory_GUnitTests<GPlotDesigner>() {
-    return std::make_shared<GPlotDesigner>(std::string("test canvas"), std::size_t(1), std::size_t(1));
+    return std::make_shared<GPlotDesigner>(
+        std::string("test canvas"),
+        std::size_t(1),
+        std::size_t(1)
+    );
 }
 template <>
 std::shared_ptr<GMarker<double>> TFactory_GUnitTests<GMarker<double>>() {
     return std::make_shared<GMarker<double>>(
-        std::tuple<double, double>(0.0, 0.0), gMarker::closedCircle, gColor::black, 0.05
+        std::tuple<double, double>(0.0, 0.0),
+        gMarker::closedCircle,
+        gColor::black,
+        0.05
     );
 }
 
@@ -963,9 +990,8 @@ TEST_CASE(
     "GMarker clips to the plot boundaries (in-range drawn and out-of-range empty)",
     "[plotting][decorators]"
 ) {
-    const GMarker<double> marker(
-        std::tuple<double, double>(0.5, 0.5), gMarker::closedCircle, gColor::black, 0.05
-    );
+    const GMarker<double>
+        marker(std::tuple<double, double>(0.5, 0.5), gMarker::closedCircle, gColor::black, 0.05);
 
     const std::tuple<double, double> x_range(0.0, 1.0);
     const std::tuple<double, double> y_range(0.0, 1.0);
@@ -988,8 +1014,7 @@ TEST_CASE(
 // appendRow now checked-narrows into int32 axes (range-checked, fraction truncated, matching
 // the tuple insertion operators).
 
-TEST_CASE("GHistogram1I is fillable through the generic appendRow path",
-          "[plotting][collectors]") {
+TEST_CASE("GHistogram1I is fillable through the generic appendRow path", "[plotting][collectors]") {
     GHistogram1I hist(10, 0., 10.);
 
     // A representable value lands in the (int32) column
@@ -1017,7 +1042,11 @@ std::shared_ptr<GGraph3D> smallSurface(surfaceProjection where) {
     auto g = std::make_shared<GGraph3D>();
     for(int i = -1; i <= 1; ++i) {
         for(int j = -1; j <= 1; ++j) {
-            (*g) & std::tuple<double, double, double>(double(i), double(j), double(i * i + j * j) * 2.);
+            (*g) & std::tuple<double, double, double>(
+                       double(i),
+                       double(j),
+                       double(i * i + j * j) * 2.
+                   );
         }
     }
     g->setSurfaceProjection(where);
@@ -1062,7 +1091,10 @@ TEST_CASE(
     CHECK_THROWS(makePlotter(flat));
 }
 
-TEST_CASE("ROOT draws a ceiling projection with SURF3 and a floor projection by hand", "[plotting]") {
+TEST_CASE(
+    "ROOT draws a ceiling projection with SURF3 and a floor projection by hand",
+    "[plotting]"
+) {
     const std::string ceiling = render(smallSurface(surfaceProjection::CEILING), plotBackend::ROOT);
     CHECK(ceiling.contains("Draw(\"SURF3Z\")"));
     CHECK(ceiling.contains("SetMinimum(0)"));
@@ -1088,12 +1120,14 @@ TEST_CASE("A projection refuses custom drawing arguments and being an overlay", 
 }
 
 TEST_CASE("The script backends draw a projected surface with their own means", "[plotting]") {
-    const std::string gp_floor = render(smallSurface(surfaceProjection::FLOOR), plotBackend::GNUPLOT);
+    const std::string gp_floor =
+        render(smallSurface(surfaceProjection::FLOOR), plotBackend::GNUPLOT);
     CHECK(gp_floor.contains("set dgrid3d"));
     CHECK(gp_floor.contains("set pm3d at bs"));
     CHECK(gp_floor.contains("with pm3d"));
     CHECK(gp_floor.contains("unset pm3d")); // the next pad starts from the defaults again
-    CHECK(render(smallSurface(surfaceProjection::CEILING), plotBackend::GNUPLOT).contains("set pm3d at ts"));
+    CHECK(render(smallSurface(surfaceProjection::CEILING), plotBackend::GNUPLOT)
+              .contains("set pm3d at ts"));
 
     const std::string mpl = render(smallSurface(surfaceProjection::FLOOR), plotBackend::MATPLOTLIB);
     CHECK(mpl.contains("plot_trisurf("));
@@ -1206,7 +1240,8 @@ bool drawnBeforeLegend(const std::string &s) {
         ++draws;
     }
     std::size_t legend_draws = 0;
-    for(auto p = tail.find("legend->Draw("); p != std::string::npos; p = tail.find("legend->Draw(", p + 1)) {
+    for(auto p = tail.find("legend->Draw("); p != std::string::npos;
+        p = tail.find("legend->Draw(", p + 1)) {
         ++legend_draws;
     }
     return draws == legend_draws and legend_draws == 1;
@@ -1360,7 +1395,8 @@ TEST_CASE(
 
     SECTION("matplotlib and Octave show the legend their plot calls prepared") {
         CHECK(scriptFor(plotBackend::MATPLOTLIB, {overlaid()}).contains("ax.legend(handles=["));
-        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()}).contains("legend(s_, {'first', 'second', 'third'});"));
+        CHECK(scriptFor(plotBackend::OCTAVE, {overlaid()})
+                  .contains("legend(s_, {'first', 'second', 'third'});"));
     }
 
     SECTION("a pad with a single graph gets none of this") {
@@ -1449,7 +1485,9 @@ TEST_CASE(
         CHECK_FALSE(root.contains("the title of the pad"));
         CHECK(script(plotBackend::GNUPLOT, false).contains("title \"The figure\""));
         CHECK_FALSE(script(plotBackend::GNUPLOT, false).contains("set key"));
-        CHECK(script(plotBackend::MATPLOTLIB, false).contains("labels=[\"websocket\", \"MPI\"])\n"));
+        CHECK(
+            script(plotBackend::MATPLOTLIB, false).contains("labels=[\"websocket\", \"MPI\"])\n")
+        );
         CHECK(script(plotBackend::MATPLOTLIB, false).contains("fig.suptitle(\"The figure\")"));
         CHECK_FALSE(script(plotBackend::OCTAVE, false).contains("'location'"));
         CHECK_FALSE(GPlotSpec(plotKind::graph_2d).toJson().contains("pad_title"));
@@ -1477,7 +1515,9 @@ TEST_CASE(
         CHECK(spec.pad_title == "Up to 1 s");
         CHECK(spec.legend == legendPosition::BOTTOM_RIGHT);
         CHECK(spec.line_width == 2u);
-        CHECK(spec.toJson().contains("\"pad_title\": \"Up to 1 s\", \"legend\": \"bottom_right\", \"line_width\": 2"));
+        CHECK(spec.toJson().contains(
+            "\"pad_title\": \"Up to 1 s\", \"legend\": \"bottom_right\", \"line_width\": 2"
+        ));
         const auto rebuilt = makePlotter(spec);
         CHECK(rebuilt->padTitle() == "Up to 1 s");
         CHECK(rebuilt->getLegendPosition() == legendPosition::BOTTOM_RIGHT);
@@ -1513,7 +1553,8 @@ TEST_CASE(
 ) {
     // A colour map on the floor of the box, without its surface, under points casting shadows: what
     // a progress plotter draws for two parameters.
-    const auto map_under_points = [](const std::string &map_label, const std::string &points_label) {
+    const auto map_under_points = [](const std::string &map_label,
+                                     const std::string &points_label) {
         auto map = smallSurface(surfaceProjection::FLOOR);
         map->setDrawSurface(false);
         map->setPlotLabel(map_label);
@@ -1559,7 +1600,8 @@ TEST_CASE(
         // The legend comes after everything of the pad is drawn.
         CHECK(drawnBeforeLegend(s));
         CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"lower right\")"));
-        CHECK(render(map, plotBackend::OCTAVE).contains("legend(s_, {'the landscape', 'evaluated candidates'});"));
+        CHECK(render(map, plotBackend::OCTAVE)
+                  .contains("legend(s_, {'the landscape', 'evaluated candidates'});"));
     }
 
     SECTION("a placed legend is sized for the labelled series only") {
@@ -1662,7 +1704,9 @@ TEST_CASE(
         const std::string root = render(first, plotBackend::ROOT);
         CHECK(root.contains("legend->AddEntry(pm3d__0_1, \"first\", \"p\");"));
         CHECK(root.contains("legend->AddEntry(pm3d__0_0_1, \"second\", \"p\");"));
-        CHECK_FALSE(root.contains("fr__0_0")); // an overlay draws no frame of its own: the pad keeps its box
+        CHECK_FALSE(
+            root.contains("fr__0_0")
+        ); // an overlay draws no frame of its own: the pad keeps its box
         const std::string oct = render(first, plotBackend::OCTAVE);
         CHECK(oct.contains("legend(s_, {'first', 'second'});"));
         CHECK_FALSE(oct.contains("legend('show')"));
@@ -1680,13 +1724,17 @@ TEST_CASE(
         CHECK(map->legendEntries()[0].sample == legendSample::COLOUR_MAP);
         const std::string mpl = render(map, plotBackend::MATPLOTLIB);
         CHECK(mpl.contains(
-            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\", 0)], labels=[\"the landscape\"], loc=\"upper left\")"
+            "ax.legend(handles=[_legend_sample(_colours[0], \"colour_map\", 0)], labels=[\"the "
+            "landscape\"], loc=\"upper left\")"
         ));
         CHECK_FALSE(mpl.contains("ax.legend()"));
         const std::string oct = render(map, plotBackend::OCTAVE);
         // A filled sample is a square marker: a patch without data never reaches the gnuplot
         // toolkit's key.
-        CHECK(oct.contains("s_(end + 1) = plot3(NaN, NaN, NaN, 'LineStyle', 'none', 'Marker', 's', 'MarkerSize', 10, 'MarkerFaceColor', cs_{1}"));
+        CHECK(oct.contains(
+            "s_(end + 1) = plot3(NaN, NaN, NaN, 'LineStyle', 'none', 'Marker', 's', 'MarkerSize', "
+            "10, 'MarkerFaceColor', cs_{1}"
+        ));
         CHECK_FALSE(oct.contains("patch("));
         CHECK(oct.contains("legend(s_, {'the landscape'});"));
         const std::string root = render(map, plotBackend::ROOT);
@@ -1703,7 +1751,10 @@ TEST_CASE(
         scatter->registerSecondaryPlotter(curve);
         const std::string mpl = render(scatter, plotBackend::MATPLOTLIB);
         CHECK(mpl.contains("marker=\"o\", linestyle=\"none\", label=\"points\""));
-        CHECK(mpl.contains("_legend_sample(_colours[0], \"marker\", 0), _legend_sample(_colours[1], \"line_and_marker\", 0)"));
+        CHECK(mpl.contains(
+            "_legend_sample(_colours[0], \"marker\", 0), _legend_sample(_colours[1], "
+            "\"line_and_marker\", 0)"
+        ));
         const std::string oct = render(scatter, plotBackend::OCTAVE);
         CHECK(oct.contains("], 'o');"));
         CHECK(oct.contains("], '-o');"));
@@ -1779,7 +1830,10 @@ TEST_CASE(
         CHECK(std::abs(y1 - 0.82) < 1e-12);
         CHECK(std::abs(x1 - 0.01) < 1e-12);
         const std::string root = render(map, plotBackend::ROOT);
-        CHECK(root.contains("TLegend *legend = new TLegend(0.01, 0.82, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+        CHECK(root.contains(
+            "TLegend *legend = new TLegend(0.01, 0.82, 0.35, 0.92); // a 3-d pad: the band at the "
+            "top left"
+        ));
         CHECK(root.contains("legend->SetTextSize(0.035);"));
         CHECK_FALSE(root.contains("new TLegend(0.3, 0.21)"));
         CHECK(render(map, plotBackend::MATPLOTLIB).contains("], loc=\"upper left\")"));
@@ -1789,7 +1843,8 @@ TEST_CASE(
         auto second = decadesGraph(false, false);
         second->setPlotLabel("second");
         first->registerSecondaryPlotter(second);
-        CHECK(render(first, plotBackend::ROOT).contains("TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT"));
+        CHECK(render(first, plotBackend::ROOT)
+                  .contains("TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT"));
         CHECK_FALSE(render(first, plotBackend::MATPLOTLIB).contains("loc="));
     }
 
@@ -1810,11 +1865,16 @@ TEST_CASE(
         map->setLegendPosition(legendPosition::TOP_LEFT);
         const std::string left = render(map, plotBackend::ROOT);
         CHECK(left.contains("floor_size = 0.035;"));
-        CHECK(left.contains("legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + width));"));
+        CHECK(left.contains(
+            "legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + "
+            "width));"
+        ));
         CHECK(left.contains("e->SetLabel((text + \"...\").Data());"));
         map->setLegendPosition(legendPosition::BOTTOM_RIGHT);
         const std::string right = render(map, plotBackend::ROOT);
-        CHECK(right.contains("legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));"));
+        CHECK(right.contains(
+            "legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));"
+        ));
         CHECK(LEGENDMINTEXTSIZE < LEGENDTEXTSIZE);
     }
 }
@@ -1851,7 +1911,9 @@ TEST_CASE(
         GPlotDesigner gpd("data", 1, 1);
         gpd.setDataFormat(dataFormat::CSV);
         gpd.registerPlotter(first);
-        CHECK(gpd.plot().contains("draw_style=line+markers+error_bars legend_sample=line_and_marker"));
+        CHECK(
+            gpd.plot().contains("draw_style=line+markers+error_bars legend_sample=line_and_marker")
+        );
     }
 
     SECTION("a line sample takes the series' line width in matplotlib and Octave") {
@@ -1862,7 +1924,8 @@ TEST_CASE(
         second->setPlotLabel("second");
         second->setLineWidth(2);
         first->registerSecondaryPlotter(second);
-        CHECK(render(first, plotBackend::MATPLOTLIB).contains("_legend_sample(_colours[0], \"line_and_marker\", 2)"));
+        CHECK(render(first, plotBackend::MATPLOTLIB)
+                  .contains("_legend_sample(_colours[0], \"line_and_marker\", 2)"));
         CHECK(render(first, plotBackend::OCTAVE).contains("'Color', cs_{1}, 'LineWidth', 2);"));
     }
 
@@ -1904,7 +1967,13 @@ TEST_CASE(
 
     SECTION("a series that names no ROOT object gets a sample object in its colour") {
         std::ostringstream out;
-        emitRootLegend(out, "", legendPosition::TOP_LEFT, {{"", "mine", legendSample::LINE, 1, 3}}, false);
+        emitRootLegend(
+            out,
+            "",
+            legendPosition::TOP_LEFT,
+            {{"", "mine", legendSample::LINE, 1, 3}},
+            false
+        );
         const std::string s = out.str();
         CHECK(s.contains("sample->SetLineColor(2);"));
         CHECK(s.contains("sample->SetLineWidth(3);"));
@@ -1916,7 +1985,10 @@ TEST_CASE(
 // The band of a 3-d pad has a bottom: five entries reach it, six or seven share it at a second,
 // lower text size, and more are summed up in a last row.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
-TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[plotting][overlay][legend]") {
+TEST_CASE(
+    "The band of a 3-d pad's legend keeps its bottom for many series",
+    "[plotting][overlay][legend]"
+) {
     CHECK(std::abs(std::get<1>(legendBox3D(5)) - 0.70) < 1e-12);
     CHECK(std::abs(std::get<1>(legendBox3D(9)) - 0.70) < 1e-12);
     CHECK(legendTextSize3D(5) == LEGENDMINTEXTSIZE);
@@ -1932,7 +2004,9 @@ TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[p
     }
     REQUIRE(primary->legendEntries().size() == 9);
     const std::string root = render(primary, plotBackend::ROOT);
-    CHECK(root.contains("new TLegend(0.01, 0.7, 0.35, 0.92); // a 3-d pad: the band at the top left"));
+    CHECK(
+        root.contains("new TLegend(0.01, 0.7, 0.35, 0.92); // a 3-d pad: the band at the top left")
+    );
     CHECK(root.contains("legend->SetTextSize(0.025);"));
     CHECK(root.contains("\"series 5\""));
     CHECK_FALSE(root.contains("\"series 6\", "));
@@ -1944,7 +2018,10 @@ TEST_CASE("The band of a 3-d pad's legend keeps its bottom for many series", "[p
 // ROOT's own placement of a 2-d legend does not avoid data; FREEST puts it in the corner that
 // covers the fewest of the pad's points and line samples, in every backend.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one section per case; the count comes from the assertion macros
-TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[plotting][overlay][legend]") {
+TEST_CASE(
+    "FREEST puts a 2-d legend in the corner its data leave most free",
+    "[plotting][overlay][legend]"
+) {
     SECTION("the freest corner of points and a curve") {
         // A cloud along the top and a curve through the lower right: the lower right, the first
         // preference, is covered, the middle of the right side, the second, is free.
@@ -1974,28 +2051,47 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
         for(int i = 10; i <= 20; ++i) {
             left_of_middle.emplace_back(i, 5.);
         }
-        const std::vector<std::vector<std::pair<double, double>>> bottom_curve{{{0., 0.}, {40., 0.}}};
-        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2) == legendPosition::CENTER_RIGHT);
-        CHECK(freestLegendCorner(bottom_curve, {left_of_middle}, 2, false, false, 0.75) != legendPosition::CENTER_RIGHT);
+        const std::vector<std::vector<std::pair<double, double>>> bottom_curve{
+            {{0., 0.}, {40., 0.}}
+        };
+        CHECK(
+            freestLegendCorner(bottom_curve, {left_of_middle}, 2) == legendPosition::CENTER_RIGHT
+        );
+        CHECK(
+            freestLegendCorner(bottom_curve, {left_of_middle}, 2, false, false, 0.75) !=
+            legendPosition::CENTER_RIGHT
+        );
         // A vertex of a curve weighs as much as a marker: a box over a piece of line with two
         // vertices is freer than one over ten markers.
         std::vector<std::pair<double, double>> right_cloud{{0., 0.}, {40., 10.}};
         for(int i = 0; i < 10; ++i) {
-            right_cloud.emplace_back(35. + 0.3 * i, 1.);   // the lower right
-            right_cloud.emplace_back(35. + 0.3 * i, 5.);   // the middle of the right side
-            right_cloud.emplace_back(2. + 0.3 * i, 9.);    // the top left
-            right_cloud.emplace_back(35. + 0.3 * i, 9.);   // the top right
+            right_cloud.emplace_back(35. + 0.3 * i, 1.); // the lower right
+            right_cloud.emplace_back(35. + 0.3 * i, 5.); // the middle of the right side
+            right_cloud.emplace_back(2. + 0.3 * i, 9.);  // the top left
+            right_cloud.emplace_back(35. + 0.3 * i, 9.); // the top right
         }
         const std::vector<std::vector<std::pair<double, double>>> low_left{{{0., 0.5}, {8., 0.5}}};
         CHECK(freestLegendCorner(low_left, {right_cloud}, 2) == legendPosition::BOTTOM_LEFT);
         // A segment that crosses a box without a vertex inside counts like a marker: a box it
         // crosses is no freer than one over a single marker (the first of them in the order of
         // preference is taken), however little of the segment lies inside.
-        const std::vector<std::vector<std::pair<double, double>>> crossing{{{30., 3.6}, {30., 6.4}}};
+        const std::vector<std::vector<std::pair<double, double>>> crossing{
+            {{30., 3.6}, {30., 6.4}}
+        };
         const std::vector<std::vector<std::pair<double, double>>> markers{
-            {{0., 0.}, {40., 10.}, {38., 1.},                 // the range; one marker in the lower right
-             {2., 9.}, {3., 9.}, {4., 9.}, {2., 1.}, {3., 1.}, // three in the top left and lower left,
-             {4., 1.}, {36., 9.}, {37., 9.}, {38., 9.}}};     // and in the top right
+            {{0., 0.},
+             {40., 10.},
+             {38., 1.}, // the range; one marker in the lower right
+             {2., 9.},
+             {3., 9.},
+             {4., 9.},
+             {2., 1.},
+             {3., 1.}, // three in the top left and lower left,
+             {4., 1.},
+             {36., 9.},
+             {37., 9.},
+             {38., 9.}}
+        }; // and in the top right
         CHECK(freestLegendCorner(crossing, markers, 2) == legendPosition::BOTTOM_RIGHT);
     }
 
@@ -2034,7 +2130,10 @@ TEST_CASE("FREEST puts a 2-d legend in the corner its data leave most free", "[p
 /******************************************************************************/
 // 4-d graphs laid over each other share the primary's frame, which holds all their points; every
 // marker paints its one point only.
-TEST_CASE("Overlaid 4-d graphs share one frame that holds all their points", "[plotting][overlay]") {
+TEST_CASE(
+    "Overlaid 4-d graphs share one frame that holds all their points",
+    "[plotting][overlay]"
+) {
     auto first = std::make_shared<GGraph4D>();
     (*first) & std::tuple<double, double, double, double>(0., 0., 0., 1.);
     (*first) & std::tuple<double, double, double, double>(2., 1., 1., 2.);
@@ -2084,7 +2183,10 @@ TEST_CASE("A pad can leave its legend a band of its own", "[plotting][overlay][l
 /******************************************************************************/
 // A 2-d histogram rebuilt from its plot spec keeps its set2DOpt() choice as a choice: as an overlay
 // it is still drawn into the pad of its primary.
-TEST_CASE("A 2-d histogram rebuilt from its spec keeps its option and its place as an overlay", "[plotting][overlay]") {
+TEST_CASE(
+    "A 2-d histogram rebuilt from its spec keeps its option and its place as an overlay",
+    "[plotting][overlay]"
+) {
     auto primary = std::make_shared<GHistogram2D>(10, 10);
     primary->set2DOpt(tddropt::BOX);
     (*primary) & std::tuple<double, double>(0., 0.);

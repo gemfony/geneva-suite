@@ -65,7 +65,8 @@ std::vector<double> perturb1(std::vector<double> x, std::size_t idx, double delt
  * @param dj The signed amount added to coordinate j
  * @return A copy of x with coordinates i and j shifted by di and dj respectively
  */
-std::vector<double> perturb2(std::vector<double> x, std::size_t i, double di, std::size_t j, double dj) {
+std::vector<double>
+perturb2(std::vector<double> x, std::size_t i, double di, std::size_t j, double dj) {
     x[i] += di;
     x[j] += dj;
     return x;
@@ -199,7 +200,10 @@ std::optional<double> minosBound(G &&g, double x0, double sigma_step) {
  * @return true if the inverse was computed, false if m is singular / too ill-conditioned to invert
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent numeric kernel: Gauss-Jordan elimination with partial pivoting on the augmented [m | I] system; the pivot/normalise/eliminate steps share the in-place augmented matrix and splitting would scatter one textbook algorithm
-bool invertMatrix(std::vector<std::vector<double>> const &m, std::vector<std::vector<double>> &inv) {
+bool invertMatrix(
+    std::vector<std::vector<double>> const &m,
+    std::vector<std::vector<double>> &inv
+) {
     const std::size_t n = m.size();
     // Work on an augmented [m | I] system.
     std::vector<std::vector<double>> a(n, std::vector<double>(2 * n, 0.));
@@ -429,10 +433,9 @@ std::vector<std::vector<double>> GHesseError::buildFullHessian(
             const std::size_t j = off_index[k].second;
             const double hi = step_sizes[i];
             const double hj = step_sizes[j];
-            const double v =
-                (off_values[4 * k] - off_values[(4 * k) + 1] - off_values[(4 * k) + 2] +
-                 off_values[(4 * k) + 3]) /
-                (4. * hi * hj);
+            const double v = (off_values[4 * k] - off_values[(4 * k) + 1] -
+                              off_values[(4 * k) + 2] + off_values[(4 * k) + 3]) /
+                             (4. * hi * hj);
             hessian[i][j] = v;
             hessian[j][i] = v;
         }
@@ -503,8 +506,8 @@ void GHesseError::computeMinos(
     result.minos_low.assign(n, 0.);
     result.minos_high.assign(n, 0.);
     const double target = f_min + opts.up;
-    bool any = false;     // at least one parameter was attempted (had positive curvature)
-    bool all_ok = true;   // every attempted parameter bracketed BOTH sides
+    bool any = false;   // at least one parameter was attempted (had positive curvature)
+    bool all_ok = true; // every attempted parameter bracketed BOTH sides
     for(std::size_t j = 0; j < n; ++j) {
         const double sigma = result.parameter_errors[j];
         if(sigma <= 0.) {

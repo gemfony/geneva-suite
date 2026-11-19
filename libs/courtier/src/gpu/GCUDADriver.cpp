@@ -37,9 +37,9 @@
 #include <boost/dll/shared_library.hpp>
 
 // Geneva headers
+#include "GCUDADriver.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "GCUDADriver.hpp"
 
 namespace Gem::Courtier::GPU {
 
@@ -65,14 +65,16 @@ GCUDADriver loadDriver_() {
     auto *library = new boost::dll::shared_library(); // NOLINT(cppcoreguidelines-owning-memory)
     try {
         library->load(CUDA_DRIVER_LIBRARY, boost::dll::load_mode::search_system_folders);
-    } catch(const std::exception &e) {
+    }
+    catch(const std::exception &e) {
         delete library; // NOLINT(cppcoreguidelines-owning-memory)
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDADriver: the CUDA driver library " << CUDA_DRIVER_LIBRARY
             << " could not be loaded (" << e.what() << ")." << '\n'
             << "The GPU consumer needs an NVIDIA driver on this machine; the CPU consumers do not."
-            << '\n');
+            << '\n'
+        );
     }
 
     using get_proc_address_t = std::remove_pointer_t<decltype(&::cuGetProcAddress)>;
@@ -88,8 +90,10 @@ GCUDADriver loadDriver_() {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "GCUDADriver: the installed CUDA driver does not provide " << name
-                << " in the version of CUDA " << CUDA_VERSION / 1000 << '.' << (CUDA_VERSION % 1000) / 10
-                << "; the driver is probably older than the toolkit Geneva was built with." << '\n');
+                << " in the version of CUDA " << CUDA_VERSION / 1000 << '.'
+                << (CUDA_VERSION % 1000) / 10
+                << "; the driver is probably older than the toolkit Geneva was built with." << '\n'
+            );
         }
         function = reinterpret_cast<std::remove_reference_t<decltype(function)>>(address); // NOLINT
     };

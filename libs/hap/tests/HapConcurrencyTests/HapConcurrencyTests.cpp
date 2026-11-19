@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 #include <atomic>
 #include <cstdint>
 #include <thread>
@@ -46,40 +45,43 @@ using namespace Gem::Hap;
 // gate for the shared factory (producer threads, bounded buffers, singleton).
 
 namespace {
-constexpr unsigned      kThreads = 16;
-constexpr std::uint64_t kRawPer  = 500'000;
+constexpr unsigned kThreads = 16;
+constexpr std::uint64_t kRawPer = 500'000;
 constexpr std::uint64_t kDistPer = 200'000;
 } // namespace
 
 TEST_CASE("Hap concurrency: 16 proxies draw raw values", "[hap][concurrency]") {
     std::atomic<std::uint64_t> checksum{0};
-    std::vector<std::thread>   threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
-    for (unsigned t = 0; t < kThreads; ++t) {
+    for(unsigned t = 0; t < kThreads; ++t) {
         threads.emplace_back([&]() {
-            GRandom       rng; // each thread owns its proxy
+            GRandom rng; // each thread owns its proxy
             std::uint64_t local = 0;
-            for (std::uint64_t i = 0; i < kRawPer; ++i) local += static_cast<std::uint64_t>(rng());
+            for(std::uint64_t i = 0; i < kRawPer; ++i)
+                local += static_cast<std::uint64_t>(rng());
             checksum.fetch_add(local, std::memory_order_relaxed);
         });
     }
-    for (auto &th : threads) th.join();
+    for(auto &th : threads)
+        th.join();
     REQUIRE(checksum.load() != 0); // sanity: the run actually produced numbers
 }
 
 TEST_CASE("Hap concurrency: 16 proxies draw distributions", "[hap][concurrency]") {
     std::atomic<std::uint64_t> outOfRange{0};
-    std::vector<std::thread>   threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
-    for (unsigned t = 0; t < kThreads; ++t) {
+    for(unsigned t = 0; t < kThreads; ++t) {
         threads.emplace_back([&]() {
-            GRandom                                rng;
+            GRandom rng;
             std::uniform_real_distribution<double> u(0., 1.);
-            std::normal_distribution<double>       n;
-            bi_normal_distribution<double>         bn(1., 2., 1., 3.);
-            for (std::uint64_t i = 0; i < kDistPer; ++i) {
+            std::normal_distribution<double> n;
+            bi_normal_distribution<double> bn(1., 2., 1., 3.);
+            for(std::uint64_t i = 0; i < kDistPer; ++i) {
                 double const a = u(rng);
-                if (a < 0. || a >= 1.) outOfRange.fetch_add(1, std::memory_order_relaxed);
+                if(a < 0. || a >= 1.)
+                    outOfRange.fetch_add(1, std::memory_order_relaxed);
                 volatile double const b = n(rng);
                 volatile double const c = bn(rng);
                 (void)b;
@@ -87,7 +89,8 @@ TEST_CASE("Hap concurrency: 16 proxies draw distributions", "[hap][concurrency]"
             }
         });
     }
-    for (auto &th : threads) th.join();
+    for(auto &th : threads)
+        th.join();
     REQUIRE(outOfRange.load() == 0); // uniform_real must stay in [0,1)
 }
 
@@ -96,60 +99,68 @@ TEST_CASE("Hap concurrency: 16 STAGED proxies draw raw values", "[hap][concurren
     // rotating pool (GRotatingPool). Under -fsanitize=thread this is the race gate for that pool
     // (each proxy copies its chunk out word-by-word and then serves from a private buffer).
     std::atomic<std::uint64_t> checksum{0};
-    std::vector<std::thread>   threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
-    for (unsigned t = 0; t < kThreads; ++t) {
+    for(unsigned t = 0; t < kThreads; ++t) {
         threads.emplace_back([&]() {
             GRandomT<randomSource::STAGED> rng; // each thread owns its proxy
-            std::uint64_t                  local = 0;
-            for (std::uint64_t i = 0; i < kRawPer; ++i) local += static_cast<std::uint64_t>(rng());
+            std::uint64_t local = 0;
+            for(std::uint64_t i = 0; i < kRawPer; ++i)
+                local += static_cast<std::uint64_t>(rng());
             checksum.fetch_add(local, std::memory_order_relaxed);
         });
     }
-    for (auto &th : threads) th.join();
+    for(auto &th : threads)
+        th.join();
     REQUIRE(checksum.load() != 0); // sanity: the run actually produced numbers
 }
 
-TEST_CASE("Hap concurrency: STAGED dormant proxy keeps a stable private stream",
-          "[hap][concurrency][staged]") {
+TEST_CASE(
+    "Hap concurrency: STAGED dormant proxy keeps a stable private stream",
+    "[hap][concurrency][staged]"
+) {
     // A STAGED proxy serves from a private copy of its chunk, so it pins no pool
     // memory. This stresses that: one proxy draws a little, then goes dormant
     // while many others churn the pool through countless refills (overwriting the
     // shared buffer again and again), then resumes. Its stream must continue
     // intact (no crash, values still in range) and -- under TSan -- show no race
     // between its dormant private buffer and the others' refills.
-    GRandomT<randomSource::STAGED>         dormant;
+    GRandomT<randomSource::STAGED> dormant;
     std::uniform_real_distribution<double> u(0., 1.);
-    for (int i = 0; i < 10; ++i) {
+    for(int i = 0; i < 10; ++i) {
         double const a = u(dormant);
         REQUIRE((a >= 0. && a < 1.));
     }
 
     std::atomic<std::uint64_t> outOfRange{0};
-    std::vector<std::thread>   threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
-    for (unsigned t = 0; t < kThreads; ++t) {
+    for(unsigned t = 0; t < kThreads; ++t) {
         threads.emplace_back([&]() {
-            GRandomT<randomSource::STAGED>         rng;
+            GRandomT<randomSource::STAGED> rng;
             std::uniform_real_distribution<double> v(0., 1.);
-            for (std::uint64_t i = 0; i < kRawPer; ++i) {
+            for(std::uint64_t i = 0; i < kRawPer; ++i) {
                 double const a = v(rng);
-                if (a < 0. || a >= 1.) outOfRange.fetch_add(1, std::memory_order_relaxed);
+                if(a < 0. || a >= 1.)
+                    outOfRange.fetch_add(1, std::memory_order_relaxed);
             }
         });
     }
-    for (auto &th : threads) th.join();
+    for(auto &th : threads)
+        th.join();
 
     // The dormant proxy resumes after the storm; its private stream is unharmed.
-    for (int i = 0; i < 100'000; ++i) {
+    for(int i = 0; i < 100'000; ++i) {
         double const a = u(dormant);
         REQUIRE((a >= 0. && a < 1.));
     }
     REQUIRE(outOfRange.load() == 0);
 }
 
-TEST_CASE("Hap concurrency: 16 QUARANTINE proxies draw raw values",
-          "[hap][concurrency][quarantine]") {
+TEST_CASE(
+    "Hap concurrency: 16 QUARANTINE proxies draw raw values",
+    "[hap][concurrency][quarantine]"
+) {
     // QUARANTINE proxies read spans in place from the shared rotating pools while a
     // background producer refills them. Under -fsanitize=thread the producer's
     // refill races a stale reader by design (benign, aligned-64-bit) -- the pool
@@ -157,18 +168,20 @@ TEST_CASE("Hap concurrency: 16 QUARANTINE proxies draw raw values",
     // confirms no OTHER, unintended race crept in. As a normal ctest it catches
     // crashes/hangs and out-of-range values.
     std::atomic<std::uint64_t> outOfRange{0};
-    std::vector<std::thread>   threads;
+    std::vector<std::thread> threads;
     threads.reserve(kThreads);
-    for (unsigned t = 0; t < kThreads; ++t) {
+    for(unsigned t = 0; t < kThreads; ++t) {
         threads.emplace_back([&]() {
-            GRandomT<randomSource::QUARANTINE>     rng;
+            GRandomT<randomSource::QUARANTINE> rng;
             std::uniform_real_distribution<double> u(0., 1.);
-            for (std::uint64_t i = 0; i < kRawPer; ++i) {
+            for(std::uint64_t i = 0; i < kRawPer; ++i) {
                 double const a = u(rng);
-                if (a < 0. || a >= 1.) outOfRange.fetch_add(1, std::memory_order_relaxed);
+                if(a < 0. || a >= 1.)
+                    outOfRange.fetch_add(1, std::memory_order_relaxed);
             }
         });
     }
-    for (auto &th : threads) th.join();
+    for(auto &th : threads)
+        th.join();
     REQUIRE(outOfRange.load() == 0); // uniform_real must stay in [0,1)
 }

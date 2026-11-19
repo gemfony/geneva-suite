@@ -217,16 +217,18 @@ private:
         }
         while(retained_.size() > cap_) {
             auto oldest = std::min_element(
-                retained_.begin(), retained_.end(),
-                [](const auto &a, const auto &b) { return a.second.first < b.second.first; });
+                retained_.begin(),
+                retained_.end(),
+                [](const auto &a, const auto &b) { return a.second.first < b.second.first; }
+            );
             retained_.erase(oldest);
         }
     }
 
     mutable std::mutex mtx_;
-    std::uint64_t epoch_ = 0;       ///< Monotonic round counter; both faces age against it
-    std::size_t cap_ = 0;           ///< Per-face capacity bound (0 disables the parked face)
-    std::uint64_t ttl_rounds_ = 8;  ///< An entry is evicted this many epochs after it was stored
+    std::uint64_t epoch_ = 0;      ///< Monotonic round counter; both faces age against it
+    std::size_t cap_ = 0;          ///< Per-face capacity bound (0 disables the parked face)
+    std::uint64_t ttl_rounds_ = 8; ///< An entry is evicted this many epochs after it was stored
 
     std::deque<std::pair<std::uint64_t, value_type>>
         parked_; ///< (epoch, value) FIFO of parked values

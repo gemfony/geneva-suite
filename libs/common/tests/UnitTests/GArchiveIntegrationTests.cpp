@@ -42,11 +42,11 @@
 #include <tuple>
 #include <vector>
 
-#include "weft/GBinaryArchive.hpp"
 #include "common/GCommonInterfaceT.hpp"
-#include "weft/GJsonArchive.hpp"
 #include "common/GMemberReflectionT.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "weft/GBinaryArchive.hpp"
+#include "weft/GJsonArchive.hpp"
 
 using namespace Gem::Common;
 
@@ -58,7 +58,10 @@ class PRoot : public GReflectiveInterfaceT<PRoot, GCommonInterfaceT<PRoot>> {
 
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(make_member("root_i_", self.root_i_), make_member("root_s_", self.root_s_));
+        return std::make_tuple(
+            make_member("root_i_", self.root_i_),
+            make_member("root_s_", self.root_s_)
+        );
     }
 
 public:
@@ -99,12 +102,12 @@ protected:
 template <typename oarchive_type, typename iarchive_type, typename T>
 T gem_roundtrip(const T &in) {
     oarchive_type oa;
-    oa &in;
+    oa & in;
     std::string encoded = oa.str();
 
     iarchive_type ia(encoded);
     T out;
-    ia &out;
+    ia & out;
     return out;
 }
 
@@ -112,8 +115,10 @@ T gem_roundtrip(const T &in) {
 
 // ---------------------------------------------------------------------------
 
-TEST_CASE("GArchive integration: generated serialize round-trips a single-level mixin class",
-          "[common][archive][integration]") {
+TEST_CASE(
+    "GArchive integration: generated serialize round-trips a single-level mixin class",
+    "[common][archive][integration]"
+) {
     PRoot a;
     a.root_i_ = 7;
     a.root_s_ = "root";
@@ -132,23 +137,25 @@ TEST_CASE("GArchive integration: generated serialize round-trips a single-level 
     }
 }
 
-TEST_CASE("GArchive integration: generated serialize round-trips the parent slice of a two-level class",
-          "[common][archive][integration]") {
+TEST_CASE(
+    "GArchive integration: generated serialize round-trips the parent slice of a two-level class",
+    "[common][archive][integration]"
+) {
     PDerived a;
-    a.root_i_ = 5;             // inherited from PRoot -> travels via the gemfonyParent slice
+    a.root_i_ = 5; // inherited from PRoot -> travels via the gemfonyParent slice
     a.root_s_ = "inherited";
     a.d_d_ = 2.5;
     a.d_v_ = {1, 2, 3};
-    a.d_loadonly_ = 99;        // load-only -> must NOT be serialized
+    a.d_loadonly_ = 99; // load-only -> must NOT be serialized
 
     SECTION("binary") {
         using namespace Gem::Weft;
         PDerived b = gem_roundtrip<GBinaryOArchive, GBinaryIArchive>(a);
-        CHECK(b.root_i_ == 5);       // parent slice survived
+        CHECK(b.root_i_ == 5); // parent slice survived
         CHECK(b.root_s_ == "inherited");
         CHECK(b.d_d_ == 2.5);
         CHECK(b.d_v_ == std::vector<int>{1, 2, 3});
-        CHECK(b.d_loadonly_ == 0);   // load-only skipped by serialize -> stays default
+        CHECK(b.d_loadonly_ == 0); // load-only skipped by serialize -> stays default
     }
     SECTION("json") {
         using namespace Gem::Weft;
@@ -161,15 +168,17 @@ TEST_CASE("GArchive integration: generated serialize round-trips the parent slic
     }
 }
 
-TEST_CASE("GArchive integration: JSON output nests the parent slice under gemfonyParent",
-          "[common][archive][integration]") {
+TEST_CASE(
+    "GArchive integration: JSON output nests the parent slice under gemfonyParent",
+    "[common][archive][integration]"
+) {
     using namespace Gem::Weft;
     PDerived a;
     a.root_i_ = 5;
     a.d_d_ = 2.5;
 
     GJsonOArchive oa;
-    oa &a;
+    oa & a;
     const boost::json::value &v = oa.value();
     REQUIRE(v.is_object());
     // The derived member and the nested parent slice both appear, keyed by name.

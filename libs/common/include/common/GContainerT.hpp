@@ -720,7 +720,7 @@ public:
      * @throws geneva_exception when growing (would insert null shared_ptrs).
      */
     void resize(size_type amount)
-        requires(!std::same_as<StoredType, ValueType>)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         if(amount > data_cnt_.size()) {
             throw geneva_exception(
@@ -815,8 +815,9 @@ public:
      * @param item A shared_ptr to a (derived-of-ValueType) object to clone into the container.
      */
     template <typename U>
-        requires(std::same_as<StoredType, std::unique_ptr<ValueType>> &&
-                 std::derived_from<U, ValueType>)
+        requires (
+            std::same_as<StoredType, std::unique_ptr<ValueType>> && std::derived_from<U, ValueType>
+        )
     void push_back(const std::shared_ptr<U> &item) {
         data_cnt_.push_back(item->template clone<ValueType>());
     }
@@ -1025,9 +1026,7 @@ public:
     [[nodiscard]] size_type count(const StoredType &item) const
         requires std::same_as<StoredType, ValueType>
     {
-        return Gem::Common::narrow<size_type>(
-            std::ranges::count(data_cnt_, item)
-        );
+        return Gem::Common::narrow<size_type>(std::ranges::count(data_cnt_, item));
     }
 
     /**
@@ -1220,7 +1219,8 @@ public:
                 << "Tried to clone an empty smart pointer." << '\n'
             );
         }
-        if(count == 0) return;
+        if(count == 0)
+            return;
 
         // Pre-build the clones into a local buffer, then perform a single range
         // insert. This avoids re-inserting at a stale iterPos across iterations
@@ -1280,7 +1280,8 @@ public:
             );
         }
         // Guard against unsigned underflow of `count - 1` below when count == 0.
-        if(count == 0) return;
+        if(count == 0)
+            return;
 
         // Pre-build the inserted range: the original item_ptr first, followed by
         // (count-1) independent clones. The single range insert that follows
@@ -1379,7 +1380,7 @@ public:
      * @note Only available for SharedPtrStorage.
      */
     void resize_empty(size_type amount)
-        requires(!std::same_as<StoredType, ValueType>)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         std::size_t const data_size = data_cnt_.size();
         if(amount < data_size) {
@@ -1535,7 +1536,7 @@ public:
      * @note Only available for SharedPtrStorage.
      */
     void getDataCopy(ContainerType &cp) const
-        requires(!std::same_as<StoredType, ValueType>)
+        requires (!std::same_as<StoredType, ValueType>)
     {
         cp.clear();
         for(const auto &item : data_cnt_) {
@@ -1570,8 +1571,7 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::crossOver(): Error!" << '\n'
-                << "Invalid position " << pos << " / " << this->size() << " / " << cp.size()
-                << '\n'
+                << "Invalid position " << pos << " / " << this->size() << " / " << cp.size() << '\n'
             );
         }
 #endif /* DEBUG */
@@ -1617,7 +1617,15 @@ public:
         [[maybe_unused]] double limit
     ) const {
         Gem::Common::GToken token("GContainerT", e);
-        Gem::Common::compare_t(Gem::Common::getIdentity(this->data_cnt_, cp.data_cnt_, "this->data_cnt_", "cp.data_cnt_"), token);
+        Gem::Common::compare_t(
+            Gem::Common::getIdentity(
+                this->data_cnt_,
+                cp.data_cnt_,
+                "this->data_cnt_",
+                "cp.data_cnt_"
+            ),
+            token
+        );
         token.evaluate();
     }
 
@@ -1634,8 +1642,7 @@ public:
      * @return The result of std::lexicographical_compare_three_way.
      */
     [[nodiscard]] auto operator<=>(const GContainerT &other) const
-        requires HasRandomAccess<ContainerType>
-              && std::three_way_comparable<StoredType>
+        requires HasRandomAccess<ContainerType> && std::three_way_comparable<StoredType>
     {
         return std::lexicographical_compare_three_way(
             data_cnt_.begin(),
@@ -1713,5 +1720,3 @@ using GUniquePtrContainerT = GContainerT<T, UniquePtrStorage<T, container_type>>
 /******************************************************************************/
 
 } /* namespace Gem::Common */
-
-

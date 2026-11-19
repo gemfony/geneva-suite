@@ -36,7 +36,6 @@
 #include <cstring>
 #include <ranges>
 
-
 namespace Gem::Common {
 /******************************************************************************/
 /**
@@ -325,9 +324,8 @@ bool loadImageToRGB(
                           << '\n';
                 return false;
             }
-                            std::cout << "Successfully loaded PNG image " << l_fileName << " from disc into RGB"
-                          << '\n';
-           
+            std::cout << "Successfully loaded PNG image " << l_fileName << " from disc into RGB"
+                      << '\n';
         }
     }
     else {
@@ -385,9 +383,9 @@ bool loadImageToFloat(
     }
 
     // Transfer the channels to floats in the range 0..1
-    imageData_f_vec = imageData_vec
-        | std::views::transform([](auto c) { return static_cast<float>(c) / 255.0f; })
-        | std::ranges::to<std::vector<float>>();
+    imageData_f_vec = imageData_vec |
+                      std::views::transform([](auto c) { return static_cast<float>(c) / 255.0f; }) |
+                      std::ranges::to<std::vector<float>>();
 
     return true;
 }
@@ -455,12 +453,12 @@ bool saveFloatImageToFile(
     }
 
     // Convert the float-vector to RGB (clamp each value to [0, 1] to avoid out-of-range issues)
-    const auto imageData_vec = imageData_f_vec
-        | std::views::transform([](float channel_value) {
-              return static_cast<unsigned char>(
-                  std::round(std::clamp(channel_value, 0.0f, 1.0f) * 255.0f));
-          })
-        | std::ranges::to<std::vector<unsigned char>>();
+    const auto imageData_vec = imageData_f_vec | std::views::transform([](float channel_value) {
+                                   return static_cast<unsigned char>(
+                                       std::round(std::clamp(channel_value, 0.0f, 1.0f) * 255.0f)
+                                   );
+                               }) |
+                               std::ranges::to<std::vector<unsigned char>>();
 
     return saveRGBImageToFile(fileName, imageData_vec, width, height);
 }

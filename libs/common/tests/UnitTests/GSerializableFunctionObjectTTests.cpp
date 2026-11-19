@@ -50,9 +50,13 @@ struct Item {
 class Doubler : public GSerializableFunctionObjectT<Item> {
 public:
     Doubler() = default;
-    explicit Doubler(int marker) : marker_(marker) {}
+    explicit Doubler(int marker)
+      : marker_(marker) {
+    }
 
-    [[nodiscard]] int marker() const { return marker_; }
+    [[nodiscard]] int marker() const {
+        return marker_;
+    }
 
 protected:
     bool process_(Item &p) override {
@@ -61,7 +65,9 @@ protected:
     }
 
 private:
-    [[nodiscard]] Doubler *clone_() const override { return new Doubler(*this); }
+    [[nodiscard]] Doubler *clone_() const override {
+        return new Doubler(*this);
+    }
 
     int marker_{0};
 };
@@ -70,10 +76,14 @@ private:
 // operator()'s boolean return.
 class AlwaysFail : public GSerializableFunctionObjectT<Item> {
 protected:
-    bool process_([[maybe_unused]] Item & p) override { return false; }
+    bool process_([[maybe_unused]] Item &p) override {
+        return false;
+    }
 
 private:
-    [[nodiscard]] AlwaysFail *clone_() const override { return new AlwaysFail(*this); }
+    [[nodiscard]] AlwaysFail *clone_() const override {
+        return new AlwaysFail(*this);
+    }
 };
 
 } // namespace
@@ -81,27 +91,33 @@ private:
 // ---------------------------------------------------------------------------
 // operator() dispatches to the override.
 
-TEST_CASE("GSerializableFunctionObjectT::operator(): calls the derived process_",
-          "[common][serializable-fobj]") {
+TEST_CASE(
+    "GSerializableFunctionObjectT::operator(): calls the derived process_",
+    "[common][serializable-fobj]"
+) {
     Doubler d;
     Item i{5};
     CHECK(d(i) == true);
     CHECK(i.value == 10);
 }
 
-TEST_CASE("GSerializableFunctionObjectT::operator(): returns false when process_ does",
-          "[common][serializable-fobj]") {
+TEST_CASE(
+    "GSerializableFunctionObjectT::operator(): returns false when process_ does",
+    "[common][serializable-fobj]"
+) {
     AlwaysFail af;
     Item i{1};
     CHECK_FALSE(af(i));
-    CHECK(i.value == 1);   // not mutated
+    CHECK(i.value == 1); // not mutated
 }
 
 // ---------------------------------------------------------------------------
 // clone() through the base interface.
 
-TEST_CASE("GSerializableFunctionObjectT::clone: returns a fresh derived instance",
-          "[common][serializable-fobj]") {
+TEST_CASE(
+    "GSerializableFunctionObjectT::clone: returns a fresh derived instance",
+    "[common][serializable-fobj]"
+) {
     Doubler src(42);
     auto cp = src.clone<Doubler>();
     REQUIRE(cp);
@@ -112,15 +128,19 @@ TEST_CASE("GSerializableFunctionObjectT::clone: returns a fresh derived instance
 // ---------------------------------------------------------------------------
 // compare() — two empty function-object instances should be equal.
 
-TEST_CASE("GSerializableFunctionObjectT::compare: equal objects + EQUALITY passes",
-          "[common][serializable-fobj]") {
+TEST_CASE(
+    "GSerializableFunctionObjectT::compare: equal objects + EQUALITY passes",
+    "[common][serializable-fobj]"
+) {
     Doubler const a;
     Doubler const b;
     CHECK_NOTHROW(a.compare(b, expectation::EQUALITY, 0.));
 }
 
-TEST_CASE("GSerializableFunctionObjectT::compare: equal objects + INEQUALITY violates",
-          "[common][serializable-fobj]") {
+TEST_CASE(
+    "GSerializableFunctionObjectT::compare: equal objects + INEQUALITY violates",
+    "[common][serializable-fobj]"
+) {
     // The base "has no local data" branch documents that INEQUALITY can
     // never be met between two empty function objects of the same type.
     Doubler const a;
@@ -131,9 +151,7 @@ TEST_CASE("GSerializableFunctionObjectT::compare: equal objects + INEQUALITY vio
 // ---------------------------------------------------------------------------
 // name() — inherits the base name override.
 
-TEST_CASE("GSerializableFunctionObjectT::name: non-empty",
-          "[common][serializable-fobj]") {
+TEST_CASE("GSerializableFunctionObjectT::name: non-empty", "[common][serializable-fobj]") {
     Doubler const d;
     CHECK_FALSE(d.name().empty());
 }
-

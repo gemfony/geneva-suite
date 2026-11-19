@@ -71,8 +71,12 @@ struct Shape {
 class Circle : public Shape {
 public:
     Circle() = default; // public default ctor: the registry factory reconstructs through it
-    explicit Circle(double radius) : radius_(radius) {}
-    [[nodiscard]] double area() const override { return 3.14159265358979 * radius_ * radius_; }
+    explicit Circle(double radius)
+      : radius_(radius) {
+    }
+    [[nodiscard]] double area() const override {
+        return 3.14159265358979 * radius_ * radius_;
+    }
 
 private:
     // Encapsulated serialize, reached only through the befriended access shim.
@@ -87,8 +91,13 @@ private:
 class Rectangle : public Shape {
 public:
     Rectangle() = default;
-    Rectangle(double w, double h) : w_(w), h_(h) {}
-    [[nodiscard]] double area() const override { return w_ * h_; }
+    Rectangle(double w, double h)
+      : w_(w)
+      , h_(h) {
+    }
+    [[nodiscard]] double area() const override {
+        return w_ * h_;
+    }
 
 private:
     friend struct Gem::Weft::access;
@@ -116,13 +125,13 @@ std::shared_ptr<shapes::Shape> roundtrip(const std::shared_ptr<shapes::Shape> &p
     {
         oarchive_type oa;
         auto q = p; // operator& takes a non-const lvalue
-        oa &q;
+        oa & q;
         blob = oa.str();
     }
     std::shared_ptr<shapes::Shape> loaded;
     {
         iarchive_type ia(blob);
-        ia &loaded;
+        ia & loaded;
     }
     return loaded;
 }
@@ -146,7 +155,7 @@ int main() {
     {
         GJsonOArchive oa;
         auto q = circle;
-        oa &q;
+        oa & q;
         json = oa.str();
     }
     auto c_json = roundtrip<GJsonOArchive, GJsonIArchive>(circle);

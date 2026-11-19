@@ -43,8 +43,8 @@
 
 // Boost header files go here
 // Geneva headers go here
-#include "common/GExpectationChecksT.hpp"
 #include "common/GContainerT.hpp"
+#include "common/GExpectationChecksT.hpp"
 
 /*************************************************************************************************/
 /**
@@ -52,8 +52,8 @@
  */
 class GEqualityPrinter {
 public:
-    GEqualityPrinter(const GEqualityPrinter&) = delete;
-    GEqualityPrinter& operator=(const GEqualityPrinter&) = delete;
+    GEqualityPrinter(const GEqualityPrinter &) = delete;
+    GEqualityPrinter &operator=(const GEqualityPrinter &) = delete;
     /*********************************************************************************************/
     /**
 	 * The only constructor. The default constructor has been disabled.
@@ -105,15 +105,19 @@ public:
 	 * @return A boolean indicating whether both parameters are equal
 	 */
     template <typename geneva_simplecontainer_type>
-        requires std::derived_from<geneva_simplecontainer_type,
-                                   Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
-    bool isEqual(const geneva_simplecontainer_type &x,
-                 const std::vector<typename geneva_simplecontainer_type::value_type> &y) const {
+        requires std::derived_from<
+            geneva_simplecontainer_type,
+            Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
+    bool isEqual(
+        const geneva_simplecontainer_type &x,
+        const std::vector<typename geneva_simplecontainer_type::value_type> &y
+    ) const {
         using namespace Gem::Common;
 
         try {
-            x.Gem::Common::template GPodContainerT<typename geneva_simplecontainer_type::value_type>::
-                compare_base(y,Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+            x.Gem::Common::template GPodContainerT<
+                typename geneva_simplecontainer_type::value_type>::
+                compare_base(y, Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
 
             return true;
         }
@@ -163,15 +167,23 @@ public:
 	 * @return A boolean indicating whether both parameters are similar
 	 */
     template <typename geneva_simplecontainer_type>
-        requires std::derived_from<geneva_simplecontainer_type,
-                                   Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
-    bool isSimilar(const geneva_simplecontainer_type &x,
-                   const std::vector<typename geneva_simplecontainer_type::value_type> &y) const {
+        requires std::derived_from<
+            geneva_simplecontainer_type,
+            Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
+    bool isSimilar(
+        const geneva_simplecontainer_type &x,
+        const std::vector<typename geneva_simplecontainer_type::value_type> &y
+    ) const {
         using namespace Gem::Common;
 
         try {
-            x.Gem::Common::template GPodContainerT<typename geneva_simplecontainer_type::value_type>::
-                compare_base(y,Gem::Common::expectation::FP_SIMILARITY, CE_DEF_SIMILARITY_DIFFERENCE);
+            x.Gem::Common::template GPodContainerT<
+                typename geneva_simplecontainer_type::value_type>::
+                compare_base(
+                    y,
+                    Gem::Common::expectation::FP_SIMILARITY,
+                    CE_DEF_SIMILARITY_DIFFERENCE
+                );
             return true;
         }
         catch(g_expectation_violation &g) {

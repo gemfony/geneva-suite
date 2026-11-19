@@ -43,8 +43,8 @@
 // Geneva headers go here
 #include "common/concurrency/GBlockingMPMCQueueT.hpp"
 
-using Gem::Common::Concurrency::GBlockingMPMCQueueT;
 using Gem::Common::DEFAULTBUFFERSIZE;
+using Gem::Common::Concurrency::GBlockingMPMCQueueT;
 using namespace std::chrono_literals;
 
 /******************************************************************************/
@@ -53,8 +53,13 @@ namespace {
 
 // A move-only payload that tracks a value and detects moved-from state.
 struct MoveOnly {
-    explicit MoveOnly(int v) : v_(v) {}
-    MoveOnly(MoveOnly &&o) noexcept : v_(o.v_) { o.v_ = -1; }
+    explicit MoveOnly(int v)
+      : v_(v) {
+    }
+    MoveOnly(MoveOnly &&o) noexcept
+      : v_(o.v_) {
+        o.v_ = -1;
+    }
     MoveOnly &operator=(MoveOnly &&o) noexcept {
         v_ = o.v_;
         o.v_ = -1;
@@ -71,9 +76,17 @@ struct MoveOnly {
 // whether the queue copied or moved it.
 struct Tracked {
     Tracked() = default;
-    explicit Tracked(int v) : v_(v) {}
-    Tracked(Tracked const &o) : v_(o.v_), history_(o.history_) { history_.push_back('c'); }
-    Tracked(Tracked &&o) noexcept : v_(o.v_), history_(std::move(o.history_)) {
+    explicit Tracked(int v)
+      : v_(v) {
+    }
+    Tracked(Tracked const &o)
+      : v_(o.v_)
+      , history_(o.history_) {
+        history_.push_back('c');
+    }
+    Tracked(Tracked &&o) noexcept
+      : v_(o.v_)
+      , history_(std::move(o.history_)) {
         history_.push_back('m');
         o.v_ = -1;
     }
@@ -275,7 +288,10 @@ TEST_CASE("GBlockingMPMCQueueT blocking push wakes on pop", "[GBlockingMPMCQueue
 /******************************************************************************/
 // close(): shutdown semantics
 
-TEST_CASE("GBlockingMPMCQueueT close rejects pushes and drains then ends", "[GBlockingMPMCQueueT]") {
+TEST_CASE(
+    "GBlockingMPMCQueueT close rejects pushes and drains then ends",
+    "[GBlockingMPMCQueueT]"
+) {
     GBlockingMPMCQueueT<int, 8> q;
     REQUIRE(q.try_push(1));
     REQUIRE(q.try_push(2));
@@ -296,7 +312,7 @@ TEST_CASE("GBlockingMPMCQueueT close rejects pushes and drains then ends", "[GBl
     REQUIRE(b.has_value());
     REQUIRE(*a == 1);
     REQUIRE(*b == 2);
-    REQUIRE_FALSE(q.pop().has_value());        // closed + empty -> nullopt
+    REQUIRE_FALSE(q.pop().has_value()); // closed + empty -> nullopt
     REQUIRE_FALSE(q.pop_wait(1ms).has_value());
     REQUIRE_FALSE(q.try_pop().has_value());
 }
@@ -311,7 +327,7 @@ TEST_CASE("GBlockingMPMCQueueT close wakes a blocked consumer", "[GBlockingMPMCQ
     });
 
     std::this_thread::sleep_for(30ms);
-    q.close();      // must wake the consumer
+    q.close(); // must wake the consumer
     consumer.join();
     REQUIRE(returnedEmpty.load());
 }
@@ -392,15 +408,13 @@ TEST_CASE("GBlockingMPMCQueueT MPMC conservation", "[GBlockingMPMCQueueT]") {
     constexpr int n_producers = 4;
     constexpr int n_consumers = 4;
     constexpr int per_producer = 20000;
-    constexpr long long expected_count =
-        static_cast<long long>(n_producers) * per_producer;
+    constexpr long long expected_count = static_cast<long long>(n_producers) * per_producer;
 
     GBlockingMPMCQueueT<int, 256> q; // bounded -> exercises producer backpressure
 
     // Each producer pushes the values 0 .. per_producer-1; sum is the closed form.
-    const long long expected_sum =
-        static_cast<long long>(n_producers) *
-        (static_cast<long long>(per_producer) * (per_producer - 1) / 2);
+    const long long expected_sum = static_cast<long long>(n_producers) *
+                                   (static_cast<long long>(per_producer) * (per_producer - 1) / 2);
 
     std::atomic<long long> total_sum{0};
     std::atomic<long long> total_count{0};
@@ -434,10 +448,12 @@ TEST_CASE("GBlockingMPMCQueueT MPMC conservation", "[GBlockingMPMCQueueT]") {
         });
     }
 
-    for(auto &t : producers) t.join();
+    for(auto &t : producers)
+        t.join();
     REQUIRE(all_pushes_ok.load());
     q.close(); // signal end of stream to the consumers
-    for(auto &t : consumers) t.join();
+    for(auto &t : consumers)
+        t.join();
 
     REQUIRE(total_count.load() == expected_count);
     REQUIRE(total_sum.load() == expected_sum);
@@ -447,7 +463,10 @@ TEST_CASE("GBlockingMPMCQueueT MPMC conservation", "[GBlockingMPMCQueueT]") {
 /******************************************************************************/
 // Construction at several capacities + observers (mirrors GBoundedBufferTTests)
 
-TEST_CASE("GBlockingMPMCQueueT construction and observers across capacities", "[GBlockingMPMCQueueT]") {
+TEST_CASE(
+    "GBlockingMPMCQueueT construction and observers across capacities",
+    "[GBlockingMPMCQueueT]"
+) {
     CHECK_NOTHROW((GBlockingMPMCQueueT<int, 0>{}));
     CHECK_NOTHROW((GBlockingMPMCQueueT<int, 1>{}));
     CHECK_NOTHROW((GBlockingMPMCQueueT<int, 10>{}));
@@ -517,7 +536,7 @@ TEST_CASE("GBlockingMPMCQueueT copy vs. move semantics", "[GBlockingMPMCQueueT]"
         REQUIRE(q.try_push(t)); // lvalue: must be copied into the queue
         REQUIRE(t.v_ == 5);     // source untouched by a copy
 
-        auto r = q.try_pop();   // pop moves the stored element out
+        auto r = q.try_pop(); // pop moves the stored element out
         REQUIRE(r.has_value());
         REQUIRE(r->v_ == 5);
         REQUIRE(r->was_copied()); // it was copied on the way in

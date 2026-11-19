@@ -55,10 +55,10 @@ namespace Gem::Geneva::Genome {
  * value-array copy.
  */
 struct GenomeData {
-    std::vector<double> dv;        ///< the double channel start values
-    std::vector<float> fv;         ///< the float channel start values
-    std::vector<std::int32_t> iv;  ///< the int32 channel start values
-    std::vector<std::uint8_t> bv;  ///< the bool channel start values (1/0)
+    std::vector<double> dv;                      ///< the double channel start values
+    std::vector<float> fv;                       ///< the float channel start values
+    std::vector<std::int32_t> iv;                ///< the int32 channel start values
+    std::vector<std::uint8_t> bv;                ///< the bool channel start values (1/0)
     std::shared_ptr<const GGenomeLayout> layout; ///< the shared structural descriptor
 };
 
@@ -178,11 +178,11 @@ private:
         }
     }
 
-    ChannelLayout<T> *ch_;     ///< the channel this group lives in (owned by the builder)
-    std::vector<T> *values_;   ///< the builder's start-value array for this channel
-    std::size_t gi_;           ///< the index of the first group within the channel
-    std::size_t count_;        ///< number of consecutive groups this handle spans
-    GGenomeLayout *owner_;     ///< the owning layout (for interning labels); may be null
+    ChannelLayout<T> *ch_;   ///< the channel this group lives in (owned by the builder)
+    std::vector<T> *values_; ///< the builder's start-value array for this channel
+    std::size_t gi_;         ///< the index of the first group within the channel
+    std::size_t count_;      ///< number of consecutive groups this handle spans
+    GGenomeLayout *owner_;   ///< the owning layout (for interning labels); may be null
 };
 
 /******************************************************************************/
@@ -286,7 +286,8 @@ public:
      * @param initMax The upper random-init / step-range bound (not a constraint).
      * @return A handle to the new group, for fluent tuning.
      */
-    ParamHandle<double> addDoublePlainGroup(const std::vector<double> &starts, double initMin, double initMax) {
+    ParamHandle<double>
+    addDoublePlainGroup(const std::vector<double> &starts, double initMin, double initMax) {
         return addGroupedWithStarts(layout_.d, dv_, starts, initMin, initMax, /*fold=*/false);
     }
     /**
@@ -499,14 +500,8 @@ private:
      * @return A handle to the single new group.
      */
     template <typename T>
-    ParamHandle<T> addOne(
-        ChannelLayout<T> &ch,
-        std::vector<T> &values,
-        T init,
-        T min,
-        T max,
-        bool fold
-    ) {
+    ParamHandle<T>
+    addOne(ChannelLayout<T> &ch, std::vector<T> &values, T init, T min, T max, bool fold) {
         return addGroupImpl(ch, values, 1, init, min, max, fold);
     }
 
@@ -545,14 +540,8 @@ private:
      * @return A handle spanning all n freshly-created groups.
      */
     template <typename T>
-    ParamHandle<T> addArray(
-        ChannelLayout<T> &ch,
-        std::vector<T> &values,
-        std::size_t n,
-        T min,
-        T max,
-        bool fold
-    ) {
+    ParamHandle<T>
+    addArray(ChannelLayout<T> &ch, std::vector<T> &values, std::size_t n, T min, T max, bool fold) {
         const std::size_t first_group = ch.groups.size();
         for(std::size_t k = 0; k < n; ++k) {
             addGroupImpl(ch, values, 1, min, min, max, fold);

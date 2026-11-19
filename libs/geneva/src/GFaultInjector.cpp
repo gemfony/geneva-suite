@@ -35,7 +35,8 @@ namespace Gem::Geneva {
 
 namespace {
 /** @brief The single process-global injector. Owned here; handed out non-owning via get(). */
-std::unique_ptr<GFaultInjector> g_fault_injector; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::unique_ptr<GFaultInjector>
+    g_fault_injector; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
 /******************************************************************************/

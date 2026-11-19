@@ -42,7 +42,6 @@
 
 namespace Gem::Dietrich {
 
-
 class GPlotDesigner; // forward declaration
 
 /******************************************************************************/
@@ -133,7 +132,8 @@ public:
     /**
      * @brief Realizes the log and writes it to a file through the given backend
      */
-    void writeToFile(const std::filesystem::path &path, plotBackend backend = plotBackend::ROOT) const;
+    void
+    writeToFile(const std::filesystem::path &path, plotBackend backend = plotBackend::ROOT) const;
 
     /**
      * @brief The number of declared series (primaries + overlays)
@@ -145,19 +145,20 @@ private:
     /** @brief One declared series: its spec, its appended rows, and (for an overlay) the
      *  primary whose pad it shares. */
     struct Series {
-        GPlotSpec spec;                      ///< the plot-choice value for this series
+        GPlotSpec spec;                        ///< the plot-choice value for this series
         std::vector<std::vector<double>> rows; ///< appended data rows (one value per column)
-        std::optional<SeriesId> primary;     ///< set if this series overlays a primary's pad
-        bool sort_first_column = false;      ///< sort rows by the first column before rendering
+        std::optional<SeriesId> primary;       ///< set if this series overlays a primary's pad
+        bool sort_first_column = false;        ///< sort rows by the first column before rendering
     };
 
     std::string canvas_label_; ///< the canvas title
     std::size_t c_x_div_;      ///< number of pad columns
     std::size_t c_y_div_;      ///< number of pad rows
-    std::optional<std::tuple<std::uint32_t, std::uint32_t>> dims_; ///< optional canvas pixel dimensions
+    std::optional<std::tuple<std::uint32_t, std::uint32_t>>
+        dims_;                              ///< optional canvas pixel dimensions
     std::optional<bool> add_print_command_; ///< forwarded to the designer only when set
     std::optional<bool> show_canvas_label_; ///< forwarded to the designer only when set
-    std::vector<Series> series_; ///< the declared series, in declaration order
+    std::vector<Series> series_;            ///< the declared series, in declaration order
 };
 
 /******************************************************************************/

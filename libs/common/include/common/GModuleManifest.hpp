@@ -85,9 +85,9 @@
  * by the loader today; MONITOR is reserved and added when that category is modularised.
  */
 #define GENEVA_CONTRIBUTION_INDIVIDUAL 1u
-#define GENEVA_CONTRIBUTION_OA 2u
-#define GENEVA_CONTRIBUTION_MONITOR 3u
-#define GENEVA_CONTRIBUTION_CONSUMER 4u
+#define GENEVA_CONTRIBUTION_OA         2u
+#define GENEVA_CONTRIBUTION_MONITOR    3u
+#define GENEVA_CONTRIBUTION_CONSUMER   4u
 #define GENEVA_CONTRIBUTION_MARSHALLER 5u
 
 /*
@@ -103,11 +103,12 @@
  * (a module's own version string when it is a Geneva-shipped module). GENEVA_VERSION_PRERELEASE
  * (GGlobalDefines.hpp) carries its own leading dash and is empty for a final release. */
 #define GENEVA_MODULE_STRINGIZE_(x) #x
-#define GENEVA_MODULE_STRINGIZE(x) GENEVA_MODULE_STRINGIZE_(x)
-#define GENEVA_VERSION_STRING                                                                            \
-    GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MAJOR)                                                         \
-    "." GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MINOR) "." GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_PATCH)   \
-    GENEVA_VERSION_PRERELEASE
+#define GENEVA_MODULE_STRINGIZE(x)  GENEVA_MODULE_STRINGIZE_(x)
+#define GENEVA_VERSION_STRING                                                                      \
+    GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MAJOR)                                                  \
+    "." GENEVA_MODULE_STRINGIZE(GENEVA_VERSION_MINOR) "." GENEVA_MODULE_STRINGIZE(                 \
+        GENEVA_VERSION_PATCH                                                                       \
+    ) GENEVA_VERSION_PRERELEASE
 
 #ifdef __cplusplus
 extern "C" {
@@ -123,10 +124,10 @@ extern "C" {
  * another item type before it calls the factory. Every other kind leaves @c subject null.
  */
 typedef struct GenevaContribution {
-    std::uint32_t kind;             /* GENEVA_CONTRIBUTION_*                                     */
-    const char *name_or_mnemonic;   /* NUL-terminated; the mnemonic/name the host resolves by    */
-    void *(*make_factory)(void);    /* returns the base factory ptr for `kind` (loader casts it)  */
-    const char *subject;            /* consumer: typeid(item type).name(); NULL for other kinds  */
+    std::uint32_t kind;           /* GENEVA_CONTRIBUTION_*                                     */
+    const char *name_or_mnemonic; /* NUL-terminated; the mnemonic/name the host resolves by    */
+    void *(*make_factory)(void);  /* returns the base factory ptr for `kind` (loader casts it)  */
+    const char *subject;          /* consumer: typeid(item type).name(); NULL for other kinds  */
 } GenevaContribution;
 
 /**
@@ -139,9 +140,9 @@ typedef struct GenevaContribution {
  * it), and only once BOTH gates pass does it touch anything further along.
  */
 typedef struct GenevaModuleManifest {
-    GenevaCompat compat;                     /* gate 1: the toolchain, validated before any C++   */
-    std::uint32_t abi_version;               /* gate 2: == GENEVA_MODULE_ABI_VERSION              */
-    std::uint32_t manifest_size;             /* sizeof(GenevaModuleManifest), for the diagnostic  */
+    GenevaCompat compat;         /* gate 1: the toolchain, validated before any C++   */
+    std::uint32_t abi_version;   /* gate 2: == GENEVA_MODULE_ABI_VERSION              */
+    std::uint32_t manifest_size; /* sizeof(GenevaModuleManifest), for the diagnostic  */
     // NOLINTNEXTLINE(readability-identifier-naming) -- the plain-C fields are snake_case, as above
     std::uint32_t contribution_size;         /* sizeof(GenevaContribution), checked with gate 2   */
     const char *module_name;                 /* diagnostics + (later) checkpoint self-description */
@@ -188,9 +189,13 @@ struct GFixedString {
     char value[N]{};
     // NOLINTNEXTLINE(google-explicit-constructor) -- implicit from a string literal is the whole point.
     constexpr GFixedString(const char (&str)[N]) {
-        for(std::size_t i = 0; i < N; ++i) { value[i] = str[i]; }
+        for(std::size_t i = 0; i < N; ++i) {
+            value[i] = str[i];
+        }
     }
-    [[nodiscard]] constexpr const char *c_str() const noexcept { return value; }
+    [[nodiscard]] constexpr const char *c_str() const noexcept {
+        return value;
+    }
 };
 
 } // namespace Gem::Common

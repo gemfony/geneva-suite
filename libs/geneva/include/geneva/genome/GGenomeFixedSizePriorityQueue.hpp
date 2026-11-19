@@ -39,10 +39,10 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GFixedSizePriorityQueueT.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
+#include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Geneva::Genome {
 
@@ -91,7 +91,7 @@ public:
     /**
      * @brief Initialization with the maximum size
      */
-    explicit GGenomeFixedSizePriorityQueue(const std::size_t & max_size);
+    explicit GGenomeFixedSizePriorityQueue(const std::size_t &max_size);
     /**
      * @brief The copy constructor
      *
@@ -104,7 +104,7 @@ public:
     /**
      * @brief Checks whether no item has the dirty flag set
      */
-    bool allClean(std::size_t & pos) const;
+    bool allClean(std::size_t &pos) const;
     /**
      * @brief Emits information about the "dirty flag" of all items
      */
@@ -118,15 +118,13 @@ protected:
     /**
      * @brief The archive's admission rule: only individuals that carry a result belong in it
      */
-    [[nodiscard]] bool isValid(const std::unique_ptr<GGenome> & item_ptr) const override;
+    [[nodiscard]] bool isValid(const std::unique_ptr<GGenome> &item_ptr) const override;
     /**
      * @brief Evaluates a single work item, so that it can be sorted
      */
-    [[nodiscard]] double evaluation(const std::unique_ptr<GGenome> & item_ptr) const override;
-
+    [[nodiscard]] double evaluation(const std::unique_ptr<GGenome> &item_ptr) const override;
 };
 
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::Genome */
-

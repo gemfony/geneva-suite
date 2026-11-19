@@ -47,12 +47,12 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
-#include <span>
 
-#include "common/GParserBuilder.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "common/GParserBuilder.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"

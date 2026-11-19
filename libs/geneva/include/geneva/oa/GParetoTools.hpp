@@ -63,10 +63,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * @param b The candidate dominated individual
  * @return true iff `a` strictly Pareto-dominates `b`
  */
-inline bool paretoDominates(
-    const Gem::Geneva::Genome::GGenome &a,
-    const Gem::Geneva::Genome::GGenome &b
-) {
+inline bool
+paretoDominates(const Gem::Geneva::Genome::GGenome &a, const Gem::Geneva::Genome::GGenome &b) {
     const std::size_t n_crit = a.getNStoredResults();
     const maxMode m = a.getMaxMode();
 
@@ -98,9 +96,8 @@ inline bool paretoDominates(
 namespace detail {
 
 /** @brief nonDominatedRank() step 1: fast non-dominated sort into best-first non-domination fronts. */
-inline std::vector<std::vector<std::size_t>> paretoFronts(
-    const std::vector<const Gem::Geneva::Genome::GGenome *> &pop
-) {
+inline std::vector<std::vector<std::size_t>>
+paretoFronts(const std::vector<const Gem::Geneva::Genome::GGenome *> &pop) {
     const std::size_t sz = pop.size();
     std::vector<std::vector<std::size_t>> dominated(sz); // who each individual dominates
     std::vector<std::size_t> dom_count(sz, 0);           // how many dominate each individual
@@ -181,9 +178,8 @@ inline void appendFrontByCrowding(
 
 } // namespace detail
 
-inline std::vector<std::size_t> nonDominatedRank(
-    const std::vector<const Gem::Geneva::Genome::GGenome *> &pop
-) {
+inline std::vector<std::size_t>
+nonDominatedRank(const std::vector<const Gem::Geneva::Genome::GGenome *> &pop) {
     const std::size_t sz = pop.size();
     const std::size_t n_crit = sz > 0 ? pop[0]->getNStoredResults() : 1;
 

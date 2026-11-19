@@ -44,15 +44,17 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/GPersonalityTraits.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
 #ifdef GEM_TESTING
 #include <catch2/catch_test_macros.hpp>
 #endif /* GEM_TESTING */
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GGeneralizedSimulatedAnnealing) // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GGeneralizedSimulatedAnnealing
+) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -198,31 +200,19 @@ void GGeneralizedSimulatedAnnealing::addConfigurationOptions_(Gem::Common::GPars
     // Call our parent class'es function
     GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing>::addConfigurationOptions_(gpb);
 
-    gpb.registerFileParameter<std::size_t>(
-        "n_chains",
-        DEFAULTGSANCHAINS,
-        [this](std::size_t nc) { this->setNChains(nc); }
-    ) << "The number of independent Markov chains";
+    gpb.registerFileParameter<std::size_t>("n_chains", DEFAULTGSANCHAINS, [this](std::size_t nc) {
+        this->setNChains(nc);
+    }) << "The number of independent Markov chains";
 
-    gpb.registerFileParameter<double>(
-        "qv",
-        DEFAULTGSAQV,
-        [this](double q) { this->setQv(q); }
-    ) << "The Tsallis visiting (distribution) parameter q_v (in ]1,3[)";
+    gpb.registerFileParameter<double>("qv", DEFAULTGSAQV, [this](double q) { this->setQv(q); })
+        << "The Tsallis visiting (distribution) parameter q_v (in ]1,3[)";
 
-    gpb.registerFileParameter<double>(
-        "qa",
-        DEFAULTGSAQA,
-        [this](double q) { this->setQa(q); }
-    ) << "The generalized acceptance parameter q_a (!= 1)";
+    gpb.registerFileParameter<double>("qa", DEFAULTGSAQA, [this](double q) { this->setQa(q); })
+        << "The generalized acceptance parameter q_a (!= 1)";
 
-    gpb.registerFileParameter<double>(
-        "t0",
-        DEFAULTGSAT0,
-        [this](double t) { this->setT0(t); }
-    ) << "The initial visiting temperature T_qv(1)"
-      << '\n'
-      << "(0 => derive from the parameter ranges)";
+    gpb.registerFileParameter<double>("t0", DEFAULTGSAT0, [this](double t) { this->setT0(t); })
+        << "The initial visiting temperature T_qv(1)" << '\n'
+        << "(0 => derive from the parameter ranges)";
 
     gpb.registerFileParameter<std::uint32_t>(
         "reannealing_steps",
@@ -234,7 +224,8 @@ void GGeneralizedSimulatedAnnealing::addConfigurationOptions_(Gem::Common::GPars
         "cooling_timescale",
         DEFAULTGSACOOLING,
         [this](double c) { this->setCoolingTimescale(c); }
-    ) << "Cooling timescale stretching the schedule (1 = strict Tsallis; larger = slower cooling, better for long high-dimensional runs)";
+    ) << "Cooling timescale stretching the schedule (1 = strict Tsallis; larger = slower cooling, "
+         "better for long high-dimensional runs)";
 }
 
 /******************************************************************************/
@@ -504,7 +495,8 @@ void GGeneralizedSimulatedAnnealing::applyAcceptance() {
         else {
             const std::uint32_t t = chain_step_[c];
             const double tqv = this->visitingTemperature(t);
-            const double tqa = tqv / this->effectiveTime(t); // coupled acceptance temperature (stretched time)
+            const double tqa =
+                tqv / this->effectiveTime(t); // coupled acceptance temperature (stretched time)
             const double p_pass = this->acceptanceProbability(delta_e, tqa);
 
             const double challenge = uniform_real_distribution_(
@@ -553,7 +545,10 @@ void GGeneralizedSimulatedAnnealing::applyAcceptance() {
 void GGeneralizedSimulatedAnnealing::evaluatePopulation_() {
     auto status = this->workOnPopulation(0, this->size());
 
-    this->requireCompleteEvaluation_(status, "GGeneralizedSimulatedAnnealing::evaluatePopulation_()");
+    this->requireCompleteEvaluation_(
+        status,
+        "GGeneralizedSimulatedAnnealing::evaluatePopulation_()"
+    );
 }
 
 /******************************************************************************/
@@ -572,6 +567,7 @@ void GGeneralizedSimulatedAnnealing::evaluatePopulation_() {
  *
  * @return The best (current or proposal) energy found in this iteration
  */
+// clang-format off
 //! [gsa-cycle-logic]
 std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
     if(this->afterFirstIteration()) {
@@ -608,6 +604,7 @@ std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
     return best_fitness;
 }
 //! [gsa-cycle-logic]
+// clang-format on
 
 /******************************************************************************/
 /**

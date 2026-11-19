@@ -57,12 +57,12 @@ namespace {
 template <typename T>
 T roundtrip(const T &v) {
     GBinaryOArchive oa;
-    oa &v;
+    oa & v;
     std::string bytes = oa.str();
 
     GBinaryIArchive ia(bytes);
     T out{};
-    ia &out;
+    ia & out;
     CHECK(ia.exhausted()); // a well-formed full read consumes every byte
     return out;
 }
@@ -87,7 +87,10 @@ struct Point {
 class Secret {
 public:
     Secret() = default;
-    Secret(int a, std::string b) : a_(a), b_(std::move(b)) {}
+    Secret(int a, std::string b)
+      : a_(a)
+      , b_(std::move(b)) {
+    }
     bool operator==(const Secret &) const = default;
 
 private:
@@ -121,7 +124,11 @@ struct Derived : Base {
     bool operator==(const Derived &) const = default;
 };
 
-enum class Color : std::uint8_t { red = 1, green = 2, blue = 250 };
+enum class Color : std::uint8_t {
+    red = 1,
+    green = 2,
+    blue = 250
+};
 
 } // namespace
 
@@ -135,10 +142,14 @@ TEST_CASE("GBinaryArchive: integer widths round-trip exactly", "[common][archive
     CHECK(roundtrip<std::uint16_t>(60000) == 60000);
     CHECK(roundtrip<std::int32_t>(-2000000000) == -2000000000);
     CHECK(roundtrip<std::uint32_t>(4000000000u) == 4000000000u);
-    CHECK(roundtrip<std::int64_t>(std::numeric_limits<std::int64_t>::min()) ==
-          std::numeric_limits<std::int64_t>::min());
-    CHECK(roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
-          std::numeric_limits<std::uint64_t>::max());
+    CHECK(
+        roundtrip<std::int64_t>(std::numeric_limits<std::int64_t>::min()) ==
+        std::numeric_limits<std::int64_t>::min()
+    );
+    CHECK(
+        roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
+        std::numeric_limits<std::uint64_t>::max()
+    );
     CHECK(roundtrip<char>('Q') == 'Q');
 }
 
@@ -146,8 +157,8 @@ TEST_CASE("GBinaryArchive: natural width is honoured on the wire", "[common][arc
     GBinaryOArchive oa;
     std::uint8_t byte = 7;
     std::uint64_t word = 7;
-    oa &byte;
-    oa &word;
+    oa & byte;
+    oa & word;
     CHECK(oa.str().size() == 1 + 8); // one byte for the u8, eight for the u64
 }
 
@@ -164,16 +175,22 @@ TEST_CASE("GBinaryArchive: bool and enum round-trip", "[common][archive][binary]
 TEST_CASE("GBinaryArchive: float and double round-trip bit-exactly", "[common][archive][binary]") {
     CHECK(roundtrip<float>(3.14159f) == 3.14159f);
     CHECK(roundtrip<double>(2.718281828459045) == 2.718281828459045);
-    CHECK(roundtrip<double>(std::numeric_limits<double>::min()) == std::numeric_limits<double>::min());
-    CHECK(roundtrip<double>(std::numeric_limits<double>::denorm_min()) ==
-          std::numeric_limits<double>::denorm_min());
+    CHECK(
+        roundtrip<double>(std::numeric_limits<double>::min()) == std::numeric_limits<double>::min()
+    );
+    CHECK(
+        roundtrip<double>(std::numeric_limits<double>::denorm_min()) ==
+        std::numeric_limits<double>::denorm_min()
+    );
     // Negative zero must survive as negative zero (bit pattern, not just == value).
     double back = roundtrip<double>(-0.0);
     CHECK(std::bit_cast<std::uint64_t>(back) == std::bit_cast<std::uint64_t>(-0.0));
 }
 
-TEST_CASE("GBinaryArchive: long double round-trips bit-exactly (normalized-genome edge)",
-          "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: long double round-trips bit-exactly (normalized-genome edge)",
+    "[common][archive][binary]"
+) {
     // The normalized-coordinate model composes external values in long double;
     // the codec must reproduce them exactly within one binary.
     long double a = 3.14159265358979323846264338327950288L;
@@ -189,26 +206,35 @@ TEST_CASE("GBinaryArchive: long double round-trips bit-exactly (normalized-genom
 // long double is encoded as a canonical, architecture-portable IEEE-754 binary128 (16 bytes),
 // NOT as the platform's raw long double slot (which is 80-bit-in-16-with-padding on x86-64 and
 // not cross-arch portable). The encoded width proves the canonical form.
-TEST_CASE("GBinaryArchive: long double is a canonical 16-byte binary128", "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: long double is a canonical 16-byte binary128",
+    "[common][archive][binary]"
+) {
     const long double v = 3.14159265358979323846264338327950288L;
     GBinaryOArchive oa;
-    oa &v;
-    CHECK(oa.str().size() == 16); // exactly one binary128, regardless of the platform long double format
+    oa & v;
+    CHECK(
+        oa.str().size() == 16
+    ); // exactly one binary128, regardless of the platform long double format
 
     long double back{};
     GBinaryIArchive ia(oa.str());
-    ia &back;
+    ia & back;
     CHECK(back == v);
 
     // The full 64-bit significand of an x86-80-bit value survives the 80->128->80 round trip.
-    const long double e = std::nextafter(1.0L, 2.0L); // 1 + 1 ULP: exercises the low significand bit
+    const long double e =
+        std::nextafter(1.0L, 2.0L); // 1 + 1 ULP: exercises the low significand bit
     CHECK(roundtrip<long double>(e) == e);
 }
 
 // ---------------------------------------------------------------------------
 // Strings and paths.
 
-TEST_CASE("GBinaryArchive: string round-trips (including empty and embedded NUL)", "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: string round-trips (including empty and embedded NUL)",
+    "[common][archive][binary]"
+) {
     CHECK(roundtrip<std::string>("") == "");
     CHECK(roundtrip<std::string>("hello world") == "hello world");
     std::string withNul("a\0b", 3);
@@ -226,9 +252,13 @@ TEST_CASE("GBinaryArchive: filesystem::path round-trips", "[common][archive][bin
 TEST_CASE("GBinaryArchive: sequence containers round-trip", "[common][archive][binary]") {
     CHECK(roundtrip<std::vector<int>>({}) == std::vector<int>{});
     CHECK(roundtrip<std::vector<int>>({1, 2, 3, 4, 5}) == std::vector<int>{1, 2, 3, 4, 5});
-    CHECK(roundtrip<std::vector<double>>({-1.5, 0.0, 2.25}) == std::vector<double>{-1.5, 0.0, 2.25});
-    CHECK(roundtrip<std::vector<std::string>>({"a", "bb", "ccc"}) ==
-          std::vector<std::string>{"a", "bb", "ccc"});
+    CHECK(
+        roundtrip<std::vector<double>>({-1.5, 0.0, 2.25}) == std::vector<double>{-1.5, 0.0, 2.25}
+    );
+    CHECK(
+        roundtrip<std::vector<std::string>>({"a", "bb", "ccc"}) ==
+        std::vector<std::string>{"a", "bb", "ccc"}
+    );
 }
 
 TEST_CASE("GBinaryArchive: nested containers round-trip", "[common][archive][binary]") {
@@ -258,10 +288,10 @@ TEST_CASE("GBinaryArchive: pairs and tuples and arrays round-trip", "[common][ar
 TEST_CASE("GBinaryArchive: std::atomic round-trips its held value", "[common][archive][binary]") {
     GBinaryOArchive oa;
     std::atomic<int> in{12345};
-    oa &in;
+    oa & in;
     GBinaryIArchive ia(oa.str());
     std::atomic<int> out{0};
-    ia &out;
+    ia & out;
     CHECK(ia.exhausted());
     CHECK(out.load() == 12345);
 }
@@ -269,12 +299,18 @@ TEST_CASE("GBinaryArchive: std::atomic round-trips its held value", "[common][ar
 // ---------------------------------------------------------------------------
 // Serializable classes: public serialize, private-via-access, and base_object.
 
-TEST_CASE("GBinaryArchive: a value class with a public serialize round-trips", "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: a value class with a public serialize round-trips",
+    "[common][archive][binary]"
+) {
     Point p{42, 3.5, "origin"};
     CHECK(roundtrip(p) == p);
 }
 
-TEST_CASE("GBinaryArchive: a class with a private serialize round-trips via access", "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: a class with a private serialize round-trips via access",
+    "[common][archive][binary]"
+) {
     Secret s{99, "classified"};
     CHECK(roundtrip(s) == s);
 }
@@ -289,7 +325,10 @@ TEST_CASE("GBinaryArchive: base_object serializes the base slice", "[common][arc
     CHECK(back == d);
 }
 
-TEST_CASE("GBinaryArchive: a class holding containers of classes round-trips", "[common][archive][binary]") {
+TEST_CASE(
+    "GBinaryArchive: a class holding containers of classes round-trips",
+    "[common][archive][binary]"
+) {
     std::vector<Point> pts{{1, 1.0, "a"}, {2, 2.0, "b"}, {3, 3.0, "c"}};
     CHECK(roundtrip(pts) == pts);
     std::map<int, Point> byId{{1, {1, 1.0, "a"}}, {2, {2, 2.0, "b"}}};
@@ -302,9 +341,9 @@ TEST_CASE("GBinaryArchive: a class holding containers of classes round-trips", "
 TEST_CASE("GBinaryArchive: truncated stream throws on underflow", "[common][archive][binary]") {
     GBinaryOArchive oa;
     std::uint64_t v = 0xDEADBEEFCAFEBABEULL;
-    oa &v;
+    oa & v;
     std::string truncated = oa.str().substr(0, 3); // fewer than 8 bytes
     GBinaryIArchive ia(truncated);
     std::uint64_t out = 0;
-    CHECK_THROWS_AS(ia &out, Gem::Weft::weft_exception);
+    CHECK_THROWS_AS(ia & out, Gem::Weft::weft_exception);
 }

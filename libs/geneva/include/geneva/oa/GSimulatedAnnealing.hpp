@@ -40,12 +40,12 @@
 // Geneva headers go here
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
+#include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -214,7 +214,7 @@ private:
     // Data
 
     double t0_ = SA_T0;       ///< The start temperature, used in simulated annealing
-    double t_ = t0_;         ///< The current temperature, used in simulated annealing
+    double t_ = t0_;          ///< The current temperature, used in simulated annealing
     double alpha_ = SA_ALPHA; ///< A constant used in the cooling schedule in simulated annealing
 };
 
@@ -223,5 +223,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

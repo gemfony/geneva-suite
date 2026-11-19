@@ -59,11 +59,20 @@ namespace Gem::Geneva::Genome {
  *
  * @tparam T The parameter type whose adaption floating-point type is being selected.
  */
-template <typename T> struct adaption_fp { using type = double; };
-template <> struct adaption_fp<double> { using type = double; };
-template <> struct adaption_fp<float> { using type = float; };
-template <typename T> using adaption_fp_t = typename adaption_fp<T>::type;
-
+template <typename T>
+struct adaption_fp {
+    using type = double;
+};
+template <>
+struct adaption_fp<double> {
+    using type = double;
+};
+template <>
+struct adaption_fp<float> {
+    using type = float;
+};
+template <typename T>
+using adaption_fp_t = typename adaption_fp<T>::type;
 
 /******************************************************************************/
 /**
@@ -180,8 +189,9 @@ T foldConstrainedInt(const T &val, const T &lo, const T &hi) {
 /** @brief external = anchor + u * scale, composed in long double and narrowed back to T. */
 template <typename T>
 T ngInternalToExternal(const T &u, const T &scale, const T &anchor) {
-    const long double x = Gem::Common::narrow<long double>(anchor)
-                          + Gem::Common::narrow<long double>(u) * Gem::Common::narrow<long double>(scale);
+    const long double x =
+        Gem::Common::narrow<long double>(anchor) +
+        Gem::Common::narrow<long double>(u) * Gem::Common::narrow<long double>(scale);
     return Gem::Common::narrow<T>(x);
 }
 
@@ -192,8 +202,9 @@ T ngExternalToInternal(const T &x, const T &scale, const T &anchor) {
     if(not(scale > T(0))) {
         return T(0);
     }
-    const long double u = (Gem::Common::narrow<long double>(x) - Gem::Common::narrow<long double>(anchor))
-                          / Gem::Common::narrow<long double>(scale);
+    const long double u =
+        (Gem::Common::narrow<long double>(x) - Gem::Common::narrow<long double>(anchor)) /
+        Gem::Common::narrow<long double>(scale);
     return Gem::Common::narrow<T>(u);
 }
 
@@ -237,10 +248,11 @@ T ngClampHalfOpen(T x, const T &lo, const T &hi) {
  */
 template <typename T>
 struct GroupStructure {
-    std::uint32_t start = 0;    ///< index of the first value of this group within the channel
-    std::uint32_t len = 1;      ///< number of values in this group
-    std::int32_t label_id = -1; ///< interned label index into GGenomeLayout::labels (-1 = unlabeled)
-    bool active = true;         ///< false ⇔ adaptionMode::NEVER (the group is never adapted / mutated)
+    std::uint32_t start = 0; ///< index of the first value of this group within the channel
+    std::uint32_t len = 1;   ///< number of values in this group
+    std::int32_t label_id =
+        -1;             ///< interned label index into GGenomeLayout::labels (-1 = unlabeled)
+    bool active = true; ///< false ⇔ adaptionMode::NEVER (the group is never adapted / mutated)
 
     /** @brief Field-wise structural equality (the basis of the layout's collision-safe id compare). */
     bool operator==(const GroupStructure &) const = default;
@@ -257,25 +269,32 @@ struct GroupStructure {
  */
 template <typename T>
 struct GroupSpec {
-    std::uint32_t start = 0;       ///< index of the first value of this group within the channel
-    std::uint32_t len = 1;         ///< number of values in this group
-    std::int32_t label_id = -1;    ///< interned label index into GGenomeLayout::labels (-1 = unlabeled)
-    bool active = true;            ///< false ⇔ adaptionMode::NEVER (the group is never adapted)
-    bool has_gauss = false;        ///< whether a Gauss adaptor is configured (FP groups only)
-    GaussConfig<adaption_fp_t<T>> gauss{};        ///< the static Gauss configuration (valid iff has_gauss)
-    adaption_fp_t<T> start_sigma = adaption_fp_t<T>(1);   ///< GaussState sigma seed + updateOnStall reset target
-    adaption_fp_t<T> start_ad_prob = adaption_fp_t<T>(1); ///< Gauss/BiGauss/Flip ad_prob seed + reset target
+    std::uint32_t start = 0; ///< index of the first value of this group within the channel
+    std::uint32_t len = 1;   ///< number of values in this group
+    std::int32_t label_id =
+        -1;                 ///< interned label index into GGenomeLayout::labels (-1 = unlabeled)
+    bool active = true;     ///< false ⇔ adaptionMode::NEVER (the group is never adapted)
+    bool has_gauss = false; ///< whether a Gauss adaptor is configured (FP groups only)
+    GaussConfig<adaption_fp_t<T>> gauss{}; ///< the static Gauss configuration (valid iff has_gauss)
+    adaption_fp_t<T> start_sigma =
+        adaption_fp_t<T>(1); ///< GaussState sigma seed + updateOnStall reset target
+    adaption_fp_t<T> start_ad_prob =
+        adaption_fp_t<T>(1); ///< Gauss/BiGauss/Flip ad_prob seed + reset target
 
     // Bi-gaussian alternative (FP groups only): mutually exclusive with has_gauss for the same group.
-    bool has_bigauss = false;      ///< whether a bi-gaussian adaptor is configured (FP groups only)
-    BiGaussConfig<adaption_fp_t<T>> bigauss{};            ///< the static bi-gaussian configuration (valid iff has_bigauss)
-    adaption_fp_t<T> start_sigma1 = adaption_fp_t<T>(1);  ///< BiGaussState sigma1 seed + reset target
-    adaption_fp_t<T> start_sigma2 = adaption_fp_t<T>(1);  ///< BiGaussState sigma2 seed + reset target
-    adaption_fp_t<T> start_delta = adaption_fp_t<T>(0.5); ///< BiGaussState delta seed + reset target
+    bool has_bigauss = false; ///< whether a bi-gaussian adaptor is configured (FP groups only)
+    BiGaussConfig<adaption_fp_t<T>>
+        bigauss{}; ///< the static bi-gaussian configuration (valid iff has_bigauss)
+    adaption_fp_t<T> start_sigma1 =
+        adaption_fp_t<T>(1); ///< BiGaussState sigma1 seed + reset target
+    adaption_fp_t<T> start_sigma2 =
+        adaption_fp_t<T>(1); ///< BiGaussState sigma2 seed + reset target
+    adaption_fp_t<T> start_delta =
+        adaption_fp_t<T>(0.5); ///< BiGaussState delta seed + reset target
 
     // Flip adaptor (int32 / bool groups only).
-    bool has_flip = false;         ///< whether a flip adaptor is configured (int / bool groups only)
-    FlipConfig flip{};             ///< the static flip configuration (valid iff has_flip)
+    bool has_flip = false; ///< whether a flip adaptor is configured (int / bool groups only)
+    FlipConfig flip{};     ///< the static flip configuration (valid iff has_flip)
 };
 
 /******************************************************************************/
@@ -297,16 +316,24 @@ struct GroupSpec {
  */
 template <typename T>
 struct ChannelLayout {
-    std::vector<T> lower;            ///< per value: lower bound (fold ceiling if folding; unused as a constraint otherwise)
-    std::vector<T> upper;            ///< per value: upper bound (fold ceiling if folding; unused as a constraint otherwise)
-    std::vector<T> init_lower;       ///< per value: lower random-init perimeter (and the mutation scale for unbounded)
-    std::vector<T> init_upper;       ///< per value: upper random-init perimeter (and the mutation scale for unbounded)
-    std::vector<std::uint8_t> fold;  ///< per value: 1 ⇔ the value folds into [lower,upper) (bounded); 0 ⇔ unbounded
-    std::vector<std::uint8_t> active;///< per value: mirrors the owning group's active flag (1/0)
-    std::vector<GroupStructure<T>> groups;///< contiguous groups tiling [0, size()) -- STRUCTURE only
+    std::vector<T>
+        lower; ///< per value: lower bound (fold ceiling if folding; unused as a constraint otherwise)
+    std::vector<T>
+        upper; ///< per value: upper bound (fold ceiling if folding; unused as a constraint otherwise)
+    std::vector<T>
+        init_lower; ///< per value: lower random-init perimeter (and the mutation scale for unbounded)
+    std::vector<T>
+        init_upper; ///< per value: upper random-init perimeter (and the mutation scale for unbounded)
+    std::vector<std::uint8_t>
+        fold; ///< per value: 1 ⇔ the value folds into [lower,upper) (bounded); 0 ⇔ unbounded
+    std::vector<std::uint8_t> active; ///< per value: mirrors the owning group's active flag (1/0)
+    std::vector<GroupStructure<T>>
+        groups; ///< contiguous groups tiling [0, size()) -- STRUCTURE only
 
     /** @brief The number of values in this channel. @return The per-value array length. */
-    [[nodiscard]] std::size_t size() const { return lower.size(); }
+    [[nodiscard]] std::size_t size() const {
+        return lower.size();
+    }
 };
 
 /******************************************************************************/
@@ -329,13 +356,18 @@ T ngAnchor(ChannelLayout<T> const &ch, std::size_t k) {
 
 /******************************************************************************/
 /** @brief Identifies one of the four value channels (used to address a group across channels). */
-enum class ChannelTag : std::uint8_t { Double, Float, Int32, Bool };
+enum class ChannelTag : std::uint8_t {
+    Double,
+    Float,
+    Int32,
+    Bool
+};
 
 /******************************************************************************/
 /** @brief A reference to one adaption group: which channel it lives in + its index within that channel. */
 struct GroupRef {
-    ChannelTag channel;     ///< the value channel the group belongs to
-    std::size_t index;      ///< the group's index within that channel's `groups`
+    ChannelTag channel; ///< the value channel the group belongs to
+    std::size_t index;  ///< the group's index within that channel's `groups`
 };
 
 /******************************************************************************/
@@ -378,12 +410,13 @@ struct LayoutId {
  */
 class GGenomeLayout {
 public:
-    ChannelLayout<double> d;        ///< the double channel
-    ChannelLayout<float> f;         ///< the float channel
-    ChannelLayout<std::int32_t> i;  ///< the int32 channel
-    ChannelLayout<bool> b;          ///< the bool channel
+    ChannelLayout<double> d;       ///< the double channel
+    ChannelLayout<float> f;        ///< the float channel
+    ChannelLayout<std::int32_t> i; ///< the int32 channel
+    ChannelLayout<bool> b;         ///< the bool channel
 
-    std::vector<std::string> labels;///< the interned, distinct group-label strings (label_id indexes this)
+    std::vector<std::string>
+        labels; ///< the interned, distinct group-label strings (label_id indexes this)
 
     /***************************************************************************/
     // Special members. The layout caches its content id lazily in a GLoadOnceCellT (which owns a mutex
@@ -396,17 +429,30 @@ public:
     GGenomeLayout() = default;
     /** @brief Copy constructor: copies the structural members; the id cache is left cold. */
     GGenomeLayout(const GGenomeLayout &cp)
-      : d(cp.d), f(cp.f), i(cp.i), b(cp.b), labels(cp.labels) {}
+      : d(cp.d)
+      , f(cp.f)
+      , i(cp.i)
+      , b(cp.b)
+      , labels(cp.labels) {
+    }
     /** @brief Move constructor: moves the structural members; the id cache is left cold. */
     GGenomeLayout(GGenomeLayout &&cp) noexcept
-      : d(std::move(cp.d)), f(std::move(cp.f)), i(std::move(cp.i)), b(std::move(cp.b)),
-        labels(std::move(cp.labels)) {}
+      : d(std::move(cp.d))
+      , f(std::move(cp.f))
+      , i(std::move(cp.i))
+      , b(std::move(cp.b))
+      , labels(std::move(cp.labels)) {
+    }
     /** @brief Copy assignment: copies the structural members and drops the cached id, which described
      *  the structure this layout used to have.
      *  @param cp The layout to copy from. @return A reference to this layout. */
     GGenomeLayout &operator=(const GGenomeLayout &cp) {
         if(this != &cp) {
-            d = cp.d; f = cp.f; i = cp.i; b = cp.b; labels = cp.labels;
+            d = cp.d;
+            f = cp.f;
+            i = cp.i;
+            b = cp.b;
+            labels = cp.labels;
             id_cell_.reset();
         }
         return *this;
@@ -416,7 +462,10 @@ public:
      *  @param cp The layout to move from. @return A reference to this layout. */
     GGenomeLayout &operator=(GGenomeLayout &&cp) noexcept {
         if(this != &cp) {
-            d = std::move(cp.d); f = std::move(cp.f); i = std::move(cp.i); b = std::move(cp.b);
+            d = std::move(cp.d);
+            f = std::move(cp.f);
+            i = std::move(cp.i);
+            b = std::move(cp.b);
             labels = std::move(cp.labels);
             id_cell_.reset();
         }
@@ -541,11 +590,15 @@ private:
      * @param out The output vector that matching GroupRef entries are appended to.
      */
     template <typename T>
-    static void
-    collectGroups(const ChannelLayout<T> &ch, ChannelTag tag, std::int32_t id, std::vector<GroupRef> &out) {
+    static void collectGroups(
+        const ChannelLayout<T> &ch,
+        ChannelTag tag,
+        std::int32_t id,
+        std::vector<GroupRef> &out
+    ) {
         for(std::size_t gi = 0; gi < ch.groups.size(); ++gi) {
             if(ch.groups[gi].label_id == id) {
-                out.push_back(GroupRef{.channel=tag, .index=gi});
+                out.push_back(GroupRef{.channel = tag, .index = gi});
             }
         }
     }
@@ -557,9 +610,10 @@ private:
 
     /** @brief The incremental two-lane hasher over the structural bytes of a layout. */
     struct Hasher128 {
-        std::uint64_t h1 = 14695981039346656037ULL;                   ///< FNV-1a offset basis (lane 1)
-        std::uint64_t h2 = 14695981039346656037ULL ^ 0x9E3779B97F4A7C15ULL; ///< distinct basis (lane 2)
-        static constexpr std::uint64_t prime = 1099511628211ULL;     ///< the 64-bit FNV prime
+        std::uint64_t h1 = 14695981039346656037ULL; ///< FNV-1a offset basis (lane 1)
+        std::uint64_t h2 =
+            14695981039346656037ULL ^ 0x9E3779B97F4A7C15ULL;     ///< distinct basis (lane 2)
+        static constexpr std::uint64_t prime = 1099511628211ULL; ///< the 64-bit FNV prime
 
         /** @brief Folds one byte into both lanes. @param byte The byte to absorb. */
         void absorb(std::uint8_t byte) {
@@ -571,7 +625,10 @@ private:
          *  @tparam T The value type. @param v The value whose bytes are absorbed. */
         template <typename T>
         void value(T v) {
-            static_assert(std::is_trivially_copyable_v<T>, "value() hashes the object representation");
+            static_assert(
+                std::is_trivially_copyable_v<T>,
+                "value() hashes the object representation"
+            );
             const auto *p = reinterpret_cast<const unsigned char *>(&v);
             for(std::size_t k = 0; k < sizeof(T); ++k) {
                 absorb(p[k]);
@@ -586,7 +643,9 @@ private:
             }
         }
         /** @brief The accumulated 128-bit id. @return The two-lane hash as a LayoutId. */
-        [[nodiscard]] LayoutId id() const { return LayoutId{.hi=h1, .lo=h2}; }
+        [[nodiscard]] LayoutId id() const {
+            return LayoutId{.hi = h1, .lo = h2};
+        }
     };
 
     /** @brief Folds one channel's full structural content into the hasher (length-prefixed throughout,
@@ -698,7 +757,9 @@ struct std::hash<Gem::Geneva::Genome::LayoutId> {
      *  @param id The id to hash. @return A size_t hash of the id. */
     std::size_t operator()(const Gem::Geneva::Genome::LayoutId &id) const noexcept {
         // The id is already a strong hash; xor-with-shift mixes the two halves into a size_t.
-        return static_cast<std::size_t>(id.hi ^ (id.lo + 0x9E3779B97F4A7C15ULL + (id.hi << 6) + (id.hi >> 2)));
+        return static_cast<std::size_t>(
+            id.hi ^ (id.lo + 0x9E3779B97F4A7C15ULL + (id.hi << 6) + (id.hi >> 2))
+        );
     }
 };
 

@@ -102,7 +102,8 @@ namespace {
  */
 // Summary statistics over the per-item relative errors: logs min/median/mean/max and the within-tolerance
 // fraction, and returns that fraction (which drives the pass/fail decision).
-double reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, double pass_fraction) {
+double
+reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, double pass_fraction) {
     std::vector<double> sorted = rel;
     std::sort(sorted.begin(), sorted.end());
     const double relMin = sorted.front();
@@ -110,16 +111,28 @@ double reportParitySummary(const std::vector<double> &rel, int n, double rel_tol
     const double relMedian = sorted[sorted.size() / 2];
     const double relMean = std::accumulate(rel.begin(), rel.end(), 0.0) / static_cast<double>(n);
     const std::size_t within = static_cast<std::size_t>(
-        std::count_if(rel.begin(), rel.end(), [&](double r) { return r <= rel_tol; }));
+        std::count_if(rel.begin(), rel.end(), [&](double r) { return r <= rel_tol; })
+    );
     const double withinFraction = static_cast<double>(within) / static_cast<double>(n);
 
     glogger << std::format(
-                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  max={:.3e}",
-                   n, relMin, relMedian, relMean, relMax)
+                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
+                   "max={:.3e}",
+                   n,
+                   relMin,
+                   relMedian,
+                   relMean,
+                   relMax
+               )
             << '\n'
             << std::format(
                    "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
-                   rel_tol, within, n, 100.0 * withinFraction, 100.0 * pass_fraction)
+                   rel_tol,
+                   within,
+                   n,
+                   100.0 * withinFraction,
+                   100.0 * pass_fraction
+               )
             << '\n'
             << GLOGGING;
 
@@ -149,9 +162,11 @@ int runParityCheck(int n, const std::string &consumerConfig) {
     gpuBatch.reserve(static_cast<std::size_t>(n));
     for(int i = 0; i < n; ++i) {
         auto ind = f.get_as<gind::GFunctionIndividual>();
-        ind->randomInit(activityMode::ALLPARAMETERS); // spread the genome across its range (the factory
-                                                      // hands back the init value, not a random point)
-        gpuBatch.push_back(ind->clone());      // identical-genome copy for the device path
+        ind->randomInit(
+            activityMode::ALLPARAMETERS
+        );                                // spread the genome across its range (the factory
+                                          // hands back the init value, not a random point)
+        gpuBatch.push_back(ind->clone()); // identical-genome copy for the device path
         cpuInds.push_back(ind);
     }
 
@@ -171,7 +186,8 @@ int runParityCheck(int n, const std::string &consumerConfig) {
         std::make_shared<gpu::GGPUConsumerT<GGenome, double>>(consumerConfig, marshaller);
     consumer->processBatch(
         std::span<std::unique_ptr<GGenome>>(gpuBatch.data(), gpuBatch.size()),
-        Gem::Courtier::GSubmissionPolicy::full_success_or_fatal());
+        Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+    );
 
     std::vector<double> fitness_gpu(static_cast<std::size_t>(n));
     for(int i = 0; i < n; ++i) {
@@ -187,7 +203,11 @@ int runParityCheck(int n, const std::string &consumerConfig) {
         if(i < nShow) {
             glogger << std::format(
                            "  item {:3d}:  cpu={:.12g}  gpu={:.12g}  rel-err={:.3e}",
-                           i, fitness_cpu[i], fitness_gpu[i], rel[i])
+                           i,
+                           fitness_cpu[i],
+                           fitness_gpu[i],
+                           rel[i]
+                       )
                     << '\n'
                     << GLOGGING;
         }
@@ -212,13 +232,21 @@ int main(int argc, char **argv) {
 
     Gem::Common::GParserBuilder gpb;
     gpb.registerFileParameter<std::string>(
-        "gpu_config", consumerConfig, std::string("./config/GGPUConsumer.json"),
+        "gpu_config",
+        consumerConfig,
+        std::string("./config/GGPUConsumer.json"),
         Gem::Common::VAR_IS_ESSENTIAL,
-        "The courtier GPU consumer configuration file (backend + kernel selection)");
+        "The courtier GPU consumer configuration file (backend + kernel selection)"
+    );
     gpb.registerFileParameter<int>(
-        "parity_check_n", parityCheckN, 0, Gem::Common::VAR_IS_SECONDARY,
-        "If > 0: run a GPU/CPU parity check over this many random individuals (CPU evaluate() vs the CUDA"
-        " kernel) and exit, instead of optimizing; 0 == off (normal optimization run)");
+        "parity_check_n",
+        parityCheckN,
+        0,
+        Gem::Common::VAR_IS_SECONDARY,
+        "If > 0: run a GPU/CPU parity check over this many random individuals (CPU evaluate() vs "
+        "the CUDA"
+        " kernel) and exit, instead of optimizing; 0 == off (normal optimization run)"
+    );
     gpb.parseConfigFile("./config/GFunctionGPUGeneral.json");
 
     // ---- contribute the GPU marshaller; select it with "--consumer gpu" -----------------------
@@ -237,7 +265,8 @@ int main(int argc, char **argv) {
     if(go.updateConfigsMode()) {
         auto marshaller = std::make_shared<FunctionGPU::GFunctionGPUMarshaller>();
         gpu::GGPUConsumerT<gen::GGenome, double>(consumerConfig, marshaller);
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get_as<gind::GFunctionIndividual>();
+        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            .get_as<gind::GFunctionIndividual>();
         go.optimize(); // refreshes Go2's owned configs, then exits; nothing device-dependent has run
     }
 
@@ -255,7 +284,8 @@ int main(int argc, char **argv) {
     signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
     // ---- create the individual factory and wire the optimization ------------------------------
-    auto gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    auto gfi_ptr =
+        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(gfi_ptr);
 
     // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory

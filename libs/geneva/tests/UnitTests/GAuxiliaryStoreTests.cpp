@@ -54,7 +54,10 @@ constexpr AuxKey KEY = 0x1234u;
 } // namespace
 
 /******************************************************************************/
-TEST_CASE("GAuxiliaryStore POD blocks: install / typed access / copy-independence / clear", "[aux]") {
+TEST_CASE(
+    "GAuxiliaryStore POD blocks: install / typed access / copy-independence / clear",
+    "[aux]"
+) {
     GAuxiliaryStore s;
 
     CHECK_FALSE(s.hasAux(KEY));
@@ -84,7 +87,10 @@ TEST_CASE("GAuxiliaryStore POD blocks: install / typed access / copy-independenc
 }
 
 /******************************************************************************/
-TEST_CASE("Individual scratch: clone copies it; compare ignores it; resetPersonality drops it", "[aux]") {
+TEST_CASE(
+    "Individual scratch: clone copies it; compare ignores it; resetPersonality drops it",
+    "[aux]"
+) {
     using Gem::Geneva::Individuals::GTestIndividual3;
 
     // The per-group POD adaption scratch is OA-owned and rides on the individual itself (in its
@@ -162,7 +168,9 @@ TEST_CASE(
         std::string wire;
         {
             c2::GWireSerializationScope const scope(&send_ctx);
-            wire = original->toString(mode::GEM_BINARY); // first send: carries the layout, omits the scratch
+            wire = original->toString(
+                mode::GEM_BINARY
+            ); // first send: carries the layout, omits the scratch
         }
 
         c2::GWireBlobRegistry recv_reg;
@@ -174,6 +182,8 @@ TEST_CASE(
             c2::GWireSerializationScope const scope(&recv_ctx);
             restored.fromString(wire, mode::GEM_BINARY);
         }
-        CHECK_FALSE(restored.scratch().hasAux(KEY)); // scratch omitted; restored keeps its empty default (no crash)
+        CHECK_FALSE(
+            restored.scratch().hasAux(KEY)
+        ); // scratch omitted; restored keeps its empty default (no crash)
     }
 }

@@ -83,12 +83,10 @@ int main(int argc, char **argv) {
     go.registerDefaultAlgorithm("ea");
 
     // Perform the actual optimization
-    auto const p =
-        go.optimize()->getBestGlobalIndividual<gind::GExternalEvaluatorIndividual>();
+    auto const p = go.optimize()->getBestGlobalIndividual<gind::GExternalEvaluatorIndividual>();
 
     // Extract the best individuals found
-    auto const bestInds =
-        go.getBestGlobalIndividuals<gind::GExternalEvaluatorIndividual>();
+    auto const bestInds = go.getBestGlobalIndividuals<gind::GExternalEvaluatorIndividual>();
 
     // Note that the "archive" call is specific to the GExternalEvaluatorIndividual (it is now a static
     // helper on the individual, reading the program/run-id off the archived individuals themselves)

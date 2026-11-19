@@ -95,14 +95,10 @@ template <class... args_type>
 std::string g_to_string(const std::tuple<args_type...> &t) {
     std::vector<std::string> parts;
     parts.reserve(sizeof...(args_type));
-    std::apply(
-        [&parts](const auto &...elems) {
-            (parts.push_back(g_to_string(elems)), ...);
-        },
-        t
-    );
+    std::apply([&parts](const auto &...elems) { (parts.push_back(g_to_string(elems)), ...); }, t);
     return "(" +
-           (parts | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>()) +
+           (parts | std::views::join_with(std::string_view(", ")) |
+            std::ranges::to<std::string>()) +
            ")";
 }
 

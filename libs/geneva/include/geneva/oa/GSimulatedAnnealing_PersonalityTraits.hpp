@@ -53,7 +53,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * uses the same framework.
  */
 class GSimulatedAnnealing_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GSimulatedAnnealing_PersonalityTraits, GBaseParChildPersonalityTraits> {
+  : public Gem::Common::GReflectiveInterfaceT<
+        GSimulatedAnnealing_PersonalityTraits,
+        GBaseParChildPersonalityTraits> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach the (empty) localMembers_().
@@ -99,5 +101,3 @@ protected:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

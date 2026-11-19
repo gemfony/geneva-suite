@@ -74,7 +74,10 @@ TEST_CASE("GSPSCStagingRingT: non-copyable and non-movable", "[common][spsc-ring
 // ---------------------------------------------------------------------------
 // The injected fill runs for the initial generations at construction.
 
-TEST_CASE("GSPSCStagingRingT: the fill callback populates the initial generations", "[common][spsc-ring]") {
+TEST_CASE(
+    "GSPSCStagingRingT: the fill callback populates the initial generations",
+    "[common][spsc-ring]"
+) {
     std::atomic<int> fill_calls{0};
     {
         Ring const ring([&fill_calls](std::uint64_t *dst, std::size_t n) {
@@ -91,7 +94,10 @@ TEST_CASE("GSPSCStagingRingT: the fill callback populates the initial generation
 // ---------------------------------------------------------------------------
 // Single-threaded read paths agree and are valid.
 
-TEST_CASE("GSPSCStagingRingT: claimSpan and copyChunkInto both yield filled words", "[common][spsc-ring]") {
+TEST_CASE(
+    "GSPSCStagingRingT: claimSpan and copyChunkInto both yield filled words",
+    "[common][spsc-ring]"
+) {
     Ring ring(sentinel_fill);
 
     for(int c = 0; c < 32; ++c) {
@@ -111,8 +117,10 @@ TEST_CASE("GSPSCStagingRingT: claimSpan and copyChunkInto both yield filled word
 // ---------------------------------------------------------------------------
 // Distinct chunks within one pool decode to distinct, non-overlapping memory.
 
-TEST_CASE("GSPSCStagingRingT: consecutive claims advance through distinct chunk slots",
-          "[common][spsc-ring]") {
+TEST_CASE(
+    "GSPSCStagingRingT: consecutive claims advance through distinct chunk slots",
+    "[common][spsc-ring]"
+) {
     // A fill that paints each word with its absolute index within the pool, so we can see the offset
     // decode walk chunk slots 0,1,2,... within a pool (each generation re-paints the same pattern).
     auto index_fill = [](std::uint64_t *dst, std::size_t n) {
@@ -137,7 +145,10 @@ TEST_CASE("GSPSCStagingRingT: consecutive claims advance through distinct chunk 
 // Many concurrent readers: every claimed word is valid; the ring never tears or hangs.
 
 // NOLINTNEXTLINE(readability-function-size) -- one coherent concurrency stress-test kernel (spawns reader threads sharing atomics + the ring under test, joins, then asserts); splitting would only scatter the tightly-coupled thread lambdas
-TEST_CASE("GSPSCStagingRingT: concurrent readers only ever see valid words", "[common][spsc-ring][concurrency]") {
+TEST_CASE(
+    "GSPSCStagingRingT: concurrent readers only ever see valid words",
+    "[common][spsc-ring][concurrency]"
+) {
     Ring ring(sentinel_fill);
 
     constexpr int kReaders = 8;

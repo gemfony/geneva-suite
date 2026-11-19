@@ -38,9 +38,9 @@
 #include <boost/program_options.hpp>
 
 // Geneva header files go here
+#include "geneva/Go2.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GPostProcessorT.hpp"
-#include "geneva/Go2.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -93,7 +93,8 @@ int main(int argc, char **argv) {
         OptimizationAlgorithms::GOptimizationAlgorithmFactoryT<
             OptimizationAlgorithms::GEvolutionaryAlgorithm>(
             "./config/GPostEvolutionaryAlgorithm.json"
-        ).get<OptimizationAlgorithms::GOptimizationAlgorithmBase>();
+        )
+            .get<OptimizationAlgorithms::GOptimizationAlgorithmBase>();
     }
 
     //---------------------------------------------------------------------------
@@ -105,6 +106,7 @@ int main(int argc, char **argv) {
 
     //---------------------------------------------------------------------------
     // Register a post-processor, if this was requested by the user
+    // clang-format off
     //! [results-postprocessor]
     if(usePostProcessor) {
         std::shared_ptr<GEvolutionaryAlgorithmPostOptimizer> const eaPostOptimizer_ptr(
@@ -120,6 +122,7 @@ int main(int argc, char **argv) {
         gfi_ptr->registerPostProcessor(eaPostOptimizer_ptr);
     }
     //! [results-postprocessor]
+    // clang-format on
 
     //---------------------------------------------------------------------------
     // Register pluggable optimization monitors, if requested by the user
@@ -161,8 +164,7 @@ int main(int argc, char **argv) {
     go.registerDefaultAlgorithm("ea");
 
     // Perform the actual optimization
-    auto const p =
-        go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

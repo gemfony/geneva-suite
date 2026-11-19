@@ -39,16 +39,16 @@
 #include <tuple>
 #include <vector>
 
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
 
+using Catch::Approx;
 using Gem::Geneva::Individuals::networkData;
 using Gem::Geneva::Individuals::trainingSet;
-using Catch::Approx;
 
 namespace {
 
@@ -83,7 +83,7 @@ TEST_CASE("trainingSet: copy is deep and self-assignment is safe", "[individuals
     CHECK(copy.Output[0] == 3.);
 
     // The retired hand-written operator= was not self-assignment-safe
-    trainingSet  const&self = t_s;
+    trainingSet const &self = t_s;
     t_s = self;
     CHECK(t_s.Input[0] == 1.);
     CHECK(t_s.Input[1] == 2.);
@@ -111,7 +111,7 @@ TEST_CASE("networkData: copy and assignment are deep and complete", "[individual
     assigned = n_d;
     REQUIRE(assigned.initRangeSet());
     CHECK(assigned.getTrainingSet(2).has_value());
-    networkData  const&self = assigned;
+    networkData const &self = assigned;
     assigned = self;
     CHECK(assigned.getTrainingSet(2).has_value());
     CHECK(assigned.getInitRange() == n_d.getInitRange());
@@ -148,7 +148,10 @@ TEST_CASE("networkData: disk round-trip preserves all data", "[individuals][nn]"
 // concrete-pointer path -- the std::vectors serialized directly, with no make_array, explicit count or
 // bounds limit. (The training data never crosses the wire -- it is rebuilt from nnTrainingDataStore()
 // on individual load -- so this exercises the disk-persistence port specifically.)
-TEST_CASE("networkData: GArchive binary + JSON codecs round-trip all data", "[individuals][nn][garchive]") {
+TEST_CASE(
+    "networkData: GArchive binary + JSON codecs round-trip all data",
+    "[individuals][nn][garchive]"
+) {
     const networkData n_d = makeSampleData();
 
     auto verify = [&](const networkData &loaded) {

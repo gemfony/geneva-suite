@@ -49,11 +49,11 @@
 #include <string>
 #include <vector>
 
-#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 namespace gen = Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -67,7 +67,8 @@ namespace {
  */
 class Sphere3 : public gen::GGenomeT<Sphere3> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Sphere3() {
         gen::GGenomeBuilder b;
@@ -104,7 +105,10 @@ std::string readFile(const std::filesystem::path &p) {
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT writes a valid ROOT macro when driven by a real EA", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GProgressPlotterT writes a valid ROOT macro when driven by a real EA",
+    "[monitor][plot][oa]"
+) {
     const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_e2e.C";
     std::filesystem::remove(out); // start from a clean slate
 
@@ -141,8 +145,12 @@ TEST_CASE("GProgressPlotterT writes a valid ROOT macro when driven by a real EA"
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT names its axes and draws a 2-d profile over a heat map of the function", "[monitor][plot][oa]") {
-    const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_projection.C";
+TEST_CASE(
+    "GProgressPlotterT names its axes and draws a 2-d profile over a heat map of the function",
+    "[monitor][plot][oa]"
+) {
+    const auto out =
+        std::filesystem::temp_directory_path() / "geneva_progress_plotter_projection.C";
     std::filesystem::remove(out);
 
     auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
@@ -187,12 +195,15 @@ TEST_CASE("GProgressPlotterT names its axes and draws a 2-d profile over a heat 
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT shows the canvas label as the one title of its one pad", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GProgressPlotterT shows the canvas label as the one title of its one pad",
+    "[monitor][plot][oa]"
+) {
     // One, two (without a landscape) and three profiled variables: the canvas label is the title of
     // the figure's one pad and is not drawn above it as well, so the figure has one title.
     const std::string label = "Progress of the title check";
-    for(const std::string spec : {"d(0, -5, 5)", "d(0, -5, 5), d(1, -5, 5)",
-                                  "d(0, -5, 5), d(1, -5, 5), d(2, -5, 5)"}) {
+    for(const std::string spec :
+        {"d(0, -5, 5)", "d(0, -5, 5), d(1, -5, 5)", "d(0, -5, 5), d(1, -5, 5), d(2, -5, 5)"}) {
         const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_title.C";
         std::filesystem::remove(out);
         auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
@@ -221,7 +232,10 @@ TEST_CASE("GProgressPlotterT shows the canvas label as the one title of its one 
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT with no profiled variable still writes an (empty) canvas", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GProgressPlotterT with no profiled variable still writes an (empty) canvas",
+    "[monitor][plot][oa]"
+) {
     // With zero profiled variables nProfileVars() is 0, so no renderable series is declared; the monitor
     // must still emit a valid, non-empty ROOT macro (an empty canvas), exactly as the legacy path did.
     const auto out = std::filesystem::temp_directory_path() / "geneva_progress_plotter_empty.C";
@@ -250,7 +264,10 @@ TEST_CASE("GProgressPlotterT with no profiled variable still writes an (empty) c
 
 /******************************************************************************/
 
-TEST_CASE("GFitnessMonitor accumulates over a real EA without the legacy plotter API", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GFitnessMonitor accumulates over a real EA without the legacy plotter API",
+    "[monitor][plot][oa]"
+) {
     // GFitnessMonitor records the global- and iteration-best fitness curves but never renders
     // them (no output file). After its migration onto GDataLog this exercises the new declare /
     // overlay / append path under a real optimization; the check is that a full run completes.
@@ -271,7 +288,10 @@ TEST_CASE("GFitnessMonitor accumulates over a real EA without the legacy plotter
 
 /******************************************************************************/
 
-TEST_CASE("GFitnessMonitor survives a Pareto run (varying best count)", "[monitor][plot][oa][pareto]") {
+TEST_CASE(
+    "GFitnessMonitor survives a Pareto run (varying best count)",
+    "[monitor][plot][oa][pareto]"
+) {
     // A Pareto sorting scheme can vary the number of best individuals per iteration, exercising
     // the monitor's "reduce monitored series to 1" branch. It must not crash.
     auto monitor = std::make_shared<Gem::Geneva::GFitnessMonitor>();
@@ -292,7 +312,10 @@ TEST_CASE("GFitnessMonitor survives a Pareto run (varying best count)", "[monito
 
 /******************************************************************************/
 
-TEST_CASE("GNAdpationsLogger writes a histogram + fitness ROOT macro (all individuals)", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GNAdpationsLogger writes a histogram + fitness ROOT macro (all individuals)",
+    "[monitor][plot][oa]"
+) {
     // Default (monitor all): the n-adaptions plot is a fixed-range 2-d histogram; the fitness plot
     // is a curve. This exercises the fixed-range-histogram path through GDataLog (the B0 gap).
     const auto out = std::filesystem::temp_directory_path() / "geneva_nadaptions_all.C";
@@ -325,7 +348,10 @@ TEST_CASE("GNAdpationsLogger writes a histogram + fitness ROOT macro (all indivi
 
 /******************************************************************************/
 
-TEST_CASE("GNAdpationsLogger writes a curve + fitness ROOT macro (best only)", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GNAdpationsLogger writes a curve + fitness ROOT macro (best only)",
+    "[monitor][plot][oa]"
+) {
     const auto out = std::filesystem::temp_directory_path() / "geneva_nadaptions_best.C";
     std::filesystem::remove(out);
 
@@ -357,7 +383,10 @@ TEST_CASE("GNAdpationsLogger writes a curve + fitness ROOT macro (best only)", "
 
 /******************************************************************************/
 
-TEST_CASE("GAdaptorPropertyLoggerT writes a property histogram + fitness ROOT macro", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GAdaptorPropertyLoggerT writes a property histogram + fitness ROOT macro",
+    "[monitor][plot][oa]"
+) {
     // Logs the sigma property of the double Gauss adaptor as a fixed-range 2-d histogram, with a
     // fitness curve below it. Exercises the fixed-range-histogram path through GDataLog (the B0 gap).
     const auto out = std::filesystem::temp_directory_path() / "geneva_adaptorproperty.C";
@@ -391,7 +420,10 @@ TEST_CASE("GAdaptorPropertyLoggerT writes a property histogram + fitness ROOT ma
 /******************************************************************************/
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent test: a single optimize() run produces the 1-d, 2-d and text outputs together, all checked against that same run
-TEST_CASE("GProcessingTimesLogger writes 1-d and 2-d timing ROOT macros + a text file", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GProcessingTimesLogger writes 1-d and 2-d timing ROOT macros + a text file",
+    "[monitor][plot][oa]"
+) {
     // Two designers: four auto-ranged 1-d timing histograms (TH1D) and four 2-d timing-vs-iteration
     // histograms (TH2D), plus an incremental plain-text dump. Exercises the two-transient-log path.
     const auto dir = std::filesystem::temp_directory_path();
@@ -403,7 +435,11 @@ TEST_CASE("GProcessingTimesLogger writes 1-d and 2-d timing ROOT macros + a text
     }
 
     auto monitor = std::make_shared<Gem::Geneva::GProcessingTimesLogger>(
-        pth.string(), pth2.string(), txt.string(), 20, 20
+        pth.string(),
+        pth2.string(),
+        txt.string(),
+        20,
+        20
     );
 
     auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();

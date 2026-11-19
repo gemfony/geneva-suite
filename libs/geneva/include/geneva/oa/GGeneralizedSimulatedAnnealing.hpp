@@ -46,13 +46,13 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -64,7 +64,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 constexpr std::size_t DEFAULTGSANCHAINS = 1; ///< Number of independent Markov chains
 constexpr double DEFAULTGSAQV = 2.62;        ///< Visiting (distribution) parameter q_v
 constexpr double DEFAULTGSAQA = -5.0;        ///< Acceptance parameter q_a
-constexpr double DEFAULTGSAT0 = 0.;          ///< Initial visiting temperature (0 => derive from ranges)
+constexpr double DEFAULTGSAT0 = 0.; ///< Initial visiting temperature (0 => derive from ranges)
 constexpr std::uint32_t DEFAULTGSAREANNEAL =
     0; ///< Per-chain stall steps before a cooling-clock restart (0 = disabled)
 constexpr double DEFAULTGSACOOLING =
@@ -344,13 +344,11 @@ private:
     /** @brief Triggers fitness calculation of the relevant individuals via the one process consumer */
     void evaluatePopulation_() override;
 
-
     /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
     /** @brief Resizes the population to the desired level and does some error checks */
     void adjustPopulation_() override;
-
 
     /***************************************************************************/
     // Algorithm-internal helpers
@@ -376,7 +374,7 @@ private:
     std::size_t n_chains_ = DEFAULTGSANCHAINS; ///< The number of independent Markov chains
     double qv_ = DEFAULTGSAQV;                 ///< Visiting (distribution) parameter q_v
     double qa_ = DEFAULTGSAQA;                 ///< Acceptance parameter q_a
-    double t0_ = DEFAULTGSAT0;                 ///< Initial visiting temperature (0 => derived in init())
+    double t0_ = DEFAULTGSAT0; ///< Initial visiting temperature (0 => derived in init())
     std::uint32_t reannealing_steps_ =
         DEFAULTGSAREANNEAL; ///< Per-chain stall steps before a cooling-clock restart (0 = disabled)
     double cooling_timescale_ =
@@ -391,7 +389,7 @@ private:
 
     std::vector<std::uint32_t>
         chain_step_; ///< Per-chain cooling-clock step index t (reset on reanneal)
-    std::vector<double> chain_best_energy_; ///< Per-chain best energy seen so far
+    std::vector<double> chain_best_energy_;  ///< Per-chain best energy seen so far
     std::vector<std::uint32_t> chain_stall_; ///< Per-chain steps since the last improvement
 };
 
@@ -400,4 +398,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -155,8 +154,12 @@ GPlotSpec GGraph2D::plotSpec() const {
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the x/y data arrays for this graph
  */
-std::string
-GGraph2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2D::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -168,10 +171,10 @@ GGraph2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize()) << "];"
-                << comment << '\n'
-                << indent << "double " << y_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
+    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize())
+                << "];" << comment << '\n'
+                << indent << "double " << y_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
                 << '\n';
 
     return header_data.str();
@@ -187,8 +190,12 @@ GGraph2D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the x/y data arrays with this graph's tuple values
  */
-std::string
-GGraph2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2D::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -211,8 +218,8 @@ GGraph2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, con
     for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
         body_data << indent << x_array_name << "[" << pos_counter << "] = " << x_col[pos_counter]
                   << ";"
-                  << "\t" << y_array_name << "[" << pos_counter << "] = " << y_col[pos_counter] << ";"
-                  << '\n';
+                  << "\t" << y_array_name << "[" << pos_counter << "] = " << y_col[pos_counter]
+                  << ";" << '\n';
     }
     body_data << '\n';
 
@@ -229,8 +236,12 @@ GGraph2D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, con
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code creating and drawing the ROOT TGraph (and optional arrows) for this graph
  */
-std::string
-GGraph2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2D::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -251,12 +262,12 @@ GGraph2D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     std::string const d_a = this->drawingArguments(is_secondary);
 
     // Fill the data in our columns into a ROOT TGraph object
-    footer_data << indent << "TGraph *" << graph_name << " = new TGraph(" << this->currentSize() << ", "
-                << x_array_name << ", " << y_array_name << ");" << '\n'
-                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n';
+    footer_data << indent << "TGraph *" << graph_name << " = new TGraph(" << this->currentSize()
+                << ", " << x_array_name << ", " << y_array_name << ");" << '\n'
+                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
+                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n';
 
     emitRootTitle(footer_data, indent, graph_name, plot_label_);
     // In a pad that holds several graphs each one gets a colour of its own.
@@ -334,7 +345,8 @@ std::string GGraph2D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GGraph2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GGraph2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     return std::string("graph") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -401,8 +413,12 @@ GPlotSpec GGraph2ED::plotSpec() const {
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the x/ex/y/ey data arrays for this error graph
  */
-std::string
-GGraph2ED::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2ED::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -416,14 +432,14 @@ GGraph2ED::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, 
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize()) << "];"
-                << comment << '\n'
-                << indent << "double " << ex_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
-                << indent << "double " << y_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
-                << indent << "double " << ey_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
+    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize())
+                << "];" << comment << '\n'
+                << indent << "double " << ex_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
+                << indent << "double " << y_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
+                << indent << "double " << ey_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
                 << '\n';
 
     return header_data.str();
@@ -439,8 +455,12 @@ GGraph2ED::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, 
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the x/ex/y/ey data arrays with this graph's tuple values
  */
-std::string
-GGraph2ED::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2ED::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -489,8 +509,12 @@ GGraph2ED::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, co
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code creating and drawing the ROOT TGraphErrors object for this graph
  */
-std::string
-GGraph2ED::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph2ED::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -517,10 +541,10 @@ GGraph2ED::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, 
     footer_data << indent << "TGraphErrors *" << graph_name << " = new TGraphErrors("
                 << this->currentSize() << ", " << x_array_name << ", " << y_array_name << ", "
                 << ex_array_name << " ," << ey_array_name << ");" << '\n'
-                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n';
+                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
+                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n';
 
     emitRootTitle(footer_data, indent, graph_name, plot_label_);
     // In a pad that holds several graphs each one gets a colour of its own.
@@ -574,7 +598,8 @@ std::string GGraph2ED::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GGraph2ED::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GGraph2ED::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     return std::string("graph_") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -712,8 +737,12 @@ GPlotSpec GGraph3D::plotSpec() const {
  * @param indent The indentation string prepended to every emitted line
  * @return The header code declaring the x/y/z data arrays for this 3D graph
  */
-std::string
-GGraph3D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph3D::headerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -726,12 +755,12 @@ GGraph3D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
-    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize()) << "];"
-                << comment << '\n'
-                << indent << "double " << y_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
-                << indent << "double " << z_array_name << "[" << to_string(this->currentSize()) << "];"
-                << '\n'
+    header_data << indent << "double " << x_array_name << "[" << to_string(this->currentSize())
+                << "];" << comment << '\n'
+                << indent << "double " << y_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
+                << indent << "double " << z_array_name << "[" << to_string(this->currentSize())
+                << "];" << '\n'
                 << '\n';
 
     return header_data.str();
@@ -747,8 +776,12 @@ GGraph3D::headerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
  * @param indent The indentation string prepended to every emitted line
  * @return The body code filling the x/y/z data arrays with this graph's tuple values
  */
-std::string
-GGraph3D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph3D::bodyData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -773,9 +806,10 @@ GGraph3D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, con
     for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
         body_data << indent << x_array_name << "[" << pos_counter << "] = " << x_col[pos_counter]
                   << ";"
-                  << "\t" << y_array_name << "[" << pos_counter << "] = " << y_col[pos_counter] << ";"
-                  << "\t" << z_array_name << "[" << pos_counter << "] = " << z_col[pos_counter] << ";"
-                  << '\n';
+                  << "\t" << y_array_name << "[" << pos_counter << "] = " << y_col[pos_counter]
+                  << ";"
+                  << "\t" << z_array_name << "[" << pos_counter << "] = " << z_col[pos_counter]
+                  << ";" << '\n';
     }
     body_data << '\n';
 
@@ -792,8 +826,12 @@ GGraph3D::bodyData_(bool is_secondary, std::size_t p_id, std::size_t own_id, con
  * @param indent The indentation string prepended to every emitted line
  * @return The footer code creating and drawing the ROOT TGraph2D (and optional poly-line) for this graph
  */
-std::string
-GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+std::string GGraph3D::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // Set up suitable arrays for the header
@@ -849,14 +887,14 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
         footer_data << rootProjectedSurface_(is_secondary, graph_name, indent);
     }
     footer_data << indent << "gPad->Update();" << '\n'
-                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
+                << indent << graph_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
+                << "\");" << '\n'
                 << indent << graph_name << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
-                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
+                << indent << graph_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
+                << "\");" << '\n'
                 << indent << graph_name << "->GetYaxis()->SetTitleOffset(1.5);" << '\n'
-                << indent << graph_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel()) << "\");"
-                << '\n'
+                << indent << graph_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel())
+                << "\");" << '\n'
                 << indent << graph_name << "->GetZaxis()->SetTitleOffset(1.5);" << '\n'
                 << '\n';
 
@@ -882,18 +920,26 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
             footer_data << indent << "lines_" << graph_name << "->SetPoint(" << pos_counter << ", "
                         << x << ", " << y << ", " << z << ");";
         }
-        footer_data << '\n'
-                    << indent << "lines_" << graph_name << "->SetLineWidth(3);" << '\n'
-                    << indent << "lines_" << graph_name << "->Draw();" << '\n'
-                    // The legend's sample of a curve: the graph's markers and the poly-line's line, in
-                    // an object of its own that is never drawn, so that the drawn objects stay as they are.
-                    << indent << "TGraph *" << rootLegendObject_(is_secondary, p_id, own_id) << " = new TGraph();" << '\n'
-                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerStyle(" << graph_name << "->GetMarkerStyle());" << '\n'
-                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerSize(" << graph_name << "->GetMarkerSize());" << '\n'
-                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerColor(" << graph_name << "->GetMarkerColor());" << '\n'
-                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineColor(lines_" << graph_name << "->GetLineColor());" << '\n'
-                    << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineWidth(lines_" << graph_name << "->GetLineWidth());" << '\n'
-                    << '\n';
+        footer_data
+            << '\n'
+            << indent << "lines_" << graph_name << "->SetLineWidth(3);" << '\n'
+            << indent << "lines_" << graph_name << "->Draw();"
+            << '\n'
+            // The legend's sample of a curve: the graph's markers and the poly-line's line, in
+            // an object of its own that is never drawn, so that the drawn objects stay as they are.
+            << indent << "TGraph *" << rootLegendObject_(is_secondary, p_id, own_id)
+            << " = new TGraph();" << '\n'
+            << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerStyle("
+            << graph_name << "->GetMarkerStyle());" << '\n'
+            << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerSize("
+            << graph_name << "->GetMarkerSize());" << '\n'
+            << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetMarkerColor("
+            << graph_name << "->GetMarkerColor());" << '\n'
+            << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineColor(lines_"
+            << graph_name << "->GetLineColor());" << '\n'
+            << indent << rootLegendObject_(is_secondary, p_id, own_id) << "->SetLineWidth(lines_"
+            << graph_name << "->GetLineWidth());" << '\n'
+            << '\n';
     }
 
     return footer_data.str();
@@ -911,14 +957,18 @@ GGraph3D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
  * @return The ROOT code drawing the shadows
  */
 std::string GGraph3D::rootFloorShadow_(
-    const std::string &x_array_name, const std::string &y_array_name, const std::string &graph_name,
+    const std::string &x_array_name,
+    const std::string &y_array_name,
+    const std::string &graph_name,
     const std::string &indent
 ) const {
     const std::string s = "shadow_" + graph_name;
     EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
     out << indent << "{" << '\n'
-        << indent << "   const double z_floor = gPad->GetView() ? gPad->GetView()->GetRmin()[2] : 0.;" << '\n'
-        << indent << "   TPolyMarker3D *" << s << " = new TPolyMarker3D(" << this->currentSize() << ");" << '\n'
+        << indent
+        << "   const double z_floor = gPad->GetView() ? gPad->GetView()->GetRmin()[2] : 0.;" << '\n'
+        << indent << "   TPolyMarker3D *" << s << " = new TPolyMarker3D(" << this->currentSize()
+        << ");" << '\n'
         << indent << "   for(int k = 0; k < " << this->currentSize() << "; ++k) {" << '\n'
         << indent << "      " << s << "->SetPoint(k, " << x_array_name << "[k], " << y_array_name
         << "[k], z_floor);" << '\n'
@@ -949,13 +999,17 @@ std::string GGraph3D::rootFloorShadow_(
  * @param indent The indentation string prepended to every emitted line
  * @return The ROOT code drawing the projected surface
  */
-std::string
-GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name, const std::string &indent) const {
+std::string GGraph3D::rootProjectedSurface_(
+    bool is_secondary,
+    const std::string &graph_name,
+    const std::string &indent
+) const {
     if(is_secondary) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
-            << "a surface projection was requested for an overlay -- only the primary plot of a pad "
+            << "a surface projection was requested for an overlay -- only the primary plot of a "
+               "pad "
             << "can be drawn as a projected surface" << '\n'
         );
     }
@@ -998,7 +1052,8 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
     const std::string v = "v_" + graph_name;
     if(draw_surface_) {
         out << indent << graph_name << "->Draw(\"SURF1Z\");" << '\n';
-    } else {
+    }
+    else {
         out << indent << graph_name << "->SetMarkerSize(0);" << '\n'
             << indent << graph_name << "->Draw(\"P\");" << '\n';
     }
@@ -1016,7 +1071,10 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
         << indent << "         const double y0 = " << h << "->GetYaxis()->GetBinLowEdge(j);" << '\n'
         << indent << "         const double y1 = " << h << "->GetYaxis()->GetBinUpEdge(j);" << '\n'
         << indent << "         const double z_p = " << plane << ";" << '\n'
-        << indent << "         const double corners[4][3] = {{x0, y0, z_p}, {x1, y0, z_p}, {x1, y1, z_p}, {x0, y1, z_p}};" << '\n'
+        << indent
+        << "         const double corners[4][3] = {{x0, y0, z_p}, {x1, y0, z_p}, {x1, y1, z_p}, "
+           "{x0, y1, z_p}};"
+        << '\n'
         << indent << "         double px[5];" << '\n'
         << indent << "         double py[5];" << '\n'
         << indent << "         for(int k = 0; k < 4; ++k) {" << '\n'
@@ -1027,9 +1085,12 @@ GGraph3D::rootProjectedSurface_(bool is_secondary, const std::string &graph_name
         << indent << "         }" << '\n'
         << indent << "         px[4] = px[0];" << '\n'
         << indent << "         py[4] = py[0];" << '\n'
-        << indent << "         double frac = (" << h << "->GetBinContent(i, j) - z_lo) / (z_hi - z_lo);" << '\n'
+        << indent << "         double frac = (" << h
+        << "->GetBinContent(i, j) - z_lo) / (z_hi - z_lo);" << '\n'
         << indent << "         frac = frac < 0. ? 0. : (frac > 1. ? 1. : frac);" << '\n'
-        << indent << "         const int colour = gStyle->GetColorPalette(int(frac * (n_colours - 1)));" << '\n'
+        << indent
+        << "         const int colour = gStyle->GetColorPalette(int(frac * (n_colours - 1)));"
+        << '\n'
         << indent << "         TPolyLine *cell = new TPolyLine(5, px, py);" << '\n'
         << indent << "         cell->SetFillColor(colour);" << '\n'
         << indent << "         cell->SetLineColor(colour);" << '\n'
@@ -1077,7 +1138,8 @@ std::string GGraph3D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GGraph3D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GGraph3D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     // A curve through the points has a sample object of its own (see footerData_()).
     const bool curve = draw_lines_ && this->currentSize() >= 2;
     return std::string(curve ? "legend_graph_" : "graph_") + suffix(is_secondary, p_id, own_id);
@@ -1118,8 +1180,8 @@ void GGraph4D::setMaxMarkerSize(const double &max_marker_size) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph4D::setMaxMarkerSize(): Error!" << '\n'
-            << "Received invalid maximum marker size: " << min_marker_size_ << " " << max_marker_size
-            << "." << '\n'
+            << "Received invalid maximum marker size: " << min_marker_size_ << " "
+            << max_marker_size << "." << '\n'
             << "Always set the lower boundary first." << '\n'
         );
     }
@@ -1227,7 +1289,12 @@ GPlotSpec GGraph4D::plotSpec() const {
  * @param own_id This plotter's own emit index
  * @param indent The indentation string prepended to each emitted line
  */
-std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
+std::string GGraph4D::headerData_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id,
+    [[maybe_unused]] std::string const &indent
+) const {
     EmitStream const header_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // nothing
@@ -1247,7 +1314,12 @@ std::string GGraph4D::headerData_([[maybe_unused]] bool is_secondary, [[maybe_un
  * @param own_id This plotter's own emit index
  * @param indent The indentation string prepended to each emitted line
  */
-std::string GGraph4D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
+std::string GGraph4D::bodyData_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id,
+    [[maybe_unused]] std::string const &indent
+) const {
     EmitStream const body_data; // NOLINT(cppcoreguidelines-init-variables)
 
     // nothing
@@ -1267,7 +1339,12 @@ std::string GGraph4D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unus
  */
 std::string
 // NOLINTNEXTLINE(readability-function-size) -- one coherent 4D-scatter ROOT rendering kernel: w-ordered permutation, the TH3F frame's min/max bookkeeping and the per-point marker-size/draw emission all share the same ordered data; splitting would scatter tightly coupled state
-GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, const std::string &indent) const {
+GGraph4D::footerData_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id,
+    const std::string &indent
+) const {
     // Read the four columns directly. Rather than copying the whole data set to
     // sort it on every emission, we sort an index permutation by the w-component
     // (axis 3) and read each point through that permutation; the columns stay put.
@@ -1280,8 +1357,8 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     std::string const base_name = suffix(is_secondary, p_id, own_id);
 
     // Build the w-ordered index permutation, so we can select the n_best_ best more easily
-    std::vector<std::size_t> order = std::views::iota(0uz, data_size)
-        | std::ranges::to<std::vector<std::size_t>>();
+    std::vector<std::size_t> order =
+        std::views::iota(0uz, data_size) | std::ranges::to<std::vector<std::size_t>>();
     if(small_w_large_marker_) {
         std::ranges::sort(order, [&w_col](std::size_t a, std::size_t b) -> bool {
             return (w_col[a] < w_col[b]);
@@ -1345,19 +1422,23 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
     // frame name carries the plot suffix so two 4D plots on one canvas do not collide.
     const std::string frame_name = std::string("fr_") + base_name;
     if(not is_secondary) {
-    footer_data << indent << "TH3F *" << frame_name << " = new TH3F(\"" << frame_name << "\",\"" << frame_name << "\","
-                << "10, " << x_lo << ", " << x_hi << ", "
-                << "10, " << y_lo << ", " << y_hi << ", "
-                << "10, " << z_lo << ", " << z_hi << ");" << '\n'
-                << indent << frame_name << "->SetTitle(\" \");" << '\n'
-                << indent << frame_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");" << '\n'
-                << indent << frame_name << "->GetXaxis()->SetTitleOffset(1.6);" << '\n'
-                << indent << frame_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");" << '\n'
-                << indent << frame_name << "->GetYaxis()->SetTitleOffset(1.6);" << '\n'
-                << indent << frame_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel()) << "\");" << '\n'
-                << indent << frame_name << "->GetZaxis()->SetTitleOffset(1.6);" << '\n'
-                << '\n'
-                << indent << frame_name << "->Draw();" << '\n';
+        footer_data << indent << "TH3F *" << frame_name << " = new TH3F(\"" << frame_name << "\",\""
+                    << frame_name << "\","
+                    << "10, " << x_lo << ", " << x_hi << ", "
+                    << "10, " << y_lo << ", " << y_hi << ", "
+                    << "10, " << z_lo << ", " << z_hi << ");" << '\n'
+                    << indent << frame_name << "->SetTitle(\" \");" << '\n'
+                    << indent << frame_name << "->GetXaxis()->SetTitle(\""
+                    << rootEscape(xAxisLabel()) << "\");" << '\n'
+                    << indent << frame_name << "->GetXaxis()->SetTitleOffset(1.6);" << '\n'
+                    << indent << frame_name << "->GetYaxis()->SetTitle(\""
+                    << rootEscape(yAxisLabel()) << "\");" << '\n'
+                    << indent << frame_name << "->GetYaxis()->SetTitleOffset(1.6);" << '\n'
+                    << indent << frame_name << "->GetZaxis()->SetTitle(\""
+                    << rootEscape(zAxisLabel()) << "\");" << '\n'
+                    << indent << frame_name << "->GetZaxis()->SetTitleOffset(1.6);" << '\n'
+                    << '\n'
+                    << indent << frame_name << "->Draw();" << '\n';
     }
 
     double const w_min = std::get<6>(min_max);
@@ -1388,18 +1469,18 @@ GGraph4D::footerData_(bool is_secondary, std::size_t p_id, std::size_t own_id, c
         else {
             if(small_w_large_marker_) {
                 marker_size = min_marker_size_ + ((max_marker_size_ - min_marker_size_) *
-                                                   pow((1. - ((w - w_min) / w_range)), 8.));
+                                                  pow((1. - ((w - w_min) / w_range)), 8.));
             }
             else {
-                marker_size = min_marker_size_ +
-                              ((max_marker_size_ - min_marker_size_) * pow(((w - w_min) / w_range), 8));
+                marker_size = min_marker_size_ + ((max_marker_size_ - min_marker_size_) *
+                                                  pow(((w - w_min) / w_range), 8));
             }
         }
 
         // The marker's only point: a TPolyMarker3D(1) given point n > 0 grows to n + 1 points, the
         // ones before at the origin, which every marker after the first painted there.
-        footer_data << indent << poly_marker_name << "->SetPoint(0, " << x << ", " << y
-                    << ", " << z << "); // w = " << w << '\n'
+        footer_data << indent << poly_marker_name << "->SetPoint(0, " << x << ", " << y << ", " << z
+                    << "); // w = " << w << '\n'
                     << indent << poly_marker_name << "->SetMarkerSize(" << marker_size << ");"
                     << '\n'
                     << indent << poly_marker_name << "->SetMarkerColor(" << (0 == pos ? 4 : 2)
@@ -1445,7 +1526,8 @@ std::string GGraph4D::drawingArguments([[maybe_unused]] bool is_secondary) const
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GGraph4D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string
+GGraph4D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
     // A 4-d graph draws one marker per point, the best one larger and blue; an ordinary point is
     // the sample, unless only the best one is drawn.
     return std::string("pm3d_") + suffix(is_secondary, p_id, own_id) + (n_best_ == 1 ? "_0" : "_1");
@@ -1559,7 +1641,12 @@ std::string GFunctionPlotter1D::headerData_(
  * @param own_id This plotter's own emit index
  * @param indent The indentation string prepended to each emitted line
  */
-std::string GFunctionPlotter1D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
+std::string GFunctionPlotter1D::bodyData_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id,
+    [[maybe_unused]] std::string const &indent
+) const {
     // No data needs to be added for a function plotter
     return {};
 }
@@ -1585,18 +1672,17 @@ std::string GFunctionPlotter1D::footerData_(
     const std::string comment = dsMarkerComment(ds_marker_);
 
     std::string const function_name = rootLegendObject_(is_secondary, p_id, own_id);
-    footer_data << indent << function_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << function_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
+    footer_data << indent << function_name << "->GetXaxis()->SetTitle(\""
+                << rootEscape(xAxisLabel()) << "\");" << '\n'
+                << indent << function_name << "->GetYaxis()->SetTitle(\""
+                << rootEscape(yAxisLabel()) << "\");" << '\n'
                 << indent << function_name << "->SetNpx(" << n_samples_x_ << ");" << '\n';
 
     emitRootTitle(footer_data, indent, function_name, plot_label_);
 
     std::string const d_a = this->drawingArguments(is_secondary);
 
-    footer_data << indent << function_name << "->Draw(\"" << d_a << "\");"
-                << comment << '\n'
+    footer_data << indent << function_name << "->Draw(\"" << d_a << "\");" << comment << '\n'
                 << '\n';
 
     return footer_data.str();
@@ -1637,7 +1723,11 @@ std::string GFunctionPlotter1D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GFunctionPlotter1D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string GFunctionPlotter1D::rootLegendObject_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id
+) const {
     return std::string("func1D") + suffix(is_secondary, p_id, own_id);
 }
 
@@ -1771,7 +1861,12 @@ std::string GFunctionPlotter2D::headerData_(
  * @param own_id This plotter's own emit index
  * @param indent The indentation string prepended to each emitted line
  */
-std::string GFunctionPlotter2D::bodyData_([[maybe_unused]] bool is_secondary, [[maybe_unused]] std::size_t parent_id, [[maybe_unused]] std::size_t own_id, [[maybe_unused]] std::string const &indent) const {
+std::string GFunctionPlotter2D::bodyData_(
+    [[maybe_unused]] bool is_secondary,
+    [[maybe_unused]] std::size_t parent_id,
+    [[maybe_unused]] std::size_t own_id,
+    [[maybe_unused]] std::string const &indent
+) const {
     // No data needs to be added for a function plotter
     return {};
 }
@@ -1797,12 +1892,12 @@ std::string GFunctionPlotter2D::footerData_(
     const std::string comment = dsMarkerComment(ds_marker_);
 
     std::string const function_name = rootLegendObject_(is_secondary, p_id, own_id);
-    footer_data << indent << function_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel()) << "\");"
-                << '\n'
-                << indent << function_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel()) << "\");"
-                << '\n'
-                << indent << function_name << "->GetZaxis()->SetTitle(\"" << rootEscape(zAxisLabel()) << "\");"
-                << '\n'
+    footer_data << indent << function_name << "->GetXaxis()->SetTitle(\""
+                << rootEscape(xAxisLabel()) << "\");" << '\n'
+                << indent << function_name << "->GetYaxis()->SetTitle(\""
+                << rootEscape(yAxisLabel()) << "\");" << '\n'
+                << indent << function_name << "->GetZaxis()->SetTitle(\""
+                << rootEscape(zAxisLabel()) << "\");" << '\n'
                 << indent << function_name << "->SetNpx(" << n_samples_x_ << ");" << '\n'
                 << indent << function_name << "->SetNpy(" << n_samples_y_ << ");" << '\n';
 
@@ -1810,8 +1905,7 @@ std::string GFunctionPlotter2D::footerData_(
 
     std::string const d_a = this->drawingArguments(is_secondary);
 
-    footer_data << indent << function_name << "->Draw(\"" << d_a << "\");"
-                << comment << '\n'
+    footer_data << indent << function_name << "->Draw(\"" << d_a << "\");" << comment << '\n'
                 << '\n';
 
     return footer_data.str();
@@ -1852,13 +1946,16 @@ std::string GFunctionPlotter2D::drawingArguments(bool is_secondary) const {
  * @param own_id This plotter's own emit index
  * @return The name of the object in the ROOT script whose look the legend sample copies
  */
-std::string GFunctionPlotter2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
+std::string GFunctionPlotter2D::rootLegendObject_(
+    bool is_secondary,
+    std::size_t p_id,
+    std::size_t own_id
+) const {
     return std::string("func2D") + suffix(is_secondary, p_id, own_id);
 }
 
 // clone_() and load_() for GFunctionPlotter2D are generated by Gem::Common::GReflectiveInterfaceT
 // from class_name and localMembers_().
-
 
 /******************************************************************************/
 } /* namespace Gem::Dietrich */

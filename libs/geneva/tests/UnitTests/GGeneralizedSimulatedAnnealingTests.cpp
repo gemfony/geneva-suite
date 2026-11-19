@@ -44,8 +44,8 @@
 #include <numbers>
 #include <vector>
 
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 
 namespace gen = Gem::Geneva::Genome;
@@ -62,7 +62,8 @@ namespace {
 template <std::size_t N_DIM>
 class SphereGSA : public gen::GGenomeT<SphereGSA<N_DIM>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereGSA() {
         gen::GGenomeBuilder b;
@@ -93,7 +94,8 @@ protected:
 template <std::size_t N_DIM>
 class RastriginGSA : public gen::GGenomeT<RastriginGSA<N_DIM>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     RastriginGSA() {
         gen::GGenomeBuilder b;
@@ -201,16 +203,19 @@ TEST_CASE("Generalized Simulated Annealing: cooling timescale rescues a high-dim
         return bestSphere<N>(*pop->getBestGlobalIndividual<SphereGSA<N>>());
     };
 
-    const double strict = run(1.0);    // faithful default: cools too fast at this dimension
+    const double strict = run(1.0);     // faithful default: cools too fast at this dimension
     const double stretched = run(300.); // stretched: keeps refining across the budget
 
-    CHECK(stretched < 5.0);       // the stretched schedule converges deep (start f = 25 * 9 = 225)
-    CHECK(stretched < strict);    // and clearly beats the prematurely-frozen strict schedule
+    CHECK(stretched < 5.0);    // the stretched schedule converges deep (start f = 25 * 9 = 225)
+    CHECK(stretched < strict); // and clearly beats the prematurely-frozen strict schedule
 }
 
 /******************************************************************************/
 
-TEST_CASE("Generalized Simulated Annealing reaches a good value on a multimodal Rastrigin", "[gsa]") {
+TEST_CASE(
+    "Generalized Simulated Annealing reaches a good value on a multimodal Rastrigin",
+    "[gsa]"
+) {
     // A generous budget (24 chains x 12000 steps) is needed for this multimodal landscape: with the
     // earlier 12 x 4000 the achieved value clustered right at the bound and the < 10.0 check flaked ~50%.
     // Soft bound: the 3.0 start sits at f ~ 5*(9 - 10*cos(6pi)) + 50 = 50 (a high local plateau); a good
@@ -219,8 +224,10 @@ TEST_CASE("Generalized Simulated Annealing reaches a good value on a multimodal 
         auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
         pop->setNChains(24);
         pop->setMaxIteration(12000);
-        pop->setMaxStallIteration(0);   // run the full budget
-        pop->setReannealingSteps(400);  // periodically re-open the cooling clock to escape local optima
+        pop->setMaxStallIteration(0); // run the full budget
+        pop->setReannealingSteps(
+            400
+        ); // periodically re-open the cooling clock to escape local optima
         pop->setReportIteration(100000);
         pop->push_back(RastriginGSA<5>().clone());
         pop->optimize();

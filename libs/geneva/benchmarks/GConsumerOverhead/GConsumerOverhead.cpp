@@ -394,7 +394,11 @@ int main(int argc, char **argv) {
         // Gauss adaptor (the flat-genome equivalent of a GDoubleCollection). This replaces the
         // factory-produced genome with the benchmark's command-line geometry.
         gen::GGenomeBuilder b;
-        b.addDoublePlainGroup(parDim, minVar, maxVar); // structure only; the adaptor lives on the OA config
+        b.addDoublePlainGroup(
+            parDim,
+            minVar,
+            maxVar
+        ); // structure only; the adaptor lives on the OA config
         dynamic_cast<gen::GGenome &>(*functionIndividual_ptr).setGenome(b.build());
 
         parentIndividuals.push_back(functionIndividual_ptr);
@@ -438,7 +442,8 @@ int main(int argc, char **argv) {
     {
         const auto &flat0 = dynamic_cast<const gen::GGenome &>(*parentIndividuals[0]);
         auto cfg = oa::makeAdaptionConfig<oa::GEAAdaptionConfig>(flat0);
-        cfg->groupDouble(0).gauss(sigma, sigmaSigma, minSigma, maxSigma, adProb, 0., adaptionThreshold);
+        cfg->groupDouble(0)
+            .gauss(sigma, sigmaSigma, minSigma, maxSigma, adProb, 0., adaptionThreshold);
         pop_ptr->setAdaptionConfig(cfg);
     }
 

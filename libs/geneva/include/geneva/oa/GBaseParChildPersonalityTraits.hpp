@@ -54,7 +54,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * and the id of the parent it descended from.
  */
 class GBaseParChildPersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GBaseParChildPersonalityTraits, GPositionPersonalityTraits> {
+  : public Gem::Common::
+        GReflectiveInterfaceT<GBaseParChildPersonalityTraits, GPositionPersonalityTraits> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach localMembers_().
@@ -141,7 +142,6 @@ protected:
     /***************************************************************************/
 
 private:
-
     /** @brief Allows populations to record how often an individual has been reelected as parent (0 if it is a child) */
     std::uint32_t parent_counter_ = 0;
     /** @brief The id of the old parent individual. This is intentionally a signed value. A negative value refers to an unset parent id */
@@ -153,5 +153,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

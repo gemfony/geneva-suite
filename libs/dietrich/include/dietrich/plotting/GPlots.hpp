@@ -34,5 +34,5 @@
 // include path keeps working; prefer including the focused header you actually need.
 
 #include "dietrich/plotting/GDataCollectors.hpp"
-#include "dietrich/plotting/GHistogramPlots.hpp"
 #include "dietrich/plotting/GGraphPlots.hpp"
+#include "dietrich/plotting/GHistogramPlots.hpp"

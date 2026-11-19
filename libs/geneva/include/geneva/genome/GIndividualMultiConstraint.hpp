@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/genome/GMultiConstraintT.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GMultiConstraintT.hpp"
 
 // Make sure the instantiation with GGenome as template argument can be serialized

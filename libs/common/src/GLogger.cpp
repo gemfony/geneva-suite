@@ -154,8 +154,8 @@ void GFileLogger::logWithSource(std::string const &msg, std::string const &exten
         // Same fallback as GFileLogger::log(): a transient open failure
         // should not bring the optimisation down. Emit a one-line
         // diagnostic to stderr and let execution continue.
-        std::cerr << "[GFileLogger::logWithSource] could not open \""
-                  << (fname_ + "_" + extension) << "\" for appending — "
+        std::cerr << "[GFileLogger::logWithSource] could not open \"" << (fname_ + "_" + extension)
+                  << "\" for appending — "
                   << "falling back to stderr:" << '\n'
                   << msg;
     }
@@ -346,14 +346,17 @@ std::string assembleBanner(
         "We appreciate your help!\n"
         "The Geneva team\n"
         "================================================\n",
-        severity, when, accompInfo, body, advice
+        severity,
+        when,
+        accompInfo,
+        body,
+        advice
     );
 }
 
 /// The advisory shown for hard errors (EXCEPTION / TERMINATION).
-constexpr std::string_view ERROR_ADVICE =
-    "If you suspect that this error is due to Geneva,\n"
-    "then please consider filing a bug.";
+constexpr std::string_view ERROR_ADVICE = "If you suspect that this error is due to Geneva,\n"
+                                          "then please consider filing a bug.";
 /// The advisory shown for warnings.
 constexpr std::string_view WARNING_ADVICE =
     "If you suspect that there is an underlying problem with Geneva,\n"
@@ -377,8 +380,13 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     switch(gm.getLogType()) {
     //------------------------------------------------------------------------
     case Gem::Common::logType::EXCEPTION: {
-        const std::string error =
-            assembleBanner("ERROR", GLogStreamer::currentTimeAsString(), gm.getAccompInfo(), oss_.str(), ERROR_ADVICE);
+        const std::string error = assembleBanner(
+            "ERROR",
+            GLogStreamer::currentTimeAsString(),
+            gm.getAccompInfo(),
+            oss_.str(),
+            ERROR_ADVICE
+        );
 
         // Do all necessary logging. We use a central exception file for this purpose.
         // The logger's routines will in addition try to print on the console. Note
@@ -394,8 +402,13 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::TERMINATION: {
-        const std::string error =
-            assembleBanner("ERROR", GLogStreamer::currentTimeAsString(), gm.getAccompInfo(), oss_.str(), ERROR_ADVICE);
+        const std::string error = assembleBanner(
+            "ERROR",
+            GLogStreamer::currentTimeAsString(),
+            gm.getAccompInfo(),
+            oss_.str(),
+            ERROR_ADVICE
+        );
 
         // Do all necessary logging. We use a central exception file for this purpose.
         // The logger's routines will in addition try to print on the console. Note
@@ -410,8 +423,13 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::WARNING: {
-        const std::string warning =
-            assembleBanner("WARNING", GLogStreamer::currentTimeAsString(), gm.getAccompInfo(), oss_.str(), WARNING_ADVICE);
+        const std::string warning = assembleBanner(
+            "WARNING",
+            GLogStreamer::currentTimeAsString(),
+            gm.getAccompInfo(),
+            oss_.str(),
+            WARNING_ADVICE
+        );
 
         // Do all necessary logging.
         if(this->hasExtension()) {
@@ -443,8 +461,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             raiseException(
                 "In GLogStreamer::operator<<(const GManipulator&): Error!"
                 << '\n'
-                << "Tried to log to one time log file without a file name specification"
-                << '\n'
+                << "Tried to log to one time log file without a file name specification" << '\n'
                 << "You need to supply a file name like this:" << '\n'
                 << "glogger(\"filename.txt\") << \"some log text\" << GFILE" << '\n'
             );

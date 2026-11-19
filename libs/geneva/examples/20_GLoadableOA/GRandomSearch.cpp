@@ -71,11 +71,9 @@ void GRandomSearch::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     // Call our parent class'es function first
     GOptimizationAlgorithmBase::addConfigurationOptions_(gpb);
 
-    gpb.registerFileParameter<std::size_t>(
-        "size",
-        GRSEARCH_DEF_POPSIZE,
-        [this](std::size_t ps) { this->setDefaultPopulationSize(ps); }
-    ) << "The size of the population (the number of random samples drawn per iteration)";
+    gpb.registerFileParameter<std::size_t>("size", GRSEARCH_DEF_POPSIZE, [this](std::size_t ps) {
+        this->setDefaultPopulationSize(ps);
+    }) << "The size of the population (the number of random samples drawn per iteration)";
 }
 
 /******************************************************************************/
@@ -113,7 +111,8 @@ std::tuple<double, double> GRandomSearch::cycleLogic_() {
         if(isBetter(
                std::get<G_TRANSFORMED_FITNESS>(new_eval),
                std::get<G_TRANSFORMED_FITNESS>(best_fitness),
-               m)) {
+               m
+           )) {
             best_fitness = new_eval;
         }
     }

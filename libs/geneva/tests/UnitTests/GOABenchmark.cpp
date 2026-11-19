@@ -43,10 +43,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdlib>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -54,8 +54,8 @@
 #include <string>
 #include <vector>
 
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GAntColonyOptimization.hpp"
@@ -74,7 +74,11 @@ namespace {
 
 /******************************************************************************/
 // The three benchmark objective functions (all minimised, global optimum 0).
-enum class BenchFn : int { Sphere = 0, Rastrigin = 1, Rosenbrock = 2 };
+enum class BenchFn : int {
+    Sphere = 0,
+    Rastrigin = 1,
+    Rosenbrock = 2
+};
 
 /** @brief The pure objective value for a streamlined parameter vector. Accumulated in long double so that
  *  a strongly-converged run (e.g. sep-CMA on the sphere, |x_i| ~ 1e-162) does not underflow the
@@ -96,7 +100,8 @@ double objective(BenchFn fn, const std::vector<double> &x) {
         return static_cast<double>(s);
     case BenchFn::Rosenbrock:
         for(std::size_t i = 0; i + 1 < x.size(); ++i) {
-            const long double a = static_cast<long double>(x[i + 1]) - static_cast<long double>(x[i]) * static_cast<long double>(x[i]);
+            const long double a = static_cast<long double>(x[i + 1]) -
+                                  static_cast<long double>(x[i]) * static_cast<long double>(x[i]);
             const long double b = 1.L - static_cast<long double>(x[i]);
             s += 100.L * a * a + b * b;
         }
@@ -107,9 +112,12 @@ double objective(BenchFn fn, const std::vector<double> &x) {
 
 const char *fnName(BenchFn fn) {
     switch(fn) {
-    case BenchFn::Sphere: return "Sphere";
-    case BenchFn::Rastrigin: return "Rastrigin";
-    case BenchFn::Rosenbrock: return "Rosenbrock";
+    case BenchFn::Sphere:
+        return "Sphere";
+    case BenchFn::Rastrigin:
+        return "Rastrigin";
+    case BenchFn::Rosenbrock:
+        return "Rosenbrock";
     }
     return "?";
 }
@@ -124,13 +132,15 @@ const char *fnName(BenchFn fn) {
 template <std::size_t N, BenchFn FN>
 class BenchIndividual : public gen::GGenomeT<BenchIndividual<N, FN>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BenchIndividual() {
         gen::GGenomeBuilder b;
         if constexpr(FN == BenchFn::Rosenbrock) {
             b.addDoubleGroup(N, -5., 10.).init(-1.0);
-        } else {
+        }
+        else {
             b.addDoubleGroup(N, -5.12, 5.12).init(4.0);
         }
         this->setGenome(b.build());
@@ -216,7 +226,8 @@ void runMatrix(double budget_s) {
         record("EA", pop);
     }
     if(want("sepcma")) {
-        auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>(); // owns its distribution; auto lambda
+        auto pop =
+            std::make_shared<oa::GSepCmaEvolutionStrategy>(); // owns its distribution; auto lambda
         pop->push_back(proto.clone());
         record("sep-CMA-ES", pop);
     }
@@ -261,13 +272,14 @@ void runMatrix(double budget_s) {
 
     std::cout << "\n================ " << fnName(FN) << "  (n=" << N << ", budget=" << budget_s
               << "s/algo) ================\n";
-    std::cout << std::left << std::setw(20) << "algorithm" << std::right << std::setw(16) << "best f"
-              << std::setw(12) << "iters" << std::setw(10) << "secs" << "\n";
+    std::cout << std::left << std::setw(20) << "algorithm" << std::right << std::setw(16)
+              << "best f" << std::setw(12) << "iters" << std::setw(10) << "secs" << "\n";
     std::cout << std::string(58, '-') << "\n";
     for(const Row &r : rows) {
         std::cout << std::left << std::setw(20) << r.algo << std::right << std::setw(16)
-                  << std::scientific << std::setprecision(3) << r.best << std::setw(12) << r.iterations
-                  << std::setw(10) << std::fixed << std::setprecision(2) << r.seconds << "\n";
+                  << std::scientific << std::setprecision(3) << r.best << std::setw(12)
+                  << r.iterations << std::setw(10) << std::fixed << std::setprecision(2)
+                  << r.seconds << "\n";
     }
     // Machine-parseable rows (aggregated across one-algorithm-per-process invocations by the driver):
     for(const Row &r : rows) {
@@ -287,9 +299,11 @@ TEST_CASE(
     "[.oabench]"
 ) {
     const char *budget_env = std::getenv("GBENCH_BUDGET");
-    const double BUDGET = (budget_env != nullptr) ? std::atof(budget_env) : 5.0; // seconds per algorithm per problem
+    const double BUDGET =
+        (budget_env != nullptr) ? std::atof(budget_env) : 5.0; // seconds per algorithm per problem
 
-    std::cout << "\n#### Geneva OA benchmark -- equal wall-clock budget per algorithm (timed halt) ####\n";
+    std::cout << "\n#### Geneva OA benchmark -- equal wall-clock budget per algorithm (timed halt) "
+                 "####\n";
 
     runMatrix<100, BenchFn::Sphere>(BUDGET);
     runMatrix<100, BenchFn::Rastrigin>(BUDGET);

@@ -60,14 +60,16 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // set / get / size / empty / exists
 
-TEST_CASE("GGlobalOptionsT: set/get round-trip via out-parameter and direct accessor",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT: set/get round-trip via out-parameter and direct accessor",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     CHECK(opts.empty());
     CHECK(opts.empty());
 
     opts.set("alpha", 1);
-    opts.set("beta",  2);
+    opts.set("beta", 2);
     CHECK_FALSE(opts.empty());
     CHECK(opts.size() == 2);
     CHECK(opts.exists("alpha"));
@@ -81,8 +83,10 @@ TEST_CASE("GGlobalOptionsT: set/get round-trip via out-parameter and direct acce
     CHECK(opts.get("beta") == 2);
 }
 
-TEST_CASE("GGlobalOptionsT::get(key) throws on missing key (no silent insert)",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::get(key) throws on missing key (no silent insert)",
+    "[common][global-options]"
+) {
     // The fixed get(key) overload no longer uses map::operator[], so missing
     // keys must throw rather than silently inserting a default-constructed
     // value (the historical surprise we documented).
@@ -105,7 +109,7 @@ TEST_CASE(
 
     int v = 1234;
     CHECK_FALSE(opts.get("unknown", v));
-    CHECK(v == 1234);                  // out-param untouched on miss
+    CHECK(v == 1234); // out-param untouched on miss
 
     CHECK(opts.get("known", v));
     CHECK(v == 9);
@@ -114,25 +118,29 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // set vs setOnce
 
-TEST_CASE("GGlobalOptionsT: set() overwrites; setOnce() refuses to overwrite",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT: set() overwrites; setOnce() refuses to overwrite",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
 
-    CHECK(opts.setOnce("k", 10));      // first insert succeeds
+    CHECK(opts.setOnce("k", 10)); // first insert succeeds
     CHECK(opts.get("k") == 10);
 
     CHECK_FALSE(opts.setOnce("k", 99)); // second setOnce: no-op
     CHECK(opts.get("k") == 10);
 
-    opts.set("k", 99);                  // plain set overwrites
+    opts.set("k", 99); // plain set overwrites
     CHECK(opts.get("k") == 99);
 }
 
 // ---------------------------------------------------------------------------
 // remove
 
-TEST_CASE("GGlobalOptionsT::remove() drops only present keys and reports correctly",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::remove() drops only present keys and reports correctly",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     opts.set("a", 1);
     opts.set("b", 2);
@@ -141,7 +149,7 @@ TEST_CASE("GGlobalOptionsT::remove() drops only present keys and reports correct
     CHECK_FALSE(opts.exists("a"));
     CHECK(opts.size() == 1);
 
-    CHECK_FALSE(opts.remove("a"));     // already gone
+    CHECK_FALSE(opts.remove("a")); // already gone
     CHECK_FALSE(opts.remove("never-was"));
     CHECK(opts.size() == 1);
 }
@@ -149,30 +157,36 @@ TEST_CASE("GGlobalOptionsT::remove() drops only present keys and reports correct
 // ---------------------------------------------------------------------------
 // getKeyDescription / getKeyVector / getContentVector / getContentSnapshot
 
-TEST_CASE("GGlobalOptionsT: getKeyDescription lists all keys in map order",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT: getKeyDescription lists all keys in map order",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
-    opts.set("zeta",  3);
+    opts.set("zeta", 3);
     opts.set("alpha", 1);
-    opts.set("mu",    2);
+    opts.set("mu", 2);
 
     // std::map iterates in key order, so the description is deterministic.
     CHECK(opts.getKeyDescription() == "alpha, mu, zeta");
 }
 
-TEST_CASE("GGlobalOptionsT::getKeyDescription on an empty map returns an empty string",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::getKeyDescription on an empty map returns an empty string",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> const opts;
     CHECK(opts.getKeyDescription().empty());
 }
 
-TEST_CASE("GGlobalOptionsT::getKeyVector clears caller vector and refills with stored keys",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::getKeyVector clears caller vector and refills with stored keys",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     opts.set("k1", 10);
     opts.set("k2", 20);
 
-    std::vector<std::string> keys{"stale", "data"};   // pre-existing content
+    std::vector<std::string> keys{"stale", "data"}; // pre-existing content
     opts.getKeyVector(keys);
 
     // map order ⇒ sorted by key
@@ -181,23 +195,27 @@ TEST_CASE("GGlobalOptionsT::getKeyVector clears caller vector and refills with s
     CHECK(keys[1] == "k2");
 }
 
-TEST_CASE("GGlobalOptionsT::getContentVector returns values in key order",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::getContentVector returns values in key order",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     opts.set("z", 100);
     opts.set("a", 1);
     opts.set("m", 50);
 
-    std::vector<int> values{999};      // pre-existing content, must be cleared
+    std::vector<int> values{999}; // pre-existing content, must be cleared
     opts.getContentVector(values);
     REQUIRE(values.size() == 3);
-    CHECK(values[0] == 1);             // 'a'
-    CHECK(values[1] == 50);            // 'm'
-    CHECK(values[2] == 100);           // 'z'
+    CHECK(values[0] == 1);   // 'a'
+    CHECK(values[1] == 50);  // 'm'
+    CHECK(values[2] == 100); // 'z'
 }
 
-TEST_CASE("GGlobalOptionsT::getContentSnapshot returns a fresh value vector",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::getContentSnapshot returns a fresh value vector",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> opts;
     opts.set("a", 1);
     opts.set("b", 2);
@@ -214,8 +232,10 @@ TEST_CASE("GGlobalOptionsT::getContentSnapshot returns a fresh value vector",
     CHECK(opts.get("a") == 1);
 }
 
-TEST_CASE("GGlobalOptionsT::getContentSnapshot on an empty map yields an empty vector",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT::getContentSnapshot on an empty map yields an empty vector",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<int> const opts;
     auto snap = opts.getContentSnapshot();
     CHECK(snap.empty());
@@ -224,8 +244,10 @@ TEST_CASE("GGlobalOptionsT::getContentSnapshot on an empty map yields an empty v
 // ---------------------------------------------------------------------------
 // Non-trivial value type — exercises the std::string value branch.
 
-TEST_CASE("GGlobalOptionsT<std::string>: works with non-trivial value types",
-          "[common][global-options]") {
+TEST_CASE(
+    "GGlobalOptionsT<std::string>: works with non-trivial value types",
+    "[common][global-options]"
+) {
     GGlobalOptionsT<std::string> opts;
     opts.set("greeting", std::string{"hello"});
     opts.set("farewell", std::string{"bye"});
@@ -247,22 +269,24 @@ TEST_CASE("GGlobalOptionsT<std::string>: works with non-trivial value types",
 // state — no torn map, no UB, all-or-nothing keys.
 
 // NOLINTNEXTLINE(readability-function-size) -- one coherent concurrency stress-test kernel (spawns writer/reader threads sharing atomics + the store under test, joins, then asserts); splitting would only scatter the tightly-coupled thread lambdas
-TEST_CASE("GGlobalOptionsT: concurrent set/get/snapshot remains consistent",
-          "[common][global-options][concurrency]") {
+TEST_CASE(
+    "GGlobalOptionsT: concurrent set/get/snapshot remains consistent",
+    "[common][global-options][concurrency]"
+) {
     GGlobalOptionsT<int> opts;
 
-    constexpr int kWriters    = 4;
-    constexpr int kPerWriter  = 256;
-    constexpr int kReaders    = 4;
+    constexpr int kWriters = 4;
+    constexpr int kPerWriter = 256;
+    constexpr int kReaders = 4;
     constexpr int kReadPasses = 64;
-    constexpr int kMaxValue   = kWriters * 1000 + kPerWriter;
+    constexpr int kMaxValue = kWriters * 1000 + kPerWriter;
 
     // Workers cannot invoke Catch CHECK/REQUIRE (Catch's output redirection
     // is not thread-safe). Record observed violations in atomics and CHECK
     // on the main thread after join.
     std::atomic<bool> go{false};
-    std::atomic<int>  out_of_range{0};
-    std::atomic<int>  reader_sum_pass{0};
+    std::atomic<int> out_of_range{0};
+    std::atomic<int> reader_sum_pass{0};
     std::vector<std::thread> ts;
     ts.reserve(kWriters + kReaders);
 

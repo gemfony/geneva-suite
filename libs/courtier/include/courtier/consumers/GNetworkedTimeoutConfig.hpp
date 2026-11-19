@@ -69,12 +69,18 @@ struct GNetworkedTimeoutConfig {
     void load(const std::string &configFile) {
         Gem::Common::GParserBuilder gpb;
         gpb.registerFileParameter<std::int64_t>(
-            "reclaim_lease_ms", reclaim_lease_ms, reclaim_lease_ms, Gem::Common::VAR_IS_ESSENTIAL,
+            "reclaim_lease_ms",
+            reclaim_lease_ms,
+            reclaim_lease_ms,
+            Gem::Common::VAR_IS_ESSENTIAL,
             "An item in flight longer than this (ms) is handed out to another client; 0 (the "
             "default): never. The one bound on a client that hangs while its process answers"
         );
         gpb.registerFileParameter<std::int64_t>(
-            "give_up_window_ms", give_up_window_ms, give_up_window_ms, Gem::Common::VAR_IS_ESSENTIAL,
+            "give_up_window_ms",
+            give_up_window_ms,
+            give_up_window_ms,
+            Gem::Common::VAR_IS_ESSENTIAL,
             "A batch without any result for longer than this (ms), counted from its start or its "
             "last result, is given up and its open items go to the submission policy; 0 (the "
             "default): never"

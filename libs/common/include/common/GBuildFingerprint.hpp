@@ -78,12 +78,12 @@
  * parses text.
  */
 #define GENEVA_COMPILER_FAMILY_UNKNOWN 0u
-#define GENEVA_COMPILER_FAMILY_GNU 1u
-#define GENEVA_COMPILER_FAMILY_CLANG 2u
+#define GENEVA_COMPILER_FAMILY_GNU     1u
+#define GENEVA_COMPILER_FAMILY_CLANG   2u
 
-#define GENEVA_STDLIB_FAMILY_UNKNOWN 0u
+#define GENEVA_STDLIB_FAMILY_UNKNOWN   0u
 #define GENEVA_STDLIB_FAMILY_LIBSTDCXX 1u
-#define GENEVA_STDLIB_FAMILY_LIBCXX 2u
+#define GENEVA_STDLIB_FAMILY_LIBCXX    2u
 
 /*
  * abi_flags bitfield -- build-mode ABI switches. _GLIBCXX_DEBUG / _GLIBCXX_ASSERTIONS change standard
@@ -91,11 +91,11 @@
  * peer. UBSan stays link-compatible, so its bit is conservative and only ever set via the CMake -D path
  * (there is no predefined UBSan macro on GCC or Clang).
  */
-#define GENEVA_ABI_FLAG_GLIBCXX_DEBUG 0x1u
+#define GENEVA_ABI_FLAG_GLIBCXX_DEBUG      0x1u
 #define GENEVA_ABI_FLAG_GLIBCXX_ASSERTIONS 0x2u
-#define GENEVA_ABI_FLAG_ASAN 0x4u
-#define GENEVA_ABI_FLAG_TSAN 0x8u
-#define GENEVA_ABI_FLAG_UBSAN 0x10u
+#define GENEVA_ABI_FLAG_ASAN               0x4u
+#define GENEVA_ABI_FLAG_TSAN               0x8u
+#define GENEVA_ABI_FLAG_UBSAN              0x10u
 
 /******************************************************************************/
 /*
@@ -107,10 +107,10 @@ extern "C" {
 #endif
 
 typedef struct GenevaCompat {
-    std::uint32_t struct_version;    /* == GENEVA_COMPAT_STRUCT_VERSION                        */
-    std::uint32_t struct_size;       /* sizeof(GenevaCompat), for forward tolerance            */
-    std::uint32_t geneva_version;    /* GENEVA_VERSION baked in at build time                  */
-    std::uint32_t compiler_family;   /* GENEVA_COMPILER_FAMILY_*                                */
+    std::uint32_t struct_version;  /* == GENEVA_COMPAT_STRUCT_VERSION                        */
+    std::uint32_t struct_size;     /* sizeof(GenevaCompat), for forward tolerance            */
+    std::uint32_t geneva_version;  /* GENEVA_VERSION baked in at build time                  */
+    std::uint32_t compiler_family; /* GENEVA_COMPILER_FAMILY_*                                */
     std::uint32_t compiler_major;
     std::uint32_t compiler_minor;
     std::uint32_t stdlib_family;     /* GENEVA_STDLIB_FAMILY_*                                  */
@@ -135,21 +135,21 @@ typedef struct GenevaCompat {
 /* Compiler family + version. Check __clang__ FIRST: clang also defines __GNUC__. */
 #if defined(__clang__)
 #define GENEVA_FP_COMPILER_FAMILY GENEVA_COMPILER_FAMILY_CLANG
-#define GENEVA_FP_COMPILER_MAJOR ((std::uint32_t)__clang_major__)
-#define GENEVA_FP_COMPILER_MINOR ((std::uint32_t)__clang_minor__)
+#define GENEVA_FP_COMPILER_MAJOR  ((std::uint32_t)__clang_major__)
+#define GENEVA_FP_COMPILER_MINOR  ((std::uint32_t)__clang_minor__)
 #elif defined(__GNUC__)
 #define GENEVA_FP_COMPILER_FAMILY GENEVA_COMPILER_FAMILY_GNU
-#define GENEVA_FP_COMPILER_MAJOR ((std::uint32_t)__GNUC__)
-#define GENEVA_FP_COMPILER_MINOR ((std::uint32_t)__GNUC_MINOR__)
+#define GENEVA_FP_COMPILER_MAJOR  ((std::uint32_t)__GNUC__)
+#define GENEVA_FP_COMPILER_MINOR  ((std::uint32_t)__GNUC_MINOR__)
 #else
 #define GENEVA_FP_COMPILER_FAMILY GENEVA_COMPILER_FAMILY_UNKNOWN
-#define GENEVA_FP_COMPILER_MAJOR 0u
-#define GENEVA_FP_COMPILER_MINOR 0u
+#define GENEVA_FP_COMPILER_MAJOR  0u
+#define GENEVA_FP_COMPILER_MINOR  0u
 #endif
 
 /* Standard library family + version. */
 #if defined(_LIBCPP_VERSION)
-#define GENEVA_FP_STDLIB_FAMILY GENEVA_STDLIB_FAMILY_LIBCXX
+#define GENEVA_FP_STDLIB_FAMILY  GENEVA_STDLIB_FAMILY_LIBCXX
 #define GENEVA_FP_STDLIB_VERSION ((std::uint32_t)_LIBCPP_VERSION)
 #elif defined(__GLIBCXX__)
 #define GENEVA_FP_STDLIB_FAMILY GENEVA_STDLIB_FAMILY_LIBSTDCXX
@@ -159,7 +159,7 @@ typedef struct GenevaCompat {
 #define GENEVA_FP_STDLIB_VERSION 0u
 #endif
 #else
-#define GENEVA_FP_STDLIB_FAMILY GENEVA_STDLIB_FAMILY_UNKNOWN
+#define GENEVA_FP_STDLIB_FAMILY  GENEVA_STDLIB_FAMILY_UNKNOWN
 #define GENEVA_FP_STDLIB_VERSION 0u
 #endif
 
@@ -231,8 +231,8 @@ typedef struct GenevaCompat {
 #define GENEVA_FP_FLAG_UBSAN 0u
 #endif
 
-#define GENEVA_FP_ABI_FLAGS                                                                               \
-    (GENEVA_FP_FLAG_GLIBCXX_DEBUG | GENEVA_FP_FLAG_GLIBCXX_ASSERTIONS | GENEVA_FP_FLAG_ASAN |             \
+#define GENEVA_FP_ABI_FLAGS                                                                        \
+    (GENEVA_FP_FLAG_GLIBCXX_DEBUG | GENEVA_FP_FLAG_GLIBCXX_ASSERTIONS | GENEVA_FP_FLAG_ASAN |      \
      GENEVA_FP_FLAG_TSAN | GENEVA_FP_FLAG_UBSAN)
 
 /******************************************************************************/
@@ -243,20 +243,20 @@ typedef struct GenevaCompat {
  * @endcode  Designated initializers keep the mapping field->value readable and order-checked by the compiler
  * (Geneva builds at C++23). Never wrap this in a vague-linkage inline (see the file note).
  */
-#define GENEVA_BUILD_FINGERPRINT                                                                          \
-    {                                                                                                    \
-        .struct_version = GENEVA_COMPAT_STRUCT_VERSION,                                                   \
-        .struct_size = (std::uint32_t)sizeof(GenevaCompat),                                               \
-        .geneva_version = (std::uint32_t)GENEVA_VERSION,                                                  \
-        .compiler_family = GENEVA_FP_COMPILER_FAMILY,                                                     \
-        .compiler_major = GENEVA_FP_COMPILER_MAJOR,                                                       \
-        .compiler_minor = GENEVA_FP_COMPILER_MINOR,                                                       \
-        .stdlib_family = GENEVA_FP_STDLIB_FAMILY,                                                         \
-        .stdlib_version = GENEVA_FP_STDLIB_VERSION,                                                       \
-        .cxx_standard = GENEVA_FP_CXX_STANDARD,                                                           \
-        .glibcxx_cxx11_abi = GENEVA_FP_GLIBCXX_CXX11_ABI,                                                 \
-        .boost_version = (std::uint32_t)BOOST_VERSION,                                                    \
-        .abi_flags = GENEVA_FP_ABI_FLAGS,                                                                 \
+#define GENEVA_BUILD_FINGERPRINT                                                                   \
+    {                                                                                              \
+        .struct_version = GENEVA_COMPAT_STRUCT_VERSION,                                            \
+        .struct_size = (std::uint32_t)sizeof(GenevaCompat),                                        \
+        .geneva_version = (std::uint32_t)GENEVA_VERSION,                                           \
+        .compiler_family = GENEVA_FP_COMPILER_FAMILY,                                              \
+        .compiler_major = GENEVA_FP_COMPILER_MAJOR,                                                \
+        .compiler_minor = GENEVA_FP_COMPILER_MINOR,                                                \
+        .stdlib_family = GENEVA_FP_STDLIB_FAMILY,                                                  \
+        .stdlib_version = GENEVA_FP_STDLIB_VERSION,                                                \
+        .cxx_standard = GENEVA_FP_CXX_STANDARD,                                                    \
+        .glibcxx_cxx11_abi = GENEVA_FP_GLIBCXX_CXX11_ABI,                                          \
+        .boost_version = (std::uint32_t)BOOST_VERSION,                                             \
+        .abi_flags = GENEVA_FP_ABI_FLAGS,                                                          \
     }
 
 /******************************************************************************/

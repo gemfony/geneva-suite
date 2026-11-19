@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 /********************************************************************************
  *
  * GXoshiro256pp.hpp — local xoshiro256++ pseudo-random generator for Hap.
@@ -84,20 +83,26 @@ public:
     using result_type = std::uint64_t;
 
     /** @brief Default construction uses a fixed non-zero seed (default_seed). */
-    xoshiro256pp() noexcept { seed(default_seed); }
+    xoshiro256pp() noexcept {
+        seed(default_seed);
+    }
 
     /**
      * @brief Construction from a single 64-bit seed (expanded via splitmix64).
      *
      * @param s The 64-bit seed value used to initialise the 256-bit state
      */
-    explicit xoshiro256pp(result_type s) noexcept { seed(s); }
+    explicit xoshiro256pp(result_type s) noexcept {
+        seed(s);
+    }
 
     /**
      * @brief Smallest value the generator can produce.
      * @return The minimum result_type value (always 0)
      */
-    static constexpr result_type(min)() noexcept { return 0; }
+    static constexpr result_type(min)() noexcept {
+        return 0;
+    }
     /**
      * @brief Largest value the generator can produce.
      * @return The maximum result_type value (2^64 - 1)
@@ -116,7 +121,8 @@ public:
      */
     void seed(result_type s) noexcept {
         std::uint64_t sm = s;
-        for (auto &word : s_) word = detail::splitmix64(sm);
+        for(auto &word : s_)
+            word = detail::splitmix64(sm);
     }
 
     /**
@@ -126,7 +132,7 @@ public:
     //! [hap-xoshiro-step]
     result_type operator()() noexcept {
         const std::uint64_t result = rotl(s_[0] + s_[3], 23) + s_[0];
-        const std::uint64_t t      = s_[1] << 17;
+        const std::uint64_t t = s_[1] << 17;
         s_[2] ^= s_[0];
         s_[3] ^= s_[1];
         s_[1] ^= s_[2];
@@ -143,7 +149,8 @@ public:
      * @param z The number of generated values to skip (state is advanced z times)
      */
     void discard(unsigned long long z) noexcept {
-        while (z-- > 0) (void)(*this)();
+        while(z-- > 0)
+            (void)(*this)();
     }
 
 private:

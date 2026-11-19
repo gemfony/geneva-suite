@@ -34,10 +34,10 @@
 #include <string>
 #include <string_view>
 
+#include "GDemoProcessingContainers.hpp"
 #include "common/GCommonEnums.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "GDemoProcessingContainers.hpp"
 
 using namespace Gem::Courtier;
 
@@ -64,10 +64,15 @@ test_container_type makeWorkFrame() {
 /**
  * container_to_string() must return a non-empty document in every (GArchive) mode.
  */
-TEST_CASE("container_to_string emits a non-empty document in every mode", "[courtier][serialization]") {
+TEST_CASE(
+    "container_to_string emits a non-empty document in every mode",
+    "[courtier][serialization]"
+) {
     const auto container = makeWorkFrame();
 
-    REQUIRE_FALSE(container_to_string(container, Gem::Common::serializationMode::GEM_BINARY).empty());
+    REQUIRE_FALSE(
+        container_to_string(container, Gem::Common::serializationMode::GEM_BINARY).empty()
+    );
     REQUIRE_FALSE(container_to_string(container, Gem::Common::serializationMode::GEM_JSON).empty());
 }
 
@@ -76,7 +81,10 @@ TEST_CASE("container_to_string emits a non-empty document in every mode", "[cour
  * The companion round-trip: every serialization mode must survive a write/read cycle with the frame
  * kind, the library tag, the work item and the item's stable lineage id intact.
  */
-TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[courtier][serialization]") {
+TEST_CASE(
+    "A WORK frame survives a round-trip in every serialization mode",
+    "[courtier][serialization]"
+) {
     for(const auto mode : ALL_MODES) {
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 
@@ -102,7 +110,10 @@ TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[co
  * EVERY frame kind, with EVERY payload alternative it may carry, round-trips in BOTH codecs -- and a
  * frame carries ONLY its own alternative, so nothing inert rides along.
  */
-TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtier][serialization]") {
+TEST_CASE(
+    "Every frame kind round-trips with exactly its own payload",
+    "[courtier][serialization]"
+) {
     for(const auto mode : ALL_MODES) {
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 

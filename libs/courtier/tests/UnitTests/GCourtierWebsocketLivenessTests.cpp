@@ -44,23 +44,23 @@
 #include <future>
 #include <initializer_list>
 #include <memory>
-#include <utility>
 #include <mutex>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
+#include "GDemoProcessingContainers.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCommandContainerT.hpp"
-#include "GDemoProcessingContainers.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -459,7 +459,11 @@ GCommandContainerT<GFaultyContainer> readFrame(HandDrivenPeer &peer) {
     boost::beast::flat_buffer buffer;
     peer.ws.read(buffer);
     GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
-    Gem::Courtier::container_from_string(boost::beast::buffers_to_string(buffer.data()), frame, BIN);
+    Gem::Courtier::container_from_string(
+        boost::beast::buffers_to_string(buffer.data()),
+        frame,
+        BIN
+    );
     return frame;
 }
 
@@ -558,7 +562,7 @@ TEST_CASE(
     peer.ws.read(buffer, ec);
     CHECK(ec == Websocket::error::closed); // the session closed the connection
     CHECK(peer.ws.reason().code == Websocket::close_code::internal_error); // GPeerClose::ERROR
-    REQUIRE(eventually([&] { return consumer->requeuedCount() == 1; })); // the item is back
+    REQUIRE(eventually([&] { return consumer->requeuedCount() == 1; }));   // the item is back
 
     // Another client can now evaluate the item.
     auto client = matchingClient<GFaultyContainer>(consumer->getPort());

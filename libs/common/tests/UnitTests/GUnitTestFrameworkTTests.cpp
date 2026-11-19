@@ -59,29 +59,37 @@ struct ThrowsOther {
 
 } // namespace
 
-TEST_CASE("TFactory_GUnitTests<T>: default-constructible T returns a populated shared_ptr",
-          "[common][unit-framework]") {
+TEST_CASE(
+    "TFactory_GUnitTests<T>: default-constructible T returns a populated shared_ptr",
+    "[common][unit-framework]"
+) {
     auto p = TFactory_GUnitTests<Plain>();
     REQUIRE(p);
     CHECK(p->v == 99);
 }
 
-TEST_CASE("TFactory_GUnitTests<T>: geneva_exception from T's ctor propagates unchanged",
-          "[common][unit-framework]") {
+TEST_CASE(
+    "TFactory_GUnitTests<T>: geneva_exception from T's ctor propagates unchanged",
+    "[common][unit-framework]"
+) {
     CHECK_THROWS_AS(TFactory_GUnitTests<ThrowsGeneva>(), geneva_exception);
 }
 
-TEST_CASE("TFactory_GUnitTests<T>: non-geneva exception is wrapped in geneva_exception",
-          "[common][unit-framework]") {
+TEST_CASE(
+    "TFactory_GUnitTests<T>: non-geneva exception is wrapped in geneva_exception",
+    "[common][unit-framework]"
+) {
     // The factory catches unknown exceptions and re-throws as geneva_exception
     // with a "Caught unknown exception" message.
     try {
         TFactory_GUnitTests<ThrowsOther>();
         FAIL("expected geneva_exception to be thrown");
-    } catch(geneva_exception const &g) {
+    }
+    catch(geneva_exception const &g) {
         std::string const what = g.what();
         CHECK(what.contains("Caught unknown exception"));
-    } catch(...) {
+    }
+    catch(...) {
         FAIL("threw a non-geneva exception type");
     }
 }

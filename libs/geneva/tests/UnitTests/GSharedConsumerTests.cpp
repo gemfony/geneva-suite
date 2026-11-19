@@ -81,7 +81,8 @@ namespace {
 /** @brief A tiny flat sphere: 3 constrained doubles in [-5, 5), started at 3.0. The inner problem. */
 class InnerSphere : public gen::GGenomeT<InnerSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     InnerSphere() {
         gen::GGenomeBuilder b;
@@ -115,7 +116,8 @@ protected:
  */
 class MetaSphere : public gen::GGenomeT<MetaSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     MetaSphere() {
         gen::GGenomeBuilder b;
@@ -269,8 +271,8 @@ TEST_CASE("Consumer registry holds one consumer", "[consumer][sharing][registry]
     };
     auto first = reg.ensureConsumer(factory);
     auto second = reg.ensureConsumer(factory);
-    CHECK(factory_calls == 1);     // the second call did NOT build a new consumer
-    CHECK(first == second);        // it returned the same consumer
+    CHECK(factory_calls == 1); // the second call did NOT build a new consumer
+    CHECK(first == second);    // it returned the same consumer
     CHECK(reg.consumer() == first);
 
     // setConsumer replaces it (e.g. Go2 registering the consumer it built); clear empties.
@@ -285,7 +287,8 @@ TEST_CASE("Consumer registry holds one consumer", "[consumer][sharing][registry]
 
 TEST_CASE(
     "Concurrent algorithms fan in to one shared thread-pool consumer",
-    "[consumer][sharing][stress]") {
+    "[consumer][sharing][stress]"
+) {
     using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
 
     // The shared thread-pool consumer is meant to serve several algorithms at once (the fan-in case):
@@ -343,7 +346,8 @@ TEST_CASE(
 
 TEST_CASE(
     "Meta-EA evaluates umbrella-individuals on its own pool; sub-EAs share the one work consumer",
-    "[consumer][sharing][metaea]") {
+    "[consumer][sharing][metaea]"
+) {
     using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
 
     // The meta-EA evaluates its umbrella-individuals (MetaSphere -- each runs an inner EA) on its OWN
@@ -639,11 +643,9 @@ TEST_CASE(
     Gem::Geneva::addConsumerOptions(visible, hidden);
     po::options_description all;
     all.add(visible).add(hidden);
-    CHECK(
-        all.find("beast_serializationMode", false)
-            .description()
-            .contains(Gem::Common::serializationModeChoices())
-    );
+    CHECK(all.find("beast_serializationMode", false)
+              .description()
+              .contains(Gem::Common::serializationModeChoices()));
     for(const auto &option : all.options()) {
         for(const std::string_view stale :
             {"TEXTMODE", "XMLMODE", "BINARYMODE (", "GEM_JSONMODE"}) {
@@ -732,7 +734,10 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // The consumer catalog is data in the shared provider store, not a hard-coded table + switch.
 
-TEST_CASE("Consumer provider store exposes the built-in consumer catalog", "[consumer][sharing][registry]") {
+TEST_CASE(
+    "Consumer provider store exposes the built-in consumer catalog",
+    "[consumer][sharing][registry]"
+) {
     // The built-in local + socket consumers are always registered; unknown mnemonics are not (the retired
     // "sc" serial consumer is now "stc" with one thread, so "sc" is no longer a known mnemonic).
     CHECK(Gem::Geneva::isKnownConsumer("stc"));

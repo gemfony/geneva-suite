@@ -61,9 +61,9 @@
 #include "common/GSingletonT.hpp"
 #include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
 
 // Example-local headers
 #include "GImageScalar.hpp"
@@ -255,9 +255,12 @@ public:
         std::vector<gimage_fp_t> parVec;
         this->streamline(parVec);
 
-        const fp_type r = std::clamp(static_cast<fp_type>(parVec.at(offset + 0)), fp_type(0), fp_type(1));
-        const fp_type g = std::clamp(static_cast<fp_type>(parVec.at(offset + 1)), fp_type(0), fp_type(1));
-        const fp_type b = std::clamp(static_cast<fp_type>(parVec.at(offset + 2)), fp_type(0), fp_type(1));
+        const fp_type r =
+            std::clamp(static_cast<fp_type>(parVec.at(offset + 0)), fp_type(0), fp_type(1));
+        const fp_type g =
+            std::clamp(static_cast<fp_type>(parVec.at(offset + 1)), fp_type(0), fp_type(1));
+        const fp_type b =
+            std::clamp(static_cast<fp_type>(parVec.at(offset + 2)), fp_type(0), fp_type(1));
         return {r, g, b};
     }
 
@@ -312,4 +315,3 @@ std::shared_ptr<Gem::Geneva::GImageIndividual> TFactory_GUnitTests<Gem::Geneva::
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-

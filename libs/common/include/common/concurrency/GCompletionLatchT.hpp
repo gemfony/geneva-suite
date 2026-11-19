@@ -65,7 +65,9 @@ namespace Gem::Common::Concurrency {
 class GCompletionLatchT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /** @brief Constructs a latch armed for @p n completions (0 == already complete). */
-    explicit GCompletionLatchT(std::size_t n = 0) : remaining_(n) {}
+    explicit GCompletionLatchT(std::size_t n = 0)
+      : remaining_(n) {
+    }
 
     GCompletionLatchT(const GCompletionLatchT &) = delete;
     GCompletionLatchT &operator=(const GCompletionLatchT &) = delete;

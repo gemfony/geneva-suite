@@ -62,7 +62,7 @@ namespace Gem::Common::Concurrency {
  *
  * @param thrd A shared pointer to the thread that should be added to the group
  */
-void GThreadGroup::add_thread(const thread_ptr& thrd) {
+void GThreadGroup::add_thread(const thread_ptr &thrd) {
     if(thrd) {
         std::scoped_lock const guard(mutex_);
         // Not out of the room reserved for the creations under way (create_thread())

@@ -45,17 +45,17 @@
 #include "common/GLogger.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
-#include "geneva/individuals/GFunctionIndividual.hpp"
 
 // Local headers
 #include "GBenchmarkRunResult.hpp"
@@ -77,14 +77,14 @@ struct AlgorithmEntry {
  * @brief Top-level configuration for GAlgorithmBenchmarkRunner.
  */
 struct BenchmarkConfig {
-    std::string functionName     {"PARABOLA"};  ///< GFunctionIndividual demo function name
-    std::uint32_t nDimensions    {10};          ///< Parameter dimension
-    std::size_t   nRuns          {30};          ///< Runs per algorithm entry
-    std::string individualConfigFile {"config/GFunctionIndividual.json"};
-    std::size_t   batchSize      {0};           ///< 0 = flush by timeout
-    std::uint32_t flushTimeoutMs {50};          ///< Flush timeout in ms (batchSize==0)
-    std::string outputDir        {"."};         ///< Directory for output CSV files
-    std::vector<AlgorithmEntry> algorithms;     ///< Algorithm entries to benchmark
+    std::string functionName{"PARABOLA"}; ///< GFunctionIndividual demo function name
+    std::uint32_t nDimensions{10};        ///< Parameter dimension
+    std::size_t nRuns{30};                ///< Runs per algorithm entry
+    std::string individualConfigFile{"config/GFunctionIndividual.json"};
+    std::size_t batchSize{0};               ///< 0 = flush by timeout
+    std::uint32_t flushTimeoutMs{50};       ///< Flush timeout in ms (batchSize==0)
+    std::string outputDir{"."};             ///< Directory for output CSV files
+    std::vector<AlgorithmEntry> algorithms; ///< Algorithm entries to benchmark
 };
 
 /******************************************************************************/
@@ -110,20 +110,21 @@ public:
     ~GBenchmarkTerminationMonitor() override = default;
 
     // Results populated at INFOEND
-    double        finalFitness   {0.0};
-    std::uint32_t finalIteration {0};
-    TerminationReason terminationReason {TerminationReason::Unknown};
-    bool targetReached {false};
+    double finalFitness{0.0};
+    std::uint32_t finalIteration{0};
+    TerminationReason terminationReason{TerminationReason::Unknown};
+    bool targetReached{false};
 
 protected:
     void load_(const oa::GBasePluggableOM *cp) override {
         const auto *p = dynamic_cast<const GBenchmarkTerminationMonitor *>(cp);
-        if (!p) throw std::bad_cast{};
+        if(!p)
+            throw std::bad_cast{};
         oa::GBasePluggableOM::load_(cp);
-        finalFitness      = p->finalFitness;
-        finalIteration    = p->finalIteration;
+        finalFitness = p->finalFitness;
+        finalIteration = p->finalIteration;
         terminationReason = p->terminationReason;
-        targetReached     = p->targetReached;
+        targetReached = p->targetReached;
     }
 
 private:
@@ -131,29 +132,28 @@ private:
         return new GBenchmarkTerminationMonitor(*this);
     }
 
-    void informationFunction_(
-        infoMode mode,
-        oa::GOptimizationAlgorithmBase const *const goa
-    ) override {
-        if (mode != infoMode::INFOEND) return;
+    void
+    informationFunction_(infoMode mode, oa::GOptimizationAlgorithmBase const *const goa) override {
+        if(mode != infoMode::INFOEND)
+            return;
 
         finalIteration = goa->getIteration();
-        finalFitness   = std::get<0>(goa->getBestKnownPrimaryFitness());
+        finalFitness = std::get<0>(goa->getBestKnownPrimaryFitness());
 
         // stallHalt() and stallHaltSet() are private; replicate with public API:
         // max_stall_iteration_ != 0 guards whether the criterion is active
-        const bool stallExceeded =
-            (goa->getMaxStallIteration() != 0u) &&
-            (goa->getStallCounter() > goa->getMaxStallIteration());
+        const bool stallExceeded = (goa->getMaxStallIteration() != 0u) &&
+                                   (goa->getStallCounter() > goa->getMaxStallIteration());
 
-        if (stallExceeded) {
+        if(stallExceeded) {
             terminationReason = TerminationReason::StallThreshold;
-        } else if (goa->hasQualityThreshold() &&
-                   goa->getIteration() < goa->getMaxIteration()) {
+        }
+        else if(goa->hasQualityThreshold() && goa->getIteration() < goa->getMaxIteration()) {
             // Ended early with quality threshold active → target was reached
             terminationReason = TerminationReason::QualityThreshold;
-            targetReached     = true;
-        } else {
+            targetReached = true;
+        }
+        else {
             terminationReason = TerminationReason::MaxIterations;
         }
     }

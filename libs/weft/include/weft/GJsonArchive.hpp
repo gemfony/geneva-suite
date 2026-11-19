@@ -94,14 +94,20 @@ public:
     GJsonOArchive() = default;
 
     /** @brief The assembled JSON tree. */
-    [[nodiscard]] const boost::json::value &value() const { return root_; }
+    [[nodiscard]] const boost::json::value &value() const {
+        return root_;
+    }
     /** @brief The assembled tree serialized to compact JSON text. */
-    [[nodiscard]] std::string str() const { return boost::json::serialize(root_); }
+    [[nodiscard]] std::string str() const {
+        return boost::json::serialize(root_);
+    }
 
     // --- primitive hooks --------------------------------------------------
 
     /** @brief Stores a boolean. @param b The value. */
-    void put_bool(bool b) { place(boost::json::value(b)); }
+    void put_bool(bool b) {
+        place(boost::json::value(b));
+    }
 
     /** @brief Stores an integer as a signed or unsigned JSON number by its signedness. @param v The value. */
     template <typename int_type>
@@ -133,25 +139,45 @@ public:
     }
 
     /** @brief Stores a string. @param s The string. */
-    void put_string(std::string_view s) { place(boost::json::value(s)); }
+    void put_string(std::string_view s) {
+        place(boost::json::value(s));
+    }
 
     // --- framing hooks ----------------------------------------------------
 
-    void begin_object() { open(boost::json::value(boost::json::object{})); }
-    void end_object() { close(); }
+    void begin_object() {
+        open(boost::json::value(boost::json::object{}));
+    }
+    void end_object() {
+        close();
+    }
     /** @brief Records the key the next attached value/node uses inside an object. @param name The member name. */
-    void member(const char *name) { pending_key_ = name; }
-    void begin_seq(std::size_t /*n*/) { open(boost::json::value(boost::json::array{})); }
-    void end_seq() { close(); }
-    void begin_elem() {}
-    void end_elem() {}
+    void member(const char *name) {
+        pending_key_ = name;
+    }
+    void begin_seq(std::size_t /*n*/) {
+        open(boost::json::value(boost::json::array{}));
+    }
+    void end_seq() {
+        close();
+    }
+    void begin_elem() {
+    }
+    void end_elem() {
+    }
 
     // Raw caller-managed range framing: an array of elements (make_array) or a
     // hex string (make_binary). The count is implicit in the JSON structure.
-    void begin_raw(std::size_t /*n*/) { open(boost::json::value(boost::json::array{})); }
-    void end_raw() { close(); }
+    void begin_raw(std::size_t /*n*/) {
+        open(boost::json::value(boost::json::array{}));
+    }
+    void end_raw() {
+        close();
+    }
     /** @brief Stores @p n opaque bytes as a lowercase hex string. @param p The block. @param n The byte count. */
-    void put_bytes(const void *p, std::size_t n) { place(boost::json::value(to_hex(p, n))); }
+    void put_bytes(const void *p, std::size_t n) {
+        place(boost::json::value(to_hex(p, n)));
+    }
 
 private:
     static std::string to_hex(const void *p, std::size_t n) {
@@ -159,7 +185,7 @@ private:
         const auto *b = static_cast<const unsigned char *>(p);
         std::string out;
         out.resize(2 * n);
-        for (std::size_t i = 0; i < n; ++i) {
+        for(std::size_t i = 0; i < n; ++i) {
             out[2 * i] = digits[b[i] >> 4];
             out[2 * i + 1] = digits[b[i] & 0x0F];
         }
@@ -172,9 +198,10 @@ private:
     };
 
     void place(boost::json::value v) {
-        if (stack_.empty()) {
+        if(stack_.empty()) {
             root_ = std::move(v);
-        } else {
+        }
+        else {
             attach(stack_.back().node, std::move(v), pending_key_);
         }
     }
@@ -186,17 +213,19 @@ private:
     void close() {
         Frame f = std::move(stack_.back());
         stack_.pop_back();
-        if (stack_.empty()) {
+        if(stack_.empty()) {
             root_ = std::move(f.node);
-        } else {
+        }
+        else {
             attach(stack_.back().node, std::move(f.node), f.key);
         }
     }
 
     static void attach(boost::json::value &parent, boost::json::value v, const std::string &key) {
-        if (parent.is_object()) {
+        if(parent.is_object()) {
             parent.as_object()[key] = std::move(v);
-        } else {
+        }
+        else {
             parent.as_array().push_back(std::move(v));
         }
     }
@@ -232,14 +261,20 @@ private:
 class GJsonIArchive : public GIArchiveT<GJsonIArchive> {
 public:
     /** @brief Parses @p text as JSON to read from. @param text The JSON document. */
-    explicit GJsonIArchive(std::string_view text) : root_(boost::json::parse(text)) {}
+    explicit GJsonIArchive(std::string_view text)
+      : root_(boost::json::parse(text)) {
+    }
     /** @brief Reads from an existing JSON tree. @param v The JSON tree (copied). */
-    explicit GJsonIArchive(boost::json::value v) : root_(std::move(v)) {}
+    explicit GJsonIArchive(boost::json::value v)
+      : root_(std::move(v)) {
+    }
 
     // --- primitive hooks --------------------------------------------------
 
     /** @brief Reads a boolean. @param b The value to fill. */
-    void get_bool(bool &b) { b = slot().as_bool(); }
+    void get_bool(bool &b) {
+        b = slot().as_bool();
+    }
 
     /** @brief Reads an integer with a checked numeric conversion. @param v The value to fill. */
     template <typename int_type>
@@ -280,7 +315,9 @@ public:
         const boost::json::value &s = slot();
         stack_.push_back(Cursor{&s, 0});
     }
-    void leave_object() { stack_.pop_back(); }
+    void leave_object() {
+        stack_.pop_back();
+    }
     /** @brief Reads a container's element count. @return The number of elements. */
     std::size_t begin_seq() {
         const boost::json::value &s = slot();
@@ -288,18 +325,26 @@ public:
         stack_.push_back(Cursor{&s, 0});
         return n;
     }
-    void end_seq() { stack_.pop_back(); }
+    void end_seq() {
+        stack_.pop_back();
+    }
     /** @brief Selects the object member the next read targets. @param name The member name. */
-    void member(const char *name) { pending_key_ = name; }
-    void begin_elem() {}
-    void end_elem() {}
+    void member(const char *name) {
+        pending_key_ = name;
+    }
+    void begin_elem() {
+    }
+    void end_elem() {
+    }
 
     // Raw caller-managed range framing (make_array / make_binary).
     void begin_raw() {
         const boost::json::value &s = slot();
         stack_.push_back(Cursor{&s, 0});
     }
-    void end_raw() { stack_.pop_back(); }
+    void end_raw() {
+        stack_.pop_back();
+    }
     /** @brief Reads a hex string of @p n bytes into @p p. @param p The pre-sized destination. @param n The byte count. */
     void get_bytes(void *p, std::size_t n) {
         const boost::json::string &s = slot().as_string();
@@ -308,7 +353,7 @@ public:
 
 private:
     static void from_hex(std::string_view hex, void *p, std::size_t n) {
-        if (hex.size() != 2 * n) {
+        if(hex.size() != 2 * n) {
             throw weft_exception(
                 weft_error_streamer()
                 << "In GJsonIArchive::get_bytes(): hex string of length " << hex.size()
@@ -316,13 +361,16 @@ private:
             );
         }
         auto nibble = [](char c) -> unsigned {
-            if (c >= '0' && c <= '9') return static_cast<unsigned>(c - '0');
-            if (c >= 'a' && c <= 'f') return static_cast<unsigned>(c - 'a' + 10);
-            if (c >= 'A' && c <= 'F') return static_cast<unsigned>(c - 'A' + 10);
+            if(c >= '0' && c <= '9')
+                return static_cast<unsigned>(c - '0');
+            if(c >= 'a' && c <= 'f')
+                return static_cast<unsigned>(c - 'a' + 10);
+            if(c >= 'A' && c <= 'F')
+                return static_cast<unsigned>(c - 'A' + 10);
             return 0;
         };
         auto *b = static_cast<unsigned char *>(p);
-        for (std::size_t i = 0; i < n; ++i) {
+        for(std::size_t i = 0; i < n; ++i) {
             b[i] = static_cast<unsigned char>((nibble(hex[2 * i]) << 4) | nibble(hex[2 * i + 1]));
         }
     }
@@ -335,11 +383,11 @@ private:
     // The next value to read at the current level: an object member by key, an
     // array element by advancing cursor, or the whole tree at top level.
     const boost::json::value &slot() {
-        if (stack_.empty()) {
+        if(stack_.empty()) {
             return root_;
         }
         Cursor &c = stack_.back();
-        if (c.node->is_object()) {
+        if(c.node->is_object()) {
             return c.node->as_object().at(pending_key_);
         }
         return c.node->as_array().at(c.idx++);

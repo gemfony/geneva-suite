@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GDelayIndividual.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -37,9 +36,10 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "hap/GRandomLeasePool.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "hap/GRandomLeasePool.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -96,7 +96,7 @@ GDelayIndividual::~GDelayIndividual() { /* nothing */
  */
 std::vector<double> GDelayIndividual::evaluate() {
     // The candidate holds no RNG of its own -- lease a proxy for this evaluation's random draws.
-    auto             gr_lease = Gem::Hap::randomLeasePool().acquire();
+    auto gr_lease = Gem::Hap::randomLeasePool().acquire();
     Gem::Hap::GRandomBase &gr = *gr_lease;
 
     std::uniform_real_distribution<double> uniform_real_distribution;
@@ -132,10 +132,9 @@ std::vector<double> GDelayIndividual::evaluate() {
     }
 
     // Return a random value - we do not perform any real optimization
-    return {uniform_real_distribution(
-        gr,
-        std::uniform_real_distribution<double>::param_type(0., 1.)
-    )};
+    return {
+        uniform_real_distribution(gr, std::uniform_real_distribution<double>::param_type(0., 1.))
+    };
 }
 
 /******************************************************************************/
@@ -257,8 +256,11 @@ void GDelayIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
     gpb.registerFileParameter("n_variables", c.n_variables, c.n_variables)
         << "The number of variables to act on";
 
-    gpb.registerFileParameter("delays", c.delays, c.delays)
-        << "A list of delays through which the benchmark should cycle. Format: seconds:milliseconds";
+    gpb.registerFileParameter(
+        "delays",
+        c.delays,
+        c.delays
+    ) << "A list of delays through which the benchmark should cycle. Format: seconds:milliseconds";
 
     gpb.registerFileParameter("sleep_randomly", c.sleep_randomly, c.sleep_randomly)
         << "Indicates whether the individual should sleep for a random amount of time" << '\n'
@@ -268,14 +270,16 @@ void GDelayIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
         "lower_rand_sleep_boundary",
         c.lower_rand_sleep_boundary,
         c.lower_rand_sleep_boundary
-    ) << "The lower boundary for random sleep times in the" << '\n'
+    ) << "The lower boundary for random sleep times in the"
+      << '\n'
       << "fitness function (seconds, double value)";
 
     gpb.registerFileParameter(
         "upper_rand_sleep_boundary",
         c.upper_rand_sleep_boundary,
         c.upper_rand_sleep_boundary
-    ) << "The upper boundary for random sleep times in the" << '\n'
+    ) << "The upper boundary for random sleep times in the"
+      << '\n'
       << "fitness function (seconds, double value)";
 
     gpb.registerFileParameter("result_file", c.result_file, c.result_file)
@@ -287,8 +291,11 @@ void GDelayIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
     gpb.registerFileParameter("n_measurements", c.n_measurements, c.n_measurements)
         << "The number of measurements for each delay";
 
-    gpb.registerFileParameter("inter_measurement_delay", c.inter_measurement_delay, c.inter_measurement_delay)
-        << "The amount of seconds to wait between two measurements";
+    gpb.registerFileParameter(
+        "inter_measurement_delay",
+        c.inter_measurement_delay,
+        c.inter_measurement_delay
+    ) << "The amount of seconds to wait between two measurements";
 
     gpb.registerFileParameter<bool, double>(
         "may_throw",
@@ -336,7 +343,8 @@ GDelayIndividual::Config GDelayIndividual::readConfig(std::filesystem::path cons
  * @param c The Config whose "delays" string field is parsed
  * @return A vector of (seconds, milliseconds) tuples, one per delay in the list
  */
-std::vector<std::tuple<unsigned int, unsigned int>> GDelayIndividual::parseSleepTimes(const Config &c) {
+std::vector<std::tuple<unsigned int, unsigned int>>
+GDelayIndividual::parseSleepTimes(const Config &c) {
     return Gem::Common::stringToUIntTupleVec(c.delays);
 }
 

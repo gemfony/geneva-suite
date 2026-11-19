@@ -46,11 +46,11 @@ class GPlotDesigner; // forward declaration
  * or a numpy .npz archive) rather than a rendered plot. See the per-enumerator notes below.
  */
 enum class plotBackend {
-    ROOT,       ///< Emit a ROOT macro (the default; output is byte-identical to the historical generator)
+    ROOT, ///< Emit a ROOT macro (the default; output is byte-identical to the historical generator)
     GNUPLOT,    ///< Emit a gnuplot script (graph plotters only)
     MATPLOTLIB, ///< Emit a Python/matplotlib script (graph plotters and histograms)
-    OCTAVE,     ///< Emit an Octave / MATLAB script (.m; graph plotters and histograms, common-core syntax)
-    DATA        ///< Emit the raw series data (NOT a rendered plot); CSV text or a numpy .npz archive
+    OCTAVE, ///< Emit an Octave / MATLAB script (.m; graph plotters and histograms, common-core syntax)
+    DATA    ///< Emit the raw series data (NOT a rendered plot); CSV text or a numpy .npz archive
 };
 
 /******************************************************************************/

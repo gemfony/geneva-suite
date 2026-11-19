@@ -28,16 +28,17 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GMetaOptimizerIndividualT.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <istream>
 #include <ostream>
 #include <utility>
 
 GEM_REGISTER_ARCHIVABLE(
-    Gem::Geneva::Individuals::GMetaOptimizerIndividualT<Gem::Geneva::Individuals::GFunctionIndividual>
+    Gem::Geneva::Individuals::GMetaOptimizerIndividualT<
+        Gem::Geneva::Individuals::GFunctionIndividual>
 ) // NOLINT
 GEM_REGISTER_ARCHIVABLE(
     Gem::Geneva::Individuals::GOptOptMonitorT<Gem::Geneva::Individuals::GFunctionIndividual>

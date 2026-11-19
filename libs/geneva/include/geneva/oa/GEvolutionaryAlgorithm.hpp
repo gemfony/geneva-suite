@@ -46,13 +46,13 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmT.hpp"
 #include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GTunableManifest.hpp"
-#include "geneva/oa/GOptimizationAlgorithmT.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -221,7 +221,7 @@ public:
      *  hands out, and the default second template argument of the algorithm factory
      *  scaffold. */
     using personality_traits_type = GEvolutionaryAlgorithm_PersonalityTraits;
-//! [geneva.oa.identifiers]
+    //! [geneva.oa.identifiers]
 
 private:
     ///////////////////////////////////////////////////////////////////////
@@ -269,7 +269,9 @@ public:
      *  seeded at init from the slots' representative sigma, updated once per generation).
      *  Primarily an observability hook for monitors and tests.
      *  @return The controllers' current global sigma (1.0 while no controller is active). */
-    double getGlobalSigma() const noexcept { return global_sigma_; }
+    double getGlobalSigma() const noexcept {
+        return global_sigma_;
+    }
 
     /** @brief Sets the learning-rate constant c for SELF_ADAPT_SCALED (tau = c/sqrt(2n)).
      *  @param c The constant (≈1 by convention). */
@@ -286,17 +288,19 @@ public:
     /** @brief Extracts all individuals on the pareto front.
      *  @param pareto_inds Output vector filled with freshly cloned copies of the individuals
      *         currently on the front; the caller takes sole ownership of them */
-    void extractCurrentParetoIndividuals(
-        std::vector<std::unique_ptr<gen::GGenome>> &pareto_inds
-    );
+    void extractCurrentParetoIndividuals(std::vector<std::unique_ptr<gen::GGenome>> &pareto_inds);
 
     /** @brief The knobs a meta-optimizer may tune. @return The ordered list of tunable parameters. */
     static std::vector<TunableParam> tunableManifest();
 
     /** @brief Requests INLINE evaluation (see GEvolutionaryAlgorithm). @param inln true to evaluate inline */
-    void setInlineEvaluation(bool inln) { inline_evaluation_ = inln; }
+    void setInlineEvaluation(bool inln) {
+        inline_evaluation_ = inln;
+    }
     /** @brief Whether inline (in-thread) evaluation is enabled. @return true if inline */
-    [[nodiscard]] bool getInlineEvaluation() const { return inline_evaluation_; }
+    [[nodiscard]] bool getInlineEvaluation() const {
+        return inline_evaluation_;
+    }
 
 protected:
     /***************************************************************************/
@@ -396,11 +400,13 @@ private:
     /***************************************************************************/
     // Transient run scratch for the global-sigma controllers (ONE_FIFTH / CSA). NOT serialized / compared
     // / part of localMembers(): rebuilt at init() from the seed sigma in the adaption config.
-    double global_sigma_ = 1.;       ///< the single global step size (ONE_FIFTH / CSA)
-    double p_sigma_ = 0.;            ///< the CSA evolution-path accumulator (scalar proxy)
-    double last_p_success_ = 0.;     ///< offspring success rate (fraction of children beating their own parent),
-                                     ///< measured before selection reorders the population (see measureOffspringSuccess_)
-    bool   controller_warmed_up_ = false; ///< whether at least one generation's success rate has been measured (warm-up guard)
+    double global_sigma_ = 1.; ///< the single global step size (ONE_FIFTH / CSA)
+    double p_sigma_ = 0.;      ///< the CSA evolution-path accumulator (scalar proxy)
+    double last_p_success_ =
+        0.; ///< offspring success rate (fraction of children beating their own parent),
+            ///< measured before selection reorders the population (see measureOffspringSuccess_)
+    bool controller_warmed_up_ =
+        false; ///< whether at least one generation's success rate has been measured (warm-up guard)
     std::size_t controller_dim_ = 0; ///< the adapted dimension n the controller reasons about
 
     /***************************************************************************/
@@ -414,4 +420,3 @@ std::ostream &operator<<(std::ostream &os, const GEvolutionaryAlgorithm &pop);
 
 /******************************************************************************/
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

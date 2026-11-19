@@ -91,8 +91,10 @@ TEST_CASE("GManipulator: stores accompanying info when provided", "[common][logg
 // ---------------------------------------------------------------------------
 // GLogStreamer
 
-TEST_CASE("GLogStreamer: default ctor leaves content/extension/log-file empty",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogStreamer: default ctor leaves content/extension/log-file empty",
+    "[common][logger]"
+) {
     GLogStreamer const s;
     CHECK(s.content().empty());
     CHECK_FALSE(s.hasExtension());
@@ -100,8 +102,7 @@ TEST_CASE("GLogStreamer: default ctor leaves content/extension/log-file empty",
     CHECK_FALSE(s.hasOneTimeLogFile());
 }
 
-TEST_CASE("GLogStreamer: extension ctor populates the extension field",
-          "[common][logger]") {
+TEST_CASE("GLogStreamer: extension ctor populates the extension field", "[common][logger]") {
     // Explicit std::string disambiguates against the path ctor (the bare
     // string literal would otherwise be a viable conversion to both).
     GLogStreamer const s{std::string{"module-a"}};
@@ -110,8 +111,10 @@ TEST_CASE("GLogStreamer: extension ctor populates the extension field",
     CHECK_FALSE(s.hasOneTimeLogFile());
 }
 
-TEST_CASE("GLogStreamer: filesystem-path ctor populates the one-time log file",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogStreamer: filesystem-path ctor populates the one-time log file",
+    "[common][logger]"
+) {
     // Brace-initialise to avoid most-vexing-parse (the temporary path would
     // otherwise be read as a function declaration).
     std::filesystem::path p{"/tmp/foo.log"};
@@ -121,24 +124,24 @@ TEST_CASE("GLogStreamer: filesystem-path ctor populates the one-time log file",
     CHECK_FALSE(s.hasExtension());
 }
 
-TEST_CASE("GLogStreamer: templated operator<< accumulates streamable values",
-          "[common][logger]") {
+TEST_CASE("GLogStreamer: templated operator<< accumulates streamable values", "[common][logger]") {
     GLogStreamer s;
     s << "x=" << 42 << " y=" << 3.5;
     CHECK(s.content().contains("x=42"));
     CHECK(s.content().contains("y=3.5"));
 }
 
-TEST_CASE("GLogStreamer: std::endl manipulator goes through the dedicated overload",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogStreamer: std::endl manipulator goes through the dedicated overload",
+    "[common][logger]"
+) {
     GLogStreamer s;
     s << "line1" << std::endl << "line2";
     CHECK(s.content().contains("line1\n"));
     CHECK(s.content().contains("line2"));
 }
 
-TEST_CASE("GLogStreamer::reset() drops the accumulated content",
-          "[common][logger]") {
+TEST_CASE("GLogStreamer::reset() drops the accumulated content", "[common][logger]") {
     GLogStreamer s;
     s << "some-payload";
     REQUIRE_FALSE(s.content().empty());
@@ -157,8 +160,7 @@ TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     CHECK_NOTHROW(l.logWithSource("hello\n", "source-x"));
 }
 
-TEST_CASE("GFileLogger::log: appends the message to the configured file",
-          "[common][logger]") {
+TEST_CASE("GFileLogger::log: appends the message to the configured file", "[common][logger]") {
     auto path = scratch("flog_append.log");
     std::filesystem::remove(path);
 
@@ -175,10 +177,12 @@ TEST_CASE("GFileLogger::log: appends the message to the configured file",
     std::filesystem::remove(path);
 }
 
-TEST_CASE("GFileLogger::logWithSource: appends the source suffix to the file name",
-          "[common][logger]") {
+TEST_CASE(
+    "GFileLogger::logWithSource: appends the source suffix to the file name",
+    "[common][logger]"
+) {
     auto base_path = scratch("flog_source.log");
-    auto src_path  = std::filesystem::path(base_path.string() + "_modA");
+    auto src_path = std::filesystem::path(base_path.string() + "_modA");
     std::filesystem::remove(src_path);
 
     GFileLogger const l(base_path);
@@ -195,8 +199,7 @@ TEST_CASE("GFileLogger::logWithSource: appends the source suffix to the file nam
 // ---------------------------------------------------------------------------
 // GLogger: target registration / dispatch
 
-TEST_CASE("GLogger: addLogTarget+log routes to every registered target",
-          "[common][logger]") {
+TEST_CASE("GLogger: addLogTarget+log routes to every registered target", "[common][logger]") {
     // We instantiate a private GLogger just so we
     // get its public API without entangling with the singleton.
     GLogger g;
@@ -213,8 +216,7 @@ TEST_CASE("GLogger: addLogTarget+log routes to every registered target",
     CHECK(t2->messages[0] == "hello\n");
 }
 
-TEST_CASE("GLogger::resetLogTargets clears the registry",
-          "[common][logger]") {
+TEST_CASE("GLogger::resetLogTargets clears the registry", "[common][logger]") {
     GLogger g;
     g.addLogTarget(std::make_shared<CapturingTarget>());
     REQUIRE(g.hasLogTargets());
@@ -222,18 +224,14 @@ TEST_CASE("GLogger::resetLogTargets clears the registry",
     CHECK_FALSE(g.hasLogTargets());
 }
 
-TEST_CASE("GLogger::addLogTarget(empty) throws",
-          "[common][logger]") {
+TEST_CASE("GLogger::addLogTarget(empty) throws", "[common][logger]") {
     GLogger g;
-    CHECK_THROWS_AS(g.addLogTarget(std::shared_ptr<GBaseLogTarget>{}),
-                    geneva_exception);
+    CHECK_THROWS_AS(g.addLogTarget(std::shared_ptr<GBaseLogTarget>{}), geneva_exception);
 }
 
-TEST_CASE("GLogger::setDefaultLogTarget(empty) throws",
-          "[common][logger]") {
+TEST_CASE("GLogger::setDefaultLogTarget(empty) throws", "[common][logger]") {
     GLogger g;
-    CHECK_THROWS_AS(g.setDefaultLogTarget(std::shared_ptr<GBaseLogTarget>{}),
-                    geneva_exception);
+    CHECK_THROWS_AS(g.setDefaultLogTarget(std::shared_ptr<GBaseLogTarget>{}), geneva_exception);
 }
 
 TEST_CASE(
@@ -250,8 +248,7 @@ TEST_CASE(
     CHECK(def->messages[0] == "via-default\n");
 }
 
-TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target",
-          "[common][logger]") {
+TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target", "[common][logger]") {
     GLogger g;
     auto t1 = std::make_shared<CapturingTarget>();
     g.addLogTarget(t1);
@@ -261,13 +258,16 @@ TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target",
     CHECK(t1->messages[0] == "[modX] payload\n");
 }
 
-TEST_CASE("GLogger::throwException: throws geneva_exception with the supplied text",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogger::throwException: throws geneva_exception with the supplied text",
+    "[common][logger]"
+) {
     GLogger g;
     try {
         g.throwException("forwarded-error");
         FAIL("expected throw");
-    } catch(geneva_exception const &e) {
+    }
+    catch(geneva_exception const &e) {
         CHECK(std::string(e.what()).contains("forwarded-error"));
     }
 }
@@ -276,15 +276,24 @@ TEST_CASE("GLogger::throwException: throws geneva_exception with the supplied te
 // LOCATIONSTRING / GEXCEPTION / GWARNING / GLOGGING / GFILE / GSTDOUT / GSTDERR
 // macros — only check that they compile and yield the expected log type.
 
-TEST_CASE("GLogger macros: each produces a GManipulator of the expected type",
-          "[common][logger][macros]") {
-    GManipulator const gex   = GEXCEPTION;     CHECK(gex.getLogType()   == logType::EXCEPTION);
-    GManipulator const gterm = GTERMINATION;   CHECK(gterm.getLogType() == logType::TERMINATION);
-    GManipulator const gwarn = GWARNING;       CHECK(gwarn.getLogType() == logType::WARNING);
-    GManipulator const glog  = GLOGGING;       CHECK(glog.getLogType()  == logType::LOGGING);
-    GManipulator const gfile = GFILE;          CHECK(gfile.getLogType() == logType::FILE);
-    GManipulator const gso   = GSTDOUT;        CHECK(gso.getLogType()   == logType::STDOUT);
-    GManipulator const gse   = GSTDERR;        CHECK(gse.getLogType()   == logType::STDERR);
+TEST_CASE(
+    "GLogger macros: each produces a GManipulator of the expected type",
+    "[common][logger][macros]"
+) {
+    GManipulator const gex = GEXCEPTION;
+    CHECK(gex.getLogType() == logType::EXCEPTION);
+    GManipulator const gterm = GTERMINATION;
+    CHECK(gterm.getLogType() == logType::TERMINATION);
+    GManipulator const gwarn = GWARNING;
+    CHECK(gwarn.getLogType() == logType::WARNING);
+    GManipulator const glog = GLOGGING;
+    CHECK(glog.getLogType() == logType::LOGGING);
+    GManipulator const gfile = GFILE;
+    CHECK(gfile.getLogType() == logType::FILE);
+    GManipulator const gso = GSTDOUT;
+    CHECK(gso.getLogType() == logType::STDOUT);
+    GManipulator const gse = GSTDERR;
+    CHECK(gse.getLogType() == logType::STDERR);
 
     // Macros that include a location string should populate accomp info.
     CHECK(gex.hasAccompInfo());
@@ -304,8 +313,7 @@ TEST_CASE("GLogger macros: each produces a GManipulator of the expected type",
 // assert on the file content; we just hit the code so it's instrumented.
 // TERMINATION is deliberately NOT exercised — it would call std::terminate().
 
-TEST_CASE("GLogStreamer << GEXCEPTION throws a geneva_exception",
-          "[common][logger][manipulator]") {
+TEST_CASE("GLogStreamer << GEXCEPTION throws a geneva_exception", "[common][logger][manipulator]") {
     // Ensure the side-effect log file does not survive between test runs.
     std::error_code ec;
     std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
@@ -314,7 +322,8 @@ TEST_CASE("GLogStreamer << GEXCEPTION throws a geneva_exception",
     try {
         glogger << "test-payload " << 123 << '\n' << GEXCEPTION;
         FAIL("expected geneva_exception");
-    } catch(geneva_exception const &e) {
+    }
+    catch(geneva_exception const &e) {
         caught = true;
         // Message must include the streamed payload.
         CHECK(std::string(e.what()).contains("test-payload"));
@@ -324,28 +333,38 @@ TEST_CASE("GLogStreamer << GEXCEPTION throws a geneva_exception",
     std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
 }
 
-TEST_CASE("GLogStreamer << GWARNING does not throw; emits to the logger sink",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GWARNING does not throw; emits to the logger sink",
+    "[common][logger][manipulator]"
+) {
     CHECK_NOTHROW(glogger << "warning text" << '\n' << GWARNING);
 }
 
-TEST_CASE("GLogStreamer << GLOGGING does not throw; emits to the logger sink",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GLOGGING does not throw; emits to the logger sink",
+    "[common][logger][manipulator]"
+) {
     CHECK_NOTHROW(glogger << "logging text" << '\n' << GLOGGING);
 }
 
-TEST_CASE("GLogStreamer << GSTDOUT does not throw; writes via toStdOut",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GSTDOUT does not throw; writes via toStdOut",
+    "[common][logger][manipulator]"
+) {
     CHECK_NOTHROW(glogger << "to stdout " << 42 << '\n' << GSTDOUT);
 }
 
-TEST_CASE("GLogStreamer << GSTDERR does not throw; writes via toStdErr",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GSTDERR does not throw; writes via toStdErr",
+    "[common][logger][manipulator]"
+) {
     CHECK_NOTHROW(glogger << "to stderr " << 42 << '\n' << GSTDERR);
 }
 
-TEST_CASE("GLogStreamer << GFILE with a path writes to that file",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GFILE with a path writes to that file",
+    "[common][logger][manipulator]"
+) {
     auto path = scratch("one_time.log");
     std::filesystem::remove(path);
 
@@ -359,24 +378,31 @@ TEST_CASE("GLogStreamer << GFILE with a path writes to that file",
     std::filesystem::remove(path);
 }
 
-TEST_CASE("GLogStreamer << GFILE without a path throws",
-          "[common][logger][manipulator]") {
+TEST_CASE("GLogStreamer << GFILE without a path throws", "[common][logger][manipulator]") {
     // The path-less form must complain: there is no destination to write to.
     CHECK_THROWS_AS(glogger << "should-fail" << '\n' << GFILE, geneva_exception);
 }
 
-TEST_CASE("GLogStreamer << GWARNING with extension forwards through logWithSource",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogStreamer << GWARNING with extension forwards through logWithSource",
+    "[common][logger][manipulator]"
+) {
     // The string-form of glogger() captures an extension; the WARNING arm
     // then routes through logWithSource on every registered target.
-    CHECK_NOTHROW(glogger(std::string{"unit-test-module"})
-                  << "warning with source" << '\n' << GWARNING);
+    CHECK_NOTHROW(
+        glogger(std::string{"unit-test-module"}) << "warning with source" << '\n'
+                                                 << GWARNING
+    );
 }
 
-TEST_CASE("GLogStreamer << GLOGGING with extension forwards through logWithSource",
-          "[common][logger][manipulator]") {
-    CHECK_NOTHROW(glogger(std::string{"unit-test-module"})
-                  << "logging with source" << '\n' << GLOGGING);
+TEST_CASE(
+    "GLogStreamer << GLOGGING with extension forwards through logWithSource",
+    "[common][logger][manipulator]"
+) {
+    CHECK_NOTHROW(
+        glogger(std::string{"unit-test-module"}) << "logging with source" << '\n'
+                                                 << GLOGGING
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -388,8 +414,10 @@ TEST_CASE("GLogStreamer << GLOGGING with extension forwards through logWithSourc
 // (The post-stderr std::terminate() call is intentionally unreachable in
 // tests; this is documented in COVERAGE.md as an excluded death path.)
 
-TEST_CASE("GLogger::toStdOut / toStdErr emit the supplied message",
-          "[common][logger][manipulator]") {
+TEST_CASE(
+    "GLogger::toStdOut / toStdErr emit the supplied message",
+    "[common][logger][manipulator]"
+) {
     GLogger g;
     CHECK_NOTHROW(g.toStdOut("via toStdOut\n"));
     CHECK_NOTHROW(g.toStdErr("via toStdErr\n"));
@@ -398,10 +426,12 @@ TEST_CASE("GLogger::toStdOut / toStdErr emit the supplied message",
 // ---------------------------------------------------------------------------
 // GFileLogger::logWithSource — first-call header vs. subsequent writes
 
-TEST_CASE("GFileLogger::logWithSource: header line appears on first write only",
-          "[common][logger]") {
+TEST_CASE(
+    "GFileLogger::logWithSource: header line appears on first write only",
+    "[common][logger]"
+) {
     auto base_path = scratch("flog_first_flag.log");
-    auto src_path  = std::filesystem::path(base_path.string() + "_chk");
+    auto src_path = std::filesystem::path(base_path.string() + "_chk");
     std::filesystem::remove(src_path);
 
     GFileLogger const l(base_path);
@@ -427,8 +457,7 @@ TEST_CASE("GFileLogger::logWithSource: header line appears on first write only",
 // ---------------------------------------------------------------------------
 // GLogger::setDefaultLogTarget: success path — verify the default is actually used
 
-TEST_CASE("GLogger::setDefaultLogTarget routes log() through the new default",
-          "[common][logger]") {
+TEST_CASE("GLogger::setDefaultLogTarget routes log() through the new default", "[common][logger]") {
     GLogger g;
     auto cap = std::make_shared<CapturingTarget>();
     g.setDefaultLogTarget(cap);
@@ -438,8 +467,10 @@ TEST_CASE("GLogger::setDefaultLogTarget routes log() through the new default",
     CHECK(cap->messages[0] == "routed-via-default\n");
 }
 
-TEST_CASE("GLogger::setDefaultLogTarget routes logWithSource() through the new default",
-          "[common][logger]") {
+TEST_CASE(
+    "GLogger::setDefaultLogTarget routes logWithSource() through the new default",
+    "[common][logger]"
+) {
     GLogger g;
     auto cap = std::make_shared<CapturingTarget>();
     g.setDefaultLogTarget(cap);

@@ -45,8 +45,10 @@ using namespace Gem::Common::Concurrency;
 /******************************************************************************/
 // Reservation accounting
 
-TEST_CASE("GThreadBudget: reserve/release round-trip is delta-exact",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: reserve/release round-trip is delta-exact",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
     const unsigned int base = budget.reserved();
 
@@ -63,15 +65,19 @@ TEST_CASE("GThreadBudget: reserve/release round-trip is delta-exact",
     CHECK(budget.reserved() == base);
 }
 
-TEST_CASE("GThreadBudget: a reservation always grants at least one thread",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: a reservation always grants at least one thread",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
     auto r = budget.reserve("test:zero", 0, ThreadElasticity::Elastic);
     CHECK(r.granted() == 1);
 }
 
-TEST_CASE("GThreadBudget: moved-from handles release exactly once",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: moved-from handles release exactly once",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
     const unsigned int base = budget.reserved();
 
@@ -89,8 +95,10 @@ TEST_CASE("GThreadBudget: moved-from handles release exactly once",
     CHECK(budget.reserved() == base);
 }
 
-TEST_CASE("GThreadBudget: oversubscribed() reflects the reserved total vs the hardware ceiling",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: oversubscribed() reflects the reserved total vs the hardware ceiling",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
 
     // Reserve well past the ceiling; delta-safe because the handle releases at scope exit.
@@ -101,8 +109,10 @@ TEST_CASE("GThreadBudget: oversubscribed() reflects the reserved total vs the ha
 /******************************************************************************/
 // The budgeted GThreadPool constructor
 
-TEST_CASE("GThreadPool: the budgeted constructor reserves for the pool's lifetime",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadPool: the budgeted constructor reserves for the pool's lifetime",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
     const unsigned int base = budget.reserved();
 
@@ -118,8 +128,10 @@ TEST_CASE("GThreadPool: the budgeted constructor reserves for the pool's lifetim
 /******************************************************************************/
 // Pure accounting: the budget never shrinks a grant
 
-TEST_CASE("GThreadBudget: a reservation is granted in full even when the budget is exhausted",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: a reservation is granted in full even when the budget is exhausted",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
 
     // Exhaust the budget, then reserve again with either elasticity: the budget does
@@ -141,7 +153,9 @@ namespace {
 
 /** @brief A log target capturing every message routed to it */
 struct CapturingTarget : Gem::Common::GBaseLogTarget {
-    void log(const std::string &msg) const override { messages.push_back(msg); }
+    void log(const std::string &msg) const override {
+        messages.push_back(msg);
+    }
     void logWithSource(const std::string &msg, const std::string &) const override {
         messages.push_back(msg);
     }
@@ -150,8 +164,10 @@ struct CapturingTarget : Gem::Common::GBaseLogTarget {
 
 } // anonymous namespace
 
-TEST_CASE("GThreadBudget: crossing the warning threshold emits one warning naming the source",
-          "[common][concurrency][thread-budget]") {
+TEST_CASE(
+    "GThreadBudget: crossing the warning threshold emits one warning naming the source",
+    "[common][concurrency][thread-budget]"
+) {
     auto &budget = threadBudget();
 
     auto capture = std::make_shared<CapturingTarget>();
@@ -162,12 +178,13 @@ TEST_CASE("GThreadBudget: crossing the warning threshold emits one warning namin
         const auto excess = static_cast<unsigned int>(
             static_cast<double>(budget.ceiling()) * GThreadBudget::OVERSUBSCRIPTION_FACTOR
         );
-        auto r = budget.reserve("test:overflow", excess + budget.ceiling(), ThreadElasticity::Fixed);
+        auto r =
+            budget.reserve("test:overflow", excess + budget.ceiling(), ThreadElasticity::Fixed);
 
         bool found = false;
         for(const auto &m : capture->messages) {
-            if(m.find("test:overflow") != std::string::npos
-               && m.find("GThreadBudget") != std::string::npos) {
+            if(m.find("test:overflow") != std::string::npos &&
+               m.find("GThreadBudget") != std::string::npos) {
                 found = true;
             }
         }

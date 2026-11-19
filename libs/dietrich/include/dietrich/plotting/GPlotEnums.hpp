@@ -53,11 +53,11 @@
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
+#include "common/GContainerT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "common/GContainerT.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "common/GTupleIO.hpp"
 #include "common/GTypeTraitsT.hpp"
@@ -83,8 +83,8 @@ using Gem::Common::expectation;
 using Gem::Common::g_convert_and_compare;
 using Gem::Common::g_load_members;
 using Gem::Common::GCommonInterfaceT;
-using Gem::Common::GPtrContainerT;
 using Gem::Common::getMinMax;
+using Gem::Common::GPtrContainerT;
 using Gem::Common::GToken;
 using Gem::Common::make_member;
 

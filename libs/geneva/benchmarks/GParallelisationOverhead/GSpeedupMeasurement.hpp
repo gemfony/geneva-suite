@@ -102,8 +102,8 @@ struct Schedule {
 /******************************************************************************/
 /** The gate before the measurement: how many clients the server waits for, and how long */
 struct ClientGate {
-    std::size_t clients = 0;          ///< Clients to wait for; 0: none (nothing is waited for)
-    std::size_t limitSeconds = 600;   ///< How long the server waits for them at most
+    std::size_t clients = 0;        ///< Clients to wait for; 0: none (nothing is waited for)
+    std::size_t limitSeconds = 600; ///< How long the server waits for them at most
 };
 
 /// How often the gate asks the consumer how many clients are connected
@@ -166,8 +166,8 @@ inline void waitForClients(Go2 &go, const ClientGate &gate) {
                   << gate.clients << " clients" << std::endl;
         return;
     }
-    std::cout << "Waiting for " << gate.clients << " clients (at most " << gate.limitSeconds << " s)"
-              << std::endl;
+    std::cout << "Waiting for " << gate.clients << " clients (at most " << gate.limitSeconds
+              << " s)" << std::endl;
     while(*connected < gate.clients) {
         const auto waited = std::chrono::steady_clock::now() - start;
         if(waited >= std::chrono::seconds(gate.limitSeconds)) {
@@ -182,8 +182,8 @@ inline void waitForClients(Go2 &go, const ClientGate &gate) {
     }
     const std::chrono::duration<double> waited = std::chrono::steady_clock::now() - start;
     std::cout << "Waiting for clients: " << *connected << " of " << gate.clients
-              << " clients connected after " << std::fixed << std::setprecision(1)
-              << waited.count() << " s" << std::defaultfloat << std::endl;
+              << " clients connected after " << std::fixed << std::setprecision(1) << waited.count()
+              << " s" << std::defaultfloat << std::endl;
 }
 
 /******************************************************************************/

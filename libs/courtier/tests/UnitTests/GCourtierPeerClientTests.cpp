@@ -2486,7 +2486,10 @@ TEST_CASE(
 
 // The HELLO a server sends names the commit of its Geneva sources, and a client of the same build
 // accepts it.
-TEST_CASE("GPeerClientT: the HELLO names the Geneva commit of the server", "[courtier][peer][client]") {
+TEST_CASE(
+    "GPeerClientT: the HELLO names the Geneva commit of the server",
+    "[courtier][peer][client]"
+) {
     const std::string hello = Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms);
     GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
     REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));

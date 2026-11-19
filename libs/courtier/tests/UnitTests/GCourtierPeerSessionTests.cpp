@@ -51,11 +51,11 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
-#include "GInProcessPeer.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
-#include "GInProcessTestSupport.hpp"
-#include "courtier/GCommandContainerT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "GInProcessPeer.hpp"
+#include "GInProcessTestSupport.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
+#include "courtier/GCommandContainerT.hpp"
 #include "courtier/GServerSessionLogic.hpp"
 #include "courtier/GWireCodec.hpp"
 #include "courtier/GWireSerializationContext.hpp"
@@ -557,7 +557,8 @@ TEST_CASE(
  * RUN_ENDED.
  */
 TEST_CASE(
-    "GPeerSessionT: a stop that comes during the checkout closes with RUN_ENDED and answers nothing",
+    "GPeerSessionT: a stop that comes during the checkout closes with RUN_ENDED and answers "
+    "nothing",
     "[courtier][peer][session]"
 ) {
     FakeConsumer consumer;
@@ -601,7 +602,10 @@ TEST_CASE(
 
 /******************************************************************************/
 /** A session greets its client with HELLO, the first message of the connection, before any answer. */
-TEST_CASE("GPeerSessionT: a session greets its client with HELLO first", "[courtier][peer][session]") {
+TEST_CASE(
+    "GPeerSessionT: a session greets its client with HELLO first",
+    "[courtier][peer][session]"
+) {
     FakeConsumer consumer;
     IoThreads server;
     IoThreads client;
@@ -753,9 +757,7 @@ TEST_CASE(
         // cannot be read (the session closes with ERROR on it), a RESULT and a PULL: all three
         // have arrived before the session's close goes out.
         const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-        boost::asio::post(server_end->executor(), [held = release]() {
-            held->wait_for(PATIENCE);
-        });
+        boost::asio::post(server_end->executor(), [held = release]() { held->wait_for(PATIENCE); });
         connection.client->sendBytes("x");
         connection.client->send(GFrameKind::RESULT);
         connection.client->send(GFrameKind::PULL);

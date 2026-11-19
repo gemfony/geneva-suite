@@ -56,12 +56,12 @@ namespace {
 template <typename T>
 T roundtrip(const T &v) {
     GJsonOArchive oa;
-    oa &v;
+    oa & v;
     std::string text = oa.str();
 
     GJsonIArchive ia(text);
     T out{};
-    ia &out;
+    ia & out;
     return out;
 }
 
@@ -82,7 +82,10 @@ struct Point {
 class Secret {
 public:
     Secret() = default;
-    Secret(int a, std::string b) : a_(a), b_(std::move(b)) {}
+    Secret(int a, std::string b)
+      : a_(a)
+      , b_(std::move(b)) {
+    }
     bool operator==(const Secret &) const = default;
 
 private:
@@ -115,7 +118,11 @@ struct Derived : Base {
     bool operator==(const Derived &) const = default;
 };
 
-enum class Color : std::uint8_t { red = 1, green = 2, blue = 250 };
+enum class Color : std::uint8_t {
+    red = 1,
+    green = 2,
+    blue = 250
+};
 
 } // namespace
 
@@ -127,10 +134,14 @@ TEST_CASE(
     "[common][archive][json]"
 ) {
     CHECK(roundtrip<std::int32_t>(-2000000000) == -2000000000);
-    CHECK(roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
-          std::numeric_limits<std::uint64_t>::max());
-    CHECK(roundtrip<std::int64_t>(std::numeric_limits<std::int64_t>::min()) ==
-          std::numeric_limits<std::int64_t>::min());
+    CHECK(
+        roundtrip<std::uint64_t>(std::numeric_limits<std::uint64_t>::max()) ==
+        std::numeric_limits<std::uint64_t>::max()
+    );
+    CHECK(
+        roundtrip<std::int64_t>(std::numeric_limits<std::int64_t>::min()) ==
+        std::numeric_limits<std::int64_t>::min()
+    );
     CHECK(roundtrip<bool>(true) == true);
     CHECK(roundtrip<bool>(false) == false);
     CHECK(roundtrip<Color>(Color::blue) == Color::blue);
@@ -139,7 +150,9 @@ TEST_CASE(
 TEST_CASE("GJsonArchive: float and double round-trip through text", "[common][archive][json]") {
     CHECK(roundtrip<float>(3.14159f) == 3.14159f);
     CHECK(roundtrip<double>(2.718281828459045) == 2.718281828459045);
-    CHECK(roundtrip<double>(std::numeric_limits<double>::min()) == std::numeric_limits<double>::min());
+    CHECK(
+        roundtrip<double>(std::numeric_limits<double>::min()) == std::numeric_limits<double>::min()
+    );
     CHECK(roundtrip<double>(-1.0 / 3.0) == -1.0 / 3.0);
 }
 
@@ -149,39 +162,52 @@ TEST_CASE("GJsonArchive: float and double round-trip through text", "[common][ar
 // 9.10938e-31 with too few digits, so a re-parse lands one ULP away. These are the
 // exact values that exposed the defect, plus the float/double edges. Every one must
 // return bit-identical.
-TEST_CASE("GJsonArchive: arbitrary doubles round-trip bit-exactly (no boost::json ULP loss)",
-          "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: arbitrary doubles round-trip bit-exactly (no boost::json ULP loss)",
+    "[common][archive][json]"
+) {
     const double hard[] = {
-        9.10938e-31,       // electron mass: the value that first exposed the defect
-        1.602176634e-19,   // elementary charge
-        6.02214076e23,     // Avogadro
-        0.1, 0.2, 0.3,     // decimals with no exact binary form
+        9.10938e-31,     // electron mass: the value that first exposed the defect
+        1.602176634e-19, // elementary charge
+        6.02214076e23,   // Avogadro
+        0.1,
+        0.2,
+        0.3, // decimals with no exact binary form
         123456.789012345,
         std::numeric_limits<double>::max(),
         std::numeric_limits<double>::denorm_min(),
         -0.0,
     };
-    for (double d : hard) {
+    for(double d : hard) {
         CHECK(roundtrip<double>(d) == d);
     }
     // A wide float value that boost::json's number path would likewise round.
     CHECK(roundtrip<float>(9.10938e-31f) == 9.10938e-31f);
-    CHECK(roundtrip<float>(std::numeric_limits<float>::denorm_min()) ==
-          std::numeric_limits<float>::denorm_min());
+    CHECK(
+        roundtrip<float>(std::numeric_limits<float>::denorm_min()) ==
+        std::numeric_limits<float>::denorm_min()
+    );
 }
 
 // Storing floats as strings also lets the JSON codec carry the non-finite values a
 // JSON number cannot represent at all.
 TEST_CASE("GJsonArchive: infinities and NaN survive", "[common][archive][json]") {
-    CHECK(roundtrip<double>(std::numeric_limits<double>::infinity()) ==
-          std::numeric_limits<double>::infinity());
-    CHECK(roundtrip<double>(-std::numeric_limits<double>::infinity()) ==
-          -std::numeric_limits<double>::infinity());
+    CHECK(
+        roundtrip<double>(std::numeric_limits<double>::infinity()) ==
+        std::numeric_limits<double>::infinity()
+    );
+    CHECK(
+        roundtrip<double>(-std::numeric_limits<double>::infinity()) ==
+        -std::numeric_limits<double>::infinity()
+    );
     CHECK(std::isnan(roundtrip<double>(std::numeric_limits<double>::quiet_NaN())));
     CHECK(std::isnan(roundtrip<float>(std::numeric_limits<float>::quiet_NaN())));
 }
 
-TEST_CASE("GJsonArchive: long double round-trips bit-exactly via hex-float string", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: long double round-trips bit-exactly via hex-float string",
+    "[common][archive][json]"
+) {
     long double a = 3.14159265358979323846264338327950288L;
     long double b = std::numeric_limits<long double>::min();
     long double c = -1.0L / 3.0L;
@@ -243,7 +269,7 @@ TEST_CASE(
 TEST_CASE("GJsonArchive: output is keyed by member name (inspectable)", "[common][archive][json]") {
     GJsonOArchive oa;
     Point p{42, 3.5, "origin"};
-    oa &p;
+    oa & p;
     std::string text = oa.str();
     CHECK(text.find("\"x\":") != std::string::npos);
     CHECK(text.find("\"y\":") != std::string::npos);
@@ -258,10 +284,13 @@ TEST_CASE("GJsonArchive: output is keyed by member name (inspectable)", "[common
     CHECK(v.as_object().contains("name"));
 }
 
-TEST_CASE("GJsonArchive: a map serializes as an array of key/value objects", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: a map serializes as an array of key/value objects",
+    "[common][archive][json]"
+) {
     GJsonOArchive oa;
     std::map<std::string, int> m{{"a", 1}};
-    oa &m;
+    oa & m;
     const boost::json::value &v = oa.value();
     REQUIRE(v.is_array());
     REQUIRE(v.as_array().size() == 1);

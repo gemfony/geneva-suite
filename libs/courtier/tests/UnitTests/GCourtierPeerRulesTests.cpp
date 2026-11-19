@@ -281,8 +281,10 @@ TEMPLATE_TEST_CASE(
         CHECK(role_b->nNested() == 0);
     }
 
-    SECTION("after close() onOpen is not delivered, also when close() precedes the open; nor is "
-            "any message then") {
+    SECTION(
+        "after close() onOpen is not delivered, also when close() precedes the open; nor is "
+        "any message then"
+    ) {
         auto [a, b] = transport.pair();
         auto role_a = makeRole();
         auto role_b = makeRole();
@@ -476,8 +478,7 @@ TEMPLATE_TEST_CASE(
         role_b->close(GPeerClose::NORMAL);
         release->count_down();
         REQUIRE(eventually([&] { return role_a->nClosed() == 1 && role_b->nClosed() == 1; }));
-        CHECK(role_b->events() ==
-              std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
+        CHECK(role_b->events() == std::vector<std::string>{"open", "closed:CLOSED_HERE:NORMAL"});
     }
 
     SECTION("abort() reports at once; the other end hears a close") {
@@ -735,10 +736,7 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
  * destroyed. The client's end goes with it, not later on the server's thread, and the server's end
  * does not post into the context that has gone.
  */
-TEST_CASE(
-    "Peer rules (in-process): an end does not outlive its io context",
-    "[courtier][peer]"
-) {
+TEST_CASE("Peer rules (in-process): an end does not outlive its io context", "[courtier][peer]") {
     IoThreads server;
     auto client_ctx = std::make_unique<boost::asio::io_context>();
     auto [server_end, client_end] =
@@ -817,16 +815,13 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
     IoThreads io(1); // the server ends' handlers
 
     std::atomic<int> calls{0};
-    listener->start(
-        io.executor(),
-        [&calls, standard](const std::shared_ptr<GPeerI> &, GWirePeerId) {
-            calls.fetch_add(1);
-            if(standard) {
-                throw std::runtime_error("on_peer refused by the test");
-            }
-            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+    listener->start(io.executor(), [&calls, standard](const std::shared_ptr<GPeerI> &, GWirePeerId) {
+        calls.fetch_add(1);
+        if(standard) {
+            throw std::runtime_error("on_peer refused by the test");
         }
-    );
+        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+    });
     auto first_end = listener->connect_(io.executor());
     REQUIRE(first_end != nullptr);
     REQUIRE(eventually([&] { return calls.load() == 1; }));

@@ -163,10 +163,13 @@ public:
       , path_(path)
       , progress_log_(&progress_log)
       , best_(best)
-      , spread_(spread) { /* nothing */ }
+      , spread_(spread) { /* nothing */
+    }
 
     /** @brief The number of individuals recorded so far (what the figure's red cloud contains) */
-    [[nodiscard]] std::size_t nRecorded() const { return n_recorded_; }
+    [[nodiscard]] std::size_t nRecorded() const {
+        return n_recorded_;
+    }
 
 private:
     /**
@@ -327,9 +330,8 @@ int main() {
 
     // ---------------------------------------------------------------------------------------
     // The search: a small evolutionary algorithm on the very same problem, watched by the monitor.
-    auto monitor = std::make_shared<GSearchPathMonitor>(
-        scan_log, search_id, progress_log, best_id, spread_id
-    );
+    auto monitor =
+        std::make_shared<GSearchPathMonitor>(scan_log, search_id, progress_log, best_id, spread_id);
 
     auto parent = makeIndividual(problem);
 
@@ -361,8 +363,8 @@ int main() {
     const double scan_mean = scan_sum / double(SCAN_NODES * SCAN_NODES);
 
     std::cout << "noisy_parabola_scan: scanned " << (SCAN_NODES * SCAN_NODES)
-              << " grid nodes, recorded " << monitor->nRecorded()
-              << " individuals over " << MAX_ITERATIONS << " iterations\n"
+              << " grid nodes, recorded " << monitor->nRecorded() << " individuals over "
+              << MAX_ITERATIONS << " iterations\n"
               << "noisy_parabola_scan: best fitness found " << best << " (scan mean " << scan_mean
               << ")\n"
               << "noisy_parabola_scan: wrote noisy-parabola-{scan,progress}.C\n";

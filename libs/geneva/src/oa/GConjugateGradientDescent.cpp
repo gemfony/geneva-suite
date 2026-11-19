@@ -36,26 +36,26 @@
 #include <ostream>
 #include <sstream>
 
-#include "common/GLogger.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <tuple>
-#include <span>
 #include <vector>
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GConjugateGradientDescent) // NOLINT
@@ -76,10 +76,11 @@ constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_PREV_DIRECTION = 10;
 constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_HISTORY_VALID = 11;
 // L-BFGS quasi-Newton state (only installed in LBFGS mode): the last m (s, y) curvature pairs, the
 // previous parameter vector, and the live pair count.
-constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_S = 12;     // m*n doubles (s = x_k - x_{k-1})
-constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_Y = 13;     // m*n doubles (y = g_k - g_{k-1})
+constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_S = 12; // m*n doubles (s = x_k - x_{k-1})
+constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_Y = 13; // m*n doubles (y = g_k - g_{k-1})
 constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_PREV_X = 14; // n doubles (x_{k-1})
-constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_COUNT = 15;  // 1 (number of stored pairs, 0..m)
+constexpr Gem::Geneva::Genome::AuxKey AUXKEY_CGD_LBFGS_COUNT =
+    15; // 1 (number of stored pairs, 0..m)
 
 /******************************************************************************/
 /**
@@ -420,7 +421,10 @@ void GConjugateGradientDescent::updateChildParameters() {
                 // probe 0 = forward (+h); probe 1 (central only) = backward (-h)
                 const double sign = (probe == 0) ? 1. : -1.;
                 parm_vec[j] = orig_parm_val + (sign * adjusted_finite_step_);
-                this->at(child_pos)->assignFPValueVectorInternal(parm_vec, activityMode::ACTIVEONLY);
+                this->at(child_pos)->assignFPValueVectorInternal(
+                    parm_vec,
+                    activityMode::ACTIVEONLY
+                );
             }
             // Restore the original value for the next direction
             parm_vec[j] = orig_parm_val;
@@ -478,8 +482,8 @@ void GConjugateGradientDescent::updateParentIndividuals() {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GConjugateGradientDescent::updateParentIndividuals():" << '\n'
-                << "Found individual in position " << i
-                << " which is unprocessed or has errors" << '\n'
+                << "Found individual in position " << i << " which is unprocessed or has errors"
+                << '\n'
             );
         }
 #endif /* DEBUG */
@@ -491,8 +495,10 @@ void GConjugateGradientDescent::updateParentIndividuals() {
         // is missing, so it restarts cleanly with steepest descent.
         auto &cg_scratch = this->at(i)->scratch();
         this->ensureGradientScratch_(cg_scratch);
-        std::span<double> const prev_gradient = cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_GRADIENT);
-        std::span<double> const prev_direction = cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_DIRECTION);
+        std::span<double> const prev_gradient =
+            cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_GRADIENT);
+        std::span<double> const prev_direction =
+            cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_DIRECTION);
         auto &cg_valid = cg_scratch.metaScalar<std::uint8_t>(AUXKEY_CGD_HISTORY_VALID);
 
         // 1) Normalised finite-difference (proxy) gradient of this starting point.
@@ -501,12 +507,21 @@ void GConjugateGradientDescent::updateParentIndividuals() {
         // 2) Build the search direction: the L-BFGS quasi-Newton direction, or the plain
         //    steepest-descent / conjugate-gradient-family direction.
         const bool history_valid = (cg_valid != 0);
-        std::vector<double> direction =
-            (gradient_method_ == gradientMethod::LBFGS)
-                ? this->lbfgsDirection_(cg_scratch, parm_vec, gradient, history_valid, periodic_restart)
-                : this->conjugateDirection_(
-                      gradient, prev_gradient, prev_direction, history_valid, periodic_restart
-                  );
+        std::vector<double> direction = (gradient_method_ == gradientMethod::LBFGS)
+                                          ? this->lbfgsDirection_(
+                                                cg_scratch,
+                                                parm_vec,
+                                                gradient,
+                                                history_valid,
+                                                periodic_restart
+                                            )
+                                          : this->conjugateDirection_(
+                                                gradient,
+                                                prev_gradient,
+                                                prev_direction,
+                                                history_valid,
+                                                periodic_restart
+                                            );
 
         // 3) The directional derivative grad f . d must be negative for a descent direction. A stale
         //    conjugate direction occasionally fails this; fall back to steepest descent so the line
@@ -571,15 +586,43 @@ void GConjugateGradientDescent::updateParentIndividuals() {
  */
 void GConjugateGradientDescent::ensureGradientScratch_(gen::GAuxiliaryStore &cg_scratch) const {
     if(not cg_scratch.hasAux(AUXKEY_CGD_HISTORY_VALID)) {
-        cg_scratch.installAuxBlock<double>(AUXKEY_CGD_PREV_GRADIENT, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        cg_scratch.installAuxBlock<double>(AUXKEY_CGD_PREV_DIRECTION, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        cg_scratch.installAuxBlock<std::uint8_t>(AUXKEY_CGD_HISTORY_VALID, 1, gen::AuxScope::PerIndividual);
+        cg_scratch.installAuxBlock<double>(
+            AUXKEY_CGD_PREV_GRADIENT,
+            n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        cg_scratch.installAuxBlock<double>(
+            AUXKEY_CGD_PREV_DIRECTION,
+            n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        cg_scratch.installAuxBlock<std::uint8_t>(
+            AUXKEY_CGD_HISTORY_VALID,
+            1,
+            gen::AuxScope::PerIndividual
+        );
     }
     if(gradient_method_ == gradientMethod::LBFGS && not cg_scratch.hasAux(AUXKEY_CGD_LBFGS_COUNT)) {
-        cg_scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_S, lbfgs_memory_ * n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        cg_scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_Y, lbfgs_memory_ * n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        cg_scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_PREV_X, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        cg_scratch.installAuxBlock<std::uint32_t>(AUXKEY_CGD_LBFGS_COUNT, 1, gen::AuxScope::PerIndividual);
+        cg_scratch.installAuxBlock<double>(
+            AUXKEY_CGD_LBFGS_S,
+            lbfgs_memory_ * n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        cg_scratch.installAuxBlock<double>(
+            AUXKEY_CGD_LBFGS_Y,
+            lbfgs_memory_ * n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        cg_scratch.installAuxBlock<double>(
+            AUXKEY_CGD_LBFGS_PREV_X,
+            n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        cg_scratch.installAuxBlock<std::uint32_t>(
+            AUXKEY_CGD_LBFGS_COUNT,
+            1,
+            gen::AuxScope::PerIndividual
+        );
     }
 }
 
@@ -652,7 +695,8 @@ std::vector<double> GConjugateGradientDescent::lbfgsDirection_(
     std::span<double> const s_hist = cg_scratch.metaRecords<double>(AUXKEY_CGD_LBFGS_S);
     std::span<double> const y_hist = cg_scratch.metaRecords<double>(AUXKEY_CGD_LBFGS_Y);
     std::span<double> const prev_x = cg_scratch.metaRecords<double>(AUXKEY_CGD_LBFGS_PREV_X);
-    std::span<double> const prev_gradient = cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_GRADIENT);
+    std::span<double> const prev_gradient =
+        cg_scratch.metaRecords<double>(AUXKEY_CGD_PREV_GRADIENT);
     auto &count = cg_scratch.metaScalar<std::uint32_t>(AUXKEY_CGD_LBFGS_COUNT);
     const std::size_t n = n_fp_parms_first_;
 
@@ -704,7 +748,9 @@ std::vector<double> GConjugateGradientDescent::lbfgsDirection_(
             y_dot_s += static_cast<long double>(y_hist[slot + j]) * s_hist[slot + j];
             s_dot_q += static_cast<long double>(s_hist[slot + j]) * q[j];
         }
-        rho[k] = (y_dot_s > std::numeric_limits<long double>::min()) ? Gem::Common::narrow<double>(1.L / y_dot_s) : 0.;
+        rho[k] = (y_dot_s > std::numeric_limits<long double>::min())
+                   ? Gem::Common::narrow<double>(1.L / y_dot_s)
+                   : 0.;
         alpha[k] = Gem::Common::narrow<double>(rho[k] * s_dot_q);
         for(std::size_t j = 0; j < n; j++) {
             q[j] -= alpha[k] * y_hist[slot + j];
@@ -774,8 +820,8 @@ std::vector<double> GConjugateGradientDescent::conjugateDirection_(
         long double g_dot_g = 0.L;         // g_k . g_k
         long double g_dot_gprev = 0.L;     // g_k . g_{k-1}
         long double gprev_dot_gprev = 0.L; // g_{k-1} . g_{k-1}
-        long double g_dot_y = 0.L;         // g_k . (g_k - g_{k-1})   (Polak-Ribiere / Hestenes-Stiefel num)
-        long double d_dot_y = 0.L;         // d_{k-1} . (g_k - g_{k-1}) (Hestenes-Stiefel / Dai-Yuan den)
+        long double g_dot_y = 0.L; // g_k . (g_k - g_{k-1})   (Polak-Ribiere / Hestenes-Stiefel num)
+        long double d_dot_y = 0.L; // d_{k-1} . (g_k - g_{k-1}) (Hestenes-Stiefel / Dai-Yuan den)
         for(std::size_t j = 0; j < n_fp_parms_first_; j++) {
             const long double g = gradient[j];
             const long double gp = prev_gradient[j];
@@ -835,8 +881,7 @@ std::vector<double> GConjugateGradientDescent::conjugateDirection_(
 
     std::vector<double> direction(n_fp_parms_first_, 0.);
     for(std::size_t j = 0; j < n_fp_parms_first_; j++) {
-        direction[j] =
-            -gradient[j] + (history_valid ? beta * prev_direction[j] : 0.);
+        direction[j] = -gradient[j] + (history_valid ? beta * prev_direction[j] : 0.);
     }
     return direction;
 }
@@ -912,7 +957,8 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
         "gradient_method",
         static_cast<int>(gradientMethod::CONJUGATE_PR_PLUS),
         [this](int gm) { this->setGradientMethod(static_cast<gradientMethod>(gm)); }
-    ) << "The search-direction rule: 0 = Polak-Ribiere+ conjugate gradient (the default)," << '\n'
+    ) << "The search-direction rule: 0 = Polak-Ribiere+ conjugate gradient (the default),"
+      << '\n'
       << "1 = plain steepest descent (the former \"gd\"), 2 = Fletcher-Reeves," << '\n'
       << "3 = Hestenes-Stiefel+, 4 = Dai-Yuan, 5 = L-BFGS (limited-memory quasi-Newton)";
 
@@ -920,7 +966,8 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
         "lbfgs_memory",
         DEFAULTCGDLBFGSMEMORY,
         [this](std::size_t m) { this->setLBFGSMemory(m); }
-    ) << "The L-BFGS history size m (number of (s, y) curvature pairs kept per starting" << '\n'
+    ) << "The L-BFGS history size m (number of (s, y) curvature pairs kept per starting"
+      << '\n'
       << "point); only used when gradient_method = 5. Larger m approximates the inverse" << '\n'
       << "Hessian better at the cost of m*n storage and O(m*n) work per iteration";
 
@@ -928,7 +975,8 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
         "central_differences",
         false,
         [this](bool cd) { this->setCentralDifferences(cd); }
-    ) << "Use the O(h^2) central-difference gradient (two probe evaluations per direction)" << '\n'
+    ) << "Use the O(h^2) central-difference gradient (two probe evaluations per direction)"
+      << '\n'
       << "instead of the default O(h) forward difference (one probe). More accurate," << '\n'
       << "but doubles the per-iteration evaluation cost";
 
@@ -936,7 +984,8 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
         "error_estimation",
         static_cast<int>(errorEstimationMode::NONE),
         [this](int em) { this->setErrorEstimation(static_cast<errorEstimationMode>(em)); }
-    ) << "MINUIT-style parameter-error estimate at convergence:" << '\n'
+    ) << "MINUIT-style parameter-error estimate at convergence:"
+      << '\n'
       << "0 = none (default), 1 = diagonal (parabolic) errors," << '\n'
       << "2 = full Hessian -> covariance (small dimension only)," << '\n'
       << "3 = MINOS asymmetric (profiled) errors (small dimension only)";
@@ -945,7 +994,8 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
         "error_definition",
         1.,
         [this](double up) { this->setErrorDefinition(up); }
-    ) << "The MINUIT error definition UP: the objective increase" << '\n'
+    ) << "The MINUIT error definition UP: the objective increase"
+      << '\n'
       << "defining one standard deviation (1 = chi^2, 0.5 = -logL)";
 }
 
@@ -964,8 +1014,8 @@ void GConjugateGradientDescent::evaluatePopulation_() {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GConjugateGradientDescent::evaluatePopulation_():" << '\n'
-                << "Found individual on position " << pos
-                << " which is not due for processing" << '\n'
+                << "Found individual on position " << pos << " which is not due for processing"
+                << '\n'
             );
         }
     }
@@ -1041,16 +1091,44 @@ void GConjugateGradientDescent::resetCGState() {
     // block and a "history invalid" flag on each, so the first cgStep falls back to steepest descent.
     for(std::size_t i = 0; i < n_starting_points_ && i < this->size(); ++i) {
         auto &scratch = this->at(i)->scratch();
-        scratch.installAuxBlock<double>(AUXKEY_CGD_PREV_GRADIENT, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        scratch.installAuxBlock<double>(AUXKEY_CGD_PREV_DIRECTION, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-        scratch.installAuxBlock<std::uint8_t>(AUXKEY_CGD_HISTORY_VALID, 1, gen::AuxScope::PerIndividual);
+        scratch.installAuxBlock<double>(
+            AUXKEY_CGD_PREV_GRADIENT,
+            n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        scratch.installAuxBlock<double>(
+            AUXKEY_CGD_PREV_DIRECTION,
+            n_fp_parms_first_,
+            gen::AuxScope::PerIndividual
+        );
+        scratch.installAuxBlock<std::uint8_t>(
+            AUXKEY_CGD_HISTORY_VALID,
+            1,
+            gen::AuxScope::PerIndividual
+        );
         // installAuxBlock zero-initialises, so the gradient/direction are 0 and the flag is false.
         if(gradient_method_ == gradientMethod::LBFGS) {
             // The L-BFGS curvature history (last m (s, y) pairs, previous x, live pair count) starts empty.
-            scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_S, lbfgs_memory_ * n_fp_parms_first_, gen::AuxScope::PerIndividual);
-            scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_Y, lbfgs_memory_ * n_fp_parms_first_, gen::AuxScope::PerIndividual);
-            scratch.installAuxBlock<double>(AUXKEY_CGD_LBFGS_PREV_X, n_fp_parms_first_, gen::AuxScope::PerIndividual);
-            scratch.installAuxBlock<std::uint32_t>(AUXKEY_CGD_LBFGS_COUNT, 1, gen::AuxScope::PerIndividual);
+            scratch.installAuxBlock<double>(
+                AUXKEY_CGD_LBFGS_S,
+                lbfgs_memory_ * n_fp_parms_first_,
+                gen::AuxScope::PerIndividual
+            );
+            scratch.installAuxBlock<double>(
+                AUXKEY_CGD_LBFGS_Y,
+                lbfgs_memory_ * n_fp_parms_first_,
+                gen::AuxScope::PerIndividual
+            );
+            scratch.installAuxBlock<double>(
+                AUXKEY_CGD_LBFGS_PREV_X,
+                n_fp_parms_first_,
+                gen::AuxScope::PerIndividual
+            );
+            scratch.installAuxBlock<std::uint32_t>(
+                AUXKEY_CGD_LBFGS_COUNT,
+                1,
+                gen::AuxScope::PerIndividual
+            );
         }
     }
 }
@@ -1065,7 +1143,8 @@ void GConjugateGradientDescent::resetCGState() {
 void GConjugateGradientDescent::finalize() {
     // Optional MINUIT-style parameter-error estimate at the converged minimum (opt-in). The curvature
     // probes are evaluated through the same consumer the algorithm uses, exactly like the line search.
-    if(error_estimation_ != errorEstimationMode::NONE && n_fp_parms_first_ > 0 && not this->empty()) {
+    if(error_estimation_ != errorEstimationMode::NONE && n_fp_parms_first_ > 0 &&
+       not this->empty()) {
         // Pick the best starting point (the lowest min-only fitness).
         std::size_t best = 0;
         double best_fitness = minOnly_transformed_fitness((*this->at(0)));
@@ -1084,8 +1163,9 @@ void GConjugateGradientDescent::finalize() {
         opts.up = error_up_;
         // FULL and MINOS both build the covariance (MINOS seeds its profile brackets from the
         // correlation-aware sigma); MINOS additionally computes the asymmetric profiled bounds.
-        opts.full_covariance = (error_estimation_ == errorEstimationMode::FULL ||
-                                error_estimation_ == errorEstimationMode::MINOS);
+        opts.full_covariance =
+            (error_estimation_ == errorEstimationMode::FULL ||
+             error_estimation_ == errorEstimationMode::MINOS);
         opts.minos = (error_estimation_ == errorEstimationMode::MINOS);
 
         const std::size_t best_point = best;
@@ -1107,7 +1187,8 @@ void GConjugateGradientDescent::finalize() {
             std::ostringstream oss;
             oss << "GConjugateGradientDescent: parameter-error estimate at the minimum (UP = "
                 << error_up_ << ", "
-                << (last_error_estimate_.covariance_valid ? "profiled" : "parameter-fixed") << "):\n";
+                << (last_error_estimate_.covariance_valid ? "profiled" : "parameter-fixed")
+                << "):\n";
             const std::size_t shown =
                 std::min<std::size_t>(last_error_estimate_.parameter_errors.size(), 20u);
             for(std::size_t j = 0; j < shown; ++j) {

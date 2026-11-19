@@ -41,7 +41,7 @@
 #include <thread>
 
 // Geneva headers go here
-#include "common/concurrency/GQueueCommon.hpp"  // for QueueBackend
+#include "common/concurrency/GQueueCommon.hpp" // for QueueBackend
 
 namespace Gem::Hap {
 
@@ -77,9 +77,11 @@ constexpr std::size_t DEFAULTFACTORYBUFFERSIZE = 64; ///< Default size of the un
 // GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED at configure time switches them to the preallocated ring
 // buffer (a drop-in, interface-identical alternative -- see Gem::Common::Concurrency::GMPMCQueueT).
 #ifdef GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED
-constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND = Gem::Common::Concurrency::QueueBackend::Preallocated;
+constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
+    Gem::Common::Concurrency::QueueBackend::Preallocated;
 #else
-constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND = Gem::Common::Concurrency::QueueBackend::Deque;
+constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
+    Gem::Common::Concurrency::QueueBackend::Deque;
 #endif /* GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED */
 
 #ifdef GENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT
@@ -130,8 +132,11 @@ constexpr std::uint16_t MAXAUTOPRODUCERTHREADS = 8;
  */
 inline std::uint16_t autoProducerThreadCount() {
     const unsigned int hw = std::thread::hardware_concurrency();
-    if(hw == 0) { return DEFAULT01PRODUCERTHREADS; }
-    const unsigned int scaled = std::max<unsigned int>(DEFAULT01PRODUCERTHREADS, hw / PRODUCERTHREADS_HW_DIVISOR);
+    if(hw == 0) {
+        return DEFAULT01PRODUCERTHREADS;
+    }
+    const unsigned int scaled =
+        std::max<unsigned int>(DEFAULT01PRODUCERTHREADS, hw / PRODUCERTHREADS_HW_DIVISOR);
     return static_cast<std::uint16_t>(std::min<unsigned int>(scaled, MAXAUTOPRODUCERTHREADS));
 }
 

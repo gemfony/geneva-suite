@@ -40,8 +40,8 @@
 #include <memory>
 #include <vector>
 
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAntColonyOptimization.hpp"
 
 namespace gen = Gem::Geneva::Genome;
@@ -58,7 +58,8 @@ namespace {
 template <std::size_t N_DIM>
 class SphereACOR : public gen::GGenomeT<SphereACOR<N_DIM>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereACOR() {
         gen::GGenomeBuilder b;
@@ -102,7 +103,9 @@ TEST_CASE("Ant Colony Optimization optimizes a 5-dim flat sphere", "[acor]") {
     pop->setArchiveSize(50);
     pop->setNAnts(2);
     pop->setMaxIteration(2000);
-    pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the archive fully converges
+    pop->setMaxStallIteration(
+        0
+    ); // 0 == disabled: run the full budget so the archive fully converges
     pop->setReportIteration(100000);
     pop->push_back(SphereACOR<5>().clone());
     pop->optimize();
@@ -119,7 +122,9 @@ TEST_CASE("Ant Colony Optimization optimizes a 10-dim flat sphere", "[acor]") {
     pop->setArchiveSize(50);
     pop->setNAnts(2);
     pop->setMaxIteration(3000);
-    pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the archive fully converges
+    pop->setMaxStallIteration(
+        0
+    ); // 0 == disabled: run the full budget so the archive fully converges
     pop->setReportIteration(100000);
     pop->push_back(SphereACOR<10>().clone());
     pop->optimize();

@@ -52,7 +52,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * (same pareto-front tag) but carries its own nickname so it self-registers a distinct mnemonic.
  */
 class GEvolutionaryAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GEvolutionaryAlgorithm_PersonalityTraits, GBaseParChildPersonalityTraits>
+  : public Gem::Common::GReflectiveInterfaceT<
+        GEvolutionaryAlgorithm_PersonalityTraits,
+        GBaseParChildPersonalityTraits>
   , public GParetoTag {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
@@ -63,7 +65,9 @@ class GEvolutionaryAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-speci
     /** @brief Single declaration of this class'es local data members */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(Gem::Common::make_member("is_on_pareto_front_", self.is_on_pareto_front_));
+        return std::make_tuple(
+            Gem::Common::make_member("is_on_pareto_front_", self.is_on_pareto_front_)
+        );
     }
     ///////////////////////////////////////////////////////////////////////
 
@@ -77,9 +81,8 @@ public:
     /** @brief The default constructor */
     GEvolutionaryAlgorithm_PersonalityTraits() = default;
     /** @brief The copy constructor */
-    GEvolutionaryAlgorithm_PersonalityTraits(
-        const GEvolutionaryAlgorithm_PersonalityTraits &
-    ) = default;
+    GEvolutionaryAlgorithm_PersonalityTraits(const GEvolutionaryAlgorithm_PersonalityTraits &) =
+        default;
     /** @brief The standard destructor */
     ~GEvolutionaryAlgorithm_PersonalityTraits() override = default;
 
@@ -105,4 +108,3 @@ protected:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

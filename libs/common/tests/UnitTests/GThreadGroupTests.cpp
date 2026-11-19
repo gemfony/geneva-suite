@@ -78,8 +78,7 @@ void operator delete(void *p, [[maybe_unused]] std::size_t size) noexcept {
 // ---------------------------------------------------------------------------
 // Empty group
 
-TEST_CASE("GThreadGroup: empty group reports size 0 and joins cleanly",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup: empty group reports size 0 and joins cleanly", "[common][thread-group]") {
     GThreadGroup g;
     CHECK(g.size() == 0);
     CHECK_NOTHROW(g.join_all());
@@ -88,8 +87,7 @@ TEST_CASE("GThreadGroup: empty group reports size 0 and joins cleanly",
 // ---------------------------------------------------------------------------
 // create_thread / create_threads / join_all
 
-TEST_CASE("GThreadGroup::create_thread runs the supplied callable",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup::create_thread runs the supplied callable", "[common][thread-group]") {
     GThreadGroup g;
     std::atomic<int> counter{0};
 
@@ -101,8 +99,10 @@ TEST_CASE("GThreadGroup::create_thread runs the supplied callable",
     CHECK(counter.load() == 1);
 }
 
-TEST_CASE("GThreadGroup::create_threads spawns N threads with the same callable",
-          "[common][thread-group]") {
+TEST_CASE(
+    "GThreadGroup::create_threads spawns N threads with the same callable",
+    "[common][thread-group]"
+) {
     GThreadGroup g;
     std::atomic<int> counter{0};
     constexpr std::size_t N = 8;
@@ -117,8 +117,7 @@ TEST_CASE("GThreadGroup::create_threads spawns N threads with the same callable"
 // ---------------------------------------------------------------------------
 // create_thread returns a joinable handle whose side effect is observable.
 
-TEST_CASE("GThreadGroup::create_thread returns a joinable handle",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup::create_thread returns a joinable handle", "[common][thread-group]") {
     GThreadGroup g;
     std::atomic<int> counter{0};
 
@@ -135,8 +134,7 @@ TEST_CASE("GThreadGroup::create_thread returns a joinable handle",
 // ---------------------------------------------------------------------------
 // add_thread: takes an externally constructed std::jthread
 
-TEST_CASE("GThreadGroup::add_thread accepts a pre-built thread",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup::add_thread accepts a pre-built thread", "[common][thread-group]") {
     GThreadGroup g;
     std::atomic<int> counter{0};
     auto t = std::make_shared<std::jthread>([&counter] { ++counter; });
@@ -148,8 +146,7 @@ TEST_CASE("GThreadGroup::add_thread accepts a pre-built thread",
     CHECK(counter.load() == 1);
 }
 
-TEST_CASE("GThreadGroup::add_thread(nullptr) is ignored",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup::add_thread(nullptr) is ignored", "[common][thread-group]") {
     GThreadGroup g;
 
     g.add_thread(nullptr);
@@ -167,9 +164,11 @@ TEST_CASE("GThreadGroup::add_thread(nullptr) is ignored",
 // ---------------------------------------------------------------------------
 // join_all leaves all handles non-joinable and the group can be re-used.
 
-TEST_CASE("GThreadGroup::join_all leaves no joinable threads and the group "
-          "can be re-used",
-          "[common][thread-group]") {
+TEST_CASE(
+    "GThreadGroup::join_all leaves no joinable threads and the group "
+    "can be re-used",
+    "[common][thread-group]"
+) {
     GThreadGroup g;
     std::atomic<int> counter{0};
 
@@ -194,8 +193,7 @@ TEST_CASE("GThreadGroup::join_all leaves no joinable threads and the group "
 // ---------------------------------------------------------------------------
 // size() under sequential creation.
 
-TEST_CASE("GThreadGroup::size reflects sequential creation",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup::size reflects sequential creation", "[common][thread-group]") {
     GThreadGroup g;
     std::atomic<int> counter{0};
     constexpr std::size_t N = 5;
@@ -214,8 +212,10 @@ TEST_CASE("GThreadGroup::size reflects sequential creation",
 // TSan-friendly: workers do not touch Catch2 macros; we assert on the main
 // thread once every driver has joined.
 
-TEST_CASE("GThreadGroup::create_thread is safe under concurrent creation",
-          "[common][thread-group]") {
+TEST_CASE(
+    "GThreadGroup::create_thread is safe under concurrent creation",
+    "[common][thread-group]"
+) {
     GThreadGroup g;
     std::atomic<int> counter{0};
     constexpr std::size_t kDrivers = 8;
@@ -293,8 +293,7 @@ TEST_CASE(
 // destruction; std::jthread joins automatically. The workers are short and
 // self-terminating, so destruction is fast.
 
-TEST_CASE("GThreadGroup destroyed without join_all auto-joins cleanly",
-          "[common][thread-group]") {
+TEST_CASE("GThreadGroup destroyed without join_all auto-joins cleanly", "[common][thread-group]") {
     std::atomic<int> counter{0};
 
     CHECK_NOTHROW([&] {
@@ -311,8 +310,10 @@ TEST_CASE("GThreadGroup destroyed without join_all auto-joins cleanly",
 // ---------------------------------------------------------------------------
 // join_all waits for in-flight work.
 
-TEST_CASE("GThreadGroup::join_all blocks until in-flight work completes",
-          "[common][thread-group]") {
+TEST_CASE(
+    "GThreadGroup::join_all blocks until in-flight work completes",
+    "[common][thread-group]"
+) {
     GThreadGroup g;
     std::atomic<bool> done{false};
 

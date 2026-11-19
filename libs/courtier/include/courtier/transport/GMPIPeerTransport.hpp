@@ -402,7 +402,7 @@ private:
     /// Made by the first connect(); touched by connect() and the destructor, never at the same
     /// time (GConnectorI)
     std::shared_ptr<GMPIPollCore> core_;
-    std::weak_ptr<GMPIPeer> peer_;       ///< The end made by connect(); told at the end of the work
+    std::weak_ptr<GMPIPeer> peer_; ///< The end made by connect(); told at the end of the work
     /// Set by cancel() and by the destructor; shared with the handler that reports the peer
     std::shared_ptr<std::atomic<bool>> cancelled_ = std::make_shared<std::atomic<bool>>(false);
 };

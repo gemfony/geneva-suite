@@ -78,8 +78,10 @@ TEST_CASE("GThreadPool is neither copyable nor movable", "[common][thread-pool]"
 /******************************************************************************/
 // async_schedule: non-void return type -> result carried by the future.
 
-TEST_CASE("GThreadPool non-void tasks return their result via the future",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool non-void tasks return their result via the future",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(4);
     auto f = pool.async_schedule([](int x) { return x * 2; }, 21);
     REQUIRE(f.get() == 42);
@@ -97,8 +99,7 @@ TEST_CASE("GThreadPool non-void tasks return their result via the future",
 /******************************************************************************/
 // async_schedule: void return type -> future is satisfied, side effects run.
 
-TEST_CASE("GThreadPool void tasks complete and the future is satisfied",
-          "[common][thread-pool]") {
+TEST_CASE("GThreadPool void tasks complete and the future is satisfied", "[common][thread-pool]") {
     GThreadPool pool(4);
     std::atomic<int> counter{0};
     auto f = pool.async_schedule([&counter]() { counter.fetch_add(1); });
@@ -109,8 +110,7 @@ TEST_CASE("GThreadPool void tasks complete and the future is satisfied",
 /******************************************************************************/
 // Exception handling: a throwing task surfaces through the returned future.
 
-TEST_CASE("GThreadPool propagates task exceptions through the future",
-          "[common][thread-pool]") {
+TEST_CASE("GThreadPool propagates task exceptions through the future", "[common][thread-pool]") {
     GThreadPool pool(4);
     SECTION("void task") {
         auto f = pool.async_schedule([]() { throw std::runtime_error("boom"); });
@@ -139,14 +139,16 @@ TEST_CASE("GThreadPool wait() drains all submitted work", "[common][thread-pool]
     REQUIRE(done.load() == N); // every task ran before wait() returned
 }
 
-TEST_CASE("GThreadPool wait() is safe on an empty / already-drained pool",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool wait() is safe on an empty / already-drained pool",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(2);
-    pool.wait();             // nothing submitted -> returns immediately
+    pool.wait(); // nothing submitted -> returns immediately
     auto f = pool.async_schedule([]() { return 1; });
     REQUIRE(f.get() == 1);
-    pool.wait();             // already drained via .get() -> returns immediately
-    pool.wait();             // idempotent
+    pool.wait(); // already drained via .get() -> returns immediately
+    pool.wait(); // idempotent
     SUCCEED("repeated wait() calls did not hang");
 }
 
@@ -175,7 +177,8 @@ TEST_CASE("GThreadPool MPMC conservation (futures)", "[common][thread-pool]") {
         fs.push_back(pool.async_schedule([](long long k) { return k; }, static_cast<long long>(i)));
     }
     long long sum = 0;
-    for(auto &f : fs) sum += f.get();
+    for(auto &f : fs)
+        sum += f.get();
     REQUIRE(sum == static_cast<long long>(N) * (N - 1) / 2);
 }
 
@@ -183,8 +186,10 @@ TEST_CASE("GThreadPool MPMC conservation (futures)", "[common][thread-pool]") {
 // Multi-producer submission: several threads submit concurrently (exercises the
 // shared submission lock and the MPMC queue's producer side under contention).
 
-TEST_CASE("GThreadPool tolerates concurrent submission from many producers",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool tolerates concurrent submission from many producers",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(8);
     constexpr int PRODUCERS = 6;
     constexpr int PER_PRODUCER = 2000;
@@ -205,10 +210,12 @@ TEST_CASE("GThreadPool tolerates concurrent submission from many producers",
             }
         });
     }
-    for(auto &t : producers) t.join();
+    for(auto &t : producers)
+        t.join();
 
     long long sum = 0;
-    for(auto &f : fs) sum += f.get();
+    for(auto &f : fs)
+        sum += f.get();
     REQUIRE(sum == static_cast<long long>(TOTAL) * (TOTAL - 1) / 2);
 }
 
@@ -250,8 +257,7 @@ TEST_CASE(
     REQUIRE(run_batch(1000) == 1000);
 }
 
-TEST_CASE("GThreadPool survives repeated resize-under-load cycles",
-          "[common][thread-pool]") {
+TEST_CASE("GThreadPool survives repeated resize-under-load cycles", "[common][thread-pool]") {
     // Condensed analogue of the manual stress test: submit a batch, resize, wait,
     // and confirm every task ran in every cycle.
     GThreadPool pool(2);
@@ -273,8 +279,7 @@ TEST_CASE("GThreadPool survives repeated resize-under-load cycles",
 /******************************************************************************/
 // Clean shutdown: the destructor must drain pending work and join without hanging.
 
-TEST_CASE("GThreadPool clean shutdown with pending work (no hang)",
-          "[common][thread-pool]") {
+TEST_CASE("GThreadPool clean shutdown with pending work (no hang)", "[common][thread-pool]") {
     std::atomic<int> done{0};
     {
         GThreadPool pool(4);
@@ -290,8 +295,10 @@ TEST_CASE("GThreadPool clean shutdown with pending work (no hang)",
 /******************************************************************************/
 // post(): fire-and-forget submission (no future, exceptions logged-not-propagated).
 
-TEST_CASE("GThreadPool post() is fire-and-forget and survives throwing tasks",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool post() is fire-and-forget and survives throwing tasks",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(4);
     std::atomic<int> done{0};
     constexpr int N = 3000;
@@ -302,7 +309,7 @@ TEST_CASE("GThreadPool post() is fire-and-forget and survives throwing tasks",
     pool.post([]() { throw std::runtime_error("ignored on purpose"); });
     pool.post([]() { throw 42; }); // non-std exception
 
-    pool.wait(); // post() tasks participate in wait()
+    pool.wait();               // post() tasks participate in wait()
     REQUIRE(done.load() == N); // all non-throwing tasks ran; throwers did not crash the pool
 
     // The pool remains usable after a thrown-and-logged task.
@@ -313,8 +320,10 @@ TEST_CASE("GThreadPool post() is fire-and-forget and survives throwing tasks",
 // ---------------------------------------------------------------------------
 // Bulk fork/join: blocking_for_each
 
-TEST_CASE("GThreadPool::blocking_for_each runs the whole batch and blocks until done",
-          "[common][thread-pool]") {
+TEST_CASE(
+    "GThreadPool::blocking_for_each runs the whole batch and blocks until done",
+    "[common][thread-pool]"
+) {
     GThreadPool pool(4);
     constexpr std::size_t N = 200;
     std::vector<int> data(N, 0);
@@ -323,7 +332,9 @@ TEST_CASE("GThreadPool::blocking_for_each runs the whole batch and blocks until 
     // Every element was visited exactly once, and the call blocked until all tasks completed.
     bool all_one = true;
     for(int const v : data) {
-        if(v != 1) { all_one = false; }
+        if(v != 1) {
+            all_one = false;
+        }
     }
     CHECK(all_one);
 
@@ -357,10 +368,12 @@ TEST_CASE("GThreadPool::blocking_for_each runs the whole batch and blocks until 
  * The budget is a process-global shared by every other pool in the test binary, so this asserts
  * DELTAS against a baseline taken at entry, never absolute totals.
  */
-TEST_CASE("GThreadPool: a budgeted pool's reservation tracks setNThreads",
-          "[common][concurrency][threadpool][budget]") {
-    using Gem::Common::Concurrency::ThreadElasticity;
+TEST_CASE(
+    "GThreadPool: a budgeted pool's reservation tracks setNThreads",
+    "[common][concurrency][threadpool][budget]"
+) {
     using Gem::Common::Concurrency::threadBudget;
+    using Gem::Common::Concurrency::ThreadElasticity;
 
     const unsigned int baseline = threadBudget().reserved();
 
@@ -397,8 +410,10 @@ TEST_CASE("GThreadPool: a budgeted pool's reservation tracks setNThreads",
  * The unbudgeted constructor takes no reservation, so resizing such a pool must leave the
  * ledger completely untouched (an empty handle must not be turned into a live one).
  */
-TEST_CASE("GThreadPool: an unbudgeted pool never touches the thread budget",
-          "[common][concurrency][threadpool][budget]") {
+TEST_CASE(
+    "GThreadPool: an unbudgeted pool never touches the thread budget",
+    "[common][concurrency][threadpool][budget]"
+) {
     using Gem::Common::Concurrency::threadBudget;
 
     const unsigned int baseline = threadBudget().reserved();

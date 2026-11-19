@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 #pragma once
 
 // Global checks, defines and includes needed for all of Geneva

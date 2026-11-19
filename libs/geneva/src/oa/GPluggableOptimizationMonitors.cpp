@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -39,8 +38,9 @@
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/Interface/GOptimizerIT.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -57,17 +57,17 @@
 /******************************************************************************/
 // Exports of classes
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GStandardMonitor) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GFitnessMonitor) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GCollectiveMonitor) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GProgressPlotter) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAllSolutionFileLogger) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GIterationResultsFileLogger) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GNAdpationsLogger) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<double>) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GStandardMonitor)                     // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GFitnessMonitor)                      // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GCollectiveMonitor)                   // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GProgressPlotter)                     // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAllSolutionFileLogger)               // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GIterationResultsFileLogger)          // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GNAdpationsLogger)                    // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<double>)       // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<std::int32_t>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<bool>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GProcessingTimesLogger) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<bool>)         // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GProcessingTimesLogger)               // NOLINT
 
 namespace Gem::Geneva {
 
@@ -283,10 +283,10 @@ void GFitnessMonitor::informationFunction_(
 
     case Gem::Geneva::infoMode::INFOPROCESSING: {
         // Retrieve the list of globally- and iteration bests individuals
-        auto global_bests =
-            goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<gen::GGenome>();
-        auto iter_bests =
-            goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestIterationIndividuals<gen::GGenome>();
+        auto global_bests = goa->Interface::GOptimizerIT<
+            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<gen::GGenome>();
+        auto iter_bests = goa->Interface::GOptimizerIT<
+            oa::GOptimizationAlgorithmBase>::getBestIterationIndividuals<gen::GGenome>();
 
         // Retrieve the current iteration in the population
         std::uint32_t const iteration = goa->getIteration();
@@ -352,10 +352,8 @@ void GFitnessMonitor::informationFunction_(
                     << " is larger" << '\n'
                     << "than the number of best individuals " << n_monitor_inds_ << " / "
                     << global_bests.size() << '\n'
-                    << "This seems to be a result of a varying number of best individuals."
-                    << '\n'
-                    << "We will now reduce the number of monitored individuals to 1 for the"
-                    << '\n'
+                    << "This seems to be a result of a varying number of best individuals." << '\n'
+                    << "We will now reduce the number of monitored individuals to 1 for the" << '\n'
                     << "rest of the optimization run. Recorded information for other individuals"
                     << '\n'
                     << "will be deleted" << '\n'
@@ -461,9 +459,7 @@ void GCollectiveMonitor::informationFunction_(
  *
  * @param om_ptr A shared pointer to the pluggable monitor to be added; must not be empty (an empty pointer triggers an exception)
  */
-void GCollectiveMonitor::registerPluggableOM(
-    const std::shared_ptr<oa::GBasePluggableOM>& om_ptr
-) {
+void GCollectiveMonitor::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &om_ptr) {
     if(om_ptr) {
         pluggable_monitors_.push_back(om_ptr);
     }
@@ -756,7 +752,8 @@ void GAllSolutionFileLogger::informationFunction_(
     case Gem::Geneva::infoMode::INFOINIT: {
         // If the file pointed to by file_name_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_, "GAllSolutionFileLogger::informationFunction_(): Warning!"
+            file_name_,
+            "GAllSolutionFileLogger::informationFunction_(): Warning!"
         );
 
         if(print_initial_) {
@@ -808,10 +805,15 @@ void GAllSolutionFileLogger::printPopulation(
         // Note that isGoodEnough may throw if loop acts on a "dirty" individual
         if(not boundaries_active_ || ind->isGoodEnough(boundaries_)) {
             // Append the data to the external file
-            if(0 == pos &&
-               goa->inFirstIteration()) { // Only output name and type in the very first line (if at all)
-                data
-                    << ind->toCSV(with_name_and_type_, with_commas_, use_raw_fitness_, show_validity_);
+            if(
+                0 == pos && goa->inFirstIteration()
+            ) { // Only output name and type in the very first line (if at all)
+                data << ind->toCSV(
+                    with_name_and_type_,
+                    with_commas_,
+                    use_raw_fitness_,
+                    show_validity_
+                );
             }
             else {
                 data << ind->toCSV(
@@ -946,7 +948,8 @@ void GIterationResultsFileLogger::informationFunction_(
     case Gem::Geneva::infoMode::INFOINIT: {
         // If the file pointed to by file_name_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_, "GIterationResultsFileLogger::informationFunction_(): Warning!"
+            file_name_,
+            "GIterationResultsFileLogger::informationFunction_(): Warning!"
         );
     } break;
 
@@ -1159,7 +1162,8 @@ void GNAdpationsLogger::informationFunction_(
     case Gem::Geneva::infoMode::INFOINIT: {
         // If the file pointed to by file_name_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_, "GNAdpationsLogger::informationFunction_(): Error!"
+            file_name_,
+            "GNAdpationsLogger::informationFunction_(): Error!"
         );
 
         // The fitness curve is recorded per-run, so start it fresh (the n-adaptions store
@@ -1171,8 +1175,8 @@ void GNAdpationsLogger::informationFunction_(
         std::uint32_t const iteration = goa->getIteration();
 
         // Record the current fitness
-        auto const p =
-            goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+        auto const p = goa->Interface::GOptimizerIT<
+            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
         fitness_store_.emplace_back(static_cast<double>(iteration), p->raw_fitness(0));
 
         // Update the largest known iteration and the number of recorded iterations
@@ -1181,16 +1185,21 @@ void GNAdpationsLogger::informationFunction_(
 
         // Do the actual logging
         if(monitor_best_only_) {
-            auto const best =
-                goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
-            n_adaptions_store_.emplace_back(static_cast<double>(iteration), static_cast<double>(best->getNAdaptions()));
+            auto const best = goa->Interface::GOptimizerIT<
+                oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+            n_adaptions_store_.emplace_back(
+                static_cast<double>(iteration),
+                static_cast<double>(best->getNAdaptions())
+            );
         }
         else { // Monitor all individuals
             // Loop over all individuals of the algorithm.
             for(std::size_t pos = 0; pos < goa->size(); pos++) {
-                std::shared_ptr<gen::GGenome> const ind =
-                    goa->individual_cast<gen::GGenome>(pos);
-                n_adaptions_store_.emplace_back(static_cast<double>(iteration), static_cast<double>(ind->getNAdaptions()));
+                std::shared_ptr<gen::GGenome> const ind = goa->individual_cast<gen::GGenome>(pos);
+                n_adaptions_store_.emplace_back(
+                    static_cast<double>(iteration),
+                    static_cast<double>(ind->getNAdaptions())
+                );
             }
         }
     } break;
@@ -1531,7 +1540,8 @@ void GProcessingTimesLogger::informationFunction_(
 
         // If the file pointed to by file_name_pth_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_pth_, "GProcessingTimesLogger::informationFunction_(): Warning!"
+            file_name_pth_,
+            "GProcessingTimesLogger::informationFunction_(): Warning!"
         );
 
         // Build the 1-d timing-histogram log and declare its four auto-ranged histograms in the
@@ -1541,7 +1551,8 @@ void GProcessingTimesLogger::informationFunction_(
             using Gem::Dietrich::plotKind;
             log_pth_.emplace("Timings for the processing steps of individuals", 2, 2);
             log_pth_->setCanvasDimensions(
-                std::get<0>(canvas_dimensions_pth_), std::get<1>(canvas_dimensions_pth_)
+                std::get<0>(canvas_dimensions_pth_),
+                std::get<1>(canvas_dimensions_pth_)
             );
             pth_ids_.clear();
             const char *const x_labels_1d[] = {
@@ -1566,7 +1577,8 @@ void GProcessingTimesLogger::informationFunction_(
 
         // If the file pointed to by file_name_pth2_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_pth2_, "GProcessingTimesLogger::informationFunction_(): Warning!"
+            file_name_pth2_,
+            "GProcessingTimesLogger::informationFunction_(): Warning!"
         );
 
         // Build the 2-d timing-vs-iteration log and declare its four auto-ranged histograms in the
@@ -1574,9 +1586,11 @@ void GProcessingTimesLogger::informationFunction_(
         {
             using Gem::Dietrich::GPlotSpec;
             using Gem::Dietrich::plotKind;
-            log_pth2_.emplace("Timings for the processing steps of individuals vs. iteration", 2, 2);
+            log_pth2_
+                .emplace("Timings for the processing steps of individuals vs. iteration", 2, 2);
             log_pth2_->setCanvasDimensions(
-                std::get<0>(canvas_dimensions_pth2_), std::get<1>(canvas_dimensions_pth2_)
+                std::get<0>(canvas_dimensions_pth2_),
+                std::get<1>(canvas_dimensions_pth2_)
             );
             pth2_ids_.clear();
             const char *const y_labels_2d[] = {
@@ -1603,7 +1617,8 @@ void GProcessingTimesLogger::informationFunction_(
 
         // If the file pointed to by file_name_txt_ already exists, make a back-up
         Gem::Common::backupExistingFile(
-            file_name_txt_, "GProcessingTimesLogger::informationFunction_(): Warning!"
+            file_name_txt_,
+            "GProcessingTimesLogger::informationFunction_(): Warning!"
         );
 
         //---------------------------------------------------------------
@@ -1637,7 +1652,10 @@ void GProcessingTimesLogger::informationFunction_(
             // Fill the timings into the 1-d histograms (one value per series), in the fixed
             // { pre, main, post, all } order matching the declared series.
             const double times_1d[] = {
-                pre_processing_time, main_processing_time, post_processing_time, all_processing_time
+                pre_processing_time,
+                main_processing_time,
+                post_processing_time,
+                all_processing_time
             };
             // Both logs are created in INFOINIT, which precedes every per-iteration call.
             // NOLINTNEXTLINE(bugprone-unchecked-optional-access)

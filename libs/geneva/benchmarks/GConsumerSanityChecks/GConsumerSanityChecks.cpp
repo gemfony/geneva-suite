@@ -140,6 +140,5 @@ int main(int argc, char **argv) {
     SpeedupMeasurement::waitForClients(go, gate);
 
     // Perform the actual optimization
-    auto const p =
-        go.optimize()->getBestGlobalIndividual<gind::GDelayIndividual>();
+    auto const p = go.optimize()->getBestGlobalIndividual<gind::GDelayIndividual>();
 }

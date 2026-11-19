@@ -53,8 +53,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"

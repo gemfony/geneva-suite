@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/oa/GSimulatedAnnealing.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -38,12 +37,13 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
+#include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GAdaption.hpp"
+#include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
-#include "geneva/oa/GAdaption.hpp"
-#include "geneva/oa/GAdaptionConfig.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -215,7 +215,6 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     }
 }
 
-
 /******************************************************************************/
 /**
   * @brief We submit individuals to the process consumer and wait for processed items.
@@ -257,7 +256,6 @@ void GSimulatedAnnealing::evaluatePopulation_() {
     // Now fix the population -- it may be smaller than its nominal size
     fixAfterJobSubmission();
 }
-
 
 /******************************************************************************/
 /**
