@@ -313,7 +313,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): GCommonInterfaceT-derived objects via the geneva-type overload.
+// compare(): GCommonInterfaceT-derived objects via the gem_type overload.
 // A tiny GCommonInterfaceT-derivative is enough.
 
 namespace {

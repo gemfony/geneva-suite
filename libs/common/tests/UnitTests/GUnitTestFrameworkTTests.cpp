@@ -41,19 +41,19 @@ struct Plain {
 };
 
 // A type whose default constructor always throws a gem_exception; used
-// to verify that TFactory_GUnitTests re-throws geneva exceptions verbatim.
+// to verify that TFactory_GUnitTests re-throws gem exceptions verbatim.
 struct ThrowsGem {
     ThrowsGem() {
         throw gem_exception("intentional from ThrowsGem");
     }
 };
 
-// A type whose default constructor throws a non-geneva exception; the
+// A type whose default constructor throws a non-gem exception; the
 // factory must wrap it in a gem_exception (the "Caught unknown
 // exception" path) before rethrowing.
 struct ThrowsOther {
     ThrowsOther() {
-        throw std::logic_error("not a geneva exception");
+        throw std::logic_error("not a gem exception");
     }
 };
 
@@ -76,7 +76,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "TFactory_GUnitTests<T>: non-geneva exception is wrapped in gem_exception",
+    "TFactory_GUnitTests<T>: non-gem exception is wrapped in gem_exception",
     "[common][unit-framework]"
 ) {
     // The factory catches unknown exceptions and re-throws as gem_exception
@@ -90,6 +90,6 @@ TEST_CASE(
         CHECK(what.contains("Caught unknown exception"));
     }
     catch(...) {
-        FAIL("threw a non-geneva exception type");
+        FAIL("threw a non-gem exception type");
     }
 }

@@ -307,7 +307,7 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // GLogStreamer::operator<<(GManipulator&): switch arms.
 //
-// These go through the real `glogger` singleton (the Geneva exception path
+// These go through the real `glogger` singleton (the gem_exception path
 // writes a `GEM-EXCEPTION.log` file as a side-effect; the warning/logging
 // paths go to the registered targets — by default the console). We don't
 // assert on the file content; we just hit the code so it's instrumented.
