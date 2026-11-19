@@ -308,7 +308,7 @@ TEST_CASE(
 // GLogStreamer::operator<<(GManipulator&): switch arms.
 //
 // These go through the real `glogger` singleton (the Geneva exception path
-// writes a `GENEVA-EXCEPTION.log` file as a side-effect; the warning/logging
+// writes a `GEM-EXCEPTION.log` file as a side-effect; the warning/logging
 // paths go to the registered targets — by default the console). We don't
 // assert on the file content; we just hit the code so it's instrumented.
 // TERMINATION is deliberately NOT exercised — it would call std::terminate().
@@ -316,7 +316,7 @@ TEST_CASE(
 TEST_CASE("GLogStreamer << GEXCEPTION throws a gem_exception", "[common][logger][manipulator]") {
     // Ensure the side-effect log file does not survive between test runs.
     std::error_code ec;
-    std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
+    std::filesystem::remove("GEM-EXCEPTION.log", ec);
 
     bool caught = false;
     try {
@@ -330,7 +330,7 @@ TEST_CASE("GLogStreamer << GEXCEPTION throws a gem_exception", "[common][logger]
     }
     CHECK(caught);
 
-    std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
+    std::filesystem::remove("GEM-EXCEPTION.log", ec);
 }
 
 TEST_CASE(

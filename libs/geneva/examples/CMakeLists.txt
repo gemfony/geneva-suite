@@ -164,7 +164,7 @@ ENDIF()
 #
 # The reference is generated (never hand-edited) by running a representative Go2 example with
 # --update-configs, which materializes Go2.json, every registered optimization-algorithm config and the
-# standard individual config. The GENEVA_CONFIG_REFERENCE environment variable suppresses the header's
+# standard individual config. The GEM_CONFIG_REFERENCE environment variable suppresses the header's
 # creation timestamp, so the output is byte-stable and regenerating it produces no spurious diff.
 #
 # Regenerating writes into the source tree -- the ONE deliberate exception to "a build never writes into

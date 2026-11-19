@@ -424,7 +424,7 @@ GCLParsableI::GCLParsableI(
  * The default constructor
  */
 GParserBuilder::GParserBuilder() {
-    auto basename_opt = Gem::Common::environmentVariableAs<std::string>("GENEVA_CONFIG_BASENAME");
+    auto basename_opt = Gem::Common::environmentVariableAs<std::string>("GEM_CONFIG_BASENAME");
     if(basename_opt && !(*basename_opt).empty()) {
         // Read out the directory
         config_base_dir_ = std::filesystem::path(*basename_opt);

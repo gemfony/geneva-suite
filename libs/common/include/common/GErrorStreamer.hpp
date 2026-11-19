@@ -212,7 +212,7 @@ private:
     // Data
     std::ostringstream ostream_;
     bool do_log_ = NO_LOG;
-    const std::string exception_file_ = "./GENEVA-EXCEPTION.log";
+    const std::string exception_file_ = "./GEM-EXCEPTION.log";
     std::string where_and_when_;
 
     /**************************************************************************/

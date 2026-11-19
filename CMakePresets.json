@@ -3,7 +3,7 @@
   "cmakeMinimumRequired": { "major": 3, "minor": 27, "patch": 0 },
   "configurePresets": [
     {
-      "name": "geneva-default",
+      "name": "gem-default",
       "displayName": "Geneva (default config)",
       "description": "Default build configuration derived from scripts/genevaConfig.gcfg",
       "generator": "Unix Makefiles",

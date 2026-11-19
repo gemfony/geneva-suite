@@ -187,7 +187,7 @@ public:
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 
 private:
-    std::string fname_ = "Geneva-Library-Collection.log"; ///< The name of the log file
+    std::string fname_ = "Gem-Library-Collection.log"; ///< The name of the log file
     mutable bool first_ = true; ///< Indicates whether any logging has already been done
 };
 

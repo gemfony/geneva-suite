@@ -38,12 +38,12 @@ if(NOT BIN OR NOT GEN OR NOT DEST OR NOT MODE)
 	message(FATAL_ERROR "config_reference.cmake: BIN, GEN, DEST and MODE must all be set")
 endif()
 
-# Generate the standard config set, timestamp-free, into a clean scratch dir. GENEVA_CONFIG_REFERENCE makes
+# Generate the standard config set, timestamp-free, into a clean scratch dir. GEM_CONFIG_REFERENCE makes
 # the emitted headers byte-stable; the binary writes into ./config relative to its working directory.
 file(REMOVE_RECURSE "${GEN}")
 file(MAKE_DIRECTORY "${GEN}/config")
 execute_process(
-		COMMAND ${CMAKE_COMMAND} -E env GENEVA_CONFIG_REFERENCE=1 "${BIN}" --update-configs
+		COMMAND ${CMAKE_COMMAND} -E env GEM_CONFIG_REFERENCE=1 "${BIN}" --update-configs
 		WORKING_DIRECTORY "${GEN}"
 		RESULT_VARIABLE _rc
 		OUTPUT_QUIET)
