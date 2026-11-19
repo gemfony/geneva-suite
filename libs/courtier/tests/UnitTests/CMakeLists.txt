@@ -138,6 +138,39 @@ gem_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourti
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
 gem_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")
 
+# The MQTT transport, against a broker of the tests' own: tests/mqttTestBroker.sh starts a mosquitto
+# on a free port of the loopback interface and ends it by its pid (a CTest fixture; never the host's
+# broker). Its directory, with the port, is GEM_MQTT_TEST_BROKER_DIR; the tests that need it require
+# the fixture courtier_mqtt_broker and use a topic prefix of their own each. Registered where
+# courtier has the transport and configure finds mosquitto.
+IF(GEM_MQTT_CONSUMER_ENABLED)
+	FIND_PROGRAM(GEM_MOSQUITTO_EXECUTABLE mosquitto PATHS /usr/sbin /usr/local/sbin)
+	IF(GEM_MOSQUITTO_EXECUTABLE)
+		SET(GEM_MQTT_TEST_BROKER_DIR ${CMAKE_BINARY_DIR}/mqtt-test-broker
+			CACHE INTERNAL "Where the tests' MQTT broker writes its port")
+		FOREACH(_action start stop)
+			STRING(SUBSTRING ${_action} 0 1 _first)
+			STRING(TOUPPER ${_first} _first)
+			STRING(SUBSTRING ${_action} 1 -1 _rest)
+			SET(_entry GCourtierMqttBroker${_first}${_rest})
+			ADD_TEST(NAME ${_entry} COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../mqttTestBroker.sh ${_action}
+				${GEM_MOSQUITTO_EXECUTABLE} ${GEM_MQTT_TEST_BROKER_DIR})
+			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "courtier" TIMEOUT 60)
+			GEM_TEST_SIZE(${_entry} S)
+		ENDFOREACH()
+		SET_TESTS_PROPERTIES(GCourtierMqttBrokerStart PROPERTIES FIXTURES_SETUP courtier_mqtt_broker)
+		SET_TESTS_PROPERTIES(GCourtierMqttBrokerStop PROPERTIES FIXTURES_CLEANUP courtier_mqtt_broker)
+
+		gem_courtier_test(GCourtierMqttTransportTests M GCourtierMqttTransportTests.cpp GMqttTestSupport.hpp
+			GTcpRelay.hpp)
+		TARGET_COMPILE_DEFINITIONS(GCourtierMqttTransportTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierMqttTransportTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+	ELSE()
+		MESSAGE(STATUS "The tests of the MQTT transport are not registered: no mosquitto found")
+	ENDIF()
+ENDIF()
+
 # The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
 # consumer's backend factory is, and that is compiled into the library only with the GPU consumer.
 IF(GEM_GPU_CONSUMER_ENABLED)

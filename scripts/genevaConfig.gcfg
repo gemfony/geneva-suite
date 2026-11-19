@@ -108,6 +108,12 @@ BUILDMPICONSUMER="1"
 # | "off" (never build it). Legacy "0"/"1" are still accepted.
 BUILDGPUCONSUMER="auto"
 
+# Whether to build the MQTT transport into the courtier library and expose the "mqtt" consumer
+# mnemonic: server and clients talk through an MQTT broker. It needs Boost.MQTT5, a header-only
+# part of Boost that not every Boost installation has.
+# Tri-state: "auto" (build it when the Boost in use has Boost.MQTT5) | "on" (require it) | "off".
+BUILDMQTTCONSUMER="auto"
+
 # Whether to instrument the Common library and its tests with code-coverage
 # flags (--coverage for GCC, -fprofile-instr-generate -fcoverage-mapping for
 # Clang). Used together with the `coverage` make target to produce gcovr

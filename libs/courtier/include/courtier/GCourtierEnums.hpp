@@ -138,11 +138,12 @@ const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
 const Gem::Common::serializationMode GCONSUMERSERIALIZATIONMODE =
     Gem::Common::serializationMode::GEM_BINARY;
-/// The keep-alive interval, in seconds, a server names in its HELLO by default (websocket and MPI;
-/// --beast_pingInterval, --mpi_pingInterval). Websocket: after this much silence a ping is sent,
-/// and after twice as much without any inbound data the connection is closed; the same limit
-/// bounds the websocket handshake and the close handshake. On a client the value holds until its
-/// server has named its own in the HELLO.
+/// The keep-alive interval, in seconds, a server names in its HELLO by default (websocket, MPI and
+/// MQTT; --beast_pingInterval, --mpi_pingInterval, --mqtt_pingInterval). Websocket: after this much
+/// silence a ping is sent, and after twice as much without any inbound data the connection is
+/// closed; the same limit bounds the websocket handshake and the close handshake. On a client the
+/// value holds until its server has named its own in the HELLO (an MQTT client keeps it: its
+/// keep-alive is fixed when it connects to the broker).
 constexpr std::size_t GBEASTCONSUMERPINGINTERVAL = 15;
 /// The limit on the websocket handshake and the close handshake when the keep-alive is switched off
 /// (a ping interval of 0), so that neither can wait forever.
@@ -168,6 +169,21 @@ constexpr std::size_t GWEBSOCKETMAXUNHANDLEDMESSAGES = 1024;
 /// ended, for the connections to end (GListenerI::stopGrace()). A connection that has not ended by
 /// then is cut off, and its client sees a loss.
 constexpr std::chrono::milliseconds GWEBSOCKETCONSUMERSTOPGRACE{10'000};
+
+/******************************************************************************
+ * Defaults of the MQTT transport (transport/GMqttPeerTransport.hpp):
+ */
+/// The broker its ends connect to (--mqtt_ip, --mqtt_port), and the prefix of its topics
+/// (--mqtt_topic): a server and its clients meet on the same broker and prefix.
+const std::string GMQTTDEFAULTBROKER = "127.0.0.1"; // NOLINT
+constexpr unsigned short GMQTTDEFAULTPORT = 1883;
+const std::string GMQTTDEFAULTTOPIC = "gem"; // NOLINT
+/// The limit on an MQTT end's handshake (the broker's answers, the server's first message) and on
+/// its close when its keep-alive is off; with a keep-alive the limit is twice the interval.
+constexpr std::chrono::seconds GMQTTHANDSHAKETIMEOUT{30};
+/// How long a stopping MQTT server waits, after it has told every client that the run has ended,
+/// for the connections to end (GListenerI::stopGrace()).
+constexpr std::chrono::milliseconds GMQTTCONSUMERSTOPGRACE{10'000};
 
 /******************************************************************************
  * Pauses and time limits of the networked clients and servers:
