@@ -415,32 +415,18 @@ private:
                         lease->add(result.item, result.checkout);
                         return result;
                     },
-                // The item taken out of the lease is given back (requeue) if checkin() throws:
-                // it would otherwise stay in flight with nobody to give it back. The exception
-                // goes on through the session. checkin() fails a slot whose result cannot be
-                // applied itself; a late result (its batch has ended) whose retained original
-                // cannot take it (GWireProtocolT::applyReturn(), graftRetainedStateFrom()) still
-                // throws, and finds no slot to put back.
+                // Only a failing allocation makes checkin() throw (see getPayloadItem): a result
+                // that cannot be applied fails its slot, and a late one (its batch has ended) that
+                // cannot be applied to its retained original is dropped and counted.
                 .putPayloadItem =
                     [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                         // Only a result of this server's item ends the lease's hold: a foreign
                         // one whose id happens to match an item held here is dropped by
                         // checkin() and must not free that item from the lease.
-                        const Gem::Courtier::CORRELATION_ID_TYPE id =
-                            frame.outcome().correlation_id;
-                        std::optional<std::uint64_t> checkout;
                         if(GNetworkedConsumerT<processable_type>::handedOutHere(frame)) {
-                            checkout = lease->remove(id);
+                            static_cast<void>(lease->remove(frame.outcome().correlation_id));
                         }
-                        try {
-                            this->checkin(std::move(frame));
-                        }
-                        catch(...) {
-                            if(checkout) {
-                                this->requeue(id, checkout);
-                            }
-                            throw;
-                        }
+                        this->checkin(std::move(frame));
                     },
                 .failPayloadItem =
                     [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {

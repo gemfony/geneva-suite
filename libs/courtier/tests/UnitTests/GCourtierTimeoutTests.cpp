@@ -96,6 +96,7 @@ std::size_t count_processed(const std::vector<item_ptr> &v) {
  *  endpoints so a test driver thread can play "clients" against the dispatch_ machinery. */
 class SimNetConsumer : public c2::GNetworkedConsumerT<GFaultyContainer> {
 public:
+    using item_type = GFaultyContainer;
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkout;
     using c2::GNetworkedConsumerT<GFaultyContainer>::checkin;
     using c2::GNetworkedConsumerT<GFaultyContainer>::requeue;
@@ -191,8 +192,9 @@ void deliver_late(LateNetConsumer &consumer, std::size_t stored, c2::CORRELATION
 
 /** @brief Delivers a single late PAYLOAD-ONLY return: a RESULT frame that names a slot by its
  *  correlation id but carries no work item, so the consumer must apply it to the retained original. */
-void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE corr) {
-    c2::GCommandContainerT<GFaultyContainer> frame{c2::GFrameKind::RESULT};
+template <typename consumer_type>
+void deliver_late_payloadonly(consumer_type &consumer, c2::CORRELATION_ID_TYPE corr) {
+    c2::GCommandContainerT<typename consumer_type::item_type> frame{c2::GFrameKind::RESULT};
     c2::GProcessingOutcome outcome;
     outcome.status = c2::processingStatus::PROCESSED;
     outcome.correlation_id = corr;
@@ -212,18 +214,20 @@ void deliver_late_payloadonly(LateNetConsumer &consumer, c2::CORRELATION_ID_TYPE
  *  of @p victims; checking it in later is a late return of a slot that had not returned when its
  *  batch ended. In the first dispatch round the batch_id is 0, so a victim slot's correlation id
  *  is simply its slot index. */
-std::vector<item_ptr> run_abandoning_forever(
-    LateNetConsumer &consumer,
-    std::vector<item_ptr> &batch,
+template <typename consumer_type>
+std::vector<std::unique_ptr<typename consumer_type::item_type>> run_abandoning_forever(
+    consumer_type &consumer,
+    std::vector<std::unique_ptr<typename consumer_type::item_type>> &batch,
     const std::vector<std::size_t> &victims
 ) {
+    using batch_item_ptr = std::unique_ptr<typename consumer_type::item_type>;
     c2::GNetworkedTimeoutConfig limits;
     limits.give_up_window_ms = 300;
     consumer.applyTimeoutConfig(limits);
-    std::vector<item_ptr> slow(victims.size());
+    std::vector<batch_item_ptr> slow(victims.size());
     std::atomic<bool> finished{false};
     std::jthread worker([&] {
-        consumer.processBatch(std::span<item_ptr>(batch.data(), batch.size()),
+        consumer.processBatch(std::span<batch_item_ptr>(batch.data(), batch.size()),
                               c2::GSubmissionPolicy::clone_on_partial_return());
         finished.store(true);
     });
@@ -247,6 +251,127 @@ std::vector<item_ptr> run_abandoning_forever(
     }
     worker.join();
     return slow;
+}
+
+/******************************************************************************/
+// A work item whose late result can be made to fail on being applied to its retained original:
+// GLateFaultItem's grafting of the retained state (a late result that carries its item) and its
+// wire seam's applyReturn() (a payload-only late result) throw while armed.
+
+/// As many applications of a returned result to a GLateFaultItem throw as this says
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<int> applicationsToFail{0};
+
+/** @brief Uses up one armed application fault. @return Whether one was left */
+bool consumeApplicationFault() {
+    int left = applicationsToFail.load();
+    while(left > 0 && not applicationsToFail.compare_exchange_weak(left, left - 1)) {
+    }
+    return left > 0;
+}
+
+/** @brief A work item with an id whose result can be made to fail on being applied (see
+ *  applicationsToFail): the grafting of its retained state throws, and so does its wire seam's
+ *  applyReturn() (below). */
+class GLateFaultItem final : public c2::GProcessingContainerT<GLateFaultItem, bool> {
+    friend struct Gem::Weft::access;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<c2::GProcessingContainerT<GLateFaultItem, bool>>(
+            ar, "GProcessingContainerT_GLateFaultItem", *this
+        );
+        Gem::Common::archive_named(ar, "stored_number_", stored_number_);
+    }
+
+public:
+    /** @brief An item with an id. @param stored_number Tells the items apart */
+    explicit GLateFaultItem(std::size_t stored_number)
+      : c2::GProcessingContainerT<GLateFaultItem, bool>(1)
+      , stored_number_(stored_number) { /* nothing */
+    }
+
+    /** @brief @return The id of this item */
+    [[nodiscard]] std::size_t get_stored_number() const {
+        return stored_number_;
+    }
+
+private:
+    /** @brief For loading only */
+    GLateFaultItem()
+      : c2::GProcessingContainerT<GLateFaultItem, bool>(1) { /* nothing */
+    }
+    /** @brief Nothing to compute */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) override { /* nothing */
+    }
+    /** @brief Throws while an application fault is armed */
+    void graftRetainedStateFrom_([[maybe_unused]] const c2::GProcessable &original) override {
+        if(consumeApplicationFault()) {
+            throw std::runtime_error("this test makes the grafting of the retained state fail");
+        }
+    }
+
+    std::size_t stored_number_ = 0; ///< Tells the items apart
+};
+
+} /* anonymous namespace */
+
+namespace Gem::Courtier {
+/** @brief The wire seam of GLateFaultItem: the default one, except that applying a return throws
+ *  while an application fault is armed. */
+template <>
+struct GWireProtocolT<GLateFaultItem> {
+    using payload_type = GNoLibraryPayload;
+    static std::uint32_t workTag() {
+        return 0;
+    }
+    static bool buildReturn(
+        [[maybe_unused]] const GLateFaultItem &item,
+        std::uint32_t &tag,
+        [[maybe_unused]] payload_type &payload
+    ) {
+        tag = 0;
+        return true;
+    }
+    static void applyReturn(
+        GLateFaultItem &slot,
+        [[maybe_unused]] std::uint32_t tag,
+        [[maybe_unused]] const payload_type *payload,
+        const GLateFaultItem *item
+    ) {
+        if(consumeApplicationFault()) {
+            throw std::runtime_error("this test makes the application of a return fail");
+        }
+        if(item != nullptr) {
+            slot.absorbResultsFrom(*item);
+        }
+    }
+};
+} /* namespace Gem::Courtier */
+
+namespace {
+
+/** @brief A networked consumer of GLateFaultItem with no real transport (as SimNetConsumer). */
+class LateFaultConsumer : public c2::GNetworkedConsumerT<GLateFaultItem> {
+public:
+    using item_type = GLateFaultItem;
+    using c2::GNetworkedConsumerT<GLateFaultItem>::checkout;
+    using c2::GNetworkedConsumerT<GLateFaultItem>::checkin;
+    using c2::GNetworkedConsumerT<GLateFaultItem>::setLateReturnBuffer;
+    using c2::GNetworkedConsumerT<GLateFaultItem>::lateReturnBufferSize;
+    using c2::GNetworkedConsumerT<GLateFaultItem>::lateReturnDroppedCount;
+};
+
+/** @brief Makes @p n GLateFaultItem work items with the ids 0 .. n-1.
+ *  @param n The number of items
+ *  @return The items */
+std::vector<std::unique_ptr<GLateFaultItem>> make_late_fault_batch(std::size_t n) {
+    std::vector<std::unique_ptr<GLateFaultItem>> v;
+    v.reserve(n);
+    for(std::size_t i = 0; i < n; ++i) {
+        v.push_back(std::make_unique<GLateFaultItem>(i));
+    }
+    return v;
 }
 
 } /* anonymous namespace */
@@ -552,6 +677,49 @@ TEST_CASE(
         CHECK(consumer.lateReturnBufferSize() == 1);
         CHECK(consumer.lateReturnDroppedCount() == 0);
         CHECK(consumer.retainedOriginalCount() == 0);
+    }
+}
+
+/******************************************************************************/
+// A late result that cannot be applied to its retained original (the grafting of the retained
+// state or the library's seam throws) is dropped and counted, like a late result with nothing to
+// be applied to. It must not leave checkin(): in a server that would end the session's handler and
+// the server with it, while the same result arriving in time only fails its item.
+/******************************************************************************/
+
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "courtier(late): a late result that cannot be applied is dropped and the consumer goes on",
+    "[courtier][latereturn]"
+) {
+    const bool carries_item = GENERATE(true, false);
+    INFO((carries_item ? "the late result carries its item" : "the late result is payload-only"));
+    LateFaultConsumer consumer;
+    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
+
+    auto batch = make_late_fault_batch(3);
+    auto slow = run_abandoning_forever(consumer, batch, /*victims*/ {2});
+    REQUIRE(slow[0]);
+    REQUIRE(consumer.retainedOriginalCount() == 1);
+
+    applicationsToFail.store(1); // the late result's application throws
+    if(carries_item) {
+        slow[0]->process();
+        CHECK_NOTHROW(consumer.checkin(std::move(slow[0])));
+    }
+    else {
+        CHECK_NOTHROW(deliver_late_payloadonly(consumer, /*corr*/ 2));
+    }
+    CHECK(applicationsToFail.load() == 0);          // the application did throw
+    CHECK(consumer.lateReturnDroppedCount() == 1);  // the result is dropped and counted
+    CHECK(consumer.lateReturnBufferSize() == 0);    // nothing is parked
+    CHECK(consumer.retainedOriginalCount() == 0);   // and its retained original is gone with it
+
+    // The consumer goes on: a following batch runs as usual
+    auto next = make_late_fault_batch(3);
+    static_cast<void>(run_abandoning_forever(consumer, next, /*victims*/ {}));
+    for(const auto &item : next) {
+        CHECK(item->is_processed());
     }
 }
 

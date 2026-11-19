@@ -200,8 +200,9 @@ public:
         return late_store_.retainedSize();
     }
     /** @brief Total late returns dropped since construction -- an observable, non-silent drop count.
-     *  Counts cap/TTL evictions, arrivals while buffering is disabled, and late returns (carrying
-     *  their item or payload-only) with no matching retained original (see setLateReturnBuffer()).
+     *  Counts cap/TTL evictions, arrivals while buffering is disabled, late returns (carrying
+     *  their item or payload-only) with no matching retained original (see setLateReturnBuffer()),
+     *  and late returns that could not be applied to their retained original.
      *  @return The running total of dropped late returns */
     [[nodiscard]] std::uint64_t lateReturnDroppedCount() const {
         std::scoped_lock const lk(mtx_);
@@ -388,11 +389,13 @@ protected:
     /***************************************************************************/
     /** @brief Accepts a returned RESULT frame and writes it into its slot. The frame's (batch_id, slot)
      *  is decoded from the correlation id in its processing outcome. A return whose batch is no
-     *  longer active (timed out / finished) takes the late-return path; a return for a slot that
-     *  is already DONE (a duplicate) or does not take part in its batch is dropped and counted. A
-     *  return for a slot that was put back to PENDING in the meantime is accepted: the evaluation
-     *  is as good as the one that would otherwise be repeated. A return that cannot be applied to
-     *  its slot (the library's seam throws) ends the slot as failed.
+     *  longer active (timed out / finished) takes the late-return path (bufferLateReturn_locked():
+     *  parked, or dropped and counted -- also when it cannot be applied, so that it does not end
+     *  the caller either); a return for a slot that is already DONE (a duplicate) or does not take
+     *  part in its batch is dropped and counted. A return for a slot that was put back to PENDING
+     *  in the meantime is accepted: the evaluation is as good as the one that would otherwise be
+     *  repeated. A return that cannot be applied to its slot (the library's seam throws) ends the
+     *  slot as failed. So only a failed allocation makes this throw.
      *
      *  The frame is split at exactly the layer boundary: courtier applies the GProcessingOutcome (status,
      *  errors, timings, routing) itself, and hands the library tag + payload (or the returned work item)
@@ -416,8 +419,9 @@ protected:
         if(it == batches_.end()) {
             // Batch no longer active: a late arrival from a timed-out/finished batch. Instead of
             // dropping it silently, park it in the bounded late-return buffer for a later
-            // getLateReturns() to reap. With buffering disabled (the default) this still counts the
-            // drop rather than losing it without trace.
+            // getLateReturns() to reap. With buffering disabled (the default), or when it cannot
+            // be applied to its retained original, this still counts the drop rather than losing
+            // it without trace.
             bufferLateReturn_locked(frame, std::move(returned));
             return;
         }
@@ -752,41 +756,49 @@ private:
      *  dropping it silently -- but only when an original was retained for its correlation id, i.e.
      *  its slot had not returned when its batch ended. Without one (a duplicate of a slot completed
      *  in time, an original past its ttl, or buffering disabled: cap == 0, the default) the drop is
-     *  merely COUNTED. A parked item is later reaped by the submitter via getLateReturns(). Caller
-     *  holds mtx_.
+     *  merely COUNTED. A late return that cannot be applied to its retained original
+     *  (applyProcessingOutcome(), GWireProtocolT::applyReturn() or graftRetainedStateFrom() throws:
+     *  a payload that does not fit, a user type's own code) is dropped and counted as well, with a
+     *  warning that names its id and what was thrown; like a return arriving in time that cannot be
+     *  applied, it must not end the caller. A parked item is later reaped by the submitter via
+     *  getLateReturns(). Caller holds mtx_.
      *  @param frame The late-arriving RESULT frame (its outcome routes it; its payload is applied)
      *  @param p The work item the frame carried, or null for a payload-only return */
     void bufferLateReturn_locked(const GCommandContainerT<processable_type> &frame, item_ptr p) {
         const Gem::Courtier::CORRELATION_ID_TYPE id = frame.outcome().correlation_id;
-        if(not p) {
-            // A PAYLOAD-ONLY return names a work item it does not carry. A LATE one arrives after its
-            // batch was deregistered, so checkin()'s usual slot is gone -- but when late-return buffering
-            // is enabled, dispatch_ retained a CLONE of each un-returned original (keyed by correlation
-            // id) for exactly this case. Apply the return to that clone and park the clone; with no
-            // retained clone there is nothing the algorithm could reap, so the return is dropped.
-            auto orig = late_store_.takeRetained(id);
-            if(not orig) {
-                recordLateDrop_locked(1); // no retained original -> nothing to apply the return to
-                return;
-            }
-            p = std::move(*orig);
-            p->applyProcessingOutcome(frame.outcome());
-            Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
-                *p, frame.tag(), frame.libraryPayload(), nullptr
-            );
+        // Without a retained original there is nothing to apply the return to: a payload-only
+        // return names a work item it does not carry, and a return that carries its item belongs
+        // to a slot that was completed in time (or whose original has outlived the buffer) -- the
+        // frame is a duplicate, and parking it would hand the algorithm a result it already has.
+        auto orig = late_store_.takeRetained(id);
+        if(not orig) {
+            recordLateDrop_locked(1);
+            return;
         }
-        else {
-            // A late return that carries its own work item is complete except for the
-            // retained state the wire strips; graft that back from the retained original.
-            // Without a retained original the slot was completed in time (or its original has
-            // outlived the buffer): the frame is a duplicate, and parking it would hand the
-            // algorithm a result it already has.
-            auto orig = late_store_.takeRetained(id);
-            if(not orig) {
-                recordLateDrop_locked(1);
-                return;
+        try {
+            if(not p) {
+                // A PAYLOAD-ONLY return: its batch was deregistered, so checkin()'s usual slot is
+                // gone, but dispatch_ retained a CLONE of the un-returned original (keyed by
+                // correlation id) for exactly this case. Apply the return to that clone and park it.
+                p = std::move(*orig);
+                p->applyProcessingOutcome(frame.outcome());
+                Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
+                    *p, frame.tag(), frame.libraryPayload(), nullptr
+                );
             }
-            p->graftRetainedStateFrom(**orig);
+            else {
+                // A late return that carries its own work item is complete except for the
+                // retained state the wire strips; graft that back from the retained original.
+                p->graftRetainedStateFrom(**orig);
+            }
+        }
+        catch(...) {
+            glogger << "In GNetworkedConsumerT: the late result with the id " << id << '\n'
+                    << "could not be applied to its retained original and is dropped: "
+                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                    << GWARNING;
+            recordLateDrop_locked(1);
+            return;
         }
         if(not late_store_.buffering()) {
             recordLateDrop_locked(1); // buffering off: count the drop, do not hold the item
@@ -797,7 +809,7 @@ private:
     }
 
     /** @brief Records that @p n late returns were dropped (disabled-buffer arrival, no retained
-     *  original, or cap/TTL eviction) and warns ONCE so the loss is observable without log spam.
+     *  original, a return that could not be applied to it, or cap/TTL eviction) and warns ONCE so the loss is observable without log spam.
      *  Caller holds mtx_.
      *  @param n The number of late returns just dropped, added to the running total */
     void recordLateDrop_locked(std::uint64_t n) {
