@@ -94,7 +94,7 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
     BLOB_REPLY = 7,   ///< server -> worker: the requested blob
     RESULT = 8,       ///< worker -> server: a processed item's outcome
-    HELLO = 10        ///< server -> worker: the first message, the server's build and keep-alive
+    HELLO = 10        ///< server -> worker: the first message (build, keep-alive)
 };
 //! [courtier-frame-kind]
 
