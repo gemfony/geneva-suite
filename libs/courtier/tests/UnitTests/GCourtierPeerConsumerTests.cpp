@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -904,4 +905,38 @@ TEST_CASE(
     } // the destructor returns
     CHECK(listener->nStops() == 0);
     CHECK_FALSE(listener->workEnded());
+}
+
+/******************************************************************************/
+/**
+ * A shell is started once: a second startServer() after one that succeeded is refused with an
+ * exception that says so, and changes nothing -- no further threads are reserved, and the stop
+ * ends the run as after a single start.
+ */
+TEST_CASE(
+    "GPeerConsumerT: a shell that has been started cannot be started again",
+    "[courtier][peer][shell]"
+) {
+    auto listener = std::make_shared<GInProcessListener>(GInProcessListener::Options{});
+    auto &budget = Gem::Common::Concurrency::threadBudget();
+    const unsigned int reserved_before = budget.reserved();
+    {
+        Shell shell{listener, 3};
+        shell.startServer();
+        const unsigned int reserved_started = budget.reserved();
+        std::string what;
+        try {
+            shell.startServer();
+        }
+        catch(const std::exception &e) {
+            what = e.what();
+        }
+        CHECK(what.find("started already") != std::string::npos);
+        CHECK(budget.reserved() == reserved_started);
+        shell.stopServer();
+        CHECK(listener->nStops() == 1);
+        CHECK(listener->workEnded());
+        CHECK(budget.reserved() == reserved_before);
+    } // the destructor's stop has nothing more to do
+    CHECK(listener->nStops() == 1);
 }

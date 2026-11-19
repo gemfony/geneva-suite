@@ -520,7 +520,6 @@ GMPIListener::~GMPIListener() {
         stopped_.store(true);
         this->joinPoll_();
         this->tellEnds_();
-        const std::scoped_lock lock(core_mutex_);
         if(core_) {
             std::ignore = core_->shutdown();
         }
@@ -535,29 +534,26 @@ GMPIListener::~GMPIListener() {
  * Makes the poll and a peer for every other rank, starts the poll's thread, greets every client
  * rank (TAG_PEER_OPEN, the first message it gets from here) and hands every peer to the shell
  * (handOver_()), with the rank as the client's id.
- * A start() that throws leaves nothing running and keeps nothing of @p executor and @p on_peer: one
- * that fails after the poll was set up ends the work as endWork() does, so every client rank is
- * told that the run has ended (its client would wait for ever otherwise), and the shell, which
- * then counts the listener as not started, has nothing to end.
+ * A start() refused for one of the reasons below leaves nothing running and keeps nothing of
+ * @p executor and @p on_peer. Once the poll is set up, only a failing allocation can make it throw
+ * (MPI's errors are fatal on the communicator); such a failure is not undone: it ends the program
+ * through the fatal report (common/GFatalReport.hpp).
  *
  * A communicator of this rank alone is refused: there is no client rank, and an MPI job keeps the
  * ranks it was started with, so the work would wait for ever.
  *
  * @param executor Where the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every client rank, on the poll's thread
- * @throws geneva_exception if the listener was started before, if the communicator has no rank
- *         besides this one, or if the poll or its thread cannot be made
+ * @throws geneva_exception if the listener was started before, or if the communicator has no rank
+ *         besides this one
  */
 void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
-    {
-        const std::scoped_lock lock(core_mutex_);
-        if(core_) {
-            throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In " << options_.name << ": Error!" << '\n'
-                << "The listener has been started before" << '\n'
-            );
-        }
+    if(core_) {
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In " << options_.name << ": Error!" << '\n'
+            << "The listener has been started before" << '\n'
+        );
     }
     if(calls_->size() < 2) {
         throw geneva_exception(
@@ -575,30 +571,17 @@ void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_
 
     auto core = std::make_shared<GMPIPollCore>(calls_, poll_context_.get_executor(), options_.poll);
     std::vector<std::shared_ptr<GMPIPeer>> peers = this->makePeers_(core, executor);
-    this->startPoll_(core);
-    {
-        const std::scoped_lock lock(core_mutex_);
-        core_ = core;
-    }
-    // (Only a failing allocation gets into the catch outside the tests.)
-    try {
-        on_peer_ = std::move(on_peer);
-        n_peers_.store(peers.size());
-        peers_.assign(peers.begin(), peers.end());
+    this->startPoll_();
+    core_ = core;
+    on_peer_ = std::move(on_peer);
+    peers_.assign(peers.begin(), peers.end());
 
-        // The greeting goes out before anything a peer sends: a client's end opens on it.
-        for(const auto &peer : peers) {
-            core->startSend(peer->rank(), TAG_PEER_OPEN, std::string{});
-        }
-        core->start();
-        this->handOver_(std::move(peers));
+    // The greeting goes out before anything a peer sends: a client's end opens on it.
+    for(const auto &peer : peers) {
+        core->startSend(peer->rank(), TAG_PEER_OPEN, std::string{});
     }
-    catch(...) {
-        // The shell starts no thread of its own after a throw, and destroys its context before
-        // this listener: the clients are told, and the poll lets go of that context, now.
-        this->endWork();
-        throw;
-    }
+    core->start();
+    this->handOver_(std::move(peers));
 }
 
 /******************************************************************************/
@@ -635,37 +618,18 @@ std::vector<std::shared_ptr<GMPIPeer>> GMPIListener::makePeers_(
 
 /******************************************************************************/
 /**
- * Starts the poll's thread. If it cannot be made, nothing runs afterwards and the poll has let go
- * of the peers.
- *
- * @param core The poll, not started
- * @throws geneva_exception if the thread cannot be started
+ * Starts the poll's thread. Only a failing allocation, or a thread that cannot be made, makes this
+ * throw; that is not undone: it ends the program through the fatal report
+ * (common/GFatalReport.hpp).
  */
-void GMPIListener::startPoll_(const std::shared_ptr<GMPIPollCore> &core) {
+void GMPIListener::startPoll_() {
     work_guard_.emplace(poll_context_.get_executor());
-    try {
-        // (No test for a reservation or a thread that cannot be made: only a failing allocation
-        // gets there.)
-        budget_ = Gem::Common::Concurrency::threadBudget().reserve(
-            options_.name + ":poll",
-            1,
-            Gem::Common::Concurrency::ThreadElasticity::Elastic
-        );
-        thread_.create_thread([this] { poll_context_.run(); });
-    }
-    catch(...) {
-        const std::string why = Gem::Courtier::describeException(std::current_exception());
-        work_guard_.reset();
-        poll_context_.stop();
-        thread_.join_all();
-        poll_context_.restart();
-        budget_.release();
-        std::ignore = core->shutdown(); // lets go of the peers; nothing has been sent
-        throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << options_.name << ": could not start the poll's thread: " << why << '\n'
-        );
-    }
+    budget_ = Gem::Common::Concurrency::threadBudget().reserve(
+        options_.name + ":poll",
+        1,
+        Gem::Common::Concurrency::ThreadElasticity::Elastic
+    );
+    thread_.create_thread([this] { poll_context_.run(); });
     running_.store(true);
 }
 
@@ -744,15 +708,10 @@ void GMPIListener::endWork() {
     stopped_.store(true);
     this->joinPoll_();
     this->tellEnds_();
-    std::shared_ptr<GMPIPollCore> core;
-    {
-        const std::scoped_lock lock(core_mutex_);
-        core = core_;
-    }
-    if(core) {
+    if(core_) {
         // The closes just sent, and what else is under way, get the drain grace to arrive
-        std::ignore = core->drainSends(options_.poll.drainGrace);
-        std::ignore = core->shutdown();
+        std::ignore = core_->drainSends(options_.poll.drainGrace);
+        std::ignore = core_->shutdown();
     }
     poll_context_.shutdown();
     on_peer_ = nullptr;
@@ -781,11 +740,8 @@ std::chrono::milliseconds GMPIListener::keepAlive() const {
  * waits for an answer. Not after start().
  */
 void GMPIListener::announceEndWithoutStart() {
-    {
-        const std::scoped_lock lock(core_mutex_);
-        if(core_) {
-            return; // started: the shell ends the run
-        }
+    if(core_) {
+        return; // started: the shell ends the run
     }
     auto core = std::make_shared<GMPIPollCore>(calls_, poll_context_.get_executor(), options_.poll);
     auto peers = this->makePeers_(core, poll_context_.get_executor());
@@ -793,7 +749,7 @@ void GMPIListener::announceEndWithoutStart() {
         std::ignore = core->shutdown();
         return;
     }
-    this->startPoll_(core);
+    this->startPoll_();
     core->start();
 
     auto ended = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(peers.size());
@@ -813,26 +769,6 @@ void GMPIListener::announceEndWithoutStart() {
     std::ignore = core->drainSends(options_.poll.drainGrace);
     std::ignore = core->shutdown();
     poll_context_.shutdown();
-}
-
-/******************************************************************************/
-/**
- * @brief The number of client ranks (the peers made by start()). Any thread.
- *
- * @return The number of client ranks; 0 before start()
- */
-std::size_t GMPIListener::nPeers() const noexcept {
-    return n_peers_.load();
-}
-
-/******************************************************************************/
-/** @return What the poll has done; empty before start() */
-std::optional<GMPIPollCounts> GMPIListener::pollCounts() const {
-    const std::scoped_lock lock(core_mutex_);
-    if(not core_) {
-        return std::nullopt;
-    }
-    return core_->counts();
 }
 
 /******************************************************************************/
@@ -891,7 +827,6 @@ GMPIConnector::~GMPIConnector() {
         if(auto peer = peer_.lock()) {
             peer->endOfWork(GPeerClose::NORMAL); // the submitter's end must not wait for it
         }
-        const std::scoped_lock lock(core_mutex_);
         if(core_) {
             std::ignore = core_->shutdown();
         }
@@ -912,12 +847,9 @@ GMPIConnector::~GMPIConnector() {
  */
 void GMPIConnector::connect(boost::asio::any_io_executor executor, done_type done) {
     std::shared_ptr<GMPIPollCore> core;
-    {
-        const std::scoped_lock lock(core_mutex_);
-        if(not core_) {
-            core_ = std::make_shared<GMPIPollCore>(calls_, executor, options_.poll);
-            core = core_;
-        }
+    if(not core_) {
+        core_ = std::make_shared<GMPIPollCore>(calls_, executor, options_.poll);
+        core = core_;
     }
     if(not core) {
         boost::asio::post(executor, [cancelled = cancelled_, done = std::move(done)]() mutable {
@@ -958,16 +890,6 @@ void GMPIConnector::cancel() {
 /** @return false: one connection for the whole run */
 bool GMPIConnector::reconnectable() const {
     return false;
-}
-
-/******************************************************************************/
-/** @return What the poll has done; empty before connect() */
-std::optional<GMPIPollCounts> GMPIConnector::pollCounts() const {
-    const std::scoped_lock lock(core_mutex_);
-    if(not core_) {
-        return std::nullopt;
-    }
-    return core_->counts();
 }
 
 /******************************************************************************/

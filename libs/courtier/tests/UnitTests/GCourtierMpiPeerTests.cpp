@@ -324,7 +324,6 @@ TEST_CASE(
     CHECK(one.role().events().empty());
 
     master.start();
-    CHECK(master.listener().nPeers() == 3);
     REQUIRE(eventually([&] {
         return one.role().events().size() == 1 && two.role().events().size() == 1 &&
                three.role().events().size() == 1;
@@ -909,8 +908,6 @@ TEST_CASE("MPI transport: a communicator of one rank is refused at the start", "
         });
         CHECK(what.find("has no client rank") != std::string::npos);
         CHECK(what.find("at least two processes") != std::string::npos);
-        CHECK(listener.nPeers() == 0);
-        CHECK_FALSE(listener.pollCounts().has_value()); // no poll was made
         pool.join();
     }
 
@@ -927,39 +924,6 @@ TEST_CASE("MPI transport: a communicator of one rank is refused at the start", "
         shell.stopServer();
         CHECK(std::chrono::steady_clock::now() - begin < PATIENCE);
     }
-}
-
-/******************************************************************************/
-/**
- * A start() that throws after the poll was set up (here: the first greeting cannot be sent) ends
- * the work as endWork() does: the clients that wait are told, and the closes are drained (every
- * receive takes a while here, so a close given up at once would be gone before its client read it).
- * The shell counts such a listener as not started and destroys its context before the listener,
- * as the pool here is: the poll must have let go of that context by then.
- */
-// NOLINTNEXTLINE(readability-function-cognitive-complexity,readability-function-size) -- linear; Catch2 macros count
-TEST_CASE("MPI transport: a start that throws tells the clients", "[courtier][mpi]") {
-    auto world = std::make_shared<GMPIFakeWorld>(3);
-    Client one(world, 1);
-    Client two(world, 2);
-    REQUIRE(eventually([&] {
-        return world->counts(1).probes > 0 && world->counts(2).probes > 0;
-    })); // they wait for the greeting
-    world->delayReceives(50ms);
-    {
-        GMPIListener listener(world->calls(0), optionsWith());
-        Pool pool(1);
-        world->throwOnce(0, GMPIFakeWorld::GFault::SEND);
-        CHECK_THROWS(
-            listener.start(pool.executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {})
-        );
-        CHECK(listener.pollCounts().has_value()); // the poll had been set up
-        pool.join();
-    }
-    REQUIRE(eventually([&] { return one.role().nClosed() == 1 && two.role().nClosed() == 1; }));
-    CHECK(one.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-    CHECK(two.role().events() == std::vector<std::string>{"closed:CLOSED_THERE:RUN_ENDED"});
-    world->delayReceives(0ms);
 }
 
 /******************************************************************************/

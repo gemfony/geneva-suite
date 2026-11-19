@@ -39,7 +39,6 @@
 #include <cstdint>
 #include <exception>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -75,18 +74,6 @@ struct GMPIPollTiming {
 };
 
 /******************************************************************************/
-/** @brief How much the poll has done; each count a snapshot. */
-struct GMPIPollCounts {
-    std::uint64_t received = 0; ///< Messages received
-    std::uint64_t sent = 0;     ///< Sends started
-    std::uint64_t polls = 0;    ///< Links of the chain that ran
-    std::uint64_t givenUp = 0;  ///< Sends given up by shutdown(), because they had not completed
-    /// How long the poll was inside receives (a blocking MPI_Recv of a message the probe reported)
-    std::chrono::nanoseconds receiving{0};
-    std::chrono::nanoseconds longestReceive{0}; ///< The longest of them
-};
-
-/******************************************************************************/
 /**
  * What the poll delivers the messages of one rank to: the MPI transport's end of the connection to
  * that rank (its peer). The poll owns it from GMPIPollCore::addReceiver() until
@@ -117,7 +104,7 @@ public:
      *  GPeerI.hpp). Called by GMPIPollCore::shutdown(), when no handler runs any more. */
     virtual void discard() = 0;
 
-    /** @brief The poll has failed and receives nothing more (GMPIPollCore::failure()): no
+    /** @brief The poll has failed and receives nothing more; the argument is why: no
      *  received() follows. Once, on executor(), after every message received before the failure.
      *  The connection to the rank is lost; its peer reports GPeerEnd::FAILED. */
     virtual void pollFailed(const std::string &) = 0;
@@ -153,8 +140,8 @@ public:
  * A call that throws inside a link -- a probe, a receive, the hand-over of a message to its
  * receiver, the take-over or the test of the sends -- is fatal for the transport in this process:
  * the message it concerns cannot be skipped (it stays in MPI's queue and a new look would meet it
- * again). The poll logs it, ends its chain, keeps the reason (failure()) and tells every receiver
- * once (GMPIPollReceiverI::pollFailed()), so that its peer ends as failed; nothing is received any
+ * again). The poll logs it, ends its chain and tells every receiver once, with the reason
+ * (GMPIPollReceiverI::pollFailed()), so that its peer ends as failed; nothing is received any
  * more. shutdown() still gives up the sends that are under way. No exception leaves a link, and
  * so none leaves the run() of the executor.
  *
@@ -233,22 +220,9 @@ public:
      *  executors runs any more, before shutdown(). @return The sends still under way */
     std::size_t drainSends(std::chrono::milliseconds);
 
-    /** @brief Ends the poll's work and gives up the sends that have not completed. When no handler
-     *  of the executors runs any more; idempotent. */
+    /** @brief Ends the poll's work, gives up the sends that have not completed and logs what the
+     *  poll has done. When no handler of the executors runs any more; idempotent. */
     std::size_t shutdown();
-
-    /** @brief Whether the chain has ended (by itself, through a failure, or through shutdown()).
-     *  From any thread. */
-    [[nodiscard]] bool chainEnded() const noexcept;
-
-    /** @brief Why the chain has failed, if it has. From any thread. */
-    [[nodiscard]] std::optional<std::string> failure() const;
-
-    /** @brief How much the poll has done. From any thread. */
-    [[nodiscard]] GMPIPollCounts counts() const noexcept;
-
-    /** @brief The timing the poll was made with. From any thread. */
-    [[nodiscard]] const GMPIPollTiming &timing() const noexcept;
 
 private:
     /***************************************************************************/
@@ -270,11 +244,11 @@ private:
     void poll_();
     /** @brief The work of one link */
     void link_();
-    /** @brief The chain fails: it ends, and every receiver is told once; never throws */
+    /** @brief The chain fails: it ends, and every receiver is told once (see there) */
     void fail_(const std::exception_ptr &) noexcept;
     /** @brief Receives and posts one message, if one is there */
     bool receiveOne_();
-    /** @brief Takes over the sends started since the last look */
+    /** @brief Takes over the sends started since the last look, and counts them */
     void takeStarted_();
     /** @brief Frees the sends that have completed */
     void reap_();
@@ -317,14 +291,8 @@ private:
         0
     }; ///< startSend() calls under way; shutdown() waits for them
 
-    std::atomic<std::uint64_t> n_received_{0};        ///< Messages received
-    std::atomic<std::uint64_t> n_sent_{0};            ///< Sends started
-    std::atomic<std::uint64_t> n_polls_{0};           ///< Links that ran
-    std::atomic<std::uint64_t> n_given_up_{0};        ///< Sends given up
-    std::atomic<std::int64_t> receiving_ns_{0};       ///< Time inside receives, in ns
-    std::atomic<std::int64_t> longest_receive_ns_{0}; ///< The longest receive, in ns
-
-    // Touched by the chain only (on its strand), and by shutdown() when no handler runs:
+    // Touched by the chain only (on its strand), and by drainSends() and shutdown() when no handler
+    // runs:
     std::chrono::microseconds pause_;                   ///< The next pause
     std::vector<GMPIRequest> requests_;                 ///< Sends under way
     std::vector<std::unique_ptr<std::string>> buffers_; ///< Their bytes, same order
@@ -334,10 +302,13 @@ private:
     std::optional<std::chrono::steady_clock::time_point> drain_deadline_;
     std::chrono::milliseconds keep_alive_; ///< The interval of the ticks (0: none)
     std::vector<GLife> life_;              ///< What the keep-alive knows, by rank
-    std::uint64_t n_pings_ = 0; ///< Pings sent; read by shutdown(), when the chain no longer runs
-
-    mutable std::mutex failure_mutex_;   ///< Guards failure_
-    std::optional<std::string> failure_; ///< Why the chain failed, if it did
+    // What the poll has done, for the last line of the log (shutdown())
+    std::uint64_t n_received_ = 0;                ///< Messages received
+    std::uint64_t n_sent_ = 0;                    ///< Sends started (counted when taken over)
+    std::uint64_t n_polls_ = 0;                   ///< Links that ran
+    std::uint64_t n_pings_ = 0;                   ///< Pings sent
+    std::chrono::nanoseconds receiving_{0};       ///< Time inside receives
+    std::chrono::nanoseconds longest_receive_{0}; ///< The longest receive
 };
 
 /******************************************************************************/

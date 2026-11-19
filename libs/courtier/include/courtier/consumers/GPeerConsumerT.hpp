@@ -36,6 +36,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <memory>
 #include <mutex>
@@ -180,7 +181,9 @@ public:
     }
 
     /** @brief How many clients are connected (GBaseConsumerT): the sessions whose client has
-     *  spoken -- its first message has been read -- and whose connection has not ended. Not
+     *  spoken -- its first message has been read -- and that have not signed off. A session signs
+     *  off in its destructor, which follows the end of its connection; one cut off by the stop's
+     *  grace signs off when the shell is destroyed (see the class comment). Not
      *  counted: a connection that has not been opened yet (a websocket handshake under way, or one
      *  that never completes) and a client that has said nothing so far (a client asks for work as
      *  soon as its connection is open). Counted: a client that has died without its connection
@@ -212,52 +215,49 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Starts the listener and the session threads. To be called once, after the consumer
-     * has been registered with the GConsumerRegistry and before any batch is submitted. Further
-     * calls do nothing.
+     * @brief Starts the listener and the session threads. To be called after the consumer has
+     * been registered with the GConsumerRegistry and before any batch is submitted.
      *
-     * If the listener cannot be started (a port that cannot be bound, say), its exception reaches
-     * the caller and the consumer stays one that was never started: stopServer() and the
-     * destructor have nothing to stop, and the listener is not asked to stop or to end its work
-     * (GListenerI::start()). Such a consumer cannot be started any more; a further call throws.
+     * A consumer is started once: the call is accepted only in a consumer that has neither been
+     * started nor stopped, and every other call throws a geneva_exception that says why (started
+     * already, a start failed before, stopped). If the listener cannot be started (a port that
+     * cannot be bound, say), its exception reaches the caller and the start counts as failed:
+     * stopServer() then only tells the clients that wait for the server that the run has ended,
+     * and the listener is not asked to stop or to end its work (GListenerI::start()).
      *
      * startServer() and stopServer() may be called from different threads at the same time: they
-     * take turns. A consumer that has been stopped cannot be started; startServer() then throws.
+     * take turns.
      *
-     * @throws whatever the listener's start() throws; geneva_exception if an earlier call failed or
-     *         the consumer has been stopped
+     * @throws whatever the listener's start() throws; geneva_exception if the consumer has been
+     *         started or stopped before, or an earlier start failed
      */
     void startServer() {
         const std::scoped_lock lifecycle(lifecycle_mutex_);
-        if(stopped_already_.load()) {
+        if(lifecycle_ != GLifecycle::NOT_STARTED) {
+            std::string_view why = "it has been stopped";
+            if(lifecycle_ == GLifecycle::STARTED) {
+                why = "it has been started already; a consumer is started once";
+            }
+            else if(lifecycle_ == GLifecycle::START_FAILED) {
+                why = "the listener could not be started before";
+            }
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
-                << "The consumer has been stopped; it cannot be started any more" << '\n'
+                << "The consumer cannot be started: " << why << '\n'
             );
-        }
-        if(start_called_.exchange(true)) {
-            if(not started_.load()) {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
-                    << "The listener could not be started before; this consumer cannot be "
-                       "started any more"
-                    << '\n'
-                );
-            }
-            return;
         }
 
         // The listener calls back for every client, on a thread of its own. A session is owned by
         // its peer from start() on. If start() throws, nothing has been started.
+        lifecycle_ = GLifecycle::START_FAILED; // until the listener's start() has returned
         listener_->start(
             io_context_.get_executor(),
             [this](std::shared_ptr<Consumers::GPeerI> peer, GWirePeerId peer_id) {
                 this->startSession_(peer, peer_id);
             }
         );
-        started_.store(true);
+        lifecycle_ = GLifecycle::STARTED;
 
         budget_ = Gem::Common::Concurrency::threadBudget().reserve(
             consumer_name_ + ":sessions",
@@ -273,8 +273,12 @@ public:
     /**
      * @brief Ends the run: tells every client, waits for them (at most the listener's
      * stopGrace()), joins the session threads and ends the transport's own work (see the class
-     * comment). Idempotent. Not on a session thread. A server that was never started has nothing
-     * to stop.
+     * comment). Not on a session thread.
+     *
+     * The first call stops the consumer, and every later one returns at once (the destructors call
+     * it again). A consumer that was not started, or whose start failed, has nothing to stop: it
+     * only tells the clients that wait for it that the run has ended
+     * (GListenerI::announceEndWithoutStart()).
      *
      * The session threads are joined and the listener's work is ended also when an earlier step
      * throws (the listener's stop(), a close); the first exception then reaches the caller. Were
@@ -288,12 +292,13 @@ public:
      */
     void stopServer() {
         const std::scoped_lock lifecycle(lifecycle_mutex_);
-        if(stopped_already_.exchange(true)) {
+        const GLifecycle before = std::exchange(lifecycle_, GLifecycle::STOPPED);
+        if(before == GLifecycle::STOPPED) {
             return;
         }
         this->requestStop();
 
-        if(not started_.load()) {
+        if(before != GLifecycle::STARTED) {
             // A server that was never started -- or whose start threw, which leaves the listener
             // as if it had not been started -- tells the clients that wait for it
             listener_->announceEndWithoutStart();
@@ -397,34 +402,25 @@ private:
         };
 
         const std::weak_ptr<Consumers::GPeerI> weak_peer = peer;
-        // Whether the session's client has spoken; both hooks that use it run on the session's
-        // executor, one at a time
+        // Whether the session's client has spoken: set by clientSpoke on the session's executor,
+        // read by the sign-off in the session's destructor, which follows its last handler
         auto spoke = std::make_shared<bool>(false);
         auto session = std::make_shared<session_type>(
             typename session_type::SessionHooks{
                 .getPayloadItem =
                     [this, lease](Gem::Courtier::GWakeFn wake) {
                         auto result = this->checkoutOrPark(std::move(wake));
-                        if(result.item) {
-                            // An item that cannot enter the lease would be in flight with nobody
-                            // to give it back: it goes back at once.
-                            // (No test: only a failing allocation gets here.)
-                            try {
-                                lease->add(result.item, result.checkout);
-                            }
-                            catch(...) {
-                                this->requeue(result.item->getCorrelationId(), result.checkout);
-                                throw;
-                            }
-                        }
+                        // Only a failing allocation makes this throw; it ends the program through
+                        // the fatal report (common/GFatalReport.hpp).
+                        lease->add(result.item, result.checkout);
                         return result;
                     },
-                // A hook that has taken an item out of the lease gives it back (requeue) if the
-                // consumer's call that follows throws anything: the item would otherwise stay in
-                // flight with nobody to give it back. The exception goes on through the session.
-                // (The consumer fails a slot whose result or clone throws
-                // itself; what is left is a failure of the consumer's own work. No test: only a
-                // failing allocation gets there.)
+                // The item taken out of the lease is given back (requeue) if checkin() throws:
+                // it would otherwise stay in flight with nobody to give it back. The exception
+                // goes on through the session. checkin() fails a slot whose result cannot be
+                // applied itself; a late result (its batch has ended) whose retained original
+                // cannot take it (GWireProtocolT::applyReturn(), graftRetainedStateFrom()) still
+                // throws, and finds no slot to put back.
                 .putPayloadItem =
                     [this, lease](Gem::Courtier::GCommandContainerT<processable_type> &&frame) {
                         // Only a result of this server's item ends the lease's hold: a foreign
@@ -448,31 +444,24 @@ private:
                     },
                 .failPayloadItem =
                     [this, lease](Gem::Courtier::CORRELATION_ID_TYPE id, const std::string &what) {
+                        // Only a failing allocation makes failInFlight() throw (see getPayloadItem)
                         if(auto checkout = lease->remove(id)) {
-                            try {
-                                this->failInFlight(id, *checkout, what);
-                            }
-                            catch(...) {
-                                this->requeue(id, checkout);
-                                throw;
-                            }
+                            this->failInFlight(id, *checkout, what);
                         }
                     },
                 .checkServerStopped = [this]() -> bool { return this->stopped(); },
+                // A session that signs off no longer counts as a connected client
+                // (connectedClients()), if its client had spoken.
                 .serverSignOn =
-                    [this, peer_id, weak_peer](bool sign_on) {
+                    [this, peer_id, weak_peer, spoke](bool sign_on) {
                         if(sign_on) {
                             peers_.set(peer_id, weak_peer);
                         }
                         else {
                             peers_.remove(peer_id);
-                        }
-                    },
-                // A client that spoke is no longer connected (connectedClients()).
-                .connectionEnded =
-                    [this, spoke] {
-                        if(*spoke) {
-                            n_connected_.fetch_sub(1);
+                            if(*spoke) {
+                                n_connected_.fetch_sub(1);
+                            }
                         }
                     },
                 .clientSpoke =
@@ -522,11 +511,16 @@ private:
     Gem::Common::Concurrency::GThreadBudget::Reservation budget_;
     Gem::Common::Concurrency::GThreadGroup threads_; ///< The session threads
 
-    std::atomic<bool> start_called_{false};    ///< startServer() has been called
-    std::atomic<bool> started_{false};         ///< The listener has been started
-    std::atomic<bool> stopped_already_{false}; ///< stopServer() has been called
-    /// What connectedClients() answers: sessions whose client has spoken and whose connection has
-    /// not ended
+    /** @brief Where the consumer is in its life (startServer(), stopServer()) */
+    enum class GLifecycle : std::uint8_t {
+        NOT_STARTED,  ///< Neither started nor stopped
+        START_FAILED, ///< The listener's start() threw (or is under way)
+        STARTED,      ///< Started
+        STOPPED       ///< A stop has begun
+    };
+    GLifecycle lifecycle_ = GLifecycle::NOT_STARTED; ///< Under lifecycle_mutex_
+    /// What connectedClients() answers: sessions whose client has spoken and that have not signed
+    /// off
     std::atomic<std::size_t> n_connected_{0};
     /// startServer() and stopServer() take turns under it
     std::mutex lifecycle_mutex_;

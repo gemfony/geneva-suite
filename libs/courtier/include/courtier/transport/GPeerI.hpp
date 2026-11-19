@@ -264,7 +264,8 @@ public:
      *  session's work then goes onto the executor). May throw (a port that cannot be bound); a
      *  start() that throws leaves the listener as if it had not been started: it holds nothing of
      *  the executor and of on_peer, and runs nothing. Its owner then calls neither stop() nor
-     *  endWork(), and does not call start() again. */
+     *  endWork(), and does not call start() again. A failing allocation need not be undone: it
+     *  ends the program through the fatal report (common/GFatalReport.hpp). */
     virtual void start(boost::asio::any_io_executor, on_peer_type) = 0;
 
     /** @brief No new peers from here on, and none on its way: when stop() returns, no call of

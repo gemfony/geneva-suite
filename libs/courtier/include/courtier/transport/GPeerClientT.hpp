@@ -441,7 +441,6 @@ private:
      *  its failed RESULT there. @param message One complete message from the server
      *  @param connection The connection it came on */
     void dispatchMessage_(std::string message, std::uint64_t connection) {
-        ++n_decoding_;
         auto self = this->shared_from_this();
         auto guard = boost::asio::make_work_guard(io_context_);
         boost::asio::post(
@@ -497,7 +496,6 @@ private:
      *  RESULT goes with the next connection. @param decoded The message
      *  @param connection The connection it came on */
     void decoded_(Decoded decoded, std::uint64_t connection) {
-        --n_decoding_;
         const bool current = connection == connection_ && peer_live_;
         const GFrameKind kind = decoded.kind;
         if(not decoded.head_read || (kind != GFrameKind::WORK && kind != GFrameKind::HELLO)) {
@@ -844,7 +842,6 @@ private:
     std::size_t pending_pulls_ = 0; ///< The PULLs on that list
     std::deque<frame_type> held_;   ///< WORK items that wait for an evaluation slot
     std::size_t computing_ = 0;     ///< Items being evaluated
-    std::size_t n_decoding_ = 0;    ///< Messages on the decode strand
 
     std::uint64_t n_connections_ = 0;                ///< Connections that opened (read after run())
     std::atomic<std::uint64_t> n_losses_{0};         ///< Connections lost (any thread)

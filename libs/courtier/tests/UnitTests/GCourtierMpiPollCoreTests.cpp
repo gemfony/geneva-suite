@@ -41,7 +41,6 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -415,12 +414,10 @@ TEST_CASE(
     thread.join_all();
     REQUIRE(ended);
     CHECK(took.load() >= GRACE - 20ms);
-    CHECK(core->chainEnded());
 
     const std::size_t given_up = core->shutdown();
     io.shutdown();
     CHECK(given_up == 1);
-    CHECK(core->counts().givenUp == 1);
     CHECK(world->counts(1).givenUp == 1);
     CHECK(world->sendsUnderWay() == 0);
     CHECK(world->violations().empty());
@@ -487,8 +484,8 @@ TEST_CASE("Two ends that answer each other drain and their runs return without t
     CHECK(client->shutdown() == 0);
     master_io.shutdown();
     client_io.shutdown();
-    CHECK(master->counts().received == 1);
-    CHECK(client->counts().received == 1);
+    CHECK(world->counts(0).receives == 1);
+    CHECK(world->counts(1).receives == 1);
     CHECK(world->sendsUnderWay() == 0);
     CHECK(world->violations().empty());
 }
@@ -608,7 +605,6 @@ TEST_CASE("shutdown() gives up what has not completed and lets go of every recei
 
     threads.join();
     CHECK(core->shutdown() == 2);
-    CHECK(core->chainEnded());
     CHECK(one->discards() == 1);
     CHECK(two->discards() == 1);
     CHECK(world->counts(0).givenUp == 2);
@@ -667,17 +663,18 @@ TEST_CASE("A call of the poll that throws ends the chain and tells every receive
     REQUIRE(eventually([&] { return one->count() == 1; }, 5s));
     core->startSend(2, 50, "swallowed"); // never completes: shutdown() gives it up
     REQUIRE(eventually([&] { return world->counts(0).probes >= 3; }, 5s));
-    CHECK(core->failure() == std::nullopt);
+    CHECK(one->failures().empty());
+    CHECK(two->failures().empty());
 
     world->throwOnce(0, fault, standard);
     world->inject(1, 0, 51, "the message the fault strikes");
 
-    CHECK(eventually([&] { return core->chainEnded(); }, 5s));
     CHECK(
         eventually([&] { return one->failures().size() == 1 && two->failures().size() == 1; }, 5s)
     );
     CHECK(poll_threads.escaped() == 0);
-    CHECK(core->failure().has_value());
+    const auto reasons = one->failures();
+    CHECK((reasons.size() == 1 && not reasons.front().empty())); // the reason is told
 
     // Nothing is delivered afterwards, and nothing more is looked for
     const auto probes = world->counts(0).probes;
@@ -770,34 +767,14 @@ TEST_CASE("The sends under way are looked at once per link and not once per mess
     core->start();
     REQUIRE(eventually([&] { return receiver->count() == N_MESSAGES; }, 10s));
 
+    // Every look at the sends tests the one under way (the fake counts those looks)
     const auto counts = world->counts(1);
-    const auto polls = core->counts().polls;
-    INFO("links " << polls << ", looks at the sends " << counts.testSomes);
-    CHECK(counts.testSomes <= polls);
-    CHECK(polls < static_cast<std::uint64_t>(N_MESSAGES)); // more than one message per link
+    INFO("messages received " << counts.receives << ", looks at the sends " << counts.testSomes);
+    CHECK(counts.receives == static_cast<std::uint64_t>(N_MESSAGES));
+    CHECK(counts.testSomes < counts.receives); // more than one message per look
 
     std::ignore = finish(core, {&threads});
     CHECK(world->violations().empty());
-}
-
-/******************************************************************************/
-TEST_CASE("The poll counts the time it spends in receives") {
-    auto world = std::make_shared<GMPIFakeWorld>(2);
-    world->delayReceives(5ms);
-    Threads threads(1);
-    auto core = std::make_shared<GMPIPollCore>(world->calls(1), threads.executor());
-    auto receiver = std::make_shared<Receiver>(threads.executor());
-    core->addReceiver(0, receiver);
-    for(int i = 0; i < 3; ++i) {
-        world->inject(0, 1, 50, std::to_string(i));
-    }
-    core->start();
-    REQUIRE(eventually([&] { return receiver->count() == 3; }, 5s));
-    const auto counts = core->counts();
-    CHECK(counts.receiving >= 15ms);
-    CHECK(counts.longestReceive >= 5ms);
-    CHECK(counts.longestReceive <= counts.receiving);
-    std::ignore = finish(core, {&threads});
 }
 
 /******************************************************************************/

@@ -40,7 +40,6 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -336,15 +335,10 @@ public:
      *  and drains the sends; waits for no answer */
     void announceEndWithoutStart() override;
 
-    /** @brief The number of client ranks (the peers made by start()). Any thread. */
-    [[nodiscard]] std::size_t nPeers() const noexcept;
-    /** @brief What the poll has done; empty before start(). Any thread. @return The counts */
-    [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;
-
 private:
     [[nodiscard]] std::vector<std::shared_ptr<GMPIPeer>>
     makePeers_(const std::shared_ptr<GMPIPollCore> &, const boost::asio::any_io_executor &) const;
-    void startPoll_(const std::shared_ptr<GMPIPollCore> &);
+    void startPoll_();
     void handOver_(std::vector<std::shared_ptr<GMPIPeer>>);
     void tellEnds_();
     void joinPoll_();
@@ -354,13 +348,13 @@ private:
 
     GIoContext poll_context_; ///< Where the poll runs
     std::optional<boost::asio::executor_work_guard<GIoContext::executor_type>> work_guard_;
-    mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
-    std::shared_ptr<GMPIPollCore> core_; ///< Made by start(); declared after its context
+    /// Made by start(); declared after its context. Touched by the owner's calls only, one at a
+    /// time (GListenerI)
+    std::shared_ptr<GMPIPollCore> core_;
 
     on_peer_type on_peer_; ///< Set by start(), called on the poll's thread, dropped by endWork()
     /// The calls of on_peer that have been posted and have not returned, by rank (stop() waits)
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<GWirePeerId, bool> on_peer_calls_;
-    std::atomic<std::size_t> n_peers_{0}; ///< The peers made by start()
     /// The peers made by start(), to be told the end of the work (tellEnds_()); start() and endWork()
     std::vector<std::weak_ptr<GMPIPeer>> peers_;
 
@@ -402,14 +396,12 @@ public:
     /** @brief @return false: one connection for the whole run */
     [[nodiscard]] bool reconnectable() const override;
 
-    /** @brief What the poll has done; empty before connect(). Any thread. @return The counts */
-    [[nodiscard]] std::optional<GMPIPollCounts> pollCounts() const;
-
 private:
-    std::shared_ptr<GMPICallsI> calls_;  ///< The MPI calls on courtier's communicator
-    GMPIPeerOptions options_;            ///< How the peer and the poll are set up
-    mutable std::mutex core_mutex_;      ///< Guards core_ (pollCounts() is asked from any thread)
-    std::shared_ptr<GMPIPollCore> core_; ///< Made by the first connect()
+    std::shared_ptr<GMPICallsI> calls_; ///< The MPI calls on courtier's communicator
+    GMPIPeerOptions options_;           ///< How the peer and the poll are set up
+    /// Made by the first connect(); touched by connect() and the destructor, never at the same
+    /// time (GConnectorI)
+    std::shared_ptr<GMPIPollCore> core_;
     std::weak_ptr<GMPIPeer> peer_;       ///< The end made by connect(); told at the end of the work
     /// Set by cancel() and by the destructor; shared with the handler that reports the peer
     std::shared_ptr<std::atomic<bool>> cancelled_ = std::make_shared<std::atomic<bool>>(false);
