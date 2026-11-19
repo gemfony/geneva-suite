@@ -44,17 +44,17 @@ the binary in the cloud):
 
    GEM_REGISTER_ARCHIVABLE(MyProblem)                                // wire / checkpoint tag
 
-   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
        return Gem::Geneva::individualManifest<
            Gem::Geneva::Genome::GIndividualFactory<MyProblem>,
            "./config/MyProblem.json", "MyProblem">();               // factory / config file / name
    }
    ```
 
-   The `extern "C"` `geneva_module_manifest()` is the only irreducible boilerplate (the loader resolves this
+   The `extern "C"` `gem_module_manifest()` is the only irreducible boilerplate (the loader resolves this
    fixed, unmangled symbol via `dlsym`); everything else is the typed helper
    `Gem::Geneva::individualManifest<Factory, Config, Name>()` — no Geneva macro. It builds the module
-   manifest: the **toolchain-compatibility fingerprint** (`GenevaCompat`) and the **module-ABI stamp**, both
+   manifest: the **toolchain-compatibility fingerprint** (`GemCompat`) and the **module-ABI stamp**, both
    of which the loader validates before it touches anything else, plus one **individual contribution** whose
    factory is built with the given config file (auto-created with the individual's defaults if absent).
    `GEM_REGISTER_ARCHIVABLE` registers the serialization tag so the individual can cross the wire and a
@@ -75,8 +75,8 @@ That is the entire author-facing surface.
   to supply a problem.
 - **Version safety.** A plugin that does not fit is **rejected at load**, before any individual is
   constructed, with a message naming what is wrong: a different compiler / standard library / Boost /
-  build mode / Geneva version (the `GenevaCompat` fingerprint, matched axis by axis), or a different module
-  ABI (`GENEVA_MODULE_ABI_VERSION`). A shared object that is not a Geneva module at all, a manifest that
+  build mode / Geneva version (the `GemCompat` fingerprint, matched axis by axis), or a different module
+  ABI (`GEM_MODULE_ABI_VERSION`). A shared object that is not a Geneva module at all, a manifest that
   advertises nothing, and a contribution of a kind this Geneva cannot serve are refused the same way — a
   failed load is never silent. (Boost.DLL itself performs no compatibility check; these gates are Geneva's.)
 - **Checkpoints.** A checkpoint stores the concrete individuals, so resuming one requires the **same**

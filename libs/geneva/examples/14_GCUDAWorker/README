@@ -13,7 +13,7 @@ What is new
 -----------
 This example is evaluated through the unified courtier GPU consumer
 (Gem::Courtier::GPU::GGPUConsumerT), a first-class, mnemonic-selectable consumer (folded into
-gemfony-courtier when GENEVA_BUILD_WITH_GPU_CONSUMER is ON): run with `--consumer gpu` to evaluate on
+gemfony-courtier when GEM_BUILD_WITH_GPU_CONSUMER is ON): run with `--consumer gpu` to evaluate on
 the device, or with any other consumer (e.g. the default `--consumer stc`) to evaluate on the CPU through
 the individual's own evaluate(). A whole generation is flattened and scored in ONE bulk kernel launch.
 The kernel (kernels/monalisa_eval_{double,float}.cu) is compiled at RUN TIME (NVRTC), so:

@@ -282,7 +282,9 @@ satisfy a naming rule, and never mass-renamed by a lint sweep:
 
 Consequently there is **no standalone identifier-rename sweep**: the naming rules govern new and modified code;
 the existing tree converges only as files are touched for other reasons, and never across a config key or a
-public signature.
+public signature. The one exception is the collection-neutral `gem` naming of the libraries below geneva
+and of the build system (`geneva_exception` → `gem_exception`, the `GENEVA_*` build options → `GEM_*`, and
+so on), the maintainer's decision of 2026-11-17/19.
 
 ### 4.5 Short, telling names
 
@@ -321,7 +323,7 @@ for(auto it = v.begin(); it != v.end(); ++it) {
 try {
     // code that may throw
 }
-catch(const geneva_exception &e) {
+catch(const gem_exception &e) {
     // handle it; catch by const reference
 }
 
@@ -421,7 +423,7 @@ omission, `typename` over `class`, the `G`/`T`/`I` affixes, one-class-per-file) 
 ## 6. Modern C++ usage
 
 The code targets **C++23** throughout (the active standard is set centrally by `CMAKE_CXX_STANDARD` in
-`CMakeModules/CommonGenevaBuild.cmake`, driven by `genevaConfig.gcfg`; write to whatever standard that names —
+`CMakeModules/CommonGemBuild.cmake`, driven by `genevaConfig.gcfg`; write to whatever standard that names —
 Inv 16). A number of older idioms have been retired, most of it enforced by the `modernize`,
 `cppcoreguidelines` and `google` check families.
 

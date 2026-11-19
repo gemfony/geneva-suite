@@ -29,12 +29,12 @@ containers/geneva/build.sh --cuda     # adds CUDA and the GPU consumer, geneva:c
 
 `build.sh` uses Podman if it is installed and Docker otherwise; `CONTAINER_ENGINE=docker` forces
 Docker. It does nothing but call the engine with the commit of the checkout as the build argument
-`GENEVA_COMMIT` (`-dirty` appended when a tracked file has changed), so the same can be done by hand
+`GEM_COMMIT` (`-dirty` appended when a tracked file has changed), so the same can be done by hand
 from the root of the checkout:
 
 ```sh
-podman build -f containers/geneva/Containerfile -t geneva:cpu --build-arg GENEVA_COMMIT=$(git rev-parse HEAD) .
-docker build -f containers/geneva/Containerfile -t geneva:cpu --build-arg GENEVA_COMMIT=$(git rev-parse HEAD) .
+podman build -f containers/geneva/Containerfile -t geneva:cpu --build-arg GEM_COMMIT=$(git rev-parse HEAD) .
+docker build -f containers/geneva/Containerfile -t geneva:cpu --build-arg GEM_COMMIT=$(git rev-parse HEAD) .
 ```
 
 A first build downloads the base image and Boost and compiles everything, which takes a while; the
@@ -46,7 +46,7 @@ with `--build-arg`:
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `GENEVA_COMMIT` | none | the commit of the checkout (`git rev-parse HEAD`, `-dirty` appended when a tracked file differs); the build context holds no `.git`, and a build that does not know its commit stops at the configure |
+| `GEM_COMMIT` | none | the commit of the checkout (`git rev-parse HEAD`, `-dirty` appended when a tracked file differs); the build context holds no `.git`, and a build that does not know its commit stops at the configure |
 | `COMPILER` | `gcc` | `gcc` or `clang`, for Boost and Geneva |
 | `BUILD_MODE` | `Release` | `Release`, `Debug` or `RelWithDebInfo` |
 | `RUN_TESTS` | `1` | `0` skips the test suite (`build.sh --no-tests`) |

@@ -13,7 +13,7 @@ other Geneva library — so they double as proof that Weft is reusable on its ow
 ## Building and running
 
 The examples are built as part of the normal Geneva build when
-`GENEVA_BUILD_EXAMPLES=TRUE`. The resulting binaries are `weft_quickstart`,
+`GEM_BUILD_EXAMPLES=TRUE`. The resulting binaries are `weft_quickstart`,
 `weft_nonintrusive` and `weft_polymorphic`; each prints what it round-tripped and
 asserts that the reconstructed value matches the original.
 

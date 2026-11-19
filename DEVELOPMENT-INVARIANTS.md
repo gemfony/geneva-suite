@@ -198,7 +198,7 @@ New and modified code uses the language and library features of the **highest C+
 is currently configured to use** — do not hand-limit yourself to an older dialect out of habit or muscle
 memory. This rule deliberately **does not name a version**: the active standard is a build-system setting
 (today C++23), chosen in **one central place** — `CMAKE_CXX_STANDARD` in
-`CMakeModules/CommonGenevaBuild.cmake`, driven by the `genevaConfig.gcfg` — and it will rise over time. So
+`CMakeModules/CommonGemBuild.cmake`, driven by the `genevaConfig.gcfg` — and it will rise over time. So
 **deduce the current standard from the build system, not from this document**: read the central
 `CMAKE_CXX_STANDARD` (or the configure banner it prints, "Using C++ standard NN"), and write to that. When a
 newer construct genuinely reads better or removes hand-rolled machinery, prefer it over the pre-standard
@@ -413,7 +413,7 @@ and configuration for a mechanism that no longer exists — is litter and does n
   fresh clone needs, it does not get committed.
 - **Generated and tool-local config never lands in the tree.** IDE project state (`.idea/`, `.vscode/`),
   Python caches (`__pycache__/`), in-source build directories (`cmake-build-*/`, `build/`), run-emitted config
-  (`config/*.json` written by a `Go2` program), logs (`GENEVA-EXCEPTION.log`) and coverage artefacts are
+  (`config/*.json` written by a `Go2` program), logs (`GEM-EXCEPTION.log`) and coverage artefacts are
   generated *outside* the checkout — the direct consequence of running every build and binary from an external
   working directory (Inv 3, Inv 17). When one appears in-tree, it is removed and the activity relocated, not
   gitignored-and-tolerated in place. (`.gitignore` is a backstop against accidental commits, not a licence to

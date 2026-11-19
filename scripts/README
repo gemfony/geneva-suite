@@ -33,7 +33,7 @@ startLocalJobs.sh
    n_clients + 1 ranks (one rank-0 master plus n_clients workers); the port is
    ignored (MPI uses no listening socket -- pass any placeholder, e.g. 0) and the
    launcher can be overridden with the MPIRUN environment variable.
-   Set the environment variable GENEVA_RUN_TIMEOUT=<seconds> to run
+   Set the environment variable GEM_RUN_TIMEOUT=<seconds> to run
    non-interactively: it then waits up to that long for the server (or mpirun job)
    to finish, tears everything down, and returns its exit code (124 on timeout).
    Without it, the server/mpirun output is tailed until interrupted.

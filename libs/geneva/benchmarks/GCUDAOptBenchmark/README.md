@@ -62,7 +62,7 @@ make benchmarks-geneva -j$(nproc)
 ```
 
 To enable the benchmark suite in a fresh Geneva build, pass
-`-DGENEVA_BUILD_BENCHMARKS=TRUE` to CMake.
+`-DGEM_BUILD_BENCHMARKS=TRUE` to CMake.
 
 ---
 
