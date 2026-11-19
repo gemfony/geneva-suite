@@ -30,6 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -139,30 +140,6 @@ TEST_CASE(
             CHECK(got.payloadEmpty());
         }
 
-        // --- the blob cache-miss fetch pair ----------------------------------------------------
-        {
-            const GWireBlobId id{0xDEADBEEFULL, 0xFEEDFACEULL};
-            test_container_type sent{GFrameKind::BLOB_REQUEST};
-            sent.setBlobRequest(id);
-            test_container_type got{GFrameKind::NONE};
-            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == GFrameKind::BLOB_REQUEST);
-            REQUIRE(got.blobRequest() != nullptr);
-            CHECK(got.blobRequest()->id == id);
-            CHECK(got.item() == nullptr);
-        }
-        {
-            const GWireBlobId id{1, 2};
-            test_container_type sent{GFrameKind::BLOB_REPLY};
-            sent.setBlobReply(id, "the-serialized-blob");
-            test_container_type got{GFrameKind::NONE};
-            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == GFrameKind::BLOB_REPLY);
-            REQUIRE(got.blobReply() != nullptr);
-            CHECK(got.blobReply()->id == id);
-            CHECK(got.blobReply()->blob == "the-serialized-blob");
-        }
-
         // --- a RESULT frame: the processing outcome travels with it ----------------------------
         {
             test_container_type sent{GFrameKind::RESULT};
@@ -225,10 +202,14 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
         test_container_type got{GFrameKind::NONE};
         CHECK_THROWS(container_from_string(message, got, mode));
 
-        // A value below the highest kind that GFrameKind does not have is no frame either
-        test_container_type unused{GFrameKind::PULL};
-        unused.setKind(static_cast<GFrameKind>(5));
-        CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
+        // A value below the highest kind that GFrameKind does not have is no frame either -- also
+        // the kinds of earlier protocols, such as the former blob request (6) and reply (7)
+        for(const auto gap : std::initializer_list<Gem::Common::ENUMBASETYPE>{2, 4, 5, 6, 7, 9}) {
+            INFO("kind: " << gap);
+            test_container_type unused{GFrameKind::PULL};
+            unused.setKind(static_cast<GFrameKind>(gap));
+            CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
+        }
 
         // The highest kind there is still decodes.
         test_container_type last{GFrameKind::NONE};

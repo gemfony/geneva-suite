@@ -61,6 +61,7 @@
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GCommandContainerT.hpp"
+#include "courtier/GProcessable.hpp" // detail::lineageSalt (a foreign result)
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -608,14 +609,15 @@ TEST_CASE(
     for(std::size_t i = 0; i < PULLS; ++i) {
         peer.ws.write(boost::asio::buffer(pull));
     }
-    // A message the server answers at once: a blob request. Messages are handled in order, so
-    // when this answer is here the session has seen all three pulls: it is parked, owing three.
-    peer.ws.write(
-        boost::asio::buffer(
-            Gem::Courtier::buildBlobRequest<GFaultyContainer>(Gem::Courtier::GWireBlobId{1, 2}, BIN)
-        )
-    );
-    REQUIRE(next_frame().kind() == GFrameKind::BLOB_REPLY);
+    // A message whose effect the server counts: a result of an item another server process handed
+    // out, which is dropped. Messages are handled in order, so once it is counted the session has
+    // seen all three pulls: it is parked, owing three.
+    GCommandContainerT<GFaultyContainer> foreign{GFrameKind::RESULT};
+    Gem::Courtier::GProcessingOutcome outcome;
+    outcome.submission_uuid = {Gem::Courtier::detail::lineageSalt() ^ 1U, 1};
+    foreign.setOutcome(outcome);
+    peer.ws.write(boost::asio::buffer(Gem::Courtier::container_to_string(foreign, BIN)));
+    REQUIRE(eventually([&] { return consumer->foreignReturnCount() == 1; }));
     REQUIRE(consumer->parkedCount() == 1);
 
     std::vector<std::unique_ptr<GFaultyContainer>> items;

@@ -33,7 +33,6 @@
 #include <any>
 #include <cmath>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -1618,7 +1617,7 @@ TEST_CASE("GNeuralNetworkArchitecture computes per-layer weight offsets", "[arch
 // active Gem::Courtier::GWireSerializationScope, simulating the server->worker wire path WITHOUT any real
 // transport: a server-side registry interns each distinct layout, the first item to a peer carries the
 // full layout and every later item only its 16-byte id, and a worker resolves an id-only item from its
-// local cache or (on a miss) via a fetch callback.
+// local cache; an id it does not hold makes the load throw.
 
 namespace {
 using Gem::Courtier::GWireBlobId;
@@ -1696,57 +1695,6 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: a cache miss is resolved by the fetch fallback", "[flat][wire]") {
-    using mode = Gem::Common::serializationMode;
-
-    ManyGroups a(48);
-    a.randomInit(activityMode::ALLPARAMETERS);
-    const std::vector<double> a_vals = valuesOf(a);
-
-    // Server interns the layout and emits an id-only item (peer already "holds" the layout).
-    GWireBlobRegistry server_reg;
-    GWireSerializationContext server_ctx;
-    server_ctx.enabled = true;
-    server_ctx.peer = 1;
-    server_ctx.registry = &server_reg;
-    std::string s_idonly;
-    {
-        GWireSerializationScope const scope(&server_ctx);
-        (void)a.toString(mode::GEM_BINARY);      // first send: marks peer 1 as holding the layout
-        s_idonly = a.toString(mode::GEM_BINARY); // second send: id-only
-    }
-
-    // A worker with an EMPTY cache receives the id-only item. A fetch callback (the hook of
-    // GWireSerializationContext; courtier's clients install none) pulls the blob from the server
-    // registry.
-    GWireBlobRegistry worker_reg;
-    std::size_t fetch_calls = 0;
-    GWireSerializationContext worker_ctx;
-    worker_ctx.enabled = true;
-    worker_ctx.peer = 0;
-    worker_ctx.registry = &worker_reg;
-    worker_ctx.fetch_blob = [&](const GWireBlobId &id) -> std::expected<std::string, std::string> {
-        ++fetch_calls;
-        std::string blob;
-        if(server_reg.tryGet(id, blob)) {
-            return blob;
-        }
-        return std::unexpected(std::string("layout id not held by the server"));
-    };
-
-    ManyGroups r;
-    {
-        GWireSerializationScope const scope(&worker_ctx);
-        r.fromString(s_idonly, mode::GEM_BINARY); // miss -> fetch -> reconstruct
-    }
-    CHECK(fetch_calls == 1);
-    CHECK(worker_reg.size() == 1); // the fetched blob is now cached
-    REQUIRE(r.getLayout());
-    CHECK(r.getLayout()->sameStructure(*a.getLayout()));
-    CHECK(valuesOf(r) == a_vals);
-}
-
-/******************************************************************************/
 TEST_CASE("Wire send-once: an unresolvable id-only reference throws", "[flat][wire]") {
     using mode = Gem::Common::serializationMode;
 
@@ -1763,8 +1711,8 @@ TEST_CASE("Wire send-once: an unresolvable id-only reference throws", "[flat][wi
         s_idonly = a.toString(mode::GEM_BINARY);
     }
 
-    // Empty cache, no fetch callback -> the miss cannot be resolved and load() must throw rather than
-    // silently produce a wrong/empty layout.
+    // Empty cache -> the miss cannot be resolved and load() must throw rather than silently produce a
+    // wrong/empty layout (a client then returns the item as failed and gets every blob in full again).
     GWireBlobRegistry worker_reg;
     GWireSerializationContext worker_ctx;
     worker_ctx.enabled = true;
@@ -2066,7 +2014,7 @@ TEST_CASE("Wire send-once: a worker never references a blob by id", "[flat][wire
     // direction too -- and there it MUST NOT intern. Interning is a source-side optimization: the
     // worker's ack bookkeeping is its own, so it cannot see the SERVER evict a blob from its bounded
     // registry, and an id-only return referencing an evicted blob is unresolvable (the server is the
-    // source; it has no fetch path). This pins the rule that a returning endpoint always inlines.
+    // source). This pins the rule that a returning endpoint always inlines.
     using mode = Gem::Common::serializationMode;
 
     ManyGroups original(40);

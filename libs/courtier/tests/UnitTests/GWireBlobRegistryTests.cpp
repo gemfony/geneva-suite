@@ -162,7 +162,7 @@ TEST_CASE("GWireSerializationScope: thread-local install / restore / nesting", "
             GWireSerializationScope const s_inner(&inner);
             CHECK(GWireSerializationScope::current() == &inner);
 
-            // A nested "no context" scope (e.g. a self-contained fetch round trip mid-decode).
+            // A nested "no context" scope.
             {
                 GWireSerializationScope const s_none(nullptr);
                 CHECK(GWireSerializationScope::current() == nullptr);

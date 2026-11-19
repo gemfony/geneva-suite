@@ -85,12 +85,6 @@ std::string fkToStr(const GFrameKind &fk) {
     case WORK:
         return "WORK";
 
-    case BLOB_REQUEST:
-        return "BLOB_REQUEST";
-
-    case BLOB_REPLY:
-        return "BLOB_REPLY";
-
     case HELLO:
         return "HELLO";
 

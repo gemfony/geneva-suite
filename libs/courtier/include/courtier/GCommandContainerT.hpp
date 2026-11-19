@@ -53,8 +53,7 @@
 #include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
-#include "courtier/GWireProtocolT.hpp"            // the library seam (tag + payload type)
-#include "courtier/GWireSerializationContext.hpp" // GWireBlobId / the blob frame payloads
+#include "courtier/GWireProtocolT.hpp"  // the library seam (tag + payload type)
 #include "weft/GArchivePolymorphic.hpp" // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
 
 namespace Gem::Courtier {
@@ -126,14 +125,13 @@ struct GFrameHead {
  *
  *  - **Courtier's layer** is the head: the frame kind, the GProcessingOutcome (which names the item
  *    of a WORK or a RESULT) and the build a HELLO announces. Courtier acts on these: dispatch,
- *    check-in, blob fetch, reconciliation.
+ *    check-in, reconciliation.
  *  - **The using library's layer** is an opaque numeric @c tag and, for a RESULT that does not ship
  *    the work item, a library-defined payload (GWireProtocolT<processable_type>::payload_type).
  *    Courtier stores and relays both without ever interpreting them.
  *
- * The payload is a variant with one alternative per frame purpose -- nothing, a work item, a blob
- * request, a blob reply, or the library's own payload type -- so each frame carries exactly what it
- * means. Courtier knows exactly ONE of the alternatives from the inside: the work item, which it must
+ * The payload is a variant with one alternative per frame purpose -- nothing, a work item, or the
+ * library's own payload type -- so each frame carries exactly what it means. Courtier knows exactly ONE of the alternatives from the inside: the work item, which it must
  * be able to process() and route. Everything else it archives blind.
  *
  * @tparam processable_type The type of the processable work item carried as payload
@@ -154,8 +152,6 @@ public:
     using payload_variant = std::variant<
         std::monostate,                    // HELLO / PULL, and a RESULT that carries no result
         std::unique_ptr<processable_type>, // WORK, and a RESULT that ships the whole item
-        GBlobRequest,                      // BLOB_REQUEST
-        GBlobReply,                        // BLOB_REPLY
         library_payload_type>;             // a RESULT carrying the library's data
 
     //-------------------------------------------------------------------------
@@ -312,29 +308,6 @@ public:
         auto out = std::move(*held);
         payload_ = payload_variant{};
         return out;
-    }
-
-    //-------------------------------------------------------------------------
-    // The blob-fetch alternatives -- courtier's own cache-miss round trip
-
-    /** @brief Turns this frame into a blob request. @param id The content id of the wanted blob */
-    void setBlobRequest(const GWireBlobId &id) {
-        payload_ = GBlobRequest{id};
-    }
-    /** @brief @return The carried blob request, or nullptr if this frame carries something else */
-    [[nodiscard]] const GBlobRequest *blobRequest() const noexcept {
-        return std::get_if<GBlobRequest>(&payload_);
-    }
-
-    /** @brief Turns this frame into a blob reply.
-     *  @param id The content id being answered
-     *  @param blob The serialized blob (moved in; empty on a registry miss) */
-    void setBlobReply(const GWireBlobId &id, std::string blob) {
-        payload_ = GBlobReply{id, std::move(blob)};
-    }
-    /** @brief @return The carried blob reply, or nullptr if this frame carries something else */
-    [[nodiscard]] const GBlobReply *blobReply() const noexcept {
-        return std::get_if<GBlobReply>(&payload_);
     }
 
     //-------------------------------------------------------------------------

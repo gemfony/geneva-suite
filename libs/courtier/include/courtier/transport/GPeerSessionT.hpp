@@ -76,7 +76,7 @@ namespace Gem::Courtier::Consumers {
  * It answers every PULL with one WORK, in order; a PULL that cannot be met at once is counted, the
  * session is parked with the consumer and answers when it is woken for an item that has become
  * available (see GNetworkedConsumerT::checkoutOrPark()). A RESULT is checked in by the ids in its
- * head and asks for nothing. A BLOB_REQUEST is answered at once.
+ * head and asks for nothing.
  *
  * Messages that cannot be read. The head of a message is read first and by itself. A head that
  * cannot be read, or that names a kind a client does not send, ends the connection
@@ -265,9 +265,6 @@ private:
         case GFrameKind::RESULT:
             this->checkIn_(payload);
             break;
-        case GFrameKind::BLOB_REQUEST:
-            this->answerBlobRequest_(*peer, payload);
-            break;
         default:
             this->protocolError_(
                 *peer,
@@ -313,25 +310,6 @@ private:
             this->forgetBlobs_(); // the client returned no result; it may lack a blob
         }
         hooks_.putPayloadItem(std::move(command_container_));
-    }
-
-    //-------------------------------------------------------------------------
-    /** @brief Answers a blob request from the shared registry (an empty blob on a miss)
-     *  @param peer The connection @param payload The payload part of the message */
-    void answerBlobRequest_(GPeerI &peer, std::string_view payload) {
-        Gem::Courtier::GWireBlobId id{0, 0};
-        try {
-            Gem::Courtier::framePayloadFromString(payload, command_container_, serialization_mode_);
-            if(const auto *request = command_container_.blobRequest()) {
-                id = request->id;
-            }
-        }
-        catch(...) {
-            // an empty reply: the client treats the fetch as failed
-        }
-        peer.send(makeMessage(
-            Gem::Courtier::buildBlobReply<processable_type>(id, wire_registry_, serialization_mode_)
-        ));
     }
 
     //-------------------------------------------------------------------------

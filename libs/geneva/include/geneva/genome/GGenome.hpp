@@ -216,14 +216,14 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
 
     /**
      * @brief Restores the genome from an archive: the value channels plus a freshly-owned layout, read
-     * either by value or resolved from a content id against the wire registry (with a cache-miss fetch),
-     * following the self-describing tag written by save().
+     * either by value or resolved from a content id against the wire registry, following the
+     * self-describing tag written by save(). An id this endpoint does not hold makes the load throw.
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to read the genome from
      * @param version The (unused) serialization version number
      */
     template <typename archive_type>
-    // NOLINTNEXTLINE(readability-function-size) -- one coherent serialization sweep: the self-describing wire-format tag dispatch (by-value / interned-by-id, with cache-miss fetch) must stay in lockstep with save()'s tag order; splitting would scatter tightly coupled archive-decode branches
+    // NOLINTNEXTLINE(readability-function-size) -- one coherent serialization sweep: the self-describing wire-format tag dispatch (by-value / interned-by-id) must stay in lockstep with save()'s tag order; splitting would scatter tightly coupled archive-decode branches
     void load(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::serialize_members(ar, localMembers_());
@@ -254,32 +254,17 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
             return;
         }
 
+        // A layout this endpoint does not hold cannot be loaded: the load fails, and a client returns
+        // the item as failed (the server then sends it every blob in full again).
         std::string blob;
-        bool have =
+        const bool have =
             (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
-        std::string fetch_error;
-        if(not have && ctx != nullptr && ctx->fetch_blob) {
-            // The fetch resolves a cache miss over the network; on success it yields a non-empty blob, on
-            // failure a std::unexpected carrying the reason (surfaced in the throw below).
-            if(auto fetched = ctx->fetch_blob(wid); fetched.has_value()) {
-                blob = std::move(fetched.value());
-                if(ctx->registry != nullptr) {
-                    ctx->registry->put(wid, blob);
-                }
-                have = true;
-            }
-            else {
-                fetch_error = std::move(fetched.error());
-            }
-        }
         if(not have || blob.empty()) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::load(): Error!" << '\n'
-                << "An id-only layout reference could not be resolved (cache miss with no usable "
-                   "fetch)."
+                << "An id-only layout reference could not be resolved: the layout is not held here."
                 << '\n'
-                << (fetch_error.empty() ? std::string{} : ("Fetch failure: " + fetch_error + '\n'))
             );
         }
         this->setLayout(layoutFromWireBlob(blob));
