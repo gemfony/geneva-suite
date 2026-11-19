@@ -1642,27 +1642,33 @@ TEST_CASE("EA optimizes a flat INTEGER individual with a FLIP adaptor", "[flat][
 /******************************************************************************/
 
 TEST_CASE("EA optimizes a flat BOOLEAN OneMax with a FLIP adaptor", "[flat][oa][flip]") {
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
-    pop->setPopulationSizes(18, 6);
-    pop->setMaxIteration(400);
-    pop->setReportIteration(100000);
-    OneMaxOA const src;
-    pop->push_back(src.clone());
-    pop->setAdaptionConfig(src.buildAdaptionConfig());
-    pop->optimize();
+    // The number of bits still false after one run
+    auto run = [] {
+        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        pop->setPopulationSizes(18, 6);
+        pop->setMaxIteration(400);
+        pop->setReportIteration(100000);
+        OneMaxOA const src;
+        pop->push_back(src.clone());
+        pop->setAdaptionConfig(src.buildAdaptionConfig());
+        pop->optimize();
 
-    auto best = pop->getBestGlobalIndividual<OneMaxOA>();
-    REQUIRE(best);
-    std::vector<bool> v;
-    best->streamline<bool>(v);
-    std::size_t false_count = 0;
-    for(bool const x : v) {
-        if(not x) {
-            ++false_count;
-        }
-    }
+        auto best = pop->getBestGlobalIndividual<OneMaxOA>();
+        REQUIRE(best);
+        std::vector<bool> v;
+        best->streamline<bool>(v);
+        return static_cast<std::size_t>(std::ranges::count(v, false));
+    };
     // OneMax converges from the all-false start toward all-true; the last few bits are a heavy
-    // (coupon-collector) tail, so allow a small residue rather than demanding a perfect sweep.
+    // (coupon-collector) tail, so a small residue is allowed rather than a perfect sweep. Measured
+    // 2026-11-19, 3000 single runs: residue 0/1/2/3/4 in 73/887/1645/392/3 of them, so one run in
+    // about a thousand misses the bar of 3. Best-of-3 with early-out (Invariant 18: a stochastic bar
+    // gets best-of-N, never a looser threshold); an algorithm that cannot reach the bar fails all three.
+    std::size_t false_count = run();
+    for(int rerun = 1; rerun < 3 && false_count > 3; ++rerun) {
+        false_count = (std::min)(false_count, run());
+    }
+    INFO("best-of-3 residue of false bits: " << false_count);
     CHECK(false_count <= 3);
 }
 
