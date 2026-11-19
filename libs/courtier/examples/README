@@ -1,2 +1,13 @@
-This directory is currently empty. Please check out the
-examples found in the $GENEVAHOME/tests/courtier sub-directory.
+This directory holds no examples at the moment. Its CMakeLists.txt only
+provides the examples-courtier target, so that courtier is laid out like the
+other libraries.
+
+Programs that show how courtier is used:
+
+  * ../docprograms/minimal_consumer.cpp -- a small, complete consumer, quoted
+    by the Geneva manual and run as a test;
+  * ../tests/UnitTests/ and ../tests/ManualTests/ -- the library's tests.
+
+Geneva's own examples use courtier's consumers through Go2; examples
+15_GMPIConsumer and 16_GMPISubClients in libs/geneva/examples/ use them
+directly.
