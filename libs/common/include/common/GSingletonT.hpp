@@ -64,7 +64,8 @@ namespace Gem::Common {
  * @tparam T The type of the object to be created
  * @return A std::shared_ptr to a newly created T object
  */
-template <typename T> std::shared_ptr<T> TFactory_GSingletonT() {
+template <typename T>
+std::shared_ptr<T> TFactory_GSingletonT() {
     return std::make_shared<T>();
 }
 
@@ -146,9 +147,8 @@ public:
                     // function-local static so the allocation stays reachable
                     // (LSan reports it as still-reachable, not as a leak). This
                     // branch runs once, under creation_mutex.
-                    static auto *const keep_alive =
-                        new std::shared_ptr<T>(sp);
-                    (void) keep_alive;
+                    static auto *const keep_alive = new std::shared_ptr<T>(sp);
+                    (void)keep_alive;
                 }
             }
         }
@@ -168,10 +168,12 @@ public:
 	  */
     template <typename U = T>
     static void reset()
-        requires(not gsingleton_never_destroy<U>::value)
+        requires (not gsingleton_never_destroy<U>::value)
     {
-        static_assert(std::is_same_v<U, T>,
-                      "GSingletonT::reset() does not take an explicit template argument");
+        static_assert(
+            std::is_same_v<U, T>,
+            "GSingletonT::reset() does not take an explicit template argument"
+        );
         storage_type &s = storage();
         // Reset must be ordered against any in-flight instance() initialiser:
         // without this lock, an initialiser could store the freshly-built

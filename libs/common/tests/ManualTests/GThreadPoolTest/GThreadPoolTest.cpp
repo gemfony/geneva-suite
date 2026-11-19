@@ -158,7 +158,9 @@ private:
  */
 // NOLINTNEXTLINE(readability-function-size) -- manual-test main: CLI setup, task submission loop, and result verification form one linear test scenario
 int main(int argc, char **argv) {
-    std::mt19937_64 gr{std::random_device{}()}; // A standard engine: common's programs do not use hap
+    std::mt19937_64 gr{
+        std::random_device{}()
+    }; // A standard engine: common's programs do not use hap
     std::uniform_int_distribution<unsigned int> uniform_int_;
 
     //----------------------------------------------------------------
@@ -220,7 +222,8 @@ int main(int argc, char **argv) {
     }
 
     // Submit each task to the pool a number of times
-    double const resizeLikelihood = (std::min)(static_cast<double>(nResizeEvents) / static_cast<double>(nIterations), 1.);
+    double const resizeLikelihood =
+        (std::min)(static_cast<double>(nResizeEvents) / static_cast<double>(nIterations), 1.);
     std::bernoulli_distribution weighted_bool(resizeLikelihood);
 
     for(std::size_t n = 0; n < nIterations; n++) {

@@ -45,13 +45,13 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva::Genome {
 class GGenome;
@@ -186,7 +186,9 @@ public:
 
     /** @brief The OA-owned adaption config built at init() (or the externally-provided one), for telemetry.
      *  @return A shared_ptr to the adaption configuration currently in effect */
-    std::shared_ptr<const GAdaptionConfigBase> getAdaptionConfig() const override { return adaption_config_; }
+    std::shared_ptr<const GAdaptionConfigBase> getAdaptionConfig() const override {
+        return adaption_config_;
+    }
 
 protected:
     /***************************************************************************/
@@ -245,12 +247,16 @@ protected:
     /** @brief EA/SA reuse late returns: an asynchronously-returned child is admitted as an extra
      *  candidate and kept only if the subsequent selection finds it competitive.
      *  @return true (mu/lambda algorithms reap late returns) */
-    bool reapsLateReturns() const override { return true; }
+    bool reapsLateReturns() const override {
+        return true;
+    }
     /** @brief EA/SA admit a late return only from the current or immediately-preceding iteration: a child
      *  evaluated in iteration N typically returns during N+1, so a one-generation window catches exactly
      *  those late returns and drops staler ones.
      *  @return 1 (a one-generation age window) */
-    std::uint32_t lateReturnMaxAge() const override { return 1; }
+    std::uint32_t lateReturnMaxAge() const override {
+        return 1;
+    }
 
     /** @brief Increases the population size if requested by the user */
     void performScheduledPopulationGrowth();
@@ -258,14 +264,16 @@ protected:
     /** @brief This function implements the RANDOMDUPLICATIONSCHEME scheme */
     void randomRecombine(const std::unique_ptr<gen::GGenome> &child);
     /** @brief This function implements the VALUEDUPLICATIONSCHEME scheme */
-    void
-    valueRecombine(const std::unique_ptr<gen::GGenome> &child, const std::vector<double> &threshold);
+    void valueRecombine(
+        const std::unique_ptr<gen::GGenome> &child,
+        const std::vector<double> &threshold
+    );
 
     /***************************************************************************/
 
     std::size_t n_parents_ = DEFPARCHILDNPARENTS; ///< The number of parents
     duplicationScheme recombination_method_ =
-        duplicationScheme::DEFAULTDUPLICATIONSCHEME;         ///< The chosen recombination method
+        duplicationScheme::DEFAULTDUPLICATIONSCHEME;        ///< The chosen recombination method
     std::size_t default_n_children_ = DEFPARCHILDNCHILDREN; ///< Expected number of children
     std::size_t growth_rate_ = 0; ///< Specifies the amount of individuals added per iteration
     std::size_t max_population_size_ =
@@ -338,10 +346,14 @@ private:
     /** @brief doRecombine() fast path: sequential parent selection + parallel deep-copy (no cross-over). */
     void recombineParallel(const std::vector<double> &threshold);
     /** @brief recombineParallel() phase 1: pick each child's parent slot sequentially (on the orchestration thread). */
-    [[nodiscard]] std::vector<std::size_t>
-    selectParentsForChildren(std::size_t n_children, bool value_scheme, const std::vector<double> &threshold);
+    [[nodiscard]] std::vector<std::size_t> selectParentsForChildren(
+        std::size_t n_children,
+        bool value_scheme,
+        const std::vector<double> &threshold
+    );
     /** @brief selectParentsForChildren() per-child draw: the parent-slot index for one child. */
-    [[nodiscard]] std::size_t selectParentForChild(bool value_scheme, const std::vector<double> &threshold);
+    [[nodiscard]] std::size_t
+    selectParentForChild(bool value_scheme, const std::vector<double> &threshold);
     /** @brief recombineParallel() phase 2: deep-copy each selected parent into its child slot in parallel. */
     void copyParentsIntoChildrenParallel(const std::vector<std::size_t> &parent_pos);
     /** @brief doRecombine() serial path: per-child cross-over / duplication (original behaviour). */
@@ -350,10 +362,13 @@ private:
     void recombineOneSerial(
         const std::unique_ptr<gen::GGenome> &child,
         const std::vector<double> &threshold,
-        std::bernoulli_distribution &amalgamation_wanted);
+        std::bernoulli_distribution &amalgamation_wanted
+    );
     /** @brief recombineOneSerial() duplication path: apply the recombination scheme to one child slot. */
     void duplicateForChild(
-        const std::unique_ptr<gen::GGenome> &child, const std::vector<double> &threshold);
+        const std::unique_ptr<gen::GGenome> &child,
+        const std::vector<double> &threshold
+    );
 
     /***************************************************************************/
     // Data

@@ -106,7 +106,7 @@ public:
     /**
      * @brief Adds an already created thread to the group
      */
-    void add_thread(const thread_ptr& thrd);
+    void add_thread(const thread_ptr &thrd);
 
     /** @brief Requests all threads to join */
     void join_all();

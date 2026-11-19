@@ -54,7 +54,9 @@ TEST_CASE("GHesseError: parameter-fixed errors on a separable quadratic", "[gene
     // f(x) = 0.5*(a x0^2 + b x1^2); Hessian = diag(a, b); minimum at the origin.
     const double a = 2.;
     const double b = 8.;
-    auto f = [a, b](std::vector<double> const &x) { return 0.5 * (a * x[0] * x[0] + b * x[1] * x[1]); };
+    auto f = [a, b](std::vector<double> const &x) {
+        return 0.5 * (a * x[0] * x[0] + b * x[1] * x[1]);
+    };
 
     const std::vector<double> x_min{0., 0.};
     GHesseError const he;
@@ -107,19 +109,24 @@ TEST_CASE("GHesseError: flat / non-minimum directions are flagged", "[geneva][he
     // A saddle in x1 (negative curvature): no usable error for that parameter.
     auto f = [](std::vector<double> const &x) { return 0.5 * (x[0] * x[0] - x[1] * x[1]); };
     const auto r = GHesseError{}.estimate(batchOf(f), {0., 0.}, f({0., 0.}), {1.e-2, 1.e-2});
-    REQUIRE(r.valid);                       // x0 has positive curvature
+    REQUIRE(r.valid); // x0 has positive curvature
     CHECK(r.parameter_errors[0] > 0.);
-    CHECK(r.parameter_errors[1] == 0.);     // x1 curvature non-positive -> no error
+    CHECK(r.parameter_errors[1] == 0.); // x1 curvature non-positive -> no error
 }
 
 /******************************************************************************/
 
-TEST_CASE("GHesseError(MINOS): symmetric bounds on a separable quadratic", "[geneva][hesse][minos]") {
+TEST_CASE(
+    "GHesseError(MINOS): symmetric bounds on a separable quadratic",
+    "[geneva][hesse][minos]"
+) {
     // f = 0.5*(a x0^2 + b x1^2). Separable -> the profile along each axis equals the axis itself, so
     // the MINOS bounds equal the symmetric HESSE error sqrt(2*UP/H_jj) on both sides.
     const double a = 2.;
     const double b = 8.;
-    auto f = [a, b](std::vector<double> const &x) { return 0.5 * (a * x[0] * x[0] + b * x[1] * x[1]); };
+    auto f = [a, b](std::vector<double> const &x) {
+        return 0.5 * (a * x[0] * x[0] + b * x[1] * x[1]);
+    };
 
     GHesseErrorOptions opts;
     opts.minos = true;
@@ -134,8 +141,10 @@ TEST_CASE("GHesseError(MINOS): symmetric bounds on a separable quadratic", "[gen
     CHECK(std::abs(r.minos_low[0] - r.minos_high[0]) < 1.e-2); // symmetric for a quadratic
 }
 
-TEST_CASE("GHesseError(MINOS): profiles correlations (re-minimises the other parameter)",
-          "[geneva][hesse][minos]") {
+TEST_CASE(
+    "GHesseError(MINOS): profiles correlations (re-minimises the other parameter)",
+    "[geneva][hesse][minos]"
+) {
     // f = 0.5*(x0^2 + x1^2 + x0 x1). The PROFILED error along x0 (re-minimising x1) is sqrt(V_00) =
     // sqrt(8/3) ~ 1.633, strictly larger than the parameter-fixed sqrt(2). MINOS must recover the
     // profiled bound -- this verifies the inner re-minimiser actually runs.
@@ -155,10 +164,15 @@ TEST_CASE("GHesseError(MINOS): profiles correlations (re-minimises the other par
     CHECK(r.minos_high[0] > std::sqrt(2.)); // strictly above the parameter-fixed error
 }
 
-TEST_CASE("GHesseError(MINOS): captures an asymmetric (non-parabolic) minimum", "[geneva][hesse][minos]") {
+TEST_CASE(
+    "GHesseError(MINOS): captures an asymmetric (non-parabolic) minimum",
+    "[geneva][hesse][minos]"
+) {
     // f(x) = 0.5 x^2 + 0.1 x^3 (single parameter). The cubic makes f rise FASTER for x>0 than for x<0,
     // so the high-side MINOS bound is smaller than the low-side one (symmetric HESSE would miss this).
-    auto f = [](std::vector<double> const &x) { return 0.5 * x[0] * x[0] + 0.1 * x[0] * x[0] * x[0]; };
+    auto f = [](std::vector<double> const &x) {
+        return 0.5 * x[0] * x[0] + 0.1 * x[0] * x[0] * x[0];
+    };
 
     GHesseErrorOptions opts;
     opts.minos = true;
@@ -187,9 +201,9 @@ TEST_CASE(
     opts.minos = true;
     const auto r = GHesseError{}.estimate(batchOf(f), {0.}, 0., {1.e-2}, opts);
 
-    REQUIRE(r.valid);                 // positive curvature at the minimum -> a symmetric error exists
+    REQUIRE(r.valid); // positive curvature at the minimum -> a symmetric error exists
     CHECK(r.parameter_errors[0] > 0.);
-    CHECK_FALSE(r.minos_valid);       // ... but the UP crossing is unbracketable -> MINOS is not usable
-    CHECK(r.minos_low[0] == 0.);      // a failed side is left at the 0 sentinel, not a fabricated bound
+    CHECK_FALSE(r.minos_valid);  // ... but the UP crossing is unbracketable -> MINOS is not usable
+    CHECK(r.minos_low[0] == 0.); // a failed side is left at the 0 sentinel, not a fabricated bound
     CHECK(r.minos_high[0] == 0.);
 }

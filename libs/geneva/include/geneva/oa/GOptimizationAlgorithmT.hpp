@@ -37,8 +37,8 @@
 #include <string_view>
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"           // Gem::Common::GReflectiveInterfaceT
-#include "common/GCommonHelperFunctions.hpp"  // Gem::Common::condnotset
+#include "common/GCommonHelperFunctions.hpp" // Gem::Common::condnotset
+#include "common/GReflectiveInterfaceT.hpp"  // Gem::Common::GReflectiveInterfaceT
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {

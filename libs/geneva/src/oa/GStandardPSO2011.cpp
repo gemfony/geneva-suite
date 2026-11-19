@@ -42,8 +42,8 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/GPersonalityTraits.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
 #ifdef GEM_TESTING
@@ -61,7 +61,8 @@ using Gem::Geneva::activityMode;
 namespace {
 const double SPSO_W = 1. / (2. * std::log(2.)); ///< inertia weight w = 1/(2 ln 2)
 const double SPSO_C = 0.5 + std::log(2.);       ///< acceleration c = 1/2 + ln 2
-constexpr double SPSO_VMAX_FACTOR = 0.2; ///< velocity clamp as a fraction of the normalized unit interval
+constexpr double SPSO_VMAX_FACTOR =
+    0.2; ///< velocity clamp as a fraction of the normalized unit interval
 } // namespace
 
 /******************************************************************************/
@@ -134,11 +135,9 @@ void GStandardPSO2011::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb
         [this](std::size_t s) { this->setSwarmSize(s); }
     ) << "The number of particles in the swarm (at least 2).";
 
-    gpb.registerFileParameter<std::size_t>(
-        "n_informants",
-        DEFAULTSPSOK,
-        [this](std::size_t k) { this->setNInformants(k); }
-    ) << "The number of particles each particle informs (K, default 3).";
+    gpb.registerFileParameter<std::size_t>("n_informants", DEFAULTSPSOK, [this](std::size_t k) {
+        this->setNInformants(k);
+    }) << "The number of particles each particle informs (K, default 3).";
 }
 
 /******************************************************************************/
@@ -217,9 +216,7 @@ void GStandardPSO2011::init() {
 
     for(std::size_t i = 0; i < swarm_size_; ++i) {
         // Particle index bookkeeping.
-        this->at(i)
-            ->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()
-            ->setParticle(i);
+        this->at(i)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(i);
 
         std::vector<double> pos;
         this->at(i)->streamlineFPInternal(pos, activityMode::ACTIVEONLY);
@@ -294,7 +291,8 @@ void GStandardPSO2011::buildTopology() {
             const double u = uniform_real_distribution_(
                 gr_,
                 std::uniform_real_distribution<double>::param_type(
-                    0., static_cast<double>(swarm_size_)
+                    0.,
+                    static_cast<double>(swarm_size_)
                 )
             );
             auto target = static_cast<std::size_t>(u);
@@ -438,10 +436,8 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
     global_best_improved_ = false;
 
     std::size_t best_idx = 0;
-    std::tuple<double, double> best_iteration_fitness = std::make_tuple(
-        this->at(0)->getWorstCase(),
-        this->at(0)->getWorstCase()
-    );
+    std::tuple<double, double> best_iteration_fitness =
+        std::make_tuple(this->at(0)->getWorstCase(), this->at(0)->getWorstCase());
 
     for(std::size_t i = 0; i < swarm_size_; ++i) {
         auto &ind = (*this->at(i));
@@ -487,7 +483,9 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
             row[best_idx] = tmp;
         }
         this->at(0)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(0);
-        this->at(best_idx)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(best_idx);
+        this->at(best_idx)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(
+            best_idx
+        );
     }
 
     return best_iteration_fitness;

@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GExternalEvaluatorIndividual.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -37,12 +36,13 @@
 #include "common/GJsonIO.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/genome/GMultiConstraintT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeMultiConstraint.hpp"
+#include "geneva/genome/GMultiConstraintT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
-#include "geneva/genome/GGenomeMultiConstraint.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -80,7 +80,9 @@ GExternalEvaluatorIndividual::GExternalEvaluatorIndividual()
  * @param cp A constant reference to another GExternalEvaluatorIndividual to be copied
  */
 GExternalEvaluatorIndividual::GExternalEvaluatorIndividual(const GExternalEvaluatorIndividual &cp)
-  : gen::GGenomeT<GExternalEvaluatorIndividual>(cp) // copies the base genome (value channels + layout)
+  : gen::GGenomeT<GExternalEvaluatorIndividual>(
+        cp
+    ) // copies the base genome (value channels + layout)
   , program_name_(cp.program_name_)
   , custom_options_(cp.custom_options_)
   , parameter_file_base_name_(cp.parameter_file_base_name_)
@@ -217,8 +219,8 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
 
     // Create a suitable extension and exchange file names for this object
     std::string const extension = std::string("-") +
-                            Gem::Common::to_string(this->getAssignedIteration()) + "-" +
-                            Gem::Common::to_string(this);
+                                  Gem::Common::to_string(this->getAssignedIteration()) + "-" +
+                                  Gem::Common::to_string(this);
     std::string const parameterfile_name = parameter_file_base_name_ + extension + ".json";
     std::string const result_file_name = std::string("result") + extension + ".json";
     std::string const command_output_file_name = std::string("commandOutput") + extension + ".txt";
@@ -230,16 +232,17 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
         const std::string &param, &result, &cmdOut;
         bool active;
         ~TempFileGuard() {
-            if (!active) return;
+            if(!active)
+                return;
             std::filesystem::remove(param);
             std::filesystem::remove(result);
             std::filesystem::remove(cmdOut);
         }
     } temp_guard{
-        .param=parameterfile_name,
-        .result=result_file_name,
-        .cmdOut=command_output_file_name,
-        .active=remove_exec_temporaries_
+        .param = parameterfile_name,
+        .result = result_file_name,
+        .cmdOut = command_output_file_name,
+        .active = remove_exec_temporaries_
     };
 
     // Save the parameters to a file for the external evaluation
@@ -266,7 +269,12 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     );
 
     if(error_code) { // Something went wrong -- worst-case the results and flag the individual
-        this->appendWorstCaseOnCommandError_(command, error_code, command_output_file_name, results);
+        this->appendWorstCaseOnCommandError_(
+            command,
+            error_code,
+            command_output_file_name,
+            results
+        );
     }
     else { // Everything is o.k., lets retrieve the evaluation from the result file
         this->parseExternalResults_(result_file_name, results);
@@ -403,8 +411,8 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
     catch(const std::exception &e) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GExternalEvaluatorIndividual::evaluate(): Error reading "
-            << result_file_name << '\n'
+            << "In GExternalEvaluatorIndividual::evaluate(): Error reading " << result_file_name
+            << '\n'
             << "with message " << e.what() << '\n'
         );
     }
@@ -416,7 +424,7 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
  *
  * @param run_id The run identifier to assign; must be non-empty and not the literal "empty"
  */
-void GExternalEvaluatorIndividual::setRunId(const std::string& run_id) {
+void GExternalEvaluatorIndividual::setRunId(const std::string &run_id) {
     if(run_id.empty() || "empty" == run_id) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -479,8 +487,11 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
         << "The lower allowed boundary for ad_prob-variation";
     gpb.registerFileParameter<double>("max_ad_prob", c.max_ad_prob, GEEI_DEF_MAXADPROB)
         << "The upper allowed boundary for ad_prob-variation";
-    gpb.registerFileParameter<std::uint32_t>("adaption_threshold", c.adaption_threshold, GEEI_DEF_ADAPTIONTHRESHOLD)
-        << "The number of calls to an adaptor after which adaption takes place";
+    gpb.registerFileParameter<std::uint32_t>(
+        "adaption_threshold",
+        c.adaption_threshold,
+        GEEI_DEF_ADAPTIONTHRESHOLD
+    ) << "The number of calls to an adaptor after which adaption takes place";
     gpb.registerFileParameter<bool>("use_bi_gaussian", c.use_bi_gaussian, GEEI_DEF_USEBIGAUSSIAN)
         << "Whether to use a double gaussion for the adaption of parmeters in ES";
     gpb.registerFileParameter<double>("sigma1", c.sigma1, GEEI_DEF_SIGMA1)
@@ -488,32 +499,48 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
         << "(or the sigma of the left peak of a double gaussian)";
     gpb.registerFileParameter<double>("sigma_sigma1", c.sigma_sigma1, GEEI_DEF_SIGMASIGMA1)
         << "Influences the self-adaption of gauss-mutation in ES";
-    gpb.registerFileParameter<double>("min_sigma1", c.min_sigma1, GEEI_DEF_MINSIGMA1) << "The minimum value of sigma1";
-    gpb.registerFileParameter<double>("max_sigma1", c.max_sigma1, GEEI_DEF_MAXSIGMA1) << "The maximum value of sigma1";
+    gpb.registerFileParameter<double>("min_sigma1", c.min_sigma1, GEEI_DEF_MINSIGMA1)
+        << "The minimum value of sigma1";
+    gpb.registerFileParameter<double>("max_sigma1", c.max_sigma1, GEEI_DEF_MAXSIGMA1)
+        << "The maximum value of sigma1";
     gpb.registerFileParameter<double>("sigma2", c.sigma2, GEEI_DEF_SIGMA2)
         << "The sigma of the right peak of a double gaussian (if any)";
     gpb.registerFileParameter<double>("sigma_sigma2", c.sigma_sigma2, GEEI_DEF_SIGMASIGMA2)
         << "Influences the self-adaption of gauss-mutation in ES";
-    gpb.registerFileParameter<double>("min_sigma2", c.min_sigma2, GEEI_DEF_MINSIGMA2) << "The minimum value of sigma2";
-    gpb.registerFileParameter<double>("max_sigma2", c.max_sigma2, GEEI_DEF_MAXSIGMA2) << "The maximum value of sigma2";
+    gpb.registerFileParameter<double>("min_sigma2", c.min_sigma2, GEEI_DEF_MINSIGMA2)
+        << "The minimum value of sigma2";
+    gpb.registerFileParameter<double>("max_sigma2", c.max_sigma2, GEEI_DEF_MAXSIGMA2)
+        << "The maximum value of sigma2";
     gpb.registerFileParameter<double>("delta", c.delta, GEEI_DEF_DELTA)
         << "The start distance between both peaks used for bi-gaussian mutations in ES";
     gpb.registerFileParameter<double>("sigma_delta", c.sigma_delta, GEEI_DEF_SIGMADELTA)
         << "The width of the gaussian used for mutations of the delta parameter";
-    gpb.registerFileParameter<double>("min_delta", c.min_delta, GEEI_DEF_MINDELTA) << "The minimum allowed value of delta";
-    gpb.registerFileParameter<double>("max_delta", c.max_delta, GEEI_DEF_MAXDELTA) << "The maximum allowed value of delta";
+    gpb.registerFileParameter<double>("min_delta", c.min_delta, GEEI_DEF_MINDELTA)
+        << "The minimum allowed value of delta";
+    gpb.registerFileParameter<double>("max_delta", c.max_delta, GEEI_DEF_MAXDELTA)
+        << "The maximum allowed value of delta";
     gpb.registerFileParameter<std::string>("program_name", c.program_name, GEEI_DEF_PROGNAME)
         << "The name of the external evaluation program";
-    gpb.registerFileParameter<std::string>("custom_options", c.custom_options, GEEI_DEF_CUSTOMOPTIONS)
-        << "Any custom options you wish to pass to the external evaluator";
-    gpb.registerFileParameter<std::string>("parameter_file", c.parameter_file_base_name, GEEI_DEF_PARFILEBASENAME)
-        << "The base name assigned to parameter files" << '\n'
-        << "in addition to data identifying this specific evaluation";
+    gpb.registerFileParameter<std::string>(
+        "custom_options",
+        c.custom_options,
+        GEEI_DEF_CUSTOMOPTIONS
+    ) << "Any custom options you wish to pass to the external evaluator";
+    gpb.registerFileParameter<std::string>(
+        "parameter_file",
+        c.parameter_file_base_name,
+        GEEI_DEF_PARFILEBASENAME
+    ) << "The base name assigned to parameter files"
+      << '\n'
+      << "in addition to data identifying this specific evaluation";
     gpb.registerFileParameter<std::string>("init_values", c.init_values, GEEI_DEF_STARTMODE)
         << "Indicates, whether individuals should be initialized randomly (random)," << '\n'
         << "with the lower (min) or upper (max) boundary of their value ranges";
-    gpb.registerFileParameter<bool>("remove_exec_temporaries", c.remove_exec_temporaries, GEEI_DEF_REMOVETEMPORARIES)
-        << "Indicates, whether files created during external execution should be removed";
+    gpb.registerFileParameter<bool>(
+        "remove_exec_temporaries",
+        c.remove_exec_temporaries,
+        GEEI_DEF_REMOVETEMPORARIES
+    ) << "Indicates, whether files created during external execution should be removed";
 }
 
 /******************************************************************************/
@@ -537,7 +564,10 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
         arguments.emplace_back("--init");
         std::string command;
         int const error_code = Gem::Common::runExternalCommand(
-            std::filesystem::path(c.program_name), arguments, std::filesystem::path(), command
+            std::filesystem::path(c.program_name),
+            arguments,
+            std::filesystem::path(),
+            command
         );
         if(error_code) {
             throw geneva_exception(
@@ -562,7 +592,10 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
         arguments.push_back("--initvalues=\"" + c.init_values + "\"");
         std::string command;
         int const error_code = Gem::Common::runExternalCommand(
-            std::filesystem::path(c.program_name), arguments, std::filesystem::path(), command
+            std::filesystem::path(c.program_name),
+            arguments,
+            std::filesystem::path(),
+            command
         );
         if(error_code) {
             throw geneva_exception(
@@ -645,8 +678,10 @@ static gen::GenomeData authorFlatGenomeFromSetup(
                 if(min_var == max_var) {
                     // Take this as a sign that the parameter should not be modified.
                     gb.addDouble(
-                          init_value, init_value, std::max(1.0001 * init_value, init_value + 0.0001)
-                      )
+                          init_value,
+                          init_value,
+                          std::max(1.0001 * init_value, init_value + 0.0001)
+                    )
                         .adaptionMode(Gem::Geneva::adaptionMode::NEVER);
                 }
                 else {
@@ -731,15 +766,36 @@ GExternalEvaluatorIndividual::buildAdaptionConfig(const gen::GGenome &sample, co
         }
         if(c.use_bi_gaussian) {
             cfg->groupDouble(i).biGauss(
-                c.sigma1, c.sigma_sigma1, c.min_sigma1, c.max_sigma1, c.sigma2, c.sigma_sigma2,
-                c.min_sigma2, c.max_sigma2, c.delta, c.sigma_delta, c.min_delta, c.max_delta, c.ad_prob,
-                /*use_symmetric_sigmas=*/false, c.adapt_ad_prob, c.adaption_threshold
+                c.sigma1,
+                c.sigma_sigma1,
+                c.min_sigma1,
+                c.max_sigma1,
+                c.sigma2,
+                c.sigma_sigma2,
+                c.min_sigma2,
+                c.max_sigma2,
+                c.delta,
+                c.sigma_delta,
+                c.min_delta,
+                c.max_delta,
+                c.ad_prob,
+                /*use_symmetric_sigmas=*/false,
+                c.adapt_ad_prob,
+                c.adaption_threshold
             );
         }
         else {
             cfg->groupDouble(i).gauss(
-                c.sigma1, c.sigma_sigma1, c.min_sigma1, c.max_sigma1, c.ad_prob, c.adapt_ad_prob,
-                c.adaption_threshold, Gem::Geneva::adaptionMode::WITHPROBABILITY, c.min_ad_prob, c.max_ad_prob
+                c.sigma1,
+                c.sigma_sigma1,
+                c.min_sigma1,
+                c.max_sigma1,
+                c.ad_prob,
+                c.adapt_ad_prob,
+                c.adaption_threshold,
+                Gem::Geneva::adaptionMode::WITHPROBABILITY,
+                c.min_ad_prob,
+                c.max_ad_prob
             );
         }
     }
@@ -794,7 +850,10 @@ void GExternalEvaluatorIndividual::finalize(const Config &c) {
 
     std::string command;
     int const error_code = Gem::Common::runExternalCommand(
-        std::filesystem::path(c.program_name), arguments, std::filesystem::path(), command
+        std::filesystem::path(c.program_name),
+        arguments,
+        std::filesystem::path(),
+        command
     );
     if(error_code) {
         glogger << "In GExternalEvaluatorIndividual::finalize(): Error" << '\n'
@@ -849,7 +908,10 @@ void GExternalEvaluatorIndividual::archive(
 
     std::string command;
     int const error_code = Gem::Common::runExternalCommand(
-        std::filesystem::path(arch.front()->getProgramName()), arguments, std::filesystem::path(), command
+        std::filesystem::path(arch.front()->getProgramName()),
+        arguments,
+        std::filesystem::path(),
+        command
     );
     if(error_code) {
         throw geneva_exception(

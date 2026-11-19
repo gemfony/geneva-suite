@@ -39,9 +39,9 @@
 // Boost header files go here
 
 // Geneva headers go here
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -87,4 +87,3 @@ public:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

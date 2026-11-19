@@ -42,8 +42,8 @@
 // Geneva headers go here
 #include "common/GParserBuilder.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -77,7 +77,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  *                                 mnemonic. Defaults to the algorithm's own traits, which is what every
  *                                 factory wants; spell it only to give an algorithm a second mnemonic.
  */
-template <typename oa_type, typename personality_traits_type = typename oa_type::personality_traits_type>
+template <
+    typename oa_type,
+    typename personality_traits_type = typename oa_type::personality_traits_type>
 class GOptimizationAlgorithmFactoryT : public GOAFactoryT<GOptimizationAlgorithmBase> {
 public:
     /** @brief The default constructor: derives the config-file path from the algorithm's class name. */
@@ -106,7 +108,10 @@ public:
         std::filesystem::path const &config_file,
         std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr
     )
-      : GOAFactoryT<GOptimizationAlgorithmBase>(config_file, std::move(content_creator_ptr)) { /* nothing */
+      : GOAFactoryT<GOptimizationAlgorithmBase>(
+            config_file,
+            std::move(content_creator_ptr)
+        ) { /* nothing */
     }
 
     /**
@@ -123,13 +128,17 @@ public:
      *
      * @return The personality traits' nickname, used as the command-line mnemonic for this algorithm.
      */
-    std::string getMnemonic() const override { return personality_traits_type::nickname; }
+    std::string getMnemonic() const override {
+        return personality_traits_type::nickname;
+    }
     /**
      * @brief The clear-text name of this algorithm.
      *
      * @return The human-readable algorithm name taken from oa_type::oa_algorithm_name.
      */
-    std::string getAlgorithmName() const override { return std::string(oa_type::oa_algorithm_name); }
+    std::string getAlgorithmName() const override {
+        return std::string(oa_type::oa_algorithm_name);
+    }
 
 private:
     /**

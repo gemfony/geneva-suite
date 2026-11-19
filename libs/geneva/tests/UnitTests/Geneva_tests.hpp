@@ -49,9 +49,9 @@
 // Standard header files go here
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <iostream>
 #include <sstream>
-#include <concepts>
 #include <string>
 #include <tuple>
 #include <typeinfo>
@@ -65,8 +65,8 @@ using namespace Gem::Geneva;
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
-#include "common/GSelfTestable.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GSelfTestable.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "common/GTupleIO.hpp"
 #include "common/GUnitTestFrameworkT.hpp"
@@ -106,8 +106,10 @@ void StandardTests_no_failure_expected() {
     // exercising it. Failing to compile names the problem instead.
     static_assert(
         std::derived_from<T, Gem::Common::GSelfTestable>,
-        "StandardTests_no_failure_expected<T>: T must opt into the Gem::Common::GSelfTestable facet "
-        "(inherit it and override modify_GUnitTests_() -- chaining to the category root's protected "
+        "StandardTests_no_failure_expected<T>: T must opt into the Gem::Common::GSelfTestable "
+        "facet "
+        "(inherit it and override modify_GUnitTests_() -- chaining to the category root's "
+        "protected "
         "helper if the root is where the perturbation lives)."
     );
     // The CRTP category root of the tested type (GGenome for individuals,
@@ -344,8 +346,8 @@ void StandardTests_no_failure_expected() {
         }
         else {
             std::cout << "Internal (de-)serialization test for object with name "
-                      << typeid(T).name() << " not run because original objects are identical / GEM_JSON"
-                      << '\n';
+                      << typeid(T).name()
+                      << " not run because original objects are identical / GEM_JSON" << '\n';
         }
     }
 
@@ -400,8 +402,8 @@ void StandardTests_no_failure_expected() {
         }
         else {
             std::cout << "External (de-)serialization test for object with name "
-                      << typeid(T).name() << " not run because original objects are identical / GEM_JSON"
-                      << '\n';
+                      << typeid(T).name()
+                      << " not run because original objects are identical / GEM_JSON" << '\n';
         }
     }
 

@@ -50,8 +50,8 @@
 #include "geneva/oa/GSepCmaEvolutionStrategy_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -297,10 +297,8 @@ private:
     /** @brief Submits offspring to the one process consumer and waits for processed items */
     void evaluatePopulation_() override;
 
-
     /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
-
 
     /** @brief Sizes the population to lambda offspring (and derives n / constants) and does error checks */
     void adjustPopulation_() override;
@@ -326,17 +324,16 @@ private:
     // User-facing strategy parameters (configured by the user / factory)
 
     std::size_t lambda_ = DEFAULTSEPCMALAMBDA; ///< Number of offspring per generation (0 = auto)
-    std::size_t mu_ = 0;                        ///< Number of selected parents (0 = lambda/2)
+    std::size_t mu_ = 0;                       ///< Number of selected parents (0 = lambda/2)
     bool use_diagonal_cma_ = true;             ///< Whether to run the diagonal covariance update
     bool pareto_mode_ = false;                 ///< Whether to use NSGA-II-style MO selection
-    double initial_sigma_ =
-        0.3; ///< Initial global step size as a fraction of the parameter range
+    double initial_sigma_ = 0.3; ///< Initial global step size as a fraction of the parameter range
 
     /***************************************************************************/
     // Internal distribution state (initialized at setup, evolves each cycle)
 
-    std::size_t n_ = 0;                ///< The number of (double) parameters
-    double sigma_ = 0.;               ///< The current global step size
+    std::size_t n_ = 0;              ///< The number of (double) parameters
+    double sigma_ = 0.;              ///< The current global step size
     std::vector<double> m_;          ///< The distribution mean
     std::vector<double> C_;          ///< The diagonal covariance (per-coordinate variance)
     std::vector<double> p_sigma_;    ///< The conjugate evolution path (CSA)
@@ -346,13 +343,13 @@ private:
     /***************************************************************************/
     // Derived strategy constants (computed once in setUpStrategyParameters())
 
-    double mu_eff_ = 0.;             ///< Variance-effective selection mass
-    double c_sigma_ = 0.;           ///< CSA step-size cumulation rate
-    double d_sigma_ = 0.;           ///< CSA step-size damping
-    double c_c_ = 0.;               ///< Cumulation rate for the rank-1 path
-    double c_1_ = 0.;               ///< Rank-1 covariance learning rate
-    double c_mu_ = 0.;              ///< Rank-mu covariance learning rate
-    double chi_n_ = 0.;            ///< Expectation of ||N(0,I)||
+    double mu_eff_ = 0.;          ///< Variance-effective selection mass
+    double c_sigma_ = 0.;         ///< CSA step-size cumulation rate
+    double d_sigma_ = 0.;         ///< CSA step-size damping
+    double c_c_ = 0.;             ///< Cumulation rate for the rank-1 path
+    double c_1_ = 0.;             ///< Rank-1 covariance learning rate
+    double c_mu_ = 0.;            ///< Rank-mu covariance learning rate
+    double chi_n_ = 0.;           ///< Expectation of ||N(0,I)||
     std::vector<double> weights_; ///< Positive recombination weights (length mu)
 };
 
@@ -361,4 +358,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

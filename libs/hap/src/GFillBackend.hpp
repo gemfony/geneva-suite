@@ -54,9 +54,13 @@
 namespace Gem::Hap::detail {
 
 // Defined in GRandomFactory.cpp next to the process-wide GPU switch.
-void countGpuRandomSource(bool engaged) noexcept; ///< +1 when a source starts using the GPU, -1 when it stops
+void countGpuRandomSource(
+    bool engaged
+) noexcept; ///< +1 when a source starts using the GPU, -1 when it stops
 [[nodiscard]] bool gpuRandomFailureSimulated() noexcept; ///< the GEM_TESTING failure hook
-void gpuRandomSourceStartStage(GpuSourceStartStage stage); ///< the GEM_TESTING start hook (a no-op without it)
+void gpuRandomSourceStartStage(
+    GpuSourceStartStage stage
+); ///< the GEM_TESTING start hook (a no-op without it)
 
 /******************************************************************************/
 /**
@@ -129,9 +133,9 @@ public:
      */
     explicit GFillBackend(std::uint64_t seed)
 #if defined(HAP_AVX2_BACKEND) || defined(HAP_NEON_BACKEND)
-        : cpu_(static_cast<xoshiro256pp_simd::result_type>(seed))
+      : cpu_(static_cast<xoshiro256pp_simd::result_type>(seed))
 #else
-        : cpu_(static_cast<G_CPU_BASE_GENERATOR::result_type>(seed))
+      : cpu_(static_cast<G_CPU_BASE_GENERATOR::result_type>(seed))
 #endif
     {
 #if defined(HAP_USE_CUDA)
@@ -177,23 +181,24 @@ public:
                         << GLOGGING;
             }
             else if(not allowed) {
-                glogger << "In GFillBackend: GPU random-number generation is switched off for this process;"
+                glogger << "In GFillBackend: GPU random-number generation is switched off for this "
+                           "process;"
                         << " random-number containers are refilled on the CPU." << '\n'
                         << GLOGGING;
             }
             else if(not device) {
-                glogger
-                    << "In GFillBackend: this binary was built with the CUDA"
-                    << " random-number backend, but no CUDA-capable device is available." << '\n'
-                    << "Falling back to the SIMD/CPU bulk-refill engine -- the GPU is NOT being"
-                    << " used for random-number generation." << '\n'
-                    << GWARNING;
+                glogger << "In GFillBackend: this binary was built with the CUDA"
+                        << " random-number backend, but no CUDA-capable device is available."
+                        << '\n'
+                        << "Falling back to the SIMD/CPU bulk-refill engine -- the GPU is NOT being"
+                        << " used for random-number generation." << '\n'
+                        << GWARNING;
             }
         });
 #endif
     }
 
-    GFillBackend(GFillBackend const &)            = delete;
+    GFillBackend(GFillBackend const &) = delete;
     GFillBackend &operator=(GFillBackend const &) = delete;
 
     /** @brief Releases the GPU engine, if this backend still holds one. */

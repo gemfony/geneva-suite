@@ -104,7 +104,6 @@ bool isBetter(
 
     // We assume that both items have the same maxMode and simply compare the "minOnly-Fitness"
     return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
-   
 }
 
 /******************************************************************************/
@@ -136,15 +135,12 @@ bool isWorse(
 bool isBetter(const double x, const double y, const maxMode m) {
     if(maxMode::MAXIMIZE == m) {
         return x > y;
-       
     }
-            // maxMode::MINIMIZE
-        if(x < y) {
-            return true;
-        }
-                    return false;
-       
-   
+    // maxMode::MINIMIZE
+    if(x < y) {
+        return true;
+    }
+    return false;
 }
 
 /******************************************************************************/

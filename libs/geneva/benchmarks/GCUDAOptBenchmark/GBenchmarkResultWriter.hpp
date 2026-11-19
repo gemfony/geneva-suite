@@ -59,10 +59,7 @@ public:
      * Columns: run_index, algorithm_tag, function, nDims, final_fitness,
      *          iterations, wall_time_s, termination_reason, target_reached
      */
-    static void writeRawCSV(
-        const GAlgorithmBenchmarkResult &result,
-        const std::string &outputDir
-    );
+    static void writeRawCSV(const GAlgorithmBenchmarkResult &result, const std::string &outputDir);
 
     /**
      * @brief Writes a summary CSV containing aggregated stats for all tags.

@@ -88,9 +88,7 @@ namespace Gem::Courtier {
 	 * @tparam processable_type The concrete type deriving GProcessingContainerT (CRTP)
 	 * @tparam processing_result_type The result type of the process_ call; should be copyable
 	 */
-template <
-    typename processable_type,
-    typename processing_result_type>
+template <typename processable_type, typename processing_result_type>
     requires (!std::is_void_v<processing_result_type>)
 class GProcessingContainerT : public GProcessable {
     ///////////////////////////////////////////////////////////////////////
@@ -135,7 +133,9 @@ public:
     explicit GProcessingContainerT(
         GProcessingContainerT<processable_type, processing_result_type> const &cp
     )
-      : GProcessable(cp) // copies the non-generic lifecycle state (status, errors, counters, timing)
+      : GProcessable(
+            cp
+        ) // copies the non-generic lifecycle state (status, errors, counters, timing)
       , pre_processing_disabled_(cp.pre_processing_disabled_)
       , post_processing_disabled_(cp.post_processing_disabled_)
       , stored_results_cnt_(
@@ -182,9 +182,9 @@ public:
     GProcessingContainerT(
         GProcessingContainerT<processable_type, processing_result_type> &&
     ) noexcept = default;
-    GProcessingContainerT<processable_type, processing_result_type> &
-    operator=(GProcessingContainerT<processable_type, processing_result_type> &&) noexcept =
-        default;
+    GProcessingContainerT<processable_type, processing_result_type> &operator=(
+        GProcessingContainerT<processable_type, processing_result_type> &&
+    ) noexcept = default;
 
     virtual ~GProcessingContainerT() = default;
 
@@ -391,8 +391,8 @@ public:
 	  * @param post_processor_ptr The post-processor function object to register (ignored if empty)
 	  */
     void registerPostProcessor(
-        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<processable_type>>&
-            post_processor_ptr
+        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<processable_type>>
+            &post_processor_ptr
     ) {
         if(post_processor_ptr) {
             post_processor_ptr_ = post_processor_ptr;
@@ -408,7 +408,8 @@ public:
 	  *
 	  * @return The registered post-processor, or an empty pointer if none is registered
 	  */
-    [[nodiscard]] std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<processable_type>> postProcessor() const {
+    [[nodiscard]] std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<processable_type>>
+    postProcessor() const {
         return post_processor_ptr_;
     }
 
@@ -504,7 +505,9 @@ private:
     /***************************************************************************/
     /** @brief Bridges the GProcessable status machine to this class's result store: when a status reset
      *  clears stored results, GProcessable::set_processing_status() calls this hook. */
-    void clearStoredResults_() override { this->clear_stored_results_vec(); }
+    void clearStoredResults_() override {
+        this->clear_stored_results_vec();
+    }
 
     /***************************************************************************/
     /** @brief In-place return reconciliation (see GProcessable::absorbResultsFrom): copies the processing
@@ -512,7 +515,9 @@ private:
      *  lineage id. The container keeps no state that stays off the wire, so nothing else is retained.
      *  @param src The returned, evaluated item whose results + lifecycle are absorbed into this one */
     void absorbResultsFrom_(const GProcessable &src) override {
-        GProcessable::absorbResultsFrom_(src); // status / errors / timing / routing, keeping our lineage id
+        GProcessable::absorbResultsFrom_(
+            src
+        ); // status / errors / timing / routing, keeping our lineage id
         if(const auto *p = dynamic_cast<const GProcessingContainerT *>(&src); p != nullptr) {
             stored_results_cnt_ = p->stored_results_cnt_;
         }
@@ -557,7 +562,8 @@ private:
     // Data -- the result store and the (typed) pre-/post-processors. The non-generic lifecycle state
     // (status, errors, routing ids, dispatch-scheduling, timing) lives on the GProcessable base.
 
-    bool pre_processing_disabled_ = false; ///< Indicates whether pre-processing was disabled entirely
+    bool pre_processing_disabled_ =
+        false; ///< Indicates whether pre-processing was disabled entirely
     bool post_processing_disabled_ =
         false; ///< Indicates whether post-processing was disabled entirely
 
@@ -580,6 +586,5 @@ private:
 
 /******************************************************************************/
 /** @brief Mark this class as abstract */
-
 
 /******************************************************************************/

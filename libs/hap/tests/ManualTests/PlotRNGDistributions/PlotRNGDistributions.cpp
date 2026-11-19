@@ -32,11 +32,10 @@
  ********************************************************************************/
 
 /**
- * This test creates nEntries random numbers each for different random
- * number distributions. The results is output in the ROOT format -- see
- * http://root.cern.ch for further information. When executing the ROOT
- * script, a number of PNGs are created, suitable for inclusion in the
- * documentation.
+ * This manual test creates nEntries random numbers each for different random
+ * number distributions. The result is output in the ROOT format -- see
+ * http://root.cern.ch for further information. The ROOT script draws the
+ * distributions for a look by eye and also stores them as PNG files.
  */
 
 // Standard header files
@@ -71,7 +70,7 @@ void createRandomVector(
     std::vector<T> &vec_t,
     const distType &dType,
     const std::size_t &nEntries,
-    const std::shared_ptr<Gem::Hap::GRandomBase>& gr_ptr
+    const std::shared_ptr<Gem::Hap::GRandomBase> &gr_ptr
 ) {
     std::size_t i = 0;
 
@@ -173,9 +172,7 @@ int main(int argc, char **argv) {
     randomFactory()->setNProducerThreads(nProducerThreads);
 
     // Create a random number proxy
-    gr_ptr = std::shared_ptr<GRandomT<randomSource::QUEUE>>(
-        new GRandomT<randomSource::QUEUE>()
-    );
+    gr_ptr = std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
 
     std::ofstream ofs("rootPlotRNGDistributions.C");
     if(!ofs) {
@@ -282,8 +279,7 @@ int main(int argc, char **argv) {
         << '\n'
         << "  TLatex *dgaussText2 = new TLatex(1.5, 920, \"mean=0.5, #sigma=0.5 and distance\");"
         << '\n'
-        << "  TLatex *dgaussText3 = new TLatex(1.5, 870, \"between the mean values of 2\");"
-        << '\n'
+        << "  TLatex *dgaussText3 = new TLatex(1.5, 870, \"between the mean values of 2\");" << '\n'
         << "  dgaussText1->SetTextSize(0.025);" << '\n'
         << "  dgaussText2->SetTextSize(0.025);" << '\n'
         << "  dgaussText3->SetTextSize(0.025);" << '\n'

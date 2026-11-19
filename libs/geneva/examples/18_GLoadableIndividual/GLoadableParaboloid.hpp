@@ -45,11 +45,11 @@
 // Geneva headers
 #include "common/GArchiveNamed.hpp"
 #include "common/GParserBuilder.hpp"
-#include "weft/GArchivePolymorphic.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "geneva/oa/GAdaption.hpp"        // makeAdaptionConfig()
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/oa/GAdaption.hpp" // makeAdaptionConfig()
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp"
 
 /******************************************************************************/
 /**
@@ -73,7 +73,8 @@
  */
 class GLoadableParaboloid : public Gem::Geneva::Genome::GGenomeT<GLoadableParaboloid> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     /** @brief The factory installs the genome via setGenome(), so the default constructor leaves it empty. */
     GLoadableParaboloid() = default;
@@ -147,14 +148,21 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
     friend struct Gem::Weft::access;
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GLoadableParaboloid>>(ar, "GGenomeT", *this);
+        Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GLoadableParaboloid>>(
+            ar,
+            "GGenomeT",
+            *this
+        );
     }
 };
 

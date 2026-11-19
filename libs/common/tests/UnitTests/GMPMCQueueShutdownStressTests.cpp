@@ -47,8 +47,8 @@
 #include <vector>
 
 // Catch2 headers go here
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // Geneva headers go here
 #include "common/concurrency/GMPMCQueueT.hpp"
@@ -75,13 +75,32 @@ struct PreallocTag {
 struct Counted {
     static std::atomic<long long> alive;
     int v_ = 0;
-    Counted() { alive.fetch_add(1); }
-    explicit Counted(int v) : v_(v) { alive.fetch_add(1); }
-    Counted(Counted const &o) : v_(o.v_) { alive.fetch_add(1); }
-    Counted(Counted &&o) noexcept : v_(o.v_) { alive.fetch_add(1); }
-    Counted &operator=(Counted const &o) { v_ = o.v_; return *this; }
-    Counted &operator=(Counted &&o) noexcept { v_ = o.v_; return *this; }
-    ~Counted() { alive.fetch_sub(1); }
+    Counted() {
+        alive.fetch_add(1);
+    }
+    explicit Counted(int v)
+      : v_(v) {
+        alive.fetch_add(1);
+    }
+    Counted(Counted const &o)
+      : v_(o.v_) {
+        alive.fetch_add(1);
+    }
+    Counted(Counted &&o) noexcept
+      : v_(o.v_) {
+        alive.fetch_add(1);
+    }
+    Counted &operator=(Counted const &o) {
+        v_ = o.v_;
+        return *this;
+    }
+    Counted &operator=(Counted &&o) noexcept {
+        v_ = o.v_;
+        return *this;
+    }
+    ~Counted() {
+        alive.fetch_sub(1);
+    }
 };
 std::atomic<long long> Counted::alive{0};
 
@@ -92,8 +111,11 @@ std::atomic<long long> Counted::alive{0};
 /******************************************************************************/
 // close() wakes EVERY blocked producer (queue stays full; all report failure)
 
-TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked producers", "[GMPMCQueueT][shutdown]",
-                   MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: close wakes all blocked producers",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
     constexpr int n_producers = 16;
     typename TestType::template queue<int, 4> q;
     for(int i = 0; i < 4; ++i) {
@@ -112,7 +134,8 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked producers", "[
 
     std::this_thread::sleep_for(50ms); // let them all park
     q.close();
-    for(auto &t : producers) t.join(); // must not hang
+    for(auto &t : producers)
+        t.join(); // must not hang
 
     REQUIRE(failures.load() == n_producers); // every blocked producer returned false
     REQUIRE(q.size() == 4);                  // nothing got added
@@ -121,8 +144,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked producers", "[
 /******************************************************************************/
 // close() wakes EVERY blocked consumer (queue empty; all see end-of-stream)
 
-TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked consumers", "[GMPMCQueueT][shutdown]",
-                   MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: close wakes all blocked consumers",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
     constexpr int n_consumers = 16;
     typename TestType::template queue<int, 8> q;
 
@@ -138,7 +164,8 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked consumers", "[
 
     std::this_thread::sleep_for(50ms);
     q.close();
-    for(auto &t : consumers) t.join(); // must not hang
+    for(auto &t : consumers)
+        t.join(); // must not hang
 
     REQUIRE(empties.load() == n_consumers);
 }
@@ -146,8 +173,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: close wakes all blocked consumers", "[
 /******************************************************************************/
 // close() mid-stream: every accepted item is consumed exactly once, nothing else is
 
-TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: mid-stream close conserves accepted items",
-                   "[GMPMCQueueT][shutdown]", MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: mid-stream close conserves accepted items",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
     constexpr int n_producers = 6;
     constexpr int n_consumers = 6;
     constexpr int per_producer = 5000;
@@ -189,10 +219,12 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: mid-stream close conserves accepted it
         q.close();
     });
 
-    for(auto &t : producers) t.join();
+    for(auto &t : producers)
+        t.join();
     closer.join();
     q.close(); // idempotent; ensure consumers can finish even if the timed close already fired
-    for(auto &t : consumers) t.join(); // must not hang
+    for(auto &t : consumers)
+        t.join(); // must not hang
 
     // Every accepted value was consumed exactly once; nothing un-accepted was consumed.
     long long accepted_count = 0;
@@ -203,8 +235,10 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: mid-stream close conserves accepted it
         const int c = consumed[v].load();
         accepted_count += a;
         consumed_count += c;
-        if(c > 1) ok = false;       // never consumed twice
-        if(c != a) ok = false;      // consumed iff accepted
+        if(c > 1)
+            ok = false; // never consumed twice
+        if(c != a)
+            ok = false; // consumed iff accepted
     }
     REQUIRE(ok);
     REQUIRE(consumed_count == accepted_count);
@@ -214,8 +248,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: mid-stream close conserves accepted it
 /******************************************************************************/
 // The destructor destroys leftover elements exactly once (no leak, no double-free)
 
-TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: destructor drains leftover elements", "[GMPMCQueueT][shutdown]",
-                   MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: destructor drains leftover elements",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
     Counted::alive.store(0);
     {
         typename TestType::template queue<Counted, 16> q;
@@ -235,8 +272,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: destructor drains leftover elements", 
 /******************************************************************************/
 // Rapid create / use / close / destroy churn must never hang or corrupt
 
-TEMPLATE_TEST_CASE("GMPMCQueueT shutdown: rapid lifecycle churn", "[GMPMCQueueT][shutdown]",
-                   MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: rapid lifecycle churn",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
     Counted::alive.store(0);
     for(int round = 0; round < 200; ++round) {
         auto q = std::make_unique<typename TestType::template queue<Counted, 8>>();

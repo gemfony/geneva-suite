@@ -36,7 +36,9 @@
 #include <catch2/catch_test_macros.hpp>
 #endif /* GEM_TESTING */
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSepCmaEvolutionStrategy_PersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GSepCmaEvolutionStrategy_PersonalityTraits
+) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -90,12 +92,11 @@ bool GSepCmaEvolutionStrategy_PersonalityTraits::modify_GUnitTests_() {
 #ifdef GEM_TESTING
     bool result = false;
 
-
     this->setRank(this->getRank() + 1);
     result = true;
 
     return result;
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset(
         "GSepCmaEvolutionStrategy_PersonalityTraits::modify_GUnitTests",
         "GEM_TESTING"
@@ -123,7 +124,7 @@ void GSepCmaEvolutionStrategy_PersonalityTraits::specificTestsNoFailureExpected_
         p_test->setIsNotOnParetoFront();
         CHECK(not p_test->isOnParetoFront());
     }
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset(
         "GSepCmaEvolutionStrategy_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests",
         "GEM_TESTING"

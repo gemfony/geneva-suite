@@ -457,7 +457,7 @@ G_CALLABLE inline double eval(int func_id, const double *x, int n) {
         return parabola(x, n);
     case FUNC_NOISYPARABOLA:
         return noisyParabola(x, n);
-//! [appendix:benchmark-dispatch#2]
+        //! [appendix:benchmark-dispatch#2]
     case FUNC_ROSENBROCK:
         return rosenbrock(x, n);
     case FUNC_ACKLEY:

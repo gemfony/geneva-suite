@@ -105,8 +105,10 @@ bool demo_thread_safe_keyed_store() {
     // Snapshots come back in key order.
     const auto keys = store.keys();
     ok = ok && keys.size() == 2 && keys[0] == "retries" && keys[1] == "threads";
-    std::println("  keys (in order): {}",
-                 keys | std::views::join_with(' ') | std::ranges::to<std::string>());
+    std::println(
+        "  keys (in order): {}",
+        keys | std::views::join_with(' ') | std::ranges::to<std::string>()
+    );
     std::println("  threads={}, retries={}", store.get("threads").value_or(-1), retries);
 
     std::cout << "  -> " << (ok ? "OK" : "FAILED") << "\n";
@@ -228,12 +230,13 @@ bool demo_thread_safe_set() {
     in_flight.insert(1001);
     in_flight.insert(1002);
     in_flight.insert(1003);
-    in_flight.erase(1002);        // 1002 was returned normally
+    in_flight.erase(1002); // 1002 was returned normally
     ok = ok && in_flight.size() == 2 && in_flight.contains(1001) && not in_flight.contains(1002);
 
     // The session dies: drain reclaims everything still outstanding, atomically emptying the set.
     const auto leftover = in_flight.drain();
-    ok = ok && leftover.size() == 2 && leftover[0] == 1001 && leftover[1] == 1003 && in_flight.empty();
+    ok = ok && leftover.size() == 2 && leftover[0] == 1001 && leftover[1] == 1003 &&
+         in_flight.empty();
 
     std::cout << "  3 handed out, 1 returned, 2 reclaimed on drain\n";
     std::cout << "  -> " << (ok ? "OK" : "FAILED") << "\n";
@@ -251,7 +254,8 @@ int main() {
     ok = demo_aging_store() && ok;
     ok = demo_thread_safe_set() && ok;
 
-    std::cout << (ok ? "\nAll concurrency-primitive demos passed.\n"
-                     : "\nA concurrency-primitive demo FAILED.\n");
+    std::cout
+        << (ok ? "\nAll concurrency-primitive demos passed.\n"
+               : "\nA concurrency-primitive demo FAILED.\n");
     return ok ? 0 : 1;
 }

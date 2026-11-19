@@ -59,13 +59,13 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/strand.hpp>
 
+#include "GDemoProcessingContainers.hpp"
 #include "GInProcessTestSupport.hpp"
 #include "GMPIFakeCalls.hpp"
 #include "GPeerTestRole.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GPeerConsumerT.hpp"
 #include "courtier/transport/GIoContext.hpp"
@@ -333,6 +333,8 @@ TEST_CASE(
     CHECK(master.ranks() == std::set<GWirePeerId>{1, 2, 3});
     const auto master_one = master.role(1);
     REQUIRE(master_one != nullptr);
+    // The role is listed before its end's start() has run on the pool (GPeerI.hpp, rule 2)
+    REQUIRE(eventually([&] { return not master_one->events().empty(); }));
     CHECK(master_one->events() == std::vector<std::string>{"open"});
 
     one.role().close(GPeerClose::NORMAL);
@@ -945,8 +947,7 @@ TEST_CASE("MPI transport: the end of a rank that falls silent ends as SILENT", "
     master.start();
     REQUIRE(eventually([&] {
         const auto role = master.role(1);
-        return role != nullptr && role->events().size() == 1 &&
-               client.role().events().size() == 1;
+        return role != nullptr && role->events().size() == 1 && client.role().events().size() == 1;
     }));
     const auto role = master.role(1);
 
@@ -956,7 +957,10 @@ TEST_CASE("MPI transport: the end of a rank that falls silent ends as SILENT", "
     ExecutorHold stopped(client.executor());
     REQUIRE(eventually([&] { return role->nClosed() == 1; }));
     const auto silent_after = std::chrono::steady_clock::now() - spoke_at;
-    CHECK(role->events() == std::vector<std::string>{"open", "msg:a last word", "closed:SILENT:NORMAL"});
+    CHECK(
+        role->events() ==
+        std::vector<std::string>{"open", "msg:a last word", "closed:SILENT:NORMAL"}
+    );
     CHECK(silent_after > 2 * INTERVAL);
     CHECK(silent_after <= 3 * INTERVAL + MARGIN);
     CHECK(world->lostRanks(0) == std::vector<int>{1});

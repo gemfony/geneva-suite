@@ -72,8 +72,7 @@ public:
     /** @brief Deleted move constructor (moving optimization algorithms is not supported). */
     GOptimizerIT(GOptimizerIT<optimizer_type> &&) noexcept = delete;
     /** @brief Deleted move assignment (moving optimization algorithms is not supported). */
-    GOptimizerIT<optimizer_type> &
-    operator=(GOptimizerIT<optimizer_type> &&) noexcept = delete;
+    GOptimizerIT<optimizer_type> &operator=(GOptimizerIT<optimizer_type> &&) noexcept = delete;
 
     /***************************************************************************/
     /**
@@ -102,7 +101,9 @@ public:
     std::unique_ptr<individual_type> getBestGlobalIndividual() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
         return castBest_<individual_type>(
-            this->getBestGlobalIndividual_(), "getBestGlobalIndividual");
+            this->getBestGlobalIndividual_(),
+            "getBestGlobalIndividual"
+        );
     }
     //! [results-accessor-signatures#1]
 
@@ -130,15 +131,15 @@ public:
         if(best_base_individuals.empty()) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptimizerIT<optimizer_type>::getBestGlobalIndividuals(): Error!"
-                << '\n'
+                << "In GOptimizerIT<optimizer_type>::getBestGlobalIndividuals(): Error!" << '\n'
                 << "Received empty collection of best individuals." << '\n'
             );
         }
 
         for(auto &ind_ptr : best_base_individuals) {
             best_individuals.push_back(
-                castBest_<individual_type>(std::move(ind_ptr), "getBestGlobalIndividuals"));
+                castBest_<individual_type>(std::move(ind_ptr), "getBestGlobalIndividuals")
+            );
         }
 
         return best_individuals;
@@ -164,7 +165,9 @@ public:
     std::unique_ptr<individual_type> getBestIterationIndividual() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
         return castBest_<individual_type>(
-            this->getBestIterationIndividual_(), "getBestIterationIndividual");
+            this->getBestIterationIndividual_(),
+            "getBestIterationIndividual"
+        );
     }
     //! [results-accessor-signatures#3]
 
@@ -201,7 +204,8 @@ public:
 
         for(auto &ind_ptr : best_base_individuals) {
             best_individuals.push_back(
-                castBest_<individual_type>(std::move(ind_ptr), "getBestIterationIndividuals"));
+                castBest_<individual_type>(std::move(ind_ptr), "getBestIterationIndividuals")
+            );
         }
 
         return best_individuals;
@@ -256,8 +260,7 @@ protected:
     ~GOptimizerIT() = default;
 
     /** @brief The copy assignment operator. */
-    GOptimizerIT<optimizer_type> &
-    operator=(GOptimizerIT<optimizer_type> const &) = default;
+    GOptimizerIT<optimizer_type> &operator=(GOptimizerIT<optimizer_type> const &) = default;
 
     /***************************************************************************/
 
@@ -276,13 +279,11 @@ private:
     /** @brief Retrieves the best individual found globally */
     virtual std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const = 0;
     /** @brief Retrieves a list of the best individuals found globally*/
-    virtual std::vector<std::unique_ptr<gen::GGenome>>
-    getBestGlobalIndividuals_() const = 0;
+    virtual std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const = 0;
     /** @brief Retrieves the best individual found in the current iteration*/
     virtual std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const = 0;
     /** @brief Retrieves a list of the best individuals found in the current iteration */
-    virtual std::vector<std::unique_ptr<gen::GGenome>>
-    getBestIterationIndividuals_() const = 0;
+    virtual std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const = 0;
 
     /** @brief Returns one-word information about the type of optimization algorithm. */
     virtual std::string getAlgorithmPersonalityType_() const = 0;
@@ -305,9 +306,8 @@ private:
      * @return The same individual, owned as an individual_type
      */
     template <typename individual_type>
-    static std::unique_ptr<individual_type> castBest_(
-        std::unique_ptr<gen::GGenome> ind_ptr, std::string_view accessor
-    ) {
+    static std::unique_ptr<individual_type>
+    castBest_(std::unique_ptr<gen::GGenome> ind_ptr, std::string_view accessor) {
         if(auto *converted = dynamic_cast<individual_type *>(ind_ptr.get()); converted != nullptr) {
             ind_ptr.release(); // ownership passes to the converted pointer
             return std::unique_ptr<individual_type>(converted);
@@ -322,7 +322,8 @@ private:
     /***************************************************************************/
     // Data
 
-    mutable std::mutex get_best_mutex_; ///< Protects access to the best individuals (global and per-iteration)
+    mutable std::mutex
+        get_best_mutex_; ///< Protects access to the best individuals (global and per-iteration)
 };
 
 /******************************************************************************/

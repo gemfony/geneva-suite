@@ -102,23 +102,23 @@ public:
     {                                                                                              \
         std::source_location const _geneva_source_loc = std::source_location::current();           \
         std::ostringstream error;                                                                  \
-        error << '\n'                                                                         \
-              << "================================================" << '\n'                   \
-              << "ERROR" << '\n'                                                              \
-              << "in file " << _geneva_source_loc.file_name() << '\n'                         \
-              << "near line " << _geneva_source_loc.line() << " (function "                     \
-              << _geneva_source_loc.function_name() << ")" << " with description:" << '\n'    \
-              << '\n'                                                                         \
-              << E /* NOLINT(bugprone-macro-parentheses) */ << '\n'                           \
-              << '\n'                                                                         \
-              << "If you suspect that this error is due to Geneva," << '\n'                   \
-              << "then please consider filing a bug via" << '\n'                              \
-              << "http://www.gemfony.eu (link \"Bug Reports\") or" << '\n'                    \
-              << "through http://www.launchpad.net/geneva" << '\n'                            \
-              << '\n'                                                                         \
-              << "We appreciate your help!" << '\n'                                           \
-              << "The Geneva team" << '\n'                                                    \
-              << "================================================" << '\n';                  \
+        error << '\n'                                                                              \
+              << "================================================" << '\n'                        \
+              << "ERROR" << '\n'                                                                   \
+              << "in file " << _geneva_source_loc.file_name() << '\n'                              \
+              << "near line " << _geneva_source_loc.line() << " (function "                        \
+              << _geneva_source_loc.function_name() << ")" << " with description:" << '\n'         \
+              << '\n'                                                                              \
+              << E /* NOLINT(bugprone-macro-parentheses) */ << '\n'                                \
+              << '\n'                                                                              \
+              << "If you suspect that this error is due to Geneva," << '\n'                        \
+              << "then please consider filing a bug via" << '\n'                                   \
+              << "http://www.gemfony.eu (link \"Bug Reports\") or" << '\n'                         \
+              << "through http://www.launchpad.net/geneva" << '\n'                                 \
+              << '\n'                                                                              \
+              << "We appreciate your help!" << '\n'                                                \
+              << "The Geneva team" << '\n'                                                         \
+              << "================================================" << '\n';                       \
         throw(geneva_exception(error.str()));                                                      \
     }
 

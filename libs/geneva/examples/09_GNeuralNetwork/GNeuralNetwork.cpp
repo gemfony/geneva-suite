@@ -113,7 +113,12 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // Produce data sets if we have been asked to do so, then leave
     if(tdt != gind::trainingDataType::TDTNONE) {
-        gind::GNeuralNetworkIndividual::createNetworkData(tdt, trainingDataFile, architecture, nDataSets);
+        gind::GNeuralNetworkIndividual::createNetworkData(
+            tdt,
+            trainingDataFile,
+            architecture,
+            nDataSets
+        );
         return 0;
     }
 
@@ -124,7 +129,11 @@ int main(int argc, char **argv) {
     if(go.updateConfigsMode()) {
         auto const tmp_data = std::filesystem::temp_directory_path() / "geneva_nn_config_data.dat";
         gind::GNeuralNetworkIndividual::createNetworkData(
-            gind::trainingDataType::HYPERSPHERE, tmp_data.string(), architecture, 20);
+            gind::trainingDataType::HYPERSPHERE,
+            tmp_data.string(),
+            architecture,
+            20
+        );
         trainingDataFile = tmp_data.string();
     }
 
@@ -163,8 +172,7 @@ int main(int argc, char **argv) {
     }
 
     // Perform the actual optimization and retrieve the best individual
-    auto const p =
-        go.optimize()->getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
+    auto const p = go.optimize()->getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
 
     //---------------------------------------------------------------------------
     // Output the result- and the visualization-program (if available)

@@ -80,7 +80,10 @@ std::atomic<unsigned int> g_nHardwareThreads{
  */
 template <typename num_type>
 bool parseSeparatedNumbers(
-    std::string_view s, char sep, std::vector<num_type> &out, std::string &rest
+    std::string_view s,
+    char sep,
+    std::vector<num_type> &out,
+    std::string &rest
 ) {
     std::size_t i = 0;
     const std::size_t n = s.size();
@@ -170,8 +173,7 @@ unsigned int getNHardwareThreads() {
 
             if(g_nHardwareThreads.load() == 0) { // We could not load the number of hardware threads
                 glogger << "In getNHardwareThreads():"
-                        << "Could not get information regarding suitable number of threads."
-                        << '\n'
+                        << "Could not get information regarding suitable number of threads." << '\n'
                         << "from hardware. Using the default value  = " << DEFAULTNHARDWARETHREADS
                         << " instead." << '\n'
                         << GWARNING;
@@ -536,8 +538,7 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
     default:
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::duration_from_string(\"" << duration_string << "\"): Error!"
-            << '\n'
+            << "In Gem::Common::duration_from_string(\"" << duration_string << "\"): Error!" << '\n'
             << "Invalid number of fields present: " << timings.size() << '\n'
         );
         break;

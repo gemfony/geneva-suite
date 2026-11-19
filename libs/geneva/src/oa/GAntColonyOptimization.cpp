@@ -43,8 +43,8 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/GPersonalityTraits.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
 #ifdef GEM_TESTING
@@ -168,23 +168,15 @@ void GAntColonyOptimization::addConfigurationOptions_(Gem::Common::GParserBuilde
         [this](std::size_t k) { this->setArchiveSize(k); }
     ) << "The size k of the ACOR solution archive (the continuous pheromone model; at least 2)";
 
-    gpb.registerFileParameter<std::size_t>(
-        "n_ants",
-        DEFAULTACORNANTS,
-        [this](std::size_t m) { this->setNAnts(m); }
-    ) << "The number of ants m constructed (and evaluated) per iteration";
+    gpb.registerFileParameter<std::size_t>("n_ants", DEFAULTACORNANTS, [this](std::size_t m) {
+        this->setNAnts(m);
+    }) << "The number of ants m constructed (and evaluated) per iteration";
 
-    gpb.registerFileParameter<double>(
-        "q",
-        DEFAULTACORQ,
-        [this](double q) { this->setQ(q); }
-    ) << "The ACOR locality / intensification parameter q (> 0; small = strong intensification)";
+    gpb.registerFileParameter<double>("q", DEFAULTACORQ, [this](double q) { this->setQ(q); })
+        << "The ACOR locality / intensification parameter q (> 0; small = strong intensification)";
 
-    gpb.registerFileParameter<double>(
-        "xi",
-        DEFAULTACORXI,
-        [this](double xi) { this->setXi(xi); }
-    ) << "The ACOR evaporation / convergence-speed parameter xi (> 0)";
+    gpb.registerFileParameter<double>("xi", DEFAULTACORXI, [this](double xi) { this->setXi(xi); })
+        << "The ACOR evaporation / convergence-speed parameter xi (> 0)";
 }
 
 /******************************************************************************/
@@ -220,8 +212,8 @@ void GAntColonyOptimization::adjustPopulation_() {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GAntColonyOptimization::adjustPopulation_(): Error!" << '\n'
-            << "The number of ants (" << n_ants_ << ") exceeds the archive size ("
-            << archive_size_ << ")." << '\n'
+            << "The number of ants (" << n_ants_ << ") exceeds the archive size (" << archive_size_
+            << ")." << '\n'
         );
     }
 
@@ -252,7 +244,8 @@ void GAntColonyOptimization::init() {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GAntColonyOptimization::init(): Error!" << '\n'
-            << "The individual exposes no floating point parameters; Ant Colony Optimization" << '\n'
+            << "The individual exposes no floating point parameters; Ant Colony Optimization"
+            << '\n'
             << "(continuous) requires a continuous (double / float) genome." << '\n'
         );
     }
@@ -366,10 +359,8 @@ void GAntColonyOptimization::computeSelectionProbabilities() {
  * random coefficients).
  */
 std::size_t GAntColonyOptimization::rouletteSelect() {
-    const double r = uniform_real_distribution_(
-        gr_,
-        std::uniform_real_distribution<double>::param_type(0., 1.)
-    );
+    const double r =
+        uniform_real_distribution_(gr_, std::uniform_real_distribution<double>::param_type(0., 1.));
 
     double cumulative = 0.;
     for(std::size_t l = 0; l < selection_probabilities_.size(); ++l) {
@@ -504,21 +495,15 @@ std::tuple<double, double> GAntColonyOptimization::cycleLogic_() {
     const auto m = this->at(0)->getMaxMode();
     const std::size_t n_eval = this->afterFirstIteration() ? n_ants_ : archive_size_;
 
-    std::tuple<double, double> best_fitness = std::make_tuple(
-        this->at(0)->getWorstCase(),
-        this->at(0)->getWorstCase()
-    );
+    std::tuple<double, double> best_fitness =
+        std::make_tuple(this->at(0)->getWorstCase(), this->at(0)->getWorstCase());
 
     for(std::size_t pos = 0; pos < n_eval; ++pos) {
         auto &ind = (*this->at(pos));
         if(ind.is_due_for_processing() || ind.has_errors()) {
             continue;
         }
-        if(isBetter(
-               ind.transformed_fitness(0),
-               std::get<G_TRANSFORMED_FITNESS>(best_fitness),
-               m
-           )) {
+        if(isBetter(ind.transformed_fitness(0), std::get<G_TRANSFORMED_FITNESS>(best_fitness), m)) {
             best_fitness = ind.getFitnessTuple();
         }
     }

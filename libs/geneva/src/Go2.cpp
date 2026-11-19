@@ -33,25 +33,25 @@
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GFatalReport.hpp"
-#include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations (boot-time completeness self-check)
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GProviderT.hpp"
 #include "courtier/GBaseClientT.hpp" // the networked client run by clientRun_ (built via the setup layer)
+#include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations (boot-time completeness self-check)
 // courtier consumer construction, the per-mnemonic command-line spec, the consumer option surface and
 // the networked client all live in the shared setup layer (buildConsumer / specFromCommandLine /
 // addConsumerOptions / buildConsumerClient); Go2 no longer touches the concrete consumer
 // types or the consumer store at all.
 #include "geneva/GConsumerSetup.hpp"
+#include "geneva/GModuleLoader.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GFactoryStore.hpp"
-#include "geneva/GModuleLoader.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "hap/GRandomFactory.hpp"
-#include <boost/program_options.hpp>
 #include <algorithm>
+#include <boost/program_options.hpp>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -83,7 +83,8 @@ void setRNFParameters(std::uint16_t n_producer_threads) {
 }
 
 std::once_flag fGo2; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::once_flag fArchiveCheck; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) -- boot self-check runs once
+std::once_flag
+    fArchiveCheck; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) -- boot self-check runs once
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -272,7 +273,8 @@ void Go2::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &plugg
     else {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::registerPluggableOM(): Tried to register empty pluggable optimization monitor\n"
+            << "In Go2::registerPluggableOM(): Tried to register empty pluggable optimization "
+               "monitor\n"
         );
     }
 }
@@ -386,7 +388,8 @@ bool Go2::clientMode() const {
     // command line wins over a programmatic setConsumerName, mirroring ensureConfigured_). The
     // trigger is idempotent, so the later optimize()/clientRun() is a no-op; the const_cast
     // reflects that this is a lazy-init concern, not a change to observable state.
-    const std::string &effective_consumer = cli_consumer_name_ ? *cli_consumer_name_ : consumer_name_;
+    const std::string &effective_consumer =
+        cli_consumer_name_ ? *cli_consumer_name_ : consumer_name_;
     if(Gem::Geneva::consumerDeterminesRoleAtRuntime(effective_consumer)) {
         const_cast<Go2 *>(this)->ensureConfigured_();
     }
@@ -578,9 +581,7 @@ void Go2::addAlgorithm(std::string const &mn) {
         );
     }
 
-    this->addAlgorithm(
-        p->provide()
-    ); // The provider's factory might add a monitor to the object
+    this->addAlgorithm(p->provide()); // The provider's factory might add a monitor to the object
 }
 
 /***************************************************************************/
@@ -603,7 +604,9 @@ Go2 &Go2::operator&(std::string const &mn) {
  *
  * @param cc_ptr A smart pointer to a factory that produces optimizable entities (must not be empty)
  */
-void Go2::registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
+void Go2::registerContentCreator(
+    const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr
+) {
     // A user-compiled-in individual: claim the single slot, so a later plugin load (or a second
     // registration) is refused by the one-individual-per-process guard.
     this->claimContentCreator_(cc_ptr, individualSource::COMPILED_IN);
@@ -624,9 +627,12 @@ void Go2::claimContentCreator_(
 ) {
     auto sourceStr = [](individualSource s) -> const char * {
         switch(s) {
-            case individualSource::COMPILED_IN: return "compiled in (registerContentCreator)";
-            case individualSource::LOADED: return "loaded from a plugin (--individual)";
-            default: return "none";
+        case individualSource::COMPILED_IN:
+            return "compiled in (registerContentCreator)";
+        case individualSource::LOADED:
+            return "loaded from a plugin (--individual)";
+        default:
+            return "none";
         }
     };
 
@@ -634,7 +640,8 @@ void Go2::claimContentCreator_(
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::claimContentCreator_(): Error!" << '\n'
-            << "Tried to register an empty content creator (source: " << sourceStr(source) << ")" << '\n'
+            << "Tried to register an empty content creator (source: " << sourceStr(source) << ")"
+            << '\n'
         );
     }
 
@@ -642,12 +649,14 @@ void Go2::claimContentCreator_(
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::claimContentCreator_(): Error!" << '\n'
-            << "An optimization problem (individual) is already provided (" << sourceStr(content_creator_source_)
-            << ");" << '\n'
+            << "An optimization problem (individual) is already provided ("
+            << sourceStr(content_creator_source_) << ");" << '\n'
             << "refusing to add another (" << sourceStr(source) << ")." << '\n'
-            << "Exactly one individual may exist per process -- compile one in OR load one, not both, and"
+            << "Exactly one individual may exist per process -- compile one in OR load one, not "
+               "both, and"
             << '\n'
-            << "never two. (If you compiled an individual in, do not also pass --individual.)" << '\n'
+            << "never two. (If you compiled an individual in, do not also pass --individual.)"
+            << '\n'
         );
     }
 
@@ -703,11 +712,11 @@ void Go2::refreshAllConfigs_() {
     // Every registered optimization-algorithm factory: producing one algorithm parses its config file.
     for(auto const &provider : oaFactoryStore()->getContentSnapshot()) {
         try {
-            (void) provider->provide();
+            (void)provider->provide();
         }
         catch(std::exception const &e) {
-            glogger << "In Go2::refreshAllConfigs_(): could not refresh the \"" << provider->getMnemonic()
-                    << "\" algorithm config: " << e.what() << '\n'
+            glogger << "In Go2::refreshAllConfigs_(): could not refresh the \""
+                    << provider->getMnemonic() << "\" algorithm config: " << e.what() << '\n'
                     << GWARNING;
         }
     }
@@ -719,11 +728,11 @@ void Go2::refreshAllConfigs_() {
     // The individual (content-creator) config, if an individual is available.
     if(content_creator_ptr_) {
         try {
-            (void) (*content_creator_ptr_)();
+            (void)(*content_creator_ptr_)();
         }
         catch(std::exception const &e) {
-            glogger << "In Go2::refreshAllConfigs_(): could not refresh the individual config: " << e.what()
-                    << '\n'
+            glogger << "In Go2::refreshAllConfigs_(): could not refresh the individual config: "
+                    << e.what() << '\n'
                     << GWARNING;
         }
     }
@@ -874,7 +883,7 @@ void Go2::createIndividualsFromContentCreator() {
  */
 void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
     total_iterations_ = 0;
-    sorted_           = false;
+    sorted_ = false;
     for(auto const &[alg_index, alg_ptr] : algorithms_cnt_ | std::views::enumerate) {
         // No per-algorithm broker injection: every algorithm submits through the one process consumer
         // (registered in GConsumerRegistry by setupChosenConsumer / registerConsumer). A standalone
@@ -959,13 +968,9 @@ void Go2::registerAdaptionConfig(
  * Sorting makes the best individuals easy to extract afterwards.
  */
 void Go2::sortIndividualsByFitness() {
-    std::ranges::sort(
-        this->begin(),
-        this->end(),
-        [](const auto &x_ptr, const auto &y_ptr) -> bool {
-            return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
-        }
-    );
+    std::ranges::sort(this->begin(), this->end(), [](const auto &x_ptr, const auto &y_ptr) -> bool {
+        return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
+    });
 
     sorted_ = true;
 }
@@ -1125,7 +1130,8 @@ void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         "individual_plugin_path",
         std::string(),
         [this](std::string const &p) { individual_plugin_path_ = p; }
-    ) << "Filesystem path to a runtime individual (optimization-problem) plugin (.so) to load at startup."
+    ) << "Filesystem path to a runtime individual (optimization-problem) plugin (.so) to load at "
+         "startup."
       << '\n'
       << "Empty (the default) means the individual is compiled into this binary. The --individual"
       << '\n'
@@ -1136,8 +1142,10 @@ void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         module_paths_,
         std::vector<std::string>(),
         Gem::Common::VAR_IS_SECONDARY,
-        "Filesystem paths to runtime Geneva modules (.so) loaded at startup, each of which may contribute "
-        "optimization algorithms (usable by their mnemonic) and/or the optimization individual. Repeated "
+        "Filesystem paths to runtime Geneva modules (.so) loaded at startup, each of which may "
+        "contribute "
+        "optimization algorithms (usable by their mnemonic) and/or the optimization individual. "
+        "Repeated "
         "--module command-line options add to this list. Empty (the default) loads no modules."
     );
 
@@ -1277,13 +1285,17 @@ void Go2::parseCommandLine(
         std::string const oa_help = std::format(
             "A comma-separated list of optimization algorithms, e.g. \"arg1,arg2\". "
             "{} algorithms have been registered: \n{}",
-            oaFactoryStore()->size(), listMnemonics(oaFactoryStore()));
+            oaFactoryStore()->size(),
+            listMnemonics(oaFactoryStore())
+        );
 
         std::string const consumer_help = std::format(
             "The name of the process consumer used for work-item evaluation (see --help for "
             "the registered consumer mnemonics). "
             "{} consumers are available: \n{}",
-            Gem::Geneva::consumerCount(), Gem::Geneva::consumerListing());
+            Gem::Geneva::consumerCount(),
+            Gem::Geneva::consumerListing()
+        );
 
         auto usage_string = std::string("Usage: ") + argv[0] + " [options]";
 
@@ -1369,7 +1381,7 @@ void Go2::parseCommandLine(
         }
         if(vm.contains("optimizationAlgorithms")) {
             cli_optimization_algorithms_ = optimization_algorithms;
-            cli_algorithms_explicit_     = true;
+            cli_algorithms_explicit_ = true;
         }
 
         if(vm.contains("client")) {
@@ -1463,14 +1475,14 @@ void Go2::emitHelpIfRequested(
  *
  * @param consumer The ready-to-use consumer to register as the process consumer (ownership is moved in)
  */
-void Go2::registerConsumer(
-    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer) {
+void Go2::registerConsumer(std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer) {
     consumer_ = consumer;
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().setConsumer(
-        std::move(consumer));
+    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().setConsumer(std::move(consumer));
     std::println(
-        "Using a custom registered consumer; it replaces the default \"{}\" as the process consumer",
-        consumer_name_);
+        "Using a custom registered consumer; it replaces the default \"{}\" as the process "
+        "consumer",
+        consumer_name_
+    );
 }
 
 /******************************************************************************/
@@ -1505,7 +1517,8 @@ std::string optionalConsumerNote_() {
     if(notes.empty()) {
         return {};
     }
-    return "Consumer modules installed with Geneva that could not be loaded on this machine:\n" + notes;
+    return "Consumer modules installed with Geneva that could not be loaded on this machine:\n" +
+           notes;
 }
 
 } // namespace
@@ -1541,8 +1554,7 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
             << "You have requested an unknown consumer \"" << consumer_name_ << "\"." << '\n'
             << "Available consumers are:" << '\n'
-            << Gem::Geneva::consumerListing()
-            << optionalConsumerNote_()
+            << Gem::Geneva::consumerListing() << optionalConsumerNote_()
         );
     }
 
@@ -1550,7 +1562,8 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
     // determines the role at runtime (e.g. mpi, from the rank) is exempt from this up-front check: its role
     // is not decided from --client.
     const bool role_at_runtime = Gem::Geneva::consumerDeterminesRoleAtRuntime(consumer_name_);
-    if(client_mode_ && not role_at_runtime && not Gem::Geneva::consumerNeedsClient(consumer_name_)) {
+    if(client_mode_ && not role_at_runtime &&
+       not Gem::Geneva::consumerNeedsClient(consumer_name_)) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Go2::setupChosenConsumer(): Error!" << '\n'
@@ -1622,18 +1635,24 @@ void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
  */
 void Go2::loadRequestedModules_() {
     auto loadOne = [this](std::string const &path, bool must_carry_individual) {
-        if(path.empty()) { return; }
-        if(not loaded_module_paths_.insert(path).second) { return; } // already loaded -> skip
+        if(path.empty()) {
+            return;
+        }
+        if(not loaded_module_paths_.insert(path).second) {
+            return;
+        } // already loaded -> skip
         LoadedModule const loaded = loadModule(path);
         if(must_carry_individual and not loaded.individual) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Go2::loadRequestedModules_(): Error!" << '\n'
-                << "'" << path << "' was given as the optimization problem (--individual), but the module"
+                << "'" << path
+                << "' was given as the optimization problem (--individual), but the module"
                 << " carries no individual." << '\n'
                 << "It contributes " << loaded.oa_count << " optimization algorithm(s) and "
                 << loaded.marshaller_count << " GPU marshaller(s)." << '\n'
-                << "A module that contributes algorithms rather than a problem is loaded with --module."
+                << "A module that contributes algorithms rather than a problem is loaded with "
+                   "--module."
                 << '\n'
             );
         }
@@ -1642,7 +1661,9 @@ void Go2::loadRequestedModules_() {
         }
     };
 
-    for(auto const &path : module_paths_) { loadOne(path, /* must_carry_individual = */ false); }
+    for(auto const &path : module_paths_) {
+        loadOne(path, /* must_carry_individual = */ false);
+    }
     loadOne(individual_plugin_path_, /* must_carry_individual = */ true);
 }
 
@@ -1663,9 +1684,11 @@ void Go2::extractEarlyModulePaths_(int argc, char **argv) {
     namespace po = boost::program_options;
 
     po::options_description early("early module extraction");
-    early.add_options()
-        ("module,m", po::value<std::vector<std::string>>()->composing(), "")
-        ("individual,i", po::value<std::string>(), "");
+    early.add_options()("module,m", po::value<std::vector<std::string>>()->composing(), "")(
+        "individual,i",
+        po::value<std::string>(),
+        ""
+    );
 
     po::variables_map early_vm;
     try {
@@ -1689,7 +1712,8 @@ void Go2::extractEarlyModulePaths_(int argc, char **argv) {
         }
     }
     if(early_vm.contains("individual")) {
-        individual_plugin_path_ = early_vm["individual"].as<std::string>(); // --individual overrides config
+        individual_plugin_path_ =
+            early_vm["individual"].as<std::string>(); // --individual overrides config
     }
 }
 
@@ -1705,7 +1729,9 @@ void Go2::extractEarlyModulePaths_(int argc, char **argv) {
  * (D4). This is the uniform lazy resolution for ALL consumers.
  */
 void Go2::ensureConfigured_() {
-    if(configured_) { return; }
+    if(configured_) {
+        return;
+    }
     configured_ = true;
 
     // Load any modules added programmatically after construction (command-line/config modules were already

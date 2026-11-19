@@ -44,8 +44,8 @@
 #include <sstream>
 #include <string>
 #include <tuple>
-#include <utility>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
 // Boost headers go here
@@ -270,7 +270,7 @@ fp_type checkValueRange(
     bool lower_open = false,
     bool upper_open = false,
     bool warn_only = false,
-    const std::string& var_name = std::string()
+    const std::string &var_name = std::string()
 ) {
     bool in_value_range = true;
 
@@ -786,8 +786,9 @@ auto getRatioError(
     // p may not be 0
     if(0. == std::get<2>(p)) {
         throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << "In getRatioError(): Error!" << '\n'
-                                                     << "Attempted division by 0." << '\n'
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In getRatioError(): Error!" << '\n'
+            << "Attempted division by 0." << '\n'
         );
     }
 
@@ -864,11 +865,7 @@ std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> getRatioErrors(
  * @return true if |val - target| <= margin, false otherwise
  */
 template <std::floating_point fp_type>
-bool isClose(
-    fp_type val,
-    fp_type target = 0,
-    fp_type margin = static_cast<fp_type>(0.00001)
-) {
+bool isClose(fp_type val, fp_type target = 0, fp_type margin = static_cast<fp_type>(0.00001)) {
     return (std::abs(val - target) <= margin);
 }
 

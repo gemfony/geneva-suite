@@ -50,8 +50,8 @@
 #include "geneva/oa/GStandardPSO2011_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -61,7 +61,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Default values for the Standard PSO 2011 algorithm.
  */
 constexpr std::size_t DEFAULTSPSOSWARMSIZE = 40; ///< The default number of particles in the swarm
-constexpr std::size_t DEFAULTSPSOK = 3;          ///< The default number of particles each particle informs
+constexpr std::size_t DEFAULTSPSOK = 3; ///< The default number of particles each particle informs
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -255,13 +255,11 @@ private:
     /** @brief Triggers fitness calculation of all individuals via the one process consumer */
     void evaluatePopulation_() override;
 
-
     /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
     /** @brief Resizes the population to the desired level and does some error checks */
     void adjustPopulation_() override;
-
 
     /***************************************************************************/
     // Algorithm-internal helpers
@@ -279,17 +277,15 @@ private:
     // User-facing strategy parameters (configured by the user / factory)
 
     std::size_t swarm_size_ = DEFAULTSPSOSWARMSIZE; ///< The number of particles in the swarm
-    std::size_t n_informants_ = DEFAULTSPSOK;       ///< The number of particles each particle informs (K)
+    std::size_t n_informants_ = DEFAULTSPSOK; ///< The number of particles each particle informs (K)
 
     /***************************************************************************/
     // Internal swarm state (transient; rebuilt in init(), excluded from serialize/compare)
 
     std::size_t n_fp_parms_ = 0; ///< The number of active floating point parameters (set in init())
 
-    std::vector<std::vector<double>>
-        velocities_; ///< Per-particle velocity vectors
-    std::vector<std::vector<double>>
-        personal_bests_; ///< Per-particle personal-best positions
+    std::vector<std::vector<double>> velocities_;     ///< Per-particle velocity vectors
+    std::vector<std::vector<double>> personal_bests_; ///< Per-particle personal-best positions
     std::vector<double>
         personal_best_fitness_; ///< Per-particle personal-best (minimization) fitness
 
@@ -308,4 +304,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

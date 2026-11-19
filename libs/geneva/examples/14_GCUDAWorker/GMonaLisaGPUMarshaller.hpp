@@ -37,9 +37,9 @@
 #include <vector>
 
 // Geneva headers
-#include "geneva/genome/GBaseGPUMarshallerT.hpp" // generic flatten/scatter/itemDimension scaffolding
 #include "GImageScalar.hpp"
 #include "GMonaLisaProblem.hpp"
+#include "geneva/genome/GBaseGPUMarshallerT.hpp" // generic flatten/scatter/itemDimension scaffolding
 
 namespace gen = Gem::Geneva::Genome;
 
@@ -67,8 +67,7 @@ namespace Gem::Geneva::MonaLisa {
  * kernel all use it -- no widening/narrowing. The matching device kernel is selected through the default
  * GPU-consumer config.
  */
-class GMonaLisaGPUMarshaller final
-  : public Gem::Geneva::GBaseGPUMarshallerT<gimage_fp_t> {
+class GMonaLisaGPUMarshaller final : public Gem::Geneva::GBaseGPUMarshallerT<gimage_fp_t> {
 public:
     [[nodiscard]] std::vector<std::byte> problemConstants() const override {
         const Target &t = target();
@@ -87,7 +86,9 @@ public:
     /** @brief Use intra-item (pixel-stripe) parallelism: 256 cooperating threads per individual, so a
      *  small population still fills the GPU. The CUDA backend launches n_items*256 threads and the
      *  kernel atomic-accumulates each item's fitness. */
-    [[nodiscard]] int parallelWorkPerItem() const override { return 256; }
+    [[nodiscard]] int parallelWorkPerItem() const override {
+        return 256;
+    }
 };
 
 /******************************************************************************/

@@ -44,8 +44,8 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/GPersonalityTraits.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GParetoTools.hpp"
 
@@ -157,7 +157,8 @@ void GSepCmaEvolutionStrategy::addConfigurationOptions_(Gem::Common::GParserBuil
         "lambda",
         DEFAULTSEPCMALAMBDA,
         [this](std::size_t l) { this->setLambda(l); }
-    ) << "The number of offspring sampled per generation (lambda)." << '\n'
+    ) << "The number of offspring sampled per generation (lambda)."
+      << '\n'
       << "A value of 0 selects the textbook default 4 + floor(3*ln(n)).";
 
     gpb.registerFileParameter<std::size_t>(
@@ -170,21 +171,17 @@ void GSepCmaEvolutionStrategy::addConfigurationOptions_(Gem::Common::GParserBuil
         "useDiagonalCMA",
         true,
         [this](bool b) { this->setUseDiagonalCMA(b); }
-    ) << "Whether to run the separable (diagonal) covariance adaptation." << '\n'
+    ) << "Whether to run the separable (diagonal) covariance adaptation."
+      << '\n'
       << "If false, the algorithm is a pure CSA-ES (step-size control only).";
 
-    gpb.registerFileParameter<bool>(
-        "paretoMode",
-        false,
-        [this](bool b) { this->setParetoMode(b); }
-    ) << "Whether to use NSGA-II-style multi-objective selection (non-dominated" << '\n'
-      << "sort + crowding distance) as the recombination ranking key.";
+    gpb.registerFileParameter<bool>("paretoMode", false, [this](bool b) { this->setParetoMode(b); })
+        << "Whether to use NSGA-II-style multi-objective selection (non-dominated" << '\n'
+        << "sort + crowding distance) as the recombination ranking key.";
 
-    gpb.registerFileParameter<double>(
-        "initialSigma",
-        0.3,
-        [this](double s) { this->setInitialSigma(s); }
-    ) << "The initial global step size sigma, as a fraction of the parameter range.";
+    gpb.registerFileParameter<double>("initialSigma", 0.3, [this](double s) {
+        this->setInitialSigma(s);
+    }) << "The initial global step size sigma, as a fraction of the parameter range.";
 }
 
 /******************************************************************************/
@@ -260,7 +257,8 @@ void GSepCmaEvolutionStrategy::setUpStrategyParameters() {
     double w_sum = 0.;
     double w_sq_sum = 0.;
     for(std::size_t i = 0; i < mu_; ++i) {
-        double const w = std::log(static_cast<double>(mu_) + 0.5) - std::log(static_cast<double>(i + 1));
+        double const w =
+            std::log(static_cast<double>(mu_) + 0.5) - std::log(static_cast<double>(i + 1));
         weights_[i] = w;
         w_sum += w;
     }
@@ -278,8 +276,7 @@ void GSepCmaEvolutionStrategy::setUpStrategyParameters() {
     // c_sigma ~ (mu_eff + 2) / (n + mu_eff + 5)  -- O(1/n) cumulation rate.
     c_sigma_ = (mu_eff_ + 2.) / (n + mu_eff_ + 5.);
     // damping d_sigma = 1 + 2*max(0, sqrt((mu_eff-1)/(n+1)) - 1) + c_sigma .
-    d_sigma_ =
-        1. + (2. * (std::max)(0., std::sqrt((mu_eff_ - 1.) / (n + 1.)) - 1.)) + c_sigma_;
+    d_sigma_ = 1. + (2. * (std::max)(0., std::sqrt((mu_eff_ - 1.) / (n + 1.)) - 1.)) + c_sigma_;
 
     // --- covariance adaptation (separable / diagonal) ---------------------------
     // c_c ~ 4/n -- O(1/n) cumulation rate for the rank-1 path.
@@ -349,15 +346,17 @@ void GSepCmaEvolutionStrategy::init() {
         const std::size_t n_int = ind.countParameters<std::int32_t>(activityMode::ACTIVEONLY);
         const std::size_t n_bool = ind.countParameters<bool>(activityMode::ACTIVEONLY);
         if(n_int + n_bool > 0) {
-            glogger << "In GSepCmaEvolutionStrategy::init(): Warning!" << '\n'
-                    << "The individual has " << n_int << " active integer and " << n_bool
-                    << " active boolean parameter(s)." << '\n'
-                    << "sep-CMA-ES optimizes only floating-point parameters; these will be left at their"
-                    << '\n'
-                    << "start values. Use an algorithm that adapts all parameter types (e.g. the EA)"
-                    << '\n'
-                    << "if the integer/boolean parameters should be optimized." << '\n'
-                    << GWARNING;
+            glogger
+                << "In GSepCmaEvolutionStrategy::init(): Warning!" << '\n'
+                << "The individual has " << n_int << " active integer and " << n_bool
+                << " active boolean parameter(s)." << '\n'
+                << "sep-CMA-ES optimizes only floating-point parameters; these will be left at "
+                   "their"
+                << '\n'
+                << "start values. Use an algorithm that adapts all parameter types (e.g. the EA)"
+                << '\n'
+                << "if the integer/boolean parameters should be optimized." << '\n'
+                << GWARNING;
         }
     }
 
@@ -428,7 +427,8 @@ void GSepCmaEvolutionStrategy::sampleOffspring() {
             for(std::size_t i = 0; i < n_; ++i) {
                 z[i] = norm(gr_);
             }
-        } else {
+        }
+        else {
             for(std::size_t i = 0; i < n_; ++i) {
                 z[i] = -z[i];
             }
@@ -473,11 +473,15 @@ std::vector<std::size_t> GSepCmaEvolutionStrategy::rankPopulation() const {
     std::iota(idx.begin(), idx.end(), 0);
 
     const bool maximize = (this->at(0)->getMaxMode() == maxMode::MAXIMIZE);
-    std::stable_sort(idx.begin(), idx.end(), [this, maximize](std::size_t a, std::size_t b) -> bool {
-        double const fa = this->at(a)->transformed_fitness();
-        double const fb = this->at(b)->transformed_fitness();
-        return maximize ? (fa > fb) : (fa < fb);
-    });
+    std::stable_sort(
+        idx.begin(),
+        idx.end(),
+        [this, maximize](std::size_t a, std::size_t b) -> bool {
+            double const fa = this->at(a)->transformed_fitness();
+            double const fb = this->at(b)->transformed_fitness();
+            return maximize ? (fa > fb) : (fa < fb);
+        }
+    );
 
     return idx;
 }
@@ -492,7 +496,7 @@ std::vector<std::size_t> GSepCmaEvolutionStrategy::rankPopulation() const {
 std::vector<std::size_t> GSepCmaEvolutionStrategy::rankPopulationPareto() const {
     std::vector<const gen::GGenome *> pop;
     pop.reserve(this->size());
-    for(const auto & i : *this) {
+    for(const auto &i : *this) {
         pop.push_back(&(*i));
     }
     return nonDominatedRank(pop);
@@ -579,8 +583,7 @@ void GSepCmaEvolutionStrategy::updateDistribution(const std::vector<std::size_t>
                 rank_mu += w * yj * yj;
             }
             C_[j] = ((1. - c_1_ - c_mu_) * C_[j]) +
-                    (c_1_ * (p_c_[j] * p_c_[j] + delta_hsig * C_[j])) +
-                    (c_mu_ * rank_mu);
+                    (c_1_ * (p_c_[j] * p_c_[j] + delta_hsig * C_[j])) + (c_mu_ * rank_mu);
             // Numerical floor so sqrt(C) stays well-defined.
             if(not(C_[j] > 1.e-300)) {
                 C_[j] = 1.e-300;

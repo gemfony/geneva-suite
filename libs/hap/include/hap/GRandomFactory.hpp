@@ -54,13 +54,13 @@
 
 // Geneva headers go here
 
-#include "common/concurrency/GMPMCQueueT.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GMPMCQueueT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "hap/GRandomDefines.hpp"
@@ -87,9 +87,10 @@ using G_CPU_BASE_GENERATOR = xoshiro256pp;
  * @return A static string literal naming the engine ("xoshiro256++" or "unknown")
  */
 inline const char *cpuEngineName() noexcept {
-    if constexpr (std::is_same_v<G_CPU_BASE_GENERATOR, xoshiro256pp>) {
+    if constexpr(std::is_same_v<G_CPU_BASE_GENERATOR, xoshiro256pp>) {
         return "xoshiro256++";
-    } else {
+    }
+    else {
         return "unknown";
     }
 }
@@ -141,10 +142,8 @@ public:
         delete; ///< The copy constructor -- intentionally deleted
     random_container(random_container &&) =
         delete; ///< The move constructor -- intentionally deleted
-    random_container &
-    operator=(const random_container &) = delete; ///< intentionally deleted
-    random_container &
-    operator=(random_container &&) = delete; ///< Intentionally deleted
+    random_container &operator=(const random_container &) = delete; ///< intentionally deleted
+    random_container &operator=(random_container &&) = delete;      ///< Intentionally deleted
 
     /***************************************************************************/
     /** @brief The destructor */
@@ -196,8 +195,7 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In random_container::next(): Error!" << '\n'
-                << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE
-                << '\n'
+                << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE << '\n'
             );
         }
 #endif
@@ -221,7 +219,7 @@ private:
 	  */
     template <typename rng_type>
     void fill_from(rng_type &rng, std::size_t n) {
-        if constexpr (requires { rng.generate(r_.data(), n); }) {
+        if constexpr(requires { rng.generate(r_.data(), n); }) {
             rng.generate(r_.data(), n);
         }
         else {
@@ -340,7 +338,9 @@ public:
      *
      * @return true once finalize() has completed; false while the factory is live
      */
-    [[nodiscard]] bool finalized() const { return finalized_.load(); }
+    [[nodiscard]] bool finalized() const {
+        return finalized_.load();
+    }
 
     /**
      * @brief Sets the number of producer threads for this factory.
@@ -467,13 +467,19 @@ private:
      */
     void producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start);
 
-    std::atomic<std::uint64_t> n_packages_produced_{0}; ///< Lifetime count of packages delivered to the fresh buffer (supply-throughput signal)
-    std::atomic<std::uint64_t> n_get_timeouts_{0}; ///< Lifetime count of empty getNewRandomContainer() results (aggregate starvation signal)
+    std::atomic<std::uint64_t> n_packages_produced_{
+        0
+    }; ///< Lifetime count of packages delivered to the fresh buffer (supply-throughput signal)
+    std::atomic<std::uint64_t> n_get_timeouts_{
+        0
+    }; ///< Lifetime count of empty getNewRandomContainer() results (aggregate starvation signal)
 
     std::atomic<bool> finalized_{false};
     /// Whether the producer threads have been launched (their start may still run)
     std::atomic<bool> threads_started_{false};
-    std::atomic<bool> threads_stop_requested_{false}; ///< Indicates whether all threads were requested to stop
+    std::atomic<bool> threads_stop_requested_{
+        false
+    }; ///< Indicates whether all threads were requested to stop
     std::atomic<std::uint16_t> n_producer_threads_{
         autoProducerThreadCount()
     }; ///< The number of threads used to produce random numbers (hardware-derived by default)
@@ -488,10 +494,16 @@ private:
     /** @brief A bounded buffer holding the random number packages. The queue backend is selected at
      *  compile time by FACTORYQUEUEBACKEND (default: the std::deque-backed queue -- unchanged
      *  behaviour; switchable to the preallocated ring via GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED). */
-    Gem::Common::Concurrency::GMPMCQueueT<std::unique_ptr<random_container>, DEFAULTFACTORYBUFFERSIZE, FACTORYQUEUEBACKEND>
+    Gem::Common::Concurrency::GMPMCQueueT<
+        std::unique_ptr<random_container>,
+        DEFAULTFACTORYBUFFERSIZE,
+        FACTORYQUEUEBACKEND>
         p_fresh_bfr_; // Note: Absolutely needs to be defined after the thread group !!!
     /** @brief A bounded buffer holding random number packages ready for recycling */
-    Gem::Common::Concurrency::GMPMCQueueT<std::unique_ptr<random_container>, DEFAULTFACTORYBUFFERSIZE, FACTORYQUEUEBACKEND>
+    Gem::Common::Concurrency::GMPMCQueueT<
+        std::unique_ptr<random_container>,
+        DEFAULTFACTORYBUFFERSIZE,
+        FACTORYQUEUEBACKEND>
         p_ret_bfr_;
 
     /// Orders the start of producer threads: the first getNewRandomContainer() and

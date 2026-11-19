@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -88,15 +87,15 @@ namespace {
  * is decoupled from the concrete plotter type once captured.
  */
 struct dataSeries {
-    std::string name;                              ///< the plotter's plot label
-    std::string kind;                              ///< the plotter's getPlotterName()
-    std::vector<std::string> column_names;         ///< per-axis names (x, ex, y, ...)
-    std::vector<GPlotColumn> columns;              ///< per-axis value vectors (type-tagged, parallel)
-    GPlotSpec spec;                                ///< the plotter's full reported plot spec
-    std::size_t pad = 0;                           ///< the canvas pad this series draws into
-    bool secondary = false;                        ///< true if it overlays a primary in the same pad
-    std::optional<legendSample> legend;            ///< its sample, if the pad's legend lists it (by its name)
-    GDrawStyle style;                              ///< how it is drawn (scriptStyle(), as the external renderer draws it)
+    std::string name;                      ///< the plotter's plot label
+    std::string kind;                      ///< the plotter's getPlotterName()
+    std::vector<std::string> column_names; ///< per-axis names (x, ex, y, ...)
+    std::vector<GPlotColumn> columns;      ///< per-axis value vectors (type-tagged, parallel)
+    GPlotSpec spec;                        ///< the plotter's full reported plot spec
+    std::size_t pad = 0;                   ///< the canvas pad this series draws into
+    bool secondary = false;                ///< true if it overlays a primary in the same pad
+    std::optional<legendSample> legend; ///< its sample, if the pad's legend lists it (by its name)
+    GDrawStyle style; ///< how it is drawn (scriptStyle(), as the external renderer draws it)
 };
 
 /** @brief A draw style as its parts joined by '+' (line+markers, ...), "none" for none, as the
@@ -164,7 +163,8 @@ std::string csvComment(const std::string &in) {
     for(char const c : in) {
         if(c == '\n' || c == '\r') {
             out += ' ';
-        } else {
+        }
+        else {
             out += c;
         }
     }
@@ -189,13 +189,13 @@ std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &can
         }
 
         // Comma-list of column names for the header comment.
-        std::string const col_list = s.column_names | std::views::join_with(',')
-            | std::ranges::to<std::string>();
+        std::string const col_list =
+            s.column_names | std::views::join_with(',') | std::ranges::to<std::string>();
 
         out << "# series " << si << ": \"" << csvComment(s.name) << "\" kind=" << s.kind
             << " plotkind=" << to_string(s.spec.kind) << " role=" << s.spec.role
-            << " columns=" << col_list
-            << " pad=" << s.pad << " secondary=" << (s.secondary ? 1 : 0);
+            << " columns=" << col_list << " pad=" << s.pad
+            << " secondary=" << (s.secondary ? 1 : 0);
         // How the series is drawn (scriptStyle()), and whether and with which sample the pad's
         // legend lists it (scriptLegendEntries()): an external renderer draws both from these.
         out << " draw_style=" << styleTokens(s.style);
@@ -281,8 +281,8 @@ std::uint32_t crc32(const std::string &data) {
 std::string buildNpy(const std::vector<GPlotColumn> &columns, std::size_t rows) {
     const std::size_t cols = columns.size();
 
-    const bool is_int = !columns.empty()
-        && std::holds_alternative<const std::vector<std::int32_t> *>(columns.front());
+    const bool is_int = !columns.empty() &&
+                        std::holds_alternative<const std::vector<std::int32_t> *>(columns.front());
     const char *descr = is_int ? "<i4" : "<f8";
     const std::size_t elem_size = is_int ? sizeof(std::int32_t) : sizeof(double);
 
@@ -295,16 +295,16 @@ std::string buildNpy(const std::vector<GPlotColumn> &columns, std::size_t rows) 
 
     // The header must be padded with spaces so that magic(6)+version(2)+len(2)+header is a
     // multiple of 64, with the final header byte a newline.
-    const std::size_t prefix = 6 + 2 + 2; // magic + version + uint16 length field
+    const std::size_t prefix = 6 + 2 + 2;               // magic + version + uint16 length field
     std::size_t const total = prefix + dict.size() + 1; // +1 for the trailing '\n'
     const std::size_t pad = (64 - (total % 64)) % 64;
     dict.append(pad, ' ');
     dict.push_back('\n');
 
     std::string npy;
-    npy.append("\x93NUMPY", 6);    // magic
-    npy.push_back('\x01');          // version major
-    npy.push_back('\x00');          // version minor
+    npy.append("\x93NUMPY", 6);                           // magic
+    npy.push_back('\x01');                                // version major
+    npy.push_back('\x00');                                // version minor
     putU16(npy, static_cast<std::uint16_t>(dict.size())); // header length (LE)
     npy += dict;
 
@@ -313,12 +313,15 @@ std::string buildNpy(const std::vector<GPlotColumn> &columns, std::size_t rows) 
     npy.reserve(npy.size() + rows * cols * elem_size);
     for(std::size_t r = 0; r < rows; ++r) {
         for(std::size_t c = 0; c < cols; ++c) {
-            std::visit([&npy, r](const auto *v) {
-                const auto val = (*v)[r];
-                char bytes[sizeof(val)];
-                std::memcpy(bytes, &val, sizeof(val)); // native (little-endian) order
-                npy.append(bytes, sizeof(val));
-            }, columns[c]);
+            std::visit(
+                [&npy, r](const auto *v) {
+                    const auto val = (*v)[r];
+                    char bytes[sizeof(val)];
+                    std::memcpy(bytes, &val, sizeof(val)); // native (little-endian) order
+                    npy.append(bytes, sizeof(val));
+                },
+                columns[c]
+            );
         }
     }
     return npy;
@@ -351,19 +354,19 @@ std::string buildZip(const std::vector<zipMember> &members) {
         const std::uint32_t size = static_cast<std::uint32_t>(m.data.size());
 
         // Local file header.
-        putU32(out, 0x04034b50u);                                  // local file header signature
-        putU16(out, 20);                                            // version needed to extract (2.0)
-        putU16(out, 0);                                            // general purpose bit flag
-        putU16(out, 0);                                            // compression method 0 (store)
-        putU16(out, 0);                                            // last mod file time
-        putU16(out, 0);                                            // last mod file date
-        putU32(out, crc);                                          // CRC-32
-        putU32(out, size);                                         // compressed size (== uncompressed)
-        putU32(out, size);                                         // uncompressed size
-        putU16(out, static_cast<std::uint16_t>(m.name.size()));    // file name length
-        putU16(out, 0);                                            // extra field length
-        out += m.name;                                            // file name
-        out += m.data;                                            // the member bytes
+        putU32(out, 0x04034b50u);                               // local file header signature
+        putU16(out, 20);                                        // version needed to extract (2.0)
+        putU16(out, 0);                                         // general purpose bit flag
+        putU16(out, 0);                                         // compression method 0 (store)
+        putU16(out, 0);                                         // last mod file time
+        putU16(out, 0);                                         // last mod file date
+        putU32(out, crc);                                       // CRC-32
+        putU32(out, size);                                      // compressed size (== uncompressed)
+        putU32(out, size);                                      // uncompressed size
+        putU16(out, static_cast<std::uint16_t>(m.name.size())); // file name length
+        putU16(out, 0);                                         // extra field length
+        out += m.name;                                          // file name
+        out += m.data;                                          // the member bytes
 
         directory.push_back({m.name, crc, size, offset});
     }
@@ -371,36 +374,36 @@ std::string buildZip(const std::vector<zipMember> &members) {
     // Central directory.
     const std::uint32_t cd_offset = static_cast<std::uint32_t>(out.size());
     for(const auto &e : directory) {
-        putU32(out, 0x02014b50u);                                  // central file header signature
-        putU16(out, 20);                                           // version made by
-        putU16(out, 20);                                           // version needed to extract
-        putU16(out, 0);                                            // general purpose bit flag
-        putU16(out, 0);                                            // compression method 0 (store)
-        putU16(out, 0);                                            // last mod file time
-        putU16(out, 0);                                            // last mod file date
-        putU32(out, e.crc);                                        // CRC-32
-        putU32(out, e.size);                                       // compressed size
-        putU32(out, e.size);                                       // uncompressed size
-        putU16(out, static_cast<std::uint16_t>(e.name.size()));    // file name length
-        putU16(out, 0);                                            // extra field length
-        putU16(out, 0);                                            // file comment length
-        putU16(out, 0);                                            // disk number start
-        putU16(out, 0);                                            // internal file attributes
-        putU32(out, 0);                                            // external file attributes
-        putU32(out, e.offset);                                     // relative offset of local header
-        out += e.name;                                            // file name
+        putU32(out, 0x02014b50u);                               // central file header signature
+        putU16(out, 20);                                        // version made by
+        putU16(out, 20);                                        // version needed to extract
+        putU16(out, 0);                                         // general purpose bit flag
+        putU16(out, 0);                                         // compression method 0 (store)
+        putU16(out, 0);                                         // last mod file time
+        putU16(out, 0);                                         // last mod file date
+        putU32(out, e.crc);                                     // CRC-32
+        putU32(out, e.size);                                    // compressed size
+        putU32(out, e.size);                                    // uncompressed size
+        putU16(out, static_cast<std::uint16_t>(e.name.size())); // file name length
+        putU16(out, 0);                                         // extra field length
+        putU16(out, 0);                                         // file comment length
+        putU16(out, 0);                                         // disk number start
+        putU16(out, 0);                                         // internal file attributes
+        putU32(out, 0);                                         // external file attributes
+        putU32(out, e.offset);                                  // relative offset of local header
+        out += e.name;                                          // file name
     }
     const std::uint32_t cd_size = static_cast<std::uint32_t>(out.size()) - cd_offset;
 
     // End of central directory record.
-    putU32(out, 0x06054b50u);                                      // EOCD signature
-    putU16(out, 0);                                                // number of this disk
-    putU16(out, 0);                                                // disk where CD starts
-    putU16(out, static_cast<std::uint16_t>(directory.size()));     // CD records on this disk
-    putU16(out, static_cast<std::uint16_t>(directory.size()));     // total CD records
-    putU32(out, cd_size);                                          // size of central directory
-    putU32(out, cd_offset);                                        // offset of central directory
-    putU16(out, 0);                                                // comment length
+    putU32(out, 0x06054b50u);                                  // EOCD signature
+    putU16(out, 0);                                            // number of this disk
+    putU16(out, 0);                                            // disk where CD starts
+    putU16(out, static_cast<std::uint16_t>(directory.size())); // CD records on this disk
+    putU16(out, static_cast<std::uint16_t>(directory.size())); // total CD records
+    putU32(out, cd_size);                                      // size of central directory
+    putU32(out, cd_offset);                                    // offset of central directory
+    putU16(out, 0);                                            // comment length
     return out;
 }
 
@@ -417,9 +420,9 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
     std::vector<zipMember> members;
 
     std::string manifest = "{\n";
-    manifest += "  \"canvas\": {\"label\": \"" + GPlotSpec::jsonEscape(canvas.label)
-        + "\", \"c_x_div\": " + std::to_string(canvas.c_x_div)
-        + ", \"c_y_div\": " + std::to_string(canvas.c_y_div) + "},\n";
+    manifest += "  \"canvas\": {\"label\": \"" + GPlotSpec::jsonEscape(canvas.label) +
+                "\", \"c_x_div\": " + std::to_string(canvas.c_x_div) +
+                ", \"c_y_div\": " + std::to_string(canvas.c_y_div) + "},\n";
     manifest += "  \"series\": [\n";
     for(const auto &[si, s] : series | std::views::enumerate) {
         const std::size_t rows = seriesRows(s);
@@ -434,8 +437,8 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
         // with its pad / secondary placement (splice before the closing brace).
         std::string spec_json = s.spec.toJson();
         spec_json.pop_back(); // drop the trailing '}'
-        spec_json += ", \"pad\": " + std::to_string(s.pad)
-            + ", \"secondary\": " + (s.secondary ? "true" : "false");
+        spec_json += ", \"pad\": " + std::to_string(s.pad) +
+                     ", \"secondary\": " + (s.secondary ? "true" : "false");
         // Whether and with which sample the pad's legend lists the series (by its name), from
         // GBasePlotter::legendEntries(): an external renderer draws the same legend.
         spec_json += ", \"draw_style\": \"" + styleTokens(s.style) + "\"";
@@ -457,9 +460,7 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
  *  dataless function plotters), including each plotter's secondary plotters. Shared by
  *  both the CSV and NPZ paths; the plotter list is supplied by the friend emitter member
  *  (free functions cannot reach GPlotDesigner's private plotter container). */
-std::vector<dataSeries> collectSeries(
-    const std::vector<std::shared_ptr<GBasePlotter>> &plotters
-) {
+std::vector<dataSeries> collectSeries(const std::vector<std::shared_ptr<GBasePlotter>> &plotters) {
     std::vector<dataSeries> series;
     // The pad index is the primary's registration index (matching the render emitters,
     // which place plotter i into pad i); its secondary plotters overlay the same pad. A
@@ -468,7 +469,8 @@ std::vector<dataSeries> collectSeries(
     for(const auto &[idx, p] : plotters | std::views::enumerate) {
         const auto pad = static_cast<std::size_t>(idx);
         const auto entries = scriptLegendEntries(*p);
-        const auto sample_of = [&entries](std::size_t series_in_pad) -> std::optional<legendSample> {
+        const auto sample_of =
+            [&entries](std::size_t series_in_pad) -> std::optional<legendSample> {
             for(const auto &e : entries) {
                 if(e.series == series_in_pad) {
                     return e.sample;
@@ -503,7 +505,9 @@ std::vector<dataSeries> collectSeries(
  *
  * @param format The on-disk format to export (CSV or NPZ)
  */
-GDataEmitter::GDataEmitter(dataFormat format) : format_(format) { /* nothing */ }
+GDataEmitter::GDataEmitter(dataFormat format)
+  : format_(format) { /* nothing */
+}
 
 /******************************************************************************/
 /**

@@ -50,6 +50,8 @@
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
 extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
     return Gem::Geneva::individualManifest<
-        Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::Individuals::GExternalEvaluatorIndividual>,
-        "./config/GExternalEvaluatorIndividual.json", "GExternalEvaluatorIndividual">();
+        Gem::Geneva::Genome::GIndividualFactory<
+            Gem::Geneva::Individuals::GExternalEvaluatorIndividual>,
+        "./config/GExternalEvaluatorIndividual.json",
+        "GExternalEvaluatorIndividual">();
 }

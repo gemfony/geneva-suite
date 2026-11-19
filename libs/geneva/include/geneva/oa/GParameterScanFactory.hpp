@@ -41,8 +41,8 @@
 
 // Geneva headers go here
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
@@ -71,7 +71,8 @@ public:
      * @param config_file Path to the JSON configuration file from which the algorithm's options are read.
      */
     explicit GParameterScanFactory(std::filesystem::path const &config_file)
-      : Base(config_file) { /* nothing */ }
+      : Base(config_file) { /* nothing */
+    }
     /**
      * @brief Initialization with the name of the config file and a content creator
      *
@@ -82,7 +83,8 @@ public:
         std::filesystem::path const &config_file,
         std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr
     )
-      : Base(config_file, std::move(content_creator_ptr)) { /* nothing */ }
+      : Base(config_file, std::move(content_creator_ptr)) { /* nothing */
+    }
     /**
      * @brief The copy constructor
      *
@@ -132,4 +134,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

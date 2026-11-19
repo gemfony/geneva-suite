@@ -31,8 +31,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -45,7 +45,6 @@
 #include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection, legendPosition
 
 namespace Gem::Dietrich {
-
 
 /******************************************************************************/
 /**
@@ -77,15 +76,24 @@ enum class plotKind {
  */
 [[nodiscard]] inline std::string to_string(plotKind k) {
     switch(k) {
-        case plotKind::graph_2d:     return "graph_2d";
-        case plotKind::graph_2d_err: return "graph_2d_err";
-        case plotKind::graph_3d:     return "graph_3d";
-        case plotKind::graph_4d:     return "graph_4d";
-        case plotKind::hist_1d:      return "hist_1d";
-        case plotKind::hist_1i:      return "hist_1i";
-        case plotKind::hist_2d:      return "hist_2d";
-        case plotKind::function_1d:  return "function_1d";
-        case plotKind::function_2d:  return "function_2d";
+    case plotKind::graph_2d:
+        return "graph_2d";
+    case plotKind::graph_2d_err:
+        return "graph_2d_err";
+    case plotKind::graph_3d:
+        return "graph_3d";
+    case plotKind::graph_4d:
+        return "graph_4d";
+    case plotKind::hist_1d:
+        return "hist_1d";
+    case plotKind::hist_1i:
+        return "hist_1i";
+    case plotKind::hist_2d:
+        return "hist_2d";
+    case plotKind::function_1d:
+        return "function_1d";
+    case plotKind::function_2d:
+        return "function_2d";
     }
     return "unknown";
 }
@@ -101,15 +109,24 @@ enum class plotKind {
  */
 [[nodiscard]] inline std::string defaultRole(plotKind k) {
     switch(k) {
-        case plotKind::graph_2d:     return "xy";
-        case plotKind::graph_2d_err: return "xy_err";
-        case plotKind::graph_3d:     return "xyz";
-        case plotKind::graph_4d:     return "xyzw";
-        case plotKind::hist_1d:      return "distribution";
-        case plotKind::hist_1i:      return "distribution";
-        case plotKind::hist_2d:      return "distribution_2d";
-        case plotKind::function_1d:  return "function";
-        case plotKind::function_2d:  return "function";
+    case plotKind::graph_2d:
+        return "xy";
+    case plotKind::graph_2d_err:
+        return "xy_err";
+    case plotKind::graph_3d:
+        return "xyz";
+    case plotKind::graph_4d:
+        return "xyzw";
+    case plotKind::hist_1d:
+        return "distribution";
+    case plotKind::hist_1i:
+        return "distribution";
+    case plotKind::hist_2d:
+        return "distribution_2d";
+    case plotKind::function_1d:
+        return "function";
+    case plotKind::function_2d:
+        return "function";
     }
     return "unknown";
 }
@@ -148,7 +165,8 @@ struct GPlotSpec {
     std::optional<std::tuple<double, double>>
         range_y; ///< fixed (min,max) y-axis range (2-d histograms only)
 
-    std::optional<graphPlotMode> plot_mode; ///< scatter vs. curve (2-d graphs; for a 3-d graph CURVE adds a line)
+    std::optional<graphPlotMode>
+        plot_mode; ///< scatter vs. curve (2-d graphs; for a 3-d graph CURVE adds a line)
 
     std::optional<surfaceProjection>
         projection; ///< 3-d graphs only: draw a surface with its colour map on the floor or ceiling
@@ -161,23 +179,32 @@ struct GPlotSpec {
 
     std::string pad_title; ///< the title of the pad, apart from name (empty: name is the title)
 
-    std::optional<legendPosition> legend; ///< where the pad's legend lies (absent: the backend's choice)
+    std::optional<legendPosition>
+        legend; ///< where the pad's legend lies (absent: the backend's choice)
 
-    std::optional<std::uint32_t> line_width; ///< 2-d graphs: the width of the line (absent: default)
+    std::optional<std::uint32_t>
+        line_width; ///< 2-d graphs: the width of the line (absent: default)
 
-    std::optional<bool> arrows; ///< 2-d graphs: true joins consecutive points by arrows (ROOT alone draws them)
+    std::optional<bool>
+        arrows; ///< 2-d graphs: true joins consecutive points by arrows (ROOT alone draws them)
 
-    std::optional<bool> legend_room; ///< true: the frame leaves the legend a band of its own (GBasePlotter::setLegendRoom())
+    std::optional<bool>
+        legend_room; ///< true: the frame leaves the legend a band of its own (GBasePlotter::setLegendRoom())
 
     /***************************************************************************/
     /** @brief Default constructor (kind=graph_2d, role defaulted from it) */
-    GPlotSpec() : role(defaultRole(kind)) { /* nothing */ }
+    GPlotSpec()
+      : role(defaultRole(kind)) { /* nothing */
+    }
 
     /**
      * @brief Constructs a spec for the given kind, defaulting the role from it.
      * @param k The plot kind this spec describes
      */
-    explicit GPlotSpec(plotKind k) : kind(k), role(defaultRole(k)) { /* nothing */ }
+    explicit GPlotSpec(plotKind k)
+      : kind(k)
+      , role(defaultRole(k)) { /* nothing */
+    }
 
     /***************************************************************************/
     /**
@@ -234,9 +261,15 @@ struct GPlotSpec {
         if(projection.has_value()) {
             out += ", \"projection\": \"";
             switch(*projection) {
-                case surfaceProjection::NONE:    out += "none"; break;
-                case surfaceProjection::FLOOR:   out += "floor"; break;
-                case surfaceProjection::CEILING: out += "ceiling"; break;
+            case surfaceProjection::NONE:
+                out += "none";
+                break;
+            case surfaceProjection::FLOOR:
+                out += "floor";
+                break;
+            case surfaceProjection::CEILING:
+                out += "ceiling";
+                break;
             }
             out += "\"";
         }
@@ -254,13 +287,27 @@ struct GPlotSpec {
         if(legend.has_value()) {
             out += ", \"legend\": \"";
             switch(*legend) {
-                case legendPosition::AUTO:         out += "auto"; break;
-                case legendPosition::TOP_LEFT:     out += "top_left"; break;
-                case legendPosition::TOP_RIGHT:    out += "top_right"; break;
-                case legendPosition::BOTTOM_LEFT:  out += "bottom_left"; break;
-                case legendPosition::BOTTOM_RIGHT: out += "bottom_right"; break;
-                case legendPosition::CENTER_RIGHT: out += "center_right"; break;
-                case legendPosition::FREEST:       out += "freest"; break;
+            case legendPosition::AUTO:
+                out += "auto";
+                break;
+            case legendPosition::TOP_LEFT:
+                out += "top_left";
+                break;
+            case legendPosition::TOP_RIGHT:
+                out += "top_right";
+                break;
+            case legendPosition::BOTTOM_LEFT:
+                out += "bottom_left";
+                break;
+            case legendPosition::BOTTOM_RIGHT:
+                out += "bottom_right";
+                break;
+            case legendPosition::CENTER_RIGHT:
+                out += "center_right";
+                break;
+            case legendPosition::FREEST:
+                out += "freest";
+                break;
             }
             out += "\"";
         }
@@ -285,12 +332,24 @@ struct GPlotSpec {
         out.reserve(in.size() + 2);
         for(char const c : in) {
             switch(c) {
-                case '"':  out += "\\\""; break;
-                case '\\': out += "\\\\"; break;
-                case '\n': out += "\\n"; break;
-                case '\r': out += "\\r"; break;
-                case '\t': out += "\\t"; break;
-                default:   out += c;      break;
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                out += c;
+                break;
             }
         }
         return out;
@@ -318,11 +377,16 @@ enum class legendSample {
  */
 [[nodiscard]] inline std::string to_string(legendSample sample) {
     switch(sample) {
-        case legendSample::LINE:            return "line";
-        case legendSample::MARKER:          return "marker";
-        case legendSample::LINE_AND_MARKER: return "line_and_marker";
-        case legendSample::FILL:            return "fill";
-        case legendSample::COLOUR_MAP:      return "colour_map";
+    case legendSample::LINE:
+        return "line";
+    case legendSample::MARKER:
+        return "marker";
+    case legendSample::LINE_AND_MARKER:
+        return "line_and_marker";
+    case legendSample::FILL:
+        return "fill";
+    case legendSample::COLOUR_MAP:
+        return "colour_map";
     }
     return "line";
 }
@@ -331,10 +395,12 @@ enum class legendSample {
  * One entry of a pad's legend, as every backend draws it (GBasePlotter::legendEntries()).
  */
 struct GLegendEntry {
-    std::size_t series = 0; ///< the series it names: 0 the pad's primary plotter, k its k-th secondary plotter
-    std::string label;      ///< the text: the series' plot label
+    std::size_t series =
+        0; ///< the series it names: 0 the pad's primary plotter, k its k-th secondary plotter
+    std::string label;                        ///< the text: the series' plot label
     legendSample sample = legendSample::LINE; ///< what the sample shows (legendSampleOf())
-    std::uint32_t line_width = 0; ///< the width of the series' line, which a line sample takes (0: the backend's default)
+    std::uint32_t line_width =
+        0; ///< the width of the series' line, which a line sample takes (0: the backend's default)
 };
 
 /**
@@ -352,10 +418,10 @@ struct GLegendEntry {
  * what is not drawn; ROOT's draw option of a 2-d graph is made from it as well.
  */
 struct GDrawStyle {
-    bool line = false;            ///< a line through the points (a curve, a function)
-    bool markers = false;         ///< a marker at every point
-    bool error_bars = false;      ///< error bars at the points (a 2-d graph with errors)
-    bool fill = false;            ///< bars or boxes in the series' own colours (a 1-d histogram, ROOT's BOX)
+    bool line = false;       ///< a line through the points (a curve, a function)
+    bool markers = false;    ///< a marker at every point
+    bool error_bars = false; ///< error bars at the points (a 2-d graph with errors)
+    bool fill = false; ///< bars or boxes in the series' own colours (a 1-d histogram, ROOT's BOX)
     bool colour_map = false;      ///< a surface or map coloured by the palette
     bool arrows = false;          ///< arrows between consecutive points (ROOT alone draws them)
     std::uint32_t line_width = 0; ///< the width of the line (0: the backend's default)
@@ -391,7 +457,9 @@ struct GDrawStyle {
     for(auto at = args.find("SAME"); at != std::string::npos; at = args.find("SAME")) {
         args.erase(at, 4); // "same" places a series in a pad; it does not say how it is drawn
     }
-    const auto has = [&args](std::string_view token) { return args.find(token) != std::string::npos; };
+    const auto has = [&args](std::string_view token) {
+        return args.find(token) != std::string::npos;
+    };
     const bool colour_map = has("SURF") or has("COL") or has("CONT") or has("LEGO") or has("TRI");
     const bool own_args = args.find_first_not_of(", ") != std::string::npos;
     const bool curve = spec.plot_mode.value_or(graphPlotMode::CURVE) == graphPlotMode::CURVE;
@@ -399,61 +467,68 @@ struct GDrawStyle {
     GDrawStyle style;
     style.line_width = spec.line_width.value_or(0);
     switch(spec.kind) {
-        case plotKind::graph_2d:
-        case plotKind::graph_2d_err: {
-            style.error_bars = spec.kind == plotKind::graph_2d_err;
-            if(own_args) {
-                style.fill = has("B") or has("F");
-                style.line = has("L") or has("C");
-                style.markers = has("P") or has("*");
-                if(not(style.fill or style.line or style.markers)) {
-                    style.line = true; // ROOT joins the points of a graph without an option by a line
-                }
-            } else {
-                style.arrows = spec.arrows.value_or(false);
-                style.markers = true;
-                style.line = curve and not style.arrows; // arrows join the points instead
+    case plotKind::graph_2d:
+    case plotKind::graph_2d_err: {
+        style.error_bars = spec.kind == plotKind::graph_2d_err;
+        if(own_args) {
+            style.fill = has("B") or has("F");
+            style.line = has("L") or has("C");
+            style.markers = has("P") or has("*");
+            if(not(style.fill or style.line or style.markers)) {
+                style.line = true; // ROOT joins the points of a graph without an option by a line
             }
-        } break;
-        case plotKind::graph_3d: {
-            if(spec.projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE or colour_map) {
-                style.colour_map = true;
-            } else if(own_args) {
-                style.line = has("LINE");
-                style.markers = has("P") or not style.line;
-            } else {
-                style.markers = true;
-                style.line = spec.plot_mode == graphPlotMode::CURVE;
-            }
-        } break;
-        case plotKind::graph_4d:
+        }
+        else {
+            style.arrows = spec.arrows.value_or(false);
             style.markers = true;
-            break;
-        case plotKind::hist_1d:
-        case plotKind::hist_1i:
-            if(has("P") or has("E")) {
-                style.markers = true;
-                style.error_bars = has("E");
-            } else {
-                style.fill = true;
-            }
-            break;
-        case plotKind::hist_2d:
-            if(has("BOX")) {
-                style.fill = true;
-            } else if(has("SCAT") or has("ARR") or has("TEXT")) {
-                style.markers = true; // points (or arrows, numbers) where the entries lie
-            } else {
-                style.colour_map = true; // ROOT's default for a 2-d histogram is COL
-            }
-            break;
-        case plotKind::function_2d:
+            style.line = curve and not style.arrows; // arrows join the points instead
+        }
+    } break;
+    case plotKind::graph_3d: {
+        if(spec.projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE or
+           colour_map) {
             style.colour_map = true;
-            break;
-        case plotKind::function_1d:
-            style.markers = has("P");
-            style.line = not style.markers;
-            break;
+        }
+        else if(own_args) {
+            style.line = has("LINE");
+            style.markers = has("P") or not style.line;
+        }
+        else {
+            style.markers = true;
+            style.line = spec.plot_mode == graphPlotMode::CURVE;
+        }
+    } break;
+    case plotKind::graph_4d:
+        style.markers = true;
+        break;
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+        if(has("P") or has("E")) {
+            style.markers = true;
+            style.error_bars = has("E");
+        }
+        else {
+            style.fill = true;
+        }
+        break;
+    case plotKind::hist_2d:
+        if(has("BOX")) {
+            style.fill = true;
+        }
+        else if(has("SCAT") or has("ARR") or has("TEXT")) {
+            style.markers = true; // points (or arrows, numbers) where the entries lie
+        }
+        else {
+            style.colour_map = true; // ROOT's default for a 2-d histogram is COL
+        }
+        break;
+    case plotKind::function_2d:
+        style.colour_map = true;
+        break;
+    case plotKind::function_1d:
+        style.markers = has("P");
+        style.line = not style.markers;
+        break;
     }
     return style;
 }
@@ -495,7 +570,8 @@ legendBox(legendPosition position, std::size_t n_series) {
     constexpr double PADDING = 0.03;
     const double height =
         (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
-    const bool left = position == legendPosition::TOP_LEFT or position == legendPosition::BOTTOM_LEFT;
+    const bool left =
+        position == legendPosition::TOP_LEFT or position == legendPosition::BOTTOM_LEFT;
     const bool top = position == legendPosition::TOP_LEFT or position == legendPosition::TOP_RIGHT;
     const double x1 = left ? 0.12 : 0.88 - WIDTH;
     double y1 = top ? 0.88 - height : 0.13;
@@ -547,7 +623,8 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
     constexpr double ENTRY_HEIGHT = 0.04;
     constexpr double PADDING = 0.02;
     constexpr double BOTTOM = 0.70; // the lowest the band reaches: five entries
-    const double height = (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
+    const double height =
+        (ENTRY_HEIGHT * static_cast<double>(n_series == 0 ? 1 : n_series)) + PADDING;
     return {X1, std::max(BOTTOM, TOP - height), X2, TOP};
 }
 
@@ -608,10 +685,16 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
     // that crosses a box without a vertex inside counts one as well (it is sampled along its length),
     // so that a curve is never cheaper to cover than a cloud of as many points.
     std::vector<std::pair<double, double>> vertices;
-    std::vector<std::vector<std::pair<double, double>>> segments; // a segment's samples between its vertices
-    const auto shown = [&](double x, double y) { return not((x_log and x <= 0.) or (y_log and y <= 0.)); };
+    std::vector<std::vector<std::pair<double, double>>>
+        segments; // a segment's samples between its vertices
+    const auto shown = [&](double x, double y) {
+        return not((x_log and x <= 0.) or (y_log and y <= 0.));
+    };
     const auto in_pad = [&](double x, double y) {
-        return std::pair{to_pad(axis(x, x_log), x_lo, x_hi, x_log), to_pad(axis(y, y_log), y_lo, y_hi, y_log)};
+        return std::pair{
+            to_pad(axis(x, x_log), x_lo, x_hi, x_log),
+            to_pad(axis(y, y_log), y_lo, y_hi, y_log)
+        };
     };
     for(const auto *set : {&curves, &points}) {
         for(const auto &series : *set) {
@@ -633,9 +716,12 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
                     segment.push_back(in_pad(x, y));
                 }
             }
-            if(shown(curve[i].first, curve[i].second) and shown(curve[i + 1].first, curve[i + 1].second)) {
-                segment.push_back(in_pad(curve[i].first, curve[i].second));     // the ends, to tell a
-                segment.push_back(in_pad(curve[i + 1].first, curve[i + 1].second)); // crossing segment
+            if(shown(curve[i].first, curve[i].second) and
+               shown(curve[i + 1].first, curve[i + 1].second)) {
+                segment.push_back(in_pad(curve[i].first, curve[i].second)); // the ends, to tell a
+                segment.push_back(
+                    in_pad(curve[i + 1].first, curve[i + 1].second)
+                ); // crossing segment
             }
             segments.push_back(std::move(segment));
         }
@@ -649,12 +735,15 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
          legendPosition::BOTTOM_LEFT,
          legendPosition::TOP_RIGHT}) {
         auto [x1, y1, x2, y2] = legendBox(corner, n_series);
-        if(x2 - x1 < width) { // the box a long label grows, away from its side, at most to the frame
-            const bool right = corner == legendPosition::TOP_RIGHT or corner == legendPosition::BOTTOM_RIGHT
-                or corner == legendPosition::CENTER_RIGHT;
+        if(x2 - x1 <
+           width) { // the box a long label grows, away from its side, at most to the frame
+            const bool right = corner == legendPosition::TOP_RIGHT or
+                               corner == legendPosition::BOTTOM_RIGHT or
+                               corner == legendPosition::CENTER_RIGHT;
             if(right) {
                 x1 = std::max(0.1, x2 - width);
-            } else {
+            }
+            else {
                 x2 = std::min(0.9, x1 + width);
             }
         }
@@ -663,8 +752,8 @@ constexpr double LEGENDCROWDEDTEXTSIZE = 0.025;
         };
         double covered = static_cast<double>(std::ranges::count_if(vertices, inside));
         for(const auto &segment : segments) {
-            const bool ends_inside = segment.size() >= 2
-                and (inside(segment[segment.size() - 1]) or inside(segment[segment.size() - 2]));
+            const bool ends_inside = segment.size() >= 2 and (inside(segment[segment.size() - 1]) or
+                                                              inside(segment[segment.size() - 2]));
             if(not ends_inside and std::ranges::any_of(segment, inside)) {
                 covered += 1.; // crosses the box without a vertex inside
             }
@@ -705,8 +794,8 @@ constexpr std::size_t LEGEND3DMAXROWS = 7;
         for(char const c : spec.drawing_args) {
             args += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         }
-        return args.find("SURF") != std::string::npos or args.find("LEGO") != std::string::npos
-            or args.find("TRI") != std::string::npos;
+        return args.find("SURF") != std::string::npos or args.find("LEGO") != std::string::npos or
+               args.find("TRI") != std::string::npos;
     }
     return false;
 }

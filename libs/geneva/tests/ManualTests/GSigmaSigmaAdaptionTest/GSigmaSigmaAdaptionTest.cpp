@@ -67,7 +67,7 @@ std::normal_distribution<double> normal_distribution;
  * First distribution:
  * std::exp(normal_distribution(*gr_ptr, std::normal_distribution<double>::param_type(0., std::abs(sigmaSigma)))*(uniform_bool(*gr_ptr)?1.:-1.));
  */
-double dist1(const std::shared_ptr<Gem::Hap::GRandomBase>& gr_ptr, const double &sigmaSigma) {
+double dist1(const std::shared_ptr<Gem::Hap::GRandomBase> &gr_ptr, const double &sigmaSigma) {
     return std::exp(
         normal_distribution(
             *gr_ptr,
@@ -81,7 +81,7 @@ double dist1(const std::shared_ptr<Gem::Hap::GRandomBase>& gr_ptr, const double 
  * Second distribution:
  * std::exp(normal_distribution(*gr_ptr, std::normal_distribution<double>::param_type(0.,std::abs(sigmaSigma))));
  */
-double dist2(const std::shared_ptr<Gem::Hap::GRandomBase>& gr_ptr, const double &sigmaSigma) {
+double dist2(const std::shared_ptr<Gem::Hap::GRandomBase> &gr_ptr, const double &sigmaSigma) {
     return std::exp(normal_distribution(
         *gr_ptr,
         std::normal_distribution<double>::param_type(0., std::abs(sigmaSigma))
@@ -115,9 +115,7 @@ int main() {
     double fact_2_08 = NAN;
 
     std::shared_ptr<Gem::Hap::GRandomBase> const gr_ptr =
-        std::shared_ptr<GRandomT<randomSource::QUEUE>>(
-            new GRandomT<randomSource::QUEUE>()
-        );
+        std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
 
     std::string const caption_dist =
         "Different random distributions for the adaption of sigma, varying sigmaSigma";

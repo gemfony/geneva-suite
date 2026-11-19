@@ -32,7 +32,9 @@
 
 #include <string>
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GGeneralizedSimulatedAnnealing_PersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GGeneralizedSimulatedAnnealing_PersonalityTraits
+) // NOLINT
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/

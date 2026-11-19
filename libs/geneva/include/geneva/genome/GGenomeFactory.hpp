@@ -51,8 +51,6 @@ namespace Gem::Geneva::Genome {
 
 class GGenome;
 
-
-
 /******************************************************************************/
 /**
  * This class facilitates handling of factories for GGenome-derivatives.
@@ -67,7 +65,10 @@ class GGenomeFactory // NOLINT(cppcoreguidelines-special-member-functions)
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
         Gem::Common::archive_named_base<Gem::Common::GFactoryT<GGenome>>(
-            ar, "GFactoryT_GGenome", *this);
+            ar,
+            "GFactoryT_GGenome",
+            *this
+        );
         archive_named(ar, "pre_processor_", pre_processor_);
         archive_named(ar, "post_processor_", post_processor_);
     }
@@ -107,7 +108,7 @@ public:
 	  * @param p A shared pointer to a pre-processor function object to be cloned into each produced individual; must not be empty
 	  */
     void registerPreProcessor(
-        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>>& p
+        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>> &p
     ) {
         if(p) {
             pre_processor_ = p;
@@ -128,7 +129,7 @@ public:
 	  * @param p A shared pointer to a post-processor function object to be cloned into each produced individual; must not be empty
 	  */
     void registerPostProcessor(
-        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>>& p
+        const std::shared_ptr<Gem::Common::GSerializableFunctionObjectT<GGenome>> &p
     ) {
         if(p) {
             post_processor_ = p;

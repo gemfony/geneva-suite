@@ -33,9 +33,9 @@
 // definitions); only included by gemfony-hap TUs, never installed.
 
 // Geneva headers go here
+#include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar)
 #include "common/concurrency/GSPSCStagingRingT.hpp" // the shared lock-free staging ring
 #include "hap/GRandomFactory.hpp"                   // for randomFactory() / getSeed()
-#include "GFillBackend.hpp"                          // library-private engine selection (GPU/SIMD/scalar)
 
 // Standard headers go here
 #include <cstddef>
@@ -68,7 +68,10 @@ class GRotatingPool {
 public:
     GRotatingPool()
       : backend_(static_cast<std::uint64_t>(randomFactory()->getSeed()))
-      , ring_([this](std::uint64_t *dst, std::size_t n_words) { backend_.generate(dst, n_words); }) {}
+      , ring_([this](std::uint64_t *dst, std::size_t n_words) {
+          backend_.generate(dst, n_words);
+      }) {
+    }
 
     GRotatingPool(const GRotatingPool &) = delete;
     GRotatingPool(GRotatingPool &&) = delete;
@@ -88,7 +91,8 @@ public:
     }
 
 private:
-    GFillBackend backend_; ///< the shared bulk source (chosen once); MUST outlive ring_ (declared first)
+    GFillBackend
+        backend_; ///< the shared bulk source (chosen once); MUST outlive ring_ (declared first)
     Gem::Common::Concurrency::GSPSCStagingRingT<CHUNK_WORDS, CHUNKS_PER_POOL, N_POOLS> ring_;
 };
 

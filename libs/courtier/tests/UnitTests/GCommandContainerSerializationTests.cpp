@@ -30,14 +30,15 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <initializer_list>
 #include <memory>
 #include <string>
 #include <string_view>
 
+#include "GDemoProcessingContainers.hpp"
 #include "common/GCommonEnums.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "GDemoProcessingContainers.hpp"
 
 using namespace Gem::Courtier;
 
@@ -64,10 +65,15 @@ test_container_type makeWorkFrame() {
 /**
  * container_to_string() must return a non-empty document in every (GArchive) mode.
  */
-TEST_CASE("container_to_string emits a non-empty document in every mode", "[courtier][serialization]") {
+TEST_CASE(
+    "container_to_string emits a non-empty document in every mode",
+    "[courtier][serialization]"
+) {
     const auto container = makeWorkFrame();
 
-    REQUIRE_FALSE(container_to_string(container, Gem::Common::serializationMode::GEM_BINARY).empty());
+    REQUIRE_FALSE(
+        container_to_string(container, Gem::Common::serializationMode::GEM_BINARY).empty()
+    );
     REQUIRE_FALSE(container_to_string(container, Gem::Common::serializationMode::GEM_JSON).empty());
 }
 
@@ -76,7 +82,10 @@ TEST_CASE("container_to_string emits a non-empty document in every mode", "[cour
  * The companion round-trip: every serialization mode must survive a write/read cycle with the frame
  * kind, the library tag, the work item and the item's stable lineage id intact.
  */
-TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[courtier][serialization]") {
+TEST_CASE(
+    "A WORK frame survives a round-trip in every serialization mode",
+    "[courtier][serialization]"
+) {
     for(const auto mode : ALL_MODES) {
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 
@@ -102,7 +111,10 @@ TEST_CASE("A WORK frame survives a round-trip in every serialization mode", "[co
  * EVERY frame kind, with EVERY payload alternative it may carry, round-trips in BOTH codecs -- and a
  * frame carries ONLY its own alternative, so nothing inert rides along.
  */
-TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtier][serialization]") {
+TEST_CASE(
+    "Every frame kind round-trips with exactly its own payload",
+    "[courtier][serialization]"
+) {
     for(const auto mode : ALL_MODES) {
         INFO("serialization mode: " << Gem::Common::serModeToString(mode));
 
@@ -126,30 +138,6 @@ TEST_CASE("Every frame kind round-trips with exactly its own payload", "[courtie
             CHECK(got.program() == "a program");
             CHECK(got.keepAlive() == std::chrono::milliseconds(2500));
             CHECK(got.payloadEmpty());
-        }
-
-        // --- the blob cache-miss fetch pair ----------------------------------------------------
-        {
-            const GWireBlobId id{0xDEADBEEFULL, 0xFEEDFACEULL};
-            test_container_type sent{GFrameKind::BLOB_REQUEST};
-            sent.setBlobRequest(id);
-            test_container_type got{GFrameKind::NONE};
-            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == GFrameKind::BLOB_REQUEST);
-            REQUIRE(got.blobRequest() != nullptr);
-            CHECK(got.blobRequest()->id == id);
-            CHECK(got.item() == nullptr);
-        }
-        {
-            const GWireBlobId id{1, 2};
-            test_container_type sent{GFrameKind::BLOB_REPLY};
-            sent.setBlobReply(id, "the-serialized-blob");
-            test_container_type got{GFrameKind::NONE};
-            REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
-            CHECK(got.kind() == GFrameKind::BLOB_REPLY);
-            REQUIRE(got.blobReply() != nullptr);
-            CHECK(got.blobReply()->id == id);
-            CHECK(got.blobReply()->blob == "the-serialized-blob");
         }
 
         // --- a RESULT frame: the processing outcome travels with it ----------------------------
@@ -214,10 +202,14 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
         test_container_type got{GFrameKind::NONE};
         CHECK_THROWS(container_from_string(message, got, mode));
 
-        // A value below the highest kind that GFrameKind does not have is no frame either
-        test_container_type unused{GFrameKind::PULL};
-        unused.setKind(static_cast<GFrameKind>(5));
-        CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
+        // A value below the highest kind that GFrameKind does not have is no frame either -- also
+        // the kinds of earlier protocols, such as the former blob request (6) and reply (7)
+        for(const auto gap : std::initializer_list<Gem::Common::ENUMBASETYPE>{2, 4, 5, 6, 7, 9}) {
+            INFO("kind: " << gap);
+            test_container_type unused{GFrameKind::PULL};
+            unused.setKind(static_cast<GFrameKind>(gap));
+            CHECK_THROWS(container_from_string(container_to_string(unused, mode), got, mode));
+        }
 
         // The highest kind there is still decodes.
         test_container_type last{GFrameKind::NONE};

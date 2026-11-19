@@ -36,21 +36,20 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
-#include <atomic>
-#include <string>
-#include <cstdint>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <span>
+#include <string>
 #include <thread>
 #include <tuple>
 #include <vector>
-
 
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -96,8 +95,12 @@ std::size_t count_processed(const std::vector<item_ptr> &v) {
     return c;
 }
 
-void run_over_sockets(std::vector<item_ptr> &items, const c2::GSubmissionPolicy &policy,
-                      std::size_t n_clients = 1, std::size_t prefetch_depth = 1) {
+void run_over_sockets(
+    std::vector<item_ptr> &items,
+    const c2::GSubmissionPolicy &policy,
+    std::size_t n_clients = 1,
+    std::size_t prefetch_depth = 1
+) {
     c2::GWebsocketConsumerConfig config{
         .ip = "127.0.0.1",
         .serializationMode = BIN,
@@ -143,8 +146,10 @@ void run_over_sockets(std::vector<item_ptr> &items, const c2::GSubmissionPolicy 
 
 /******************************************************************************/
 
-TEST_CASE("courtier(websocket): a clean batch is fully evaluated over real sockets",
-          "[courtier][websocket][net]") {
+TEST_CASE(
+    "courtier(websocket): a clean batch is fully evaluated over real sockets",
+    "[courtier][websocket][net]"
+) {
     auto items = make_batch(120);
     run_over_sockets(items, c2::GSubmissionPolicy::full_success_or_fatal());
     CHECK(items.size() == 120);
@@ -157,33 +162,47 @@ TEST_CASE("courtier(websocket): several clients share the batch", "[courtier][we
     CHECK(count_processed(items) == 200);
 }
 
-TEST_CASE("courtier(websocket): throwing items are refilled under clone-on-partial-return",
-          "[courtier][websocket][net]") {
+TEST_CASE(
+    "courtier(websocket): throwing items are refilled under clone-on-partial-return",
+    "[courtier][websocket][net]"
+) {
     auto items = make_batch(60, {3, 11, 27, 48}, fault_mode::THROW_PROCESSING);
     run_over_sockets(items, c2::GSubmissionPolicy::clone_on_partial_return(), /*n_clients=*/2);
     CHECK(items.size() == 60);
     CHECK(count_processed(items) == 60);
 }
 
-TEST_CASE("courtier(websocket): prefetching clients evaluate the whole batch",
-          "[courtier][websocket][net]") {
+TEST_CASE(
+    "courtier(websocket): prefetching clients evaluate the whole batch",
+    "[courtier][websocket][net]"
+) {
     // Each client holds several items in flight at once (overlapping fetch/compute/return); every slot
     // must still come back exactly once. Fewer clients than the prefetch depth, so the depth genuinely
     // multiplexes work onto each connection.
     auto items = make_batch(200);
-    run_over_sockets(items, c2::GSubmissionPolicy::full_success_or_fatal(),
-                     /*n_clients=*/2, /*prefetch_depth=*/8);
+    run_over_sockets(
+        items,
+        c2::GSubmissionPolicy::full_success_or_fatal(),
+        /*n_clients=*/2,
+        /*prefetch_depth=*/8
+    );
     CHECK(items.size() == 200);
     CHECK(count_processed(items) == 200);
 }
 
-TEST_CASE("courtier(websocket): prefetch + throwing items refilled under clone-on-partial-return",
-          "[courtier][websocket][net]") {
+TEST_CASE(
+    "courtier(websocket): prefetch + throwing items refilled under clone-on-partial-return",
+    "[courtier][websocket][net]"
+) {
     // Combine prefetch with faulty items: the multi-item CheckoutLease and the reconciliation must
     // cooperate so failed slots are refilled and the batch comes back full.
     auto items = make_batch(120, {5, 17, 39, 64, 88, 103}, fault_mode::THROW_PROCESSING);
-    run_over_sockets(items, c2::GSubmissionPolicy::clone_on_partial_return(),
-                     /*n_clients=*/3, /*prefetch_depth=*/4);
+    run_over_sockets(
+        items,
+        c2::GSubmissionPolicy::clone_on_partial_return(),
+        /*n_clients=*/3,
+        /*prefetch_depth=*/4
+    );
     CHECK(items.size() == 120);
     CHECK(count_processed(items) == 120);
 }
@@ -277,7 +296,8 @@ TEST_CASE(
 
     boost::asio::io_context server_ioc;
     tcp::acceptor acceptor(
-        server_ioc, tcp::endpoint(boost::asio::ip::address_v4::loopback(), /*port=*/0)
+        server_ioc,
+        tcp::endpoint(boost::asio::ip::address_v4::loopback(), /*port=*/0)
     );
     const unsigned short port = acceptor.local_endpoint().port();
 
@@ -300,7 +320,7 @@ TEST_CASE(
             ec
         );
         boost::beast::flat_buffer buf;
-        ws.read(buf, ec); // the client's first PULL frame
+        ws.read(buf, ec);                 // the client's first PULL frame
         std::ignore = acceptor.close(ec); // the server process is gone: connects are refused
         // No close frame: slam the TCP connection shut like a killed server process.
         ws.next_layer().close(ec);

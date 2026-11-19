@@ -36,8 +36,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <expected>
-#include <functional>
 #include <list>
 #include <mutex>
 #include <string>
@@ -47,8 +45,8 @@
 
 // Geneva headers go here
 
-#include "common/GArchiveNamed.hpp" // archive_named (the blob-frame payload structs)
-#include "common/GCommonEnums.hpp" // Gem::Common::serializationMode
+#include "common/GArchiveNamed.hpp" // archive_named (ser_wire_omitted_ptr)
+#include "common/GCommonEnums.hpp"  // Gem::Common::serializationMode
 #include "common/GMemberReflectionT.hpp" // member_desc / load_copy_ptr / cmp_skip (the wire-omitted-ptr descriptor)
 #include "common/concurrency/GContentAddressedStoreT.hpp" // the generic store GWireBlobRegistry specializes
 
@@ -88,60 +86,13 @@ using GWireBlobId = std::array<std::uint64_t, 2>;
 using GWirePeerId = std::uint64_t;
 
 /******************************************************************************/
-/**
- * The payload of a BLOB_REQUEST frame: the content id of a blob a worker needs but does not hold.
- * The id's two 64-bit halves are streamed individually, so no std::array archive support is required.
- */
-struct GBlobRequest {
-    ///////////////////////////////////////////////////////////////////////
-    friend struct Gem::Weft::access;
-
-    /** @brief (De)serialises the requested blob id.
-     *  @tparam archive_type The GArchive codec type
-     *  @param ar The archive to read from / write to
-     *  @param version The (unused) serialization version number */
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named(ar, "blob_id_hi", id[0]);
-        Gem::Common::archive_named(ar, "blob_id_lo", id[1]);
-    }
-    ///////////////////////////////////////////////////////////////////////
-
-    GWireBlobId id{0, 0}; ///< The content id of the requested blob
-};
-
-/******************************************************************************/
-/**
- * The payload of a BLOB_REPLY frame: the requested content id plus the serialized blob. The blob is
- * left EMPTY when the server's registry no longer holds the id -- the worker then treats the fetch as
- * failed (and says so), rather than silently decoding nothing.
- */
-struct GBlobReply {
-    ///////////////////////////////////////////////////////////////////////
-    friend struct Gem::Weft::access;
-
-    /** @brief (De)serialises the blob id and the blob itself.
-     *  @tparam archive_type The GArchive codec type
-     *  @param ar The archive to read from / write to
-     *  @param version The (unused) serialization version number */
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named(ar, "blob_id_hi", id[0]);
-        Gem::Common::archive_named(ar, "blob_id_lo", id[1]);
-        Gem::Common::archive_named(ar, "blob", blob);
-    }
-    ///////////////////////////////////////////////////////////////////////
-
-    GWireBlobId id{0, 0}; ///< The content id the reply answers
-    std::string blob;     ///< The serialized blob (empty on a registry miss)
-};
-
-/******************************************************************************/
 /** @brief Hashes a GWireBlobId (which is already a strong hash) into a size_t for the registry maps. */
 struct GWireBlobIdHash {
     /** @brief @param id The id to hash. @return A size_t hash of the id. */
     static std::size_t operator()(const GWireBlobId &id) noexcept {
-        return static_cast<std::size_t>(id[0] ^ (id[1] + 0x9E3779B97F4A7C15ULL + (id[0] << 6) + (id[0] >> 2)));
+        return static_cast<std::size_t>(
+            id[0] ^ (id[1] + 0x9E3779B97F4A7C15ULL + (id[0] << 6) + (id[0] >> 2))
+        );
     }
 };
 
@@ -151,8 +102,7 @@ struct GWireBlobIdHash {
  * (server) or held by a client (worker). It serves two roles with one store:
  *
  *  - BLOB STORE (both sides): id -> serialized blob. A worker caches every blob it has received
- *    so a later id-only reference resolves locally; a server caches every blob it has sent. (A server
- *    still answers a BLOB_REQUEST from its store; the clients of courtier send none.)
+ *    so a later id-only reference resolves locally; a server caches every blob it has sent.
  *  - PER-PEER ACK TRACKING (server side): for each connected peer, the set of blob ids that peer is
  *    known to already hold, so the server sends a given blob to a given peer exactly once and references
  *    it by id afterwards. A peer's set is dropped when its session ends (forgetPeer) -- on reconnect the
@@ -164,10 +114,11 @@ struct GWireBlobIdHash {
  * carries it, and a client keeps every blob it has received.
  */
 class GWireBlobRegistry
-    : public Gem::Common::Concurrency::GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash> {
+  : public Gem::Common::Concurrency::
+        GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash> {
 public:
-    using base_type =
-        Gem::Common::Concurrency::GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash>;
+    using base_type = Gem::Common::Concurrency::
+        GContentAddressedStoreT<GWireBlobId, std::string, GWirePeerId, GWireBlobIdHash>;
 
     GWireBlobRegistry() = default;
 
@@ -178,11 +129,15 @@ public:
 
     /** @brief Whether a peer is known to already hold a given blob (domain alias for base peerHas).
      *  @param peer The peer (session) to query. @param id The blob id. @return true iff recorded. */
-    bool peerHasBlob(GWirePeerId peer, const GWireBlobId &id) const { return peerHas(peer, id); }
+    bool peerHasBlob(GWirePeerId peer, const GWireBlobId &id) const {
+        return peerHas(peer, id);
+    }
 
     /** @brief Records that a peer now holds a given blob (domain alias for base markPeerHas).
      *  @param peer The peer (session). @param id The blob id the peer now holds. */
-    void markPeerHasBlob(GWirePeerId peer, const GWireBlobId &id) { markPeerHas(peer, id); }
+    void markPeerHasBlob(GWirePeerId peer, const GWireBlobId &id) {
+        markPeerHas(peer, id);
+    }
 };
 
 /******************************************************************************/
@@ -194,38 +149,33 @@ public:
  * and always for checkpoint/file serialization) the item falls back to its self-contained full encoding.
  */
 struct GWireSerializationContext {
-    bool enabled = false;       ///< master switch: false -> the item's full, self-contained encoding
+    bool enabled = false; ///< master switch: false -> the item's full, self-contained encoding
     Gem::Common::serializationMode mode =
         Gem::Common::serializationMode::GEM_BINARY; ///< the format the surrounding archive uses
-    GWirePeerId peer = 0;       ///< server: the destination session; worker: 0 (single upstream)
+    GWirePeerId peer = 0; ///< server: the destination session; worker: 0 (single upstream)
     GWireBlobRegistry *registry = nullptr; ///< the shared blob store + ack tracker (not owned)
 
     /// Whether this endpoint may reference a blob BY ID instead of inlining it.
     ///
     /// Interning is a SOURCE-side optimization: only the endpoint that owns the registry the receiver
-    /// resolves against -- and that can therefore answer a cache-miss fetch, and observes its own
-    /// evictions -- may send an id in place of the content. A peer that merely echoes content back to
-    /// that source must always inline it: its ack bookkeeping is its own, so it cannot see the source
-    /// evict the id, and referencing an evicted id would leave the source with an unresolvable
-    /// reference and no way to fetch it back. True on the server/source, false on a worker.
+    /// resolves against -- and that observes its own evictions -- may send an id in place of the
+    /// content. A peer that merely echoes content back to that source must always inline it: its ack
+    /// bookkeeping is its own, so it cannot see the source evict the id, and referencing an evicted
+    /// id would leave the source with an unresolvable reference. True on the server/source, false
+    /// on a worker.
+    ///
+    /// A receiver that meets an id it does not hold cannot load the item (the load throws); a client
+    /// returns that item as failed, and the server then sends it every blob in full again.
     bool may_intern_blobs = true;
-
-    /** @brief Worker-side cache-miss fetch: given a blob id whose content is absent locally, returns the
-     *  serialized blob, or a std::unexpected carrying the failure reason. The value is always a
-     *  non-empty blob. Null on the server side, and in courtier's clients, which rely on ordered
-     *  delivery instead (a miss throws, and the client returns the item as failed); a hook for a
-     *  transport that can fetch. */
-    std::function<std::expected<std::string, std::string>(const GWireBlobId &)> fetch_blob;
 };
 
 /******************************************************************************/
 /**
  * RAII installer of the thread-local active GWireSerializationContext. A transport constructs one around
  * a single work-item (de)serialization; the item's serializer reads GWireSerializationScope::current()
- * for the duration. Scopes nest (the previous context is restored on destruction), so a fetch round trip
- * performed mid-decode can safely run with its own (or no) context. Passing nullptr installs "no context"
- * (the item then uses its full encoding) -- this is how the wire path stays default-off until the
- * switch is flipped.
+ * for the duration. Scopes nest (the previous context is restored on destruction). Passing nullptr
+ * installs "no context" (the item then uses its full encoding) -- this is how the wire path stays
+ * default-off until the switch is flipped.
  */
 class GWireSerializationScope {
 public:
@@ -236,7 +186,9 @@ public:
         t_current_ = ctx;
     }
     /** @brief Restores the previously-active context. */
-    ~GWireSerializationScope() { t_current_ = prev_; }
+    ~GWireSerializationScope() {
+        t_current_ = prev_;
+    }
 
     GWireSerializationScope(const GWireSerializationScope &) = delete;
     GWireSerializationScope &operator=(const GWireSerializationScope &) = delete;
@@ -245,7 +197,9 @@ public:
 
     /** @brief The context active on this thread, or nullptr if none (or it is disabled, treated as none
      *  by callers). @return The current context pointer, or nullptr. */
-    static const GWireSerializationContext *current() noexcept { return t_current_; }
+    static const GWireSerializationContext *current() noexcept {
+        return t_current_;
+    }
 
 private:
     const GWireSerializationContext *prev_;
@@ -297,7 +251,9 @@ struct ser_wire_omitted_ptr {
         else {
             ptr_type loaded;
             Gem::Common::archive_named(ar, name, loaded);
-            if(loaded) { ref = std::move(loaded); } // omitted -> null -> leave ref (the default) untouched
+            if(loaded) {
+                ref = std::move(loaded);
+            } // omitted -> null -> leave ref (the default) untouched
         }
     }
 };
@@ -317,9 +273,11 @@ struct ser_wire_omitted_ptr {
 template <typename T>
 Gem::Common::member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>
 make_wire_omitted_ptr_member(const char *name, T &ref) {
-    return Gem::Common::member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>{
-        name, ref
-    };
+    return Gem::Common::
+        member_desc<T, ser_wire_omitted_ptr, Gem::Common::load_copy_ptr, Gem::Common::cmp_skip>{
+            name,
+            ref
+        };
 }
 
 /******************************************************************************/

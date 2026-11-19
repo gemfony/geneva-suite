@@ -27,16 +27,14 @@
  *
  ********************************************************************************/
 
-#include <catch2/catch_test_macros.hpp>
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <sstream>
 #include <string>
 #include <tuple>
-
-
 
 // ---------------------------------------------------------------------------
 // Round-trip helper. Each archive family needs a slightly different ctor
@@ -79,23 +77,27 @@ tuple_type round_trip_binary(tuple_type const &in) {
 // ---------------------------------------------------------------------------
 // One-element tuple
 
-TEST_CASE("GSerializeTupleT: 1-element tuple round-trips through every archive family",
-          "[common][serialize-tuple]") {
+TEST_CASE(
+    "GSerializeTupleT: 1-element tuple round-trips through every archive family",
+    "[common][serialize-tuple]"
+) {
     auto in = std::make_tuple(42);
 
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
 // ---------------------------------------------------------------------------
 // Two-element tuple
 
-TEST_CASE("GSerializeTupleT: 2-element tuple round-trips through every archive family",
-          "[common][serialize-tuple]") {
+TEST_CASE(
+    "GSerializeTupleT: 2-element tuple round-trips through every archive family",
+    "[common][serialize-tuple]"
+) {
     auto in = std::make_tuple(3, 4.5);
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
@@ -103,33 +105,33 @@ TEST_CASE("GSerializeTupleT: 2-element tuple round-trips through every archive f
 // Three-element tuple, including a non-trivial std::string element to
 // exercise allocation/streaming paths.
 
-TEST_CASE("GSerializeTupleT: 3-element tuple incl. std::string round-trips",
-          "[common][serialize-tuple]") {
+TEST_CASE(
+    "GSerializeTupleT: 3-element tuple incl. std::string round-trips",
+    "[common][serialize-tuple]"
+) {
     auto in = std::make_tuple(1, 2.5, std::string{"hello"});
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
 // ---------------------------------------------------------------------------
 // Four-element tuple
 
-TEST_CASE("GSerializeTupleT: 4-element tuple round-trips",
-          "[common][serialize-tuple]") {
+TEST_CASE("GSerializeTupleT: 4-element tuple round-trips", "[common][serialize-tuple]") {
     auto in = std::make_tuple(1, 2, 3.5, std::string{"abc"});
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
 // ---------------------------------------------------------------------------
 // Five-element tuple
 
-TEST_CASE("GSerializeTupleT: 5-element tuple round-trips",
-          "[common][serialize-tuple]") {
+TEST_CASE("GSerializeTupleT: 5-element tuple round-trips", "[common][serialize-tuple]") {
     auto in = std::make_tuple(1, 2.5, std::string{"x"}, std::int64_t{99}, false);
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
@@ -137,11 +139,10 @@ TEST_CASE("GSerializeTupleT: 5-element tuple round-trips",
 // Six-element tuple — the largest currently-supported arity. If the file
 // ever grows to support 7+ elements, add cases for those here.
 
-TEST_CASE("GSerializeTupleT: 6-element tuple round-trips",
-          "[common][serialize-tuple]") {
+TEST_CASE("GSerializeTupleT: 6-element tuple round-trips", "[common][serialize-tuple]") {
     auto in = std::make_tuple(1, 2.5, std::string{"x"}, std::int64_t{99}, true, std::string{"y"});
-    CHECK(round_trip_text  (in) == in);
-    CHECK(round_trip_xml   (in) == in);
+    CHECK(round_trip_text(in) == in);
+    CHECK(round_trip_xml(in) == in);
     CHECK(round_trip_binary(in) == in);
 }
 
@@ -149,8 +150,10 @@ TEST_CASE("GSerializeTupleT: 6-element tuple round-trips",
 // Ensure each archive actually produces a non-empty payload (sanity-check
 // that the serialize() overload was selected, not a no-op fallback).
 
-TEST_CASE("GSerializeTupleT: each archive writes a non-empty payload",
-          "[common][serialize-tuple]") {
+TEST_CASE(
+    "GSerializeTupleT: each archive writes a non-empty payload",
+    "[common][serialize-tuple]"
+) {
     auto in = std::make_tuple(1, std::string{"abc"});
 
     Gem::Weft::GBinaryOArchive bin_oa;

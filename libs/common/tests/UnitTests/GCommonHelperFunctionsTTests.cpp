@@ -65,9 +65,9 @@ struct TOther : TBase {
 };
 
 enum class ScopedColor : unsigned {
-    Red   = 0,
+    Red = 0,
     Green = 1,
-    Blue  = 2
+    Blue = 2
 };
 
 // Underlying type std::uint8_t (range 0..255) is used to exercise the
@@ -409,10 +409,7 @@ TEST_CASE("narrow: in-range integer narrowing succeeds", "[common][helper][narro
     REQUIRE(Gem::Common::narrow<std::int32_t>(std::int64_t{123456}) == 123456);
 }
 
-TEST_CASE(
-    "narrow: integer overflow throws std::overflow_error",
-    "[common][helper][narrow]"
-) {
+TEST_CASE("narrow: integer overflow throws std::overflow_error", "[common][helper][narrow]") {
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::int8_t>(128), std::overflow_error);
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::int8_t>(-129), std::overflow_error);
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint8_t>(256), std::overflow_error);
@@ -448,10 +445,7 @@ TEST_CASE(
     // int32_max (2^31-1) IS exactly representable as a double, so equality at
     // the boundary is legitimate (the max_is_exact path).
     constexpr double i32max = static_cast<double>(std::numeric_limits<std::int32_t>::max());
-    REQUIRE(
-        Gem::Common::narrow<std::int32_t>(i32max)
-        == std::numeric_limits<std::int32_t>::max()
-    );
+    REQUIRE(Gem::Common::narrow<std::int32_t>(i32max) == std::numeric_limits<std::int32_t>::max());
 }
 
 TEST_CASE("narrow: int64/double boundary (2^63) is rejected", "[common][helper][narrow]") {
@@ -459,10 +453,7 @@ TEST_CASE("narrow: int64/double boundary (2^63) is rejected", "[common][helper][
     // static_cast<double>(int64_max) rounds up to 2^63, which is out of range
     // for int64_t. narrow must reject it rather than convert.
     const double i64max_as_double = static_cast<double>(std::numeric_limits<std::int64_t>::max());
-    REQUIRE_THROWS_AS(
-        Gem::Common::narrow<std::int64_t>(i64max_as_double),
-        std::overflow_error
-    );
+    REQUIRE_THROWS_AS(Gem::Common::narrow<std::int64_t>(i64max_as_double), std::overflow_error);
 
     // A value comfortably below 2^63 round-trips and matches the plain cast.
     REQUIRE_NOTHROW(Gem::Common::narrow<std::int64_t>(9.0e18));
@@ -501,10 +492,7 @@ TEST_CASE(
     REQUIRE(Gem::Common::narrow<double>(std::int32_t{123456}) == 123456.0);
 }
 
-TEST_CASE(
-    "narrow: floating overflow to a narrower type throws",
-    "[common][helper][narrow]"
-) {
+TEST_CASE("narrow: floating overflow to a narrower type throws", "[common][helper][narrow]") {
     // double -> float overflow: the magnitude exceeds FLT_MAX. Validated and
     // rejected before the cast (an out-of-range floating conversion is UB).
     REQUIRE_THROWS_AS(Gem::Common::narrow<float>(1.0e300), std::overflow_error);

@@ -45,11 +45,11 @@
 // Geneva headers
 #include "common/GArchiveNamed.hpp"
 #include "common/GParserBuilder.hpp"
-#include "weft/GArchivePolymorphic.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "geneva/oa/GAdaption.hpp"        // makeAdaptionConfig()
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/oa/GAdaption.hpp" // makeAdaptionConfig()
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp"
 
 /******************************************************************************/
 /**
@@ -68,7 +68,8 @@
  */
 class GGPUParaboloid : public Gem::Geneva::Genome::GGenomeT<GGPUParaboloid> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     /** @brief The factory installs the genome via setGenome(), so the default constructor leaves it empty. */
     GGPUParaboloid() = default;
@@ -85,19 +86,43 @@ public:
     /** @brief Registers this problem's config-file options, binding them to @p c. */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
         gpb.registerFileParameter<std::size_t>(
-            "par_dim", c.par_dim, c.par_dim, Gem::Common::VAR_IS_ESSENTIAL, "Number of parameters"
+            "par_dim",
+            c.par_dim,
+            c.par_dim,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Number of parameters"
         );
-        gpb.registerFileParameter<double>("min", c.min, c.min, Gem::Common::VAR_IS_ESSENTIAL, "Lower bound");
-        gpb.registerFileParameter<double>("max", c.max, c.max, Gem::Common::VAR_IS_ESSENTIAL, "Upper bound");
         gpb.registerFileParameter<double>(
-            "sigma", c.sigma, c.sigma, Gem::Common::VAR_IS_ESSENTIAL, "Initial Gauss sigma"
+            "min",
+            c.min,
+            c.min,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Lower bound"
+        );
+        gpb.registerFileParameter<double>(
+            "max",
+            c.max,
+            c.max,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Upper bound"
+        );
+        gpb.registerFileParameter<double>(
+            "sigma",
+            c.sigma,
+            c.sigma,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Initial Gauss sigma"
         );
     }
 
     /** @brief Builds the (structure-only) genome + its shared, immutable layout from the parsed config. */
     static Gem::Geneva::Genome::GenomeData buildGenome(const Config &c) {
         Gem::Geneva::Genome::GGenomeBuilder b;
-        b.addDoubleGroup(c.par_dim, c.min, c.max); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(
+            c.par_dim,
+            c.min,
+            c.max
+        ); // structure only; the adaptor lives on the OA config
         return b.build();
     }
 
@@ -120,14 +145,21 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
     friend struct Gem::Weft::access;
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GGPUParaboloid>>(ar, "GGenomeT", *this);
+        Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GGPUParaboloid>>(
+            ar,
+            "GGenomeT",
+            *this
+        );
     }
 };
 

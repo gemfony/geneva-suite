@@ -138,30 +138,7 @@ http://www.gemfony.eu/fileadmin/documentation/geneva-manual.pdf
 Compilation
 ===========
 
-All the examples in this folder are compiled when building the whole Geneva
-tree. However, you can also give any of these examples a try by compiling it
-"stand-alone", provided the correct version of the Geneva library is available
-on your system.
-
-For compiling a given example proceed as follows:
-
-- Create a "build" folder somewhere and change into it:
-	mkdir /tmp/build
-	cd /tmp/build
-
-- Run cmake with the appropriate options:
-	cmake [-DBOOSTROOT=<PATH_TO_BOOST_ROOT>] \
-	      [-DBOOST_LIBRARYDIR="${BOOSTROOT}/lib" -DBOOST_INCLUDEDIR="${BOOSTROOT}/include"] \
-	      -DGENEVA_ROOT=<PATH_TO_GENEVA_INSTALL_DIR> \
-	      -DGENEVA_BUILD_TYPE=[Release|Debug] \
-	      -DCMAKE_INSTALL_PREFIX=<PATH_TO_GENEVA_EXAMPLE_INSTALL_DIR> \
-	      -DCMAKE_VERBOSE_MAKEFILE=[0|1] -DGENEVA_BUILD_TESTS=[0|1] \
-	      		<PATH_TO_EXAMPLE_SOURCE_DIR>
-  In particular, if the Boost libraries are installed system-wide you will most
-  probably only need the GENEVA_ROOT variable and you can simply try with:
-	cmake -DGENEVA_ROOT=/opt/geneva \
-	      -DCMAKE_INSTALL_PREFIX=/opt/geneva-examples geneva-src/examples/GSimpleEA/
-
-- Build and install the example:
-	make
-	make install
+All the examples in this folder are compiled as part of the Geneva tree when it is
+configured with GENEVA_BUILD_EXAMPLES=TRUE; they use targets of the tree and cannot
+be built on their own. A project that builds against an installed Geneva starts
+from ../quickstart, whose README shows the steps.

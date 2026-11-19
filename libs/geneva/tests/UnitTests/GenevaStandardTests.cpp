@@ -36,27 +36,27 @@
 #include <cmath>
 
 // All classes that will be tested in this file
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (probe types)
 #include "geneva/individuals/GDelayIndividual.hpp"
 #include "geneva/individuals/GExternalEvaluatorIndividual.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/individuals/GMetaOptimizerIndividualT.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #include "geneva/individuals/GTestIndividual2.hpp"
 #include "geneva/individuals/GTestIndividual3.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (probe types)
 // Optimization algorithms
+#include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GNelderMead.hpp"
+#include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
-#include "geneva/oa/GConjugateGradientDescent.hpp"
-#include "geneva/oa/GParameterScan.hpp"
-#include "geneva/oa/GNelderMead.hpp"
 // Constraints
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
 // Pluggable optimization monitors
@@ -75,8 +75,7 @@ using namespace Gem::Geneva;
 
 // gind::GTestIndividual2 — public ctor (size, PERFOBJECTTYPE).
 template <>
-inline std::shared_ptr<gind::GTestIndividual2>
-TFactory_GUnitTests<gind::GTestIndividual2>() {
+inline std::shared_ptr<gind::GTestIndividual2> TFactory_GUnitTests<gind::GTestIndividual2>() {
     std::shared_ptr<gind::GTestIndividual2> p;
     CHECK_NOTHROW(
         p = std::make_shared<gind::GTestIndividual2>(
@@ -89,10 +88,9 @@ TFactory_GUnitTests<gind::GTestIndividual2>() {
 
 // gind::GLineFitIndividual — public ctor takes a vector of {x,y} sample points.
 template <>
-inline std::shared_ptr<gind::GLineFitIndividual>
-TFactory_GUnitTests<gind::GLineFitIndividual>() {
-    std::vector<std::tuple<double, double>> const data_points{
-        {0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}};
+inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLineFitIndividual>() {
+    std::vector<std::tuple<double, double>> const
+        data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}};
     std::shared_ptr<gind::GLineFitIndividual> p;
     CHECK_NOTHROW(p = std::make_shared<gind::GLineFitIndividual>(data_points));
     return p;
@@ -267,16 +265,13 @@ TEMPLATE_TEST_CASE(
 TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default value so the round-trip actually exercises the member
         // (the default is 1.0; a serialize that dropped it would still pass at 1.0).
         gind::GDoubleSumConstraint const original(3.5);
         gind::GDoubleSumConstraint restored(2.0);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         GEqualityPrinter const gep(
             "GDoubleSumConstraint-roundtrip",
@@ -290,16 +285,13 @@ TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][seria
 TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default value (default 1.0): catches the previously-latent bug where
         // GSphereConstraint::serialize() did not store diameter_ at all.
         gind::GSphereConstraint const original(3.5);
         gind::GSphereConstraint restored(2.0);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         GEqualityPrinter const gep(
             "GSphereConstraint-roundtrip",
@@ -313,15 +305,12 @@ TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serializ
 TEST_CASE("GDoubleSumGapConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default values (defaults 1.0 / 0.5) so both members are exercised.
         gind::GDoubleSumGapConstraint const original(3.5, 1.25);
         gind::GDoubleSumGapConstraint restored(2.0, 0.25);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         GEqualityPrinter const gep(
             "GDoubleSumGapConstraint-roundtrip",
@@ -341,16 +330,13 @@ TEST_CASE(
 ) {
     using Gem::Common::serializationMode;
 
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         gind::GExternalEvaluatorIndividual original;
         original.setRunId("custom-run-id-xyz");
         gind::GExternalEvaluatorIndividual restored;
         restored.setRunId("other-run-id");
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         GEqualityPrinter const gep(
             "GExternalEvaluatorIndividual-runid-roundtrip",
@@ -377,13 +363,13 @@ TEST_CASE(
 // all three modes, guarding against silently dropping a member.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (TEXT/XML/BINARY) for oa::GOptimizationAlgorithmBase's members
 TEST_CASE(
-    "oa::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the checkpoint path",
+    "oa::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the "
+    "checkpoint path",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
 
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GEvolutionaryAlgorithm original;
         // Set several oa::GOptimizationAlgorithmBase members to non-default values via public setters.
         // "." is an always-existing directory, so setCheckpointBaseName creates nothing.
@@ -398,9 +384,7 @@ TEST_CASE(
         restored.setMaxIteration(1);
         restored.setReportIteration(1);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         // Explicit getter checks: these would catch a dropped member that the
         // structural compare might otherwise tolerate.
@@ -460,23 +444,16 @@ TEST_CASE(
     }
 
     // --- wire round-trip in all three modes ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         gind::GTestIndividual1 const original = make_original();
         gind::GTestIndividual1 restored; // defaults
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
         CHECK(restored.getAssignedIteration() == 7);
         CHECK(restored.getMaxMode() == maxMode::MAXIMIZE);
 
-        GEqualityPrinter const gep(
-            "GGenome-roundtrip",
-            pow(10, -7),
-            Gem::Common::CE_WITH_MESSAGES
-        );
+        GEqualityPrinter const gep("GGenome-roundtrip", pow(10, -7), Gem::Common::CE_WITH_MESSAGES);
         CHECK(gep.isSimilar(restored, original));
     }
 }
@@ -538,16 +515,13 @@ TEST_CASE(
     }
 
     // --- wire round-trip in all three modes ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GSwarmAlgorithm const original = makeOriginal();
         oa::GSwarmAlgorithm restored;
         restored.setCPersonal(0.1);
         restored.setNeighborhoodsRandomFillUp(true);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
         checkGetters(restored);
 
         GEqualityPrinter const gep(
@@ -574,8 +548,8 @@ TEST_CASE(
     auto makeOriginal = []() {
         oa::GParameterScan a;
         // Non-default values for the localMembers()-tied plain members.
-        a.setScanRandomly(false);    // default is true
-        a.setNSimpleScans(7);        // sets simple_scan_items_ (default 0)
+        a.setScanRandomly(false); // default is true
+        a.setNSimpleScans(7);     // sets simple_scan_items_ (default 0)
         return a;
     };
 
@@ -602,15 +576,12 @@ TEST_CASE(
     }
 
     // --- wire round-trip in all three modes ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GParameterScan const original = makeOriginal();
         oa::GParameterScan restored;
         restored.setScanRandomly(true);
 
-        REQUIRE_NOTHROW(
-            restored.fromString(original.toString(mode), mode)
-        );
+        REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
         checkGetters(restored);
 
         GEqualityPrinter const gep(
@@ -637,7 +608,9 @@ TEST_CASE(
 
     auto makeOriginal = []() {
         oa::GParameterScan a;
-        a.setScanRandomly(false); // GRID scan -> each leaf pre-computes a data grid that must survive too
+        a.setScanRandomly(
+            false
+        ); // GRID scan -> each leaf pre-computes a data grid that must survive too
         // One parameter of every supported leaf type: double, float, int32 and bool.
         a.setParameterSpecs("d(0, -5., 5., 3), f(1, -5., 5., 3), i(2, -5, 5, 3), b(3)");
         return a;
@@ -649,19 +622,22 @@ TEST_CASE(
         oa::GParameterScan restored;
         REQUIRE_NOTHROW(restored.load(original));
         GEqualityPrinter const gep(
-            "GParameterScan-scanpar-load", pow(10, -7), Gem::Common::CE_WITH_MESSAGES
+            "GParameterScan-scanpar-load",
+            pow(10, -7),
+            Gem::Common::CE_WITH_MESSAGES
         );
         CHECK(gep.isSimilar(restored, original));
     }
 
     // --- wire round-trip in all three modes (polymorphic serialize of every leaf) ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GParameterScan const original = makeOriginal();
         oa::GParameterScan restored;
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
         GEqualityPrinter const gep(
-            "GParameterScan-scanpar-roundtrip", pow(10, -7), Gem::Common::CE_WITH_MESSAGES
+            "GParameterScan-scanpar-roundtrip",
+            pow(10, -7),
+            Gem::Common::CE_WITH_MESSAGES
         );
         CHECK(gep.isSimilar(restored, original));
     }
@@ -675,7 +651,9 @@ TEST_CASE(
 // it guards both the policy refactor of the reflection layer and the new transient flavour that the
 // GOptimizationAlgorithmBase fold introduced (its best_iteration_individuals_pq_ is exactly this kind).
 namespace {
-class GPolicyProbe : public Gem::Common::GReflectiveInterfaceT<GPolicyProbe, Gem::Common::GCommonInterfaceT<GPolicyProbe>> {
+class GPolicyProbe
+  : public Gem::Common::
+        GReflectiveInterfaceT<GPolicyProbe, Gem::Common::GCommonInterfaceT<GPolicyProbe>> {
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -726,23 +704,22 @@ TEST_CASE(
     GEqualityPrinter const gep("policy-probe", 0., Gem::Common::CE_WITH_MESSAGES);
     {
         GPolicyProbe c = a;
-        c.loadonly_ = 999;          // differs only in the load-only member ...
-        CHECK(gep.isEqual(c, a));   // ... yet still equal: load-only is skipped by compare
+        c.loadonly_ = 999;        // differs only in the load-only member ...
+        CHECK(gep.isEqual(c, a)); // ... yet still equal: load-only is skipped by compare
     }
     {
         GPolicyProbe c = a;
-        c.transient_ = 999;              // differs only in the transient member ...
-        CHECK(not gep.isEqual(c, a));    // ... NOT equal: a transient member IS compared
+        c.transient_ = 999;           // differs only in the transient member ...
+        CHECK(not gep.isEqual(c, a)); // ... NOT equal: a transient member IS compared
     }
     {
         GPolicyProbe c = a;
         c.plain_ = 999;
-        CHECK(not gep.isEqual(c, a));    // a plain member is compared
+        CHECK(not gep.isEqual(c, a)); // a plain member is compared
     }
 
     // --- serialize: only the plain member travels; load-only and transient are skipped ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         GPolicyProbe restored; // members default to 0
         restored.fromString(a.toString(mode), mode);
         CHECK(restored.plain_ == 1);     // serialized -> survives the wire
@@ -767,7 +744,8 @@ struct GProbeBase {
 
 class GBaseObjectProbe
   : public GProbeBase
-  , public Gem::Common::GReflectiveInterfaceT<GBaseObjectProbe, Gem::Common::GCommonInterfaceT<GBaseObjectProbe>> {
+  , public Gem::Common::
+        GReflectiveInterfaceT<GBaseObjectProbe, Gem::Common::GCommonInterfaceT<GBaseObjectProbe>> {
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -829,8 +807,7 @@ TEST_CASE(
     }
 
     // --- serialize: the base slice travels via base_object ---
-    for (auto mode :
-         {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+    for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         GBaseObjectProbe restored;
         restored.fromString(a.toString(mode), mode);
         CHECK(restored.base_val_ == 7); // base slice survived via base_object
@@ -845,7 +822,10 @@ TEST_CASE(
 // that the derived getters (ad_prob etc.) compute correctly.
 // ============================================================================
 
-TEST_CASE("Meta-optimizer genome is built from the tunable manifest and read by name", "[geneva][meta]") {
+TEST_CASE(
+    "Meta-optimizer genome is built from the tunable manifest and read by name",
+    "[geneva][meta]"
+) {
     using Meta = gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>;
     namespace n = oa::ea_tunable;
 

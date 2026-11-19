@@ -45,17 +45,17 @@ namespace Gem::Courtier::GPU {
  * kernel without recompiling.
  */
 struct GGPUConsumerConfig {
-    std::string backend = "cuda";             ///< "cuda" -- the GPU consumer is device-only; any other
-                                              ///< value (including the retired "cpu") is rejected by
-                                              ///< backendKindFromString(). To run on the CPU, use a CPU
-                                              ///< consumer instead (e.g. --consumer stc)
-    std::string kernel_path;                  ///< path to the kernel source / prebuilt module
-    std::string kernel_entry = "evaluate";    ///< kernel entry-point name
-    int device_id = 0;                        ///< which device
+    std::string backend = "cuda"; ///< "cuda" -- the GPU consumer is device-only; any other
+                                  ///< value (including the retired "cpu") is rejected by
+                                  ///< backendKindFromString(). To run on the CPU, use a CPU
+                                  ///< consumer instead (e.g. --consumer stc)
+    std::string kernel_path;      ///< path to the kernel source / prebuilt module
+    std::string kernel_entry = "evaluate";                    ///< kernel entry-point name
+    int device_id = 0;                                        ///< which device
     unsigned int block_x = Gem::Courtier::GGPUCONSUMERBLOCKX; ///< launch block size (x)
     unsigned int block_y = 1;
     unsigned int block_z = 1;
-    unsigned int grid_x = 0;                  ///< launch grid (0 == auto)
+    unsigned int grid_x = 0; ///< launch grid (0 == auto)
     unsigned int grid_y = 0;
     unsigned int grid_z = 0;
 
@@ -66,29 +66,76 @@ struct GGPUConsumerConfig {
     void load(const std::string &configFile) {
         Gem::Common::GParserBuilder gpb;
         gpb.registerFileParameter<std::string>(
-            "backend", backend, backend, Gem::Common::VAR_IS_ESSENTIAL,
-            "GPU backend: cuda (device-only; use a CPU consumer such as --consumer stc for CPU runs)");
+            "backend",
+            backend,
+            backend,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "GPU backend: cuda (device-only; use a CPU consumer such as --consumer stc for CPU "
+            "runs)"
+        );
         gpb.registerFileParameter<std::string>(
-            "kernel_path", kernel_path, kernel_path, Gem::Common::VAR_IS_ESSENTIAL,
-            "Path to the kernel source (.cu, runtime-compiled) or prebuilt module (.ptx/.cubin)");
+            "kernel_path",
+            kernel_path,
+            kernel_path,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Path to the kernel source (.cu, runtime-compiled) or prebuilt module (.ptx/.cubin)"
+        );
         gpb.registerFileParameter<std::string>(
-            "kernel_entry", kernel_entry, kernel_entry, Gem::Common::VAR_IS_ESSENTIAL,
-            "Kernel entry-point name (must be un-mangled, e.g. extern \"C\")");
+            "kernel_entry",
+            kernel_entry,
+            kernel_entry,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Kernel entry-point name (must be un-mangled, e.g. extern \"C\")"
+        );
         gpb.registerFileParameter<int>(
-            "device_id", device_id, device_id, Gem::Common::VAR_IS_ESSENTIAL,
-            "Which GPU/device to use");
+            "device_id",
+            device_id,
+            device_id,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Which GPU/device to use"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "block_x", block_x, block_x, Gem::Common::VAR_IS_ESSENTIAL, "Launch block size (x)");
+            "block_x",
+            block_x,
+            block_x,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch block size (x)"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "block_y", block_y, block_y, Gem::Common::VAR_IS_ESSENTIAL, "Launch block size (y)");
+            "block_y",
+            block_y,
+            block_y,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch block size (y)"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "block_z", block_z, block_z, Gem::Common::VAR_IS_ESSENTIAL, "Launch block size (z)");
+            "block_z",
+            block_z,
+            block_z,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch block size (z)"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "grid_x", grid_x, grid_x, Gem::Common::VAR_IS_ESSENTIAL, "Launch grid size (x; 0 == auto)");
+            "grid_x",
+            grid_x,
+            grid_x,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch grid size (x; 0 == auto)"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "grid_y", grid_y, grid_y, Gem::Common::VAR_IS_ESSENTIAL, "Launch grid size (y; 0 == auto)");
+            "grid_y",
+            grid_y,
+            grid_y,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch grid size (y; 0 == auto)"
+        );
         gpb.registerFileParameter<unsigned int>(
-            "grid_z", grid_z, grid_z, Gem::Common::VAR_IS_ESSENTIAL, "Launch grid size (z; 0 == auto)");
+            "grid_z",
+            grid_z,
+            grid_z,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Launch grid size (z; 0 == auto)"
+        );
         gpb.parseConfigFile(configFile);
     }
 
@@ -109,7 +156,9 @@ struct GGPUConsumerConfig {
      * @brief The selected backend kind.
      * @return The BackendKind parsed from the "backend" string ("cuda"); throws on any other value
      */
-    [[nodiscard]] BackendKind backendKind() const { return backendKindFromString(backend); }
+    [[nodiscard]] BackendKind backendKind() const {
+        return backendKindFromString(backend);
+    }
 };
 
 /******************************************************************************/

@@ -37,8 +37,8 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonInterfaceT.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 
 namespace Gem::Common {
 
@@ -123,5 +123,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Common */
-
-

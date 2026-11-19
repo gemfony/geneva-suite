@@ -44,14 +44,14 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "weft/GArchivePolymorphic.hpp" // GArchive codec arm for toStream/fromStream (gem_serialize_pointer)
-#include "weft/GBinaryArchive.hpp"      // GArchive flat binary codec
-#include "common/GCommonEnums.hpp"        // For the serialization mode
+#include "common/GCommonEnums.hpp" // For the serialization mode
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GParserBuilder.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GArchive codec arm for toStream/fromStream (gem_serialize_pointer)
+#include "weft/GBinaryArchive.hpp" // GArchive flat binary codec
 
 namespace Gem::Common {
 /******************************************************************************/
@@ -112,7 +112,8 @@ public:
             // smart-ptr arm's gem_serialize_pointer runs (present flag + dynamic tag + members). The
             // deleter is a no-op -- `local` is borrowed (it is &self), the archive must not delete it;
             // the const_cast is safe because saving never mutates.
-            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {});
+            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {
+            });
             Gem::Weft::GBinaryOArchive oa;
             oa &Gem::Weft::make_nvp("classhierarchyFromT", sp);
             oarchive_stream << oa.str();
@@ -121,7 +122,8 @@ public:
         break;
 
         case Gem::Common::serializationMode::GEM_JSON: {
-            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {});
+            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {
+            });
             Gem::Weft::GJsonOArchive oa;
             oa &Gem::Weft::make_nvp("classhierarchyFromT", sp);
             oarchive_stream << oa.str();

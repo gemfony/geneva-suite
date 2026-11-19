@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-
 /********************************************************************************
  *
  * GXoshiro256ppSIMD.hpp — SIMD bulk-refill engines for Hap.
@@ -83,22 +82,28 @@ namespace Gem::Hap {
  */
 class xoshiro256pp_simd {
 public:
-    static constexpr int  LANES = 4;
-    using result_type           = std::uint64_t;
+    static constexpr int LANES = 4;
+    using result_type = std::uint64_t;
 
     /** @brief Default construction uses a fixed non-zero seed (default_seed). */
-    xoshiro256pp_simd() noexcept { seed(default_seed); }
+    xoshiro256pp_simd() noexcept {
+        seed(default_seed);
+    }
     /**
      * @brief Construction from a single 64-bit seed (expanded via splitmix64).
      * @param s The 64-bit seed value used to initialise all LANES streams
      */
-    explicit xoshiro256pp_simd(result_type s) noexcept { seed(s); }
+    explicit xoshiro256pp_simd(result_type s) noexcept {
+        seed(s);
+    }
 
     /**
      * @brief Smallest value the generator can produce.
      * @return The minimum result_type value (always 0)
      */
-    static constexpr result_type(min)() noexcept { return 0; }
+    static constexpr result_type(min)() noexcept {
+        return 0;
+    }
     /**
      * @brief Largest value the generator can produce.
      * @return The maximum result_type value (2^64 - 1)
@@ -117,14 +122,15 @@ public:
      * @param s The 64-bit seed value used to initialise all LANES streams
      */
     void seed(result_type s) noexcept {
-        std::uint64_t              sm = s;
-        alignas(32) std::uint64_t  init[4][LANES]; // init[word][lane]
-        for (int lane = 0; lane < LANES; ++lane) {
-            for (auto & w : init) w[lane] = detail::splitmix64(sm);
-}
-        for (int w = 0; w < 4; ++w) {
+        std::uint64_t sm = s;
+        alignas(32) std::uint64_t init[4][LANES]; // init[word][lane]
+        for(int lane = 0; lane < LANES; ++lane) {
+            for(auto &w : init)
+                w[lane] = detail::splitmix64(sm);
+        }
+        for(int w = 0; w < 4; ++w) {
             s_[w] = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(init[w]));
-}
+        }
         bufpos_ = LANES; // buffer empty
     }
 
@@ -139,13 +145,14 @@ public:
      */
     void generate(result_type *dst, std::size_t n) noexcept {
         std::size_t i = 0;
-        for (; i + LANES <= n; i += LANES) {
+        for(; i + LANES <= n; i += LANES) {
             _mm256_storeu_si256(reinterpret_cast<__m256i *>(dst + i), next_lanes());
-}
-        if (i < n) { // tail < LANES
+        }
+        if(i < n) { // tail < LANES
             alignas(32) result_type tmp[LANES];
             _mm256_store_si256(reinterpret_cast<__m256i *>(tmp), next_lanes());
-            for (std::size_t j = 0; i < n; ++i, ++j) dst[i] = tmp[j];
+            for(std::size_t j = 0; i < n; ++i, ++j)
+                dst[i] = tmp[j];
         }
     }
 
@@ -158,7 +165,7 @@ public:
      * @return The next pseudo-random 64-bit value
      */
     result_type operator()() noexcept {
-        if (bufpos_ >= LANES) {
+        if(bufpos_ >= LANES) {
             _mm256_store_si256(reinterpret_cast<__m256i *>(buf_), next_lanes());
             bufpos_ = 0;
         }
@@ -169,7 +176,10 @@ public:
      * @brief Advance the generator by z single-value steps.
      * @param z The number of generated values to skip
      */
-    void discard(unsigned long long z) noexcept { while (z-- > 0) (void)(*this)(); }
+    void discard(unsigned long long z) noexcept {
+        while(z-- > 0)
+            (void)(*this)();
+    }
 
 private:
     static constexpr result_type default_seed = 0x9e3779b97f4a7c15ULL;
@@ -191,7 +201,7 @@ private:
      */
     __m256i next_lanes() noexcept {
         const __m256i res = _mm256_add_epi64(rotl<23>(_mm256_add_epi64(s_[0], s_[3])), s_[0]);
-        const __m256i t   = _mm256_slli_epi64(s_[1], 17);
+        const __m256i t = _mm256_slli_epi64(s_[1], 17);
         s_[2] = _mm256_xor_si256(s_[2], s_[0]);
         s_[3] = _mm256_xor_si256(s_[3], s_[1]);
         s_[1] = _mm256_xor_si256(s_[1], s_[2]);
@@ -201,9 +211,9 @@ private:
         return res;
     }
 
-    __m256i                  s_[4];
-    alignas(32) result_type  buf_[LANES]{};
-    int                      bufpos_ = LANES;
+    __m256i s_[4];
+    alignas(32) result_type buf_[LANES]{};
+    int bufpos_ = LANES;
 };
 
 #elif defined(HAP_NEON_BACKEND)
@@ -214,21 +224,27 @@ private:
 class xoshiro256pp_simd {
 public:
     static constexpr int LANES = 2;
-    using result_type          = std::uint64_t;
+    using result_type = std::uint64_t;
 
     /** @brief Default construction uses a fixed non-zero seed (default_seed). */
-    xoshiro256pp_simd() noexcept { seed(default_seed); }
+    xoshiro256pp_simd() noexcept {
+        seed(default_seed);
+    }
     /**
      * @brief Construction from a single 64-bit seed (expanded via splitmix64).
      * @param s The 64-bit seed value used to initialise all LANES streams
      */
-    explicit xoshiro256pp_simd(result_type s) noexcept { seed(s); }
+    explicit xoshiro256pp_simd(result_type s) noexcept {
+        seed(s);
+    }
 
     /**
      * @brief Smallest value the generator can produce.
      * @return The minimum result_type value (always 0)
      */
-    static constexpr result_type(min)() noexcept { return 0; }
+    static constexpr result_type(min)() noexcept {
+        return 0;
+    }
     /**
      * @brief Largest value the generator can produce.
      * @return The maximum result_type value (2^64 - 1)
@@ -249,9 +265,11 @@ public:
     void seed(result_type s) noexcept {
         std::uint64_t sm = s;
         std::uint64_t init[4][LANES];
-        for (int lane = 0; lane < LANES; ++lane)
-            for (int w = 0; w < 4; ++w) init[w][lane] = detail::splitmix64(sm);
-        for (int w = 0; w < 4; ++w) s_[w] = vld1q_u64(init[w]);
+        for(int lane = 0; lane < LANES; ++lane)
+            for(int w = 0; w < 4; ++w)
+                init[w][lane] = detail::splitmix64(sm);
+        for(int w = 0; w < 4; ++w)
+            s_[w] = vld1q_u64(init[w]);
         bufpos_ = LANES;
     }
 
@@ -266,11 +284,13 @@ public:
      */
     void generate(result_type *dst, std::size_t n) noexcept {
         std::size_t i = 0;
-        for (; i + LANES <= n; i += LANES) vst1q_u64(dst + i, next_lanes());
-        if (i < n) {
+        for(; i + LANES <= n; i += LANES)
+            vst1q_u64(dst + i, next_lanes());
+        if(i < n) {
             result_type tmp[LANES];
             vst1q_u64(tmp, next_lanes());
-            for (std::size_t j = 0; i < n; ++i, ++j) dst[i] = tmp[j];
+            for(std::size_t j = 0; i < n; ++i, ++j)
+                dst[i] = tmp[j];
         }
     }
 
@@ -283,7 +303,10 @@ public:
      * @return The next pseudo-random 64-bit value
      */
     result_type operator()() noexcept {
-        if (bufpos_ >= LANES) { vst1q_u64(buf_, next_lanes()); bufpos_ = 0; }
+        if(bufpos_ >= LANES) {
+            vst1q_u64(buf_, next_lanes());
+            bufpos_ = 0;
+        }
         return buf_[bufpos_++];
     }
 
@@ -291,7 +314,10 @@ public:
      * @brief Advance the generator by z single-value steps.
      * @param z The number of generated values to skip
      */
-    void discard(unsigned long long z) noexcept { while (z-- > 0) (void)(*this)(); }
+    void discard(unsigned long long z) noexcept {
+        while(z-- > 0)
+            (void)(*this)();
+    }
 
 private:
     static constexpr result_type default_seed = 0x9e3779b97f4a7c15ULL;
@@ -313,7 +339,7 @@ private:
      */
     uint64x2_t next_lanes() noexcept {
         const uint64x2_t res = vaddq_u64(rotl<23>(vaddq_u64(s_[0], s_[3])), s_[0]);
-        const uint64x2_t t   = vshlq_n_u64(s_[1], 17);
+        const uint64x2_t t = vshlq_n_u64(s_[1], 17);
         s_[2] = veorq_u64(s_[2], s_[0]);
         s_[3] = veorq_u64(s_[3], s_[1]);
         s_[1] = veorq_u64(s_[1], s_[2]);
@@ -323,9 +349,9 @@ private:
         return res;
     }
 
-    uint64x2_t  s_[4];
+    uint64x2_t s_[4];
     result_type buf_[LANES]{};
-    int         bufpos_ = LANES;
+    int bufpos_ = LANES;
 };
 
 #endif // backend selection

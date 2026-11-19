@@ -62,8 +62,10 @@ constexpr double DEF_BINORM_DISTANCE = 0.5;
 enum class randomSource : Gem::Common::ENUMBASETYPE {
     QUEUE = 0, ///< numbers are taken from the central factory (the package queue) -- the default
     LOCAL = 1, ///< numbers are produced locally, from a per-proxy engine seeded by the factory
-    STAGED = 2, ///< numbers are claimed in chunks from a shared, bulk-filled staging pool into a per-proxy double buffer
-    QUARANTINE = 3 ///< numbers are read in place from N rotating, bulk-filled pools (benign-race; relies on aligned-64-bit atomicity)
+    STAGED =
+        2, ///< numbers are claimed in chunks from a shared, bulk-filled staging pool into a per-proxy double buffer
+    QUARANTINE =
+        3 ///< numbers are read in place from N rotating, bulk-filled pools (benign-race; relies on aligned-64-bit atomicity)
 };
 
 /******************************************************************************/

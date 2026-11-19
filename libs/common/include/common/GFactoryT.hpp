@@ -49,7 +49,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::atomic<T>
-#include "common/concurrency/GLoadOnceCellT.hpp"    // the transient config-parse cache
+#include "common/concurrency/GLoadOnceCellT.hpp"     // the transient config-parse cache
 
 namespace Gem::Common {
 
@@ -236,7 +236,7 @@ public:
 	  *
 	  * @param configFile The new configuration-file name (interpreted as a filesystem path)
 	  */
-    void setConfigFile(const std::string& configFile) {
+    void setConfigFile(const std::string &configFile) {
         config_path_ = std::filesystem::path(configFile);
         config_document_cell_.reset();
     }
@@ -255,8 +255,7 @@ public:
         if(p) {
             return Gem::Common::convertSmartPointer<prod_type, target_type>(p);
         }
-                    return std::shared_ptr<target_type>(); // Just return an empty pointer
-       
+        return std::shared_ptr<target_type>(); // Just return an empty pointer
     }
 
     /***************************************************************************/
@@ -402,7 +401,11 @@ protected:
             // Somebody else did the real parse (this call or an earlier one), so this gpb still
             // needs the values. The unknown-key diagnostic already ran on the first (real) parse,
             // so skip it here -- otherwise it would re-run per produced object.
-            gpb.loadFromDocument(config_document, config_path_, /* run_unknown_key_check = */ false);
+            gpb.loadFromDocument(
+                config_document,
+                config_path_,
+                /* run_unknown_key_check = */ false
+            );
         }
 
         // Allow the factory to act on configuration options received
@@ -465,4 +468,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Common */
-

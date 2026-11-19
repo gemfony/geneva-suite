@@ -134,8 +134,9 @@ cells). The value is a comma-separated list of CMake build-type names
 case-insensitive.
 
 Geneva's requirements are GCC >= 15, Clang >= 22, CMake >= 3.27 and
-Boost >= 1.91; the floor is enforced at configure time by
-`CMakeModules/IdentifySystemParameters.cmake`. Every in-image toolchain meets
+Boost >= 1.91; at configure time the compiler floor is enforced by
+`CMakeModules/IdentifySystemParameters.cmake`, the Boost floor by the Boost
+search in `CMakeModules/CommonGenevaBuild.cmake`. Every in-image toolchain meets
 it.
 
 ---

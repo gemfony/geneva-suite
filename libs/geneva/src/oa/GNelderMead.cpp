@@ -34,17 +34,17 @@
 #include <cmath>
 #include <limits>
 
-#include "common/GLogger.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -435,7 +435,7 @@ void GNelderMead::proposeTrials() {
         for(std::size_t k = 0; k < n_fp_parms_first_; k++) {
             reflect[k] = centroid[k] + (alpha_ * (centroid[k] - xw[k]));
             expand[k] = centroid[k] + (gamma_ * (centroid[k] - xw[k]));
-            contract[k] = centroid[k] + (rho_ * (xw[k] - centroid[k]));   // inside  contraction
+            contract[k] = centroid[k] + (rho_ * (xw[k] - centroid[k]));       // inside  contraction
             ocontract[k] = centroid[k] + (rho_ * (reflect[k] - centroid[k])); // outside contraction
         }
 
@@ -591,29 +591,20 @@ void GNelderMead::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         [this](std::size_t ns) { this->setNSimplices(ns); }
     ) << "The number of simultaneous Nelder-Mead simplices";
 
-    gpb.registerFileParameter<double>(
-        "alpha",
-        DEFAULTNMALPHA,
-        [this](double a) { this->setAlpha(a); }
-    ) << "The Nelder-Mead reflection coefficient (> 0)";
+    gpb.registerFileParameter<double>("alpha", DEFAULTNMALPHA, [this](double a) {
+        this->setAlpha(a);
+    }) << "The Nelder-Mead reflection coefficient (> 0)";
 
-    gpb.registerFileParameter<double>(
-        "gamma",
-        DEFAULTNMGAMMA,
-        [this](double g) { this->setGamma(g); }
-    ) << "The Nelder-Mead expansion coefficient (> 1)";
+    gpb.registerFileParameter<double>("gamma", DEFAULTNMGAMMA, [this](double g) {
+        this->setGamma(g);
+    }) << "The Nelder-Mead expansion coefficient (> 1)";
 
-    gpb.registerFileParameter<double>(
-        "rho",
-        DEFAULTNMRHO,
-        [this](double r) { this->setRho(r); }
-    ) << "The Nelder-Mead contraction coefficient (in ]0,1[)";
+    gpb.registerFileParameter<double>("rho", DEFAULTNMRHO, [this](double r) { this->setRho(r); })
+        << "The Nelder-Mead contraction coefficient (in ]0,1[)";
 
-    gpb.registerFileParameter<double>(
-        "sigma",
-        DEFAULTNMSIGMA,
-        [this](double si) { this->setSigma(si); }
-    ) << "The Nelder-Mead shrink coefficient (in ]0,1[)";
+    gpb.registerFileParameter<double>("sigma", DEFAULTNMSIGMA, [this](double si) {
+        this->setSigma(si);
+    }) << "The Nelder-Mead shrink coefficient (in ]0,1[)";
 
     gpb.registerFileParameter<double>(
         "initial_edge",
@@ -627,7 +618,8 @@ void GNelderMead::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         "restart_threshold",
         DEFAULTNMRESTARTTHRESHOLD,
         [this](std::uint32_t rt) { this->setRestartThreshold(rt); }
-    ) << "Stall count after which the simplices are restarted (oriented, around" << '\n'
+    ) << "Stall count after which the simplices are restarted (oriented, around"
+      << '\n'
       << "the best vertex) to escape a degenerate collapse. 0 disables restarts";
 }
 

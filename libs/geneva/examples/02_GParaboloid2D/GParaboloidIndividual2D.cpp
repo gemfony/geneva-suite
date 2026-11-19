@@ -82,10 +82,17 @@ GParaboloidIndividual2D::GParaboloidIndividual2D()
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GParaboloidIndividual2D::buildAdaptionConfig(const gen::GGenome &sample) {
-    auto cfg = OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(sample);
+    auto cfg =
+        OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(
+            sample
+        );
     for(std::size_t npar = 0; npar < 2; npar++) {
         cfg->groupDouble(npar).gauss(
-            DEFAULTSIGMA, DEFAULTSIGMASIGMA, DEFAULTMINSIGMA, DEFAULTMAXSIGMA, DEFAULTADPROB
+            DEFAULTSIGMA,
+            DEFAULTSIGMASIGMA,
+            DEFAULTMINSIGMA,
+            DEFAULTMAXSIGMA,
+            DEFAULTADPROB
         );
     }
     return cfg;
@@ -100,11 +107,17 @@ GParaboloidIndividual2D::buildAdaptionConfig(const gen::GGenome &sample) {
  */
 void GParaboloidIndividual2D::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
     gpb.registerFileParameter<double>(
-        "par_min", c.par_min, -10., Gem::Common::VAR_IS_ESSENTIAL,
+        "par_min",
+        c.par_min,
+        -10.,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The lower boundary of each parameter's value range;"
     );
     gpb.registerFileParameter<double>(
-        "par_max", c.par_max, 10., Gem::Common::VAR_IS_ESSENTIAL,
+        "par_max",
+        c.par_max,
+        10.,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The upper boundary of each parameter's value range;"
     );
 }
@@ -120,7 +133,11 @@ void GParaboloidIndividual2D::describeConfig(Gem::Common::GParserBuilder &gpb, C
 gen::GenomeData GParaboloidIndividual2D::buildGenome(const Config &c) {
     gen::GGenomeBuilder b;
     for(std::size_t npar = 0; npar < 2; npar++) {
-        b.addDouble(c.par_min, c.par_min, c.par_max); // structure only; the adaptor lives on the OA config
+        b.addDouble(
+            c.par_min,
+            c.par_min,
+            c.par_max
+        ); // structure only; the adaptor lives on the OA config
     }
     return b.build();
 }
@@ -135,7 +152,10 @@ gen::GenomeData GParaboloidIndividual2D::buildGenome(const Config &c) {
  * @return A shared pointer to the populated OA-owned adaption config
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GParaboloidIndividual2D::buildAdaptionConfig(const gen::GGenome &sample, [[maybe_unused]] const Config &c) {
+GParaboloidIndividual2D::buildAdaptionConfig(
+    const gen::GGenome &sample,
+    [[maybe_unused]] const Config &c
+) {
     return buildAdaptionConfig(sample);
 }
 

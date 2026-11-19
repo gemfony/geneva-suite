@@ -61,10 +61,10 @@ namespace {
 template <typename oarchive_type, typename iarchive_type, typename T>
 T rt(const T &in) {
     oarchive_type oa;
-    oa &in;
+    oa & in;
     iarchive_type ia(oa.str());
     T out{};
-    ia &out;
+    ia & out;
     return out;
 }
 
@@ -88,9 +88,9 @@ TEST_CASE("GArchive coverage: std::optional (empty and engaged)", "[common][arch
 }
 
 TEST_CASE("GArchive coverage: std::chrono::duration (raw count)", "[common][archive][coverage]") {
-    both_codecs(std::chrono::duration<double>(123.5));   // the OA max/min run-time members
+    both_codecs(std::chrono::duration<double>(123.5)); // the OA max/min run-time members
     both_codecs(std::chrono::duration<double>(0.0));
-    both_codecs(std::chrono::milliseconds(2500));        // an integer-rep duration
+    both_codecs(std::chrono::milliseconds(2500)); // an integer-rep duration
     both_codecs(std::chrono::seconds(-7));
 }
 
@@ -117,8 +117,10 @@ TEST_CASE("GArchive coverage: std::forward_list", "[common][archive][coverage]")
     both_codecs(std::forward_list<std::string>{"a", "b", "c"});
 }
 
-TEST_CASE("GArchive coverage: multi-key associative containers (duplicates survive)",
-          "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: multi-key associative containers (duplicates survive)",
+    "[common][archive][coverage]"
+) {
     std::multiset<int> ms{1, 1, 2, 3, 3, 3};
     CHECK((rt<GBinaryOArchive, GBinaryIArchive>(ms)) == ms);
     CHECK((rt<GJsonOArchive, GJsonIArchive>(ms)) == ms);
@@ -166,17 +168,26 @@ void check_make_binary() {
 
 } // namespace
 
-TEST_CASE("GArchive coverage: make_array round-trips a caller-sized element range", "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: make_array round-trips a caller-sized element range",
+    "[common][archive][coverage]"
+) {
     check_make_array<GBinaryOArchive, GBinaryIArchive>();
     check_make_array<GJsonOArchive, GJsonIArchive>();
 }
 
-TEST_CASE("GArchive coverage: make_binary round-trips a caller-sized byte block", "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: make_binary round-trips a caller-sized byte block",
+    "[common][archive][coverage]"
+) {
     check_make_binary<GBinaryOArchive, GBinaryIArchive>();
     check_make_binary<GJsonOArchive, GJsonIArchive>();
 }
 
-TEST_CASE("GArchive coverage: make_array writes no length prefix (binary is raw)", "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: make_array writes no length prefix (binary is raw)",
+    "[common][archive][coverage]"
+) {
     // 3 doubles, no count in the stream -> exactly 3 * 8 bytes.
     std::vector<double> src{1.0, 2.0, 3.0};
     GBinaryOArchive oa;
@@ -210,7 +221,10 @@ void gem_archive_serialize(archive_type &ar, PodPoint &p) {
 
 } // namespace
 
-TEST_CASE("GArchive coverage: non-intrusive free gem_archive_serialize round-trips", "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: non-intrusive free gem_archive_serialize round-trips",
+    "[common][archive][coverage]"
+) {
     both_codecs(PodPoint{-7, 3.5, "hello"});
 
     // Also exercise it nested inside a container (vector of non-intrusive structs).
@@ -240,7 +254,9 @@ class PrivateCtorPod {
     }
 
 public:
-    explicit PrivateCtorPod(int v) : v_(v) {}
+    explicit PrivateCtorPod(int v)
+      : v_(v) {
+    }
     bool operator==(const PrivateCtorPod &) const = default;
     int v_ = 0;
 
@@ -255,33 +271,46 @@ void check_concrete_ptr(const ptr_type &in) {
     ptr_type out;
     iarchive_type ia(oa.str());
     ia &make_nvp("p", out);
-    if (in) {
+    if(in) {
         REQUIRE(static_cast<bool>(out));
         CHECK(*out == *in);
-    } else {
+    }
+    else {
         CHECK_FALSE(static_cast<bool>(out));
     }
 }
 
 } // namespace
 
-TEST_CASE("GArchive coverage: non-polymorphic owned pointer (unique_ptr / shared_ptr to concrete)",
-          "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: non-polymorphic owned pointer (unique_ptr / shared_ptr to concrete)",
+    "[common][archive][coverage]"
+) {
     // unique_ptr, engaged and null.
-    check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(std::make_unique<PodPoint>(PodPoint{9, -1.25, "u"}));
-    check_concrete_ptr<GJsonOArchive, GJsonIArchive>(std::make_unique<PodPoint>(PodPoint{9, -1.25, "u"}));
+    check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(
+        std::make_unique<PodPoint>(PodPoint{9, -1.25, "u"})
+    );
+    check_concrete_ptr<GJsonOArchive, GJsonIArchive>(
+        std::make_unique<PodPoint>(PodPoint{9, -1.25, "u"})
+    );
     check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(std::unique_ptr<PodPoint>{});
     check_concrete_ptr<GJsonOArchive, GJsonIArchive>(std::unique_ptr<PodPoint>{});
 
     // shared_ptr, engaged and null.
-    check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(std::make_shared<PodPoint>(PodPoint{-3, 4.5, "s"}));
-    check_concrete_ptr<GJsonOArchive, GJsonIArchive>(std::make_shared<PodPoint>(PodPoint{-3, 4.5, "s"}));
+    check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(
+        std::make_shared<PodPoint>(PodPoint{-3, 4.5, "s"})
+    );
+    check_concrete_ptr<GJsonOArchive, GJsonIArchive>(
+        std::make_shared<PodPoint>(PodPoint{-3, 4.5, "s"})
+    );
     check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(std::shared_ptr<PodPoint>{});
     check_concrete_ptr<GJsonOArchive, GJsonIArchive>(std::shared_ptr<PodPoint>{});
 }
 
-TEST_CASE("GArchive coverage: non-polymorphic owned pointer to a PRIVATE-ctor concrete pointee",
-          "[common][archive][coverage]") {
+TEST_CASE(
+    "GArchive coverage: non-polymorphic owned pointer to a PRIVATE-ctor concrete pointee",
+    "[common][archive][coverage]"
+) {
     // The load path reconstructs the pointee through access::construct_raw (the concrete-pointer
     // analogue of the polymorphic factory seam) -- the shape of the meta-optimizer's ind_factory_.
     check_concrete_ptr<GBinaryOArchive, GBinaryIArchive>(std::make_shared<PrivateCtorPod>(77));

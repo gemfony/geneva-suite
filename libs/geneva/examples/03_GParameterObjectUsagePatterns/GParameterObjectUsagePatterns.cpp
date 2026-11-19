@@ -32,9 +32,9 @@
  ********************************************************************************/
 
 // Standard header files go here
-#include <algorithm>
-#include "weft/GArchivePolymorphic.hpp"
 #include "common/GArchiveNamed.hpp"
+#include "weft/GArchivePolymorphic.hpp"
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <iostream>
@@ -50,10 +50,10 @@
 #include "common/GFatalReport.hpp"
 #include "common/GJsonIO.hpp"
 #include "geneva/Go2.hpp"
-#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 
 using namespace Gem::Geneva;
@@ -68,7 +68,8 @@ namespace oa = Gem::Geneva::OptimizationAlgorithms;
  */
 class GDemoIndividual : public gen::GGenomeT<GDemoIndividual> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 
     friend struct Gem::Weft::access;
 
@@ -103,12 +104,14 @@ protected:
         std::vector<double> v;
         this->streamline(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 };
 
 GEM_REGISTER_ARCHIVABLE(GDemoIndividual) // NOLINT
-
 
 /******************************************************************************/
 /**
@@ -135,8 +138,8 @@ void printGenome(const std::string &title, const gen::GenomeData &g) {
     }
     std::cout << "\n  adaption groups -> double: " << g.layout->d.groups.size()
               << ", float: " << g.layout->f.groups.size()
-              << ", int32: " << g.layout->i.groups.size()
-              << ", bool: " << g.layout->b.groups.size() << "\n\n";
+              << ", int32: " << g.layout->i.groups.size() << ", bool: " << g.layout->b.groups.size()
+              << "\n\n";
 }
 
 /******************************************************************************/
@@ -203,13 +206,14 @@ int main(int argc, char **argv) {
         auto genome = b.build();
         auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
-            cfg->groupDouble(i).gauss(0.5, 0.8, 1e-3, 2., 1.); // the same Gauss config on each group
+            cfg->groupDouble(i)
+                .gauss(0.5, 0.8, 1e-3, 2., 1.); // the same Gauss config on each group
         }
         printGenome("Constrained doubles (single + group + array):", genome);
     }
 
     { // Unbounded ("plain") double collection: min/max set the random-init perimeter and the Gauss step
-      // range, but are NOT constraints (no folding takes place).
+        // range, but are NOT constraints (no folding takes place).
         gen::GGenomeBuilder b;
         b.addDouble(0.5); // a bare unbounded scalar (init perimeter [0,1]) -- left un-adapted here
         b.addDoublePlainGroup(4, -10., 10.);
@@ -234,10 +238,19 @@ int main(int argc, char **argv) {
         auto genome = b.build();
         auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
         cfg->groupDouble(0).biGauss(
-            0.5, 0.8, 1e-3, 2.,  // sigma1 + self-adaption + bounds
-            0.5, 0.8, 1e-3, 2.,  // sigma2 + self-adaption + bounds
-            0.5, 0.8, 0., 2.,    // delta + self-adaption + bounds
-            1.                   // ad_prob
+            0.5,
+            0.8,
+            1e-3,
+            2., // sigma1 + self-adaption + bounds
+            0.5,
+            0.8,
+            1e-3,
+            2., // sigma2 + self-adaption + bounds
+            0.5,
+            0.8,
+            0.,
+            2., // delta + self-adaption + bounds
+            1.  // ad_prob
         );
         printGenome("Constrained double with a bi-gaussian adaptor:", genome);
     }
@@ -265,7 +278,7 @@ int main(int argc, char **argv) {
     }
 
     { // Per-group tuning: the structural policy (.init / .perimeter / adaptionMode(NEVER) -- a frozen,
-      // "inactive" group) stays on the builder; the adaptor is authored on the config for the active groups.
+        // "inactive" group) stays on the builder; the adaptor is authored on the config for the active groups.
         //! [problem-handle-tuning#1]
         gen::GGenomeBuilder b;
         b.addDoubleGroup(2, -10., 10.).init(3.);
@@ -310,7 +323,7 @@ int main(int argc, char **argv) {
         std::vector<double> upper;
         ind.boundaries(lower, upper);
         std::cout << "Double boundaries:";
-        for(auto const& [lo, hi] : std::views::zip(lower, upper)) {
+        for(auto const &[lo, hi] : std::views::zip(lower, upper)) {
             std::cout << " [" << lo << ", " << hi << "]";
         }
         std::cout << '\n';

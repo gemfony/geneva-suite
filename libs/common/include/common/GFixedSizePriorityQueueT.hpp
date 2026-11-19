@@ -43,14 +43,14 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GContainerT.hpp" // PodStorage / SharedPtrStorage / UniquePtrStorage
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
+#include "common/GContainerT.hpp" // PodStorage / SharedPtrStorage / UniquePtrStorage
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include <common/GExpectationChecksT.hpp>
 
 namespace Gem::Common {
@@ -615,7 +615,7 @@ protected:
      *       evaluation type, so this overload would collide with the plain-value one below.
      */
     [[nodiscard]] bool isBetter(StoredType const &new_item, StoredType const &old_item) const
-        requires(not holds_values)
+        requires (not holds_values)
     {
         return this->isBetter(this->evaluation(new_item), this->evaluation(old_item));
     }
@@ -630,7 +630,7 @@ protected:
      * @note Pointer policies only -- see the note above.
      */
     [[nodiscard]] bool isBetter(StoredType const &new_item, double old_item_val) const
-        requires(not holds_values)
+        requires (not holds_values)
     {
         return this->isBetter(this->evaluation(new_item), old_item_val);
     }
@@ -645,7 +645,7 @@ protected:
      * @note Pointer policies only -- see the note above.
      */
     [[nodiscard]] bool isBetter(double new_item_val, StoredType const &old_item) const
-        requires(not holds_values)
+        requires (not holds_values)
     {
         return this->isBetter(new_item_val, this->evaluation(old_item));
     }

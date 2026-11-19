@@ -28,13 +28,13 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GTestIndividual3.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <cstddef>
 #include <functional>
@@ -120,7 +120,10 @@ std::vector<double> GTestIndividual3::evaluate() {
 
     // Calculate the value of the parabola
     return {std::ranges::fold_left(
-        par_vec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }), 0., std::plus{})};
+        par_vec | std::views::transform([](double x) { return Gem::Common::gsquared(x); }),
+        0.,
+        std::plus{}
+    )};
 }
 
 /******************************************************************************/
@@ -146,8 +149,8 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GTestIndividual3::getPlainData(): Error!" << '\n'
-            << "Invalid number of double parameters " << par_vec.size() << " / " << (10 * GTI_DEF_NITEMS)
-            << '\n'
+            << "Invalid number of double parameters " << par_vec.size() << " / "
+            << (10 * GTI_DEF_NITEMS) << '\n'
         );
     }
 #endif /* DEBUG */

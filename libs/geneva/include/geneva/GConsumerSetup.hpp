@@ -45,7 +45,7 @@
 // Geneva headers
 #include "common/GProviderStoreT.hpp"
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GConsumerSpec.hpp" // ConsumerSpec, ConsumerConfig, configOf()
+#include "courtier/GConsumerSpec.hpp"  // ConsumerSpec, ConsumerConfig, configOf()
 #include "courtier/GCourtierEnums.hpp" // processRole
 #include "geneva/genome/GGenome.hpp"
 
@@ -105,14 +105,18 @@ public:
     [[nodiscard]] virtual bool needsClient() const = 0;
     /** @brief Whether this consumer binds a listening socket, so a second build reuses the existing one
      *  rather than binding again. @return true for the socket-server consumers (beast). */
-    [[nodiscard]] virtual bool bindsListeningPort() const { return false; }
+    [[nodiscard]] virtual bool bindsListeningPort() const {
+        return false;
+    }
     /** @brief Whether this consumer answers role() from its RUNTIME environment (e.g. the rank of
      *  the process in an MPI communicator) rather than from the --client switch. A caller must
      *  finalize its configuration (choose the consumer) before it can ask such a consumer for the
      *  role, and must not reject --client up front for it. The default (false) is the ordinary
      *  case: the role follows --client and is known as soon as the command line is parsed.
      *  @return true if the role is determined at runtime by the consumer, false otherwise. */
-    [[nodiscard]] virtual bool determinesRoleAtRuntime() const { return false; }
+    [[nodiscard]] virtual bool determinesRoleAtRuntime() const {
+        return false;
+    }
     /** @brief The role of this process for this consumer. The default follows the client
      *  switch: CLIENT if a client was asked for and this consumer has one, otherwise SUBMITTER.
      *  @param spec The consumer specification
@@ -285,7 +289,8 @@ void materializeConsumerConfigFiles();
  */
 void addConsumerOptions(
     boost::program_options::options_description &visible,
-    boost::program_options::options_description &hidden);
+    boost::program_options::options_description &hidden
+);
 
 /******************************************************************************/
 /**

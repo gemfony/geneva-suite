@@ -129,9 +129,9 @@ int main(int argc, char **argv) {
     // (below) exit after the file has been written.
     bool const emit_configs = Gem::Common::configEmissionRequested(argc, argv);
     if(emit_configs) {
-        creationSwitcher = 0;                        // file-creation mode
-        useOperator      = false;                    // the non-operator registration path
-        fileName         = "./config/configFile.json";
+        creationSwitcher = 0; // file-creation mode
+        useOperator = false;  // the non-operator registration path
+        fileName = "./config/configFile.json";
     }
     // Parse the command line and leave if the help flag was given
     else if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {

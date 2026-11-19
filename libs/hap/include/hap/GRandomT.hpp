@@ -47,9 +47,9 @@
 
 // Geneva headers go here
 #include "common/GLogger.hpp"
+#include "hap/GQuarantineSource.hpp"
 #include "hap/GRandomBase.hpp"
 #include "hap/GRandomDefines.hpp"
-#include "hap/GQuarantineSource.hpp"
 #include "hap/GStagedSource.hpp"
 
 #include <array>
@@ -162,7 +162,7 @@ public:
 	 *
 	 * @param cp The object to be "copied" (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUEUE> const & cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUEUE> const &cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::QUEUE>() { /* nothing */
     }
 
@@ -195,7 +195,7 @@ public:
 	 */
     GRandomT<Gem::Hap::randomSource::QUEUE> &
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- intentionally trivial: each instance owns independent state
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUEUE> const & cp) noexcept(false) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUEUE> const &cp) noexcept(false) {
         return *this;
     }
 
@@ -298,7 +298,8 @@ private:
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GRandomT<QUEUE>::getNewRandomContainer(): Error!" << '\n'
-                    << "The random-number factory has been finalized (permanently shut down);" << '\n'
+                    << "The random-number factory has been finalized (permanently shut down);"
+                    << '\n'
                     << "no further random-number containers will be produced." << '\n'
                 );
             }
@@ -388,7 +389,7 @@ public:
 	 *
 	 * @param cp The object to be "copied" (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> const & cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> const &cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::LOCAL>() { /* nothing */
     }
 
@@ -400,7 +401,7 @@ public:
 	 *
 	 * @param cp The object to be "moved" from (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> && cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> &&cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::LOCAL>() { /* nothing */
     }
 
@@ -421,9 +422,7 @@ public:
 	 */
     GRandomT<Gem::Hap::randomSource::LOCAL> &
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- intentionally trivial: each instance owns independent state
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> const & cp) noexcept(
-        false
-    ) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> const &cp) noexcept(false) {
         return *this;
     }
 
@@ -437,7 +436,7 @@ public:
 	 * @return A reference to this object
 	 */
     GRandomT<Gem::Hap::randomSource::LOCAL> &
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> && cp) noexcept(false) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::LOCAL> &&cp) noexcept(false) {
         return *this;
     }
 
@@ -519,7 +518,7 @@ public:
 	 *
 	 * @param cp The object to be "copied" (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> const & cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> const &cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::STAGED>() { /* nothing */
     }
 
@@ -529,7 +528,7 @@ public:
 	 *
 	 * @param cp The object to be "moved" from (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> && cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> &&cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::STAGED>() { /* nothing */
     }
 
@@ -548,9 +547,7 @@ public:
 	 */
     GRandomT<Gem::Hap::randomSource::STAGED> &
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- intentionally trivial: each instance owns independent state
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> const & cp) noexcept(
-        false
-    ) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> const &cp) noexcept(false) {
         return *this;
     }
 
@@ -562,7 +559,7 @@ public:
 	 * @return A reference to this object
 	 */
     GRandomT<Gem::Hap::randomSource::STAGED> &
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> && cp) noexcept(false) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::STAGED> &&cp) noexcept(false) {
         return *this;
     }
 
@@ -652,7 +649,9 @@ public:
 	 *
 	 * @param cp The object to be "copied" (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> const & cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> const &cp) noexcept(
+        false
+    )
       : GRandomT<Gem::Hap::randomSource::QUARANTINE>() { /* nothing */
     }
 
@@ -662,7 +661,7 @@ public:
 	 *
 	 * @param cp The object to be "moved" from (unused; present only for interface compatibility)
 	 */
-    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> && cp) noexcept(false)
+    GRandomT([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> &&cp) noexcept(false)
       : GRandomT<Gem::Hap::randomSource::QUARANTINE>() { /* nothing */
     }
 
@@ -681,7 +680,7 @@ public:
 	 */
     GRandomT<Gem::Hap::randomSource::QUARANTINE> &
     // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- intentionally trivial: each instance owns independent state
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> const & cp) noexcept(
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> const &cp) noexcept(
         false
     ) {
         return *this;
@@ -695,7 +694,7 @@ public:
 	 * @return A reference to this object
 	 */
     GRandomT<Gem::Hap::randomSource::QUARANTINE> &
-    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> && cp) noexcept(false) {
+    operator=([[maybe_unused]] GRandomT<Gem::Hap::randomSource::QUARANTINE> &&cp) noexcept(false) {
         return *this;
     }
 

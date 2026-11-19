@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include <geneva/individuals/GNeuralNetworkIndividual.hpp>
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -43,14 +42,15 @@
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
-#include "weft/GJsonArchive.hpp"         // GJson[IO]Archive -- training-data disk persistence codec
+#include "weft/GJsonArchive.hpp"        // GJson[IO]Archive -- training-data disk persistence codec
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <iterator>
+#include <geneva/individuals/GNeuralNetworkIndividual.hpp>
 #include <istream>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -67,7 +67,7 @@
 // gemfony_common_root_t; they travel by value in the saveToDisk training-data path,
 // off the individual's wire serialize), so only the individual itself is registered
 // for GArchive polymorphic dispatch.
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::Individuals::GNeuralNetworkIndividual)      // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::Individuals::GNeuralNetworkIndividual) // NOLINT
 namespace Gem::Geneva::Individuals {
 
 /******************************************************************************/
@@ -101,22 +101,34 @@ trainingSet::trainingSet(const std::size_t &n_input, const std::size_t &n_output
 void trainingSet::compare(
     const trainingSet &cp,
     const Gem::Common::expectation &e,
-    [[maybe_unused]] const double & limit
+    [[maybe_unused]] const double &limit
 ) const {
     using namespace Gem::Common;
 
     Gem::Common::GToken token("trainingSet", e);
 
     // Compare our local data
-    Gem::Common::compare_t(Gem::Common::getIdentity(nInputNodes, cp.nInputNodes, "nInputNodes", "cp.nInputNodes"), token);
-    Gem::Common::compare_t(Gem::Common::getIdentity(nOutputNodes, cp.nOutputNodes, "nOutputNodes", "cp.nOutputNodes"), token);
+    Gem::Common::compare_t(
+        Gem::Common::getIdentity(nInputNodes, cp.nInputNodes, "nInputNodes", "cp.nInputNodes"),
+        token
+    );
+    Gem::Common::compare_t(
+        Gem::Common::getIdentity(nOutputNodes, cp.nOutputNodes, "nOutputNodes", "cp.nOutputNodes"),
+        token
+    );
 
     for(std::size_t i = 0; i < nInputNodes; i++) {
-        Gem::Common::compare_t(Gem::Common::getIdentity(Input[i], cp.Input[i], "Input[i]", "cp.Input[i]"), token);
+        Gem::Common::compare_t(
+            Gem::Common::getIdentity(Input[i], cp.Input[i], "Input[i]", "cp.Input[i]"),
+            token
+        );
     }
 
     for(std::size_t i = 0; i < nOutputNodes; i++) {
-        Gem::Common::compare_t(Gem::Common::getIdentity(Output[i], cp.Output[i], "Output[i]", "cp.Output[i]"), token);
+        Gem::Common::compare_t(
+            Gem::Common::getIdentity(Output[i], cp.Output[i], "Output[i]", "cp.Output[i]"),
+            token
+        );
     }
 
     // React on deviations from the expectation
@@ -219,13 +231,19 @@ networkData &networkData::operator=(const networkData &cp) {
 void networkData::compare(
     const networkData &cp,
     const Gem::Common::expectation &e,
-    [[maybe_unused]] const double & limit
+    [[maybe_unused]] const double &limit
 ) const {
     Gem::Common::GToken token("networkData", e);
 
     // Compare our local data
-    Gem::Common::compare_t(Gem::Common::getIdentity(data_.size(), cp.data_.size(), "data_.size()", "cp.data_.size()"), token);
-    Gem::Common::compare_t(Gem::Common::getIdentity(this->data_cnt_, cp.data_cnt_, "this->data_cnt_", "cp.data_cnt_"), token);
+    Gem::Common::compare_t(
+        Gem::Common::getIdentity(data_.size(), cp.data_.size(), "data_.size()", "cp.data_.size()"),
+        token
+    );
+    Gem::Common::compare_t(
+        Gem::Common::getIdentity(this->data_cnt_, cp.data_cnt_, "this->data_cnt_", "cp.data_cnt_"),
+        token
+    );
 
     // React on deviations from the expectation
     token.evaluate();
@@ -287,7 +305,9 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
     networkData loaded(0);
     try {
         std::string content(
-            (std::istreambuf_iterator<char>(tr_dat)), std::istreambuf_iterator<char>());
+            (std::istreambuf_iterator<char>(tr_dat)),
+            std::istreambuf_iterator<char>()
+        );
         Gem::Weft::GJsonIArchive ia(content);
         ia &Gem::Weft::make_nvp("networkData", loaded);
     }
@@ -342,8 +362,7 @@ networkData::getTrainingSet(const std::size_t &pos) const {
     if(pos >= data_.size()) {
         return std::nullopt;
     }
-            return data_[pos];
-   
+    return data_[pos];
 }
 
 /******************************************************************************/
@@ -405,8 +424,7 @@ void networkData::toROOT(const std::string &output_file, const double &min, cons
        << '\n'
        << "  canvasTitle->Draw();" << '\n'
        << '\n'
-       << R"(  TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
-       << '\n'
+       << R"(  TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)" << '\n'
        << "  graphPad->Draw();" << '\n'
        << "  graphPad->Divide(1,1);" << '\n'
        << '\n'
@@ -594,7 +612,7 @@ GNeuralNetworkIndividual::GNeuralNetworkIndividual(const GNeuralNetworkIndividua
   : gen::GGenomeT<GNeuralNetworkIndividual>(cp)
   , t_f_(cp.t_f_)
   , n_d_(nnTrainingDataStore()) // We want a single source for the training data
-{                             /* nothing */
+{                               /* nothing */
 }
 
 /******************************************************************************/
@@ -1045,8 +1063,7 @@ void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_fil
         glogger
             << "In GNeuralNetworkIndividual::writeVisualizationFile(const std::string&) : Warning!"
             << '\n'
-            << "Request to create visualization program for more than two input dimensions!"
-            << '\n'
+            << "Request to create visualization program for more than two input dimensions!" << '\n'
             << "No action taken." << '\n'
             << GWARNING;
     }
@@ -1120,8 +1137,7 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
 
     header << "    }" << '\n'
            << '\n'
-           << "    bool network(const std::vector<double>& in, std::vector<double>& out){"
-           << '\n'
+           << "    bool network(const std::vector<double>& in, std::vector<double>& out){" << '\n'
            << "      double node_result=0.;" << '\n'
            << '\n'
            << "      register std::size_t node_counter = 0;" << '\n'
@@ -1130,10 +1146,9 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
            << "      const std::size_t n_layers = " << n_d_->size() << ";" << '\n'
            << "      const std::size_t architecture[n_layers] = {" << '\n';
 
-    header << (*n_d_
-               | std::views::transform([](std::size_t n) { return std::format("        {}", n); })
-               | std::views::join_with(std::string_view{",\n"})
-               | std::ranges::to<std::string>())
+    header << (*n_d_ |
+               std::views::transform([](std::size_t n) { return std::format("        {}", n); }) |
+               std::views::join_with(std::string_view{",\n"}) | std::ranges::to<std::string>())
            << '\n';
 
     std::size_t weight_offset = 0;
@@ -1171,72 +1186,74 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
     // architecture decodes), so dump them straight from the genome-agnostic §2 view.
     std::vector<double> all_weights;
     this->streamlineFP(all_weights);
-    header << (all_weights
-               | std::views::transform([](double w) { return std::format("        {:g}", w); })
-               | std::views::join_with(std::string_view{",\n"})
-               | std::ranges::to<std::string>())
+    header << (all_weights |
+               std::views::transform([](double w) { return std::format("        {:g}", w); }) |
+               std::views::join_with(std::string_view{",\n"}) | std::ranges::to<std::string>())
            << '\n';
 
-    header
-        << "      };" << '\n'
-        << '\n'
-        << "      // Rudimentary error check" << '\n'
-        << "      if(in.size() != architecture[0]) return false;" << '\n'
-        << '\n'
-        << "      // Clear the result vector" << '\n'
-        << "      out.clear();" << '\n'
-        << '\n'
-        << "      // The input layer" << '\n'
-        << "      std::vector<double> prev_results;" << '\n'
-        << "      std::size_t n_layer_nodes = architecture[0];" << '\n'
-        << "      std::size_t n_prev_layer_nodes = 0;" << '\n'
-        << '\n'
-        << "      for(node_counter=0; node_counter<n_layer_nodes; node_counter++){" << '\n'
-        << "        node_result=in[node_counter] * weights[2*node_counter] - weights[2*node_counter+1];"
-        << '\n'
-        << "        node_result=transfer(node_result);" << '\n'
-        << "        prev_results.push_back(node_result);" << '\n'
-        << "      }" << '\n'
-        << '\n'
-        << "      // All other layers" << '\n'
-        << "      for(register std::size_t layer_counter=1; layer_counter<n_layers; layer_counter++){"
-        << '\n'
-        << "        std::vector<double> current_results;" << '\n'
-        << "        n_layer_nodes=architecture[layer_counter];" << '\n'
-        << "        n_prev_layer_nodes=architecture[layer_counter-1];" << '\n'
-        << '\n'
-        << "        // For each node" << '\n'
-        << "        for(node_counter=0; node_counter<n_layer_nodes; node_counter++){" << '\n'
-        << "          node_result=0.;" << '\n'
-        << "          // Loop over all nodes of the previous layer" << '\n'
-        << "          for(prev_node_counter=0; prev_node_counter<n_prev_layer_nodes; prev_node_counter++){"
-        << '\n'
-        << "            node_result += "
-           "prev_results[prev_node_counter]*weights[weight_offset[layer_counter] + "
-           "node_counter*(n_prev_layer_nodes+1)+prev_node_counter];"
-        << '\n'
-        << "          }" << '\n'
-        << "          node_result -= weights[weight_offset[layer_counter] + "
-           "node_counter*(n_prev_layer_nodes+1)+n_prev_layer_nodes];"
-        << '\n'
-        << "          node_result = transfer(node_result);" << '\n'
-        << "          current_results.push_back(node_result);" << '\n'
-        << "        }" << '\n'
-        << '\n'
-        << "        prev_results=current_results;" << '\n'
-        << "      }" << '\n'
-        << '\n'
-        << "      // At this point prev_results should contain the output values of the output layer"
-        << '\n'
-        << "      out=prev_results;" << '\n'
-        << '\n'
-        << "      return true;" << '\n'
-        << "    }" << '\n'
-        << '\n'
-        << "  } /* namespace NeuralNetwork */" << '\n'
-        << "} /* namespace Gem */" << '\n'
-        << '\n'
-        << "#endif /* GENEVANEURALNETHEADER_HPP_ */" << '\n';
+    header << "      };" << '\n'
+           << '\n'
+           << "      // Rudimentary error check" << '\n'
+           << "      if(in.size() != architecture[0]) return false;" << '\n'
+           << '\n'
+           << "      // Clear the result vector" << '\n'
+           << "      out.clear();" << '\n'
+           << '\n'
+           << "      // The input layer" << '\n'
+           << "      std::vector<double> prev_results;" << '\n'
+           << "      std::size_t n_layer_nodes = architecture[0];" << '\n'
+           << "      std::size_t n_prev_layer_nodes = 0;" << '\n'
+           << '\n'
+           << "      for(node_counter=0; node_counter<n_layer_nodes; node_counter++){" << '\n'
+           << "        node_result=in[node_counter] * weights[2*node_counter] - "
+              "weights[2*node_counter+1];"
+           << '\n'
+           << "        node_result=transfer(node_result);" << '\n'
+           << "        prev_results.push_back(node_result);" << '\n'
+           << "      }" << '\n'
+           << '\n'
+           << "      // All other layers" << '\n'
+           << "      for(register std::size_t layer_counter=1; layer_counter<n_layers; "
+              "layer_counter++){"
+           << '\n'
+           << "        std::vector<double> current_results;" << '\n'
+           << "        n_layer_nodes=architecture[layer_counter];" << '\n'
+           << "        n_prev_layer_nodes=architecture[layer_counter-1];" << '\n'
+           << '\n'
+           << "        // For each node" << '\n'
+           << "        for(node_counter=0; node_counter<n_layer_nodes; node_counter++){" << '\n'
+           << "          node_result=0.;" << '\n'
+           << "          // Loop over all nodes of the previous layer" << '\n'
+           << "          for(prev_node_counter=0; prev_node_counter<n_prev_layer_nodes; "
+              "prev_node_counter++){"
+           << '\n'
+           << "            node_result += "
+              "prev_results[prev_node_counter]*weights[weight_offset[layer_counter] + "
+              "node_counter*(n_prev_layer_nodes+1)+prev_node_counter];"
+           << '\n'
+           << "          }" << '\n'
+           << "          node_result -= weights[weight_offset[layer_counter] + "
+              "node_counter*(n_prev_layer_nodes+1)+n_prev_layer_nodes];"
+           << '\n'
+           << "          node_result = transfer(node_result);" << '\n'
+           << "          current_results.push_back(node_result);" << '\n'
+           << "        }" << '\n'
+           << '\n'
+           << "        prev_results=current_results;" << '\n'
+           << "      }" << '\n'
+           << '\n'
+           << "      // At this point prev_results should contain the output values of the output "
+              "layer"
+           << '\n'
+           << "      out=prev_results;" << '\n'
+           << '\n'
+           << "      return true;" << '\n'
+           << "    }" << '\n'
+           << '\n'
+           << "  } /* namespace NeuralNetwork */" << '\n'
+           << "} /* namespace Gem */" << '\n'
+           << '\n'
+           << "#endif /* GENEVANEURALNETHEADER_HPP_ */" << '\n';
 
     // Clean up
     header.close();
@@ -1254,7 +1271,8 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
 std::shared_ptr<const GNeuralNetworkArchitecture>
 GNeuralNetworkIndividual::makeArchitecture(const networkData &n_d) {
     return std::make_shared<const GNeuralNetworkArchitecture>(
-        n_d | std::ranges::to<std::vector<std::size_t>>());
+        n_d | std::ranges::to<std::vector<std::size_t>>()
+    );
 }
 
 /******************************************************************************/
@@ -1340,12 +1358,13 @@ std::vector<double> GNeuralNetworkIndividual::evaluate() {
                 node_result = 0.;
                 for(std::size_t prev_node_counter = 0; prev_node_counter < n_prev_layer_nodes;
                     prev_node_counter++) {
-                    node_result +=
-                        prev_results.at(prev_node_counter) *
-                        w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) + prev_node_counter];
+                    node_result += prev_results.at(prev_node_counter) *
+                                   w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) +
+                                     prev_node_counter];
                 }
                 node_result -=
-                    w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) + n_prev_layer_nodes];
+                    w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) +
+                      n_prev_layer_nodes];
                 node_result = transfer(node_result);
                 current_results.push_back(node_result);
             }
@@ -1358,7 +1377,8 @@ std::vector<double> GNeuralNetworkIndividual::evaluate() {
         // Calculate the error made and add it to the result
         std::size_t const pref_results_size = prev_results.size();
         for(std::size_t node_counter = 0; node_counter < pref_results_size; node_counter++) {
-            result += Gem::Common::gsquared(prev_results.at(node_counter) - t_s.Output[node_counter]);
+            result +=
+                Gem::Common::gsquared(prev_results.at(node_counter) - t_s.Output[node_counter]);
         }
     }
 
@@ -1410,47 +1430,80 @@ double GNeuralNetworkIndividual::transfer(const double &value) const {
  */
 void GNeuralNetworkIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
     gpb.registerFileParameter<double>(
-        "ad_prob", c.ad_prob, GNN_DEF_ADPROB, Gem::Common::VAR_IS_ESSENTIAL,
+        "ad_prob",
+        c.ad_prob,
+        GNN_DEF_ADPROB,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The probability for random adaptions of values in evolutionary algorithms;"
     );
     gpb.registerFileParameter<double>(
-        "adapt_ad_prob", c.adapt_ad_prob, GNN_DEF_ADAPTADPROB, Gem::Common::VAR_IS_ESSENTIAL,
+        "adapt_ad_prob",
+        c.adapt_ad_prob,
+        GNN_DEF_ADAPTADPROB,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "Determines the rate of adaption of ad_prob. Set to 0, if you do not need this feature;"
     );
     gpb.registerFileParameter<double>(
-        "min_ad_prob", c.min_ad_prob, GNN_DEF_MINADPROB, Gem::Common::VAR_IS_ESSENTIAL,
+        "min_ad_prob",
+        c.min_ad_prob,
+        GNN_DEF_MINADPROB,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The lower allowed boundary for ad_prob-variation;"
     );
     gpb.registerFileParameter<double>(
-        "max_ad_prob", c.max_ad_prob, GNN_DEF_MAXADPROB, Gem::Common::VAR_IS_ESSENTIAL,
+        "max_ad_prob",
+        c.max_ad_prob,
+        GNN_DEF_MAXADPROB,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The upper allowed boundary for ad_prob-variation;"
     );
     gpb.registerFileParameter<double>(
-        "sigma", c.sigma, GNN_DEF_SIGMA, Gem::Common::VAR_IS_ESSENTIAL,
+        "sigma",
+        c.sigma,
+        GNN_DEF_SIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The sigma for gauss-adaption in ES;"
     );
     gpb.registerFileParameter<double>(
-        "sigma_sigma", c.sigma_sigma, GNN_DEF_SIGMASIGMA, Gem::Common::VAR_IS_ESSENTIAL,
+        "sigma_sigma",
+        c.sigma_sigma,
+        GNN_DEF_SIGMASIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "Influences the self-adaption of gauss-mutation in ES;"
     );
     gpb.registerFileParameter<double>(
-        "min_sigma", c.min_sigma, GNN_DEF_MINSIGMA, Gem::Common::VAR_IS_ESSENTIAL,
+        "min_sigma",
+        c.min_sigma,
+        GNN_DEF_MINSIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The minimum amount value of sigma;"
     );
     gpb.registerFileParameter<double>(
-        "max_sigma", c.max_sigma, GNN_DEF_MAXSIGMA, Gem::Common::VAR_IS_ESSENTIAL,
+        "max_sigma",
+        c.max_sigma,
+        GNN_DEF_MAXSIGMA,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The maximum amount value of sigma;"
     );
     gpb.registerFileParameter<double>(
-        "min_var", c.min_var, GNN_DEF_MINVAR, Gem::Common::VAR_IS_ESSENTIAL,
+        "min_var",
+        c.min_var,
+        GNN_DEF_MINVAR,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The lower boundary of the initialization range for parameters;"
     );
     gpb.registerFileParameter<double>(
-        "max_var", c.max_var, GNN_DEF_MAXVAR, Gem::Common::VAR_IS_ESSENTIAL,
+        "max_var",
+        c.max_var,
+        GNN_DEF_MAXVAR,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The upper boundary of the initialization range for parameters;"
     );
     gpb.registerFileParameter<transferFunction>(
-        "transfer_function", c.t_f, GNN_DEF_TRANSFER, Gem::Common::VAR_IS_ESSENTIAL,
+        "transfer_function",
+        c.t_f,
+        GNN_DEF_TRANSFER,
+        Gem::Common::VAR_IS_ESSENTIAL,
         "The transferFunction: SIGMOID (0) or RBF/Radial Basis (1);"
     );
 }
@@ -1526,8 +1579,16 @@ GNeuralNetworkIndividual::buildAdaptionConfig(const gen::GGenome &sample, const 
     auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(
-            c.sigma, c.sigma_sigma, c.min_sigma, c.max_sigma, c.ad_prob, c.adapt_ad_prob, 1,
-            Gem::Geneva::adaptionMode::WITHPROBABILITY, c.min_ad_prob, c.max_ad_prob
+            c.sigma,
+            c.sigma_sigma,
+            c.min_sigma,
+            c.max_sigma,
+            c.ad_prob,
+            c.adapt_ad_prob,
+            1,
+            Gem::Geneva::adaptionMode::WITHPROBABILITY,
+            c.min_ad_prob,
+            c.max_ad_prob
         );
     }
     return cfg;
@@ -1566,10 +1627,13 @@ namespace Gem::Common {
 template <>
 std::shared_ptr<Gem::Geneva::Individuals::networkData> TFactory_GSingletonT() {
     if(neuralNetworkOptions()->exists("trainingDataFile")) {
-        return std::make_shared<Gem::Geneva::Individuals::networkData>(neuralNetworkOptions()->get("trainingDataFile"));
+        return std::make_shared<Gem::Geneva::Individuals::networkData>(
+            neuralNetworkOptions()->get("trainingDataFile")
+        );
     }
-            return std::make_shared<Gem::Geneva::Individuals::networkData>(Gem::Geneva::Individuals::GNN_DEF_DATAFILE);
-   
+    return std::make_shared<Gem::Geneva::Individuals::networkData>(
+        Gem::Geneva::Individuals::GNN_DEF_DATAFILE
+    );
 }
 
 } /* namespace Gem::Common */

@@ -294,7 +294,8 @@ void declarePad(
     // from the lower left and flatten under the ideal line, so the lower right, which the library
     // prefers, is usually free; a consumer that stays far below the others runs along the bottom,
     // and then the middle of the right side or a corner is.
-    const legendPosition legend = corner.value_or(Gem::Dietrich::freestLegendCorner(curves, {}, curves.size()));
+    const legendPosition legend =
+        corner.value_or(Gem::Dietrich::freestLegendCorner(curves, {}, curves.size()));
 
     std::optional<GDataLog::SeriesId> primary;
     const auto declare = [&](const std::string &name,

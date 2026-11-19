@@ -43,7 +43,6 @@
 #include <tuple>
 #include <vector>
 
-
 #include "common/GCommonMathHelperFunctionsT.hpp"
 
 namespace Gem::Geneva::Benchmarks {
@@ -59,14 +58,28 @@ namespace {
  */
 gind::solverFunction parseBenchmarkFunction(const std::string &name) {
     static const char *const kNames[] = {
-        "PARABOLA", "NOISYPARABOLA", "ROSENBROCK", "ACKLEY", "RASTRIGIN",
-        "SCHWEFEL", "SALOMON", "NEGPARABOLA", "ACKLEY_CANONICAL", "GRIEWANK",
-        "LEVY", "STYBLINSKI_TANG", "ELLIPSOID", "MICHALEWICZ", "ZAKHAROV"};
+        "PARABOLA",
+        "NOISYPARABOLA",
+        "ROSENBROCK",
+        "ACKLEY",
+        "RASTRIGIN",
+        "SCHWEFEL",
+        "SALOMON",
+        "NEGPARABOLA",
+        "ACKLEY_CANONICAL",
+        "GRIEWANK",
+        "LEVY",
+        "STYBLINSKI_TANG",
+        "ELLIPSOID",
+        "MICHALEWICZ",
+        "ZAKHAROV"
+    };
     constexpr int kCount = static_cast<int>(sizeof(kNames) / sizeof(kNames[0]));
 
     std::string up = name;
-    std::transform(up.begin(), up.end(), up.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    std::transform(up.begin(), up.end(), up.begin(), [](unsigned char c) {
+        return static_cast<char>(std::toupper(c));
+    });
     for(int i = 0; i < kCount; ++i) {
         if(up == kNames[i]) {
             return static_cast<gind::solverFunction>(i);
@@ -79,11 +92,13 @@ gind::solverFunction parseBenchmarkFunction(const std::string &name) {
         if(pos == name.size() && v >= 0 && v < kCount) {
             return static_cast<gind::solverFunction>(v);
         }
-    } catch(...) {
+    }
+    catch(...) {
         /* fall through to the throw below */
     }
     throw std::invalid_argument(
-        "GAlgorithmBenchmarkRunner: unknown benchmarkFunction '" + name + "'");
+        "GAlgorithmBenchmarkRunner: unknown benchmarkFunction '" + name + "'"
+    );
 }
 
 } // namespace
@@ -91,8 +106,8 @@ gind::solverFunction parseBenchmarkFunction(const std::string &name) {
 /******************************************************************************/
 
 GAlgorithmBenchmarkRunner::GAlgorithmBenchmarkRunner(BenchmarkConfig cfg)
-    : cfg_(std::move(cfg))
-{}
+  : cfg_(std::move(cfg)) {
+}
 
 /******************************************************************************/
 /**
@@ -103,10 +118,9 @@ GAlgorithmBenchmarkRunner::GAlgorithmBenchmarkRunner(BenchmarkConfig cfg)
  */
 std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
     glogger << "GAlgorithmBenchmarkRunner: starting benchmark." << std::endl
-            << "  function=" << cfg_.functionName
-            << "  dims=" << cfg_.nDimensions
-            << "  nRuns=" << cfg_.nRuns
-            << std::endl << GLOGGING;
+            << "  function=" << cfg_.functionName << "  dims=" << cfg_.nDimensions
+            << "  nRuns=" << cfg_.nRuns << std::endl
+            << GLOGGING;
 
     // Individual configuration (shared across all runs). GFunctionIndividual is a flat individual driven
     // by the generic GIndividualFactory; this benchmark needs a specific genome DIMENSION, so it builds
@@ -119,20 +133,18 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
     std::vector<GAlgorithmBenchmarkResult> allResults;
     allResults.reserve(cfg_.algorithms.size());
 
-    for (const auto &entry : cfg_.algorithms) {
+    for(const auto &entry : cfg_.algorithms) {
         std::vector<GBenchmarkRunResult> rawRuns;
         rawRuns.reserve(cfg_.nRuns);
 
-        glogger << "--- Algorithm: " << entry.tag
-                << " (" << entry.mnemonic << ") ---" << std::endl
+        glogger << "--- Algorithm: " << entry.tag << " (" << entry.mnemonic << ") ---" << std::endl
                 << GLOGGING;
 
-        for (std::uint32_t r = 0; r < static_cast<std::uint32_t>(cfg_.nRuns); ++r) {
+        for(std::uint32_t r = 0; r < static_cast<std::uint32_t>(cfg_.nRuns); ++r) {
             auto result = runOne(entry, r, indCfg);
-            std::cout << "  run " << r
-                      << "  fitness=" << result.finalFitness
-                      << "  iter=" << result.iterationsConsumed
-                      << "  t=" << result.wallTimeSeconds << "s"
+            std::cout << "  run " << r << "  fitness=" << result.finalFitness
+                      << "  iter=" << result.iterationsConsumed << "  t=" << result.wallTimeSeconds
+                      << "s"
                       << "  reason=" << terminationReasonToString(result.terminationReason)
                       << std::endl;
             rawRuns.push_back(std::move(result));
@@ -150,12 +162,12 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
  */
 void GAlgorithmBenchmarkRunner::emitConfigs() {
     // The shared individual configuration (create-if-absent / rewritten in update-in-place mode).
-    (void) gind::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
+    (void)gind::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
 
     // Each configured algorithm's configuration, materialized by constructing its factory -- the same
     // call runOne() makes, minus the optimization run.
-    for (const auto &entry : cfg_.algorithms) {
-        (void) makeAlgorithm(entry);
+    for(const auto &entry : cfg_.algorithms) {
+        (void)makeAlgorithm(entry);
     }
 }
 
@@ -197,15 +209,15 @@ GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
     const auto t1 = std::chrono::steady_clock::now();
 
     GBenchmarkRunResult result;
-    result.algorithmTag        = entry.tag;
-    result.functionName        = cfg_.functionName;
-    result.nDimensions         = cfg_.nDimensions;
-    result.runIndex            = runIdx;
-    result.finalFitness        = monitor->finalFitness;
-    result.iterationsConsumed  = monitor->finalIteration;
-    result.wallTimeSeconds     = std::chrono::duration<double>(t1 - t0).count();
-    result.terminationReason   = monitor->terminationReason;
-    result.targetReached       = monitor->targetReached;
+    result.algorithmTag = entry.tag;
+    result.functionName = cfg_.functionName;
+    result.nDimensions = cfg_.nDimensions;
+    result.runIndex = runIdx;
+    result.finalFitness = monitor->finalFitness;
+    result.iterationsConsumed = monitor->finalIteration;
+    result.wallTimeSeconds = std::chrono::duration<double>(t1 - t0).count();
+    result.terminationReason = monitor->terminationReason;
+    result.targetReached = monitor->targetReached;
     return result;
 }
 
@@ -219,32 +231,33 @@ GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
  */
 std::shared_ptr<oa::GOptimizationAlgorithmBase>
 GAlgorithmBenchmarkRunner::makeAlgorithm(const AlgorithmEntry &entry) {
-    if (entry.mnemonic == "ea") {
+    if(entry.mnemonic == "ea") {
         return oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>(entry.configFile)
             .get<oa::GOptimizationAlgorithmBase>();
     }
-    if (entry.mnemonic == "sa") {
+    if(entry.mnemonic == "sa") {
         return oa::GOptimizationAlgorithmFactoryT<oa::GSimulatedAnnealing>(entry.configFile)
             .get<oa::GOptimizationAlgorithmBase>();
     }
-    if (entry.mnemonic == "swarm") {
+    if(entry.mnemonic == "swarm") {
         return oa::GOptimizationAlgorithmFactoryT<oa::GSwarmAlgorithm>(entry.configFile)
             .get<oa::GOptimizationAlgorithmBase>();
     }
-    if (entry.mnemonic == "gd" || entry.mnemonic == "cgd") {
+    if(entry.mnemonic == "gd" || entry.mnemonic == "cgd") {
         // "gd" was retired as a separate algorithm; it is the steepest-descent mode of the conjugate
         // gradient descent. Produce a CGD and, for the legacy "gd" tag, force steepest descent.
         auto p = oa::GOptimizationAlgorithmFactoryT<oa::GConjugateGradientDescent>(entry.configFile)
                      .get<oa::GOptimizationAlgorithmBase>();
-        if (entry.mnemonic == "gd") {
-            if (auto cgd = std::dynamic_pointer_cast<oa::GConjugateGradientDescent>(p)) {
+        if(entry.mnemonic == "gd") {
+            if(auto cgd = std::dynamic_pointer_cast<oa::GConjugateGradientDescent>(p)) {
                 cgd->setGradientMethod(oa::gradientMethod::STEEPEST_DESCENT);
             }
         }
         return p;
     }
     throw std::invalid_argument(
-        "GAlgorithmBenchmarkRunner::makeAlgorithm: unknown mnemonic '" + entry.mnemonic + "'");
+        "GAlgorithmBenchmarkRunner::makeAlgorithm: unknown mnemonic '" + entry.mnemonic + "'"
+    );
 }
 
 /******************************************************************************/
@@ -260,22 +273,24 @@ GAlgorithmBenchmarkResult GAlgorithmBenchmarkRunner::aggregate(
     GAlgorithmBenchmarkResult agg;
     agg.algorithmTag = tag;
     agg.functionName = funcName;
-    agg.nDimensions  = nDims;
-    agg.nRuns        = runs.size();
-    agg.rawRuns      = runs;
+    agg.nDimensions = nDims;
+    agg.nRuns = runs.size();
+    agg.rawRuns = runs;
 
-    if (runs.empty()) return agg;
+    if(runs.empty())
+        return agg;
 
-    const auto fitness = runs
-        | std::views::transform([](const GBenchmarkRunResult &r) { return r.finalFitness; })
-        | std::ranges::to<std::vector<double>>();
-    const auto iterations = runs
-        | std::views::transform(
-              [](const GBenchmarkRunResult &r) { return static_cast<double>(r.iterationsConsumed); })
-        | std::ranges::to<std::vector<double>>();
-    const auto wallTime = runs
-        | std::views::transform([](const GBenchmarkRunResult &r) { return r.wallTimeSeconds; })
-        | std::ranges::to<std::vector<double>>();
+    const auto fitness =
+        runs | std::views::transform([](const GBenchmarkRunResult &r) { return r.finalFitness; }) |
+        std::ranges::to<std::vector<double>>();
+    const auto iterations = runs | std::views::transform([](const GBenchmarkRunResult &r) {
+                                return static_cast<double>(r.iterationsConsumed);
+                            }) |
+                            std::ranges::to<std::vector<double>>();
+    const auto wallTime =
+        runs |
+        std::views::transform([](const GBenchmarkRunResult &r) { return r.wallTimeSeconds; }) |
+        std::ranges::to<std::vector<double>>();
     const auto successCount =
         std::ranges::count_if(runs, [](const GBenchmarkRunResult &r) { return r.targetReached; });
 
@@ -283,10 +298,13 @@ GAlgorithmBenchmarkResult GAlgorithmBenchmarkRunner::aggregate(
     auto [mi, si] = Gem::Common::GStandardDeviation(iterations);
     auto [mw, sw] = Gem::Common::GStandardDeviation(wallTime);
 
-    agg.meanFinalFitness  = mf;  agg.sigmaFinalFitness = sf;
-    agg.meanIterations    = mi;  agg.sigmaIterations   = si;
-    agg.meanWallTime      = mw;  agg.sigmaWallTime     = sw;
-    agg.successRate       = static_cast<double>(successCount) / static_cast<double>(runs.size());
+    agg.meanFinalFitness = mf;
+    agg.sigmaFinalFitness = sf;
+    agg.meanIterations = mi;
+    agg.sigmaIterations = si;
+    agg.meanWallTime = mw;
+    agg.sigmaWallTime = sw;
+    agg.successRate = static_cast<double>(successCount) / static_cast<double>(runs.size());
 
     return agg;
 }

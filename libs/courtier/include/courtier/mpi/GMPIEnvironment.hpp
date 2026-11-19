@@ -65,7 +65,8 @@ namespace Gem::Courtier::Consumers {
  * @param text What is logged
  * @param code The exit code of the job (the error code of MPI_Abort)
  */
-[[noreturn]] inline void endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
+[[noreturn]] inline void
+endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
     try {
         glogger << text << '\n' << GWARNING;
     }
@@ -180,8 +181,7 @@ public:
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "courtier's MPI transport requires MPI with the thread level "
-                << "MPI_THREAD_MULTIPLE (a.k.a. "
-                << MPI_THREAD_MULTIPLE << "), but "
+                << "MPI_THREAD_MULTIPLE (a.k.a. " << MPI_THREAD_MULTIPLE << "), but "
                 << (i_initialized_mpi_ ? "the runtime environment only supports level "
                                        : "the calling program initialized MPI with level ")
                 << level << '\n'
@@ -222,7 +222,8 @@ public:
         if(lost_rank_.load() && i_initialized_mpi_) {
             endMpiJob(
                 base_,
-                "ranks were lost during the run; MPI_Finalize would wait for them: the job is ended",
+                "ranks were lost during the run; MPI_Finalize would wait for them: the job is "
+                "ended",
                 EXIT_FAILURE
             );
         }

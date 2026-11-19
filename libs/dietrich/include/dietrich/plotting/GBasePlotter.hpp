@@ -40,7 +40,6 @@
 
 namespace Gem::Dietrich {
 
-
 /******************************************************************************/
 /**
  * A read-only, type-tagged view of one exportable plotter column: either a float64
@@ -58,7 +57,9 @@ using GPlotColumn = std::variant<const std::vector<double> *, const std::vector<
  * derive from this class. They can be added to a master canvas, which takes care
  * to plot them into sub-pads.
  */
-class GBasePlotter : public Gem::Common::GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>> {
+class GBasePlotter
+  : public Gem::Common::
+        GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // private localMembers_(); this (abstract) root is never reconstructed on load.
@@ -260,7 +261,7 @@ public:
     /**
      * @brief Allows to add secondary plots to be added to the same sub-canvas
      */
-    void registerSecondaryPlotter(const std::shared_ptr<GBasePlotter>& sp);
+    void registerSecondaryPlotter(const std::shared_ptr<GBasePlotter> &sp);
 
     /**
      * @brief Read-only access to the secondary plotters sharing this plotter's pad
@@ -380,7 +381,12 @@ protected:
      * @param indent The indentation string prepended to each emitted line
      * @return The plotter-specific header section
      */
-    [[nodiscard]] virtual std::string headerData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const = 0;
+    [[nodiscard]] virtual std::string headerData_(
+        bool is_secondary,
+        std::size_t parent_id,
+        std::size_t own_id,
+        const std::string &indent
+    ) const = 0;
 
     /**
      * @brief Retrieves the actual data sets
@@ -390,7 +396,12 @@ protected:
      * @param indent The indentation string prepended to each emitted line
      * @return The plotter-specific data / body section
      */
-    [[nodiscard]] virtual std::string bodyData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const = 0;
+    [[nodiscard]] virtual std::string bodyData_(
+        bool is_secondary,
+        std::size_t parent_id,
+        std::size_t own_id,
+        const std::string &indent
+    ) const = 0;
 
     /**
      * @brief retrieves specific draw commands for this plot
@@ -400,7 +411,12 @@ protected:
      * @param indent The indentation string prepended to each emitted line
      * @return The plotter-specific footer / draw section
      */
-    [[nodiscard]] virtual std::string footerData_(bool is_secondary, std::size_t parent_id, std::size_t own_id, const std::string &indent) const = 0;
+    [[nodiscard]] virtual std::string footerData_(
+        bool is_secondary,
+        std::size_t parent_id,
+        std::size_t own_id,
+        const std::string &indent
+    ) const = 0;
 
     /**
      * @brief Retrieve the current drawing arguments
@@ -416,7 +432,8 @@ protected:
      * default, an empty name, gives the series a sample object made from drawStyle() in the
      * pad's colour of the series -- the choice for a plotter of one's own.
      */
-    [[nodiscard]] virtual std::string rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
+    [[nodiscard]] virtual std::string
+    rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
 
     /**
      * @brief Check that a given plotter is compatible with us
@@ -463,7 +480,7 @@ protected:
     ); ///< A marker to make the origin of data structures clear in the output file
     std::string pad_title_; ///< The title of the pad, apart from the plot label (empty: the label)
     legendPosition legend_position_ = legendPosition::AUTO; ///< Where the pad's legend lies
-    bool legend_room_ = false; ///< Whether the pad's frame leaves the legend a band of its own
+    bool legend_room_ = false;     ///< Whether the pad's frame leaves the legend a band of its own
     std::uint32_t line_width_ = 0; ///< The width of the drawn line (0: the backend's default)
 
 private:
@@ -473,6 +490,5 @@ private:
 
     std::size_t id_ = 0; ///< The id of this object
 };
-
 
 } /* namespace Gem::Dietrich */

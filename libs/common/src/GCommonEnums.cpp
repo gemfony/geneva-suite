@@ -50,9 +50,15 @@ namespace Gem::Common {
  */
 std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x) {
     switch(x) {
-    case Gem::Common::tribool::True:          o << "True";          break;
-    case Gem::Common::tribool::False:         o << "False";         break;
-    case Gem::Common::tribool::Indeterminate: o << "Indeterminate"; break;
+    case Gem::Common::tribool::True:
+        o << "True";
+        break;
+    case Gem::Common::tribool::False:
+        o << "False";
+        break;
+    case Gem::Common::tribool::Indeterminate:
+        o << "Indeterminate";
+        break;
     default:
         // Guard against corrupted-stream deserialisation (>> casts any
         // ENUMBASETYPE to tribool without validation). Without this arm

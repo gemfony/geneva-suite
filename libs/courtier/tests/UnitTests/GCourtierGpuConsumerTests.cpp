@@ -48,8 +48,8 @@
 #include <tuple>
 #include <vector>
 
-#include "common/concurrency/GCompletionLatchT.hpp"
 #include "GDemoProcessingContainers.hpp"
+#include "common/concurrency/GCompletionLatchT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
 

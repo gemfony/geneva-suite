@@ -62,7 +62,10 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // get / set
 
-TEST_CASE("GThreadSafeKeyedStoreT: set/get round-trip (out-param and optional)", "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: set/get round-trip (out-param and optional)",
+    "[common][keyed-store]"
+) {
     Store s;
     CHECK(s.empty());
     s.set("a", 1);
@@ -81,35 +84,42 @@ TEST_CASE("GThreadSafeKeyedStoreT: set/get round-trip (out-param and optional)",
     CHECK(*ov == 2);
 }
 
-TEST_CASE("GThreadSafeKeyedStoreT: a miss leaves the out-param untouched and yields nullopt",
-          "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: a miss leaves the out-param untouched and yields nullopt",
+    "[common][keyed-store]"
+) {
     Store s;
     s.set("known", 9);
     int v = 1234;
     CHECK_FALSE(s.get("unknown", v));
-    CHECK(v == 1234);                       // untouched on miss
+    CHECK(v == 1234); // untouched on miss
     CHECK_FALSE(s.get("unknown").has_value());
 }
 
-TEST_CASE("GThreadSafeKeyedStoreT: set overwrites; setOnce refuses to overwrite", "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: set overwrites; setOnce refuses to overwrite",
+    "[common][keyed-store]"
+) {
     Store s;
     CHECK(s.setOnce("k", 10));
     CHECK(s.get("k").value() == 10);
-    CHECK_FALSE(s.setOnce("k", 99));        // already present -> no-op
+    CHECK_FALSE(s.setOnce("k", 99)); // already present -> no-op
     CHECK(s.get("k").value() == 10);
-    s.set("k", 99);                         // plain set overwrites
+    s.set("k", 99); // plain set overwrites
     CHECK(s.get("k").value() == 99);
 }
 
-TEST_CASE("GThreadSafeKeyedStoreT: remove drops only present keys and reports correctly",
-          "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: remove drops only present keys and reports correctly",
+    "[common][keyed-store]"
+) {
     Store s;
     s.set("a", 1);
     s.set("b", 2);
     CHECK(s.remove("a"));
     CHECK_FALSE(s.contains("a"));
     CHECK(s.size() == 1);
-    CHECK_FALSE(s.remove("a"));             // already gone
+    CHECK_FALSE(s.remove("a")); // already gone
     CHECK_FALSE(s.remove("never"));
     CHECK(s.size() == 1);
 }
@@ -131,9 +141,9 @@ TEST_CASE("GThreadSafeKeyedStoreT: keys() and values() are in key order", "[comm
 
     const auto vals = s.values();
     REQUIRE(vals.size() == 3);
-    CHECK(vals[0] == 1);                     // alpha
-    CHECK(vals[1] == 2);                     // mu
-    CHECK(vals[2] == 3);                     // zeta
+    CHECK(vals[0] == 1); // alpha
+    CHECK(vals[1] == 2); // mu
+    CHECK(vals[2] == 3); // zeta
 }
 
 TEST_CASE("GThreadSafeKeyedStoreT: clear empties the store", "[common][keyed-store]") {
@@ -220,8 +230,10 @@ TEST_CASE(
 // Concurrency: many writers + many readers stay consistent.
 
 // NOLINTNEXTLINE(readability-function-size) -- one coherent concurrency stress-test kernel (spawns writer/reader threads sharing atomics + the store under test, joins, then asserts); splitting would only scatter the tightly-coupled thread lambdas
-TEST_CASE("GThreadSafeKeyedStoreT: concurrent set/get/snapshot remains consistent",
-          "[common][keyed-store][concurrency]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: concurrent set/get/snapshot remains consistent",
+    "[common][keyed-store][concurrency]"
+) {
     Store s;
     constexpr int kWriters = 4;
     constexpr int kPerWriter = 256;
@@ -268,8 +280,10 @@ TEST_CASE("GThreadSafeKeyedStoreT: concurrent set/get/snapshot remains consisten
 }
 
 /******************************************************************************/
-TEST_CASE("GThreadSafeKeyedStoreT: take hands one value over and wakes a waiter on the last",
-          "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: take hands one value over and wakes a waiter on the last",
+    "[common][keyed-store]"
+) {
     Store s;
     s.set("a", 1);
     s.set("b", 2);
@@ -284,8 +298,10 @@ TEST_CASE("GThreadSafeKeyedStoreT: take hands one value over and wakes a waiter 
 }
 
 /******************************************************************************/
-TEST_CASE("GThreadSafeKeyedStoreT: drain hands every entry over in key order and empties the store",
-          "[common][keyed-store]") {
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: drain hands every entry over in key order and empties the store",
+    "[common][keyed-store]"
+) {
     Store s;
     s.set("b", 2);
     s.set("a", 1);

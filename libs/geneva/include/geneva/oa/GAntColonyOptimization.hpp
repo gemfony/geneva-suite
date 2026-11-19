@@ -48,13 +48,13 @@
 #include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GAntColonyOptimization_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GAntColonyOptimization_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -392,7 +392,6 @@ private:
     /** @brief Resizes the population to the desired level and does some error checks */
     void adjustPopulation_() override;
 
-
     /***************************************************************************/
     // Algorithm-internal helpers
     /** @brief Computes the ranked selection probabilities p_l from the weights w_l */
@@ -408,10 +407,11 @@ private:
     /***************************************************************************/
     // User-facing strategy parameters (configured by the user / factory)
 
-    std::size_t archive_size_ = DEFAULTACORARCHIVESIZE; ///< Archive size k (the continuous pheromone model)
-    std::size_t n_ants_ = DEFAULTACORNANTS;             ///< Number of ants m constructed per iteration
-    double q_ = DEFAULTACORQ;                           ///< Locality / intensification parameter
-    double xi_ = DEFAULTACORXI;                         ///< Evaporation / convergence-speed parameter
+    std::size_t archive_size_ =
+        DEFAULTACORARCHIVESIZE;             ///< Archive size k (the continuous pheromone model)
+    std::size_t n_ants_ = DEFAULTACORNANTS; ///< Number of ants m constructed per iteration
+    double q_ = DEFAULTACORQ;               ///< Locality / intensification parameter
+    double xi_ = DEFAULTACORXI;             ///< Evaporation / convergence-speed parameter
 
     /***************************************************************************/
     // Internal archive state (transient; rebuilt in init(), excluded from serialize/compare)
@@ -421,8 +421,7 @@ private:
     GACOSolutionArchive
         archive_; ///< The k archived solutions (the pheromone), ranked best-first; sized in init()
 
-    std::vector<double>
-        selection_probabilities_; ///< Cached roulette-wheel probabilities p_l
+    std::vector<double> selection_probabilities_; ///< Cached roulette-wheel probabilities p_l
 };
 
 /******************************************************************************/
@@ -430,4 +429,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

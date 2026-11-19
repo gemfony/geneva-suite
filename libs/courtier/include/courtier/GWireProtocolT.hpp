@@ -94,7 +94,9 @@ struct GWireProtocolT {
 
     /** @brief @return The library tag a server puts on a WORK frame ("what
      *  should be done with this item?"). Courtier only relays it. */
-    static std::uint32_t workTag() { return 0; }
+    static std::uint32_t workTag() {
+        return 0;
+    }
 
     /**
      * @brief Worker side: decides how a just-processed work item is

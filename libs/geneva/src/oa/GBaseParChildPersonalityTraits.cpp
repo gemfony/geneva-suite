@@ -28,12 +28,12 @@
  ********************************************************************************/
 
 #include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "geneva/GPersonalityTraits.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -42,7 +42,9 @@
 #include <catch2/catch_test_macros.hpp>
 #endif /* GEM_TESTING */
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GBaseParChildPersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GBaseParChildPersonalityTraits
+) // NOLINT
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -244,7 +246,6 @@ bool GBaseParChildPersonalityTraits::modify_GUnitTests_() {
 void GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests_() {
 #ifdef GEM_TESTING
 
-
     // --------------------------------------------------------------------------
 
     { // Check that it is possible to mark this as a parent or child-entity
@@ -330,7 +331,6 @@ void GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests_(
  */
 void GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests_() {
 #ifdef GEM_TESTING
-
 
     // --------------------------------------------------------------------------
 

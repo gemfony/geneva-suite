@@ -91,11 +91,13 @@ constexpr std::size_t N_DIM = 5;
  */
 class SphereOA : public gen::GGenomeT<SphereOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereOA() {
         gen::GGenomeBuilder b;
-        b.addDoubleGroup(N_DIM, -5., 5.).init(3.0); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(N_DIM, -5., 5.)
+            .init(3.0); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
     SphereOA(const SphereOA &) = default;
@@ -131,7 +133,8 @@ protected:
  */
 class SphereWideOA : public gen::GGenomeT<SphereWideOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereWideOA() {
         gen::GGenomeBuilder b;
@@ -159,13 +162,15 @@ protected:
  */
 class BiGaussSphereOA : public gen::GGenomeT<BiGaussSphereOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BiGaussSphereOA() {
         gen::GGenomeBuilder b;
         // sigma1, sigmaSigma1, minSigma1, maxSigma1, sigma2, sigmaSigma2, minSigma2, maxSigma2,
         // delta, sigmaDelta, minDelta, maxDelta, adProb
-        b.addDoubleGroup(N_DIM, -5., 5.).init(3.0); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(N_DIM, -5., 5.)
+            .init(3.0); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
     BiGaussSphereOA(const BiGaussSphereOA &) = default;
@@ -200,11 +205,13 @@ constexpr std::size_t N_INT = 5;
 
 class IntSphereOA : public gen::GGenomeT<IntSphereOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     IntSphereOA() {
         gen::GGenomeBuilder b;
-        b.addInt32Group(N_INT, -10, 10).init(7); // structure only; the adaptor lives on the OA config
+        b.addInt32Group(N_INT, -10, 10)
+            .init(7); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
     IntSphereOA(const IntSphereOA &) = default;
@@ -237,7 +244,8 @@ constexpr std::size_t N_BOOL = 16;
 
 class OneMaxOA : public gen::GGenomeT<OneMaxOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     OneMaxOA() {
         gen::GGenomeBuilder b;
@@ -275,7 +283,8 @@ protected:
  */
 class FrozenOA : public gen::GGenomeT<FrozenOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     FrozenOA() {
         gen::GGenomeBuilder b;
@@ -303,16 +312,18 @@ protected:
 // inspect -- after optimize() has joined all work -- exactly which values the scan actually evaluated.
 
 std::mutex g_scan_probe_mutex;
-std::vector<std::int32_t> g_scan_int_samples;            ///< every int value the int probe was evaluated at
-std::vector<std::pair<double, double>> g_scan_pair_samples; ///< every (x, y) the 2-double probe was evaluated at
-std::vector<bool> g_scan_bool_samples;                      ///< every value the bool probe saw
+std::vector<std::int32_t> g_scan_int_samples; ///< every int value the int probe was evaluated at
+std::vector<std::pair<double, double>>
+    g_scan_pair_samples;               ///< every (x, y) the 2-double probe was evaluated at
+std::vector<bool> g_scan_bool_samples; ///< every value the bool probe saw
 std::vector<std::pair<bool, double>>
     g_scan_bool_double_samples; ///< every (b, x) the bool-and-double probe was evaluated at
 
 /** @brief A single-int32 probe (genome bound [-10, 10]) recording each evaluated int value. */
 class ScanIntProbe : public gen::GGenomeT<ScanIntProbe> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ScanIntProbe() {
         gen::GGenomeBuilder b;
@@ -387,7 +398,8 @@ protected:
 /** @brief A two-double probe (genome bounds [-5, 5)) recording each evaluated (x, y) pair. */
 class ScanPairProbe : public gen::GGenomeT<ScanPairProbe> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ScanPairProbe() {
         gen::GGenomeBuilder b;
@@ -416,7 +428,8 @@ protected:
  *  exercise the n_vert == 2 (1-D) Nelder-Mead simplex path. */
 class Sphere1D : public gen::GGenomeT<Sphere1D> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Sphere1D() {
         gen::GGenomeBuilder b;
@@ -438,7 +451,8 @@ protected:
  *  resulting negative velocity range with a clear error instead of hitting undefined behaviour. */
 class InvertedBoundsOA : public gen::GGenomeT<InvertedBoundsOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     InvertedBoundsOA() {
         gen::GGenomeBuilder b;
@@ -464,7 +478,8 @@ protected:
  *  at their start values, and warns rather than crashing on the non-FP parameters. */
 class MixedOA : public gen::GGenomeT<MixedOA> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     MixedOA() {
         gen::GGenomeBuilder b;
@@ -533,7 +548,9 @@ TEST_CASE("EA in a PARETO mode degenerates safely on a single-objective individu
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
-    pop->setSortingScheme(Gem::Geneva::sortingMode::MUPLUSNU_PARETO); // multi-objective mode, single-objective problem
+    pop->setSortingScheme(
+        Gem::Geneva::sortingMode::MUPLUSNU_PARETO
+    ); // multi-objective mode, single-objective problem
     SphereOA const src;
     pop->push_back(src.clone());
     pop->setAdaptionConfig(src.buildAdaptionConfig());
@@ -547,9 +564,9 @@ TEST_CASE("EA in a PARETO mode degenerates safely on a single-objective individu
 /******************************************************************************/
 
 TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratch", "[flat][oa]") {
-    using gen::GGenome;
     using Gem::Geneva::Genome::AUXKEY_GAUSS_DOUBLE;
     using Gem::Geneva::Genome::GaussState;
+    using gen::GGenome;
 
     // The per-individual OA scratch (adaption sigma/state) lives on the individual itself (in its GAuxiliaryStore) and is
     // serialized for check-pointing, so a resumed algorithm keeps its evolved state. Here we seed an individual's
@@ -598,7 +615,8 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
     // The resumed algorithm adapts through the OA-owned config (the genome is structure-only); the
     // restored per-individual scratch is preserved, not re-seeded, by the resume path.
     resumed->setAdaptionConfig(
-        dynamic_cast<gind::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig());
+        dynamic_cast<gind::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig()
+    );
     resumed->optimize();
 
     auto best = resumed->getBestGlobalIndividual<gind::GLineFitIndividual>();
@@ -612,7 +630,10 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
 
 /******************************************************************************/
 
-TEST_CASE("checkpoint round-trip re-shares one problem policy across the population", "[flat][oa]") {
+TEST_CASE(
+    "checkpoint round-trip re-shares one problem policy across the population",
+    "[flat][oa]"
+) {
     // In memory all individuals of a population share one GProblemPolicy; a checkpoint stores a copy with
     // every individual. After loadCheckpoint() the restored population must share one policy again, carry
     // the settings that were saved, and a setter called on one individual must reach every candidate.
@@ -642,7 +663,7 @@ TEST_CASE("checkpoint round-trip re-shares one problem policy across the populat
     REQUIRE(resumed->size() == pop->size());
     auto const shared = resumed->at(0)->getPolicy();
     for(auto const &ind : *resumed) {
-        CHECK(ind->getPolicy() == shared);                            // one object again
+        CHECK(ind->getPolicy() == shared);                          // one object again
         CHECK(ind->getMaxMode() == Gem::Geneva::maxMode::MAXIMIZE); // the saved settings survived
         CHECK(ind->getSteepness() == 2.5);
     }
@@ -673,7 +694,8 @@ TEST_CASE(
         pop->setMaxIteration(5);
         pop->setReportIteration(100000);
         pop->setAdaptionConfig(
-            dynamic_cast<gind::GLineFitIndividual &>((*pop->at(0))).getAdaptionConfig());
+            dynamic_cast<gind::GLineFitIndividual &>((*pop->at(0))).getAdaptionConfig()
+        );
         pop->setCheckpointInterval(cp_interval);
         pop->setCheckpointBaseName(cp_dir.string(), "lazy.cp");
         return pop;
@@ -735,7 +757,9 @@ TEST_CASE("EA adopts an externally-provided adaption config", "[flat][oa]") {
 
     auto best = pop->getBestGlobalIndividual<SphereOA>();
     REQUIRE(best);
-    CHECK(bestSphere(*best) < 20.0); // the provided config drives a converging adaption (far below the f=45 start)
+    CHECK(
+        bestSphere(*best) < 20.0
+    ); // the provided config drives a converging adaption (far below the f=45 start)
 }
 
 /******************************************************************************/
@@ -833,9 +857,9 @@ TEST_CASE("Simulated annealing cools geometrically and floors above zero", "[fla
 
         const double t = pop->getT();
         CHECK(std::isfinite(t));
-        CHECK(t > 0.0);              // floor: never reaches 0 (would NaN saProb)
-        CHECK(t < pop->getT0());     // the temperature cooled down
-        CHECK(t < 1.0e-3);           // 10 * 0.5^40 is tiny -> substantial cooling after 40 iterations
+        CHECK(t > 0.0);          // floor: never reaches 0 (would NaN saProb)
+        CHECK(t < pop->getT0()); // the temperature cooled down
+        CHECK(t < 1.0e-3);       // 10 * 0.5^40 is tiny -> substantial cooling after 40 iterations
     }
 
     // Drive the temperature hard into the subnormal range: it must clamp to a positive floor and
@@ -913,7 +937,10 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("Swarm load() reproduces a POPULATED state (neighborhood + global bests past iteration 0)", "[flat][oa]") {
+TEST_CASE(
+    "Swarm load() reproduces a POPULATED state (neighborhood + global bests past iteration 0)",
+    "[flat][oa]"
+) {
     // After the fold, the neighborhood bests (neighborhood_bests_cnt_) and the global best (global_best_ptr_)
     // are deep-cloned and compared through the generic cloneable-member policies rather than the old
     // iteration-conditional tail in load_()/compare_(). Run a swarm several iterations so those bests are
@@ -926,11 +953,15 @@ TEST_CASE("Swarm load() reproduces a POPULATED state (neighborhood + global best
     original->setReportIteration(100000);
     original->push_back(SphereOA().clone());
     original->optimize();
-    REQUIRE(original->getBestGlobalIndividual<SphereOA>()); // it ran -> the bests are populated, non-null
+    REQUIRE(
+        original->getBestGlobalIndividual<SphereOA>()
+    ); // it ran -> the bests are populated, non-null
 
     oa::GSwarmAlgorithm restored;
-    REQUIRE_NOTHROW(restored.load(*original));                             // folded load_: clones the bests
-    CHECK_NOTHROW(restored.compare(*original, Gem::Common::expectation::EQUALITY, 0.)); // folded compare_: bests compared
+    REQUIRE_NOTHROW(restored.load(*original)); // folded load_: clones the bests
+    CHECK_NOTHROW(
+        restored.compare(*original, Gem::Common::expectation::EQUALITY, 0.)
+    ); // folded compare_: bests compared
 }
 
 /******************************************************************************/
@@ -990,7 +1021,9 @@ TEST_CASE("Swarm normalizes a non-canonical user population at setup", "[flat][o
             pop->push_back(SphereOA().clone());
         }
         CHECK_NOTHROW(pop->optimize());
-        CHECK(pop->size() == default_pop_size); // surplus trimmed, topology intact (no last-neighborhood dump)
+        CHECK(
+            pop->size() == default_pop_size
+        ); // surplus trimmed, topology intact (no last-neighborhood dump)
         auto best = pop->getBestGlobalIndividual<SphereOA>();
         REQUIRE(best);
         CHECK(bestSphere(*best) < 20.0);
@@ -1055,7 +1088,8 @@ TEST_CASE("Conjugate gradient descent optimizes a flat individual", "[flat][oa]"
 
 TEST_CASE("Conjugate gradient descent: every beta formula converges", "[flat][oa]") {
     using gm = oa::gradientMethod;
-    for(gm const method : {gm::CONJUGATE_PR_PLUS, gm::CONJUGATE_FR, gm::CONJUGATE_HS, gm::CONJUGATE_DY}) {
+    for(gm const method :
+        {gm::CONJUGATE_PR_PLUS, gm::CONJUGATE_FR, gm::CONJUGATE_HS, gm::CONJUGATE_DY}) {
         auto pop = std::make_shared<oa::GConjugateGradientDescent>();
         pop->setNStartingPoints(1);
         pop->setGradientMethod(method);
@@ -1102,7 +1136,8 @@ TEST_CASE("Conjugate gradient descent: central-difference gradient converges", "
 /******************************************************************************/
 
 TEST_CASE("Conjugate gradient descent: L-BFGS converges", "[flat][oa]") {
-    for(std::size_t const m : {std::size_t(3), std::size_t(10)}) { // small and default history sizes
+    for(std::size_t const m :
+        {std::size_t(3), std::size_t(10)}) { // small and default history sizes
         auto pop = std::make_shared<oa::GConjugateGradientDescent>();
         pop->setNStartingPoints(1);
         pop->setGradientMethod(oa::gradientMethod::LBFGS);
@@ -1186,9 +1221,9 @@ TEST_CASE("Parameter scan sweeps a flat individual", "[flat][oa]") {
     pop->setParameterSpecs(
         "d(0, -5., 5., 5), d(1, -5., 5., 5), d(2, -5., 5., 5), d(3, -5., 5., 5), d(4, -5., 5., 5)"
     );
-    pop->setMaxIteration(100000);   // enough iterations to cover the 5^5 grid
-    pop->setMaxStallIteration(0);    // 0 == disabled: sweep the WHOLE grid (the origin is on it),
-                                     // do not stop early on stall-convergence (order/seed dependent)
+    pop->setMaxIteration(100000); // enough iterations to cover the 5^5 grid
+    pop->setMaxStallIteration(0); // 0 == disabled: sweep the WHOLE grid (the origin is on it),
+                                  // do not stop early on stall-convergence (order/seed dependent)
     pop->setReportIteration(100000);
     pop->push_back(SphereOA().clone());
     pop->optimize();
@@ -1224,7 +1259,9 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
 
     // Deep-copy through the copy constructor (exactly what clone() / load_() use).
     auto clone = std::make_shared<oa::GParameterScan>(*pop);
-    CHECK_NOTHROW(clone->optimize()); // would throw before the fix (empty grid -> at(step_) out of range)
+    CHECK_NOTHROW(
+        clone->optimize()
+    ); // would throw before the fix (empty grid -> at(step_) out of range)
 
     auto best = clone->getBestGlobalIndividual<SphereOA>();
     REQUIRE(best);
@@ -1243,7 +1280,7 @@ TEST_CASE("Parameter scan random int stays within the inclusive bounds", "[flat]
     }
 
     auto pop = std::make_shared<oa::GParameterScan>();
-    pop->setScanRandomly(true); // random scan -> getRandomItem (inclusive bounds)
+    pop->setScanRandomly(true);               // random scan -> getRandomItem (inclusive bounds)
     pop->setParameterSpecs("i(0, 3, 5, 60)"); // 60 random draws in the inclusive range [3, 5]
     pop->setMaxIteration(100000);
     pop->setMaxStallIteration(0);
@@ -1264,7 +1301,10 @@ TEST_CASE("Parameter scan random int stays within the inclusive bounds", "[flat]
 
 /******************************************************************************/
 
-TEST_CASE("Parameter scan grid covers exactly the product of the per-dimension steps", "[flat][oa][ps]") {
+TEST_CASE(
+    "Parameter scan grid covers exactly the product of the per-dimension steps",
+    "[flat][oa][ps]"
+) {
     // A 3x3 grid over two doubles must evaluate exactly 9 distinct combinations and cover the four
     // corners -- no missing points, no duplicates.
     {
@@ -1273,7 +1313,7 @@ TEST_CASE("Parameter scan grid covers exactly the product of the per-dimension s
     }
 
     auto pop = std::make_shared<oa::GParameterScan>();
-    pop->setScanRandomly(false); // grid scan
+    pop->setScanRandomly(false);                                  // grid scan
     pop->setParameterSpecs("d(0, -1., 1., 3), d(1, -1., 1., 3)"); // 3 steps each -> {-1, 0, 1}
     pop->setMaxIteration(100000);
     pop->setMaxStallIteration(0);
@@ -1282,9 +1322,14 @@ TEST_CASE("Parameter scan grid covers exactly the product of the per-dimension s
     pop->optimize();
 
     std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
-    std::set<std::pair<double, double>> const combos(g_scan_pair_samples.begin(), g_scan_pair_samples.end());
-    CHECK(combos.size() == 9);                 // exactly product(n_steps) = 3 * 3
-    CHECK(g_scan_pair_samples.size() == 9);    // and each grid point evaluated exactly once (no duplicates)
+    std::set<std::pair<double, double>> const combos(
+        g_scan_pair_samples.begin(),
+        g_scan_pair_samples.end()
+    );
+    CHECK(combos.size() == 9); // exactly product(n_steps) = 3 * 3
+    CHECK(
+        g_scan_pair_samples.size() == 9
+    ); // and each grid point evaluated exactly once (no duplicates)
     // The four corners are present.
     CHECK(combos.count(std::make_pair(-1., -1.)) == 1);
     CHECK(combos.count(std::make_pair(-1., 1.)) == 1);
@@ -1496,7 +1541,9 @@ TEST_CASE("Parameter scan compare detects scan-state differences", "[flat][oa][p
 
     auto b = std::make_shared<oa::GParameterScan>();
     b->setScanRandomly(false);
-    b->setParameterSpecs("d(0, -3., 3., 3)"); // same arity / steps, different bounds -> different grid
+    b->setParameterSpecs(
+        "d(0, -3., 3., 3)"
+    ); // same arity / steps, different bounds -> different grid
 
     CHECK_THROWS(a->compare(*b, expectation::EQUALITY, 0.)); // grids differ -> not equal
 
@@ -1516,7 +1563,9 @@ TEST_CASE("Parameter scan survives a serialization round-trip", "[flat][oa][ps]"
     // written to a string and read back must compare EQUAL -- including its pre-computed grid points.
     auto a = std::make_shared<oa::GParameterScan>();
     a->setScanRandomly(false);
-    a->setParameterSpecs("d(0, -5., 5., 3), i(1, 0, 4, 5), b(2)"); // mixed double / int32 / bool grids
+    a->setParameterSpecs(
+        "d(0, -5., 5., 3), i(1, 0, 4, 5), b(2)"
+    ); // mixed double / int32 / bool grids
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         const std::string archived = a->toString(mode);
@@ -1629,8 +1678,8 @@ TEST_CASE("EA fits a line with the migrated (flat) GLineFitIndividual", "[flat][
     namespace gind = Gem::Geneva::Individuals;
 
     // Sample points on the line y = x -> the optimum is offset a = 0, slope b = 1, residual 0.
-    const std::vector<std::tuple<double, double>> data_points{
-        {0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}, {4., 4.}};
+    const std::vector<std::tuple<double, double>>
+        data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}, {4., 4.}};
 
     auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
@@ -1661,7 +1710,8 @@ namespace {
 template <std::size_t N>
 class HighDimSphere : public gen::GGenomeT<HighDimSphere<N>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     HighDimSphere() {
         gen::GGenomeBuilder b;
@@ -1707,7 +1757,8 @@ double sphereValue(const gen::GGenome &best) {
  */
 class BiObjective : public gen::GGenomeT<BiObjective> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BiObjective() {
         gen::GGenomeBuilder b;
@@ -1756,7 +1807,10 @@ TEST_CASE("Separable CMA-ES optimizes a flat individual", "[flat][oa][sepcma]") 
 
 /******************************************************************************/
 
-TEST_CASE("Pure CSA-ES (no diagonal covariance) optimizes a flat individual", "[flat][oa][sepcma]") {
+TEST_CASE(
+    "Pure CSA-ES (no diagonal covariance) optimizes a flat individual",
+    "[flat][oa][sepcma]"
+) {
     auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
     pop->setUseDiagonalCMA(false); // step-size control only
     pop->setMaxIteration(300);
@@ -1848,7 +1902,10 @@ TEST_CASE("Separable CMA-ES tolerates (and warns about) non-FP parameters", "[fl
 
 /******************************************************************************/
 
-TEST_CASE("Separable CMA-ES Pareto mode runs on a two-objective individual", "[flat][oa][sepcma][pareto]") {
+TEST_CASE(
+    "Separable CMA-ES Pareto mode runs on a two-objective individual",
+    "[flat][oa][sepcma][pareto]"
+) {
     auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
     pop->setParetoMode(true); // NSGA-II non-dominated sort + crowding distance as the ranking key
     pop->setMaxIteration(120);
@@ -1870,12 +1927,17 @@ TEST_CASE("Separable CMA-ES Pareto mode runs on a two-objective individual", "[f
         CHECK(x >= -5.0);
         CHECK(x < 5.0);
     }
-    CHECK(f1 < 10.0); // the criterion-0 best reached the f1 corner of the front (far below the f1=45 start)
+    CHECK(
+        f1 < 10.0
+    ); // the criterion-0 best reached the f1 corner of the front (far below the f1=45 start)
 }
 
 /******************************************************************************/
 
-TEST_CASE("ea NSGA-II Pareto selection spreads the survivors across the front", "[flat][oa][ea][pareto]") {
+TEST_CASE(
+    "ea NSGA-II Pareto selection spreads the survivors across the front",
+    "[flat][oa][ea][pareto]"
+) {
     // The two-objective front of (f1 = sum x^2, f2 = sum (x-2)^2) over N_DIM=5 dims runs from (0,20) to
     // (20,0). With NSGA-II selection (non-dominated front + crowding distance) the mu survivors should
     // spread ALONG that front rather than cluster -- exactly what the former first-front + random-shuffle
@@ -1967,15 +2029,20 @@ TEST_CASE("ea NSGA-II Pareto selection spreads the survivors across the front", 
     for(int rerun = 1; rerun < 3 && (spread <= 19.9 || hv <= 200.0); ++rerun) {
         std::tie(spread, hv) = run();
     }
-    INFO("ea NSGA-II survivors (best attempt): spread(f1 range)=" << spread << "  hypervolume=" << hv
-         << "  (front f1-extent=20, ref=(20,20))");
+    INFO(
+        "ea NSGA-II survivors (best attempt): spread(f1 range)="
+        << spread << "  hypervolume=" << hv << "  (front f1-extent=20, ref=(20,20))"
+    );
     CHECK(spread > 19.9); // the seeded corners survive: full coverage of the 20-wide front
-    CHECK(hv > 200.0);    // converged AND spread (a clustered/unconverged front falls well below this)
+    CHECK(hv > 200.0); // converged AND spread (a clustered/unconverged front falls well below this)
 }
 
 /******************************************************************************/
 
-TEST_CASE("OA base copy preserves every configuration knob (copy ctor vs localMembers_)", "[flat][oa]") {
+TEST_CASE(
+    "OA base copy preserves every configuration knob (copy ctor vs localMembers_)",
+    "[flat][oa]"
+) {
     using Gem::Common::expectation;
 
     // Regression (2026-07-18): the hand-written member-by-member copy constructor of
@@ -2011,8 +2078,8 @@ TEST_CASE("individual copy runs through localMembers_ (copy ctor vs single sourc
     // added to the single source would silently not be cloned. The ctor now copies THROUGH
     // localMembers_() like load_(); pin a perturbed, non-default state across a copy.
     SphereOA src;
-    src.vetoPostProcessing(true);           // pre-/post-veto flags are localMembers_ state
-    src.process();                          // sets results / validity-related lifecycle state
+    src.vetoPostProcessing(true); // pre-/post-veto flags are localMembers_ state
+    src.process();                // sets results / validity-related lifecycle state
 
     auto copy = src.clone();
 
@@ -2091,10 +2158,13 @@ TEST_CASE("EA global-sigma controller resumes its evolved sigma from a checkpoin
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp); // sets the resume marker; slots carry the evolved scratch
     resumed->setPopulationSizes(18, 6);
-    resumed->setMaxIteration(1); // exactly one (warm-up) generation: write-back only, no sigma update
+    resumed->setMaxIteration(
+        1
+    ); // exactly one (warm-up) generation: write-back only, no sigma update
     resumed->setReportIteration(100000);
     resumed->setAdaptionConfig(
-        dynamic_cast<gind::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig());
+        dynamic_cast<gind::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig()
+    );
     resumed->optimize();
 
     // The slot scratch is deliberately cleared at the algorithm boundary (resetIndividualPersonalities),

@@ -286,10 +286,10 @@ namespace Gem::Geneva::Genome {
 class GParameterPropertyParser {
 public:
     /** @brief The deleted copy constructor -- this class must not be copied */
-    GParameterPropertyParser(const GParameterPropertyParser&) = delete;
+    GParameterPropertyParser(const GParameterPropertyParser &) = delete;
     /** @brief The deleted copy-assignment operator -- this class must not be assigned
      *  @return (deleted, never returns) */
-    GParameterPropertyParser& operator=(const GParameterPropertyParser&) = delete;
+    GParameterPropertyParser &operator=(const GParameterPropertyParser &) = delete;
 
     /** @brief The default constructor -- deleted, as a raw description string is mandatory */
     GParameterPropertyParser() = delete;
@@ -316,7 +316,6 @@ private:
     void applyBoolFragment(std::vector<std::string> const &tok, std::string const &content);
 
 public:
-
     /** @brief Retrieve the number of "simple scan" items */
     [[nodiscard]] std::size_t getNSimpleScanItems() const;
 
@@ -368,7 +367,10 @@ public:
                 return b_spec_vec_;
             }
             else {
-                static_assert(false, "GParameterPropertyParser::getIterators<par_type>: unsupported parameter type");
+                static_assert(
+                    false,
+                    "GParameterPropertyParser::getIterators<par_type>: unsupported parameter type"
+                );
             }
         }();
 
@@ -381,12 +383,15 @@ private:
     std::string raw_; ///< Holds the "raw" parameter description
     bool parsed_;     ///< Indicates whether the raw_ string has already been parsed
 
-    std::vector<simpleScanSpec> s_spec_vec_;      ///< Holds parameter specifications for simple scans
-    std::vector<parPropSpec<double>> d_spec_vec_; ///< Holds parameter specifications for double values
-    std::vector<parPropSpec<float>> f_spec_vec_;  ///< Holds parameter specifications for float values
+    std::vector<simpleScanSpec> s_spec_vec_; ///< Holds parameter specifications for simple scans
+    std::vector<parPropSpec<double>>
+        d_spec_vec_; ///< Holds parameter specifications for double values
+    std::vector<parPropSpec<float>>
+        f_spec_vec_; ///< Holds parameter specifications for float values
     std::vector<parPropSpec<std::int32_t>>
-        i_spec_vec_;                            ///< Holds parameter specifications for integer values
-    std::vector<parPropSpec<bool>> b_spec_vec_; ///< Holds parameter specifications for boolean values
+        i_spec_vec_; ///< Holds parameter specifications for integer values
+    std::vector<parPropSpec<bool>>
+        b_spec_vec_; ///< Holds parameter specifications for boolean values
 };
 
 /******************************************************************************/

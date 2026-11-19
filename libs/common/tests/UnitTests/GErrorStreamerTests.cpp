@@ -34,14 +34,18 @@
 
 #include "common/GErrorStreamer.hpp"
 
-TEST_CASE("g_error_streamer: DO_LOG / NO_LOG constants have the expected values",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: DO_LOG / NO_LOG constants have the expected values",
+    "[common][error-streamer]"
+) {
     static_assert(DO_LOG == true);
     static_assert(NO_LOG == false);
 }
 
-TEST_CASE("g_error_streamer: default construction yields an empty content",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: default construction yields an empty content",
+    "[common][error-streamer]"
+) {
     g_error_streamer const s;
     CHECK(s.content().empty());
 
@@ -50,8 +54,10 @@ TEST_CASE("g_error_streamer: default construction yields an empty content",
     CHECK(converted.empty());
 }
 
-TEST_CASE("g_error_streamer: templated operator<< accumulates streamable values",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: templated operator<< accumulates streamable values",
+    "[common][error-streamer]"
+) {
     g_error_streamer s;
     s << "alpha=" << 1 << " beta=" << 2.5 << " gamma=" << std::string{"x"};
 
@@ -61,8 +67,7 @@ TEST_CASE("g_error_streamer: templated operator<< accumulates streamable values"
     CHECK(out.contains("gamma=x"));
 }
 
-TEST_CASE("g_error_streamer: stream manipulators are honoured",
-          "[common][error-streamer]") {
+TEST_CASE("g_error_streamer: stream manipulators are honoured", "[common][error-streamer]") {
     g_error_streamer s;
     // '\n' is a plain char forwarded through the generic templated
     // operator<< to the internal ostringstream.
@@ -73,8 +78,10 @@ TEST_CASE("g_error_streamer: stream manipulators are honoured",
     CHECK(out.contains("line2\n"));
 }
 
-TEST_CASE("g_error_streamer: ios / ios_base manipulators compile and apply",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: ios / ios_base manipulators compile and apply",
+    "[common][error-streamer]"
+) {
     // std::hex is std::ios_base&(*)(std::ios_base&); std::boolalpha as well.
     // std::resetiosflags returns an `_Setiosflags` proxy that goes through
     // the templated operator<< — both forms must coexist without ambiguity.
@@ -86,8 +93,10 @@ TEST_CASE("g_error_streamer: ios / ios_base manipulators compile and apply",
     CHECK(out.contains("true"));
 }
 
-TEST_CASE("g_error_streamer: explicit ctor stores where-and-when prefix but content() omits it",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: explicit ctor stores where-and-when prefix but content() omits it",
+    "[common][error-streamer]"
+) {
     // Only the implicit-to-string conversion uses where_and_when_ — and even
     // then only when do_log is true. The cheap, allocation-only content()
     // accessor must not surface it.
@@ -100,8 +109,10 @@ TEST_CASE("g_error_streamer: explicit ctor stores where-and-when prefix but cont
     CHECK(converted == "payload");
 }
 
-TEST_CASE("g_error_streamer: content() is allocation-only and repeatable",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "g_error_streamer: content() is allocation-only and repeatable",
+    "[common][error-streamer]"
+) {
     // content() returns a fresh std::string each call without disturbing the
     // wrapped stringstream — calling it twice must produce identical output.
     g_error_streamer s;
@@ -113,8 +124,10 @@ TEST_CASE("g_error_streamer: content() is allocation-only and repeatable",
     CHECK(a == b);
 }
 
-TEST_CASE("Gem::Common::timeAndPlace(): returns a string containing the call-site location",
-          "[common][error-streamer]") {
+TEST_CASE(
+    "Gem::Common::timeAndPlace(): returns a string containing the call-site location",
+    "[common][error-streamer]"
+) {
     // timeAndPlace() formats a `Recorded on … in File X at line N (func) :\n`
     // string from std::source_location. Sanity-check the framing without pinning
     // the exact line number (which would shift with every edit above).

@@ -27,8 +27,8 @@
  *
  ********************************************************************************/
 
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
@@ -155,8 +155,16 @@ inline double evaluationOf(std::unique_ptr<TestItem> const &p) {
 }
 
 GFSPQ_TEST_QUEUE(PodPQ, Gem::Common::GPodFixedSizePriorityQueueT<double>, double const &)
-GFSPQ_TEST_QUEUE(SharedPQ, Gem::Common::GPtrFixedSizePriorityQueueT<TestItem>, std::shared_ptr<TestItem> const &)
-GFSPQ_TEST_QUEUE(UniquePQ, Gem::Common::GUniquePtrFixedSizePriorityQueueT<TestItem>, std::unique_ptr<TestItem> const &)
+GFSPQ_TEST_QUEUE(
+    SharedPQ,
+    Gem::Common::GPtrFixedSizePriorityQueueT<TestItem>,
+    std::shared_ptr<TestItem> const &
+)
+GFSPQ_TEST_QUEUE(
+    UniquePQ,
+    Gem::Common::GUniquePtrFixedSizePriorityQueueT<TestItem>,
+    std::unique_ptr<TestItem> const &
+)
 
 #undef GFSPQ_TEST_QUEUE
 
@@ -196,10 +204,10 @@ typename queue_type::StoredType item(double v) {
 
 } // namespace
 
-GEM_REGISTER_ARCHIVABLE(TestItem)  // NOLINT
-GEM_REGISTER_ARCHIVABLE(PodPQ)     // NOLINT
-GEM_REGISTER_ARCHIVABLE(SharedPQ)  // NOLINT
-GEM_REGISTER_ARCHIVABLE(UniquePQ)  // NOLINT
+GEM_REGISTER_ARCHIVABLE(TestItem) // NOLINT
+GEM_REGISTER_ARCHIVABLE(PodPQ)    // NOLINT
+GEM_REGISTER_ARCHIVABLE(SharedPQ) // NOLINT
+GEM_REGISTER_ARCHIVABLE(UniquePQ) // NOLINT
 
 // ===========================================================================
 // Behaviour that must be identical for all three holders. Each TEMPLATE_TEST_CASE
@@ -587,8 +595,7 @@ TEMPLATE_TEST_CASE(
     "[common][priority-queue][serialize]",
     GFSPQ_ALL_HOLDERS
 ) {
-    auto const mode =
-        GENERATE(serializationMode::GEM_BINARY, serializationMode::GEM_JSON);
+    auto const mode = GENERATE(serializationMode::GEM_BINARY, serializationMode::GEM_JSON);
 
     TestType src(4, sortOrder::HIGHERISBETTER);
     src.add(item<TestType>(3.0));
@@ -635,8 +642,10 @@ TEST_CASE(
     CHECK(pq.best() == 2.5);
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<POD>: equal values are never deduplicated",
-          "[common][priority-queue][pod]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<POD>: equal values are never deduplicated",
+    "[common][priority-queue][pod]"
+) {
     PodPQ pq(5);
     double const v = 4.0;
     pq.addClone(v);
@@ -662,10 +671,10 @@ TEST_CASE(
         REQUIRE(pq.size() == 1);
         CHECK(pq.best().get() != src.get()); // a distinct object
         CHECK(pq.best()->value() == src->value());
-        CHECK(src.use_count() == 1);         // the queue did not become an owner
+        CHECK(src.use_count() == 1); // the queue did not become an owner
 
         src->setValue(42.0);
-        CHECK(pq.best()->value() == 2.5);    // the stored copy is independent
+        CHECK(pq.best()->value() == 2.5); // the stored copy is independent
     }
 
     SECTION("add(handle) makes the queue a second owner of the same object") {
@@ -678,8 +687,10 @@ TEST_CASE(
     }
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<shared_ptr>: the same object handed over twice is one entry",
-          "[common][priority-queue][shared]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<shared_ptr>: the same object handed over twice is one entry",
+    "[common][priority-queue][shared]"
+) {
     SharedPQ pq(5);
     auto src = std::make_shared<TestItem>(4.0);
     pq.add(std::shared_ptr<TestItem>{src});
@@ -688,8 +699,10 @@ TEST_CASE("GFixedSizePriorityQueueT<shared_ptr>: the same object handed over twi
     CHECK(pq.size() == 1);
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<shared_ptr>: an empty handle is never admitted",
-          "[common][priority-queue][shared]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<shared_ptr>: an empty handle is never admitted",
+    "[common][priority-queue][shared]"
+) {
     SharedPQ pq(5);
 
     // Single item: silently skipped -- and, crucially, never dereferenced. The
@@ -729,8 +742,8 @@ TEST_CASE(
         pq.add(std::move(src));
 
         REQUIRE(pq.size() == 1);
-        CHECK(src == nullptr);                 // NOLINT(bugprone-use-after-move)
-        CHECK(pq.best().get() == raw);         // the very object, not a copy
+        CHECK(src == nullptr);         // NOLINT(bugprone-use-after-move)
+        CHECK(pq.best().get() == raw); // the very object, not a copy
     }
 
     SECTION("addClone leaves the caller owning its object") {
@@ -747,8 +760,10 @@ TEST_CASE(
     }
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: pop hands sole ownership back out",
-          "[common][priority-queue][unique]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<unique_ptr>: pop hands sole ownership back out",
+    "[common][priority-queue][unique]"
+) {
     UniquePQ pq(5);
     auto src = std::make_unique<TestItem>(1.0);
     auto const *raw = src.get();
@@ -760,16 +775,17 @@ TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: pop hands sole ownership back o
     CHECK(pq.empty());
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: a bulk take-over empties the source handles",
-          "[common][priority-queue][unique]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<unique_ptr>: a bulk take-over empties the source handles",
+    "[common][priority-queue][unique]"
+) {
     UniquePQ pq(10);
     std::vector<std::unique_ptr<TestItem>> items;
     for(int i = 0; i < 4; ++i) {
         items.push_back(std::make_unique<TestItem>(static_cast<double>(i)));
     }
-    std::vector<TestItem const *> const raws{
-        items[0].get(), items[1].get(), items[2].get(), items[3].get()
-    };
+    std::vector<TestItem const *> const
+        raws{items[0].get(), items[1].get(), items[2].get(), items[3].get()};
 
     pq.add(std::move(items), /*replace=*/false);
     REQUIRE(pq.size() == 4);
@@ -780,8 +796,10 @@ TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: a bulk take-over empties the so
     }
 }
 
-TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: a bulk clone leaves the source population intact",
-          "[common][priority-queue][unique]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT<unique_ptr>: a bulk clone leaves the source population intact",
+    "[common][priority-queue][unique]"
+) {
     UniquePQ pq(10);
     std::vector<std::unique_ptr<TestItem>> items;
     for(int i = 0; i < 4; ++i) {
@@ -805,9 +823,9 @@ TEST_CASE("GFixedSizePriorityQueueT<unique_ptr>: a bulk clone leaves the source 
 namespace {
 
 /** @brief A queue that admits only items with a non-negative value. */
-class GatedPQ : public Gem::Common::GReflectiveInterfaceT<
-                    GatedPQ,
-                    Gem::Common::GUniquePtrFixedSizePriorityQueueT<TestItem>> {
+class GatedPQ
+  : public Gem::Common::
+        GReflectiveInterfaceT<GatedPQ, Gem::Common::GUniquePtrFixedSizePriorityQueueT<TestItem>> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
     template <typename self_type>
     auto localMembers_(this self_type &) {
@@ -839,8 +857,10 @@ protected:
 
 GEM_REGISTER_ARCHIVABLE(GatedPQ) // NOLINT
 
-TEST_CASE("GFixedSizePriorityQueueT: a derived admission rule governs every insertion path",
-          "[common][priority-queue]") {
+TEST_CASE(
+    "GFixedSizePriorityQueueT: a derived admission rule governs every insertion path",
+    "[common][priority-queue]"
+) {
     GatedPQ pq(10);
 
     // single, clone

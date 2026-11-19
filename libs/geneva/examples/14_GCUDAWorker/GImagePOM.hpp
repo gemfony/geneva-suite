@@ -116,8 +116,7 @@ public:
 private:
     void reapDone() {
         std::erase_if(pending_, [](const std::future<void> &f) {
-            return f.valid() &&
-                   f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            return f.valid() && f.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
         });
     }
 
@@ -261,7 +260,7 @@ protected:
             result = true;
         }
         return result;
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
         condnotset("GImagePOM::modify_GUnitTests", "GEM_TESTING");
         return false;
 #endif /* GEM_TESTING */
@@ -289,7 +288,8 @@ private:
      * Emits information at the various stages of the information cycle (initialization, during each
      * iteration, and during finalization).
      */
-    void informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    void
+    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT: {
             // Make sure the target directory for result images exists.
@@ -316,8 +316,8 @@ private:
                 break;
             }
 
-            auto best_ptr =
-                goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestIterationIndividual<Genome::GGenome>();
+            auto best_ptr = goa->Interface::GOptimizerIT<
+                oa::GOptimizationAlgorithmBase>::getBestIterationIndividual<Genome::GGenome>();
 
             // Snapshot everything the output needs into by-value data (cheap), so the actual work --
             // the CPU rasterise (renderToRGB) and the PNG encode/write -- can run off the optimization
@@ -332,7 +332,8 @@ private:
                 goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getIteration();
             const double fitness = best_ptr->raw_fitness(0);
             const std::string resultFileName = resultImageDirectory_ + std::to_string(iteration) +
-                                               "_" + std::to_string(fitness) + "_bestIndividual.png";
+                                               "_" + std::to_string(fitness) +
+                                               "_bestIndividual.png";
 
             if(not writer_) {
                 writer_ = std::make_unique<AsyncImageWriter>();
@@ -340,14 +341,17 @@ private:
             // Hand the rasterise + PNG write to a background thread; the optimizer continues at once.
             // The task is self-contained: parVec is moved in, the rest are copied by value, and it
             // writes to a unique per-iteration filename, so concurrent writes never collide.
-            writer_->submit(
-                [parVec = std::move(parVec), width, height, resultFileName]() {
-                    std::vector<unsigned char> rgb;
-                    MonaLisa::renderToRGB(parVec.data(), static_cast<int>(parVec.size()), width,
-                                          height, rgb);
-                    Gem::Common::writeRGBtoPNG(resultFileName, rgb, width, height);
-                }
-            );
+            writer_->submit([parVec = std::move(parVec), width, height, resultFileName]() {
+                std::vector<unsigned char> rgb;
+                MonaLisa::renderToRGB(
+                    parVec.data(),
+                    static_cast<int>(parVec.size()),
+                    width,
+                    height,
+                    rgb
+                );
+                Gem::Common::writeRGBtoPNG(resultFileName, rgb, width, height);
+            });
         } break;
 
         case Gem::Geneva::infoMode::INFOEND: {
@@ -379,7 +383,8 @@ private:
     /// is neither copyable nor comparable, and there is nothing meaningful to persist). Sole
     /// ownership: the copy constructor above deliberately does not carry the writer over, so no
     /// second owner of one writer ever exists.
-    std::unique_ptr<AsyncImageWriter> writer_; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::unique_ptr<AsyncImageWriter>
+        writer_; // NOLINT(misc-non-private-member-variables-in-classes)
 };
 
 /******************************************************************************/

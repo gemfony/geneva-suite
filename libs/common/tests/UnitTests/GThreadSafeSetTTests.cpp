@@ -58,20 +58,23 @@ TEST_CASE("GThreadSafeSetT: insert/erase/contains report set semantics", "[commo
     Set s;
     CHECK(s.empty());
     CHECK(s.insert(7));
-    CHECK_FALSE(s.insert(7));     // already present -> no-op, reports false
+    CHECK_FALSE(s.insert(7)); // already present -> no-op, reports false
     CHECK(s.size() == 1);
     CHECK(s.contains(7));
     CHECK_FALSE(s.contains(8));
 
     CHECK(s.erase(7));
-    CHECK_FALSE(s.erase(7));      // already gone
+    CHECK_FALSE(s.erase(7)); // already gone
     CHECK(s.empty());
 }
 
 // ---------------------------------------------------------------------------
 // drain
 
-TEST_CASE("GThreadSafeSetT: drain returns every element (ascending) and empties the set", "[common][ts-set]") {
+TEST_CASE(
+    "GThreadSafeSetT: drain returns every element (ascending) and empties the set",
+    "[common][ts-set]"
+) {
     Set s;
     s.insert(30);
     s.insert(10);
@@ -101,7 +104,10 @@ TEST_CASE("GThreadSafeSetT: clear empties the set", "[common][ts-set]") {
 // erased (returned normally) or drained (reclaimed) exactly once: nothing is
 // lost or double-counted.
 
-TEST_CASE("GThreadSafeSetT: concurrent insert/erase/drain conserves every id", "[common][ts-set][concurrency]") {
+TEST_CASE(
+    "GThreadSafeSetT: concurrent insert/erase/drain conserves every id",
+    "[common][ts-set][concurrency]"
+) {
     Set s;
     constexpr std::uint64_t kIds = 100000;
 

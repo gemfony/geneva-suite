@@ -43,16 +43,15 @@
 
 // Boost headers go here
 
-
 // Geneva headers go here
-#include "weft/GArchivePolymorphic.hpp" // GArchive codecs (smart-ptr arm) for sharedPtr[To|From]String
-#include "weft/GBinaryArchive.hpp"       // GArchive flat binary codec
-#include "weft/GJsonArchive.hpp"         // GArchive JSON codec
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GArchive codecs (smart-ptr arm) for sharedPtr[To|From]String
+#include "weft/GBinaryArchive.hpp"      // GArchive flat binary codec
+#include "weft/GJsonArchive.hpp"        // GArchive JSON codec
 
 namespace Gem::Common {
 
@@ -85,7 +84,9 @@ sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMod
 
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In sharedPtrToString(): unknown serialization mode " << static_cast<int>(ser_mod) << '\n');
+        << "In sharedPtrToString(): unknown serialization mode " << static_cast<int>(ser_mod)
+        << '\n'
+    );
 }
 
 /******************************************************************************/
@@ -144,7 +145,5 @@ sharedPtrFromString(const std::string &gt_string, const Gem::Common::serializati
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-
-
 
 /******************************************************************************/

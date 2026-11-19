@@ -40,13 +40,12 @@
 #include <type_traits>
 #include <vector>
 
-
-#include "common/GContainerT.hpp"
 #include "common/GArchiveNamed.hpp" // archive_named
-#include "weft/GBinaryArchive.hpp"
-#include "weft/GJsonArchive.hpp"
+#include "common/GContainerT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "weft/GBinaryArchive.hpp"
+#include "weft/GJsonArchive.hpp"
 
 /******************************************************************************/
 // File-scope serializable element type for GPtrContainerT serialization tests.
@@ -57,7 +56,9 @@
 struct SerBase : Gem::Common::gemfony_common_interface_indicator {
     int v = 0;
     SerBase() = default;
-    explicit SerBase(int x) : v(x) {}
+    explicit SerBase(int x)
+      : v(x) {
+    }
     ~SerBase() = default;
 
     template <typename target_type = SerBase>
@@ -65,13 +66,19 @@ struct SerBase : Gem::Common::gemfony_common_interface_indicator {
         return std::make_shared<target_type>(*static_cast<const target_type *>(this));
     }
 
-    void load(const std::shared_ptr<SerBase>& cp) { v = cp->v; }
+    void load(const std::shared_ptr<SerBase> &cp) {
+        v = cp->v;
+    }
 
-    bool operator==(const SerBase &o) const { return v == o.v; }
+    bool operator==(const SerBase &o) const {
+        return v == o.v;
+    }
 
-    void compare(const SerBase &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
+    void
+    compare(const SerBase &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
         if((e == Gem::Common::expectation::EQUALITY ||
-            e == Gem::Common::expectation::FP_SIMILARITY) && v != cp.v) {
+            e == Gem::Common::expectation::FP_SIMILARITY) &&
+           v != cp.v) {
             throw g_expectation_violation("SerBase: values differ");
         }
         if(e == Gem::Common::expectation::INEQUALITY && v == cp.v) {
@@ -98,7 +105,8 @@ struct TestBase : Gem::Common::gemfony_common_interface_indicator {
 
     TestBase() = default;
     explicit TestBase(int v)
-      : val(v) {}
+      : val(v) {
+    }
     virtual ~TestBase() = default;
 
     // clone(), as a real GCommonInterfaceT type provides; virtual so it clones the dynamic type
@@ -120,7 +128,7 @@ struct TestBase : Gem::Common::gemfony_common_interface_indicator {
         return std::unique_ptr<target_type>(converted);
     }
 
-    void load(const std::shared_ptr<TestBase>& cp) {
+    void load(const std::shared_ptr<TestBase> &cp) {
         val = cp->val;
     }
 
@@ -134,12 +142,10 @@ struct TestBase : Gem::Common::gemfony_common_interface_indicator {
     }
 
     // Required by Gem::Common::compare_t for shared_ptr containers
-    void compare(
-        const TestBase &cp,
-        Gem::Common::expectation e,
-        [[maybe_unused]] double limit
-    ) const {
-        if(e == Gem::Common::expectation::EQUALITY || e == Gem::Common::expectation::FP_SIMILARITY) {
+    void
+    compare(const TestBase &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
+        if(e == Gem::Common::expectation::EQUALITY ||
+           e == Gem::Common::expectation::FP_SIMILARITY) {
             if(val != cp.val) {
                 throw g_expectation_violation("TestBase::compare: values differ");
             }
@@ -158,7 +164,8 @@ struct TestDerived : TestBase {
     TestDerived() = default;
     explicit TestDerived(int v, int dv)
       : TestBase(v)
-      , derivedVal(dv) {}
+      , derivedVal(dv) {
+    }
 
     bool operator==(const TestBase &o) const override {
         const auto *od = dynamic_cast<const TestDerived *>(&o);
@@ -177,7 +184,8 @@ class ConcretePodVec : public Gem::Common::GPodContainerT<int> {
 public:
     ConcretePodVec() = default;
     explicit ConcretePodVec(std::size_t n, int v = 0)
-      : Gem::Common::GPodContainerT<int>(n, v) {}
+      : Gem::Common::GPodContainerT<int>(n, v) {
+    }
     ~ConcretePodVec() override = default;
 };
 
@@ -185,12 +193,13 @@ class ConcretePodVecDouble : public Gem::Common::GPodContainerT<double> {
 public:
     ConcretePodVecDouble() = default;
     explicit ConcretePodVecDouble(std::size_t n, double v = 0.0)
-      : Gem::Common::GPodContainerT<double>(n, v) {}
+      : Gem::Common::GPodContainerT<double>(n, v) {
+    }
     ~ConcretePodVecDouble() override = default;
 };
 
 class ConcretePodDeque
-    : public Gem::Common::GContainerT<int, Gem::Common::PodStorage<int, std::deque<int>>> {
+  : public Gem::Common::GContainerT<int, Gem::Common::PodStorage<int, std::deque<int>>> {
 public:
     using Base = Gem::Common::GContainerT<int, Gem::Common::PodStorage<int, std::deque<int>>>;
     ConcretePodDeque() = default;
@@ -218,7 +227,7 @@ public:
 
 // std::list-backed POD container
 class ConcretePodList
-    : public Gem::Common::GContainerT<int, Gem::Common::PodStorage<int, std::list<int>>> {
+  : public Gem::Common::GContainerT<int, Gem::Common::PodStorage<int, std::list<int>>> {
 public:
     ConcretePodList() = default;
     ~ConcretePodList() override = default;
@@ -239,7 +248,10 @@ public:
 // ─────────────────────────── [pod][vector] ────────────────────────────────
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a flat catalogue of independent, self-contained per-operation micro-checks (each SECTION builds its own fixture); the length is coverage breadth over one backend's contract, not branching complexity, and splitting into standalone TEST_CASEs would only multiply the count with no shared setup to consolidate
-TEST_CASE("GContainerT: GPodContainerT<int> with std::vector backend", "[GContainerT][pod][vector]") {
+TEST_CASE(
+    "GContainerT: GPodContainerT<int> with std::vector backend",
+    "[GContainerT][pod][vector]"
+) {
     SECTION("Default construction") {
         ConcretePodVec const c;
         CHECK(c.empty());
@@ -411,7 +423,7 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::vector backend", "[GContai
 
     SECTION("data() — available and correct type") {
         ConcretePodVec c(3, 7);
-        int  const*ptr = c.data();
+        int const *ptr = c.data();
         REQUIRE(ptr != nullptr);
         CHECK(ptr[0] == 7);
         CHECK(ptr[2] == 7);
@@ -771,7 +783,10 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::deque backend", "[GContain
 // ─────────────────────────── [ptr][vector] ────────────────────────────────
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a flat catalogue of independent, self-contained per-operation micro-checks (each SECTION builds its own fixture); the length is coverage breadth over one backend's contract, not branching complexity, and splitting into standalone TEST_CASEs would only multiply the count with no shared setup to consolidate
-TEST_CASE("GContainerT: GPtrContainerT<TestBase> with std::vector backend", "[GContainerT][ptr][vector]") {
+TEST_CASE(
+    "GContainerT: GPtrContainerT<TestBase> with std::vector backend",
+    "[GContainerT][ptr][vector]"
+) {
     SECTION("Default construction") {
         ConcretePtrVec const c;
         CHECK(c.empty());
@@ -803,7 +818,7 @@ TEST_CASE("GContainerT: GPtrContainerT<TestBase> with std::vector backend", "[GC
         ConcretePtrVec c;
         auto item = std::make_shared<TestBase>(10);
         c.push_back_clone(item);
-        item->val = 99; // Change after push
+        item->val = 99;         // Change after push
         CHECK(c[0]->val == 10); // Clone is unaffected
     }
 
@@ -811,7 +826,7 @@ TEST_CASE("GContainerT: GPtrContainerT<TestBase> with std::vector backend", "[GC
         ConcretePtrVec c;
         auto item = std::make_shared<TestBase>(10);
         c.push_back_noclone(item);
-        item->val = 99; // Change after push
+        item->val = 99;         // Change after push
         CHECK(c[0]->val == 99); // Reflects change (shared)
     }
 
@@ -935,8 +950,9 @@ TEST_CASE("GContainerT: GPtrContainerT<TestBase> with std::vector backend", "[GC
         // Same address as `item` appears exactly once, and at the insertion position.
         CHECK(c[1].get() == item.get());
         std::size_t same_addr = 0;
-        for(auto & i : c) {
-            if(i.get() == item.get()) ++same_addr;
+        for(auto &i : c) {
+            if(i.get() == item.get())
+                ++same_addr;
         }
         CHECK(same_addr == 1u);
         // All inserted slots compare equal by value; the trailing original is preserved.
@@ -962,7 +978,7 @@ TEST_CASE("GContainerT: GPtrContainerT<TestBase> with std::vector backend", "[GC
         CHECK(c[0]->val == 1);
         CHECK(c[1]->val == 2);
         // `item` must NOT have been inserted into the container.
-        for(auto & i : c) {
+        for(auto &i : c) {
             CHECK(i.get() != item.get());
         }
     }
@@ -1265,7 +1281,9 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::list backend", "[GContaine
         ConcretePodList c;
         c.assign(4u, 99);
         REQUIRE(c.size() == 4u);
-        for(auto v : c) { CHECK(v == 99); }
+        for(auto v : c) {
+            CHECK(v == 99);
+        }
     }
 
     SECTION("insert single and erase") {
@@ -1285,7 +1303,7 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::list backend", "[GContaine
         ConcretePodList c;
         c.assign({1, 2, 3, 4, 5});
         auto first = std::next(c.begin(), 1);
-        auto last  = std::next(c.begin(), 4);
+        auto last = std::next(c.begin(), 4);
         c.erase(first, last); // removes {2, 3, 4}
         REQUIRE(c.size() == 2u);
         CHECK(c.front() == 1);
@@ -1311,7 +1329,8 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::list backend", "[GContaine
         CHECK(*c.rbegin() == 3);
         CHECK(*c.crbegin() == 3);
         int sum = 0;
-        for(int  const& it : c) sum += it;
+        for(int const &it : c)
+            sum += it;
         CHECK(sum == 6);
     }
 
@@ -1773,7 +1792,10 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
 // isolation (nothing in geneva uses the unique container yet).
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a flat catalogue of independent, self-contained per-operation micro-checks (each SECTION builds its own fixture); the length is coverage breadth, not branching complexity, and splitting into standalone TEST_CASEs would only multiply the count with no shared setup to consolidate
-TEST_CASE("GContainerT: UniquePtrStorage + unique_ptr deep-copy helpers", "[GContainerT][ptr][unique]") {
+TEST_CASE(
+    "GContainerT: UniquePtrStorage + unique_ptr deep-copy helpers",
+    "[GContainerT][ptr][unique]"
+) {
     using Vec = std::vector<std::unique_ptr<TestBase>>;
 
     SECTION("clone clones the dynamic type into a unique_ptr") {
@@ -1794,7 +1816,7 @@ TEST_CASE("GContainerT: UniquePtrStorage + unique_ptr deep-copy helpers", "[GCon
     SECTION("copyCloneableSmartPointer loads in place on a type match, clones otherwise") {
         std::unique_ptr<TestBase> const from = std::make_unique<TestBase>(5);
         std::unique_ptr<TestBase> to = std::make_unique<TestBase>(0);
-        TestBase  const*to_raw = to.get();
+        TestBase const *to_raw = to.get();
         Gem::Common::copyCloneableSmartPointer(from, to);
         CHECK(to->val == 5);
         CHECK(to.get() == to_raw); // loaded in place, no reallocation
@@ -1816,13 +1838,13 @@ TEST_CASE("GContainerT: UniquePtrStorage + unique_ptr deep-copy helpers", "[GCon
         Vec to;
         to.push_back(std::make_unique<TestBase>(0));
         to.push_back(std::make_unique<TestBase>(0));
-        TestBase  const*slot0 = to[0].get();
+        TestBase const *slot0 = to[0].get();
         Gem::Common::copyCloneableSmartPointerContainer(from, to);
         REQUIRE(to.size() == 2);
         CHECK(to[0]->val == 1);
         CHECK(to[1]->val == 2);
-        CHECK(to[0].get() == slot0);          // reused slot
-        CHECK(to[0].get() != from[0].get());  // but a deep, independent copy
+        CHECK(to[0].get() == slot0);         // reused slot
+        CHECK(to[0].get() != from[0].get()); // but a deep, independent copy
     }
 
     SECTION("copyCloneableSmartPointerContainer: growth clones the extra elements") {
@@ -1878,14 +1900,14 @@ TEST_CASE("GContainerT: GUniquePtrContainerT populated container", "[GContainerT
         ConcreteUniquePtrVec v;
         v.push_back_noclone(std::make_unique<TestBase>(1)); // move-in (sole ownership)
         auto proto = std::make_unique<TestBase>(2);
-        v.push_back_clone(proto);                           // clone-in via clone()
-        v.push_back(std::make_unique<TestBase>(3));         // push_back(StoredType&&)
+        v.push_back_clone(proto);                   // clone-in via clone()
+        v.push_back(std::make_unique<TestBase>(3)); // push_back(StoredType&&)
         REQUIRE(v.size() == 3);
         CHECK(v[0]->val == 1);
         CHECK(v.at(1)->val == 2);
         CHECK(v[2]->val == 3);
-        CHECK(proto->val == 2);            // clone-in did not consume the prototype
-        CHECK(v[1].get() != proto.get());  // it is an independent clone
+        CHECK(proto->val == 2);           // clone-in did not consume the prototype
+        CHECK(v[1].get() != proto.get()); // it is an independent clone
     }
 
     SECTION("clone-in keeps the dynamic type (no slicing)") {
@@ -1926,7 +1948,7 @@ TEST_CASE("GContainerT: GUniquePtrContainerT populated container", "[GContainerT
     SECTION("move construction transfers ownership without cloning") {
         ConcreteUniquePtrVec a;
         a.push_back_noclone(std::make_unique<TestBase>(42));
-        TestBase  const*raw = a[0].get();
+        TestBase const *raw = a[0].get();
         ConcreteUniquePtrVec b = std::move(a);
         REQUIRE(b.size() == 1);
         CHECK(b[0].get() == raw); // the very same object, moved, not cloned

@@ -40,15 +40,15 @@
  */
 
 // Boost headers
-#include <boost/config.hpp>               // BOOST_SYMBOL_EXPORT
+#include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 // Standard headers
 #include <memory>
 
 // Geneva headers
-#include "common/GBuildFingerprint.hpp"      // GENEVA_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp"        // GenevaContribution / GenevaModuleManifest / kinds / version string
-#include "geneva/GMarshallerPlugin.hpp"      // GMarshallerProviderPtr / GGPUMarshallerProviderT
+#include "common/GBuildFingerprint.hpp" // GENEVA_BUILD_FINGERPRINT
+#include "common/GModuleManifest.hpp" // GenevaContribution / GenevaModuleManifest / kinds / version string
+#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr / GGPUMarshallerProviderT
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
 #include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr
 
@@ -70,7 +70,9 @@ namespace {
 void *make_individual() {
     return new Gem::Geneva::GIndividualFactoryPtr(
         std::make_shared<Gem::Geneva::Genome::GIndividualFactory<GGPUParaboloid>>(
-            "./config/GGPUParaboloid.json"));
+            "./config/GGPUParaboloid.json"
+        )
+    );
 }
 
 /** @brief Contribution 2 -- the GPU marshaller, registered under the "cuda" device target, reading its
@@ -78,7 +80,10 @@ void *make_individual() {
 void *make_marshaller() {
     return new Gem::Geneva::GMarshallerProviderPtr(
         std::make_shared<Gem::Geneva::GGPUMarshallerProviderT<GGPUParaboloidMarshaller>>(
-            "cuda", "./config/GGPUConsumer.json"));
+            "cuda",
+            "./config/GGPUConsumer.json"
+        )
+    );
 }
 
 // clang-format off

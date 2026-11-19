@@ -1014,6 +1014,9 @@ TEST_CASE(
     auto items = makeBatch(8);
     auto batch = std::async(std::launch::async, [&] { return world.runBatch(items); });
     const bool limited_done = eventually([&] { return world.clientsDone(); });
+    // The client's close follows its last RESULT on the connection, and the server's end reads in
+    // order: once the client's session has left the shell, every RESULT it sent has been counted.
+    const bool limited_closed = eventually([&] { return world.shell().getNActiveSessions() == 0; });
     const std::size_t n_results = world.counts().nResults.load();
     world.client(
         GPeerClientOptions{.name = "other client", .mode = BIN},
@@ -1024,6 +1027,7 @@ TEST_CASE(
     );
     REQUIRE(batch.get());
     REQUIRE(limited_done);
+    REQUIRE(limited_closed);
     CHECK(limited->total.load() == 3);
     CHECK(n_results == 3);
     for(std::size_t i = 0; i < items.size(); ++i) {
@@ -2486,7 +2490,10 @@ TEST_CASE(
 
 // The HELLO a server sends names the commit of its Geneva sources, and a client of the same build
 // accepts it.
-TEST_CASE("GPeerClientT: the HELLO names the Geneva commit of the server", "[courtier][peer][client]") {
+TEST_CASE(
+    "GPeerClientT: the HELLO names the Geneva commit of the server",
+    "[courtier][peer][client]"
+) {
     const std::string hello = Gem::Courtier::buildHello<GFaultyContainer>(BIN, 0ms);
     GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
     REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));

@@ -50,6 +50,10 @@ leading comma (§5). `.clang-tidy` enables the `bugprone`, `cert`, `clang-analyz
 documented exceptions. Its `HeaderFilterRegex` restricts warnings to Geneva's own headers, so noise from Boost
 and the standard library does not drown out the signal.
 
+The whole tree was formatted once with `.clang-format`; that commit is listed in `.git-blame-ignore-revs`, so
+`git blame` can skip it once git is told to use the file:
+`git config blame.ignoreRevsFile .git-blame-ignore-revs`.
+
 ## 2. File layout
 
 ### 2.1 The license banner

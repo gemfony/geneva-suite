@@ -354,8 +354,7 @@ enum class duplicationScheme : Gem::Common::ENUMBASETYPE {
     DEFAULTDUPLICATIONSCHEME = 0,
     RANDOMDUPLICATIONSCHEME = 1,
     VALUEDUPLICATIONSCHEME = 2,
-    DUPLICATIONSCHEME_LAST =
-        duplicationScheme::VALUEDUPLICATIONSCHEME
+    DUPLICATIONSCHEME_LAST = duplicationScheme::VALUEDUPLICATIONSCHEME
 };
 
 /******************************************************************************/
@@ -413,10 +412,11 @@ enum class adaptionMode : Gem::Common::ENUMBASETYPE {
 
 /******************************************************************************/
 
-constexpr double DEFAULTCPERSONAL = 1.49;     ///< Default multiplier for personal distances (swarm)
-constexpr double DEFAULTCNEIGHBORHOOD = 1.49; ///< Default multiplier for neighborhood distances (swarm)
-constexpr double DEFAULTCGLOBAL = 1.;         ///< Default multiplier for global distances (swarm)
-constexpr double DEFAULTCVELOCITY = 0.72;     ///< Default multiplier for velocities (swarm)
+constexpr double DEFAULTCPERSONAL = 1.49; ///< Default multiplier for personal distances (swarm)
+constexpr double DEFAULTCNEIGHBORHOOD =
+    1.49;                                 ///< Default multiplier for neighborhood distances (swarm)
+constexpr double DEFAULTCGLOBAL = 1.;     ///< Default multiplier for global distances (swarm)
+constexpr double DEFAULTCVELOCITY = 0.72; ///< Default multiplier for velocities (swarm)
 constexpr double DEFAULTVELOCITYRANGEPERCENTAGE =
     0.15; ///< Default percentage of velocity range used for initialization of velocities
 constexpr std::size_t DEFAULTNNEIGHBORHOODS =
@@ -491,4 +491,3 @@ template <>
 inline constexpr auto numeric_enum_values_v<Gem::Geneva::adaptionMode> =
     numeric_enum_range<Gem::Geneva::adaptionMode::ALWAYS, Gem::Geneva::adaptionMode::NEVER>();
 } /* namespace Gem::Common */
-

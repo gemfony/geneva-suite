@@ -28,9 +28,9 @@
  ********************************************************************************/
 
 // Geneva headers
+#include "courtier/gpu/GGPUBackendFactory.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "courtier/gpu/GGPUBackendFactory.hpp"
 #include "courtier/gpu/GGPUDeviceBackendI.hpp"
 
 #ifdef GPUGEN_HAVE_CUDA
@@ -92,7 +92,9 @@ std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind) {
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "Gem::Courtier::GPU::makeBackend(): backend '" << toString(kind)
-        << "' was not compiled into this build (its toolkit was not found at configure time)." << '\n');
+        << "' was not compiled into this build (its toolkit was not found at configure time)."
+        << '\n'
+    );
 }
 
 /******************************************************************************/

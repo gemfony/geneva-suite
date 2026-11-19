@@ -47,12 +47,12 @@
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 class GAdaptionConfigBase;
@@ -148,6 +148,7 @@ protected:
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */
     void specificTestsNoFailureExpected_GUnitTests_() override;
+
 private:
     /** @brief The default constructor -- protected, as it is only needed for (de-)serialization purposes */
     GTestIndividual2();
@@ -156,4 +157,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::Individuals */
-

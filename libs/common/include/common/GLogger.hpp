@@ -270,7 +270,7 @@ public:
 		 *
 		 * @param gblt A shared pointer to the log target to be used as the default (must not be empty)
 		 */
-    void setDefaultLogTarget(const std::shared_ptr<GBaseLogTarget>& gblt) {
+    void setDefaultLogTarget(const std::shared_ptr<GBaseLogTarget> &gblt) {
         // Serialise with concurrent log() / addLogTarget() etc.
         std::scoped_lock const lk(logger_mutex_);
 
@@ -294,7 +294,7 @@ public:
 		 *
 		 * @param gblt A shared pointer to the log target to be added (must not be empty)
 		 */
-    void addLogTarget(const std::shared_ptr<GBaseLogTarget>& gblt) {
+    void addLogTarget(const std::shared_ptr<GBaseLogTarget> &gblt) {
         // Serialise with concurrent log() / log_cnt_ readers.
         std::scoped_lock const lk(logger_mutex_);
 
@@ -304,8 +304,7 @@ public:
         else {
             raiseException(
                 "In GLogger::addLogTarget(): Error!" << '\n'
-                                                     << "Tried to register empty logger"
-                                                     << '\n'
+                                                     << "Tried to register empty logger" << '\n'
             );
         }
     }
@@ -359,10 +358,7 @@ public:
                 default_logger_->log(message);
             }
             else {
-                raiseException(
-                    "In GLogger::log(): Error!" << '\n'
-                                                << "No loggers found" << '\n'
-                );
+                raiseException("In GLogger::log(): Error!" << '\n' << "No loggers found" << '\n');
             }
         }
     }
@@ -678,7 +674,8 @@ private:
 	  */
     static std::string currentTimeAsString() {
         std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
-        std::time_t const now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        std::time_t const now =
+            std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         struct tm time_info{};
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
@@ -778,24 +775,32 @@ namespace Gem::Common {
  * @param loc The source location to describe (defaults to the caller's location)
  * @return A human-readable string naming the file, line and function of the call site
  */
-[[nodiscard]] inline std::string locationString(
-    std::source_location const &loc = std::source_location::current()
-) {
+[[nodiscard]] inline std::string
+locationString(std::source_location const &loc = std::source_location::current()) {
     return std::string("in file ") + loc.file_name() + std::string(" near line ") +
            std::to_string(loc.line()) + " (" + loc.function_name() + ")";
 }
 } // namespace Gem::Common
 
-#define GEXCEPTION   Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::EXCEPTION)
-#define GTERMINATION Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::TERMINATION)
-#define GWARNING     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::WARNING)
-#define GLOGGING     Gem::Common::GManipulator(Gem::Common::logType::LOGGING)
-#define GFILE        Gem::Common::GManipulator(Gem::Common::logType::FILE)
+#define GEXCEPTION                                                                                 \
+    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::EXCEPTION)
+#define GTERMINATION                                                                               \
+    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::TERMINATION)
+#define GWARNING                                                                                   \
+    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::WARNING)
+#define GLOGGING Gem::Common::GManipulator(Gem::Common::logType::LOGGING)
+#define GFILE    Gem::Common::GManipulator(Gem::Common::logType::FILE)
 // Logs the streamed message and then exits the process CLEANLY with the given return code
 // (std::exit, no core dump) -- the graceful counterpart to GTERMINATION, e.g. for command-line
 // errors or other deliberate early exits.
-#define LOGEXIT(returncode) Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::EXIT, (returncode))
-#define GSTDOUT      Gem::Common::GManipulator(Gem::Common::logType::STDOUT)
-#define GSTDERR      Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::STDERR)
+#define LOGEXIT(returncode)                                                                        \
+    Gem::Common::GManipulator(                                                                     \
+        Gem::Common::locationString(),                                                             \
+        Gem::Common::logType::EXIT,                                                                \
+        (returncode)                                                                               \
+    )
+#define GSTDOUT Gem::Common::GManipulator(Gem::Common::logType::STDOUT)
+#define GSTDERR                                                                                    \
+    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::STDERR)
 
 /******************************************************************************/

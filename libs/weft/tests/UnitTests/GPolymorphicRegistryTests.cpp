@@ -38,8 +38,9 @@
 #include "weft/GPolymorphicRegistry.hpp"
 #include "weft/GWeftError.hpp"
 
-using Gem::Weft::weft_exception; // the registry now throws Weft's own dependency-free exception type
 using Gem::Weft::GPolymorphicRegistry;
+using Gem::Weft::
+    weft_exception; // the registry now throws Weft's own dependency-free exception type
 
 // ---------------------------------------------------------------------------
 // Toy hierarchies.
@@ -59,12 +60,16 @@ struct RootT {
 
 template <typename tag_type>
 struct DerA : RootT<tag_type> {
-    [[nodiscard]] int kind() const override { return 1; }
+    [[nodiscard]] int kind() const override {
+        return 1;
+    }
 };
 
 template <typename tag_type>
 struct DerB : RootT<tag_type> {
-    [[nodiscard]] int kind() const override { return 2; }
+    [[nodiscard]] int kind() const override {
+        return 2;
+    }
 };
 
 } // namespace
@@ -103,7 +108,10 @@ TEST_CASE("GPolymorphicRegistry: register / create / tagOf round trip", "[common
 // ---------------------------------------------------------------------------
 // tagOf resolves the DYNAMIC type (this is how a polymorphic pointer is written).
 
-TEST_CASE("GPolymorphicRegistry: tagOf uses the dynamic type through a base reference", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: tagOf uses the dynamic type through a base reference",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -126,12 +134,15 @@ TEST_CASE(
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
 
-    CHECK(GPolymorphicRegistry<Root>::template reg<A>("A"));        // first: true
-    CHECK_FALSE(GPolymorphicRegistry<Root>::template reg<A>("A"));  // repeat: false, no throw
+    CHECK(GPolymorphicRegistry<Root>::template reg<A>("A"));       // first: true
+    CHECK_FALSE(GPolymorphicRegistry<Root>::template reg<A>("A")); // repeat: false, no throw
     CHECK(GPolymorphicRegistry<Root>::size() == 1);
 }
 
-TEST_CASE("GPolymorphicRegistry: a tag bound to a different type throws", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: a tag bound to a different type throws",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -141,7 +152,10 @@ TEST_CASE("GPolymorphicRegistry: a tag bound to a different type throws", "[comm
     CHECK_THROWS_AS(GPolymorphicRegistry<Root>::template reg<B>("shared"), weft_exception);
 }
 
-TEST_CASE("GPolymorphicRegistry: a type re-registered under a different tag throws", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: a type re-registered under a different tag throws",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -159,7 +173,10 @@ TEST_CASE("GPolymorphicRegistry: create() on an unknown tag throws", "[common][p
     CHECK_THROWS_AS(GPolymorphicRegistry<Root>::create("nope"), weft_exception);
 }
 
-TEST_CASE("GPolymorphicRegistry: tagOf() on an unregistered dynamic type throws", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: tagOf() on an unregistered dynamic type throws",
+    "[common][polyregistry]"
+) {
     struct Tag {};
     using Root = RootT<Tag>;
     using A = DerA<Tag>;
@@ -191,7 +208,10 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Distinct Roots have independent registries.
 
-TEST_CASE("GPolymorphicRegistry: registries are isolated per hierarchy root", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: registries are isolated per hierarchy root",
+    "[common][polyregistry]"
+) {
     struct TagX {};
     struct TagY {};
     using RootX = RootT<TagX>;
@@ -220,9 +240,13 @@ struct PrivRoot {
 
 class PrivDer : public PrivRoot {
 public:
-    [[nodiscard]] int kind() const override { return 42; }
+    [[nodiscard]] int kind() const override {
+        return 42;
+    }
     // A public maker that reaches the private ctor from inside the class.
-    static std::unique_ptr<PrivRoot> make() { return std::unique_ptr<PrivRoot>(new PrivDer()); }
+    static std::unique_ptr<PrivRoot> make() {
+        return std::unique_ptr<PrivRoot>(new PrivDer());
+    }
 
 private:
     PrivDer() = default;
@@ -230,13 +254,20 @@ private:
 
 } // namespace
 
-TEST_CASE("GPolymorphicRegistry: explicit-factory overload constructs a private-ctor type", "[common][polyregistry]") {
-    static_assert(not std::is_default_constructible_v<PrivDer>,
-                  "PrivDer's default ctor must be inaccessible for this test to exercise the seam");
+TEST_CASE(
+    "GPolymorphicRegistry: explicit-factory overload constructs a private-ctor type",
+    "[common][polyregistry]"
+) {
+    static_assert(
+        not std::is_default_constructible_v<PrivDer>,
+        "PrivDer's default ctor must be inaccessible for this test to exercise the seam"
+    );
 
     GPolymorphicRegistry<PrivRoot>::reg(
-        "PrivDer", std::type_index(typeid(PrivDer)),
-        +[]() -> std::unique_ptr<PrivRoot> { return PrivDer::make(); });
+        "PrivDer",
+        std::type_index(typeid(PrivDer)),
+        +[]() -> std::unique_ptr<PrivRoot> { return PrivDer::make(); }
+    );
 
     std::unique_ptr<PrivRoot> p = GPolymorphicRegistry<PrivRoot>::create("PrivDer");
     REQUIRE(p);
@@ -258,11 +289,15 @@ struct MacroRoot {
 };
 
 struct MacroA : MacroRoot {
-    [[nodiscard]] int kind() const override { return 1; }
+    [[nodiscard]] int kind() const override {
+        return 1;
+    }
 };
 
 struct MacroB : MacroRoot {
-    [[nodiscard]] int kind() const override { return 2; }
+    [[nodiscard]] int kind() const override {
+        return 2;
+    }
 };
 
 } // namespace
@@ -270,7 +305,10 @@ struct MacroB : MacroRoot {
 GEM_REGISTER_TYPE(MacroA)
 GEM_REGISTER_TYPE(MacroB)
 
-TEST_CASE("GPolymorphicRegistry: GEM_REGISTER_TYPE populated the registry at startup", "[common][polyregistry]") {
+TEST_CASE(
+    "GPolymorphicRegistry: GEM_REGISTER_TYPE populated the registry at startup",
+    "[common][polyregistry]"
+) {
     CHECK(GPolymorphicRegistry<MacroRoot>::contains("MacroA"));
     CHECK(GPolymorphicRegistry<MacroRoot>::contains("MacroB"));
 

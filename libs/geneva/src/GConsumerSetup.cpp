@@ -63,7 +63,7 @@
 #include "hap/GRandomFactory.hpp" // setGpuRandomNumbersAllowed() -- a client draws no GPU numbers
 
 // The concrete courtier consumers -- known ONLY here.
-#include "courtier/consumers/GNetworkedConsumerT.hpp" // apply the config-file time limits
+#include "courtier/consumers/GNetworkedConsumerT.hpp"     // apply the config-file time limits
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -96,9 +96,15 @@ namespace {
  *  local consumer: serial execution is this consumer with one worker thread (nWorkerThreads == 1). */
 class GStdThreadConsumerProvider final : public GConsumerProviderT {
 public:
-    [[nodiscard]] std::string getMnemonic() const override { return "stc"; }
-    [[nodiscard]] std::string getName() const override { return "GStdThreadConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return false; }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "stc";
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "GStdThreadConsumerT";
+    }
+    [[nodiscard]] bool needsClient() const override {
+        return false;
+    }
 
     std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         return std::make_shared<c2::GStdThreadConsumerT<gen::GGenome>>(
@@ -119,7 +125,8 @@ public:
         return nullptr; // local-only
     }
 
-    void addCLOptions(po::options_description & /*visible*/, po::options_description &hidden) override {
+    void
+    addCLOptions(po::options_description & /*visible*/, po::options_description &hidden) override {
         // 0 means "the consumer's own default" (hardware concurrency).
         hidden.add_options()(
             "nWorkerThreads",
@@ -132,10 +139,18 @@ public:
 /** @brief Provider for the Boost.Beast (websocket) networked consumer. */
 class GWebsocketConsumerProvider final : public GConsumerProviderT {
 public:
-    [[nodiscard]] std::string getMnemonic() const override { return "beast"; }
-    [[nodiscard]] std::string getName() const override { return "GWebsocketConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return true; }
-    [[nodiscard]] bool bindsListeningPort() const override { return true; }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "beast";
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "GWebsocketConsumerT";
+    }
+    [[nodiscard]] bool needsClient() const override {
+        return true;
+    }
+    [[nodiscard]] bool bindsListeningPort() const override {
+        return true;
+    }
 
     std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
         auto consumer = std::make_shared<c2::GWebsocketConsumerT<gen::GGenome>>(
@@ -193,11 +208,12 @@ public:
         // The defaults are the configuration's (one place for them), the port excepted: on the
         // command line server and client are two processes, which meet on GCONSUMERDEFAULTPORT.
         const c2::GWebsocketConsumerConfig defaults;
-        visible.add_options()(
-            "beast_ip", po::value<std::string>()->default_value(defaults.ip),
-            "\t[beast] The name or ip of the server")(
-            "beast_port", po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
-            "\t[beast] The port of the server");
+        visible
+            .add_options()("beast_ip", po::value<std::string>()->default_value(defaults.ip), "\t[beast] The name or ip of the server")(
+                "beast_port",
+                po::value<unsigned short>()->default_value(c2::GCONSUMERDEFAULTPORT),
+                "\t[beast] The port of the server"
+            );
         hidden.add_options()(
             "beast_serializationMode",
             po::value<serializationMode>()->default_value(defaults.serializationMode),
@@ -235,7 +251,6 @@ public:
     }
 };
 
-
 #ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
 /**
  * @brief Provider for the (local, device-only) GPU consumer.
@@ -253,9 +268,15 @@ public:
  */
 class GGPUConsumerProvider final : public GConsumerProviderT {
 public:
-    [[nodiscard]] std::string getMnemonic() const override { return "gpu"; }
-    [[nodiscard]] std::string getName() const override { return "GGPUConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return false; }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "gpu";
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "GGPUConsumerT";
+    }
+    [[nodiscard]] bool needsClient() const override {
+        return false;
+    }
 
     /** @brief Builds the GPU consumer around the registered marshaller. A spec's configuration is
      *  not read: the GPU consumer's configuration is the file the marshaller was registered
@@ -270,23 +291,29 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGPUConsumerProvider::setup(): Error!" << '\n'
-                << "\"--consumer gpu\" was selected but no GPU marshaller is registered for device target" << '\n'
-                << "\"cuda\". A GPU problem must register its marshaller before constructing Go2, e.g." << '\n'
-                << "Gem::Geneva::registerGPUMarshaller<YourMarshaller>(\"cuda\", <gpu-config-file>)." << '\n'
+                << "\"--consumer gpu\" was selected but no GPU marshaller is registered for device "
+                   "target"
+                << '\n'
+                << "\"cuda\". A GPU problem must register its marshaller before constructing Go2, "
+                   "e.g."
+                << '\n'
+                << "Gem::Geneva::registerGPUMarshaller<YourMarshaller>(\"cuda\", "
+                   "<gpu-config-file>)."
+                << '\n'
             );
         }
-        auto provider           = std::static_pointer_cast<GGPUMarshallerProviderBase>(base);
-        auto handle             = provider->provide();
-        const std::string &cfg  = provider->gpuConfigFile();
+        auto provider = std::static_pointer_cast<GGPUMarshallerProviderBase>(base);
+        auto handle = provider->provide();
+        const std::string &cfg = provider->gpuConfigFile();
 
         std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> consumer;
         switch(handle->scalarKind()) {
-            case GPUScalarKind::Double:
-                consumer = buildGPUConsumer<double>(handle, cfg);
-                break;
-            case GPUScalarKind::Float:
-                consumer = buildGPUConsumer<float>(handle, cfg);
-                break;
+        case GPUScalarKind::Double:
+            consumer = buildGPUConsumer<double>(handle, cfg);
+            break;
+        case GPUScalarKind::Float:
+            consumer = buildGPUConsumer<float>(handle, cfg);
+            break;
         }
         return consumer;
     }
@@ -301,7 +328,10 @@ public:
         return nullptr;
     }
 
-    void addCLOptions(po::options_description & /*visible*/, po::options_description & /*hidden*/) override {
+    void addCLOptions(
+        po::options_description & /*visible*/,
+        po::options_description & /*hidden*/
+    ) override {
         /* the gpu consumer's config (backend / kernel) lives in its own config file, not on the command line */
     }
 
@@ -314,15 +344,18 @@ private:
      * @return The ready GPU consumer
      */
     template <typename scalar_type>
-    static std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>>
-    buildGPUConsumer(const std::shared_ptr<GGPUMarshallerHandle> &handle, const std::string &configFile) {
+    static std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildGPUConsumer(
+        const std::shared_ptr<GGPUMarshallerHandle> &handle,
+        const std::string &configFile
+    ) {
         auto marshaller = std::dynamic_pointer_cast<
             Gem::Courtier::GPU::GGPUEvaluableI<gen::GGenome, scalar_type>>(handle);
         if(not marshaller) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGPUConsumerProvider::buildGPUConsumer(): Error!" << '\n'
-                << "The registered GPU marshaller does not match its own declared scalar kind." << '\n'
+                << "The registered GPU marshaller does not match its own declared scalar kind."
+                << '\n'
             );
         }
         auto consumer =
@@ -393,7 +426,8 @@ void loadOptionalConsumerModules() {
         std::filesystem::path here;
         try {
             here = boost::dll::this_line_location().parent_path();
-        } catch(const std::exception &) {
+        }
+        catch(const std::exception &) {
             return; // nowhere to look
         }
         for(const char *file_name : OPTIONAL_CONSUMER_MODULES) {
@@ -403,7 +437,8 @@ void loadOptionalConsumerModules() {
             }
             try {
                 (void)loadModuleWithGenevaHandlers(module_path);
-            } catch(const std::exception &e) {
+            }
+            catch(const std::exception &e) {
                 optionalConsumerFailures().push_back(module_path.string() + ": " + e.what());
             }
         }
@@ -440,7 +475,9 @@ std::vector<std::shared_ptr<GConsumerProviderT>> allConsumerProviders() {
     loadOptionalConsumerModules();
     std::vector<std::shared_ptr<GConsumerProviderT>> providers;
     for(const auto &base : consumerProviderStore()->getContentSnapshot()) {
-        if(base) { providers.push_back(std::static_pointer_cast<GConsumerProviderT>(base)); }
+        if(base) {
+            providers.push_back(std::static_pointer_cast<GConsumerProviderT>(base));
+        }
     }
     std::ranges::sort(providers, {}, [](const auto &p) { return p->getMnemonic(); });
     return providers;
@@ -646,7 +683,8 @@ void materializeConsumerConfigFiles() {
  */
 void addConsumerOptions(
     boost::program_options::options_description &visible,
-    boost::program_options::options_description &hidden) {
+    boost::program_options::options_description &hidden
+) {
     for(const auto &provider : allConsumerProviders()) {
         provider->addCLOptions(visible, hidden);
     }

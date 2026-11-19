@@ -47,16 +47,16 @@
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 class GAdaptionConfigBase;
@@ -85,7 +85,7 @@ public:
     using genome_only = void;
     /** @brief The class name, for GReflectiveInterfaceT's name_() and compare token. */
     static constexpr std::string_view class_name = "GTestIndividual1";
-//! [ind-member-list#1]
+    //! [ind-member-list#1]
 
     /** @brief The default constructor */
     GTestIndividual1();
@@ -117,10 +117,8 @@ protected:
     void specificTestsNoFailureExpected_GUnitTests_() override;
     /** @brief Performs self tests that are expected to fail. */
     void specificTestsFailuresExpected_GUnitTests_() override;
-
 };
 
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::Individuals */
-

@@ -934,8 +934,7 @@ void GMPICascade::endJob_(
     std::string text;
     try {
         text = "In GMPICascade (base rank " + std::to_string(base_rank_) + "), " +
-               std::string(where) + ": " + std::string(reason) +
-               "\nThe job is ended (MPI_Abort).";
+               std::string(where) + ": " + std::string(reason) + "\nThe job is ended (MPI_Abort).";
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }

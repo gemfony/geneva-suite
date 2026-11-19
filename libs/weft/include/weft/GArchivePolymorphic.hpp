@@ -46,9 +46,9 @@
 // Geneva headers go here
 #include "weft/GArchive.hpp"
 #include "weft/GBinaryArchive.hpp"
-#include "weft/GWeftError.hpp"
 #include "weft/GJsonArchive.hpp"
 #include "weft/GPolymorphicRegistry.hpp"
+#include "weft/GWeftError.hpp"
 // NOTE: deliberately does NOT include GReflectiveInterfaceT.hpp. The private-ctor construction seam
 // is reached through the forward-declared Weft::gem_registry_construct_reflective (declared in
 // GArchive.hpp, defined in GReflectiveInterfaceT.hpp), so this header stays free of the reflection
@@ -224,11 +224,13 @@ public:
      */
     static void collectGaps(std::vector<std::string> &gaps) {
         for(const auto &tag : GPolymorphicRegistry<root_type>::tags()) {
-            if (!contains(tag)) {
+            if(!contains(tag)) {
                 gaps.push_back(
                     "wire tag \"" + tag +
                     "\" is in the identity registry but has no GArchive dispatch thunk "
-                    "(registered identity-only via GEM_REGISTER_TYPE instead of GEM_REGISTER_ARCHIVABLE)");
+                    "(registered identity-only via GEM_REGISTER_TYPE instead of "
+                    "GEM_REGISTER_ARCHIVABLE)"
+                );
             }
         }
     }
@@ -237,11 +239,14 @@ private:
     static const entry_t &lookup(std::string_view tag) {
         const std::scoped_lock lock{instance().mutex_};
         auto it = instance().map_.find(std::string{tag});
-        if (it == instance().map_.end()) {
+        if(it == instance().map_.end()) {
             throw weft_exception(
                 weft_error_streamer()
-                << "In GArchivePointerDispatch::lookup(): no serialize thunk is registered under tag \"" << tag
-                << "\" (its type is in the identity registry but was not registered for archive dispatch -- "
+                << "In GArchivePointerDispatch::lookup(): no serialize thunk is registered under "
+                   "tag \""
+                << tag
+                << "\" (its type is in the identity registry but was not registered for archive "
+                   "dispatch -- "
                 << "use GEM_REGISTER_ARCHIVABLE, not the identity-only GEM_REGISTER_TYPE)." << '\n'
             );
         }
@@ -286,9 +291,12 @@ private:
 template <typename archive_type, typename smart_ptr_type>
 void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
     using T = typename smart_ptr_type::element_type;
-    static_assert(requires { typename T::gemfony_common_root_t; },
-                  "gem_serialize_pointer: the pointer's element type must be a GCommonInterfaceT hierarchy type "
-                  "(exposing gemfony_common_root_t) to be dispatched polymorphically");
+    static_assert(
+        requires { typename T::gemfony_common_root_t; },
+        "gem_serialize_pointer: the pointer's element type must be a GCommonInterfaceT hierarchy "
+        "type "
+        "(exposing gemfony_common_root_t) to be dispatched polymorphically"
+    );
     using Root = typename T::gemfony_common_root_t;
 
     // The pointer serializes as ONE nested object {present[, tag, data]} so that,
@@ -299,11 +307,11 @@ void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
         ar.begin_object();
         bool present = static_cast<bool>(p);
         ar.member("present");
-        ar &present;
-        if (present) {
+        ar & present;
+        if(present) {
             std::string tag = GPolymorphicRegistry<Root>::tagOf(static_cast<const Root &>(*p));
             ar.member("tag");
-            ar &tag;
+            ar & tag;
             ar.member("data");
             ar.begin_object();
             GArchivePointerDispatch<Root>::invoke(tag, static_cast<Root &>(*p), ar);
@@ -315,15 +323,15 @@ void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
         ar.enter_object();
         bool present = false;
         ar.member("present");
-        ar &present;
-        if (!present) {
+        ar & present;
+        if(!present) {
             p.reset();
             ar.leave_object();
             return;
         }
         std::string tag;
         ar.member("tag");
-        ar &tag;
+        ar & tag;
         std::unique_ptr<Root> obj = GPolymorphicRegistry<Root>::create(tag);
         ar.member("data");
         ar.enter_object();
@@ -351,17 +359,20 @@ void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
 template <typename T>
 inline bool register_archivable(std::string_view tag) {
     using Root = typename T::gemfony_common_root_t;
-    if constexpr (std::is_default_constructible_v<T>) {
+    if constexpr(std::is_default_constructible_v<T>) {
         // Public default constructor: the registry's own std::make_unique factory reaches it.
         GPolymorphicRegistry<Root>::template reg<T>(tag);
-    } else {
+    }
+    else {
         // Private default constructor (constructed only on load, through a friend, exactly as
         // Boost does): route the factory through GReflectiveInterfaceAccess -- the shim every
         // mixin-managed class befriends -- so the reconstruction has ctor access the (non-friend)
         // registration site lacks.
         GPolymorphicRegistry<Root>::reg(
-            tag, std::type_index(typeid(T)),
-            +[]() -> std::unique_ptr<Root> { return gem_registry_construct_reflective<T>(); });
+            tag,
+            std::type_index(typeid(T)),
+            +[]() -> std::unique_ptr<Root> { return gem_registry_construct_reflective<T>(); }
+        );
     }
     GArchivePointerDispatch<Root>::template add<T>(tag);
     return true;
@@ -388,7 +399,7 @@ inline bool register_archivable(std::string_view tag) {
 inline std::vector<std::string> archiveRegistrationGaps() {
     std::vector<std::string> gaps;
     const std::scoped_lock lock{detail::root_check_mutex()};
-    for (const auto fn : detail::root_checks()) {
+    for(const auto fn : detail::root_checks()) {
         fn(gaps);
     }
     return gaps;
@@ -414,18 +425,20 @@ inline std::size_t archiveRegisteredHierarchyCount() {
  */
 inline void verifyArchiveRegistrations() {
     const auto gaps = archiveRegistrationGaps();
-    if (gaps.empty()) {
+    if(gaps.empty()) {
         return;
     }
     std::string detail_msg;
-    for (const auto &g : gaps) {
+    for(const auto &g : gaps) {
         detail_msg += "  - " + g + "\n";
     }
     throw weft_exception(
-        weft_error_streamer()
-        << "In verifyArchiveRegistrations(): the GArchive polymorphic registration is incomplete -- "
-        << gaps.size() << " type(s) are identity-registered but not archive-dispatchable:\n"
-        << detail_msg);
+        weft_error_streamer() << "In verifyArchiveRegistrations(): the GArchive polymorphic "
+                                 "registration is incomplete -- "
+                              << gaps.size()
+                              << " type(s) are identity-registered but not archive-dispatchable:\n"
+                              << detail_msg
+    );
 }
 
 } // namespace Gem::Weft
@@ -437,8 +450,8 @@ inline void verifyArchiveRegistrations() {
  * template instantiation with comma-separated arguments passes through intact.
  * @param ... The fully-qualified concrete type.
  */
-#define GEM_REGISTER_ARCHIVABLE(...)                                                       \
-    namespace {                                                                            \
-    const bool GEM_REGISTRY_CAT(gem_archivable_tag_, __COUNTER__) =                        \
-        ::Gem::Weft::register_archivable<__VA_ARGS__>(#__VA_ARGS__);            \
+#define GEM_REGISTER_ARCHIVABLE(...)                                                               \
+    namespace {                                                                                    \
+    const bool GEM_REGISTRY_CAT(gem_archivable_tag_, __COUNTER__) =                                \
+        ::Gem::Weft::register_archivable<__VA_ARGS__>(#__VA_ARGS__);                               \
     }

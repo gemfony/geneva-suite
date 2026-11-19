@@ -189,17 +189,19 @@ public:
         auto &tag_to_entry = instance().tag_to_entry_;
         auto &type_to_tag = instance().type_to_tag_;
 
-        if (auto it = tag_to_entry.find(key); it != tag_to_entry.end()) {
-            if (it->second.type == ti) {
+        if(auto it = tag_to_entry.find(key); it != tag_to_entry.end()) {
+            if(it->second.type == ti) {
                 return false; // identical (type, tag) -- idempotent
             }
             throw weft_exception(
-                weft_error_streamer()
-                << "In GPolymorphicRegistry::reg(): tag \"" << key << "\" is already bound to a different type "
-                << "(existing type_index differs from the one being registered). Two types must not share a wire tag." << '\n'
+                weft_error_streamer() << "In GPolymorphicRegistry::reg(): tag \"" << key
+                                      << "\" is already bound to a different type "
+                                      << "(existing type_index differs from the one being "
+                                         "registered). Two types must not share a wire tag."
+                                      << '\n'
             );
         }
-        if (auto rit = type_to_tag.find(ti); rit != type_to_tag.end()) {
+        if(auto rit = type_to_tag.find(ti); rit != type_to_tag.end()) {
             throw weft_exception(
                 weft_error_streamer()
                 << "In GPolymorphicRegistry::reg(): the type being registered under tag \"" << key
@@ -224,11 +226,14 @@ public:
         const std::scoped_lock lock{instance().mutex_};
         auto &tag_to_entry = instance().tag_to_entry_;
         auto it = tag_to_entry.find(key);
-        if (it == tag_to_entry.end()) {
+        if(it == tag_to_entry.end()) {
             throw weft_exception(
                 weft_error_streamer()
-                << "In GPolymorphicRegistry::create(): no type is registered under tag \"" << key << "\". "
-                << "The archive references a type that was never registered (missing GEM_REGISTER_TYPE?)." << '\n'
+                << "In GPolymorphicRegistry::create(): no type is registered under tag \"" << key
+                << "\". "
+                << "The archive references a type that was never registered (missing "
+                   "GEM_REGISTER_TYPE?)."
+                << '\n'
             );
         }
         return it->second.factory();
@@ -246,10 +251,11 @@ public:
         const std::scoped_lock lock{instance().mutex_};
         auto &type_to_tag = instance().type_to_tag_;
         auto it = type_to_tag.find(ti);
-        if (it == type_to_tag.end()) {
+        if(it == type_to_tag.end()) {
             throw weft_exception(
                 weft_error_streamer()
-                << "In GPolymorphicRegistry::tagOf(): the dynamic type \"" << ti.name() << "\" was never registered "
+                << "In GPolymorphicRegistry::tagOf(): the dynamic type \"" << ti.name()
+                << "\" was never registered "
                 << "(missing GEM_REGISTER_TYPE for this concrete type?)." << '\n'
             );
         }
@@ -283,7 +289,7 @@ public:
         const std::scoped_lock lock{instance().mutex_};
         std::vector<std::string> out;
         out.reserve(instance().tag_to_entry_.size());
-        for (const auto &kv : instance().tag_to_entry_) {
+        for(const auto &kv : instance().tag_to_entry_) {
             out.push_back(kv.first);
         }
         std::sort(out.begin(), out.end());
@@ -324,7 +330,7 @@ private:
 /******************************************************************************/
 // Internal token-pasting helpers for GEM_REGISTER_TYPE's unique variable name.
 #define GEM_REGISTRY_CAT_INNER(a, b) a##b
-#define GEM_REGISTRY_CAT(a, b) GEM_REGISTRY_CAT_INNER(a, b)
+#define GEM_REGISTRY_CAT(a, b)       GEM_REGISTRY_CAT_INNER(a, b)
 
 /**
  * @brief Registers a concrete polymorphic type with its hierarchy's
@@ -347,11 +353,11 @@ private:
  *
  * @param ... The fully-qualified concrete type to register.
  */
-#define GEM_REGISTER_TYPE(...)                                                                              \
-    namespace {                                                                                             \
-    const bool GEM_REGISTRY_CAT(gem_registry_tag_, __COUNTER__) =                                           \
-        ::Gem::Weft::GPolymorphicRegistry<__VA_ARGS__::gemfony_common_root_t>::template reg<__VA_ARGS__>( \
-            #__VA_ARGS__);                                                                                  \
+#define GEM_REGISTER_TYPE(...)                                                                     \
+    namespace {                                                                                    \
+    const bool                                                                                     \
+        GEM_REGISTRY_CAT(gem_registry_tag_, __COUNTER__) = ::Gem::Weft::GPolymorphicRegistry<      \
+            __VA_ARGS__::gemfony_common_root_t>::template reg<__VA_ARGS__>(#__VA_ARGS__);          \
     }
 
 /******************************************************************************/

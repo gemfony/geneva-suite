@@ -58,7 +58,7 @@ public:
     /** @brief Destroys the generator, device buffer and CUDA stream. */
     ~GCudaRNG();
 
-    GCudaRNG(GCudaRNG const &)            = delete;
+    GCudaRNG(GCudaRNG const &) = delete;
     GCudaRNG &operator=(GCudaRNG const &) = delete;
 
     /** @brief Fills dst[0..n) with n 64-bit values (one device generate + copy).
@@ -68,7 +68,9 @@ public:
     /** @brief True once a CUDA or cuRAND call of this backend has failed (outside process shutdown).
      *  generate() still fills dst after a failure, from a CPU generator.
      *  @return true if any CUDA or cuRAND call has failed, false otherwise. */
-    [[nodiscard]] bool failed() const noexcept { return failed_; }
+    [[nodiscard]] bool failed() const noexcept {
+        return failed_;
+    }
 
     /** @brief True iff at least one usable CUDA device is present at runtime.
      *  @return true if a CUDA device is available, false otherwise. */
@@ -79,11 +81,11 @@ private:
     // courtier's CUDA backend also spells out (GCUDABackend's d_* / cap_* members). Kept separate
     // on purpose: the two libraries share no CUDA layer, and a common facility would drag the
     // driver API across a library boundary for six lines of bookkeeping. See the note there.
-    void       *gen_{nullptr};    ///< curandGenerator_t
-    void       *stream_{nullptr}; ///< cudaStream_t
-    void       *d_buf_{nullptr};  ///< device buffer (32-bit words)
-    std::size_t d_words_{0};      ///< current capacity of d_buf_ in 32-bit words
-    bool        failed_{false};   ///< set when a CUDA or cuRAND call has failed
+    void *gen_{nullptr};     ///< curandGenerator_t
+    void *stream_{nullptr};  ///< cudaStream_t
+    void *d_buf_{nullptr};   ///< device buffer (32-bit words)
+    std::size_t d_words_{0}; ///< current capacity of d_buf_ in 32-bit words
+    bool failed_{false};     ///< set when a CUDA or cuRAND call has failed
 };
 
 } /* namespace Gem::Hap */

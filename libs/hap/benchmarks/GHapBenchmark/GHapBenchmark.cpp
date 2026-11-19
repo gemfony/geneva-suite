@@ -56,23 +56,32 @@
 #include <utility>
 #include <vector>
 
-#include "hap/GRandomT.hpp"
 #include "hap/GRandomDistributionsT.hpp"
 #include "hap/GRandomFactory.hpp"
+#include "hap/GRandomT.hpp"
 
 using clk = std::chrono::steady_clock;
 using Gem::Hap::GRandom;
 
 namespace {
 
-enum class Mode { Raw, Uniform, Normal, BiNormal };
+enum class Mode {
+    Raw,
+    Uniform,
+    Normal,
+    BiNormal
+};
 
 const char *mode_name(Mode m) {
     switch(m) {
-        case Mode::Raw: return "raw";
-        case Mode::Uniform: return "uniform_real";
-        case Mode::Normal: return "normal";
-        case Mode::BiNormal: return "bi_normal";
+    case Mode::Raw:
+        return "raw";
+    case Mode::Uniform:
+        return "uniform_real";
+    case Mode::Normal:
+        return "normal";
+    case Mode::BiNormal:
+        return "bi_normal";
     }
     std::unreachable();
 }
@@ -95,17 +104,26 @@ double sustained(unsigned nProxies, std::uint64_t total, Mode mode, double &wall
             volatile double dsink = 0.;
             for(std::uint64_t k = 0; k < per; ++k) {
                 switch(mode) {
-                    case Mode::Raw: isink ^= gr(); break;
-                    case Mode::Uniform: dsink += ud(gr); break;
-                    case Mode::Normal: dsink += nd(gr); break;
-                    case Mode::BiNormal: dsink += bd(gr); break;
+                case Mode::Raw:
+                    isink ^= gr();
+                    break;
+                case Mode::Uniform:
+                    dsink += ud(gr);
+                    break;
+                case Mode::Normal:
+                    dsink += nd(gr);
+                    break;
+                case Mode::BiNormal:
+                    dsink += bd(gr);
+                    break;
                 }
             }
             (void)isink;
             (void)dsink;
         });
     }
-    for(auto &t : ts) t.join();
+    for(auto &t : ts)
+        t.join();
     double const secs = std::chrono::duration<double>(clk::now() - t0).count();
     wall_ms = secs * 1000.0;
     return static_cast<double>(per * nProxies) / secs;
@@ -141,15 +159,18 @@ LatResult burst_latency(unsigned nProxies, std::uint64_t perProxy) {
     }
     gate.arrive_and_wait();
     auto t0 = clk::now();
-    for(auto &t : ts) t.join();
+    for(auto &t : ts)
+        t.join();
     double const secs = std::chrono::duration<double>(clk::now() - t0).count();
 
     std::vector<long long> all;
     all.reserve(static_cast<std::size_t>(nProxies) * perProxy);
-    for(auto &v : lat) all.insert(all.end(), v.begin(), v.end());
+    for(auto &v : lat)
+        all.insert(all.end(), v.begin(), v.end());
     std::sort(all.begin(), all.end());
     auto pct = [&](double q) -> long long {
-        if(all.empty()) return 0;
+        if(all.empty())
+            return 0;
         return all[static_cast<std::size_t>(q * static_cast<double>(all.size() - 1))];
     };
     LatResult r;
@@ -171,19 +192,27 @@ int main(int argc, char **argv) {
     std::uint64_t total_override = 0;
     for(int i = 1; i < argc; ++i) {
         std::string const a = argv[i];
-        if(a == "--quick") quick = true;
-        else if(a == "--proxies" && i + 1 < argc) proxies_override = static_cast<unsigned>(std::stoul(argv[++i]));
-        else if(a == "--producers" && i + 1 < argc) producers = static_cast<unsigned>(std::stoul(argv[++i]));
-        else if(a == "--total" && i + 1 < argc) total_override = std::stoull(argv[++i]);
+        if(a == "--quick")
+            quick = true;
+        else if(a == "--proxies" && i + 1 < argc)
+            proxies_override = static_cast<unsigned>(std::stoul(argv[++i]));
+        else if(a == "--producers" && i + 1 < argc)
+            producers = static_cast<unsigned>(std::stoul(argv[++i]));
+        else if(a == "--total" && i + 1 < argc)
+            total_override = std::stoull(argv[++i]);
     }
 
     if(producers > 0) {
         Gem::Hap::randomFactory()->setNProducerThreads(static_cast<std::uint16_t>(producers));
     }
 
-    const std::uint64_t total = total_override ? total_override : (quick ? 50'000'000ULL : 500'000'000ULL);
+    const std::uint64_t total =
+        total_override ? total_override : (quick ? 50'000'000ULL : 500'000'000ULL);
 
-    std::printf("Hap benchmark -- xoshiro256++ engine (factory + proxy)%s\n", quick ? "  [quick]" : "");
+    std::printf(
+        "Hap benchmark -- xoshiro256++ engine (factory + proxy)%s\n",
+        quick ? "  [quick]" : ""
+    );
     std::printf("total draws per scenario = %llu\n\n", static_cast<unsigned long long>(total));
 
     // ---- sustained throughput ----
@@ -198,16 +227,17 @@ int main(int argc, char **argv) {
         // Distributions cost several raw draws each; scale the work down so every
         // scenario takes a comparable wall time.
         std::uint64_t mode_total = total;
-        if(m == Mode::Uniform) mode_total = total / 4;
-        else if(m == Mode::Normal || m == Mode::BiNormal) mode_total = total / 8;
+        if(m == Mode::Uniform)
+            mode_total = total / 4;
+        else if(m == Mode::Normal || m == Mode::BiNormal)
+            mode_total = total / 8;
         for(int c = 0; c < n_counts; ++c) {
             unsigned const np = proxies_override ? proxies_override : counts[c];
             double wall = 0.;
             double const tput = sustained(np, mode_total, m, wall);
-            std::printf(
-                "S\t%-12s\t%u\t%16.2f\t%8.1f\n", mode_name(m), np, tput / 1e6, wall
-            );
-            if(proxies_override) break; // honour the explicit proxy count once
+            std::printf("S\t%-12s\t%u\t%16.2f\t%8.1f\n", mode_name(m), np, tput / 1e6, wall);
+            if(proxies_override)
+                break; // honour the explicit proxy count once
         }
     }
 
@@ -217,8 +247,14 @@ int main(int argc, char **argv) {
     const std::uint64_t per = quick ? 50'000ULL : 200'000ULL;
     LatResult const lr = burst_latency(burst_proxies, per);
     std::printf(
-        "burst: %u proxies x %llu raw draws | %.2f Mnum/s | p50=%lld ns  p99=%lld ns  p999=%lld ns\n",
-        burst_proxies, static_cast<unsigned long long>(per), lr.throughput / 1e6, lr.p50, lr.p99, lr.p999
+        "burst: %u proxies x %llu raw draws | %.2f Mnum/s | p50=%lld ns  p99=%lld ns  p999=%lld "
+        "ns\n",
+        burst_proxies,
+        static_cast<unsigned long long>(per),
+        lr.throughput / 1e6,
+        lr.p50,
+        lr.p99,
+        lr.p999
     );
 
     return 0;

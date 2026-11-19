@@ -195,7 +195,9 @@ gen::GenomeData GImageIndividual::buildGenome(const Config &c) {
         const gimage_fp_t radius_init =
             static_cast<gimage_fp_t>(c.start_size >= 0. ? c.start_size : c.min_size);
         auto rad = addParam(
-            radius_init, static_cast<gimage_fp_t>(c.min_size), static_cast<gimage_fp_t>(c.max_size)
+            radius_init,
+            static_cast<gimage_fp_t>(c.min_size),
+            static_cast<gimage_fp_t>(c.max_size)
         );
         mainGauss(rad);
 
@@ -406,7 +408,9 @@ std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
 std::vector<double> GImageIndividual::evaluate() {
     std::vector<gimage_fp_t> parVec;
     this->streamline(parVec);
-    return {Gem::Geneva::MonaLisa::scoreAgainstTarget(parVec.data(), static_cast<int>(parVec.size()))};
+    return {
+        Gem::Geneva::MonaLisa::scoreAgainstTarget(parVec.data(), static_cast<int>(parVec.size()))
+    };
 }
 
 /******************************************************************************/
@@ -739,15 +743,7 @@ void GImageIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
         Gem::Common::VAR_IS_ESSENTIAL,
         comment
     );
-    checkValueRange(
-        c.min_sigma,
-        0.,
-        1.,
-        GFPLOWERCLOSED,
-        GFPUPPEROPEN,
-        GFNOWARNING,
-        "min_sigma"
-    );
+    checkValueRange(c.min_sigma, 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "min_sigma");
 
     comment = "";
     comment += "The maximum value of sigma;";
@@ -801,15 +797,7 @@ void GImageIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
         Gem::Common::VAR_IS_ESSENTIAL,
         comment
     );
-    checkValueRange(
-        c.loc_sigma,
-        0.,
-        1.,
-        GFPLOWERCLOSED,
-        GFPUPPEROPEN,
-        GFNOWARNING,
-        "loc_sigma"
-    );
+    checkValueRange(c.loc_sigma, 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "loc_sigma");
 
     comment = "";
     comment += "The minimum value of sigma for location parameters;";

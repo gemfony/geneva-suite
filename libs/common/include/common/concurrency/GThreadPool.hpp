@@ -41,21 +41,21 @@
 #include <future>
 #include <mutex>
 #include <optional>
-#include <string>
 #include <shared_mutex>
 #include <span>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 
 // Geneva header files go here
-#include "common/concurrency/GBlockingMPMCQueueT.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/concurrency/GBlockingMPMCQueueT.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
@@ -192,10 +192,13 @@ public:
         if(not enqueue(std::move_only_function<void()>(std::move(task)))) {
             // The queue is closed (pool shutting down): surface the failure through
             // the future rather than losing it silently.
-            promise_ptr->set_exception(std::make_exception_ptr(geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GThreadPool::async_schedule(): submission after the pool was closed" << '\n'
-            )));
+            promise_ptr->set_exception(
+                std::make_exception_ptr(geneva_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In GThreadPool::async_schedule(): submission after the pool was closed"
+                    << '\n'
+                ))
+            );
         }
         return result;
     }
@@ -218,7 +221,7 @@ public:
     void post(F &&f, args_type &&...args) {
         auto task = [f = std::forward<F>(f), ... args = std::forward<args_type>(args)]() mutable {
             try {
-                (void) f(std::move(args)...); // any return value is discarded
+                (void)f(std::move(args)...); // any return value is discarded
             }
             catch(std::exception const &e) {
                 glogger << "In GThreadPool::post(): a fire-and-forget task threw:" << '\n'
@@ -266,7 +269,9 @@ public:
         }
         auto latch = std::make_shared<GCompletionLatchT>(items.size());
         for(std::size_t i = 0; i < items.size(); ++i) {
-            T *elem = &items[i]; // stable pointer into the caller's span (which outlives this blocking call)
+            T *elem =
+                &items
+                    [i]; // stable pointer into the caller's span (which outlives this blocking call)
             this->post([elem, &per_item, latch]() {
                 try {
                     per_item(*elem);
@@ -295,7 +300,7 @@ private:
      *  jthread's stop_token: a stop request closes the task queue, so the worker still drains
      *  the remaining tasks (their futures complete) and then exits -- request_stop() is thus a
      *  graceful "drain and stop", never an abrupt abandon. */
-    void worker_loop(const std::stop_token& st);
+    void worker_loop(const std::stop_token &st);
     /**
      * @brief Starts n worker threads draining the (current) queue
      */
@@ -323,9 +328,9 @@ private:
 
     GThreadGroup worker_group_; ///< Holds the worker threads (std::jthread)
 
-    mutable std::mutex counter_mutex_;       ///< Guards tasks_in_flight_
-    std::condition_variable all_done_;       ///< Signalled when tasks_in_flight_ hits 0
-    std::size_t tasks_in_flight_ = 0;        ///< Submitted-but-not-yet-completed tasks
+    mutable std::mutex counter_mutex_; ///< Guards tasks_in_flight_
+    std::condition_variable all_done_; ///< Signalled when tasks_in_flight_ hits 0
+    std::size_t tasks_in_flight_ = 0;  ///< Submitted-but-not-yet-completed tasks
 
     /// Submitters hold this shared; wait()/setNThreads() hold it exclusively, so
     /// the pool can be quiesced (no new submissions) while it drains.

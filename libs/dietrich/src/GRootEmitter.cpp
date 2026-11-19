@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 
-#include "dietrich/GPlotDesigner.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -37,6 +36,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/GPlotDesigner.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -58,8 +59,6 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
-
 
 namespace Gem::Dietrich {
 
@@ -96,7 +95,10 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
     std::size_t const max_plots = gpd.c_x_div_ * gpd.c_y_div_;
 
     warnPadOverflow(
-        "GRootEmitter::emitDocument()", gpd.getCanvasLabel(), gpd.plotters_cnt_.size(), max_plots
+        "GRootEmitter::emitDocument()",
+        gpd.getCanvasLabel(),
+        gpd.plotters_cnt_.size(),
+        max_plots
     );
 
     result << "{" << '\n' << gpd.staticHeader(gpd.indent()) << '\n';
@@ -163,7 +165,6 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
 
     return result.str();
 }
-
 
 /******************************************************************************/
 } /* namespace Gem::Dietrich */

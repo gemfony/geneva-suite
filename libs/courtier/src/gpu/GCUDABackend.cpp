@@ -41,10 +41,10 @@
 #include <nvrtc.h>
 
 // Geneva headers
+#include "GCUDADriver.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "courtier/gpu/GCUDABackend.hpp"
-#include "GCUDADriver.hpp"
 
 namespace Gem::Courtier::GPU {
 
@@ -63,8 +63,9 @@ void cuCheck(CUresult r, const char *what) {
         cudaDriver().getErrorString(r, &desc);
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "GCUDABackend: CUDA driver error in " << what << ": "
-            << (name ? name : "?") << " -- " << (desc ? desc : "?") << '\n');
+            << "GCUDABackend: CUDA driver error in " << what << ": " << (name ? name : "?")
+            << " -- " << (desc ? desc : "?") << '\n'
+        );
     }
 }
 
@@ -79,7 +80,8 @@ void nvrtcCheck(nvrtcResult r, const char *what, const std::string &log = {}) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: NVRTC error in " << what << ": " << nvrtcGetErrorString(r) << '\n'
-            << (log.empty() ? std::string{} : ("NVRTC build log:\n" + log + "\n")));
+            << (log.empty() ? std::string{} : ("NVRTC build log:\n" + log + "\n"))
+        );
     }
 }
 
@@ -93,7 +95,8 @@ std::string readFile(const std::string &path) {
     if(not in) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "GCUDABackend: could not open kernel file '" << path << "'" << '\n');
+            << "GCUDABackend: could not open kernel file '" << path << "'" << '\n'
+        );
     }
     std::ostringstream ss;
     ss << in.rdbuf();
@@ -145,10 +148,14 @@ struct GCUDABackend<scalar_type>::Impl {
         if(context) {
             const GCUDADriver &drv = cudaDriver(); // loaded already, or there would be no context
             drv.ctxPushCurrent(context);
-            if(d_params) drv.memFree(d_params);
-            if(d_pconst) drv.memFree(d_pconst);
-            if(d_results) drv.memFree(d_results);
-            if(module) drv.moduleUnload(module);
+            if(d_params)
+                drv.memFree(d_params);
+            if(d_pconst)
+                drv.memFree(d_pconst);
+            if(d_results)
+                drv.memFree(d_results);
+            if(module)
+                drv.moduleUnload(module);
             CUcontext popped = nullptr;
             drv.ctxPopCurrent(&popped);
             drv.devicePrimaryCtxRelease(device);
@@ -184,8 +191,8 @@ struct GCUDABackend<scalar_type>::Impl {
  */
 template <typename scalar_type>
 GCUDABackend<scalar_type>::GCUDABackend()
-    : p_(std::make_unique<Impl>())
-{ /* nothing */ }
+  : p_(std::make_unique<Impl>()) { /* nothing */
+}
 
 /**
  * @brief Destructor. Releases the pimpl, which frees device buffers, the module and the CUDA context.
@@ -200,7 +207,9 @@ GCUDABackend<scalar_type>::~GCUDABackend() = default;
  * @return The string "cuda"
  */
 template <typename scalar_type>
-std::string GCUDABackend<scalar_type>::name() const { return "cuda"; }
+std::string GCUDABackend<scalar_type>::name() const {
+    return "cuda";
+}
 
 /**
  * @brief Initializes the CUDA context and acquires the kernel for the given spec.
@@ -224,13 +233,15 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
     if(n_devices <= 0) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "GCUDABackend: no CUDA devices found" << '\n');
+            << "GCUDABackend: no CUDA devices found" << '\n'
+        );
     }
     if(spec.device_id < 0 || spec.device_id >= n_devices) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "GCUDABackend: device_id " << spec.device_id << " out of range [0," << n_devices << ")"
-            << '\n');
+            << "GCUDABackend: device_id " << spec.device_id << " out of range [0," << n_devices
+            << ")" << '\n'
+        );
     }
     cuCheck(drv.deviceGet(&p_->device, spec.device_id), "cuDeviceGet");
     // Use the primary context so behaviour matches the usual CUDA runtime model.
@@ -243,20 +254,36 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
     if(endsWith(path, ".ptx") || endsWith(path, ".cubin")) {
         ptx = readFile(path);
         cuCheck(drv.moduleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(prebuilt)");
-    } else {
+    }
+    else {
         const std::string src = readFile(path);
 
         int major = 0;
         int minor = 0;
-        cuCheck(drv.deviceGetAttribute(&major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, p_->device),
-                "cuDeviceGetAttribute(major)");
-        cuCheck(drv.deviceGetAttribute(&minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, p_->device),
-                "cuDeviceGetAttribute(minor)");
-        const std::string arch = "--gpu-architecture=compute_" + std::to_string(major) + std::to_string(minor);
+        cuCheck(
+            drv.deviceGetAttribute(
+                &major,
+                CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
+                p_->device
+            ),
+            "cuDeviceGetAttribute(major)"
+        );
+        cuCheck(
+            drv.deviceGetAttribute(
+                &minor,
+                CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
+                p_->device
+            ),
+            "cuDeviceGetAttribute(minor)"
+        );
+        const std::string arch =
+            "--gpu-architecture=compute_" + std::to_string(major) + std::to_string(minor);
 
         nvrtcProgram prog = nullptr;
-        nvrtcCheck(nvrtcCreateProgram(&prog, src.c_str(), path.c_str(), 0, nullptr, nullptr),
-                   "nvrtcCreateProgram");
+        nvrtcCheck(
+            nvrtcCreateProgram(&prog, src.c_str(), path.c_str(), 0, nullptr, nullptr),
+            "nvrtcCreateProgram"
+        );
         const char *const opts[] = {arch.c_str(), "--std=c++17"};
         const nvrtcResult cr = nvrtcCompileProgram(prog, 2, opts);
         std::size_t logSize = 0;
@@ -277,8 +304,10 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
         cuCheck(drv.moduleLoadData(&p_->module, ptx.c_str()), "cuModuleLoadData(nvrtc)");
     }
 
-    cuCheck(drv.moduleGetFunction(&p_->kernel, p_->module, spec.entry.c_str()),
-            "cuModuleGetFunction (is the entry 'extern \"C\"' and named correctly?)");
+    cuCheck(
+        drv.moduleGetFunction(&p_->kernel, p_->module, spec.entry.c_str()),
+        "cuModuleGetFunction (is the entry 'extern \"C\"' and named correctly?)"
+    );
 
     CUcontext popped = nullptr;
     cuCheck(drv.ctxPopCurrent(&popped), "cuCtxPopCurrent");
@@ -305,9 +334,14 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
  */
 template <typename scalar_type>
 void GCUDABackend<scalar_type>::evaluate(
-    const scalar_type *params, int n_items, int dim,
-    const std::byte *pconst, std::size_t pconst_size,
-    scalar_type *results_out, int threads_per_item) {
+    const scalar_type *params,
+    int n_items,
+    int dim,
+    const std::byte *pconst,
+    std::size_t pconst_size,
+    scalar_type *results_out,
+    int threads_per_item
+) {
     if(n_items <= 0) {
         return;
     }
@@ -343,18 +377,25 @@ void GCUDABackend<scalar_type>::evaluate(
     //                      int threads_per_item)
     int pconstSizeArg = static_cast<int>(pconst_size);
     void *args[] = {
-        &p_->d_params, &n_items, &dim, &p_->d_pconst, &pconstSizeArg, &p_->d_results,
-        &threads_per_item};
+        &p_->d_params,
+        &n_items,
+        &dim,
+        &p_->d_pconst,
+        &pconstSizeArg,
+        &p_->d_results,
+        &threads_per_item
+    };
 
     // Total threads = n_items * threads_per_item (one per (item, work-unit)).
     const unsigned int bx = p_->spec.launch.block_x > 0 ? p_->spec.launch.block_x : 256;
-    const unsigned long long totalThreads =
-        static_cast<unsigned long long>(n_items) * static_cast<unsigned long long>(threads_per_item);
+    const unsigned long long totalThreads = static_cast<unsigned long long>(n_items) *
+                                            static_cast<unsigned long long>(threads_per_item);
     const auto gx = static_cast<unsigned int>((totalThreads + bx - 1) / bx);
 
     cuCheck(
         drv.launchKernel(p_->kernel, gx, 1, 1, bx, 1, 1, 0, nullptr, args, nullptr),
-        "cuLaunchKernel");
+        "cuLaunchKernel"
+    );
     cuCheck(drv.ctxSynchronize(), "cuCtxSynchronize");
 
     cuCheck(drv.memcpyDtoH(results_out, p_->d_results, result_bytes), "cuMemcpyDtoH(results)");

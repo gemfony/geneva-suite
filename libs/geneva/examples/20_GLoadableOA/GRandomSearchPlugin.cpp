@@ -44,9 +44,9 @@
 
 // Geneva headers go here
 #include "common/GModuleManifest.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
-#include "geneva/oa/GOAPlugin.hpp" // Gem::Geneva::oaManifest
+#include "geneva/oa/GOAPlugin.hpp"                      // Gem::Geneva::oaManifest
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp" // the whole factory this module needs
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
 // The algorithm shipped by this module
 #include "GRandomSearch.hpp"

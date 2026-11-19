@@ -58,16 +58,15 @@ namespace Gem::Common::Concurrency {
  * Two collaborating roles, one store:
  *
  *  - BLOB STORE: @c id -> blob. Both ends of a link cache what they have seen, so a later id-only
- *    reference resolves locally (a holder) or can be answered on a cache-miss fetch (the source).
+ *    reference resolves locally.
  *  - PER-PEER ACK TRACKING: for each peer, the set of ids that peer is known to already hold, so a
  *    given blob is sent to a given peer exactly once and referenced by id thereafter. A peer's set is
- *    dropped when its session ends (@c forgetPeer) -- on reconnect it starts empty and the miss ->
- *    fetch fallback transparently re-sends what is needed.
+ *    dropped when its session ends (@c forgetPeer) -- on reconnect it starts empty and is sent every
+ *    blob in full again.
  *
  * An optional capacity bound (LRU over the blob store) keeps a long run with many distinct ids from
- * growing without limit. Eviction never breaks correctness because a missing blob is re-fetched on
- * demand -- crucially, evicting a blob also drops that id from EVERY peer's ack set, so the source can
- * never keep referencing an id it can no longer answer (which would deadlock the holder).
+ * growing without limit. Eviction never breaks correctness: evicting a blob also drops that id from
+ * EVERY peer's ack set, so the next send of that blob to any peer inlines it in full again.
  *
  * @tparam id_type   The content id (the content-derived key). Needs equality and a hash (see @p hash_type).
  * @tparam blob_type The stored value type (default @c std::string -- an opaque serialized blob).
@@ -147,7 +146,8 @@ public:
     }
 
     /** @brief Drops all per-peer ack state for a peer (its session ended / it reconnected). The blob
-     *  store is left intact (other peers may still need it, and it answers future fetches).
+     *  store is left intact (other peers may still need it, and the next send to this peer takes it
+     *  from there).
      *  @param peer The peer whose ack state is forgotten. */
     void forgetPeer(const peer_type &peer) {
         std::scoped_lock const lk(mtx_);
@@ -203,10 +203,9 @@ private:
     }
 
     /** @brief Evicts least-recently-used blobs until the capacity bound is met. Evicting a blob also
-     *  drops that id from EVERY peer's ack set: otherwise the source would keep referencing the evicted
-     *  blob by id to a peer (still believing the peer holds it) while no longer being able to answer
-     *  that peer's cache-miss fetch -- a deadlock. Clearing the acks forces the next send of that blob
-     *  to that peer to re-inline it in full (which re-populates the store). Caller holds mtx_. */
+     *  drops that id from EVERY peer's ack set, so that the source never keeps referencing by id a
+     *  blob it no longer holds itself: the next send of that blob to that peer re-inlines it in full
+     *  (which re-populates the store). Caller holds mtx_. */
     void evict_locked() {
         if(capacity_ == 0) {
             return;
@@ -225,8 +224,8 @@ private:
     std::unordered_map<id_type, Entry, hash_type> blobs_; ///< id -> (blob, lru node)
     mutable std::list<id_type> lru_;                      ///< recency list (front == MRU)
     std::unordered_map<peer_type, std::unordered_set<id_type, hash_type>>
-        peer_acked_; ///< per-peer set of ids the peer holds
-    std::size_t capacity_ = 0;                                           ///< max blobs retained (0 == unbounded)
+        peer_acked_;           ///< per-peer set of ids the peer holds
+    std::size_t capacity_ = 0; ///< max blobs retained (0 == unbounded)
 };
 
 /******************************************************************************/

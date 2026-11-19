@@ -87,8 +87,7 @@ int main(int argc, char **argv) {
 
     //---------------------------------------------------------------------------
     // Run the optimization with the algorithm chosen on the command line (e.g. the loaded "rsearch").
-    auto const best =
-        go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const best = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     std::cout << "Best result found:" << '\n' << best << '\n';
 }

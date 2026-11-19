@@ -47,8 +47,8 @@
 #include <vector>
 
 // Catch2 headers go here
-#include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // Geneva headers go here
 #include "common/concurrency/GMPMCQueueT.hpp"
@@ -63,8 +63,13 @@ namespace {
 
 // A move-only payload that tracks a value and detects moved-from state.
 struct MoveOnly {
-    explicit MoveOnly(int v) : v_(v) {}
-    MoveOnly(MoveOnly &&o) noexcept : v_(o.v_) { o.v_ = -1; }
+    explicit MoveOnly(int v)
+      : v_(v) {
+    }
+    MoveOnly(MoveOnly &&o) noexcept
+      : v_(o.v_) {
+        o.v_ = -1;
+    }
     MoveOnly &operator=(MoveOnly &&o) noexcept {
         v_ = o.v_;
         o.v_ = -1;
@@ -79,9 +84,17 @@ struct MoveOnly {
 // move-constructed/assigned, so a round-trip reveals whether the queue copied or moved it.
 struct Tracked {
     Tracked() = default;
-    explicit Tracked(int v) : v_(v) {}
-    Tracked(Tracked const &o) : v_(o.v_), history_(o.history_) { history_.push_back('c'); }
-    Tracked(Tracked &&o) noexcept : v_(o.v_), history_(std::move(o.history_)) {
+    explicit Tracked(int v)
+      : v_(v) {
+    }
+    Tracked(Tracked const &o)
+      : v_(o.v_)
+      , history_(o.history_) {
+        history_.push_back('c');
+    }
+    Tracked(Tracked &&o) noexcept
+      : v_(o.v_)
+      , history_(std::move(o.history_)) {
         history_.push_back('m');
         o.v_ = -1;
     }
@@ -111,16 +124,22 @@ struct Tracked {
 // A payload whose COPY constructor can be made to throw (its move constructor never throws, so the
 // queue can still move it out on pop). Used to check that a failed push leaves capacity intact.
 struct Thrower {
-    static std::atomic<int> copies;   // number of copy-constructions so far
-    static std::atomic<int> throw_on; // throw on the copy whose 1-based index equals this (-1 = never)
+    static std::atomic<int> copies; // number of copy-constructions so far
+    static std::atomic<int>
+        throw_on; // throw on the copy whose 1-based index equals this (-1 = never)
     int v_ = 0;
-    explicit Thrower(int v) : v_(v) {}
-    Thrower(Thrower const &o) : v_(o.v_) {
+    explicit Thrower(int v)
+      : v_(v) {
+    }
+    Thrower(Thrower const &o)
+      : v_(o.v_) {
         if(copies.fetch_add(1) + 1 == throw_on.load()) {
             throw std::runtime_error("Thrower copy boom");
         }
     }
-    Thrower(Thrower &&o) noexcept : v_(o.v_) {}
+    Thrower(Thrower &&o) noexcept
+      : v_(o.v_) {
+    }
     Thrower &operator=(Thrower const &) = default;
     Thrower &operator=(Thrower &&) noexcept = default;
 };
@@ -154,7 +173,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT compile-time observers", "[GMPMCQueueT]", MPMC_B
 // Basic push/pop and FIFO ordering
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent linear push/pop/FIFO-order assertion sequence, macro-instantiated per backend by TEMPLATE_TEST_CASE; there is no seam within a single scenario to split on
-TEMPLATE_TEST_CASE("GMPMCQueueT basic try_push/try_pop and FIFO order", "[GMPMCQueueT]", MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT basic try_push/try_pop and FIFO order",
+    "[GMPMCQueueT]",
+    MPMC_BACKENDS
+) {
     typename TestType::template queue<int, 8> q;
 
     REQUIRE(q.empty());
@@ -280,7 +303,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT blocking push wakes on pop", "[GMPMCQueueT]", MP
 // close(): shutdown semantics
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent linear close/drain assertion sequence, macro-instantiated per backend by TEMPLATE_TEST_CASE; there is no seam within a single scenario to split on
-TEMPLATE_TEST_CASE("GMPMCQueueT close rejects pushes and drains then ends", "[GMPMCQueueT]", MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT close rejects pushes and drains then ends",
+    "[GMPMCQueueT]",
+    MPMC_BACKENDS
+) {
     typename TestType::template queue<int, 8> q;
     REQUIRE(q.try_push(1));
     REQUIRE(q.try_push(2));
@@ -365,7 +392,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT supports move-only items", "[GMPMCQueueT]", MPMC
 /******************************************************************************/
 // Copyable payloads (e.g. std::shared_ptr): copy vs. move
 
-TEMPLATE_TEST_CASE("GMPMCQueueT supports copyable items (copy and move)", "[GMPMCQueueT]", MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT supports copyable items (copy and move)",
+    "[GMPMCQueueT]",
+    MPMC_BACKENDS
+) {
     typename TestType::template queue<std::shared_ptr<int>, 4> q;
     auto sp = std::make_shared<int>(5);
 
@@ -440,7 +471,11 @@ TEMPLATE_TEST_CASE("GMPMCQueueT high-volume FIFO integrity", "[GMPMCQueueT]", MP
 // A push whose element constructor throws must leave the queue unchanged (strong guarantee):
 // in particular it must NOT silently consume capacity.
 
-TEMPLATE_TEST_CASE("GMPMCQueueT a throwing element ctor preserves capacity", "[GMPMCQueueT]", MPMC_BACKENDS) {
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT a throwing element ctor preserves capacity",
+    "[GMPMCQueueT]",
+    MPMC_BACKENDS
+) {
     constexpr int Cap = 4;
     typename TestType::template queue<Thrower, Cap> q;
 
@@ -451,7 +486,8 @@ TEMPLATE_TEST_CASE("GMPMCQueueT a throwing element ctor preserves capacity", "[G
     bool threw = false;
     try {
         (void)q.try_push(src); // lvalue -> copy -> throws inside the queue's placement-new
-    } catch(const std::runtime_error &) {
+    }
+    catch(const std::runtime_error &) {
         threw = true;
     }
     REQUIRE(threw);
@@ -466,7 +502,7 @@ TEMPLATE_TEST_CASE("GMPMCQueueT a throwing element ctor preserves capacity", "[G
             ++accepted;
         }
     }
-    REQUIRE(accepted == Cap); // without the give-back, only Cap-1 would fit
+    REQUIRE(accepted == Cap);       // without the give-back, only Cap-1 would fit
     REQUIRE_FALSE(q.try_push(src)); // genuinely full now
 }
 
@@ -478,9 +514,8 @@ TEMPLATE_TEST_CASE("GMPMCQueueT MPMC conservation", "[GMPMCQueueT]", MPMC_BACKEN
     constexpr int n_consumers = 4;
     constexpr int per_producer = 20000;
     constexpr long long expected_count = static_cast<long long>(n_producers) * per_producer;
-    const long long expected_sum =
-        static_cast<long long>(n_producers) *
-        (static_cast<long long>(per_producer) * (per_producer - 1) / 2);
+    const long long expected_sum = static_cast<long long>(n_producers) *
+                                   (static_cast<long long>(per_producer) * (per_producer - 1) / 2);
 
     typename TestType::template queue<int, 256> q; // bounded -> exercises producer backpressure
 
@@ -514,10 +549,12 @@ TEMPLATE_TEST_CASE("GMPMCQueueT MPMC conservation", "[GMPMCQueueT]", MPMC_BACKEN
         });
     }
 
-    for(auto &t : producers) t.join();
+    for(auto &t : producers)
+        t.join();
     REQUIRE(all_pushes_ok.load());
     q.close();
-    for(auto &t : consumers) t.join();
+    for(auto &t : consumers)
+        t.join();
 
     REQUIRE(total_count.load() == expected_count);
     REQUIRE(total_sum.load() == expected_sum);

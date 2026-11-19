@@ -36,7 +36,9 @@
 using namespace Gem::Courtier;
 
 namespace {
-GWireBlobId id(std::uint64_t hi, std::uint64_t lo) { return GWireBlobId{hi, lo}; }
+GWireBlobId id(std::uint64_t hi, std::uint64_t lo) {
+    return GWireBlobId{hi, lo};
+}
 } // namespace
 
 /******************************************************************************/
@@ -110,9 +112,9 @@ TEST_CASE("GWireBlobRegistry: LRU eviction respects the capacity bound", "[wire]
     CHECK(reg.tryGet(id(1, 0), out));
     reg.put(id(3, 0), "three");
     CHECK(reg.size() == 2);
-    CHECK(reg.has(id(1, 0)));        // recently used -> retained
-    CHECK_FALSE(reg.has(id(2, 0)));  // least recently used -> evicted
-    CHECK(reg.has(id(3, 0)));        // just inserted -> retained
+    CHECK(reg.has(id(1, 0)));       // recently used -> retained
+    CHECK_FALSE(reg.has(id(2, 0))); // least recently used -> evicted
+    CHECK(reg.has(id(3, 0)));       // just inserted -> retained
 
     // Eviction does not break correctness: a re-put restores the blob.
     reg.put(id(2, 0), "two-again");
@@ -160,7 +162,7 @@ TEST_CASE("GWireSerializationScope: thread-local install / restore / nesting", "
             GWireSerializationScope const s_inner(&inner);
             CHECK(GWireSerializationScope::current() == &inner);
 
-            // A nested "no context" scope (e.g. a self-contained fetch round trip mid-decode).
+            // A nested "no context" scope.
             {
                 GWireSerializationScope const s_none(nullptr);
                 CHECK(GWireSerializationScope::current() == nullptr);

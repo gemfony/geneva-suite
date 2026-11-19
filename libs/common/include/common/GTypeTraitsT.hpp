@@ -92,8 +92,7 @@ struct has_gemfony_common_interface {
  * @tparam T The type checked for carrying the Gemfony common interface
  */
 template <typename T>
-concept gemfony_common_interface =
-    std::is_base_of_v<gemfony_common_interface_indicator, T>;
+concept gemfony_common_interface = std::is_base_of_v<gemfony_common_interface_indicator, T>;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

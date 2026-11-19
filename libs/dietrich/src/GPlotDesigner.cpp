@@ -28,7 +28,6 @@
  ********************************************************************************/
 
 #include "dietrich/GPlotDesigner.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -38,6 +37,8 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
+#include "dietrich/plotting/detail/GPlotDetail.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -59,33 +60,32 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
 
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<short>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<std::int32_t>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<std::uint32_t>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<float>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<double>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<short>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<std::int32_t>) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<short>)                        // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<std::int32_t>)                 // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<std::uint32_t>)                // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<float>)                        // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GMarker<double>)                       // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<short>)         // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<std::int32_t>)  // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<std::uint32_t>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<float>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<double>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<short>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<std::int32_t>) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<float>)         // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_2D<double>)        // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<short>)         // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<std::int32_t>)  // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<std::uint32_t>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<float>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<double>) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram1D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram1I) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram2D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph2D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph2ED) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph3D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph4D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GFunctionPlotter1D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GFunctionPlotter2D) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GPlotDesigner) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<float>)         // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GDecoratorContainer_3D<double>)        // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram1D)                          // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram1I)                          // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GHistogram2D)                          // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph2D)                              // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph2ED)                             // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph3D)                              // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GGraph4D)                              // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GFunctionPlotter1D)                    // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GFunctionPlotter2D)                    // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Dietrich::GPlotDesigner)                         // NOLINT
 
 namespace Gem::Dietrich {
 
@@ -96,7 +96,6 @@ using namespace Gem::Common;
 // Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
 // numeric to_string(...) for unqualified calls; merge common's overloads back in.
 using Gem::Common::to_string;
-
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -385,9 +384,15 @@ legendPosition GBasePlotter::legendPlace() const {
     for(const auto &e : entries) {
         longest = std::max(longest, e.label.size());
     }
-    const double width = (static_cast<double>(longest) * 0.55 * LEGENDMINTEXTSIZE * 0.75 / 0.95) + 0.08;
+    const double width =
+        (static_cast<double>(longest) * 0.55 * LEGENDMINTEXTSIZE * 0.75 / 0.95) + 0.08;
     return freestLegendCorner(
-        curves, points, std::max<std::size_t>(1, entries.size()), x_axis_logarithmic_, y_axis_logarithmic_, width
+        curves,
+        points,
+        std::max<std::size_t>(1, entries.size()),
+        x_axis_logarithmic_,
+        y_axis_logarithmic_,
+        width
     );
 }
 
@@ -487,7 +492,8 @@ void GBasePlotter::appendRow([[maybe_unused]] std::span<const double> row) {
  * The base has no sortable columns to order; the columnar collectors override this
  * (see GDataCollectorT::sortByFirstColumn()).
  */
-void GBasePlotter::sortByFirstColumn() { /* nothing */ }
+void GBasePlotter::sortByFirstColumn() { /* nothing */
+}
 
 /******************************************************************************/
 /**
@@ -502,66 +508,70 @@ void GBasePlotter::sortByFirstColumn() { /* nothing */ }
 std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     std::unique_ptr<GBasePlotter> p;
     switch(spec.kind) {
-        case plotKind::graph_2d:
-            p = std::make_unique<GGraph2D>();
-            break;
-        case plotKind::graph_2d_err:
-            p = std::make_unique<GGraph2ED>();
-            break;
-        case plotKind::graph_3d:
-            p = std::make_unique<GGraph3D>();
-            break;
-        case plotKind::graph_4d:
-            p = std::make_unique<GGraph4D>();
-            break;
-        case plotKind::hist_1d:
-            // With a fixed range use the (n_bins, min, max) ctor; otherwise the single-bin-count
-            // ctor auto-determines the value range from the data.
-            if(spec.range_x.has_value()) {
-                p = std::make_unique<GHistogram1D>(spec.n_bins_x.value_or(10), *spec.range_x);
-            }
-            else {
-                p = std::make_unique<GHistogram1D>(spec.n_bins_x.value_or(10));
-            }
-            break;
-        case plotKind::hist_2d:
-            // A fixed range needs BOTH per-axis ranges (there is no mixed ctor); otherwise auto-range.
-            if(spec.range_x.has_value() && spec.range_y.has_value()) {
-                p = std::make_unique<GHistogram2D>(
-                    spec.n_bins_x.value_or(10), spec.n_bins_y.value_or(10), *spec.range_x, *spec.range_y
-                );
-            }
-            else {
-                p = std::make_unique<GHistogram2D>(
-                    spec.n_bins_x.value_or(10), spec.n_bins_y.value_or(10)
-                );
-            }
-            break;
-        case plotKind::hist_1i:
-            // GHistogram1I has no auto-range ctor, so it can only be reconstructed when the spec
-            // carries an explicit value range.
-            if(spec.range_x.has_value()) {
-                p = std::make_unique<GHistogram1I>(spec.n_bins_x.value_or(10), *spec.range_x);
-            }
-            else {
-                throw geneva_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In makePlotter(): Error!" << '\n'
-                    << "an integer histogram (kind \"" << to_string(spec.kind)
-                    << "\") without a fixed value range cannot be reconstructed from a "
-                    << "GPlotSpec -- an integer histogram has no auto-range form." << '\n'
-                );
-            }
-            break;
-        case plotKind::function_1d:
-        case plotKind::function_2d:
+    case plotKind::graph_2d:
+        p = std::make_unique<GGraph2D>();
+        break;
+    case plotKind::graph_2d_err:
+        p = std::make_unique<GGraph2ED>();
+        break;
+    case plotKind::graph_3d:
+        p = std::make_unique<GGraph3D>();
+        break;
+    case plotKind::graph_4d:
+        p = std::make_unique<GGraph4D>();
+        break;
+    case plotKind::hist_1d:
+        // With a fixed range use the (n_bins, min, max) ctor; otherwise the single-bin-count
+        // ctor auto-determines the value range from the data.
+        if(spec.range_x.has_value()) {
+            p = std::make_unique<GHistogram1D>(spec.n_bins_x.value_or(10), *spec.range_x);
+        }
+        else {
+            p = std::make_unique<GHistogram1D>(spec.n_bins_x.value_or(10));
+        }
+        break;
+    case plotKind::hist_2d:
+        // A fixed range needs BOTH per-axis ranges (there is no mixed ctor); otherwise auto-range.
+        if(spec.range_x.has_value() && spec.range_y.has_value()) {
+            p = std::make_unique<GHistogram2D>(
+                spec.n_bins_x.value_or(10),
+                spec.n_bins_y.value_or(10),
+                *spec.range_x,
+                *spec.range_y
+            );
+        }
+        else {
+            p = std::make_unique<GHistogram2D>(
+                spec.n_bins_x.value_or(10),
+                spec.n_bins_y.value_or(10)
+            );
+        }
+        break;
+    case plotKind::hist_1i:
+        // GHistogram1I has no auto-range ctor, so it can only be reconstructed when the spec
+        // carries an explicit value range.
+        if(spec.range_x.has_value()) {
+            p = std::make_unique<GHistogram1I>(spec.n_bins_x.value_or(10), *spec.range_x);
+        }
+        else {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
-                << "a function plotter (kind \"" << to_string(spec.kind)
-                << "\") cannot be reconstructed from a GPlotSpec -- its formula and "
-                << "sampling range are not part of the spec." << '\n'
+                << "an integer histogram (kind \"" << to_string(spec.kind)
+                << "\") without a fixed value range cannot be reconstructed from a "
+                << "GPlotSpec -- an integer histogram has no auto-range form." << '\n'
             );
+        }
+        break;
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In makePlotter(): Error!" << '\n'
+            << "a function plotter (kind \"" << to_string(spec.kind)
+            << "\") cannot be reconstructed from a GPlotSpec -- its formula and "
+            << "sampling range are not part of the spec." << '\n'
+        );
     }
 
     p->setPlotLabel(spec.name);
@@ -610,7 +620,8 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
-                << "a surface projection was requested for a plot of kind \"" << to_string(spec.kind)
+                << "a surface projection was requested for a plot of kind \""
+                << to_string(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) can be drawn as a projected surface." << '\n'
             );
         }
@@ -623,7 +634,8 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
-                << "\"surface\" or \"floor_shadow\" was given for a plot of kind \"" << to_string(spec.kind)
+                << "\"surface\" or \"floor_shadow\" was given for a plot of kind \""
+                << to_string(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) has a surface or a floor." << '\n'
             );
         }
@@ -660,7 +672,7 @@ std::string GBasePlotter::dsMarker() const {
  * @param sp A shared pointer to the secondary plotter to register; must be
  * non-empty and compatible with this plotter, otherwise an exception is thrown
  */
-void GBasePlotter::registerSecondaryPlotter(const std::shared_ptr<GBasePlotter>& sp) {
+void GBasePlotter::registerSecondaryPlotter(const std::shared_ptr<GBasePlotter> &sp) {
     // Check that the secondary plot isn't empty
     if(not sp) {
         throw geneva_exception(
@@ -902,12 +914,18 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
         std::vector<rootLegendEntry> root_entries;
         for(const auto &e : entries) {
             const std::string object = e.series == 0
-                ? this->rootLegendObject_(false, 0, this->id())
-                : secondary_plotter_[e.series - 1]->rootLegendObject_(true, this->id(), e.series - 1);
+                                         ? this->rootLegendObject_(false, 0, this->id())
+                                         : secondary_plotter_[e.series - 1]
+                                               ->rootLegendObject_(true, this->id(), e.series - 1);
             root_entries.push_back({object, e.label, e.sample, e.series, e.line_width});
         }
         emitRootOverlayFrameAndLegend(
-            footer_data, indent, legendPlace(), root_entries, isThreeDimensional(this->plotSpec()), legend_room_
+            footer_data,
+            indent,
+            legendPlace(),
+            root_entries,
+            isThreeDimensional(this->plotSpec()),
+            legend_room_
         );
     }
     // Whether the frame leaves the legend a band of its own, for the same reader.
@@ -915,7 +933,8 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
     // The number of rows ROOT draws of the description (the band of a 3-d pad shows at most
     // LEGEND3DMAXROWS), for a reader of the script that checks what ROOT drew (the validity test
     // of the plotting library).
-    const bool band = legendPlace() == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
+    const bool band =
+        legendPlace() == legendPosition::AUTO and isThreeDimensional(this->plotSpec());
     footer_data << indent << "// legend entries: "
                 << (band ? std::min(entries.size(), LEGEND3DMAXROWS) : entries.size()) << '\n';
     // A pad title set apart from the first series' label replaces that label as the title, once
@@ -926,7 +945,6 @@ std::string GBasePlotter::footerData(const std::string &indent) const {
 
     return footer_data.str();
 }
-
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -1020,11 +1038,21 @@ void GPlotDesigner::writeToFile(const std::filesystem::path &file_name) {
  */
 void GPlotDesigner::setPlotBackend(plotBackend backend) {
     switch(backend) {
-        case plotBackend::ROOT:       emitter_ = std::make_shared<GRootEmitter>(); break;
-        case plotBackend::GNUPLOT:    emitter_ = std::make_shared<GnuplotEmitter>(); break;
-        case plotBackend::MATPLOTLIB: emitter_ = std::make_shared<MatplotlibEmitter>(); break;
-        case plotBackend::OCTAVE:     emitter_ = std::make_shared<OctaveEmitter>(); break;
-        case plotBackend::DATA:       emitter_ = std::make_shared<GDataEmitter>(); break;
+    case plotBackend::ROOT:
+        emitter_ = std::make_shared<GRootEmitter>();
+        break;
+    case plotBackend::GNUPLOT:
+        emitter_ = std::make_shared<GnuplotEmitter>();
+        break;
+    case plotBackend::MATPLOTLIB:
+        emitter_ = std::make_shared<MatplotlibEmitter>();
+        break;
+    case plotBackend::OCTAVE:
+        emitter_ = std::make_shared<OctaveEmitter>();
+        break;
+    case plotBackend::DATA:
+        emitter_ = std::make_shared<GDataEmitter>();
+        break;
     }
 }
 
@@ -1123,8 +1151,7 @@ std::string GPlotDesigner::staticHeader(const std::string &indent) const {
            << '\n'
            << indent << R"(TCanvas *cc = new TCanvas("cc", "cc",0,0,)" << c_x_dim_ << ","
            << c_y_dim_ << ");" << '\n'
-           << '\n'
-           ;
+           << '\n';
     // The canvas label is the title of the figure, in a box above the pads; without it the pads
     // take the whole canvas. Its text has one size (CANVASLABELTEXTSIZE), whatever its letters,
     // unless it is too wide for the box: then it is drawn just small enough (ROOT measures it, as
@@ -1167,11 +1194,11 @@ std::string GPlotDesigner::staticHeader(const std::string &indent) const {
                << '\n';
     }
     else {
-        result << indent << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.99);)"
+        result << indent
+               << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.99);)"
                << '\n';
     }
-    result
-           << indent << "graphPad->Draw();" << '\n'
+    result << indent << "graphPad->Draw();" << '\n'
            << indent << "graphPad->Divide(" << c_x_div_ << "," << c_y_div_ << ");" << '\n'
            << '\n';
 
@@ -1184,7 +1211,7 @@ std::string GPlotDesigner::staticHeader(const std::string &indent) const {
  *
  * @param plotter_ptr A pointer to a plotter
  */
-void GPlotDesigner::registerPlotter(const std::shared_ptr<GBasePlotter>& plotter_ptr) {
+void GPlotDesigner::registerPlotter(const std::shared_ptr<GBasePlotter> &plotter_ptr) {
     if(plotter_ptr) {
         plotter_ptr->setId(plotters_cnt_.size());
         plotters_cnt_.push_back(plotter_ptr);

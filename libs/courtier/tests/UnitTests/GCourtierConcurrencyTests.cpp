@@ -77,16 +77,22 @@ using item_ptr = std::unique_ptr<GFaultyContainer>;
 // A unique, decodable stored number per (batch, slot), so we can verify each result came home to its
 // own batch's slot and was not mis-routed to another concurrent batch.
 constexpr std::size_t kBatchStride = 100'000;
-std::size_t tag(std::size_t batch, std::size_t slot) { return batch * kBatchStride + slot; }
+std::size_t tag(std::size_t batch, std::size_t slot) {
+    return batch * kBatchStride + slot;
+}
 
-std::vector<item_ptr> make_tagged_batch(std::size_t batch, std::size_t n,
-                                        const std::vector<std::size_t> &faulty = {}) {
+std::vector<item_ptr>
+make_tagged_batch(std::size_t batch, std::size_t n, const std::vector<std::size_t> &faulty = {}) {
     std::vector<item_ptr> v;
     v.reserve(n);
     for(std::size_t i = 0; i < n; ++i) {
         const bool f = std::ranges::contains(faulty, i);
-        v.push_back(std::make_unique<GFaultyContainer>(
-            tag(batch, i), f ? fault_mode::THROW_PROCESSING : fault_mode::NONE));
+        v.push_back(
+            std::make_unique<GFaultyContainer>(
+                tag(batch, i),
+                f ? fault_mode::THROW_PROCESSING : fault_mode::NONE
+            )
+        );
     }
     return v;
 }
@@ -216,7 +222,8 @@ TEST_CASE(
         submitters.emplace_back([&, b] {
             consumer.processBatch(
                 std::span<item_ptr>(batches[b].data(), batches[b].size()),
-                c2::GSubmissionPolicy::full_success_or_fatal());
+                c2::GSubmissionPolicy::full_success_or_fatal()
+            );
             --active;
         });
     }
@@ -230,9 +237,9 @@ TEST_CASE(
 
     // Every batch fully evaluated, and every slot still holds ITS OWN item (correct (batch,slot)
     // routing -- a broken router would land batch B's result in batch A's slot, changing its tag).
-    for(auto const& [b, batch] : batches | std::views::enumerate) {
+    for(auto const &[b, batch] : batches | std::views::enumerate) {
         CHECK(count_processed(batch) == N);
-        for(auto const& [i, item] : batch | std::views::enumerate) {
+        for(auto const &[i, item] : batch | std::views::enumerate) {
             CHECK(item->get_stored_number() == tag(b, i));
             CHECK(item->is_processed());
         }
@@ -241,8 +248,10 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("courtier(fanin): concurrent submitters with failures stay size-preserved per batch",
-          "[courtier][concurrency][fanin]") {
+TEST_CASE(
+    "courtier(fanin): concurrent submitters with failures stay size-preserved per batch",
+    "[courtier][concurrency][fanin]"
+) {
     // Concurrent batches, each with a couple of throwing items, under clone-on-partial-return: each
     // batch must come back full (failed slots refilled from a successful sibling) and independent.
     constexpr std::size_t M = 5;
@@ -283,7 +292,8 @@ TEST_CASE("courtier(fanin): concurrent submitters with failures stay size-preser
         submitters.emplace_back([&, b] {
             consumer.processBatch(
                 std::span<item_ptr>(batches[b].data(), batches[b].size()),
-                c2::GSubmissionPolicy::clone_on_partial_return());
+                c2::GSubmissionPolicy::clone_on_partial_return()
+            );
             --active;
         });
     }
@@ -295,15 +305,19 @@ TEST_CASE("courtier(fanin): concurrent submitters with failures stay size-preser
     }
 
     for(std::size_t b = 0; b < M; ++b) {
-        CHECK(batches[b].size() == N);       // size preserved
-        CHECK(count_processed(batches[b]) == N); // every slot ends up evaluated (clones refill failures)
+        CHECK(batches[b].size() == N); // size preserved
+        CHECK(
+            count_processed(batches[b]) == N
+        ); // every slot ends up evaluated (clones refill failures)
     }
 }
 
 /******************************************************************************/
 
-TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
-          "[courtier][concurrency][fanin]") {
+TEST_CASE(
+    "courtier(fanin): concurrent submitters to one local thread consumer",
+    "[courtier][concurrency][fanin]"
+) {
     // The local thread-pool consumer shares one pool across submitters; concurrent processBatch()
     // calls must each wait for only their OWN items (per-batch wait), not the whole pool.
     constexpr std::size_t M = 8;
@@ -323,17 +337,19 @@ TEST_CASE("courtier(fanin): concurrent submitters to one local thread consumer",
     submitters.reserve(M);
     for(std::size_t b = 0; b < M; ++b) {
         submitters.emplace_back([&, b] {
-            consumer->processBatch(std::span<item_ptr>(batches[b].data(), batches[b].size()),
-                                   c2::GSubmissionPolicy::full_success_or_fatal());
+            consumer->processBatch(
+                std::span<item_ptr>(batches[b].data(), batches[b].size()),
+                c2::GSubmissionPolicy::full_success_or_fatal()
+            );
         });
     }
     for(auto &s : submitters) {
         s.join();
     }
 
-    for(auto const& [b, batch] : batches | std::views::enumerate) {
+    for(auto const &[b, batch] : batches | std::views::enumerate) {
         CHECK(count_processed(batch) == N);
-        for(auto const& [i, item] : batch | std::views::enumerate) {
+        for(auto const &[i, item] : batch | std::views::enumerate) {
             CHECK(item->get_stored_number() == tag(b, i));
         }
     }

@@ -40,8 +40,8 @@
 // Geneva headers go here
 #include "common/GProviderStoreT.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 // A global store for optimization-algorithm providers. A provider here IS the algorithm's
 // config-file-driven factory (GOAFactoryT implements Gem::Common::GProviderT), so every provide() call

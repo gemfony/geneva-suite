@@ -38,9 +38,9 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "geneva/genome/GGenome.hpp"
-#include "geneva/GPersonalityTraits.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/GPersonalityTraits.hpp"
+#include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -89,14 +89,14 @@ public:
     /**
      * @brief The copy constructor
      */
-    GSwarmAlgorithm_PersonalityTraits(const GSwarmAlgorithm_PersonalityTraits & cp);
+    GSwarmAlgorithm_PersonalityTraits(const GSwarmAlgorithm_PersonalityTraits &cp);
     /** @brief The standard destructor */
     ~GSwarmAlgorithm_PersonalityTraits() override = default;
 
     /**
      * @brief Specifies in which neighborhood the individual is at present
      */
-    void setNeighborhood(const std::size_t & neighborhood);
+    void setNeighborhood(const std::size_t &neighborhood);
     /**
      * @brief Retrieves the id of the neighborhood the individual is in at present
      */
@@ -116,7 +116,7 @@ public:
     /**
      * @brief Allows to add a new personal best to the individual
      */
-    void registerPersonalBest(const std::shared_ptr<gen::GGenome>& p);
+    void registerPersonalBest(const std::shared_ptr<gen::GGenome> &p);
     /**
      * @brief Allows to retrieve the personal best individual
      */
@@ -162,5 +162,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

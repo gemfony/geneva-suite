@@ -37,16 +37,15 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
-#include <algorithm>
 #include <vector>
 
-
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -71,7 +70,8 @@ namespace {
 template <std::size_t N>
 class HighDimSphere : public gen::GGenomeT<HighDimSphere<N>> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     HighDimSphere() {
         gen::GGenomeBuilder b;
@@ -166,7 +166,9 @@ double runEAmode(
     auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(pop, parents);
     p->setMaxIteration(iterations);
-    p->setMaxStallIteration(0); // run the full budget so a stalled/erratic controller cannot "pass" early
+    p->setMaxStallIteration(
+        0
+    ); // run the full budget so a stalled/erratic controller cannot "pass" early
     p->setReportIteration(100000);
     p->setStepControl(sc);
     p->setSortingScheme(sm);
@@ -223,8 +225,8 @@ TEST_CASE("ea SELF_ADAPT mode reproduces the classic algorithm and SCALED beats 
     const double f_self = runAdaptiveEA<20>(40, 10, 200, stepControl::SELF_ADAPT);
     const double f_scaled = runAdaptiveEA<20>(40, 10, 200, stepControl::SELF_ADAPT_SCALED);
     INFO("n=20 SELF_ADAPT f=" << f_self << "  SELF_ADAPT_SCALED f=" << f_scaled);
-    CHECK(f_self < 80.0);            // classic self-adaption makes progress from the f=80 start
-    CHECK(f_scaled <= f_self);       // the dimension-scaled default is at least as good
+    CHECK(f_self < 80.0);      // classic self-adaption makes progress from the f=80 start
+    CHECK(f_scaled <= f_self); // the dimension-scaled default is at least as good
 }
 
 /******************************************************************************/
@@ -270,11 +272,13 @@ TEST_CASE("ea converges under EVERY step_control x sorting mode", "[ea][oa][step
     // modes -- the 4x2 matrix that a healthy EA must pass. It FAILS on the pre-fix ONE_FIFTH / CSA comma
     // combinations (they stall around 0.05+) and passes once the success signal is corrected.
     using Gem::Geneva::sortingMode;
-    for(stepControl const sc : {stepControl::SELF_ADAPT,
-                          stepControl::SELF_ADAPT_SCALED,
-                          stepControl::ONE_FIFTH,
-                          stepControl::CSA}) {
-        for(sortingMode const sm : {sortingMode::MUPLUSNU_SINGLEEVAL, sortingMode::MUCOMMANU_SINGLEEVAL}) {
+    for(stepControl const sc :
+        {stepControl::SELF_ADAPT,
+         stepControl::SELF_ADAPT_SCALED,
+         stepControl::ONE_FIFTH,
+         stepControl::CSA}) {
+        for(sortingMode const sm :
+            {sortingMode::MUPLUSNU_SINGLEEVAL, sortingMode::MUCOMMANU_SINGLEEVAL}) {
             // 2-D sphere, pop 42 / 2 parents (the ex07 shape). A healthy controller anneals sigma and
             // reaches ~1e-8 or better within this budget; a broken global-sigma controller lets sigma run
             // away, after which no sample beats the early best again -- its best-ever FREEZES well above
@@ -293,8 +297,10 @@ TEST_CASE("ea converges under EVERY step_control x sorting mode", "[ea][oa][step
             for(int rerun = 1; rerun < 5 && f > 1.0e-4; ++rerun) {
                 f = (std::min)(f, runEAmode<2>(42, 2, 300, sc, sm));
             }
-            INFO("step_control=" << static_cast<int>(sc) << " sorting=" << static_cast<int>(sm)
-                                 << " best f=" << f);
+            INFO(
+                "step_control=" << static_cast<int>(sc) << " sorting=" << static_cast<int>(sm)
+                                << " best f=" << f
+            );
             CHECK(f <= 1.0e-4);
         }
     }
@@ -328,15 +334,21 @@ TEST_CASE("ea out-converges the stock EA on a HIGH-DIM sphere", "[ea][oa][highdi
     };
     const double f_ea = sortedRuns([&] { return runStockEA<N>(pop, parents, iters); })[reps / 2];
     const double f_scaled =
-        sortedRuns([&] { return runAdaptiveEA<N>(pop, parents, iters, stepControl::SELF_ADAPT_SCALED); }).front();
+        sortedRuns([&] {
+            return runAdaptiveEA<N>(pop, parents, iters, stepControl::SELF_ADAPT_SCALED);
+        }).front();
     const double f_csa =
         sortedRuns([&] { return runAdaptiveEA<N>(pop, parents, iters, stepControl::CSA); }).front();
     const double f_one_fifth =
-        sortedRuns([&] { return runAdaptiveEA<N>(pop, parents, iters, stepControl::ONE_FIFTH); }).front();
+        sortedRuns([&] {
+            return runAdaptiveEA<N>(pop, parents, iters, stepControl::ONE_FIFTH);
+        }).front();
 
-    INFO("n=" << N << " budget=" << iters << " iters (median stock vs best-of-" << reps
-              << " adaptive) : stock ea f=" << f_ea << "  ea(SELF_ADAPT_SCALED) f=" << f_scaled
-              << "  ea(CSA) f=" << f_csa << "  ea(ONE_FIFTH) f=" << f_one_fifth);
+    INFO(
+        "n=" << N << " budget=" << iters << " iters (median stock vs best-of-" << reps
+             << " adaptive) : stock ea f=" << f_ea << "  ea(SELF_ADAPT_SCALED) f=" << f_scaled
+             << "  ea(CSA) f=" << f_csa << "  ea(ONE_FIFTH) f=" << f_one_fifth
+    );
 
     // SELF_ADAPT_SCALED must reach a markedly lower fitness than the stock EA at high n
     // (the stock EA's fixed sigma_sigma=0.8 random-walks sigma and it makes essentially no progress).
@@ -370,7 +382,8 @@ TEST_CASE("ea out-converges the stock EA at n=10000", "[ea][oa][highdim10k]") {
     //      budget their ~zero success rate collapses the one shared sigma and they freeze too; the
     //      per-parameter dimension scaling (SELF_ADAPT_SCALED) is what makes progress at high n.
     constexpr std::size_t N = 10000;
-    constexpr double start = 4.0 * static_cast<double>(N); // each of N parameters starts at 2.0 -> 4N = 40000
+    constexpr double start =
+        4.0 * static_cast<double>(N); // each of N parameters starts at 2.0 -> 4N = 40000
     const double f_ea = runStockEA<N>(20, 4, 300);
     CHECK(f_ea >= 0.999 * start); // (1) stock EA frozen at the start
 
@@ -379,6 +392,9 @@ TEST_CASE("ea out-converges the stock EA at n=10000", "[ea][oa][highdim10k]") {
         best_scaled =
             (std::min)(best_scaled, runAdaptiveEA<N>(20, 4, 300, stepControl::SELF_ADAPT_SCALED));
     }
-    INFO("n=10000 start=" << start << " : stock ea f=" << f_ea << "  best-of-3 ea(SCALED) f=" << best_scaled);
+    INFO(
+        "n=10000 start=" << start << " : stock ea f=" << f_ea
+                         << "  best-of-3 ea(SCALED) f=" << best_scaled
+    );
     CHECK(best_scaled < f_ea); // (2) the dimension-scaled EA descends below the frozen stock EA
 }

@@ -44,15 +44,15 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
 
 #ifdef GEM_TESTING
 
 #ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
 
 #endif /* GEM_TESTING */
@@ -63,12 +63,13 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Default values for the Nelder-Mead downhill simplex.
  */
 constexpr std::size_t DEFAULTNMSIMPLICES = 1;
-constexpr double DEFAULTNMALPHA = 1.0;   ///< Reflection coefficient
-constexpr double DEFAULTNMGAMMA = 2.0;   ///< Expansion coefficient
-constexpr double DEFAULTNMRHO = 0.5;     ///< Contraction coefficient
-constexpr double DEFAULTNMSIGMA = 0.5;   ///< Shrink coefficient
+constexpr double DEFAULTNMALPHA = 1.0;       ///< Reflection coefficient
+constexpr double DEFAULTNMGAMMA = 2.0;       ///< Expansion coefficient
+constexpr double DEFAULTNMRHO = 0.5;         ///< Contraction coefficient
+constexpr double DEFAULTNMSIGMA = 0.5;       ///< Shrink coefficient
 constexpr double DEFAULTNMINITIALEDGE = 0.1; ///< Initial simplex edge (fraction of range)
-constexpr std::uint32_t DEFAULTNMRESTARTTHRESHOLD = 0; ///< Stall count triggering an oriented restart (0 = disabled)
+constexpr std::uint32_t DEFAULTNMRESTARTTHRESHOLD =
+    0; ///< Stall count triggering an oriented restart (0 = disabled)
 
 //! [algo-nm-trial-slots]
 /** @brief Number of speculative trial points evaluated per simplex and iteration
@@ -161,7 +162,6 @@ public:
     using personality_traits_type = GNelderMead_PersonalityTraits;
 
 private:
-
     /** @brief Single declaration of this class'es local data members */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
     // overloads are trivial forwarders. self_type is deduced as the (const) class type.
@@ -324,7 +324,6 @@ private:
     /** @brief Triggers fitness calculation of a number of individuals */
     void evaluatePopulation_() override;
 
-
     /**
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
      */
@@ -360,14 +359,14 @@ private:
     /***************************************************************************/
     // Data
 
-    std::size_t n_simplices_ =
-        DEFAULTNMSIMPLICES;         ///< The number of simultaneous simplices
-    std::size_t n_fp_parms_first_ = 0; ///< The amount of active floating point values per individual
+    std::size_t n_simplices_ = DEFAULTNMSIMPLICES; ///< The number of simultaneous simplices
+    std::size_t n_fp_parms_first_ =
+        0; ///< The amount of active floating point values per individual
 
-    double alpha_ = DEFAULTNMALPHA;             ///< Reflection coefficient
-    double gamma_ = DEFAULTNMGAMMA;             ///< Expansion coefficient
-    double rho_ = DEFAULTNMRHO;                 ///< Contraction coefficient
-    double sigma_ = DEFAULTNMSIGMA;             ///< Shrink coefficient
+    double alpha_ = DEFAULTNMALPHA;              ///< Reflection coefficient
+    double gamma_ = DEFAULTNMGAMMA;              ///< Expansion coefficient
+    double rho_ = DEFAULTNMRHO;                  ///< Contraction coefficient
+    double sigma_ = DEFAULTNMSIGMA;              ///< Shrink coefficient
     double initial_edge_ = DEFAULTNMINITIALEDGE; ///< Initial simplex edge (fraction of range)
     std::uint32_t restart_threshold_ =
         DEFAULTNMRESTARTTHRESHOLD; ///< Stall count triggering an oriented restart (0 = disabled)
@@ -379,4 +378,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

@@ -97,14 +97,22 @@ public:
     }
 
     /** @brief @return The name of this architecture ("GGridArchitecture") */
-    [[nodiscard]] std::string name() const override { return "GGridArchitecture"; }
+    [[nodiscard]] std::string name() const override {
+        return "GGridArchitecture";
+    }
     /** @brief @return The number of floating-point genome values expected (rows * cols) */
-    [[nodiscard]] std::size_t expectedFPSize() const override { return rows_ * cols_; }
+    [[nodiscard]] std::size_t expectedFPSize() const override {
+        return rows_ * cols_;
+    }
 
     /** @brief @return The number of rows in the field */
-    [[nodiscard]] std::size_t rows() const { return rows_; }
+    [[nodiscard]] std::size_t rows() const {
+        return rows_;
+    }
     /** @brief @return The number of columns in the field */
-    [[nodiscard]] std::size_t cols() const { return cols_; }
+    [[nodiscard]] std::size_t cols() const {
+        return cols_;
+    }
 
     /** @brief Extracts one row of the field from the individual's floating-point view.
      *  @param ind The individual to read the floating-point genome values from

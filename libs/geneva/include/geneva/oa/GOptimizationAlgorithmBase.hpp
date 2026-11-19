@@ -50,13 +50,13 @@
 // Boost header files go here
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
-#include "common/concurrency/GThreadPool.hpp"
 #include "common/GContainerT.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
+#include "common/concurrency/GThreadPool.hpp"
 #include "courtier/GCourtierEnums.hpp"     // SUBMISSION_UUID_TYPE (late-return lineage de-dup)
 #include "courtier/GSubmissionStatusT.hpp" // submission_status_t (workOn's return type)
 // --- Submission goes through the one process-wide consumer (GConsumerRegistry): the algorithm is
@@ -64,11 +64,11 @@
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
+#include "geneva/GPersonalityTraits.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
+#include "geneva/Interface/GOptimizerIT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
-#include "geneva/GPersonalityTraits.hpp"
-#include "geneva/Interface/GOptimizerIT.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/oa/GBasePluggableOM.hpp" // the pluggable-monitor CRTP root (extracted from this header)
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -99,8 +99,8 @@ class GAdaptionConfigBase;
  */
 class GOptimizationAlgorithmBase // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceBaseT<
-        GOptimizationAlgorithmBase, Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>
-    >
+        GOptimizationAlgorithmBase,
+        Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>>
   , public Gem::Common::GUniquePtrContainerT<gen::GGenome>
   , public Interface::GOptimizerIT<GOptimizationAlgorithmBase> {
 private:
@@ -144,11 +144,23 @@ private:
             Gem::Common::make_member("min_iteration_", self.min_iteration_),
             Gem::Common::make_member("max_stall_iteration_", self.max_stall_iteration_),
             Gem::Common::make_member("report_iteration_", self.report_iteration_),
-            Gem::Common::make_member("n_recordbest_global_individuals_", self.n_recordbest_global_individuals_),
-            Gem::Common::make_member("best_global_individuals_pq_", self.best_global_individuals_pq_),
+            Gem::Common::make_member(
+                "n_recordbest_global_individuals_",
+                self.n_recordbest_global_individuals_
+            ),
+            Gem::Common::make_member(
+                "best_global_individuals_pq_",
+                self.best_global_individuals_pq_
+            ),
             Gem::Common::make_member("default_population_size_", self.default_population_size_),
-            Gem::Common::make_member("best_known_primary_fitness_", self.best_known_primary_fitness_),
-            Gem::Common::make_member("best_current_primary_fitness_", self.best_current_primary_fitness_),
+            Gem::Common::make_member(
+                "best_known_primary_fitness_",
+                self.best_known_primary_fitness_
+            ),
+            Gem::Common::make_member(
+                "best_current_primary_fitness_",
+                self.best_current_primary_fitness_
+            ),
             Gem::Common::make_member("stall_counter_", self.stall_counter_),
             Gem::Common::make_member("stall_counter_threshold_", self.stall_counter_threshold_),
             Gem::Common::make_member("late_return_ttl_", self.late_return_ttl_),
@@ -164,14 +176,23 @@ private:
             Gem::Common::make_member("max_duration_", self.max_duration_),
             Gem::Common::make_member("min_duration_", self.min_duration_),
             Gem::Common::make_member("termination_file_", self.termination_file_),
-            Gem::Common::make_member("terminate_on_file_modification_", self.terminate_on_file_modification_),
+            Gem::Common::make_member(
+                "terminate_on_file_modification_",
+                self.terminate_on_file_modification_
+            ),
             Gem::Common::make_member("emit_termination_reason_", self.emit_termination_reason_),
             Gem::Common::make_member("worst_known_valids_cnt_", self.worst_known_valids_cnt_),
             Gem::Common::make_member("n_threads_", self.n_threads_),
             Gem::Common::make_atomic_member("halted_", self.halted_),
-            Gem::Common::make_cloneable_container_member("pluggable_monitors_cnt_", self.pluggable_monitors_cnt_),
+            Gem::Common::make_cloneable_container_member(
+                "pluggable_monitors_cnt_",
+                self.pluggable_monitors_cnt_
+            ),
             // Transient per-iteration best set: not persisted, but part of comparable identity (see above).
-            Gem::Common::make_transient_member("best_iteration_individuals_pq_", self.best_iteration_individuals_pq_)
+            Gem::Common::make_transient_member(
+                "best_iteration_individuals_pq_",
+                self.best_iteration_individuals_pq_
+            )
         );
     }
 
@@ -238,7 +259,8 @@ public:
      *
      * The argument is the OA-owned adaption configuration to adopt for this run.
      */
-    virtual void setAdaptionConfig(std::shared_ptr<GAdaptionConfigBase> /* config */) { /* no-op */ }
+    virtual void setAdaptionConfig(std::shared_ptr<GAdaptionConfigBase> /* config */) { /* no-op */
+    }
 
     /**
      * @brief The OA-owned adaption configuration in effect for this run, or null. Adapting algorithms
@@ -248,7 +270,9 @@ public:
      *
      * @return The OA-owned adaption configuration in effect for this run, or null if there is none
      */
-    virtual std::shared_ptr<const GAdaptionConfigBase> getAdaptionConfig() const { return {}; }
+    virtual std::shared_ptr<const GAdaptionConfigBase> getAdaptionConfig() const {
+        return {};
+    }
 
     /**
      * @brief Checks whether the optimization process has been halted.
@@ -269,7 +293,7 @@ public:
      * A missing directory is created lazily when the first checkpoint is written; configuring has no
      * filesystem side effects (an existing path must be a directory, though).
      */
-    void setCheckpointBaseName(const std::string& cp_directory, const std::string& cp_base_name);
+    void setCheckpointBaseName(const std::string &cp_directory, const std::string &cp_base_name);
     /**
      * @brief Allows to retrieve the base name of the checkpoint file.
      */
@@ -328,7 +352,7 @@ public:
     /**
      * @brief Allows to register a pluggable optimization monitor.
      */
-    void registerPluggableOM(const std::shared_ptr<GBasePluggableOM>& pluggable_om);
+    void registerPluggableOM(const std::shared_ptr<GBasePluggableOM> &pluggable_om);
     /** @brief Allows to reset the local pluggable optimization monitors */
     void resetPluggableOM();
     /**
@@ -683,7 +707,9 @@ protected:
      *  an ordered grid (parameter scan) leave it false, so they neither buffer nor reap.
      * @return true if the algorithm reaps and integrates late returns; false to disable late-return buffering
      */
-    virtual bool reapsLateReturns() const { return false; }
+    virtual bool reapsLateReturns() const {
+        return false;
+    }
 
     /**
      * @brief The maximum age (in optimization iterations since submission) of a late return this
@@ -694,7 +720,9 @@ protected:
      *  returns and drops staler ones. Only consulted for reaping algorithms (reapsLateReturns() == true).
      * @return The maximum admissible late-return age in iterations (max() disables the age window)
      */
-    virtual std::uint32_t lateReturnMaxAge() const { return std::numeric_limits<std::uint32_t>::max(); }
+    virtual std::uint32_t lateReturnMaxAge() const {
+        return std::numeric_limits<std::uint32_t>::max();
+    }
 
     /**
      * @brief Returns a fresh personality-traits object for this algorithm. Protected, non-virtual
@@ -702,7 +730,9 @@ protected:
      *  GParChild) can mint the correct concrete personality for slots they build themselves.
      * @return A shared pointer to a freshly created personality-traits object for this algorithm
      */
-    std::shared_ptr<GPersonalityTraits> makePersonalityTraits() const { return getPersonalityTraits_(); }
+    std::shared_ptr<GPersonalityTraits> makePersonalityTraits() const {
+        return getPersonalityTraits_();
+    }
 
     /**
      * @brief Saves the state of the class to disc.
@@ -759,7 +789,9 @@ protected:
      *
      * @return true if this run was resumed from a checkpoint and its scratch must be preserved
      */
-    bool resumedFromCheckpoint() const { return resumed_from_checkpoint_; }
+    bool resumedFromCheckpoint() const {
+        return resumed_from_checkpoint_;
+    }
     bool resumed_from_checkpoint_ = false;
 
 private:
@@ -796,8 +828,7 @@ private:
     /**
      * @brief Retrieves a list of the best individuals found.
      */
-    std::vector<std::unique_ptr<gen::GGenome>>
-    getBestGlobalIndividuals_() const final;
+    std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
 
     /**
      * @brief Retrieves the best individual found in the iteration.
@@ -806,8 +837,7 @@ private:
     /**
      * @brief Retrieves a list of the best individuals found in the current iteration.
      */
-    std::vector<std::unique_ptr<gen::GGenome>>
-    getBestIterationIndividuals_() const final;
+    std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
 
     /**
      * @brief Retrieve the number of processable items in the current iteration.
@@ -842,7 +872,8 @@ private:
      * refresh on a stall. An algorithm that does reacts by overriding this hook
      * (e.g. GParChild resets the adaption state of all but the best parent).
      */
-    virtual void actOnStalls_() { /* nothing */ }
+    virtual void actOnStalls_() { /* nothing */
+    }
 
     /***************************************************************************/
 
@@ -972,7 +1003,7 @@ private:
     std::string cp_base_name_ = DEFAULTCPBASENAME; ///< The base name of the checkpoint file
     std::filesystem::path cp_directory_path_ =
         std::filesystem::path(DEFAULTCPDIR); ///< Path object to store the directory
-    mutable std::string cp_last_ = "empty"; ///< The name of the last saved checkpoint
+    mutable std::string cp_last_ = "empty";  ///< The name of the last saved checkpoint
     bool cp_remove_ = true; ///< Whether checkpoint files should be overwritten or kept
     Gem::Common::serializationMode cp_serialization_mode_ =
         DEFAULTCPSERMODE; ///< Determines whether check-pointing should be done in text-, XML, or binary mode

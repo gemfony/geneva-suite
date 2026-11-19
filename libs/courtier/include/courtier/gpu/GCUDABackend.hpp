@@ -69,9 +69,14 @@ public:
      * @brief Uploads the whole batch, launches the kernel once, and reads the per-item results back.
      */
     void evaluate(
-        const scalar_type *params, int n_items, int dim,
-        const std::byte *pconst, std::size_t pconst_size,
-        scalar_type *results_out, int threads_per_item = 1) override;
+        const scalar_type *params,
+        int n_items,
+        int dim,
+        const std::byte *pconst,
+        std::size_t pconst_size,
+        scalar_type *results_out,
+        int threads_per_item = 1
+    ) override;
     /** @brief A short backend identifier ("cuda"), used for logging and selection. */
     [[nodiscard]] std::string name() const override;
 

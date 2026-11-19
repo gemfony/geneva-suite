@@ -52,17 +52,17 @@
 // Geneva headers
 #include "common/GErrorStreamer.hpp" // g_error_streamer (a refused time limit)
 #include "common/GExceptions.hpp"    // geneva_exception (a refused time limit)
-#include "common/GLogger.hpp" // glogger << ... << GWARNING (late-return drop warning)
+#include "common/GLogger.hpp"        // glogger << ... << GWARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
-#include "common/concurrency/GMPMCQueueT.hpp"  // the list of parked callers
+#include "common/concurrency/GMPMCQueueT.hpp"            // the list of parked callers
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the per-session in-flight store (CheckoutLease)
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCommandContainerT.hpp"  // the RESULT frame checkin() consumes
-#include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GCommandContainerT.hpp"       // the RESULT frame checkin() consumes
+#include "courtier/GCourtierEnums.hpp"           // CORRELATION_ID_TYPE, dispatchState
 #include "courtier/GCourtierHelperFunctions.hpp" // describeException()
-#include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
-#include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
-#include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
+#include "courtier/GProcessable.hpp"             // detail::lineageSalt (the foreign-return check)
+#include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
+#include "courtier/GWireProtocolT.hpp"           // the library seam that interprets a return
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // the user's two time limits
 
 namespace Gem::Courtier {
@@ -303,8 +303,9 @@ protected:
         // Items travel by unique_ptr, so the lease cannot co-own them: it tracks only the in-flight
         // correlation ids (a borrow). The owning copy stays in the consumer's batch; on abandon the
         // lease asks the consumer to requeue those ids.
-        Gem::Common::Concurrency::GThreadSafeKeyedStoreT<Gem::Courtier::CORRELATION_ID_TYPE, std::uint64_t>
-            in_flight;
+        Gem::Common::Concurrency::
+            GThreadSafeKeyedStoreT<Gem::Courtier::CORRELATION_ID_TYPE, std::uint64_t>
+                in_flight;
         /// Puts back one item: its correlation id and the checkout the session got
         std::move_only_function<void(Gem::Courtier::CORRELATION_ID_TYPE, std::uint64_t)> on_abandon;
 
@@ -518,8 +519,8 @@ protected:
         {
             std::scoped_lock const lk(mtx_);
             auto it = batches_.find(decodeBatch(id));
-            requeued = it != batches_.end() &&
-                       requeueSlot_locked(it->second, decodeSlot(id), checkout);
+            requeued =
+                it != batches_.end() && requeueSlot_locked(it->second, decodeSlot(id), checkout);
         }
         if(requeued) {
             announceWork_(1);
@@ -558,7 +559,9 @@ protected:
     /***************************************************************************/
     /** @brief Whether the server is being torn down (sessions use this to stop accepting work).
      *  @return true once teardown has been requested */
-    [[nodiscard]] bool stopped() const noexcept { return stop_.load(); }
+    [[nodiscard]] bool stopped() const noexcept {
+        return stop_.load();
+    }
 
     /** @brief Requests teardown -- subclasses call this from their stop path. Wakes every waiter
      *  and every parked caller. The flag is set under the lock, so a caller either sees it or is
@@ -619,7 +622,7 @@ protected:
             // item keeps the state an earlier round left on it (IN_FLIGHT for a slot that timed
             // out), and a stale IN_FLIGHT would be picked up by this batch's lease sweep.
             std::size_t n_sel = 0;
-            for(auto&& [k, item] : items | std::views::enumerate) {
+            for(auto &&[k, item] : items | std::views::enumerate) {
                 if(not item) {
                     continue;
                 }
@@ -646,7 +649,8 @@ protected:
         // wait has no time-out at all; with them it sleeps until the nearer of the two is due.
         {
             std::unique_lock<std::mutex> lk(mtx_);
-            BatchState &b = my_it->second; // stable across waits: std::map refs survive other ins/erase
+            BatchState &b =
+                my_it->second; // stable across waits: std::map refs survive other ins/erase
             while(true) {
                 if(b.done == b.target || stop_.load()) {
                     break;
@@ -698,8 +702,10 @@ protected:
                                                : Gem::Courtier::dispatchState::NONE;
                     if(b.items[k] && (ds == Gem::Courtier::dispatchState::PENDING ||
                                       ds == Gem::Courtier::dispatchState::IN_FLIGHT)) {
-                        late_store_.retain(b.items[k]->getCorrelationId(),
-                                           this->clone_item_(b.items[k]));
+                        late_store_.retain(
+                            b.items[k]->getCorrelationId(),
+                            this->clone_item_(b.items[k])
+                        );
                     }
                 }
             }
@@ -735,8 +741,8 @@ private:
      *  @param slot The slot index within the batch (masked to 24 bits)
      *  @return The combined (batch_id, slot) correlation id */
     static Gem::Courtier::CORRELATION_ID_TYPE encodeId(batch_key_t batch, std::size_t slot) {
-        return ((batch & BATCH_MASK) << SLOT_BITS)
-               | (static_cast<Gem::Courtier::CORRELATION_ID_TYPE>(slot) & SLOT_MASK);
+        return ((batch & BATCH_MASK) << SLOT_BITS) |
+               (static_cast<Gem::Courtier::CORRELATION_ID_TYPE>(slot) & SLOT_MASK);
     }
     /** @brief Extracts the batch id from a correlation id.
      *  @param id The (batch_id, slot) correlation id
@@ -783,7 +789,10 @@ private:
                 p = std::move(*orig);
                 p->applyProcessingOutcome(frame.outcome());
                 Gem::Courtier::GWireProtocolT<processable_type>::applyReturn(
-                    *p, frame.tag(), frame.libraryPayload(), nullptr
+                    *p,
+                    frame.tag(),
+                    frame.libraryPayload(),
+                    nullptr
                 );
             }
             else {
@@ -848,13 +857,13 @@ private:
      *  (valid only while that call's dispatch_ blocks); everything else is this batch's bookkeeping. */
     struct BatchState {
         std::span<item_ptr> items; ///< Borrowed batch span (not owned); empty by default
-        std::size_t target = 0;                 ///< Number of slots in this batch
-        std::size_t done = 0;                   ///< Slots that have reached DONE
-        std::size_t pending = 0;                ///< Slots currently PENDING (awaiting a client)
-        std::size_t cursor = 0;                 ///< Next slot index to consider in checkout
+        std::size_t target = 0;    ///< Number of slots in this batch
+        std::size_t done = 0;      ///< Slots that have reached DONE
+        std::size_t pending = 0;   ///< Slots currently PENDING (awaiting a client)
+        std::size_t cursor = 0;    ///< Next slot index to consider in checkout
         std::vector<clock::time_point> checked_out_at; ///< Per-slot checkout time (reclaim lease)
         std::vector<std::uint64_t> checkouts; ///< Per-slot: the number of its current checkout
-        clock::time_point last_progress;      ///< Start, or the most recent checkin (give-up window)
+        clock::time_point last_progress; ///< Start, or the most recent checkin (give-up window)
     };
 
     /***************************************************************************/
@@ -1072,14 +1081,16 @@ private:
     static std::chrono::milliseconds checkedLimit_(const char *key, std::int64_t ms) {
         // Half the clock's range: a deadline (a time point plus the limit) must not overflow.
         constexpr auto max_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() / 2;
+            std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() /
+            2;
         if(ms < 0 || ms > max_ms) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
                 << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
                 << '\n'
-                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "." << '\n'
+                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "."
+                << '\n'
             );
         }
         return std::chrono::milliseconds(ms);
@@ -1090,8 +1101,8 @@ private:
 
     std::map<batch_key_t, BatchState> batches_; ///< All currently-active batches, keyed by batch_id
     batch_key_t next_batch_id_ = 0;             ///< Monotonic batch_id source (masked to 40 bits)
-    batch_key_t last_served_batch_ = 0;         ///< Round-robin cursor across batches (for fairness)
-    std::size_t total_pending_ = 0;             ///< Slots PENDING across ALL batches (cv predicate)
+    batch_key_t last_served_batch_ = 0; ///< Round-robin cursor across batches (for fairness)
+    std::size_t total_pending_ = 0;     ///< Slots PENDING across ALL batches (cv predicate)
     /// The callers parked by checkoutOrPark(), each as its wake function. Pushed under mtx_,
     /// popped without it (see announceWork_()).
     Gem::Common::Concurrency::GMPMCQueueT<Gem::Courtier::GWakeFn, 0> parked_;
@@ -1105,22 +1116,26 @@ private:
     //     getLateReturns()) drains the FIFO. The apply-or-drop policy and the drop accounting below
     //     are the consumer's; the store is invoked under mtx_, so its operations stay consistent
     //     with the batch bookkeeping. ---
-    Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr> late_store_;
-    std::uint64_t late_dropped_count_ = 0;      ///< Total late items dropped (disabled/cap/TTL) -- observable
+    Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr>
+        late_store_;
+    std::uint64_t late_dropped_count_ =
+        0; ///< Total late items dropped (disabled/cap/TTL) -- observable
 
     // --- counters for diagnostics and tests (guarded by mtx_; see the getters) ---
     std::uint64_t n_requeued_ = 0;        ///< In-flight items put back to pending
     std::uint64_t n_dropped_returns_ = 0; ///< Returns for an active batch that were not applied
     std::uint64_t n_foreign_returns_ = 0; ///< Returns whose item another server process handed out
     std::uint64_t n_empty_checkouts_ = 0; ///< Checkouts that found nothing pending
-    bool late_drop_warned_ = false;             ///< One-shot warning guard for the first dropped late item
+    bool late_drop_warned_ = false;      ///< One-shot warning guard for the first dropped late item
     bool foreign_return_warned_ = false; ///< One-shot warning guard for the first foreign return
 
     std::atomic<bool> stop_{false};
 
     // --- the user's two time limits (applyTimeoutConfig()); 0: none, the default ---
-    std::chrono::milliseconds reclaim_lease_{0};  ///< An item in flight longer than this is put back
-    std::chrono::milliseconds give_up_window_{0}; ///< A batch without a result this long is given up
+    std::chrono::milliseconds reclaim_lease_{0}; ///< An item in flight longer than this is put back
+    std::chrono::milliseconds give_up_window_{
+        0
+    }; ///< A batch without a result this long is given up
 };
 
 /******************************************************************************/

@@ -95,12 +95,20 @@ void requireRole(c2::processRole wanted, const char *caller) {
  *  the MPI client, a bystander neither. */
 class GMPIConsumerProvider final : public GConsumerProviderT {
 public:
-    [[nodiscard]] std::string getMnemonic() const override { return "mpi"; }
-    [[nodiscard]] std::string getName() const override { return "GMPIConsumerT"; }
-    [[nodiscard]] bool needsClient() const override { return true; }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "mpi";
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "GMPIConsumerT";
+    }
+    [[nodiscard]] bool needsClient() const override {
+        return true;
+    }
     // MPI is deliberately NOT a bindsListeningPort() consumer: there is no port to share, and the
     // consumer is built on the submitter only.
-    [[nodiscard]] bool determinesRoleAtRuntime() const override { return true; }
+    [[nodiscard]] bool determinesRoleAtRuntime() const override {
+        return true;
+    }
 
     /** @brief The role of this process in the MPI environment; --client plays no part.
      *  @return The role of this process */

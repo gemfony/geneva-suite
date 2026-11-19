@@ -59,7 +59,10 @@ namespace Gem::Geneva {
  * this enum is only its runtime witness, so a scalar-agnostic store can hold a marshaller of either
  * precision and the GPU consumer provider can recover the matching typed pointer.
  */
-enum class GPUScalarKind { Float, Double };
+enum class GPUScalarKind {
+    Float,
+    Double
+};
 
 /******************************************************************************/
 /**
@@ -122,11 +125,13 @@ public:
  */
 template <typename scalar_type = double>
 class GBaseGPUMarshallerT
-  : public Gem::Courtier::GPU::GGPUEvaluableI<Gem::Geneva::Genome::GGenome, scalar_type>,
-    public GGPUMarshallerHandle {
+  : public Gem::Courtier::GPU::GGPUEvaluableI<Gem::Geneva::Genome::GGenome, scalar_type>
+  , public GGPUMarshallerHandle {
     using base_type = Gem::Courtier::GPU::GGPUEvaluableI<Gem::Geneva::Genome::GGenome, scalar_type>;
-    static_assert(std::is_same_v<scalar_type, float> || std::is_same_v<scalar_type, double>,
-                  "GBaseGPUMarshallerT supports only float or double device scalars.");
+    static_assert(
+        std::is_same_v<scalar_type, float> || std::is_same_v<scalar_type, double>,
+        "GBaseGPUMarshallerT supports only float or double device scalars."
+    );
 
 public:
     using item_ptr = typename base_type::item_ptr;
@@ -137,9 +142,10 @@ public:
      * @return @c GPUScalarKind::Float for a @c float marshaller, @c GPUScalarKind::Double for @c double
      */
     [[nodiscard]] GPUScalarKind scalarKind() const override {
-        if constexpr (std::is_same_v<scalar_type, float>) {
+        if constexpr(std::is_same_v<scalar_type, float>) {
             return GPUScalarKind::Float;
-        } else {
+        }
+        else {
             return GPUScalarKind::Double;
         }
     }
@@ -165,7 +171,8 @@ public:
      * @throws geneva_exception if an item is not a GGenome, or if its pre-processor changed its
      *         dimension (its values would not fit its row of the buffer)
      */
-    void flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const override {
+    void
+    flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const override {
         if(items.empty()) {
             params_out.clear();
             return;

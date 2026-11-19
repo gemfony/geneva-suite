@@ -296,11 +296,23 @@ TEST_CASE(
     "[common][math][checkValueRange]"
 ) {
     REQUIRE_THROWS_AS(
-        Gem::Common::checkValueRange(0., 0., 10., Gem::Common::GFPLOWEROPEN, Gem::Common::GFPUPPERCLOSED),
+        Gem::Common::checkValueRange(
+            0.,
+            0.,
+            10.,
+            Gem::Common::GFPLOWEROPEN,
+            Gem::Common::GFPUPPERCLOSED
+        ),
         geneva_exception
     );
     REQUIRE_THROWS_AS(
-        Gem::Common::checkValueRange(10., 0., 10., Gem::Common::GFPLOWERCLOSED, Gem::Common::GFPUPPEROPEN),
+        Gem::Common::checkValueRange(
+            10.,
+            0.,
+            10.,
+            Gem::Common::GFPLOWERCLOSED,
+            Gem::Common::GFPUPPEROPEN
+        ),
         geneva_exception
     );
 }

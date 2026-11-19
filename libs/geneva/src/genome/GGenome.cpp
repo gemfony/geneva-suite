@@ -46,24 +46,21 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "hap/GRandomLeasePool.hpp"
 #include "geneva/GOptimizationEnums.hpp"
+#include "hap/GRandomLeasePool.hpp"
 
 #ifdef GEM_TESTING
 #include <catch2/catch_test_macros.hpp>
 #endif /* GEM_TESTING */
 
+#include "common/GParserBuilder.hpp"
 #include "geneva/GFaultInjector.hpp" // the pluggable, process-global evaluation fault injector
 #include <chrono>
 #include <cmath>
 #include <limits>
 #include <sstream>
-#include "common/GParserBuilder.hpp"
 
 namespace Gem::Geneva::Genome {
-
-
-
 
 /******************************************************************************/
 /**
@@ -81,8 +78,9 @@ void GGenome::setGenome(GenomeData const &g) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::setGenome(): Error!" << '\n'
-                    << "Bounded " << type_name << " parameter " << k << " has inverted bounds (lower "
-                    << ch.lower[k] << " > upper " << ch.upper[k] << ")." << '\n'
+                    << "Bounded " << type_name << " parameter " << k
+                    << " has inverted bounds (lower " << ch.lower[k] << " > upper " << ch.upper[k]
+                    << ")." << '\n'
                 );
             }
         }
@@ -94,11 +92,13 @@ void GGenome::setGenome(GenomeData const &g) {
     // store (range-validated). The int / bool channels are not normalized and are stored as-is.
     dv_.resize(g.dv.size());
     for(std::size_t k = 0; k < g.dv.size(); ++k) {
-        dv_[k] = externalToInternalChecked<double>(layout_->d, g.dv[k], k, /*allow_upper_bound=*/true);
+        dv_[k] =
+            externalToInternalChecked<double>(layout_->d, g.dv[k], k, /*allow_upper_bound=*/true);
     }
     fv_.resize(g.fv.size());
     for(std::size_t k = 0; k < g.fv.size(); ++k) {
-        fv_[k] = externalToInternalChecked<float>(layout_->f, g.fv[k], k, /*allow_upper_bound=*/true);
+        fv_[k] =
+            externalToInternalChecked<float>(layout_->f, g.fv[k], k, /*allow_upper_bound=*/true);
     }
     iv_ = g.iv;
     bv_ = g.bv;
@@ -114,14 +114,22 @@ void GGenome::setGenome(GenomeData const &g) {
  */
 bool GGenome::randomInit_(activityMode const &am) {
     // The candidate holds no RNG of its own -- lease a proxy for the duration of this initialization.
-    auto             lease = Gem::Hap::randomLeasePool().acquire();
+    auto lease = Gem::Hap::randomLeasePool().acquire();
     Gem::Hap::GRandomBase &gr = *lease;
 
     bool modified = false;
-    if(randomInitFP<double>(dv_, layout_->d, am, gr)) { modified = true; }
-    if(randomInitFP<float>(fv_, layout_->f, am, gr)) { modified = true; }
-    if(randomInitInt(am, gr)) { modified = true; }
-    if(randomInitBool(am, gr)) { modified = true; }
+    if(randomInitFP<double>(dv_, layout_->d, am, gr)) {
+        modified = true;
+    }
+    if(randomInitFP<float>(fv_, layout_->f, am, gr)) {
+        modified = true;
+    }
+    if(randomInitInt(am, gr)) {
+        modified = true;
+    }
+    if(randomInitBool(am, gr)) {
+        modified = true;
+    }
     return modified;
 }
 
@@ -136,7 +144,12 @@ bool GGenome::randomInit_(activityMode const &am) {
  * @return true if at least one entry was modified, false otherwise
  */
 template <typename T>
-bool GGenome::randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, activityMode const &am, Gem::Hap::GRandomBase &gr) {
+bool GGenome::randomInitFP(
+    std::vector<T> &store,
+    ChannelLayout<T> const &ch,
+    activityMode const &am,
+    Gem::Hap::GRandomBase &gr
+) {
     bool modified = false;
     std::uniform_real_distribution<T> dist;
     for(std::size_t k = 0; k < store.size(); ++k) {
@@ -145,7 +158,10 @@ bool GGenome::randomInitFP(std::vector<T> &store, ChannelLayout<T> const &ch, ac
         }
         const T x = dist(
             gr,
-            typename std::uniform_real_distribution<T>::param_type(ch.init_lower[k], ch.init_upper[k])
+            typename std::uniform_real_distribution<T>::param_type(
+                ch.init_lower[k],
+                ch.init_upper[k]
+            )
         );
         store[k] = externalToInternalChecked<T>(ch, x, k);
         modified = true;
@@ -367,7 +383,8 @@ bool GGenome::getVarVal_b_(std::size_t idx) {
 boost::json::object GGenome::toJSON() const {
     namespace json = boost::json;
 
-    bool const dirty_flag = (Gem::Courtier::processingStatus::DO_PROCESS == this->getProcessingStatus());
+    bool const dirty_flag =
+        (Gem::Courtier::processingStatus::DO_PROCESS == this->getProcessingStatus());
     bool const has_errors = this->has_errors();
 
     json::object body;
@@ -584,10 +601,7 @@ void GGenome::specificTestsNoFailureExpected_GUnitTests_() {
         }
     }
 #else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GGenome::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
+    Gem::Common::condnotset("GGenome::specificTestsNoFailureExpected_GUnitTests", "GEM_TESTING");
 #endif /* GEM_TESTING */
 }
 
@@ -597,7 +611,6 @@ void GGenome::specificTestsNoFailureExpected_GUnitTests_() {
 
 /******************************************************************************/
 // ---- Folded in from the former GOptimizableEntity category root ----
-
 
 /******************************************************************************/
 /**
@@ -948,9 +961,9 @@ void GGenome::finalizeFeasibleEvaluation_(
 
     for(std::size_t i = 0; i < this->getNStoredResults(); i++) {
         if(evaluationPolicy::USESIGMOID == this->getEvaluationPolicy()) {
-            this->modifyStoredResult(i).setTransformedFitnessWith(
-                [this](const double raw_value) { return policy_->sigmoidTransform(raw_value); }
-            );
+            this->modifyStoredResult(i).setTransformedFitnessWith([this](const double raw_value) {
+                return policy_->sigmoidTransform(raw_value);
+            });
         }
         else {
             this->modifyStoredResult(i).setTransformedFitnessToRaw();
@@ -988,9 +1001,9 @@ void GGenome::setFitness_(std::vector<double> const &f_cnt) {
             p.reset(f_cnt.at(pos));
 
             if(evaluationPolicy::USESIGMOID == this->getEvaluationPolicy()) {
-                p.setTransformedFitnessWith(
-                    [this](const double raw_value) { return policy_->sigmoidTransform(raw_value); }
-                );
+                p.setTransformedFitnessWith([this](const double raw_value) {
+                    return policy_->sigmoidTransform(raw_value);
+                });
             }
             else {
                 p.setTransformedFitnessToRaw();
@@ -1020,13 +1033,13 @@ void GGenome::applyInvalidityPolicy_() {
         const double barrier = this->getBarrier();
         if(maxMode::MAXIMIZE == this->getMaxMode()) {
             uniform_fitness_value = (std::numeric_limits<double>::max() == validity_level_)
-                                        ? this->getWorstCase()
-                                        : -validity_level_ * barrier;
+                                      ? this->getWorstCase()
+                                      : -validity_level_ * barrier;
         }
         else {
             uniform_fitness_value = (std::numeric_limits<double>::max() == validity_level_)
-                                        ? this->getWorstCase()
-                                        : validity_level_ * barrier;
+                                      ? this->getWorstCase()
+                                      : validity_level_ * barrier;
         }
         this->setAllFitnessTo(this->getWorstCase(), uniform_fitness_value);
     }
@@ -1144,9 +1157,9 @@ bool GGenome::randomInit(activityMode const &am) {
  * @return A vector of all stored raw fitness results
  */
 std::vector<double> GGenome::raw_fitness_vec_() const {
-    return std::views::iota(std::size_t{0}, this->getNStoredResults())
-         | std::views::transform([this](std::size_t const i) { return this->raw_fitness(i); })
-         | std::ranges::to<std::vector<double>>();
+    return std::views::iota(std::size_t{0}, this->getNStoredResults()) |
+           std::views::transform([this](std::size_t const i) { return this->raw_fitness(i); }) |
+           std::ranges::to<std::vector<double>>();
 }
 
 /******************************************************************************/
@@ -1155,9 +1168,11 @@ std::vector<double> GGenome::raw_fitness_vec_() const {
  * @return A vector of all stored transformed fitness results
  */
 std::vector<double> GGenome::transformed_fitness_vec_() const {
-    return std::views::iota(std::size_t{0}, this->getNStoredResults())
-         | std::views::transform([this](std::size_t const i) { return this->transformed_fitness(i); })
-         | std::ranges::to<std::vector<double>>();
+    return std::views::iota(std::size_t{0}, this->getNStoredResults()) |
+           std::views::transform([this](std::size_t const i) {
+               return this->transformed_fitness(i);
+           }) |
+           std::ranges::to<std::vector<double>>();
 }
 
 /******************************************************************************/
@@ -1248,7 +1263,8 @@ double GGenome::weighedSquaredSumCombiner(std::vector<double> const &weights) co
 
     double result = 0.;
     for(auto const &[id, weight] : weights | std::views::enumerate) {
-        result += Gem::Common::gsquared(weight * this->transformed_fitness(static_cast<std::size_t>(id)));
+        result +=
+            Gem::Common::gsquared(weight * this->transformed_fitness(static_cast<std::size_t>(id)));
     }
     return sqrt(result);
 }
@@ -1266,27 +1282,34 @@ void GGenome::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         "eval_policy",
         Gem::Geneva::evaluationPolicy::USESIMPLEEVALUATION,
         [this](const evaluationPolicy ep) { this->setEvaluationPolicy(ep); }
-    ) << "Specifies which strategy should be used to calculate the evaluation:" << '\n'
-      << "0 (a.k.a. USESIMPLEEVALUATION): Always call the evaluation function, even for invalid solutions"
+    ) << "Specifies which strategy should be used to calculate the evaluation:"
       << '\n'
-      << "1 (a.k.a. USEWORSTCASEFORINVALID) : Assign the worst possible value to our fitness and evaluate only valid solutions"
+      << "0 (a.k.a. USESIMPLEEVALUATION): Always call the evaluation function, even for invalid "
+         "solutions"
       << '\n'
-      << "2 (a.k.a. USESIGMOID): Assign a multiple of validity_level_ and sigmoid barrier to invalid solutions, apply a sigmoid function to valid evaluations"
+      << "1 (a.k.a. USEWORSTCASEFORINVALID) : Assign the worst possible value to our fitness and "
+         "evaluate only valid solutions"
+      << '\n'
+      << "2 (a.k.a. USESIGMOID): Assign a multiple of validity_level_ and sigmoid barrier to "
+         "invalid solutions, apply a sigmoid function to valid evaluations"
       << '\n';
 
     gpb.registerFileParameter<double>(
         "steepness",
         Gem::Geneva::FITNESSSIGMOIDSTEEPNESS,
         [this](const double ss) { this->setSteepness(ss); }
-    ) << "When using a sigmoid function to transform the individual's fitness," << '\n'
-      << "this parameter influences the steepness of the function at the center of the sigmoid." << '\n'
+    ) << "When using a sigmoid function to transform the individual's fitness,"
+      << '\n'
+      << "this parameter influences the steepness of the function at the center of the sigmoid."
+      << '\n'
       << "The parameter must have a value > 0.";
 
     gpb.registerFileParameter<double>(
         "barrier",
         Gem::Geneva::WORSTALLOWEDVALIDFITNESS,
         [this](const double barrier) { this->setBarrier(barrier); }
-    ) << "When using a sigmoid function to transform the individual's fitness," << '\n'
+    ) << "When using a sigmoid function to transform the individual's fitness,"
+      << '\n'
       << "this parameter sets the upper/lower boundary of the sigmoid." << '\n'
       << "The parameter must have a value > 0.;";
 
@@ -1294,7 +1317,8 @@ void GGenome::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
         "maxmode",
         maxMode::MINIMIZE,
         [this](const maxMode mm) { this->setMaxMode(mm); }
-    ) << "Specifies whether the individual should be maximized (1) or minimized (0)" << '\n'
+    ) << "Specifies whether the individual should be maximized (1) or minimized (0)"
+      << '\n'
       << "Note that minimization is the by far most common option.";
 }
 

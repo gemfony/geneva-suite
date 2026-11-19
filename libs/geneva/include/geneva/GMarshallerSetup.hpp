@@ -78,8 +78,7 @@ namespace Gem::Geneva {
  * problem's marshaller (as the scalar-agnostic handle); the GPU consumer provider reads its scalar kind
  * and downcasts to the matching @c GGPUEvaluableI<..,scalar_type> to build @c GGPUConsumerT.
  */
-class GGPUMarshallerProviderBase
-  : public Gem::Common::GProviderT<GGPUMarshallerHandle> {
+class GGPUMarshallerProviderBase : public Gem::Common::GProviderT<GGPUMarshallerHandle> {
 public:
     /**
      * @brief The GPU-consumer config file (backend + kernel selection) this marshaller's kernel needs.
@@ -107,27 +106,38 @@ public:
      * @param gpu_config_file The GPU-consumer config file (backend + kernel selection) for this marshaller
      */
     GGPUMarshallerProviderT(std::string device_target, std::string gpu_config_file)
-      : device_target_(std::move(device_target)), gpu_config_file_(std::move(gpu_config_file)) {}
+      : device_target_(std::move(device_target))
+      , gpu_config_file_(std::move(gpu_config_file)) {
+    }
 
     /** @brief Hands out a fresh marshaller (as the scalar-agnostic handle). @return The marshaller. */
     std::shared_ptr<GGPUMarshallerHandle> provide() override {
         return std::make_shared<marshaller_type>();
     }
     /** @brief The device target this marshaller is registered under. @return The store key / mnemonic. */
-    [[nodiscard]] std::string getMnemonic() const override { return device_target_; }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return device_target_;
+    }
     /** @brief A human-readable name, for help output. @return The provider's descriptive name. */
-    [[nodiscard]] std::string getName() const override { return std::format("GPU marshaller [{}]", device_target_); }
+    [[nodiscard]] std::string getName() const override {
+        return std::format("GPU marshaller [{}]", device_target_);
+    }
     /** @brief The GPU-consumer config path the kernel needs. @return The registered config-file path. */
-    [[nodiscard]] const std::string &gpuConfigFile() const override { return gpu_config_file_; }
+    [[nodiscard]] const std::string &gpuConfigFile() const override {
+        return gpu_config_file_;
+    }
 
     /** @brief A marshaller has no command-line options of its own. */
     void addCLOptions(
         boost::program_options::options_description & /*visible*/,
-        boost::program_options::options_description & /*hidden*/) override {}
+        boost::program_options::options_description & /*hidden*/
+    ) override {
+    }
 
 private:
-    std::string device_target_;   ///< the store key / device mnemonic ("cuda")
-    std::string gpu_config_file_; ///< the GPU-consumer config (backend + kernel) path for this marshaller
+    std::string device_target_; ///< the store key / device mnemonic ("cuda")
+    std::string
+        gpu_config_file_; ///< the GPU-consumer config (backend + kernel) path for this marshaller
 };
 
 /******************************************************************************/
@@ -146,7 +156,8 @@ template <typename marshaller_type>
 void registerGPUMarshaller(const std::string &device_target, const std::string &gpu_config_file) {
     marshallerProviderStore()->setOnce(
         device_target,
-        std::make_shared<GGPUMarshallerProviderT<marshaller_type>>(device_target, gpu_config_file));
+        std::make_shared<GGPUMarshallerProviderT<marshaller_type>>(device_target, gpu_config_file)
+    );
 }
 
 /******************************************************************************/

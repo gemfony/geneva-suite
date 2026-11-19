@@ -30,8 +30,6 @@
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
-#include <atomic>
-#include <memory>
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -41,17 +39,19 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
+#include <atomic>
+#include <memory>
 #ifdef GEM_TESTING
 #include "geneva/individuals/GTestIndividual1.hpp"
 #endif /* GEM_TESTING */
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
-#include "geneva/oa/GParChild.hpp"
-#include "geneva/oa/GAdaption.hpp"
-#include "geneva/oa/GAdaptionConfig.hpp"
-#include "geneva/oa/GParetoTools.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
+#include "geneva/oa/GAdaption.hpp"
+#include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/oa/GParChild.hpp"
+#include "geneva/oa/GParetoTools.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -167,7 +167,7 @@ GType::evaluatePopulationRange_(std::size_t start, std::size_t end) {
                 has_errors = true;
             }
         }
-        return Gem::Courtier::submission_status_t{.is_complete=true, .has_errors=has_errors};
+        return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = has_errors};
     }
     return this->workOnPopulation(start, end);
 }
@@ -193,9 +193,7 @@ std::vector<TunableParam> GType::tunableManifest() {
 
 /******************************************************************************/
 
-void GType::updateGlobalBestsPQ_(
-    gen::GGenomeFixedSizePriorityQueue &best_individuals
-) {
+void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) {
     constexpr bool donotreplace = false;
     constexpr bool replace = true;
 
@@ -233,9 +231,7 @@ void GType::updateGlobalBestsPQ_(
 
 /******************************************************************************/
 
-void GType::updateIterationBestsPQ_(
-    gen::GGenomeFixedSizePriorityQueue &best_individuals
-) {
+void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) {
     constexpr bool donotreplace = false;
     constexpr bool replace = true;
 
@@ -300,17 +296,13 @@ void GType::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
       << "2: ONE_FIFTH (Rechenberg 1/5 success rule on a single global sigma)" << '\n'
       << "3: CSA (cumulative step-size adaptation on a single global sigma)";
 
-    gpb.registerFileParameter<double>(
-        "learning_rate_c",
-        1.,
-        [this](double c) { this->setLearningRateConstant(c); }
-    ) << "The learning-rate constant c used by SELF_ADAPT_SCALED (tau = c/sqrt(2n))";
+    gpb.registerFileParameter<double>("learning_rate_c", 1., [this](double c) {
+        this->setLearningRateConstant(c);
+    }) << "The learning-rate constant c used by SELF_ADAPT_SCALED (tau = c/sqrt(2n))";
 
-    gpb.registerFileParameter<bool>(
-        "recombine_sigma",
-        true,
-        [this](bool r) { this->setSigmaRecombination(r); }
-    ) << "Whether to intermediate-recombine the per-individual sigma after recombination";
+    gpb.registerFileParameter<bool>("recombine_sigma", true, [this](bool r) {
+        this->setSigmaRecombination(r);
+    }) << "Whether to intermediate-recombine the per-individual sigma after recombination";
 }
 
 /******************************************************************************/
@@ -325,20 +317,20 @@ void GType::populationSanityChecks_() const {
     }
 
     std::size_t const pop_size = this->getPopulationSize();
-    if(
-        ((sorting_mode_ == sortingMode::MUCOMMANU_SINGLEEVAL ||
-          sorting_mode_ == sortingMode::MUNU1PRETAIN_SINGLEEVAL ||
-          sorting_mode_ == sortingMode::MUCOMMANU_PARETO) &&
-         (pop_size < 2 * this->n_parents_)) ||
-        ((sorting_mode_ == sortingMode::MUPLUSNU_SINGLEEVAL ||
-          sorting_mode_ == sortingMode::MUPLUSNU_PARETO) &&
-         pop_size <= this->n_parents_)
-    ) {
+    if(((sorting_mode_ == sortingMode::MUCOMMANU_SINGLEEVAL ||
+         sorting_mode_ == sortingMode::MUNU1PRETAIN_SINGLEEVAL ||
+         sorting_mode_ == sortingMode::MUCOMMANU_PARETO) &&
+        (pop_size < 2 * this->n_parents_)) ||
+       ((sorting_mode_ == sortingMode::MUPLUSNU_SINGLEEVAL ||
+         sorting_mode_ == sortingMode::MUPLUSNU_PARETO) &&
+        pop_size <= this->n_parents_)) {
         std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
         error << "In GEvolutionaryAlgorithm::populationSanityChecks() :" << '\n'
               << "Requested size of population is too small :" << pop_size << " "
               << this->n_parents_ << '\n';
-        throw geneva_exception(g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << error.str());
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << error.str()
+        );
     }
 }
 
@@ -568,7 +560,8 @@ void GType::measureOffspringSuccess_() {
             continue; // defensive: a stale/out-of-range id cannot be scored against a current parent
         }
         ++n_children;
-        if(minOnly_transformed_fitness(*this->at(ci)) < minOnly_transformed_fitness(*this->at(parent_id))) {
+        if(minOnly_transformed_fitness(*this->at(ci)) <
+           minOnly_transformed_fitness(*this->at(parent_id))) {
             ++n_success;
         }
     }
@@ -608,7 +601,8 @@ void GType::driveGlobalSigmaController() {
             // pushes the path positive (grow sigma); a persistently < 1/5 rate pushes it negative
             // (shrink). The cumulation constant gives it memory; the damping keeps each step mild.
             const double n = std::max<double>(1., static_cast<double>(controller_dim_));
-            const double c_sigma = 1. / (1. + std::sqrt(n) / 4.); // O(1/sqrt(n)) time constant, floored
+            const double c_sigma =
+                1. / (1. + std::sqrt(n) / 4.); // O(1/sqrt(n)) time constant, floored
             constexpr double target = 1. / 5.;
             const double signal = (p_success - target) / (1. - target); // in [-0.25, +1]
             p_sigma_ = ((1. - c_sigma) * p_sigma_) + (std::sqrt(c_sigma * (2. - c_sigma)) * signal);
@@ -648,7 +642,8 @@ void GType::recombine() {
     if(not recombine_sigma_) {
         return;
     }
-    if(step_control_ != stepControl::SELF_ADAPT && step_control_ != stepControl::SELF_ADAPT_SCALED) {
+    if(step_control_ != stepControl::SELF_ADAPT &&
+       step_control_ != stepControl::SELF_ADAPT_SCALED) {
         return; // the global-sigma modes share one sigma already
     }
     auto cfg = this->adaption_config_;
@@ -765,7 +760,8 @@ void GType::selectParetoParents(bool include_parents) {
     for(std::size_t i = start; i < sz; ++i) {
         eligible.push_back(&(*this->at(i)));
     }
-    const std::vector<std::size_t> order = nonDominatedRank(eligible); // best-first, local to [start, sz)
+    const std::vector<std::size_t> order =
+        nonDominatedRank(eligible); // best-first, local to [start, sz)
 
     // Rebuild the population: eligible individuals in NSGA-II order (so [0, n_parents_) are the survivors),
     // then -- for mu,nu -- the discarded old parents at the tail (overwritten by the next recombination).
@@ -775,7 +771,10 @@ void GType::selectParetoParents(bool include_parents) {
         reordered.push_back(std::move(this->data_cnt_[start + local]));
     }
     if(not include_parents) {
-        std::ranges::move(this->data_cnt_ | std::views::take(this->n_parents_), std::back_inserter(reordered));
+        std::ranges::move(
+            this->data_cnt_ | std::views::take(this->n_parents_),
+            std::back_inserter(reordered)
+        );
     }
     this->data_cnt_ = std::move(reordered);
 
@@ -796,11 +795,14 @@ void GType::sortMuPlusNuParetoMode() {
     if(not(*this->begin())->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger << "In GEvolutionaryAlgorithm::sortMuPlusNuParetoMode(): Warning!" << '\n'
-                    << "A PARETO sorting mode was selected, but the individuals expose only a single" << '\n'
-                    << "fitness criterion. Pareto selection therefore degenerates to single-objective" << '\n'
-                    << "MUPLUSNU selection." << '\n'
-                    << GWARNING;
+            glogger
+                << "In GEvolutionaryAlgorithm::sortMuPlusNuParetoMode(): Warning!" << '\n'
+                << "A PARETO sorting mode was selected, but the individuals expose only a single"
+                << '\n'
+                << "fitness criterion. Pareto selection therefore degenerates to single-objective"
+                << '\n'
+                << "MUPLUSNU selection." << '\n'
+                << GWARNING;
         }
         this->sortMuPlusNuMode();
         return;
@@ -815,11 +817,14 @@ void GType::sortMuCommaNuParetoMode() {
     if(not(*this->begin())->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger << "In GEvolutionaryAlgorithm::sortMuCommaNuParetoMode(): Warning!" << '\n'
-                    << "A PARETO sorting mode was selected, but the individuals expose only a single" << '\n'
-                    << "fitness criterion. Pareto selection therefore degenerates to single-objective" << '\n'
-                    << "MUCOMMANU selection." << '\n'
-                    << GWARNING;
+            glogger
+                << "In GEvolutionaryAlgorithm::sortMuCommaNuParetoMode(): Warning!" << '\n'
+                << "A PARETO sorting mode was selected, but the individuals expose only a single"
+                << '\n'
+                << "fitness criterion. Pareto selection therefore degenerates to single-objective"
+                << '\n'
+                << "MUCOMMANU selection." << '\n'
+                << GWARNING;
         }
         this->sortMuCommaNuMode();
         return;
@@ -848,10 +853,10 @@ bool GType::modify_GUnitTests_() {
 
     return result;
 
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset("GEvolutionaryAlgorithm::modify_GUnitTests", "GEM_TESTING");
     return false;
-#endif                  /* GEM_TESTING */
+#endif /* GEM_TESTING */
 }
 
 /******************************************************************************/
@@ -861,17 +866,16 @@ void GType::fillWithObjects(const std::size_t &n_individuals) {
     CHECK_NOTHROW(this->clear());
 
     for(std::size_t i = 0; i < n_individuals; i++) {
-        this->push_back(
-            std::make_unique<Gem::Geneva::Individuals::GTestIndividual1>());
+        this->push_back(std::make_unique<Gem::Geneva::Individuals::GTestIndividual1>());
     }
 
     for(const auto &ind_ptr : *this) {
         ind_ptr->randomInit(activityMode::ALLPARAMETERS);
     }
 
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset("GEvolutionaryAlgorithm::fillWithObjects", "GEM_TESTING");
-#endif                  /* GEM_TESTING */
+#endif /* GEM_TESTING */
 }
 
 /******************************************************************************/
@@ -898,12 +902,12 @@ void GType::specificTestsNoFailureExpected_GUnitTests_() {
         }
     }
 
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset(
         "GEvolutionaryAlgorithm::specificTestsNoFailureExpected_GUnitTests",
         "GEM_TESTING"
     );
-#endif                  /* GEM_TESTING */
+#endif /* GEM_TESTING */
 }
 
 /******************************************************************************/

@@ -78,7 +78,10 @@ GPersonalityTraits *GRandomSearch_PersonalityTraits::clone_() const {
 void GRandomSearch_PersonalityTraits::load_(const GPersonalityTraits *cp) {
     // Check that we are dealing with a GRandomSearch_PersonalityTraits reference independent of this object.
     const GRandomSearch_PersonalityTraits *p_load =
-        Gem::Common::g_convert_and_compare<GPersonalityTraits, GRandomSearch_PersonalityTraits>(cp, this);
+        Gem::Common::g_convert_and_compare<GPersonalityTraits, GRandomSearch_PersonalityTraits>(
+            cp,
+            this
+        );
 
     // Load the parent class'es data (this personality carries no local data of its own).
     GPersonalityTraits::load_(cp);
@@ -101,7 +104,10 @@ void GRandomSearch_PersonalityTraits::compare_(
     using namespace Gem::Common;
 
     const GRandomSearch_PersonalityTraits *p_load =
-        Gem::Common::g_convert_and_compare<GPersonalityTraits, GRandomSearch_PersonalityTraits>(cp, this);
+        Gem::Common::g_convert_and_compare<GPersonalityTraits, GRandomSearch_PersonalityTraits>(
+            cp,
+            this
+        );
 
     GToken token("GRandomSearch_PersonalityTraits", e);
 

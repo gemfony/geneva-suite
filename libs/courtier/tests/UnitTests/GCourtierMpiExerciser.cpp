@@ -100,11 +100,11 @@
 
 #include <mpi.h>
 
+#include "GDemoProcessingContainers.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GCourtierEnums.hpp" // processRole
-#include "GDemoProcessingContainers.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/mpi/GMPIEnvironment.hpp"

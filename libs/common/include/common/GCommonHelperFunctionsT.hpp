@@ -75,9 +75,13 @@ namespace Gem::Common {
 // std::underlying_type<int> is ill-formed.
 namespace detail {
 template <typename T, bool = std::is_enum_v<T>>
-struct enum_or_self { using type = T; };
+struct enum_or_self {
+    using type = T;
+};
 template <typename T>
-struct enum_or_self<T, true> { using type = std::underlying_type_t<T>; };
+struct enum_or_self<T, true> {
+    using type = std::underlying_type_t<T>;
+};
 template <typename T>
 using enum_or_self_t = typename enum_or_self<T>::type;
 } // namespace detail
@@ -137,7 +141,7 @@ to_type narrow(from_type value) {
 
     const auto check_value = static_cast<FromCheck>(value);
 
-    if constexpr (std::is_integral_v<ToCheck> && std::is_integral_v<FromCheck>) {
+    if constexpr(std::is_integral_v<ToCheck> && std::is_integral_v<FromCheck>) {
         // Integer-to-integer (and enum-via-underlying): a round-trip on the
         // underlying integer types catches narrowing in both directions. It is
         // done purely on the integers (never forming a To-typed result first),
@@ -147,8 +151,8 @@ to_type narrow(from_type value) {
             throw std::overflow_error("narrow: integer overflow or underflow");
         }
         return static_cast<to_type>(value);
-    } else if constexpr (std::is_integral_v<ToCheck> &&
-                         std::is_floating_point_v<FromCheck>) {
+    }
+    else if constexpr(std::is_integral_v<ToCheck> && std::is_floating_point_v<FromCheck>) {
         // Float-to-integer: validate the source range BEFORE the float->int
         // static_cast, which is undefined behaviour for out-of-range inputs.
         // The obvious `value > ToCheck::max()` check is unsafe at the int64
@@ -161,23 +165,23 @@ to_type narrow(from_type value) {
         // exactly 1: it is when no rounding occurred (e.g. int32 -> double)
         // and < 1 when adjacent integers collapsed onto the same float
         // (int64 -> double). When inexact, reject `==` at the boundary too.
-        constexpr ToCheck   to_max                 = std::numeric_limits<ToCheck>::max();
-        constexpr ToCheck   to_min                 = std::numeric_limits<ToCheck>::min();
-        constexpr auto max_as_from            = static_cast<FromCheck>(to_max);
-        constexpr auto max_minus_one_as_from  = static_cast<FromCheck>(to_max - 1);
-        constexpr auto min_as_from            = static_cast<FromCheck>(to_min);
-        constexpr bool      max_is_exact           =
-            (max_as_from - max_minus_one_as_from) == FromCheck{1};
+        constexpr ToCheck to_max = std::numeric_limits<ToCheck>::max();
+        constexpr ToCheck to_min = std::numeric_limits<ToCheck>::min();
+        constexpr auto max_as_from = static_cast<FromCheck>(to_max);
+        constexpr auto max_minus_one_as_from = static_cast<FromCheck>(to_max - 1);
+        constexpr auto min_as_from = static_cast<FromCheck>(to_min);
+        constexpr bool max_is_exact = (max_as_from - max_minus_one_as_from) == FromCheck{1};
 
         if(check_value < min_as_from) {
             throw std::overflow_error("narrow: float-to-integer overflow");
         }
-        if constexpr (max_is_exact) {
+        if constexpr(max_is_exact) {
             // ToCheck::max() round-trips exactly, so equality is legitimate.
             if(check_value > max_as_from) {
                 throw std::overflow_error("narrow: float-to-integer overflow");
             }
-        } else {
+        }
+        else {
             // Rounding pushed max_as_from above ToCheck::max(): equality
             // would convert to UB territory, so reject it as well.
             if(check_value >= max_as_from) {
@@ -185,28 +189,27 @@ to_type narrow(from_type value) {
             }
         }
         return static_cast<to_type>(value); // provably in range now
-    } else if constexpr (std::is_floating_point_v<ToCheck> &&
-                         std::is_floating_point_v<FromCheck>) {
+    }
+    else if constexpr(std::is_floating_point_v<ToCheck> && std::is_floating_point_v<FromCheck>) {
         // Floating-to-floating. Only a *narrowing* conversion (destination
         // range strictly smaller than the source) can overflow. Reject a
         // finite value whose magnitude exceeds the destination range BEFORE the
         // cast, since an out-of-range floating conversion is undefined
         // behaviour. inf/NaN pass through unchanged; precision loss is inherent
         // and is NOT treated as an error.
-        if constexpr (std::numeric_limits<ToCheck>::max() <
-                      std::numeric_limits<FromCheck>::max()) {
+        if constexpr(std::numeric_limits<ToCheck>::max() < std::numeric_limits<FromCheck>::max()) {
             if(std::isfinite(check_value)) {
                 // Widening the (smaller) destination max into FromCheck is
                 // exact, so this comparison is well-defined.
-                constexpr auto to_max =
-                    static_cast<FromCheck>(std::numeric_limits<ToCheck>::max());
+                constexpr auto to_max = static_cast<FromCheck>(std::numeric_limits<ToCheck>::max());
                 if(check_value > to_max || check_value < -to_max) {
                     throw std::overflow_error("narrow: floating-point overflow");
                 }
             }
         }
         return static_cast<to_type>(value);
-    } else {
+    }
+    else {
         // Integer/enum -> floating: always in range (may lose precision, which
         // is inherent and not treated as an error).
         return static_cast<to_type>(value);
@@ -337,7 +340,7 @@ void ptrDifferenceCheck(const T *p1, const T *p2) {
  * @param p2 The second shared pointer compared against p1 for aliasing
  */
 template <typename T>
-void ptrDifferenceCheck(const std::shared_ptr<T>& p1, const std::shared_ptr<T>& p2) {
+void ptrDifferenceCheck(const std::shared_ptr<T> &p1, const std::shared_ptr<T> &p2) {
 #ifdef DEBUG
     if(p1 && p1.get() == p2.get()) {
         throw geneva_exception(
@@ -395,7 +398,7 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
-std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type>& convert_ptr) {
+std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &convert_ptr) {
 #ifdef DEBUG
     auto p = std::dynamic_pointer_cast<target_type>(convert_ptr);
     if(nullptr == convert_ptr.get() || p) {
@@ -449,10 +452,8 @@ std::shared_ptr<target_type> g_convert_and_compare(
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
-const target_type *g_convert_and_compare(
-    const base_type *convert_ptr,
-    const target_type *compare_ptr
-) {
+const target_type *
+g_convert_and_compare(const base_type *convert_ptr, const target_type *compare_ptr) {
     const auto *p = g_ptr_conversion<base_type, target_type>(convert_ptr);
     ptrDifferenceCheck(p, compare_ptr);
     return p;
@@ -471,10 +472,8 @@ const target_type *g_convert_and_compare(
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
-const target_type *g_convert_and_compare(
-    const base_type &convert_ref,
-    const target_type *compare_ptr
-) {
+const target_type *
+g_convert_and_compare(const base_type &convert_ref, const target_type *compare_ptr) {
     const auto *p = g_ptr_conversion<base_type, target_type>(&convert_ref);
     ptrDifferenceCheck(p, compare_ptr);
     return p;
@@ -736,7 +735,7 @@ void copyCloneableObjectsContainer(
  * @throws geneva_exception in DEBUG builds on a null input or a failed conversion
  */
 template <typename source_type, typename target_type>
-std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_type>& p_raw) {
+std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_type> &p_raw) {
 #ifdef DEBUG
     if(not p_raw) {
         throw geneva_exception(
@@ -750,8 +749,7 @@ std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_ty
     }
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In convertSmartPointer(): invalid conversion to " << typeid(target_type).name()
-        << '\n'
+        << "In convertSmartPointer(): invalid conversion to " << typeid(target_type).name() << '\n'
     );
 #else
     return std::static_pointer_cast<target_type>(p_raw);
@@ -839,7 +837,8 @@ template <typename map_type>
 decltype(auto) getMapItem(map_type &&m, const std::string &key) {
     if(m.empty()) {
         throw geneva_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << "In getMapItem(): map is empty" << '\n'
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In getMapItem(): map is empty" << '\n'
         );
     }
     auto it = m.find(key);
@@ -903,8 +902,10 @@ bool operator!=(const gemfony_common_type &x, const gemfony_common_type &y) {
  * @return The decimal string representation of val
  */
 template <typename integral_type>
-    requires (std::is_integral_v<integral_type> ||
-              (std::is_enum_v<integral_type> && std::is_convertible_v<integral_type, int>))
+    requires (
+        std::is_integral_v<integral_type> ||
+        (std::is_enum_v<integral_type> && std::is_convertible_v<integral_type, int>)
+    )
 std::string to_string(integral_type val) {
     return std::to_string(val);
 }
@@ -948,7 +949,7 @@ std::string to_string(enum_type val) {
  */
 template <typename default_type>
     requires (!std::is_enum_v<default_type> && !std::is_arithmetic_v<default_type>)
-std::string to_string(const default_type& val) {
+std::string to_string(const default_type &val) {
     std::ostringstream oss;
     oss << val;
     return oss.str();

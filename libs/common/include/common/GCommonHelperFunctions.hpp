@@ -113,8 +113,10 @@ int runExternalCommand(
  */
 constexpr std::string_view serializationModeToString(serializationMode s) noexcept {
     switch(s) {
-    case serializationMode::GEM_BINARY: return "GArchive binary mode";
-    case serializationMode::GEM_JSON:   return "GArchive JSON mode";
+    case serializationMode::GEM_BINARY:
+        return "GArchive binary mode";
+    case serializationMode::GEM_JSON:
+        return "GArchive JSON mode";
     }
     return {}; // unreachable for valid enumerator inputs
 }
@@ -171,12 +173,11 @@ std::string currentTimeAsString();
  * @param loc The call-site source location (defaulted to std::source_location::current(), i.e. the caller)
  * @return A string describing the current time and the call site (file, line, function)
  */
-[[nodiscard]] inline std::string timeAndPlace(
-    std::source_location const &loc = std::source_location::current()
-) {
+[[nodiscard]] inline std::string
+timeAndPlace(std::source_location const &loc = std::source_location::current()) {
     return std::string("Recorded on ") + currentTimeAsString() + "\n" + "in File " +
-           loc.file_name() + " at line " + std::to_string(loc.line()) + " (" +
-           loc.function_name() + ") :\n";
+           loc.file_name() + " at line " + std::to_string(loc.line()) + " (" + loc.function_name() +
+           ") :\n";
 }
 
 /******************************************************************************/

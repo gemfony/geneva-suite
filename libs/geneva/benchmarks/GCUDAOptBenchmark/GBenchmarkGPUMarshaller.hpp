@@ -71,7 +71,8 @@ public:
      *  kernel through problemConstants(). */
     void flatten(std::span<const item_ptr> items, std::vector<double> &params_out) const override {
         if(not items.empty()) {
-            const auto *first = dynamic_cast<const gind::GFunctionIndividual *>(items.front().get());
+            const auto *first =
+                dynamic_cast<const gind::GFunctionIndividual *>(items.front().get());
             if(first != nullptr) {
                 funcId_ = static_cast<int>(first->getDemoFunction());
             }

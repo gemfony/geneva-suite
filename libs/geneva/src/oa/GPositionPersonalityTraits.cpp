@@ -51,13 +51,12 @@ bool GPositionPersonalityTraits::modify_GUnitTests_() {
 #ifdef GEM_TESTING
     bool result = false;
 
-
     this->setPopulationPosition(this->getPopulationPosition() + 1);
     result = true;
 
     return result;
 
-#else /* GEM_TESTING */
+#else  /* GEM_TESTING */
     Gem::Common::condnotset("GPositionPersonalityTraits::modify_GUnitTests", "GEM_TESTING");
     return false;
 #endif /* GEM_TESTING */

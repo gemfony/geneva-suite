@@ -42,16 +42,16 @@
 // Geneva headers go here
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
-#include "common/GExceptions.hpp"
 #include "common/GContainerT.hpp"
+#include "common/GExceptions.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/GOptimizationEnums.hpp"
-#include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
 #include "hap/GRandomT.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -86,10 +86,8 @@ inline constexpr bool always_false_scan_v = false;
  */
 template <typename T>
 std::vector<T> fillWithData(
-    [[maybe_unused]] std::size_t n_steps
-    ,
-    [[maybe_unused]] T lower
-    ,
+    [[maybe_unused]] std::size_t n_steps,
+    [[maybe_unused]] T lower,
     [[maybe_unused]] T upper
 ) {
     static_assert(
@@ -168,7 +166,9 @@ template <typename T>
 class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GPodContainerT<T>
   , public GScanParInterface
-  , public Gem::Common::GReflectiveInterfaceBaseT<GBaseScanParT<T>, Gem::Common::GCommonInterfaceT<GBaseScanParT<T>>> {
+  , public Gem::Common::GReflectiveInterfaceBaseT<
+        GBaseScanParT<T>,
+        Gem::Common::GCommonInterfaceT<GBaseScanParT<T>>> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
@@ -380,12 +380,12 @@ protected:
     /***************************************************************************/
     // Data
 
-    std::size_t index_;           ///< The position of the variable in the value channel of its type
-    std::size_t step_;            ///< The current position in the data vector
-    std::size_t n_steps_;         ///< Requested steps (random draws or grid points)
-    T lower_;                     ///< The lower boundary of an item
-    T upper_;                     ///< The upper boundary of an item
-    bool random_scan_;             ///< Indicates whether we are dealing with a random scan or not
+    std::size_t index_;   ///< The position of the variable in the value channel of its type
+    std::size_t step_;    ///< The current position in the data vector
+    std::size_t n_steps_; ///< Requested steps (random draws or grid points)
+    T lower_;             ///< The lower boundary of an item
+    T upper_;             ///< The upper boundary of an item
+    bool random_scan_;    ///< Indicates whether we are dealing with a random scan or not
     std::string type_description_; ///< Holds an identifier for the type described by this class
 
     /***************************************************************************/
@@ -409,9 +409,7 @@ protected:
      * @param gr A reference to a random number generator
      * @return A random parameter value within the configured boundaries
      */
-    T getRandomItem(
-        [[maybe_unused]] Gem::Hap::GRandomBase & gr
-    ) const {
+    T getRandomItem([[maybe_unused]] Gem::Hap::GRandomBase &gr) const {
         static_assert(
             always_false_scan_v<T>,
             "getRandomItem() is only available for bool, std::int32_t, float and double"
@@ -559,7 +557,9 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GBScanPar";
     /** @brief The single-character type descriptor injected into the base */
-    static constexpr const char *scanTypeDescriptor() { return "b"; }
+    static constexpr const char *scanTypeDescriptor() {
+        return "b";
+    }
 };
 
 /******************************************************************************/
@@ -580,7 +580,9 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GInt32ScanPar";
     /** @brief The single-character type descriptor injected into the base */
-    static constexpr const char *scanTypeDescriptor() { return "i"; }
+    static constexpr const char *scanTypeDescriptor() {
+        return "i";
+    }
 };
 
 /******************************************************************************/
@@ -601,7 +603,9 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GDScanPar";
     /** @brief The single-character type descriptor injected into the base */
-    static constexpr const char *scanTypeDescriptor() { return "d"; }
+    static constexpr const char *scanTypeDescriptor() {
+        return "d";
+    }
 };
 
 /******************************************************************************/
@@ -622,7 +626,9 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GFScanPar";
     /** @brief The single-character type descriptor injected into the base */
-    static constexpr const char *scanTypeDescriptor() { return "f"; }
+    static constexpr const char *scanTypeDescriptor() {
+        return "f";
+    }
 };
 
 /******************************************************************************/
@@ -724,7 +730,6 @@ public:
     using personality_traits_type = GParameterScan_PersonalityTraits;
 
 private:
-
     /** @brief Single declaration of this class'es local data members.
      *
      * The plain members are handled identically (plain assignment / direct compare / NVP) in serialize(),
@@ -766,7 +771,7 @@ public:
     ~GParameterScan() override = default;
 
     /** @brief Fills the parameter vectors from a textual parameter specification */
-    void setParameterSpecs(const std::string& par_str);
+    void setParameterSpecs(const std::string &par_str);
 
     /** @brief Puts the class in "simple scan" mode */
     void setNSimpleScans(std::size_t simple_scan_items);
@@ -836,7 +841,6 @@ private:
     /** @brief Triggers fitness calculation of a number of individuals */
     void evaluatePopulation_() override;
 
-
     /** @brief A custom halt criterion for the optimization, allowing to stop the loop when no items are left to be scanned */
     bool customHalt_() const override;
 
@@ -854,10 +858,8 @@ private:
      * @param data_vec The destination vector, written at data_point.pos
      */
     template <typename data_type>
-    static void addDataPoint(
-        const singleParameter<data_type> &data_point,
-        std::vector<data_type> &data_vec
-    ) {
+    static void
+    addDataPoint(const singleParameter<data_type> &data_point, std::vector<data_type> &data_vec) {
         // Check that we haven't exceeded the size of the data vector
         if(data_point.pos >= data_vec.size()) {
             throw geneva_exception(
@@ -916,5 +918,3 @@ private:
 };
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-
-

@@ -78,10 +78,8 @@
  * "019900") was an octal literal and, once a minor/patch digit reached 8 or 9 as it
  * has here, would have been an outright invalid octal literal.
  *
- * Keep in sync with VERSION_MAJOR / VERSION_MINOR / VERSION_PATCH / VERSION_SUFFIX in the
- * top-level CMakeLists.txt.
- * Note: FindGeneva.cmake parses the three component macros below to determine the
- * installed version.
+ * This is the only place where the version is written: the top-level CMakeLists.txt and the
+ * installed FindGeneva.cmake read it from the macros below.
  */
 #define GENEVA_VERSION_MAJOR 1
 #define GENEVA_VERSION_MINOR 99
@@ -90,20 +88,21 @@
  * final release. Appended to the human-facing GENEVA_VERSION_STRING (GModuleManifest.hpp); the
  * numeric GENEVA_VERSION below is unaffected. */
 #define GENEVA_VERSION_PRERELEASE "-beta1"
-#define GENEVA_VERSION (GENEVA_VERSION_MAJOR * 10000 + GENEVA_VERSION_MINOR * 100 + GENEVA_VERSION_PATCH)
+#define GENEVA_VERSION                                                                             \
+    (GENEVA_VERSION_MAJOR * 10000 + GENEVA_VERSION_MINOR * 100 + GENEVA_VERSION_PATCH)
 
 /**
  * The minimum required Boost version, encoded as an integer.
  * Encoding: major(1 digit) + "0" + minor(2 digits) + "00"
  * Example:  1.91  →  "1" + "0" + "91" + "00"  =  109100
  *
- * Keep in sync with GENEVA_MIN_BOOST_VERSION in
- * CMakeModules/CommonGenevaBuild.cmake.
+ * This is the only place where the minimum is written: CMakeModules/CommonGenevaBuild.cmake reads
+ * it from this macro.
  */
 #define MIN_BOOST_VERSION 109100
 
 #if BOOST_VERSION < MIN_BOOST_VERSION
-#error "Error: Boost should at least have version 1.91 !"
+#error "Error: Boost is older than MIN_BOOST_VERSION in common/GGlobalDefines.hpp !"
 #endif /* BOOST_VERSION */
 
 //-----------------------------------------------------------

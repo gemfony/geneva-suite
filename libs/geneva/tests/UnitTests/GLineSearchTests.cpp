@@ -66,12 +66,15 @@ GLineSearch::eval_fn_t batchOf(F f) {
 
 /******************************************************************************/
 
-TEST_CASE("GLineSearch: backtracks to a sufficient-decrease step on a sphere", "[geneva][linesearch]") {
+TEST_CASE(
+    "GLineSearch: backtracks to a sufficient-decrease step on a sphere",
+    "[geneva][linesearch]"
+) {
     // f(x) = x0^2 + x1^2 ; at (1,1) the gradient is (2,2) and the steepest-descent direction is (-2,-2).
     const std::vector<double> x0{1., 1.};
     const std::vector<double> dir{-2., -2.};
-    const double f0 = sphere(x0);                       // = 2
-    const double g0_dot_dir = 2. * -2. + 2. * -2.;      // grad . dir = -8
+    const double f0 = sphere(x0);                  // = 2
+    const double g0_dot_dir = 2. * -2. + 2. * -2.; // grad . dir = -8
 
     GLineSearch const ls;
     auto r = ls.search(batchOf(sphere), x0, dir, f0, g0_dot_dir);
@@ -99,7 +102,7 @@ TEST_CASE("GLineSearch: finds a decreasing step along a Rosenbrock ray", "[genev
     // At (-1, 1): grad = (-4, 0); steepest-descent direction (4, 0).
     const std::vector<double> x0{-1., 1.};
     const std::vector<double> dir{4., 0.};
-    const double f0 = rosenbrock(x0); // = 4
+    const double f0 = rosenbrock(x0);             // = 4
     const double g0_dot_dir = -4. * 4. + 0. * 0.; // = -16
 
     GLineSearch const ls;
@@ -113,13 +116,16 @@ TEST_CASE("GLineSearch: finds a decreasing step along a Rosenbrock ray", "[genev
     CHECK(std::abs(r.f_new - rosenbrock(r.x_new)) < 1.e-9);
 }
 
-TEST_CASE("GLineSearch: accepts the full initial step when it already satisfies Armijo", "[geneva][linesearch]") {
+TEST_CASE(
+    "GLineSearch: accepts the full initial step when it already satisfies Armijo",
+    "[geneva][linesearch]"
+) {
     // A gently sloped 1D ray where alpha = 1 already gives sufficient decrease, so no backtracking.
     // f(t) = (t)^2 around x0 = 10 with a small unit direction so the quadratic stays in the basin.
     const std::vector<double> x0{10.};
     const std::vector<double> dir{-1.};
-    const double f0 = sphere(x0);               // 100
-    const double g0_dot_dir = 2. * 10. * -1.;   // grad . dir = -20
+    const double f0 = sphere(x0);             // 100
+    const double g0_dot_dir = 2. * 10. * -1.; // grad . dir = -20
 
     GLineSearchOptions const opts; // alpha_init = 1
     GLineSearch const ls;

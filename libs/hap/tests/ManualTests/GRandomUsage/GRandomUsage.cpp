@@ -162,7 +162,7 @@ void createRandomVector(
     std::vector<T> &vec_t,
     const distType &dType,
     const std::size_t &nEntries,
-    const std::shared_ptr<Gem::Hap::GRandomBase>& gr_ptr
+    const std::shared_ptr<Gem::Hap::GRandomBase> &gr_ptr
 ) {
     std::size_t i = 0;
 
@@ -330,15 +330,13 @@ int main(int argc, char **argv) {
     // Set the random number generation mode as requested
     switch(rnrProductionMode) {
     case 0:
-        gr_ptr = std::shared_ptr<GRandomT<randomSource::QUEUE>>(
-            new GRandomT<randomSource::QUEUE>()
-        );
+        gr_ptr =
+            std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
         break;
 
     case 1:
-        gr_ptr = std::shared_ptr<GRandomT<randomSource::LOCAL>>(
-            new GRandomT<randomSource::LOCAL>()
-        );
+        gr_ptr =
+            std::shared_ptr<GRandomT<randomSource::LOCAL>>(new GRandomT<randomSource::LOCAL>());
         break;
 
     default: {
@@ -411,21 +409,17 @@ int main(int argc, char **argv) {
 
     switch(rnrProductionMode) {
     case 0:
-        gr_ptr_one = std::shared_ptr<GRandomT<randomSource::QUEUE>>(
-            new GRandomT<randomSource::QUEUE>()
-        );
-        gr_ptr_two = std::shared_ptr<GRandomT<randomSource::QUEUE>>(
-            new GRandomT<randomSource::QUEUE>()
-        );
+        gr_ptr_one =
+            std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
+        gr_ptr_two =
+            std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
         break;
 
     case 1:
-        gr_ptr_one = std::shared_ptr<GRandomT<randomSource::LOCAL>>(
-            new GRandomT<randomSource::LOCAL>()
-        );
-        gr_ptr_two = std::shared_ptr<GRandomT<randomSource::LOCAL>>(
-            new GRandomT<randomSource::LOCAL>()
-        );
+        gr_ptr_one =
+            std::shared_ptr<GRandomT<randomSource::LOCAL>>(new GRandomT<randomSource::LOCAL>());
+        gr_ptr_two =
+            std::shared_ptr<GRandomT<randomSource::LOCAL>>(new GRandomT<randomSource::LOCAL>());
         break;
     };
 
@@ -574,8 +568,7 @@ int main(int argc, char **argv) {
     ofs << '\n';
 
     for(i = 1; i <= 10; i++) {
-        ofs << "  initLFCorrelation->Fill(" << i << ", " << initLFCorr.at(i - 1) << ");"
-            << '\n';
+        ofs << "  initLFCorrelation->Fill(" << i << ", " << initLFCorr.at(i - 1) << ");" << '\n';
     }
     ofs << '\n';
 

@@ -57,15 +57,18 @@ namespace Gem::Courtier {
  * This class implements the simplest-possible processing container object, used for tests of
  * the courtier lib.
  */
-class GSimpleContainer
-  : public Gem::Courtier::GProcessingContainerT<GSimpleContainer, bool> {
+class GSimpleContainer : public Gem::Courtier::GProcessingContainerT<GSimpleContainer, bool> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GSimpleContainer, bool>>(
-            ar, "GProcessingContainerT_GSimpleContainer", *this);
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GSimpleContainer, bool>>(
+            ar,
+            "GProcessingContainerT_GSimpleContainer",
+            *this
+        );
         Gem::Common::archive_named(ar, "stored_number_", stored_number_);
     }
     ///////////////////////////////////////////////////////////////////////
@@ -109,8 +112,12 @@ class GRandomNumberContainer
 
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GRandomNumberContainer, bool>>(
-            ar, "GProcessingContainerT_GRandomNumberContainer", *this);
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GRandomNumberContainer, bool>>(
+            ar,
+            "GProcessingContainerT_GRandomNumberContainer",
+            *this
+        );
         Gem::Common::archive_named(ar, "random_numbers_", random_numbers_);
     }
     ///////////////////////////////////////////////////////////////////////
@@ -155,13 +162,14 @@ private:
  * is processed locally (GStdThread/GSerial consumer) or on a remote client over the wire.
  */
 enum class fault_mode : std::uint8_t {
-    NONE = 0,             ///< Normal: register a result, no fault
-    SLEEP = 1,            ///< Sleep for sleep_ms_ then register a result (slow worker)
-    FLAG_ERROR = 2,       ///< Call force_set_error() (clean error flag, no throw)
-    THROW_PROCESSING = 3, ///< Throw g_processing_exception (a std::exception → process()'s catch(std::exception&); item flagged)
-    THROW_FATAL = 4,      ///< Throw a non-std::exception: process()'s catch(...) path; item flagged
-    THROW_LOADING = 5,    ///< Throw while loading while load faults are armed (armLoadFaults())
-    THROW_SAVING = 6,     ///< Throw while saving while save faults are armed (armSaveFaults())
+    NONE = 0,       ///< Normal: register a result, no fault
+    SLEEP = 1,      ///< Sleep for sleep_ms_ then register a result (slow worker)
+    FLAG_ERROR = 2, ///< Call force_set_error() (clean error flag, no throw)
+    THROW_PROCESSING =
+        3, ///< Throw g_processing_exception (a std::exception → process()'s catch(std::exception&); item flagged)
+    THROW_FATAL = 4,   ///< Throw a non-std::exception: process()'s catch(...) path; item flagged
+    THROW_LOADING = 5, ///< Throw while loading while load faults are armed (armLoadFaults())
+    THROW_SAVING = 6,  ///< Throw while saving while save faults are armed (armSaveFaults())
     THROW_SAVING_RESULT = 7 ///< Like THROW_SAVING, but only an item that has been processed
 };
 
@@ -172,16 +180,19 @@ enum class fault_mode : std::uint8_t {
  * has no dependency on the geneva optimization library. The fault mode is serialized, so a
  * remote client will exhibit it after deserialization.
  */
-class GFaultyContainer
-  : public Gem::Courtier::GProcessingContainerT<GFaultyContainer, bool> {
+class GFaultyContainer : public Gem::Courtier::GProcessingContainerT<GFaultyContainer, bool> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         using Gem::Common::archive_named;
-        Gem::Common::archive_named_base<Gem::Courtier::GProcessingContainerT<GFaultyContainer, bool>>(
-            ar, "GProcessingContainerT_GFaultyContainer", *this);
+        Gem::Common::archive_named_base<
+            Gem::Courtier::GProcessingContainerT<GFaultyContainer, bool>>(
+            ar,
+            "GProcessingContainerT_GFaultyContainer",
+            *this
+        );
         archive_named(ar, "stored_number_", stored_number_);
         archive_named(ar, "fault_mode_", fault_mode_);
         archive_named(ar, "sleep_ms_", sleep_ms_);
@@ -244,12 +255,11 @@ private:
      *  @param res_vec An optional externally injected evaluation result vector (unused here) */
     void process_(const std::vector<bool> &res_vec = std::vector<bool>()) final;
 
-    std::size_t stored_number_ = 0;              ///< Identifies the item (for conservation checks)
-    fault_mode fault_mode_ = fault_mode::NONE;   ///< The fault to exhibit during process_()
-    unsigned int sleep_ms_ = 0;                  ///< Sleep length for fault_mode::SLEEP
+    std::size_t stored_number_ = 0;            ///< Identifies the item (for conservation checks)
+    fault_mode fault_mode_ = fault_mode::NONE; ///< The fault to exhibit during process_()
+    unsigned int sleep_ms_ = 0;                ///< Sleep length for fault_mode::SLEEP
 };
 
 /**********************************************************************************************/
 
 } /* namespace Gem::Courtier */
-

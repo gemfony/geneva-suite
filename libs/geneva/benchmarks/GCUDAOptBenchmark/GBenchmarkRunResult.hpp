@@ -51,9 +51,9 @@ namespace Gem::Geneva::Benchmarks {
  * accessible after the run).
  */
 enum class TerminationReason : std::uint8_t {
-    MaxIterations,   ///< setMaxIteration() limit reached
-    StallThreshold,  ///< setStallCounterThreshold() limit reached without improvement
-    QualityThreshold,///< setQualityThreshold() target fitness reached
+    MaxIterations,    ///< setMaxIteration() limit reached
+    StallThreshold,   ///< setStallCounterThreshold() limit reached without improvement
+    QualityThreshold, ///< setQualityThreshold() target fitness reached
     Unknown
 };
 
@@ -62,11 +62,15 @@ enum class TerminationReason : std::uint8_t {
  * @brief Converts a TerminationReason to a short ASCII string for CSV output.
  */
 inline std::string_view terminationReasonToString(TerminationReason r) noexcept {
-    switch (r) {
-        case TerminationReason::MaxIterations:    return "max_iter";
-        case TerminationReason::StallThreshold:   return "stall";
-        case TerminationReason::QualityThreshold: return "target_reached";
-        case TerminationReason::Unknown:          return "unknown";
+    switch(r) {
+    case TerminationReason::MaxIterations:
+        return "max_iter";
+    case TerminationReason::StallThreshold:
+        return "stall";
+    case TerminationReason::QualityThreshold:
+        return "target_reached";
+    case TerminationReason::Unknown:
+        return "unknown";
     }
     return "unknown";
 }
@@ -80,16 +84,16 @@ inline std::string_view terminationReasonToString(TerminationReason r) noexcept 
  * optimisation algorithm's post-run state.
  */
 struct GBenchmarkRunResult {
-    std::string   algorithmTag;        ///< Free label, e.g. "ea_pop100" or "sa_default"
-    std::string   functionName;        ///< GFunctionIndividual function name, e.g. "PARABOLA"
-    std::uint32_t nDimensions  {0};    ///< Parameter dimension used in this run
-    std::uint32_t runIndex     {0};    ///< 0-based index within the N runs for this tag
+    std::string algorithmTag;     ///< Free label, e.g. "ea_pop100" or "sa_default"
+    std::string functionName;     ///< GFunctionIndividual function name, e.g. "PARABOLA"
+    std::uint32_t nDimensions{0}; ///< Parameter dimension used in this run
+    std::uint32_t runIndex{0};    ///< 0-based index within the N runs for this tag
 
-    double        finalFitness        {0.0}; ///< Best raw fitness at termination
-    std::uint32_t iterationsConsumed  {0};   ///< Number of iterations executed
-    double        wallTimeSeconds     {0.0}; ///< Wall-clock time from optimize() start to end
-    TerminationReason terminationReason {TerminationReason::Unknown};
-    bool          targetReached {false};     ///< true iff terminationReason == QualityThreshold
+    double finalFitness{0.0};            ///< Best raw fitness at termination
+    std::uint32_t iterationsConsumed{0}; ///< Number of iterations executed
+    double wallTimeSeconds{0.0};         ///< Wall-clock time from optimize() start to end
+    TerminationReason terminationReason{TerminationReason::Unknown};
+    bool targetReached{false}; ///< true iff terminationReason == QualityThreshold
 };
 
 /******************************************************************************/
@@ -103,17 +107,20 @@ struct GBenchmarkRunResult {
  * of the mean), so that the spread across runs is visible even for small N.
  */
 struct GAlgorithmBenchmarkResult {
-    std::string   algorithmTag;
-    std::string   functionName;
-    std::uint32_t nDimensions {0};
-    std::size_t   nRuns       {0};
+    std::string algorithmTag;
+    std::string functionName;
+    std::uint32_t nDimensions{0};
+    std::size_t nRuns{0};
 
-    double meanFinalFitness  {0.0};  double sigmaFinalFitness {0.0};
-    double meanIterations    {0.0};  double sigmaIterations   {0.0};
-    double meanWallTime      {0.0};  double sigmaWallTime     {0.0};
+    double meanFinalFitness{0.0};
+    double sigmaFinalFitness{0.0};
+    double meanIterations{0.0};
+    double sigmaIterations{0.0};
+    double meanWallTime{0.0};
+    double sigmaWallTime{0.0};
 
     /// Fraction of runs that reached the quality threshold (0.0 – 1.0).
-    double successRate {0.0};
+    double successRate{0.0};
 
     /// Raw per-run data, retained so the result writer can produce raw CSVs.
     std::vector<GBenchmarkRunResult> rawRuns;

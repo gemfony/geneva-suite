@@ -37,14 +37,15 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/Go2.hpp"
+#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 // The individual that should be optimized
 #include "GStarterIndividual.hpp"
 
 using namespace Gem::Geneva;
 
+// clang-format off
 //! [go2-main-quickstart]
 int main(int argc, char **argv) {
     Go2 go(argc, argv, "./config/Go2.json");
@@ -100,3 +101,4 @@ int main(int argc, char **argv) {
     //! [results-harvest]
 }
 //! [go2-main-quickstart]
+// clang-format on

@@ -52,9 +52,9 @@
 #include <memory>
 
 // Geneva headers
-#include "common/GBuildFingerprint.hpp"      // GENEVA_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp"        // GenevaContribution / GenevaModuleManifest / kinds / version string
-#include "geneva/GMarshallerPlugin.hpp"      // GMarshallerProviderPtr / GGPUMarshallerProviderT
+#include "common/GBuildFingerprint.hpp" // GENEVA_BUILD_FINGERPRINT
+#include "common/GModuleManifest.hpp" // GenevaContribution / GenevaModuleManifest / kinds / version string
+#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr / GGPUMarshallerProviderT
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
 #include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr
 
@@ -73,7 +73,8 @@ namespace {
  *  is the standard config-driven flat-individual factory on GImageIndividual. */
 void *make_individual() {
     return new Gem::Geneva::GIndividualFactoryPtr(
-        std::make_shared<Gem::Geneva::GImageIndividualFactory>("./config/GImageIndividual.json"));
+        std::make_shared<Gem::Geneva::GImageIndividualFactory>("./config/GImageIndividual.json")
+    );
 }
 
 /** @brief Contribution 2 -- the GPU marshaller, registered under the "cuda" device target, reading its
@@ -81,8 +82,12 @@ void *make_individual() {
  *  (GIMAGE_DEFAULT_GPUCONFIG: GGPUConsumer.json for double, GGPUConsumerFloat.json for float). */
 void *make_marshaller() {
     return new Gem::Geneva::GMarshallerProviderPtr(
-        std::make_shared<Gem::Geneva::GGPUMarshallerProviderT<Gem::Geneva::MonaLisa::GMonaLisaGPUMarshaller>>(
-            "cuda", GIMAGE_DEFAULT_GPUCONFIG));
+        std::make_shared<
+            Gem::Geneva::GGPUMarshallerProviderT<Gem::Geneva::MonaLisa::GMonaLisaGPUMarshaller>>(
+            "cuda",
+            GIMAGE_DEFAULT_GPUCONFIG
+        )
+    );
 }
 
 /** @brief The module manifest: two contributions in one .so, walked by kind by the loader. */
@@ -92,7 +97,12 @@ const GenevaContribution g_contributions[] = {
 };
 
 const GenevaModuleManifest g_manifest{
-    GENEVA_MODULE_ABI_STAMP, "GImageIndividual", GENEVA_VERSION_STRING, g_contributions, 2u};
+    GENEVA_MODULE_ABI_STAMP,
+    "GImageIndividual",
+    GENEVA_VERSION_STRING,
+    g_contributions,
+    2u
+};
 
 } // anonymous namespace
 

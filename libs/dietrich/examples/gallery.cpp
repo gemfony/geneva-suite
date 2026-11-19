@@ -47,7 +47,7 @@ using namespace Gem::Dietrich;
 
 // NOLINTNEXTLINE(readability-function-size) -- single demo main assembling the four gallery pads (curve, helix, 1-d and 2-d histograms) and writing all three backend scripts
 int main() {
-    std::mt19937 rng(20260623);            // a fixed seed -> reproducible figures
+    std::mt19937 rng(20260623); // a fixed seed -> reproducible figures
     std::normal_distribution<double> nd(0., 1.);
 
     GDataLog log("Dietrich gallery", 2, 2); // four pads
@@ -108,9 +108,9 @@ int main() {
         log.append(h2id, nd(rng), nd(rng));
     }
 
-    log.writeToFile("gallery.C",  plotBackend::ROOT);
+    log.writeToFile("gallery.C", plotBackend::ROOT);
     log.writeToFile("gallery.py", plotBackend::MATPLOTLIB);
-    log.writeToFile("gallery.m",  plotBackend::OCTAVE);
+    log.writeToFile("gallery.m", plotBackend::OCTAVE);
 
     std::cout << "gallery: wrote gallery.{C,py,m}\n";
     return 0;

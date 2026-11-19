@@ -73,7 +73,8 @@ struct BenchObj : Gem::Common::gemfony_common_interface_indicator {
 
     BenchObj() = default;
     explicit BenchObj(double v)
-      : data(v) {}
+      : data(v) {
+    }
     virtual ~BenchObj() = default;
 
     template <typename target_type = BenchObj>
@@ -81,7 +82,7 @@ struct BenchObj : Gem::Common::gemfony_common_interface_indicator {
         return std::make_shared<target_type>(*this);
     }
 
-    void load(const std::shared_ptr<BenchObj>& cp) {
+    void load(const std::shared_ptr<BenchObj> &cp) {
         data = cp->data;
     }
 
@@ -90,11 +91,7 @@ struct BenchObj : Gem::Common::gemfony_common_interface_indicator {
     }
 
     // Required by Gem::Common::compare_base when SharedPtrStorage is used
-    void compare(
-        const BenchObj &cp,
-        Gem::Common::expectation e,
-        double limit
-    ) const {
+    void compare(const BenchObj &cp, Gem::Common::expectation e, double limit) const {
         using namespace Gem::Common;
         if(e == expectation::EQUALITY || e == expectation::FP_SIMILARITY) {
             double const diff = (data > cp.data) ? (data - cp.data) : (cp.data - data);
@@ -121,7 +118,7 @@ public:
 };
 
 class PodDeqBench
-    : public Gem::Common::GContainerT<double, Gem::Common::PodStorage<double, std::deque<double>>> {
+  : public Gem::Common::GContainerT<double, Gem::Common::PodStorage<double, std::deque<double>>> {
 public:
     PodDeqBench() = default;
     ~PodDeqBench() override = default;
@@ -559,8 +556,8 @@ int main(int argc, char *argv[]) {
     Config const cfg = parseArgs(argc, argv);
 
     std::cout << "GContainerT Benchmark\n";
-    std::cout << "  mode=" << cfg.mode << "  container=" << cfg.container
-              << "  size=" << cfg.size << "  duration=" << cfg.duration << "s"
+    std::cout << "  mode=" << cfg.mode << "  container=" << cfg.container << "  size=" << cfg.size
+              << "  duration=" << cfg.duration << "s"
               << "  seed=" << cfg.seed << "\n\n";
 
     bool const doPod = (cfg.mode == "pod" || cfg.mode == "all");

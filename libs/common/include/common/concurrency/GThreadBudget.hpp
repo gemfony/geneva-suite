@@ -53,7 +53,10 @@ namespace Gem::Common::Concurrency {
  * correct at any worker count; Fixed pools (e.g. a client compute pool sized to
  * its prefetch depth) need exactly what they requested to make progress.
  */
-enum class ThreadElasticity : std::uint8_t { Fixed, Elastic };
+enum class ThreadElasticity : std::uint8_t {
+    Fixed,
+    Elastic
+};
 
 /******************************************************************************/
 /**
@@ -97,7 +100,8 @@ public:
         Reservation(Reservation &&other) noexcept
           : budget_(std::exchange(other.budget_, nullptr))
           , key_(std::exchange(other.key_, 0))
-          , granted_(std::exchange(other.granted_, 0)) { /* nothing */ }
+          , granted_(std::exchange(other.granted_, 0)) { /* nothing */
+        }
 
         /** @brief Move assignment: releases any held reservation, then takes over the other's
          *  @param other The handle to take the reservation from (left empty)
@@ -113,14 +117,18 @@ public:
         }
 
         /** @brief The destructor returns the reservation to the budget */
-        ~Reservation() { release(); }
+        ~Reservation() {
+            release();
+        }
 
         Reservation(const Reservation &) = delete;
         Reservation &operator=(const Reservation &) = delete;
 
         /** @brief The number of threads the pool should actually start
          *  @return The granted thread count (0 only for an empty handle) */
-        [[nodiscard]] unsigned int granted() const noexcept { return granted_; }
+        [[nodiscard]] unsigned int granted() const noexcept {
+            return granted_;
+        }
 
         /** @brief Returns the reservation to the budget early; idempotent */
         void release() noexcept {
@@ -139,7 +147,8 @@ public:
         Reservation(GThreadBudget *budget, std::size_t key, unsigned int granted)
           : budget_(budget)
           , key_(key)
-          , granted_(granted) { /* nothing */ }
+          , granted_(granted) { /* nothing */
+        }
 
         GThreadBudget *budget_ = nullptr; ///< The owning budget (nullptr == empty handle)
         std::size_t key_ = 0;             ///< This reservation's registry key
@@ -212,11 +221,15 @@ public:
 
     /** @brief The soft ceiling the budget compares against
      *  @return The number of hardware threads */
-    [[nodiscard]] unsigned int ceiling() const noexcept { return getNHardwareThreads(); }
+    [[nodiscard]] unsigned int ceiling() const noexcept {
+        return getNHardwareThreads();
+    }
 
     /** @brief Whether the reserved total exceeds the hardware ceiling
      *  @return true if more threads are reserved than the hardware provides */
-    [[nodiscard]] bool oversubscribed() const noexcept { return reserved() > ceiling(); }
+    [[nodiscard]] bool oversubscribed() const noexcept {
+        return reserved() > ceiling();
+    }
 
     /***************************************************************************/
     /// The warning fires when the reserved total exceeds ceiling() times this factor. A factor
@@ -229,9 +242,10 @@ private:
     /***************************************************************************/
     /** @brief One live reservation's bookkeeping record */
     struct entry {
-        std::string source;          ///< The reserving component's name
-        unsigned int count = 0;      ///< The granted thread count
-        ThreadElasticity elasticity; ///< Whether the pool could run smaller (recorded for diagnostics)
+        std::string source;     ///< The reserving component's name
+        unsigned int count = 0; ///< The granted thread count
+        ThreadElasticity
+            elasticity; ///< Whether the pool could run smaller (recorded for diagnostics)
     };
 
     /** @brief Returns a reservation to the budget (called by Reservation only)
@@ -263,7 +277,10 @@ private:
         for(const auto &[key, e] : entries_) {
             by_source[e.source] += e.count;
         }
-        std::vector<std::pair<std::string, unsigned int>> sorted(by_source.begin(), by_source.end());
+        std::vector<std::pair<std::string, unsigned int>> sorted(
+            by_source.begin(),
+            by_source.end()
+        );
         std::ranges::sort(sorted, [](const auto &a, const auto &b) { return a.second > b.second; });
         if(sorted.size() > n) {
             sorted.resize(n);
@@ -277,12 +294,12 @@ private:
     /// meta-optimization constructing sub-pools per generation) must not spam the log.
     static constexpr unsigned int MAX_WARNINGS = 3;
 
-    mutable std::mutex mutex_;               ///< Guards all bookkeeping below
-    std::map<std::size_t, entry> entries_;   ///< Live reservations by key
-    std::size_t next_key_ = 1;               ///< The next registry key to hand out
-    unsigned int reserved_ = 0;              ///< Current sum of granted thread counts
-    bool warned_ = false;                    ///< Whether the warning has fired for the current excursion
-    unsigned int n_warnings_ = 0;            ///< How often the warning has fired in this process
+    mutable std::mutex mutex_;             ///< Guards all bookkeeping below
+    std::map<std::size_t, entry> entries_; ///< Live reservations by key
+    std::size_t next_key_ = 1;             ///< The next registry key to hand out
+    unsigned int reserved_ = 0;            ///< Current sum of granted thread counts
+    bool warned_ = false;         ///< Whether the warning has fired for the current excursion
+    unsigned int n_warnings_ = 0; ///< How often the warning has fired in this process
 };
 
 /******************************************************************************/
@@ -299,7 +316,8 @@ private:
  * @return A reference to the one process-wide budget
  */
 inline GThreadBudget &threadBudget() {
-    static GThreadBudget *budget = new GThreadBudget(); // NOLINT(cppcoreguidelines-owning-memory) -- deliberate never-destroy
+    static GThreadBudget *budget =
+        new GThreadBudget(); // NOLINT(cppcoreguidelines-owning-memory) -- deliberate never-destroy
     return *budget;
 }
 

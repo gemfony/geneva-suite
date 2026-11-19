@@ -53,15 +53,15 @@
 
 #include "courtier/GCourtierEnums.hpp" // SUBMISSION_UUID_TYPE
 #include "geneva/genome/GGenome.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
-using Gem::Geneva::OptimizationAlgorithms::GOptimizationAlgorithmBase;
 using Gem::Courtier::SUBMISSION_UUID_TYPE;
+using Gem::Geneva::OptimizationAlgorithms::GOptimizationAlgorithmBase;
 
 namespace Gem::Tests {
 
@@ -69,7 +69,8 @@ namespace Gem::Tests {
 /** A minimal flat individual: a sphere over a single double channel. */
 class LRSphere : public GGenomeT<LRSphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     LRSphere() {
         GGenomeBuilder b;
@@ -83,7 +84,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -98,7 +102,8 @@ private:
 /** A flat individual whose evaluation always throws, used to manufacture an errored work item. */
 class LRThrower : public GGenomeT<LRThrower> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     LRThrower() {
         GGenomeBuilder b;
@@ -148,11 +153,13 @@ std::unique_ptr<gen::GGenome> make_unprocessed(SUBMISSION_UUID_TYPE uuid) {
     return p;
 }
 
-constexpr SUBMISSION_UUID_TYPE U(std::uint64_t a, std::uint64_t b) { return SUBMISSION_UUID_TYPE{{a, b}}; }
+constexpr SUBMISSION_UUID_TYPE U(std::uint64_t a, std::uint64_t b) {
+    return SUBMISSION_UUID_TYPE{{a, b}};
+}
 
 } // namespace Gem::Tests
 GEM_REGISTER_ARCHIVABLE(Gem::Tests::LRThrower) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::LRSphere) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::LRSphere)  // NOLINT
 
 using namespace Gem::Tests;
 
@@ -171,10 +178,10 @@ TEST_CASE(
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent test of a single retainIntegrableLateReturns() call, checked from several angles (survivors, order, processed/error state, seen-set membership)
 TEST_CASE("late-return gate: validity filter keeps only clean successes", "[lateret][validity]") {
     std::vector<std::unique_ptr<gen::GGenome>> items;
-    items.push_back(make_processed(U(1, 1)));    // keep
-    items.push_back(make_errored(U(2, 2)));      // drop -- errored
-    items.push_back(make_unprocessed(U(3, 3)));  // drop -- not processed
-    items.push_back(make_processed(U(4, 4)));    // keep
+    items.push_back(make_processed(U(1, 1)));   // keep
+    items.push_back(make_errored(U(2, 2)));     // drop -- errored
+    items.push_back(make_unprocessed(U(3, 3))); // drop -- not processed
+    items.push_back(make_processed(U(4, 4)));   // keep
 
     std::set<SUBMISSION_UUID_TYPE> seen;
     GOptimizationAlgorithmBase::retainIntegrableLateReturns(items, seen);
@@ -197,8 +204,8 @@ TEST_CASE("late-return gate: validity filter keeps only clean successes", "[late
 /******************************************************************************/
 TEST_CASE("late-return gate: a lineage already live is rejected", "[lateret][dedup]") {
     std::vector<std::unique_ptr<gen::GGenome>> items;
-    items.push_back(make_processed(U(7, 7)));  // already represented in the live population -> drop
-    items.push_back(make_processed(U(8, 8)));  // fresh -> keep
+    items.push_back(make_processed(U(7, 7))); // already represented in the live population -> drop
+    items.push_back(make_processed(U(8, 8))); // fresh -> keep
 
     // Pre-load the seen set with the UUID of an individual still in the live population.
     std::set<SUBMISSION_UUID_TYPE> seen{U(7, 7)};
@@ -209,11 +216,14 @@ TEST_CASE("late-return gate: a lineage already live is rejected", "[lateret][ded
 }
 
 /******************************************************************************/
-TEST_CASE("late-return gate: a lineage duplicated within the batch is kept exactly once", "[lateret][dedup]") {
+TEST_CASE(
+    "late-return gate: a lineage duplicated within the batch is kept exactly once",
+    "[lateret][dedup]"
+) {
     std::vector<std::unique_ptr<gen::GGenome>> items;
-    items.push_back(make_processed(U(5, 5)));  // first occurrence -> keep
-    items.push_back(make_processed(U(5, 5)));  // duplicate lineage -> drop
-    items.push_back(make_processed(U(6, 6)));  // distinct -> keep
+    items.push_back(make_processed(U(5, 5))); // first occurrence -> keep
+    items.push_back(make_processed(U(5, 5))); // duplicate lineage -> drop
+    items.push_back(make_processed(U(6, 6))); // distinct -> keep
 
     std::set<SUBMISSION_UUID_TYPE> seen;
     GOptimizationAlgorithmBase::retainIntegrableLateReturns(items, seen);
@@ -237,13 +247,15 @@ TEST_CASE("late-return gate: distinct clean lineages all survive", "[lateret][de
 }
 
 /******************************************************************************/
-TEST_CASE("late-return gate: validity and dedup compose (invalid duplicates never shadow a clean one)",
-          "[lateret][validity][dedup]") {
+TEST_CASE(
+    "late-return gate: validity and dedup compose (invalid duplicates never shadow a clean one)",
+    "[lateret][validity][dedup]"
+) {
     // An errored item shares a lineage with a later clean item: the errored one is removed by the
     // validity filter BEFORE dedup, so the clean item must still be admitted (its UUID is not yet seen).
     std::vector<std::unique_ptr<gen::GGenome>> items;
-    items.push_back(make_errored(U(9, 9)));    // drop (errored) -- must not reserve U(9,9)
-    items.push_back(make_processed(U(9, 9)));  // keep -- the only clean carrier of this lineage
+    items.push_back(make_errored(U(9, 9)));   // drop (errored) -- must not reserve U(9,9)
+    items.push_back(make_processed(U(9, 9))); // keep -- the only clean carrier of this lineage
 
     std::set<SUBMISSION_UUID_TYPE> seen;
     GOptimizationAlgorithmBase::retainIntegrableLateReturns(items, seen);

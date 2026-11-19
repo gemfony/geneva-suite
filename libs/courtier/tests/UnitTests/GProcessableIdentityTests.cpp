@@ -31,7 +31,6 @@
 
 #include <sstream>
 
-
 #include "GDemoProcessingContainers.hpp"
 #include "weft/GBinaryArchive.hpp" // Gem::Weft::GBinary[IO]Archive
 

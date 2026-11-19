@@ -67,10 +67,10 @@ using namespace Gem::Geneva::Individuals;
 // NOLINTNEXTLINE(readability-function-size) -- single benchmark main measuring adaption and serialization timings for one individual across the configured measurement sweep
 int main(int argc, char **argv) {
     Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
-    std::string const caption =
-        "Times for adaption and serialization (" + Gem::Common::to_string(NMEASUREMENTS) +
-        " measurements each; serialization in " +
-        std::string(serializationModeToString(DEFAULTSERMODE)) + ")";
+    std::string const caption = "Times for adaption and serialization (" +
+                                Gem::Common::to_string(NMEASUREMENTS) +
+                                " measurements each; serialization in " +
+                                std::string(serializationModeToString(DEFAULTSERMODE)) + ")";
     GPlotDesigner gpd(caption, 2, NPERFOBJECTTYPES);
 
     std::shared_ptr<GGraph2D> const gdo_adapt_ptr(new GGraph2D());
@@ -138,30 +138,34 @@ int main(int argc, char **argv) {
 
         for(std::size_t o = 0; o < NPERFOBJECTTYPES; o++) {
             // Create a GTestIndividual2 object of the desired size
-            std::shared_ptr<GTestIndividual2> const gti_ptr(new GTestIndividual2(s, PERFOBJECTTYPE(o)));
+            std::shared_ptr<GTestIndividual2> const gti_ptr(
+                new GTestIndividual2(s, PERFOBJECTTYPE(o))
+            );
 
             // One adapter held across the measurement loop (the adaption state + logic are OA-owned;
             // a standalone individual drives them via a self-owned scratch + the config the
             // individual authors -- its genome carries only structure).
-            OptimizationAlgorithms::StandaloneAdapter adapter(*gti_ptr, gti_ptr->getAdaptionConfig());
+            OptimizationAlgorithms::StandaloneAdapter adapter(
+                *gti_ptr,
+                gti_ptr->getAdaptionConfig()
+            );
 
             // First test the time needed for NMEASUREMENTS
             // consecutive adaptions
-            std::chrono::system_clock::time_point const pre_adapt = std::chrono::system_clock::now();
+            std::chrono::system_clock::time_point const pre_adapt =
+                std::chrono::system_clock::now();
             for(std::size_t i = 1; i <= NMEASUREMENTS; i++) {
                 adapter.adapt(*gti_ptr);
             }
-            std::chrono::system_clock::time_point const post_adapt = std::chrono::system_clock::now();
+            std::chrono::system_clock::time_point const post_adapt =
+                std::chrono::system_clock::now();
 
             // Now measure the time needed for NMEASUREMENTS
             // consecutive (de-)serializations in the fastest mode (binary)
             std::chrono::system_clock::time_point const pre_serialization =
                 std::chrono::system_clock::now();
             for(std::size_t i = 1; i <= NMEASUREMENTS; i++) {
-                gti_ptr->fromString(
-                    gti_ptr->toString(DEFAULTSERMODE),
-                    DEFAULTSERMODE
-                );
+                gti_ptr->fromString(gti_ptr->toString(DEFAULTSERMODE), DEFAULTSERMODE);
             }
             std::chrono::system_clock::time_point const post_serialization =
                 std::chrono::system_clock::now();

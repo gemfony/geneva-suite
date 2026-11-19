@@ -367,7 +367,6 @@ private:
     }
 
 protected:
-
     /***************************************************************************/
     /** @brief The listener, for a concrete consumer that has questions about its transport (a
      *  port, say). It lives as long as this object.

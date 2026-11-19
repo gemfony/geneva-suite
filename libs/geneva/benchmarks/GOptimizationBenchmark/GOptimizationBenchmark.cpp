@@ -111,7 +111,10 @@ int main(int argc, char **argv) {
             // Build a fresh individual for this dimension, fully configured the way the factory's get_as<>()
             // would be (base options + demo function from the config file), but with the swept par_dim.
             std::shared_ptr<gind::GFunctionIndividual> const g =
-                gind::GFunctionIndividual::buildConfigured(gfiCfg, "./config/GFunctionIndividual.json");
+                gind::GFunctionIndividual::buildConfigured(
+                    gfiCfg,
+                    "./config/GFunctionIndividual.json"
+                );
 
 #ifdef DEBUG
             if(g->getParameterSize() != *it) {
@@ -138,24 +141,26 @@ int main(int argc, char **argv) {
             // same parameters (rebuilt here from g, whose dimension varies per measurement). Register it
             // for the adapting algorithms (EA / SA).
             go_loop.registerAdaptionConfig(
-                "PERSONALITY_EA", gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
+                "PERSONALITY_EA",
+                gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
             );
             go_loop.registerAdaptionConfig(
-                "PERSONALITY_SA", gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
+                "PERSONALITY_SA",
+                gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
             );
 
             // Start recording of time
             startTime = std::chrono::system_clock::now();
 
             // Perform the actual optimization and extract the best individual
-            auto const p =
-                go_loop.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+            auto const p = go_loop.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
             endTime = std::chrono::system_clock::now();
 
             // Extract the function name in the first test row
             if(it == dimVec.begin() && test == 0) {
-                functionName = gind::GFunctionIndividual::getStringRepresentation(p->getDemoFunction());
+                functionName =
+                    gind::GFunctionIndividual::getStringRepresentation(p->getDemoFunction());
                 functionCode = gind::GFunctionIndividual::get2DROOTFunction(p->getDemoFunction());
                 varBoundaries = std::tuple<double, double>{gfiCfg.min_var, gfiCfg.max_var};
             }

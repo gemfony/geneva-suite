@@ -53,8 +53,8 @@
 #include <sstream>
 #include <vector>
 
-#include "courtier/GCourtierEnums.hpp" // processRole
 #include "GDemoProcessingContainers.hpp"
+#include "courtier/GCourtierEnums.hpp" // processRole
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/mpi/GMPIEnvironment.hpp"

@@ -28,13 +28,15 @@
  ********************************************************************************/
 
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GExpectationChecksT.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <string>
 
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSimulatedAnnealing_PersonalityTraits)       // NOLINT
+GEM_REGISTER_ARCHIVABLE(
+    Gem::Geneva::OptimizationAlgorithms::GSimulatedAnnealing_PersonalityTraits
+) // NOLINT
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -54,7 +56,6 @@ const std::string GSimulatedAnnealing_PersonalityTraits::nickname = "sa";
 std::string GSimulatedAnnealing_PersonalityTraits::getMnemonic() const {
     return GSimulatedAnnealing_PersonalityTraits::nickname;
 }
-
 
 /******************************************************************************/
 

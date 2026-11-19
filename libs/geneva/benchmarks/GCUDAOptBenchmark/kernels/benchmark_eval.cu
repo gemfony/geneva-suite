@@ -17,16 +17,16 @@
 #define BM_E  2.71828182845904523536
 
 // ── Function id constants (must match GBenchmarkFunctions.hpp) ──────────────────────────────────
-#define FUNC_PARABOLA          0
-#define FUNC_NOISYPARABOLA     1
-#define FUNC_ROSENBROCK        2
-#define FUNC_ACKLEY            3
-#define FUNC_RASTRIGIN         4
-#define FUNC_SCHWEFEL          5
-#define FUNC_SALOMON           6
-#define FUNC_NEGPARABOLA       7
-#define FUNC_ACKLEY_CANONICAL  8
-#define FUNC_GRIEWANK          9
+#define FUNC_PARABOLA         0
+#define FUNC_NOISYPARABOLA    1
+#define FUNC_ROSENBROCK       2
+#define FUNC_ACKLEY           3
+#define FUNC_RASTRIGIN        4
+#define FUNC_SCHWEFEL         5
+#define FUNC_SALOMON          6
+#define FUNC_NEGPARABOLA      7
+#define FUNC_ACKLEY_CANONICAL 8
+#define FUNC_GRIEWANK         9
 #define FUNC_LEVY             10
 #define FUNC_STYBLINSKI_TANG  11
 #define FUNC_ELLIPSOID        12
@@ -35,13 +35,17 @@
 
 __device__ inline double bm_parabola(const double *x, int n) {
     double r = 0.;
-    for(int i = 0; i < n; ++i) { r += x[i] * x[i]; }
+    for(int i = 0; i < n; ++i) {
+        r += x[i] * x[i];
+    }
     return r;
 }
 
 __device__ inline double bm_noisyParabola(const double *x, int n) {
     double sq = 0.;
-    for(int i = 0; i < n; ++i) { sq += x[i] * x[i]; }
+    for(int i = 0; i < n; ++i) {
+        sq += x[i] * x[i];
+    }
     return (cos(sq) + 2.) * sq;
 }
 
@@ -66,19 +70,25 @@ __device__ inline double bm_ackley(const double *x, int n) {
 
 __device__ inline double bm_rastrigin(const double *x, int n) {
     double r = 10. * n;
-    for(int i = 0; i < n; ++i) { r += x[i] * x[i] - 10. * cos(2. * BM_PI * x[i]); }
+    for(int i = 0; i < n; ++i) {
+        r += x[i] * x[i] - 10. * cos(2. * BM_PI * x[i]);
+    }
     return r;
 }
 
 __device__ inline double bm_schwefel(const double *x, int n) {
     double r = 0.;
-    for(int i = 0; i < n; ++i) { r += -x[i] * sin(sqrt(fabs(x[i]))); }
+    for(int i = 0; i < n; ++i) {
+        r += -x[i] * sin(sqrt(fabs(x[i])));
+    }
     return r / n;
 }
 
 __device__ inline double bm_salomon(const double *x, int n) {
     double sq = 0.;
-    for(int i = 0; i < n; ++i) { sq += x[i] * x[i]; }
+    for(int i = 0; i < n; ++i) {
+        sq += x[i] * x[i];
+    }
     const double r = sqrt(sq);
     return -cos(2. * BM_PI * r) + 0.1 * r + 1.;
 }
@@ -158,31 +168,50 @@ __device__ inline double bm_zakharov(const double *x, int n) {
 
 __device__ inline double bm_eval(int fid, const double *x, int n) {
     switch(fid) {
-    case FUNC_PARABOLA:         return bm_parabola(x, n);
-    case FUNC_NOISYPARABOLA:    return bm_noisyParabola(x, n);
-    case FUNC_ROSENBROCK:       return bm_rosenbrock(x, n);
-    case FUNC_ACKLEY:           return bm_ackley(x, n);
-    case FUNC_RASTRIGIN:        return bm_rastrigin(x, n);
-    case FUNC_SCHWEFEL:         return bm_schwefel(x, n);
-    case FUNC_SALOMON:          return bm_salomon(x, n);
-    case FUNC_NEGPARABOLA:      return -bm_parabola(x, n);
-    case FUNC_ACKLEY_CANONICAL: return bm_ackleyCanonical(x, n);
-    case FUNC_GRIEWANK:         return bm_griewank(x, n);
-    case FUNC_LEVY:             return bm_levy(x, n);
-    case FUNC_STYBLINSKI_TANG:  return bm_styblinskiTang(x, n);
-    case FUNC_ELLIPSOID:        return bm_ellipsoid(x, n);
-    case FUNC_MICHALEWICZ:      return bm_michalewicz(x, n);
-    case FUNC_ZAKHAROV:         return bm_zakharov(x, n);
-    default:                    return 0.;
+    case FUNC_PARABOLA:
+        return bm_parabola(x, n);
+    case FUNC_NOISYPARABOLA:
+        return bm_noisyParabola(x, n);
+    case FUNC_ROSENBROCK:
+        return bm_rosenbrock(x, n);
+    case FUNC_ACKLEY:
+        return bm_ackley(x, n);
+    case FUNC_RASTRIGIN:
+        return bm_rastrigin(x, n);
+    case FUNC_SCHWEFEL:
+        return bm_schwefel(x, n);
+    case FUNC_SALOMON:
+        return bm_salomon(x, n);
+    case FUNC_NEGPARABOLA:
+        return -bm_parabola(x, n);
+    case FUNC_ACKLEY_CANONICAL:
+        return bm_ackleyCanonical(x, n);
+    case FUNC_GRIEWANK:
+        return bm_griewank(x, n);
+    case FUNC_LEVY:
+        return bm_levy(x, n);
+    case FUNC_STYBLINSKI_TANG:
+        return bm_styblinskiTang(x, n);
+    case FUNC_ELLIPSOID:
+        return bm_ellipsoid(x, n);
+    case FUNC_MICHALEWICZ:
+        return bm_michalewicz(x, n);
+    case FUNC_ZAKHAROV:
+        return bm_zakharov(x, n);
+    default:
+        return 0.;
     }
 }
 
 extern "C" __global__ void evaluate(
-    const double *params, int n_items, int dim,
-    const unsigned char *pconst, int pconst_size,
+    const double *params,
+    int n_items,
+    int dim,
+    const unsigned char *pconst,
+    int pconst_size,
     double *fitness,
-    int threads_per_item)
-{
+    int threads_per_item
+) {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if(i >= n_items) {
         return;

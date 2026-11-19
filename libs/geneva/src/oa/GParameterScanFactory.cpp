@@ -31,11 +31,11 @@
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
-#include "geneva/genome/GGenome.hpp"
 #include <boost/program_options.hpp>
 #include <cstddef>
 #include <memory>

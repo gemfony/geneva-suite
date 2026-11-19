@@ -127,6 +127,7 @@ struct GHesseErrorResult {
  * The objective is supplied as a batch eval_fn(points) -> values, so the curvature probes are
  * evaluated through whatever consumer the calling algorithm uses (the estimator is consumer-agnostic).
  */
+// clang-format off
 //! [hesse-estimate#1]
 class GHesseError {
 public:
@@ -134,6 +135,7 @@ public:
     using eval_fn_t =
         std::function<std::vector<double>(const std::vector<std::vector<double>> &)>;
 //! [hesse-estimate#1]
+    // clang-format on
 
     /***************************************************************************/
     /**

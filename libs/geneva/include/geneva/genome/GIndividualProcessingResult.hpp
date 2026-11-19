@@ -88,7 +88,7 @@ public:
     /**
      * @brief Initialization with a raw fitness and recalculation of the transformed fitness
      */
-    individual_processing_result(double raw_fitness, const std::function<double(double)>& f);
+    individual_processing_result(double raw_fitness, const std::function<double(double)> &f);
 
     /**
      * @brief Copy construction
@@ -128,7 +128,7 @@ public:
     /**
      * @brief Updates the transformed fitness using an external function
      */
-    void setTransformedFitnessWith(const std::function<double(double)>& f);
+    void setTransformedFitnessWith(const std::function<double(double)> &f);
 
     /**
      * @brief Sets the transformed fitness to a user-defined value
@@ -156,15 +156,14 @@ public:
     /**
      * @brief Resets the object and stores a new raw value in the class and triggers recalculation of the transformed value
      */
-    void reset(double raw_fitness, const std::function<double(double)>& f);
+    void reset(double raw_fitness, const std::function<double(double)> &f);
 
 private:
     /***************************************************************************/
     // Data
 
-    double raw_fitness_ = 0.; ///< The fitness as it comes out of the evaluate() hook
-    double transformed_fitness_ =
-        0.; ///< The fitness as calculated from raw_fitness_ through
+    double raw_fitness_ = 0.;         ///< The fitness as it comes out of the evaluate() hook
+    double transformed_fitness_ = 0.; ///< The fitness as calculated from raw_fitness_ through
     bool transformed_fitness_set_ =
         false; ///< Indicates whether a suitable transformed_fitness_ value is available
 };

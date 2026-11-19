@@ -52,7 +52,9 @@ public:
     ~Root() override = default;
     Root &operator=(const Root &) = default;
 
-    [[nodiscard]] int value() const { return v_; }
+    [[nodiscard]] int value() const {
+        return v_;
+    }
 
 protected:
     /** @brief The root's own perturbation -- a plain protected helper, not a virtual hook. */
@@ -61,7 +63,9 @@ protected:
         return true;
     }
 
-    void load_(const Root *cp) override { v_ = cp->v_; }
+    void load_(const Root *cp) override {
+        v_ = cp->v_;
+    }
 
     void compare_(const Root &cp, const expectation &e, const double &limit) const override {
         GToken token("Root", e);
@@ -73,7 +77,9 @@ protected:
     int v_ = 0;
 
 private:
-    [[nodiscard]] Root *clone_() const override { return new Root(*this); }
+    [[nodiscard]] Root *clone_() const override {
+        return new Root(*this);
+    }
 };
 
 /******************************************************************************/
@@ -83,16 +89,28 @@ class OptedIn
   : public Root
   , public GSelfTestable {
 public:
-    [[nodiscard]] int specificRuns() const { return no_failure_runs_; }
-    [[nodiscard]] int failureRuns() const { return failure_runs_; }
+    [[nodiscard]] int specificRuns() const {
+        return no_failure_runs_;
+    }
+    [[nodiscard]] int failureRuns() const {
+        return failure_runs_;
+    }
 
 protected:
-    bool modify_GUnitTests_() override { return Root::modify_GUnitTests_(); }
-    void specificTestsNoFailureExpected_GUnitTests_() override { ++no_failure_runs_; }
-    void specificTestsFailuresExpected_GUnitTests_() override { ++failure_runs_; }
+    bool modify_GUnitTests_() override {
+        return Root::modify_GUnitTests_();
+    }
+    void specificTestsNoFailureExpected_GUnitTests_() override {
+        ++no_failure_runs_;
+    }
+    void specificTestsFailuresExpected_GUnitTests_() override {
+        ++failure_runs_;
+    }
 
 private:
-    [[nodiscard]] Root *clone_() const override { return new OptedIn(*this); }
+    [[nodiscard]] Root *clone_() const override {
+        return new OptedIn(*this);
+    }
 
     int no_failure_runs_ = 0;
     int failure_runs_ = 0;
@@ -104,7 +122,9 @@ private:
 
 class OptedOut : public Root {
 private:
-    [[nodiscard]] Root *clone_() const override { return new OptedOut(*this); }
+    [[nodiscard]] Root *clone_() const override {
+        return new OptedOut(*this);
+    }
 };
 
 /******************************************************************************/
@@ -138,8 +158,10 @@ TEST_CASE("GSelfTestable: the default hooks are no-ops", "[common][self-testable
     CHECK_NOTHROW(d.specificTestsFailuresExpected_GUnitTests());
 }
 
-TEST_CASE("GSelfTestable: the public wrappers dispatch to the overrides",
-          "[common][self-testable]") {
+TEST_CASE(
+    "GSelfTestable: the public wrappers dispatch to the overrides",
+    "[common][self-testable]"
+) {
     OptedIn o;
     CHECK(o.value() == 0);
 
@@ -164,9 +186,9 @@ TEST_CASE("GSelfTestable: a heterogeneous walk casts and skips", "[common][self-
     population.push_back(std::make_unique<OptedIn>());
 
     int modified = 0;
-    for (auto const &element : population) {
-        if (auto *self_testable = dynamic_cast<GSelfTestable *>(element.get());
-            self_testable != nullptr && self_testable->modify_GUnitTests()) {
+    for(auto const &element : population) {
+        if(auto *self_testable = dynamic_cast<GSelfTestable *>(element.get());
+           self_testable != nullptr && self_testable->modify_GUnitTests()) {
             ++modified;
         }
     }

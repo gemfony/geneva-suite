@@ -58,7 +58,10 @@ namespace Gem::Geneva::Genome {
 using AuxKey = std::uint32_t;
 
 /** @brief Whether an auxiliary POD block holds one record per genome group or one per individual */
-enum class AuxScope : std::uint8_t { PerIndividual, PerGroup };
+enum class AuxScope : std::uint8_t {
+    PerIndividual,
+    PerGroup
+};
 
 /******************************************************************************/
 /**
@@ -69,10 +72,10 @@ enum class AuxScope : std::uint8_t { PerIndividual, PerGroup };
  * record — so the block is memcpy-clonable and (later) GPU-uploadable.
  */
 struct AuxBlock {
-    AuxScope               scope = AuxScope::PerGroup; ///< per-group or per-individual
-    std::uint32_t          stride = 0;                 ///< bytes per record (== sizeof(POD))
-    std::uint32_t          tag = 0;                    ///< hash of the POD type, for a debug sanity check
-    std::vector<std::byte> bytes;                      ///< stride * record_count bytes
+    AuxScope scope = AuxScope::PerGroup; ///< per-group or per-individual
+    std::uint32_t stride = 0;            ///< bytes per record (== sizeof(POD))
+    std::uint32_t tag = 0;               ///< hash of the POD type, for a debug sanity check
+    std::vector<std::byte> bytes;        ///< stride * record_count bytes
 
     /**
      * @brief Serialization of one opaque POD block (used for full-state checkpointing of the
@@ -305,9 +308,13 @@ public:
     // the individual stays pure data; nulled on the wire with the rest of the scratch.
 
     /** @brief @return The number of adaptions performed during the individual's last adaption */
-    [[nodiscard]] std::size_t getNAdaptions() const { return n_adaptions_; }
+    [[nodiscard]] std::size_t getNAdaptions() const {
+        return n_adaptions_;
+    }
     /** @brief Records the number of adaptions performed during the last adaption. @param n The count */
-    void setNAdaptions(std::size_t n) { n_adaptions_ = n; }
+    void setNAdaptions(std::size_t n) {
+        n_adaptions_ = n;
+    }
 
 private:
     /***************************************************************************/

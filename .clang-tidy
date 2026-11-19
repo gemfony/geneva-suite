@@ -237,11 +237,9 @@ CheckOptions:
   # GSQUARED utility macro, GENEVA_* config macros, DEBUG, and the
   # intentionally lowercase `time_and_place` source-location macro.
   # Also allowed (cannot be constexpr): raiseException/LOGEXIT capture
-  # __FILE__/__LINE__ at the throw/exit site; MIN_BOOST_VERSION and
-  # BOOST_FILESYSTEM_VERSION / CL_TARGET_OPENCL_VERSION are preprocessor
-  # version/feature gates that must be #defines (used in #if / before a
-  # third-party #include).
-  cppcoreguidelines-macro-usage.AllowedRegexp: '^(DEBUG|G_.*|GEM_.*|GENEVA_.*|GSQUARED|time_and_place|raiseException|LOGEXIT|MIN_BOOST_VERSION|BOOST_FILESYSTEM_VERSION|CL_TARGET_OPENCL_VERSION)$'
+  # __FILE__/__LINE__ at the throw/exit site; MIN_BOOST_VERSION is a
+  # preprocessor version gate that must be a #define (used in #if).
+  cppcoreguidelines-macro-usage.AllowedRegexp: '^(DEBUG|G_.*|GEM_.*|GENEVA_.*|GSQUARED|time_and_place|raiseException|LOGEXIT|MIN_BOOST_VERSION)$'
 
   # Performance.
   performance-for-range-copy.WarnOnAllAutoCopies: 'true'

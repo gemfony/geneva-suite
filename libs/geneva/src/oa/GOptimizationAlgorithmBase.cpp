@@ -30,7 +30,6 @@
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 // Needed for the G_SIGHUP_SENT() signal-state query in sigHupHalt().
-#include "common/GSigHupHandler.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -42,13 +41,14 @@
 #include "common/GParserBuilder.hpp"
 #include "common/GSelfTestable.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
+#include "common/GSigHupHandler.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionStatusT.hpp"
 #include "geneva/GConsumerSetup.hpp" // ensureProcessConsumer() -- the setup layer owns the consumer choice
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GPostProcessorT.hpp"
-#include "geneva/GenevaHelperFunctions.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -60,10 +60,10 @@
 #include <limits>
 #include <memory>
 #include <ranges>
+#include <set>
 #include <span>
 #include <tuple>
 #include <utility>
-#include <set>
 #include <vector>
 
 /******************************************************************************/
@@ -81,8 +81,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  */
 GOptimizationAlgorithmBase::GOptimizationAlgorithmBase(const GOptimizationAlgorithmBase &cp)
   : Gem::Common::GReflectiveInterfaceBaseT<
-        GOptimizationAlgorithmBase, Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>
-    >(cp) {
+        GOptimizationAlgorithmBase,
+        Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>>(cp) {
     // All local data -- including the container base'es population (tied in as data_cnt_) and the
     // transient best_iteration_individuals_pq_ -- is copied from the single localMembers_() declaration,
     // the same machinery load_() uses, so this constructor cannot drift from the member list: plain
@@ -195,9 +195,11 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
             << "In GOptimizationAlgorithmBase<>::loadCheckpoint(): Error!" << '\n'
             << "Failed to deserialize the checkpoint file " << cp_file << '\n'
             << "Underlying error: " << e.what() << '\n'
-            << "This usually means the individual (optimization-problem) type stored in the checkpoint is"
+            << "This usually means the individual (optimization-problem) type stored in the "
+               "checkpoint is"
             << '\n'
-            << "not available. Resume with the SAME individual that wrote the checkpoint -- compiled in, or"
+            << "not available. Resume with the SAME individual that wrote the checkpoint -- "
+               "compiled in, or"
             << '\n'
             << "loaded via --individual <path>.so -- built against the same Geneva version." << '\n'
         );
@@ -265,15 +267,13 @@ std::int32_t GOptimizationAlgorithmBase::getCheckpointInterval() const {
  * @param algorithm_name The calling algorithm's class name, used in the error/log texts
  * @return The number of active floating-point parameters of the first individual
  */
-std::size_t GOptimizationAlgorithmBase::requireFloatingPointGenome_(
-    const std::string &algorithm_name
-) const {
+std::size_t
+GOptimizationAlgorithmBase::requireFloatingPointGenome_(const std::string &algorithm_name) const {
     if(this->empty()) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << algorithm_name << "::adjustPopulation():" << '\n'
-            << "You didn't add any individuals to the collection. We need at least one."
-            << '\n'
+            << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
 
@@ -317,8 +317,8 @@ std::size_t GOptimizationAlgorithmBase::requireFloatingPointGenome_(
  * @param cp_base_name The base name used for the checkpoint files
  */
 void GOptimizationAlgorithmBase::setCheckpointBaseName(
-    const std::string& cp_directory,
-    const std::string& cp_base_name
+    const std::string &cp_directory,
+    const std::string &cp_base_name
 ) {
     // Do some basic checks
     if(cp_base_name == "empty" || cp_base_name.empty()) {
@@ -408,8 +408,7 @@ void GOptimizationAlgorithmBase::setCheckpointSerializationMode(
  *
  * @return The current checkpointing serialization mode
  */
-Gem::Common::serializationMode
-GOptimizationAlgorithmBase::getCheckpointSerializationMode() const {
+Gem::Common::serializationMode GOptimizationAlgorithmBase::getCheckpointSerializationMode() const {
     return cp_serialization_mode_;
 }
 
@@ -458,7 +457,7 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart() {
 void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
     this->clear(); // Remove all individuals found in this population
 
-    iteration_ = 0;                    // The current iteration
+    iteration_ = 0;                      // The current iteration
     best_global_individuals_pq_.clear(); // A priority queue with the best individuals found so far
     best_iteration_individuals_pq_
         .clear(); // A priority queue with the best individuals of a given iteration
@@ -476,7 +475,6 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
 
     worst_known_valids_cnt_
         .clear(); // Stores the worst known valid evaluations up to the current iteration (first entry: raw, second: tranformed)
-
 }
 
 /******************************************************************************/
@@ -665,7 +663,7 @@ bool GOptimizationAlgorithmBase::progress() const {
  * @param pluggable_om A shared pointer to the pluggable optimization monitor to be registered (must not be empty)
  */
 void GOptimizationAlgorithmBase::registerPluggableOM(
-    const std::shared_ptr<GBasePluggableOM>& pluggable_om
+    const std::shared_ptr<GBasePluggableOM> &pluggable_om
 ) {
     if(pluggable_om) {
         pluggable_monitors_cnt_.push_back(pluggable_om);
@@ -843,12 +841,13 @@ std::chrono::duration<double> GOptimizationAlgorithmBase::getMaxTime() const {
 * @param min_duration The minimum run duration before a halt criterion may take effect
 */
 void GOptimizationAlgorithmBase::setMinTime(std::chrono::duration<double> min_duration) {
-    if(not Gem::Common::isClose<double>(max_duration_.count(), 0.) && max_duration_ < min_duration) {
+    if(not Gem::Common::isClose<double>(max_duration_.count(), 0.) &&
+       max_duration_ < min_duration) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::setMinTime(): Error!" << '\n'
-            << "Desired max_duration (" << max_duration_.count() << " is smaller than min_duration_("
-            << min_duration.count() << ")" << '\n'
+            << "Desired max_duration (" << max_duration_.count()
+            << " is smaller than min_duration_(" << min_duration.count() << ")" << '\n'
         );
     }
 
@@ -1217,7 +1216,8 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         DEFAULTLATERETURNTTL // The default value
         ,
         [this](std::uint64_t ttl) { this->setLateReturnTTL(ttl); }
-    ) << "Time-to-live (in dispatch rounds) of a networked consumer's late-return" << '\n'
+    ) << "Time-to-live (in dispatch rounds) of a networked consumer's late-return"
+      << '\n'
       << "buffer entry. A late return not reaped within this many rounds is evicted.";
 
     gpb.registerFileParameter<double>(
@@ -1226,7 +1226,8 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         DEFAULTLATERETURNCAPFACTOR // The default value
         ,
         [this](double cap_factor) { this->setLateReturnCapFactor(cap_factor); }
-    ) << "Capacity of a networked consumer's late-return buffer, as a multiple of" << '\n'
+    ) << "Capacity of a networked consumer's late-return buffer, as a multiple of"
+      << '\n'
       << "the population size. 0 disables late-return buffering entirely.";
 
     gpb.registerFileParameter<std::uint32_t>(
@@ -1311,7 +1312,9 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         ,
         DEFAULTDURATION // The default value
         ,
-        [this](const std::string& mt_str) { this->setMaxTime(Gem::Common::duration_from_string(mt_str)); }
+        [this](const std::string &mt_str) {
+            this->setMaxTime(Gem::Common::duration_from_string(mt_str));
+        }
     ) << "The maximum allowed time-frame for the optimization"
       << '\n'
       << "in the format hours:minutes:seconds";
@@ -1321,7 +1324,9 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         ,
         DEFAULTMINDURATION // The default value
         ,
-        [this](const std::string& mt_str) { this->setMinTime(Gem::Common::duration_from_string(mt_str)); }
+        [this](const std::string &mt_str) {
+            this->setMinTime(Gem::Common::duration_from_string(mt_str));
+        }
     ) << "The minimum required time-frame for the optimization"
       << '\n'
       << "in the format hours:minutes:seconds";
@@ -1353,8 +1358,7 @@ void GOptimizationAlgorithmBase::updateGlobalBestsPQ_(
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase::updateGlobalBestsPQ() :" << '\n'
-            << "Tried to retrieve the best individuals even though the population is empty."
-            << '\n'
+            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
     }
 #endif /* DEBUG */
@@ -1384,8 +1388,7 @@ void GOptimizationAlgorithmBase::updateIterationBestsPQ_(
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase::updateIterationBestsPQ() :" << '\n'
-            << "Tried to retrieve the best individuals even though the population is empty."
-            << '\n'
+            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
     }
 #endif /* DEBUG */
@@ -1489,8 +1492,7 @@ void GOptimizationAlgorithmBase::requireCompleteEvaluation_(
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << caller << ": Error!" << '\n'
-            << "No complete set of items received or errors found in some individuals"
-            << '\n'
+            << "No complete set of items received or errors found in some individuals" << '\n'
         );
     }
 }
@@ -1574,7 +1576,7 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer
     // Clamp the requested range to the population and bail out if it is empty.
     end = std::min(end, work_items.size());
     if(end <= start) {
-        return Gem::Courtier::submission_status_t{.is_complete=true, .has_errors=false};
+        return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = false};
     }
 
     // Submit a span over exactly [start, end); it aliases the population sub-range, so results + any
@@ -1588,7 +1590,7 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer
 
     const bool has_errors =
         std::ranges::any_of(sp, [](const auto &it) { return it && it->has_errors(); });
-    return Gem::Courtier::submission_status_t{.is_complete=true, .has_errors=has_errors};
+    return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = has_errors};
 }
 
 /******************************************************************************/
@@ -1642,9 +1644,9 @@ std::vector<std::unique_ptr<gen::GGenome>> GOptimizationAlgorithmBase::getOldWor
     // Pre-load the de-dup set with the UUIDs already represented in the LIVE population, so a late
     // return whose lineage is still present (a re-dispatched individual whose fresh copy already
     // returned) is rejected. retainIntegrableLateReturns() then drops invalid and duplicate returns.
-    auto seen = *this
-        | std::views::transform([](const auto &p) { return p->getSubmissionUuid(); })
-        | std::ranges::to<std::set<Gem::Courtier::SUBMISSION_UUID_TYPE>>();
+    auto seen = *this |
+                std::views::transform([](const auto &p) { return p->getSubmissionUuid(); }) |
+                std::ranges::to<std::set<Gem::Courtier::SUBMISSION_UUID_TYPE>>();
     retainIntegrableLateReturns(items, seen);
 
     // OPTIONAL per-algorithm age window (on top of the consumer-side TTL): drop late returns older than
@@ -1708,8 +1710,7 @@ void GOptimizationAlgorithmBase::saveCheckpoint(std::filesystem::path const &out
  * @param p The checkpoint-file path from whose filename the algorithm personality token is extracted
  * @return The extracted algorithm personality token (the second hyphen-separated token of the filename)
  */
-std::string
-GOptimizationAlgorithmBase::extractOptAlgFromPath(const std::filesystem::path &p) {
+std::string GOptimizationAlgorithmBase::extractOptAlgFromPath(const std::filesystem::path &p) {
     // Extract the filename
     std::string const filename = p.filename().string();
 
@@ -1817,8 +1818,7 @@ void GOptimizationAlgorithmBase::setIndividualPersonalities() {
         // (where the post-processor already lives) and is consulted by GProcessingContainerT::postProcess_().
         auto pp = ind->postProcessor();
         if(pp) {
-            auto post_processor =
-                std::dynamic_pointer_cast<GPostProcessorBaseT<gen::GGenome>>(pp);
+            auto post_processor = std::dynamic_pointer_cast<GPostProcessorBaseT<gen::GGenome>>(pp);
             const bool eligible =
                 post_processor and post_processor->postProcessingAllowedFor(oa_mnemonic);
             ind->vetoPostProcessing(not eligible);
@@ -1856,9 +1856,7 @@ void GOptimizationAlgorithmBase::setDefaultPopulationSize(std::size_t def_pop_si
  *
  * @param n_record_best_individuals The number of "best" individuals to be recorded in each iteration
  */
-void GOptimizationAlgorithmBase::setNRecordBestIndividuals(
-    std::size_t n_record_best_individuals
-) {
+void GOptimizationAlgorithmBase::setNRecordBestIndividuals(std::size_t n_record_best_individuals) {
     if(0 == n_record_best_individuals) {
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -2023,8 +2021,7 @@ bool GOptimizationAlgorithmBase::timedHalt(
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2061,8 +2058,7 @@ bool GOptimizationAlgorithmBase::qualityHalt() const {
        )) {
         if(emit_termination_reason_) {
             glogger << "Terminating optimization run because" << '\n'
-                    << "quality threshold " << quality_threshold_ << " has been exceeded."
-                    << '\n'
+                    << "quality threshold " << quality_threshold_ << " has been exceeded." << '\n'
                     << "Best untransformed quality found was "
                     << std::get<G_RAW_FITNESS>(best_known_primary_fitness_) << '\n'
                     << "with termination in iteration " << iteration_ << '\n'
@@ -2071,8 +2067,7 @@ bool GOptimizationAlgorithmBase::qualityHalt() const {
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2093,8 +2088,7 @@ bool GOptimizationAlgorithmBase::stallHalt() const {
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2107,15 +2101,13 @@ bool GOptimizationAlgorithmBase::iterationHalt() const {
     if(iteration_ >= max_iteration_) {
         if(emit_termination_reason_) {
             glogger << "Terminating optimization run because" << '\n'
-                    << "iteration threshold " << max_iteration_ << " has been exceeded."
-                    << '\n'
+                    << "iteration threshold " << max_iteration_ << " has been exceeded." << '\n'
                     << GLOGGING;
         }
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2152,8 +2144,7 @@ bool GOptimizationAlgorithmBase::sigHupHalt() {
 #endif
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2188,8 +2179,7 @@ bool GOptimizationAlgorithmBase::touchHalt() const {
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2208,8 +2198,7 @@ bool GOptimizationAlgorithmBase::customHalt() const {
 
         return true;
     }
-            return false;
-   
+    return false;
 }
 
 /******************************************************************************/
@@ -2355,7 +2344,6 @@ bool GOptimizationAlgorithmBase::stallCounterThresholdExceeded() const {
 bool GOptimizationAlgorithmBase::modify_GUnitTests_() {
 #ifdef GEM_TESTING
     bool result = false;
-
 
     // Try to change the objects contained in the collection. The population is heterogeneous and
     // its element type -- the gen::GGenome category root -- deliberately does not carry the

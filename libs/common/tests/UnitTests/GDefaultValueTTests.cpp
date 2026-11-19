@@ -37,12 +37,12 @@
 using namespace Gem::Common;
 
 TEST_CASE("GDefaultValueT: numeric primary template returns T(0)", "[common][default-value]") {
-    CHECK(GDefaultValueT<int>::value()           == 0);
-    CHECK(GDefaultValueT<long>::value()          == 0L);
-    CHECK(GDefaultValueT<std::int32_t>::value()  == std::int32_t{0});
+    CHECK(GDefaultValueT<int>::value() == 0);
+    CHECK(GDefaultValueT<long>::value() == 0L);
+    CHECK(GDefaultValueT<std::int32_t>::value() == std::int32_t{0});
     CHECK(GDefaultValueT<std::uint64_t>::value() == std::uint64_t{0});
-    CHECK(GDefaultValueT<double>::value()        == 0.0);
-    CHECK(GDefaultValueT<float>::value()         == 0.0f);
+    CHECK(GDefaultValueT<double>::value() == 0.0);
+    CHECK(GDefaultValueT<float>::value() == 0.0f);
 }
 
 TEST_CASE("GDefaultValueT<bool> specialisation returns true", "[common][default-value]") {

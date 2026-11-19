@@ -79,26 +79,35 @@ public:
     public:
         Lease(GRandomLeasePool &pool, std::unique_ptr<GRandom> proxy) noexcept
           : pool_(&pool)
-          , proxy_(std::move(proxy)) { /* nothing */ }
+          , proxy_(std::move(proxy)) { /* nothing */
+        }
 
         Lease(Lease &&other) noexcept
           : pool_(other.pool_)
-          , proxy_(std::move(other.proxy_)) { other.pool_ = nullptr; }
+          , proxy_(std::move(other.proxy_)) {
+            other.pool_ = nullptr;
+        }
 
         Lease(const Lease &) = delete;
         Lease &operator=(const Lease &) = delete;
         Lease &operator=(Lease &&) = delete;
 
         ~Lease() {
-            if(pool_ != nullptr && proxy_) { pool_->release(std::move(proxy_)); }
+            if(pool_ != nullptr && proxy_) {
+                pool_->release(std::move(proxy_));
+            }
         }
 
         /** @brief Access the leased proxy through the uniform GRandomBase seam. */
-        [[nodiscard]] GRandomBase &operator*() const noexcept { return *proxy_; }
-        [[nodiscard]] GRandomBase *operator->() const noexcept { return proxy_.get(); }
+        [[nodiscard]] GRandomBase &operator*() const noexcept {
+            return *proxy_;
+        }
+        [[nodiscard]] GRandomBase *operator->() const noexcept {
+            return proxy_.get();
+        }
 
     private:
-        GRandomLeasePool        *pool_;  ///< the owning pool (null once moved-from)
+        GRandomLeasePool *pool_;         ///< the owning pool (null once moved-from)
         std::unique_ptr<GRandom> proxy_; ///< the leased proxy
     };
 

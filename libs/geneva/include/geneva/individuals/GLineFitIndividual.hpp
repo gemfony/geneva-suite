@@ -50,11 +50,11 @@
 #include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSelfTestable.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
-#include "common/GSelfTestable.hpp"
+#include "geneva/genome/GGenomeT.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 class GAdaptionConfigBase;
@@ -104,11 +104,11 @@ public:
      * @brief The standard constructor (the compile-in / test path). Builds the two-parameter genome and
      * stores the (x,y) data points directly, in memory.
      */
-    GLineFitIndividual(const std::vector<std::tuple<double, double>> & data_points);
+    GLineFitIndividual(const std::vector<std::tuple<double, double>> &data_points);
     /**
      * @brief The copy constructor.
      */
-    GLineFitIndividual(const GLineFitIndividual & cp);
+    GLineFitIndividual(const GLineFitIndividual &cp);
 
     /** @brief The standard destructor */
     ~GLineFitIndividual() override;
@@ -140,25 +140,24 @@ public:
     /**
      * @brief Registers the config-file options, binding them to the passed Config.
      */
-    static void describeConfig(Gem::Common::GParserBuilder & gpb, Config & c);
+    static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /**
      * @brief Builds the flat genome's structure: two unbounded doubles (the line's offset a and slope b),
      * each its own Gauss group. Independent of the data points.
      */
-    static gen::GenomeData buildGenome(const Config & c);
+    static gen::GenomeData buildGenome(const Config &c);
     /**
      * @brief The OA-owned adaption config: the offset a and slope b each get the line-fit Gauss settings.
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome & sample, const Config & c);
+    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: opens the config-named data file at runtime and loads the (x,y)
      * points into the produced individual. An empty path leaves the point set empty.
      */
-    static void applyConfig(GLineFitIndividual & ind, const Config & c);
+    static void applyConfig(GLineFitIndividual &ind, const Config &c);
 
 protected:
-
     /**
      * @brief The evaluation hook: the root-square deviation of the data points from the represented line.
      */
@@ -170,6 +169,7 @@ protected:
     bool modify_GUnitTests_() override;
     /** @brief Performs self tests that are expected to succeed. */
     void specificTestsNoFailureExpected_GUnitTests_() override;
+
 private:
     std::vector<std::tuple<double, double>>
         data_points_; ///< Holds the data points used for the fit procedure
@@ -180,4 +180,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::Individuals */
-

@@ -34,8 +34,8 @@
 #include "GStarterIndividual.hpp"
 
 #include "geneva/oa/GAdaption.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
 #include <algorithm>
 #include <any>
@@ -216,7 +216,10 @@ std::vector<double> GStarterIndividual::evaluate() {
  */
 double GStarterIndividual::parabola(const std::vector<double> &parVec) const {
     return std::ranges::fold_left(
-        parVec | std::views::transform([](double x) { return x * x; }), 0., std::plus{});
+        parVec | std::views::transform([](double x) { return x * x; }),
+        0.,
+        std::plus{}
+    );
 }
 
 /******************************************************************************/
@@ -225,7 +228,10 @@ double GStarterIndividual::parabola(const std::vector<double> &parVec) const {
  */
 double GStarterIndividual::noisyParabola(const std::vector<double> &parVec) const {
     const double xsquared = std::ranges::fold_left(
-        parVec | std::views::transform([](double x) { return x * x; }), 0., std::plus{});
+        parVec | std::views::transform([](double x) { return x * x; }),
+        0.,
+        std::plus{}
+    );
 
     return (cos(xsquared) + 2.) * xsquared;
 }
@@ -333,7 +339,6 @@ void GStarterIndividual::specificTestsFailuresExpected_GUnitTests_() {
 #ifdef GEM_TESTING
     using namespace Gem::Geneva;
 
-
     //------------------------------------------------------------------------------
 
     {
@@ -408,8 +413,11 @@ void GStarterIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
         << "There are entries in the startValues vector";
 
     gpb.registerFileParameter<targetFunction>(
-        "target_function", c.target_function, GO_DEF_TARGETFUNCTION
-    ) << "Specifies which target function should be used:" << '\n'
+        "target_function",
+        c.target_function,
+        GO_DEF_TARGETFUNCTION
+    ) << "Specifies which target function should be used:"
+      << '\n'
       << "0: Parabola" << '\n'
       << "1: Berlich";
 }

@@ -72,11 +72,10 @@ GThreadPool::GThreadPool(
     unsigned int n_threads,
     ThreadElasticity elasticity
 )
-  : budget_reservation_(threadBudget().reserve(
-        source,
-        n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS,
-        elasticity
-    ))
+  : budget_reservation_(
+        threadBudget()
+            .reserve(source, n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS, elasticity)
+    )
   , budget_source_(source)
   , budget_elasticity_(elasticity)
   , n_threads_(budget_reservation_.granted()) {
@@ -112,7 +111,10 @@ GThreadPool::~GThreadPool() {
  * @param n The number of additional worker threads to create
  */
 void GThreadPool::start_workers(unsigned int n) {
-    worker_group_.create_threads([this](std::stop_token st) { this->worker_loop(std::move(st)); }, n);
+    worker_group_.create_threads(
+        [this](std::stop_token st) { this->worker_loop(std::move(st)); },
+        n
+    );
 }
 
 /******************************************************************************/
@@ -184,7 +186,7 @@ bool GThreadPool::inWorkerThread() noexcept {
  * @param st The jthread stop token; a stop request closes the task queue so the worker drains
  *   the remaining tasks and then exits
  */
-void GThreadPool::worker_loop(const std::stop_token& st) {
+void GThreadPool::worker_loop(const std::stop_token &st) {
     // A stop request (e.g. from GThreadGroup::join_all()) closes the task queue. The drain loop
     // below then finishes the remaining tasks and exits once the queue is closed and empty, so
     // pending tasks' futures are still satisfied -- request_stop() is a graceful "drain and

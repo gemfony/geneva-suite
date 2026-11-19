@@ -84,7 +84,9 @@ bool drawUntil(pred_type done, std::chrono::seconds limit = std::chrono::seconds
  */
 void requireRandomWords() {
     std::unique_ptr<random_container> p;
-    REQUIRE(drawUntil([&p]() { return static_cast<bool>(p = randomFactory()->getNewRandomContainer()); }));
+    REQUIRE(drawUntil([&p]() {
+        return static_cast<bool>(p = randomFactory()->getNewRandomContainer());
+    }));
     std::set<std::uint64_t> values;
     while(not p->empty()) {
         values.insert(p->next());

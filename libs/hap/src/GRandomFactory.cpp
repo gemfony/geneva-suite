@@ -28,13 +28,13 @@
  ********************************************************************************/
 
 #include "hap/GRandomFactory.hpp"
+#include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar) + fill seam
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "hap/GRandomDefines.hpp"
-#include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar) + fill seam
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -274,14 +274,14 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
 
     if(threads_started_) {
         if(n_producer_threads_local < n_current) { // Running threads cannot be removed
-            glogger
-                << "In GRandomFactory::setNProducerThreads(" << n_producer_threads << "): Warning!"
-                << '\n'
-                << "Attempt to decrease the number of producer threads from "
-                << n_current << " to " << n_producer_threads_local << '\n'
-                << "while threads were already running. The number of threads will remain unchanged."
-                << '\n'
-                << GWARNING;
+            glogger << "In GRandomFactory::setNProducerThreads(" << n_producer_threads
+                    << "): Warning!" << '\n'
+                    << "Attempt to decrease the number of producer threads from " << n_current
+                    << " to " << n_producer_threads_local << '\n'
+                    << "while threads were already running. The number of threads will remain "
+                       "unchanged."
+                    << '\n'
+                    << GWARNING;
 
             return;
         }
@@ -528,9 +528,12 @@ void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart
 
         // Fills (fresh=true) or refreshes (fresh=false) a container from the backend.
         auto fill = [&](std::unique_ptr<random_container> &cont, bool fresh) {
-            if(fresh) { cont.reset(new random_container(backend));
-            } else {      cont->refresh(backend);
-}
+            if(fresh) {
+                cont.reset(new random_container(backend));
+            }
+            else {
+                cont->refresh(backend);
+            }
         };
 
         std::unique_ptr<random_container> p;
@@ -568,7 +571,10 @@ void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart
             if(not p_fresh_bfr_.push(std::move(p))) {
                 break; // buffer closed at shutdown -- leave the producer loop
             }
-            n_packages_produced_.fetch_add(1, std::memory_order_relaxed); // supply-throughput signal
+            n_packages_produced_.fetch_add(
+                1,
+                std::memory_order_relaxed
+            ); // supply-throughput signal
         }
     }
     // producer() is the body of a std::thread, so no exception may escape it:
@@ -577,21 +583,19 @@ void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart
     // and return, letting this producer thread exit cleanly; the remaining
     // producer threads keep supplying random numbers.
     catch(const std::exception &e) {
-        glogger
-            << "In GRandomFactory::producer(): Warning!" << '\n'
-            << "Caught an exception with message" << '\n'
-            << e.what() << '\n'
-            << "This producer thread will now terminate cleanly. Random-number" << '\n'
-            << "production continues on the remaining producer threads." << '\n'
-            << GWARNING;
+        glogger << "In GRandomFactory::producer(): Warning!" << '\n'
+                << "Caught an exception with message" << '\n'
+                << e.what() << '\n'
+                << "This producer thread will now terminate cleanly. Random-number" << '\n'
+                << "production continues on the remaining producer threads." << '\n'
+                << GWARNING;
     }
     catch(...) {
-        glogger
-            << "In GRandomFactory::producer(): Warning!" << '\n'
-            << "Caught an unknown exception." << '\n'
-            << "This producer thread will now terminate cleanly. Random-number" << '\n'
-            << "production continues on the remaining producer threads." << '\n'
-            << GWARNING;
+        glogger << "In GRandomFactory::producer(): Warning!" << '\n'
+                << "Caught an unknown exception." << '\n'
+                << "This producer thread will now terminate cleanly. Random-number" << '\n'
+                << "production continues on the remaining producer threads." << '\n'
+                << GWARNING;
     }
 }
 
@@ -658,8 +662,12 @@ struct GRandomFactoryLifecycleGuard {
     // finalize() below always runs against a live factory (and we never re-enter the GSingletonT storage
     // at teardown, where it may already be gone). Constructing factory_ is what brings the singleton
     // online before main(); no further initialization call is needed (producer threads start lazily).
-    GRandomFactoryLifecycleGuard() : factory_(randomFactory()) { /* see above */ }
-    ~GRandomFactoryLifecycleGuard() { factory_->finalize(); }
+    GRandomFactoryLifecycleGuard()
+      : factory_(randomFactory()) { /* see above */
+    }
+    ~GRandomFactoryLifecycleGuard() {
+        factory_->finalize();
+    }
 
     std::shared_ptr<GRandomFactory> factory_;
 };
@@ -672,16 +680,28 @@ const GRandomFactoryLifecycleGuard g_random_factory_lifecycle_guard;
  * before any static constructor runs and survive until the last producer has been joined.
  */
 namespace {
-constinit std::atomic<bool> g_gpu_random_allowed{true}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-constinit std::atomic<std::size_t> g_n_gpu_random_sources{0}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-constinit std::atomic<bool> g_gpu_random_failure_simulated{false}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<bool> g_gpu_random_allowed{
+    true
+}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<std::size_t> g_n_gpu_random_sources{
+    0
+}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+constinit std::atomic<bool> g_gpu_random_failure_simulated{
+    false
+}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
-void setGpuRandomNumbersAllowed(bool allowed) noexcept { g_gpu_random_allowed.store(allowed); }
+void setGpuRandomNumbersAllowed(bool allowed) noexcept {
+    g_gpu_random_allowed.store(allowed);
+}
 
-bool gpuRandomNumbersAllowed() noexcept { return g_gpu_random_allowed.load(); }
+bool gpuRandomNumbersAllowed() noexcept {
+    return g_gpu_random_allowed.load();
+}
 
-std::size_t nGpuRandomSources() noexcept { return g_n_gpu_random_sources.load(); }
+std::size_t nGpuRandomSources() noexcept {
+    return g_n_gpu_random_sources.load();
+}
 
 void simulateGpuRandomFailureForTests(bool fail) {
 #ifdef GEM_TESTING
@@ -728,7 +748,9 @@ void countGpuRandomSource(bool engaged) noexcept {
     }
 }
 
-bool gpuRandomFailureSimulated() noexcept { return g_gpu_random_failure_simulated.load(); }
+bool gpuRandomFailureSimulated() noexcept {
+    return g_gpu_random_failure_simulated.load();
+}
 
 /**
  * Marks that a bulk source starting on the GPU has reached a stage of its start, and holds it there while

@@ -44,6 +44,9 @@
 [[maybe_unused]] static constexpr int gbm = 4;
 // NOLINTEND(readability-identifier-naming)
 
-TEST_CASE("common leaves the names of Geneva's namespace aliases to the user", "[common][defines]") {
+TEST_CASE(
+    "common leaves the names of Geneva's namespace aliases to the user",
+    "[common][defines]"
+) {
     CHECK(oa + gen + gind + gbm == 10);
 }

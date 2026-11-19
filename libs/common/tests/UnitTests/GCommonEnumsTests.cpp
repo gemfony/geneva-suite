@@ -44,7 +44,7 @@ using namespace Gem::Common;
 template <class E>
 E round_trip_int(E in) {
     std::ostringstream oss;
-    oss << std::to_underlying(in);   // numeric form, matches operator<< overloads
+    oss << std::to_underlying(in); // numeric form, matches operator<< overloads
     std::istringstream iss(oss.str());
     E out{};
     iss >> out;
@@ -60,7 +60,7 @@ TEST_CASE("ENUMBASETYPE: aliases std::uint16_t", "[common][enums]") {
 // numeric round-trip is the contract.
 
 TEST_CASE("sortOrder: numeric round-trip preserves value", "[common][enums]") {
-    CHECK(round_trip_int(sortOrder::LOWERISBETTER)  == sortOrder::LOWERISBETTER);
+    CHECK(round_trip_int(sortOrder::LOWERISBETTER) == sortOrder::LOWERISBETTER);
     CHECK(round_trip_int(sortOrder::HIGHERISBETTER) == sortOrder::HIGHERISBETTER);
 }
 
@@ -71,9 +71,14 @@ TEST_CASE("dimensions: numeric round-trip preserves value", "[common][enums]") {
 }
 
 TEST_CASE("logType: numeric round-trip preserves value", "[common][enums]") {
-    for(auto l : {logType::EXCEPTION, logType::TERMINATION, logType::WARNING,
-                  logType::LOGGING,   logType::FILE,        logType::STDOUT,
-                  logType::STDERR}) {
+    for(auto l :
+        {logType::EXCEPTION,
+         logType::TERMINATION,
+         logType::WARNING,
+         logType::LOGGING,
+         logType::FILE,
+         logType::STDOUT,
+         logType::STDERR}) {
         CHECK(round_trip_int(l) == l);
     }
 }
@@ -97,16 +102,15 @@ TEST_CASE("tribool::operator<<: prints the textual name", "[common][enums]") {
     std::ostringstream oss_true;
     std::ostringstream oss_false;
     std::ostringstream oss_indet;
-    oss_true  << tribool::True;
+    oss_true << tribool::True;
     oss_false << tribool::False;
     oss_indet << tribool::Indeterminate;
-    CHECK(oss_true.str()  == "True");
+    CHECK(oss_true.str() == "True");
     CHECK(oss_false.str() == "False");
     CHECK(oss_indet.str() == "Indeterminate");
 }
 
-TEST_CASE("tribool::operator<<: out-of-range value is diagnosed (not silent)",
-          "[common][enums]") {
+TEST_CASE("tribool::operator<<: out-of-range value is diagnosed (not silent)", "[common][enums]") {
     // Force an unknown enumerator (e.g. via a corrupted-stream load). The
     // stream-out must produce a recognisable diagnostic prefix rather than
     // an empty/silent output.
@@ -128,7 +132,7 @@ TEST_CASE("indeterminate() helper", "[common][enums]") {
 
 TEST_CASE("serModeToString: maps each mode to its name", "[common][enums]") {
     CHECK(serModeToString(serializationMode::GEM_BINARY) == "GEM_BINARY");
-    CHECK(serModeToString(serializationMode::GEM_JSON)   == "GEM_JSON");
+    CHECK(serModeToString(serializationMode::GEM_JSON) == "GEM_JSON");
 }
 
 TEST_CASE("serModeToString: unknown value falls through to 'unknown'", "[common][enums]") {
@@ -140,8 +144,7 @@ TEST_CASE("serModeToString: unknown value falls through to 'unknown'", "[common]
 // round-trip through a string both directions via those operators (the pattern
 // the config parser / serialization use through Gem::Common::fromString<T>).
 
-TEST_CASE("enum stream operators: round-trip through string<->enum",
-          "[common][enums][streaming]") {
+TEST_CASE("enum stream operators: round-trip through string<->enum", "[common][enums][streaming]") {
     auto check = [](auto in) {
         std::ostringstream os;
         os << in;

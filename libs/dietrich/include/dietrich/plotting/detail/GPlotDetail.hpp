@@ -94,12 +94,23 @@ inline std::string rootEscape(const std::string &in) {
     out.reserve(in.size());
     for(char const c : in) {
         switch(c) {
-            case '\\': out += "\\\\"; break;
-            case '"':  out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r':                break; // drop bare CRs
-            default:   out += c;      break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        case '\r':
+            break; // drop bare CRs
+        default:
+            out += c;
+            break;
         }
     }
     return out;
@@ -157,10 +168,12 @@ inline void emitRootSeriesColour(
  * name of the object in the script whose look its sample copies.
  */
 struct rootLegendEntry {
-    std::string object;  ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_()); empty: none
+    std::string
+        object; ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_()); empty: none
     std::string label;   ///< the text of the entry
     legendSample sample; ///< what the sample shows
-    std::size_t series = 0;       ///< the series' place in its pad (0 the primary), for the colour of a sample object
+    std::size_t series =
+        0; ///< the series' place in its pad (0 the primary), for the colour of a sample object
     std::uint32_t line_width = 0; ///< the width of a sample object's line (0: ROOT's default)
 };
 
@@ -170,11 +183,16 @@ struct rootLegendEntry {
  */
 inline std::string rootLegendOption(legendSample sample) {
     switch(sample) {
-        case legendSample::LINE:            return "l";
-        case legendSample::MARKER:          return "p";
-        case legendSample::LINE_AND_MARKER: return "lp";
-        case legendSample::FILL:            return "f";
-        case legendSample::COLOUR_MAP:      return "f";
+    case legendSample::LINE:
+        return "l";
+    case legendSample::MARKER:
+        return "p";
+    case legendSample::LINE_AND_MARKER:
+        return "lp";
+    case legendSample::FILL:
+        return "f";
+    case legendSample::COLOUR_MAP:
+        return "f";
     }
     return "l";
 }
@@ -233,8 +251,10 @@ inline void emitRootLegend(
     double box_x2 = 0.;
     if(roots_own) {
         s << indent << "   TLegend *legend = new TLegend(0.3, 0.21); // placed by ROOT" << '\n';
-    } else {
-        const auto [x1, y1, x2, y2] = band ? legendBox3D(shown) : legendBox(position, entries.size());
+    }
+    else {
+        const auto [x1, y1, x2, y2] =
+            band ? legendBox3D(shown) : legendBox(position, entries.size());
         box_x1 = x1;
         box_x2 = x2;
         std::ostringstream box;
@@ -250,30 +270,43 @@ inline void emitRootLegend(
     for(const auto &e : entries | std::views::take(listed)) {
         const std::string label = "\"" + rootEscape(e.label) + "\"";
         if(e.sample == legendSample::COLOUR_MAP) {
-            s << indent << "   { // a colour map: a box in the middle colour of the palette, a sample object never drawn" << '\n'
+            s << indent
+              << "   { // a colour map: a box in the middle colour of the palette, a sample object "
+                 "never drawn"
+              << '\n'
               << indent << "      TGraph *sample = new TGraph();" << '\n'
               << indent << "      sample->SetName(\"sample\");" << '\n'
-              << indent << "      sample->SetFillColor(gStyle->GetColorPalette(gStyle->GetNumberOfColors() / 2));" << '\n'
+              << indent
+              << "      sample->SetFillColor(gStyle->GetColorPalette(gStyle->GetNumberOfColors() / "
+                 "2));"
+              << '\n'
               << indent << "      sample->SetFillStyle(1001);" << '\n'
               << indent << "      sample->SetLineColor(0);" << '\n'
               << indent << "      legend->AddEntry(sample, " << label << ", \"f\");" << '\n'
               << indent << "   }" << '\n';
-        } else if(e.object.empty()) {
+        }
+        else if(e.object.empty()) {
             // A series without an object of its own to copy: a sample object in the series' colour,
             // drawn as the description says, never drawn itself.
-            s << indent << "   { // a sample object for a series that names no object of its own" << '\n'
+            s << indent << "   { // a sample object for a series that names no object of its own"
+              << '\n'
               << indent << "      TGraph *sample = new TGraph();" << '\n'
               << indent << "      sample->SetName(\"sample\");" << '\n'
-              << indent << "      sample->SetLineColor(" << rootSeriesColour(e.series) << ");" << '\n'
-              << indent << "      sample->SetMarkerColor(" << rootSeriesColour(e.series) << ");" << '\n'
-              << indent << "      sample->SetFillColor(" << rootSeriesColour(e.series) << ");" << '\n'
+              << indent << "      sample->SetLineColor(" << rootSeriesColour(e.series) << ");"
+              << '\n'
+              << indent << "      sample->SetMarkerColor(" << rootSeriesColour(e.series) << ");"
+              << '\n'
+              << indent << "      sample->SetFillColor(" << rootSeriesColour(e.series) << ");"
+              << '\n'
               << indent << "      sample->SetMarkerStyle(20);" << '\n';
             if(e.line_width > 0) {
                 s << indent << "      sample->SetLineWidth(" << e.line_width << ");" << '\n';
             }
-            s << indent << "      legend->AddEntry(sample, " << label << ", \"" << rootLegendOption(e.sample) << "\");" << '\n'
+            s << indent << "      legend->AddEntry(sample, " << label << ", \""
+              << rootLegendOption(e.sample) << "\");" << '\n'
               << indent << "   }" << '\n';
-        } else {
+        }
+        else {
             // The object is named after its variable, so that a reader of the drawn canvas can tell it.
             s << indent << "   " << e.object << "->SetName(\"" << e.object << "\");" << '\n'
               << indent << "   legend->AddEntry(" << e.object << ", " << label << ", \""
@@ -282,7 +315,8 @@ inline void emitRootLegend(
         // What the description gives the entry, for a reader of the script that checks what ROOT
         // drew (the validity test of the plotting library).
         s << indent << "   // legend entry: " << to_string(e.sample) << " "
-          << ((e.sample == legendSample::COLOUR_MAP or e.object.empty()) ? std::string("sample") : e.object)
+          << ((e.sample == legendSample::COLOUR_MAP or e.object.empty()) ? std::string("sample")
+                                                                         : e.object)
           << '\n';
     }
     if(listed < entries.size()) {
@@ -292,13 +326,17 @@ inline void emitRootLegend(
     if(not roots_own) {
         // The room of a label is the box less the margin of the samples, and a little air. The
         // box is written out: the legend knows its coordinates in the pad only once it is painted.
-        const bool grows_left = position == legendPosition::TOP_RIGHT or position == legendPosition::BOTTOM_RIGHT
-            or position == legendPosition::CENTER_RIGHT;
+        const bool grows_left = position == legendPosition::TOP_RIGHT or
+                                position == legendPosition::BOTTOM_RIGHT or
+                                position == legendPosition::CENTER_RIGHT;
         std::ostringstream box;
         box.imbue(std::locale::classic());
         box << "const double x1 = " << box_x1 << ", x2 = " << box_x2
             << ", floor_size = " << (band ? legendTextSize3D(shown) : LEGENDMINTEXTSIZE) << ";";
-        s << indent << "   { // labels too long for the box are drawn smaller, down to a readable size; then the box grows" << '\n'
+        s << indent
+          << "   { // labels too long for the box are drawn smaller, down to a readable size; then "
+             "the box grows"
+          << '\n'
           << indent << "      " << box.str() << '\n'
           << indent << "      const double sample_width = legend->GetMargin() * (x2 - x1);" << '\n'
           << indent << "      const double room = 0.95 * ((x2 - x1) - sample_width);" << '\n'
@@ -311,43 +349,70 @@ inline void emitRootLegend(
           << indent << "      const auto widest_at = [&](double size) {" << '\n'
           << indent << "         double widest = 0.;" << '\n'
           << indent << "         TIter next_label(legend->GetListOfPrimitives());" << '\n'
-          << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_label())) {" << '\n'
-          << indent << "            widest = TMath::Max(widest, width_of(e->GetLabel(), size));" << '\n'
+          << indent
+          << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_label())) {" << '\n'
+          << indent << "            widest = TMath::Max(widest, width_of(e->GetLabel(), size));"
+          << '\n'
           << indent << "         }" << '\n'
           << indent << "         return widest;" << '\n'
           << indent << "      };" << '\n'
           << indent << "      double size = legend->GetTextSize();" << '\n'
           << indent << "      double widest = widest_at(size);" << '\n'
-          << indent << "      for(int pass = 0; pass < 8 && widest > room && size > floor_size; ++pass) { // a font's width is not quite proportional to its size" << '\n'
+          << indent
+          << "      for(int pass = 0; pass < 8 && widest > room && size > floor_size; ++pass) { // "
+             "a font's width is not quite proportional to its size"
+          << '\n'
           << indent << "         size = TMath::Max(floor_size, size * room / widest);" << '\n'
           << indent << "         widest = widest_at(size);" << '\n'
           << indent << "      }" << '\n'
           << indent << "      legend->SetTextSize(size);" << '\n'
-          << indent << "      if(widest > room) { // too wide even at the smallest size: the box grows, the samples keep their width" << '\n'
+          << indent
+          << "      if(widest > room) { // too wide even at the smallest size: the box grows, the "
+             "samples keep their width"
+          << '\n'
           << indent << "         const double width = (widest / 0.95) + sample_width;" << '\n';
         if(grows_left) {
             s << indent << "         // at most to the frame's left edge" << '\n'
-              << indent << "         legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), x2 - width));" << '\n'
-              << indent << "         legend->SetMargin(sample_width / (x2 - legend->GetX1()));" << '\n';
-        } else {
-            s << indent << "         // at most to the frame's right edge, left of a palette" << '\n'
-              << indent << "         legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - 0.02), x1 + width));" << '\n'
-              << indent << "         legend->SetMargin(sample_width / (legend->GetX2() - x1));" << '\n';
+              << indent
+              << "         legend->SetX1(TMath::Max(TMath::Min(x1, gPad->GetLeftMargin() + 0.01), "
+                 "x2 - width));"
+              << '\n'
+              << indent << "         legend->SetMargin(sample_width / (x2 - legend->GetX1()));"
+              << '\n';
         }
-        s << indent << "         // a label that does not fit even the grown box: shortened at its end, marked with \"...\"" << '\n'
-          << indent << "         const double grown_room = 0.95 * ((legend->GetX2() - legend->GetX1()) - sample_width);" << '\n'
+        else {
+            s << indent << "         // at most to the frame's right edge, left of a palette"
+              << '\n'
+              << indent
+              << "         legend->SetX2(TMath::Min(TMath::Max(x2, 1. - gPad->GetRightMargin() - "
+                 "0.02), x1 + width));"
+              << '\n'
+              << indent << "         legend->SetMargin(sample_width / (legend->GetX2() - x1));"
+              << '\n';
+        }
+        s << indent
+          << "         // a label that does not fit even the grown box: shortened at its end, "
+             "marked with \"...\""
+          << '\n'
+          << indent
+          << "         const double grown_room = 0.95 * ((legend->GetX2() - legend->GetX1()) - "
+             "sample_width);"
+          << '\n'
           << indent << "         TIter next_long(legend->GetListOfPrimitives());" << '\n'
-          << indent << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_long())) {" << '\n'
+          << indent
+          << "         while(TLegendEntry *e = static_cast<TLegendEntry *>(next_long())) {" << '\n'
           << indent << "            TString text = e->GetLabel();" << '\n'
           << indent << "            if(width_of(text.Data(), size) <= grown_room) continue;" << '\n'
-          << indent << "            while(text.Length() > 1 && width_of((text + \"...\").Data(), size) > grown_room) text.Remove(text.Length() - 1);" << '\n'
+          << indent
+          << "            while(text.Length() > 1 && width_of((text + \"...\").Data(), size) > "
+             "grown_room) text.Remove(text.Length() - 1);"
+          << '\n'
           << indent << "            e->SetLabel((text + \"...\").Data());" << '\n'
           << indent << "         }" << '\n'
           << indent << "      }" << '\n'
           << indent << "   }" << '\n';
     }
-    s << indent << "   legend->Draw();" << '\n'
-      << indent << "}" << '\n';
+    s << indent << "   legend->Draw();" << '\n' << indent << "}" << '\n';
 }
 
 /******************************************************************************/
@@ -401,8 +466,8 @@ inline void emitRootOverlayFrameAndLegend(
     bool three_d,
     bool room = false
 ) {
-    s << indent << "{ // one frame for all graphs of this pad" << (entries.empty() ? "" : ", and a legend")
-      << '\n'
+    s << indent << "{ // one frame for all graphs of this pad"
+      << (entries.empty() ? "" : ", and a legend") << '\n'
       << indent << "   TGraph *first = nullptr;" << '\n'
       << indent << "   double xlo = 0., xhi = 0., ylo = 0., yhi = 0.;" << '\n'
       << indent << "   TIter next(gPad->GetListOfPrimitives());" << '\n'
@@ -421,8 +486,7 @@ inline void emitRootOverlayFrameAndLegend(
       << indent << "         const double yh = y + TMath::Max(0., g->GetErrorYhigh(i));" << '\n'
       << indent << "         if(gPad->GetLogx() && xl <= 0.) xl = x; // no room below zero" << '\n'
       << indent << "         if(gPad->GetLogy() && yl <= 0.) yl = y;" << '\n'
-      << indent
-      << "         if(i == 0) { gxlo = xl; gxhi = xh; gylo = yl; gyhi = yh; continue; }"
+      << indent << "         if(i == 0) { gxlo = xl; gxhi = xh; gylo = yl; gyhi = yh; continue; }"
       << '\n'
       << indent << "         gxlo = TMath::Min(gxlo, xl); gxhi = TMath::Max(gxhi, xh);" << '\n'
       << indent << "         gylo = TMath::Min(gylo, yl); gyhi = TMath::Max(gyhi, yh);" << '\n'
@@ -446,7 +510,8 @@ inline void emitRootOverlayFrameAndLegend(
       << "      else { first->SetMinimum(ylo - 0.05 * (yhi - ylo)); first->SetMaximum(yhi + 0.05 * "
          "(yhi - ylo)); }"
       << '\n';
-    const bool bottom = position == legendPosition::BOTTOM_LEFT or position == legendPosition::BOTTOM_RIGHT;
+    const bool bottom =
+        position == legendPosition::BOTTOM_LEFT or position == legendPosition::BOTTOM_RIGHT;
     const bool top = position == legendPosition::TOP_LEFT or position == legendPosition::TOP_RIGHT;
     if(room and not entries.empty() and not three_d and (bottom or top)) {
         // A band of the legend's own: the frame is extended so that the data lie above (or below)
@@ -455,18 +520,35 @@ inline void emitRootOverlayFrameAndLegend(
         std::ostringstream edge;
         edge.imbue(std::locale::classic());
         edge << (bottom ? y2 + 0.02 : y1 - 0.02);
-        s << indent << "      { // the legend's band: no data under the legend, by construction" << '\n'
+        s << indent << "      { // the legend's band: no data under the legend, by construction"
+          << '\n'
           << indent << "         const double edge = " << edge.str() << "; // of the pad" << '\n'
-          << indent << "         const double r = (edge - gPad->GetBottomMargin()) / (1. - gPad->GetBottomMargin() - gPad->GetTopMargin());" << '\n'
+          << indent
+          << "         const double r = (edge - gPad->GetBottomMargin()) / (1. - "
+             "gPad->GetBottomMargin() - gPad->GetTopMargin());"
+          << '\n'
           << indent << "         const bool log_y = gPad->GetLogy();" << '\n'
-          << indent << "         const auto f = [&](double v) { return log_y ? TMath::Log10(v) : v; };" << '\n'
-          << indent << "         const auto g = [&](double v) { return log_y ? TMath::Power(10., v) : v; };" << '\n'
-          << indent << "         const double lo = f(first->GetMinimum()), hi = f(first->GetMaximum());" << '\n';
+          << indent
+          << "         const auto f = [&](double v) { return log_y ? TMath::Log10(v) : v; };"
+          << '\n'
+          << indent
+          << "         const auto g = [&](double v) { return log_y ? TMath::Power(10., v) : v; };"
+          << '\n'
+          << indent
+          << "         const double lo = f(first->GetMinimum()), hi = f(first->GetMaximum());"
+          << '\n';
         if(bottom) {
-            s << indent << "         const double new_lo = (f(ylo) - r * hi) / (1. - r); // the lowest datum at the band's top" << '\n'
+            s << indent
+              << "         const double new_lo = (f(ylo) - r * hi) / (1. - r); // the lowest datum "
+                 "at the band's top"
+              << '\n'
               << indent << "         if(new_lo < lo) first->SetMinimum(g(new_lo));" << '\n';
-        } else {
-            s << indent << "         const double new_hi = lo + ((f(yhi) - lo) / r); // the highest datum at the band's bottom" << '\n'
+        }
+        else {
+            s << indent
+              << "         const double new_hi = lo + ((f(yhi) - lo) / r); // the highest datum at "
+                 "the band's bottom"
+              << '\n'
               << indent << "         if(new_hi > hi) first->SetMaximum(g(new_hi));" << '\n';
         }
         s << indent << "      }" << '\n';
@@ -475,8 +557,7 @@ inline void emitRootOverlayFrameAndLegend(
     if(not entries.empty()) {
         emitRootLegend(s, indent + "   ", position, entries, three_d);
     }
-    s << indent << "   gPad->Modified();" << '\n'
-      << indent << "}" << '\n';
+    s << indent << "   gPad->Modified();" << '\n' << indent << "}" << '\n';
 }
 
 /******************************************************************************/
@@ -555,12 +636,24 @@ inline std::string backslashEscape(const std::string &in) {
     out.reserve(in.size());
     for(char const c : in) {
         switch(c) {
-            case '\\': out += "\\\\"; break;
-            case '"':  out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r': out += "\\r"; break;
-            default:   out += c;      break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        default:
+            out += c;
+            break;
         }
     }
     return out;
@@ -585,7 +678,15 @@ inline std::size_t columnSize(const GPlotColumn &c) {
  * @brief The plotter kinds the script backends understand. gnuplot supports only the graph kinds;
  * matplotlib and Octave additionally support the histograms.
  */
-enum class scriptKind : std::uint8_t { g2d, g2ed, g3d, g4d, hist1d, hist1i, hist2d };
+enum class scriptKind : std::uint8_t {
+    g2d,
+    g2ed,
+    g3d,
+    g4d,
+    hist1d,
+    hist1i,
+    hist2d
+};
 
 /**
  * @brief Classify a plotter for a script backend by its reported plotSpec().kind
@@ -606,20 +707,31 @@ inline scriptKind classifyForScript(
     std::string_view backend_name
 ) {
     switch(p.plotSpec().kind) {
-        case plotKind::graph_2d:     return scriptKind::g2d;
-        case plotKind::graph_2d_err: return scriptKind::g2ed;
-        case plotKind::graph_3d:     return scriptKind::g3d;
-        case plotKind::graph_4d:     return scriptKind::g4d;
-        case plotKind::hist_2d:
-            if(with_histograms) { return scriptKind::hist2d; }
-            break;
-        case plotKind::hist_1d:
-            if(with_histograms) { return scriptKind::hist1d; }
-            break;
-        case plotKind::hist_1i:
-            if(with_histograms) { return scriptKind::hist1i; }
-            break;
-        default: break;
+    case plotKind::graph_2d:
+        return scriptKind::g2d;
+    case plotKind::graph_2d_err:
+        return scriptKind::g2ed;
+    case plotKind::graph_3d:
+        return scriptKind::g3d;
+    case plotKind::graph_4d:
+        return scriptKind::g4d;
+    case plotKind::hist_2d:
+        if(with_histograms) {
+            return scriptKind::hist2d;
+        }
+        break;
+    case plotKind::hist_1d:
+        if(with_histograms) {
+            return scriptKind::hist1d;
+        }
+        break;
+    case plotKind::hist_1i:
+        if(with_histograms) {
+            return scriptKind::hist1i;
+        }
+        break;
+    default:
+        break;
     }
     throw geneva_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -656,11 +768,13 @@ inline void validateScriptPads(
         const scriptKind k = classifyForScript(*p, with_histograms, where, backend_name);
         for(const auto &sp : p->secondaryPlotters()) {
             const scriptKind sk = classifyForScript(*sp, with_histograms, where, backend_name);
-            if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) != surfaceProjection::NONE) {
+            if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) !=
+               surfaceProjection::NONE) {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In " << where << ": Error!" << '\n'
-                    << "an overlay (" << sp->getPlotterName() << ") requests a surface projection -- "
+                    << "an overlay (" << sp->getPlotterName()
+                    << ") requests a surface projection -- "
                     << "only the primary plot of a pad can be drawn as a projected surface" << '\n'
                 );
             }
@@ -779,7 +893,8 @@ inline GDrawStyle scriptStyle(const GBasePlotter &p) {
     const plotKind kind = p.plotSpec().kind;
     if(kind == plotKind::hist_1d or kind == plotKind::hist_1i) {
         style = GDrawStyle{.fill = true, .line_width = style.line_width};
-    } else if(kind == plotKind::hist_2d) {
+    }
+    else if(kind == plotKind::hist_2d) {
         style = GDrawStyle{.colour_map = true, .line_width = style.line_width};
     }
     return style;
@@ -795,7 +910,8 @@ inline GDrawStyle scriptStyle(const GBasePlotter &p) {
 inline std::vector<GLegendEntry> scriptLegendEntries(const GBasePlotter &primary) {
     auto entries = primary.legendEntries();
     for(auto &e : entries) {
-        const GBasePlotter &series = e.series == 0 ? primary : *primary.secondaryPlotters()[e.series - 1];
+        const GBasePlotter &series =
+            e.series == 0 ? primary : *primary.secondaryPlotters()[e.series - 1];
         e.sample = legendSampleOf(scriptStyle(series));
     }
     return entries;

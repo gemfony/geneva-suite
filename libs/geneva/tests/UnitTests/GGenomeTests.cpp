@@ -33,15 +33,14 @@
 #include <any>
 #include <cmath>
 #include <cstdint>
-#include <expected>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <random>
 #include <ranges>
+#include <span>
 #include <string>
 #include <vector>
-#include <span>
 
 #include <sstream>
 
@@ -49,46 +48,46 @@
 
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
 
-#include "weft/GBinaryArchive.hpp" // GArchive binary codec (3d-A GGenome gem round-trip)
-#include "weft/GJsonArchive.hpp"   // GArchive JSON codec (3d-A GGenome gem round-trip)
-#include "weft/GArchivePolymorphic.hpp" // gem_serialize_pointer (owned-pointer members of the individual)
 #include "common/GCommonEnums.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "courtier/GWireSerializationContext.hpp" // layout send-once: wire context + registry
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/GWireSerializationContext.hpp" // layout send-once: wire context + registry
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
-#include <atomic>
-#include <chrono>
-#include <thread>
-#include "geneva/GOptimizationEnums.hpp"
-#include "geneva/genome/GGenomeLayout.hpp"
-#include "geneva/genome/GGenomeLayoutSerialization.hpp" // ChannelLayout (de)serialisation (layout interning)
-#include "geneva/Go2.hpp"
-#include "geneva/GenevaInitializer.hpp"
-#include "hap/GRandomT.hpp"
-#include "hap/GRandomFactory.hpp"
-#include "geneva/genome/GGenome.hpp"
-#include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
-#include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/GModuleLoader.hpp"
 #include "geneva/GMarshallerPlugin.hpp" // marshallerManifest / GMarshallerProviderPtr / the marshaller store
-#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/GModuleLoader.hpp"
+#include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GenevaInitializer.hpp"
+#include "geneva/Go2.hpp"
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
+#include "geneva/genome/GGenomeLayout.hpp"
+#include "geneva/genome/GGenomeLayoutSerialization.hpp" // ChannelLayout (de)serialisation (layout interning)
+#include "geneva/genome/GGenomeT.hpp"
+#include "geneva/genome/GIndividualFactory.hpp"
+#include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
-#include "geneva/oa/GFactoryStore.hpp"     // oaFactoryStore / registerOptimizationAlgorithm -- the one OA seam
-#include "geneva/oa/GOAPlugin.hpp"        // oaManifest -- the module half of that seam
-#include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GFactoryStore.hpp" // oaFactoryStore / registerOptimizationAlgorithm -- the one OA seam
+#include "geneva/oa/GOAPlugin.hpp" // oaManifest -- the module half of that seam
+#include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
-#include "geneva/individuals/GNeuralNetworkIndividual.hpp"
+#include "hap/GRandomFactory.hpp"
+#include "hap/GRandomT.hpp"
+#include "weft/GArchivePolymorphic.hpp" // gem_serialize_pointer (owned-pointer members of the individual)
+#include "weft/GBinaryArchive.hpp" // GArchive binary codec (3d-A GGenome gem round-trip)
+#include "weft/GJsonArchive.hpp"   // GArchive JSON codec (3d-A GGenome gem round-trip)
+#include <atomic>
+#include <chrono>
+#include <thread>
 
 // The consumer catalogue: optionalConsumerNotes(), consumerListing()
 #include "geneva/GConsumerSetup.hpp"
@@ -111,11 +110,16 @@ namespace {
 struct FlatTaggedProbe : public GGenomeT<FlatTaggedProbe> {
     using genome_only = void; // opts into the generated empty member list
 };
-struct FlatUntaggedProbe : public GGenomeT<FlatUntaggedProbe> {}; // no marker AND no own localMembers_()
-static_assert(Gem::Common::GReflectiveInterfaceAccess::has_members<FlatTaggedProbe>,
-    "b2: a marked genome-only leaf must resolve GGenomeT's generated empty member list");
-static_assert(!Gem::Common::GReflectiveInterfaceAccess::has_members<FlatUntaggedProbe>,
-    "b2: an unmarked leaf with no own localMembers_() must NOT resolve a member list (guard rotted)");
+struct FlatUntaggedProbe
+  : public GGenomeT<FlatUntaggedProbe> {}; // no marker AND no own localMembers_()
+static_assert(
+    Gem::Common::GReflectiveInterfaceAccess::has_members<FlatTaggedProbe>,
+    "b2: a marked genome-only leaf must resolve GGenomeT's generated empty member list"
+);
+static_assert(
+    !Gem::Common::GReflectiveInterfaceAccess::has_members<FlatUntaggedProbe>,
+    "b2: an unmarked leaf with no own localMembers_() must NOT resolve a member list (guard rotted)"
+);
 } // namespace
 
 /******************************************************************************/
@@ -127,10 +131,15 @@ static_assert(!Gem::Common::GReflectiveInterfaceAccess::has_members<FlatUntagged
  */
 class Sphere : public GGenomeT<Sphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    Sphere() { buildGenome(5); }
-    explicit Sphere(std::size_t n) { buildGenome(n); }
+    Sphere() {
+        buildGenome(5);
+    }
+    explicit Sphere(std::size_t n) {
+        buildGenome(n);
+    }
     Sphere(const Sphere &) = default;
 
     /** @brief The OA-owned Gauss adaption config for this genome's double group(s). */
@@ -147,13 +156,17 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
     void buildGenome(std::size_t n) {
         GGenomeBuilder b;
-        b.addDoubleGroup(n, -10., 10.).init(1.0); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(n, -10., 10.)
+            .init(1.0); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
 
@@ -175,8 +188,12 @@ private:
 class GemSphere : public GGenomeT<GemSphere> {
 public:
     using genome_only = void; // b2: genome-only flat leaf
-    GemSphere() { buildGenome(5); }
-    explicit GemSphere(std::size_t n) { buildGenome(n); }
+    GemSphere() {
+        buildGenome(5);
+    }
+    explicit GemSphere(std::size_t n) {
+        buildGenome(n);
+    }
     GemSphere(const GemSphere &) = default;
 
 protected:
@@ -184,7 +201,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -209,7 +229,8 @@ private:
  */
 class FactorySphere : public GGenomeT<FactorySphere> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     FactorySphere() = default; // the factory installs the genome
     FactorySphere(const FactorySphere &) = default;
@@ -225,23 +246,43 @@ public:
     /** @brief Registers the config-file options, binding them to the passed Config */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
         gpb.registerFileParameter<std::size_t>(
-            "par_dim", c.par_dim, c.par_dim, Gem::Common::VAR_IS_ESSENTIAL, "Number of parameters"
+            "par_dim",
+            c.par_dim,
+            c.par_dim,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Number of parameters"
         );
         gpb.registerFileParameter<double>(
-            "min", c.min, c.min, Gem::Common::VAR_IS_ESSENTIAL, "Lower bound"
+            "min",
+            c.min,
+            c.min,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Lower bound"
         );
         gpb.registerFileParameter<double>(
-            "max", c.max, c.max, Gem::Common::VAR_IS_ESSENTIAL, "Upper bound"
+            "max",
+            c.max,
+            c.max,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Upper bound"
         );
         gpb.registerFileParameter<double>(
-            "sigma", c.sigma, c.sigma, Gem::Common::VAR_IS_ESSENTIAL, "Gauss sigma"
+            "sigma",
+            c.sigma,
+            c.sigma,
+            Gem::Common::VAR_IS_ESSENTIAL,
+            "Gauss sigma"
         );
     }
 
     /** @brief Builds the value arrays + the shared, immutable layout from the parsed config */
     static gen::GenomeData buildGenome(const Config &c) {
         GGenomeBuilder b;
-        b.addDoubleGroup(c.par_dim, c.min, c.max); // structure only; the adaptor lives on the OA config
+        b.addDoubleGroup(
+            c.par_dim,
+            c.min,
+            c.max
+        ); // structure only; the adaptor lives on the OA config
         return b.build();
     }
 
@@ -261,7 +302,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -274,7 +318,7 @@ private:
 
 } // namespace Gem::Tests
 
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::Sphere) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::Sphere)        // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Tests::FactorySphere) // NOLINT
 
 // Register GemSphere for GArchive polymorphic dispatch: toString/fromString serialize the individual
@@ -289,7 +333,8 @@ using Gem::Tests::Sphere;
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent test inspecting a single built layout+adaptor from several angles (structure fields, adaptor config, per-element bounds)
 TEST_CASE("GGenomeBuilder produces the expected shared layout", "[flat]") {
     GGenomeBuilder b;
-    b.addDoubleGroup(5, -10., 10.).init(1.0); // structure only -- adaptors are authored on the OA config
+    b.addDoubleGroup(5, -10., 10.)
+        .init(1.0); // structure only -- adaptors are authored on the OA config
     gen::GenomeData g = b.build();
 
     REQUIRE(g.layout);
@@ -348,8 +393,8 @@ TEST_CASE("GGenomeLayout::layoutId is a stable content hash", "[flat][layoutid]"
     CHECK(a->layoutId() == a->layoutId());
 
     // A different parameter count, different bounds, or different grouping each changes the id.
-    CHECK(a->layoutId() != buildLayout(6, -10., 10.)->layoutId());  // count
-    CHECK(a->layoutId() != buildLayout(5, -1., 1.)->layoutId());    // bounds
+    CHECK(a->layoutId() != buildLayout(6, -10., 10.)->layoutId()); // count
+    CHECK(a->layoutId() != buildLayout(5, -1., 1.)->layoutId());   // bounds
     CHECK_FALSE(a->sameStructure(*buildLayout(6, -10., 10.)));
 
     {
@@ -392,7 +437,10 @@ TEST_CASE("GGenomeLayout::layoutId is a stable content hash", "[flat][layoutid]"
  * a cached layout blob on this id, so a stale id references the wrong layout on the wire.
  */
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one property (a wholesale structural replacement invalidates the cached id) checked over the three replacement paths against the SAME pair of layouts; splitting would only duplicate the fixture
-TEST_CASE("GGenomeLayout: replacing the structure invalidates the cached id", "[flat][layoutid][regression]") {
+TEST_CASE(
+    "GGenomeLayout: replacing the structure invalidates the cached id",
+    "[flat][layoutid][regression]"
+) {
     auto buildLayout = [](std::size_t n, double lo, double hi) {
         GGenomeBuilder b;
         b.addDoubleGroup(n, lo, hi);
@@ -445,9 +493,12 @@ TEST_CASE("GGenomeLayout: replacing the structure invalidates the cached id", "[
 
 /******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent wire-blob round-trip (encode -> decode -> re-hash) verified from several angles against the SAME layout; the steps are sequentially coupled and would only be scattered by splitting
-TEST_CASE("GGenomeLayout::layoutId survives the WIRE-BLOB round-trip", "[flat][layoutid][wireblob]") {
-    using Gem::Geneva::Genome::layoutToWireBlob;
+TEST_CASE(
+    "GGenomeLayout::layoutId survives the WIRE-BLOB round-trip",
+    "[flat][layoutid][wireblob]"
+) {
     using Gem::Geneva::Genome::layoutFromWireBlob;
+    using Gem::Geneva::Genome::layoutToWireBlob;
 
     auto roundtrip = [](const std::shared_ptr<const GGenomeLayout> &orig) {
         const LayoutId id1 = orig->layoutId();
@@ -456,19 +507,26 @@ TEST_CASE("GGenomeLayout::layoutId survives the WIRE-BLOB round-trip", "[flat][l
         const LayoutId id2 = back->layoutId();
         const bool same = back->sameStructure(*orig);
         // id-stable AND structure-stable: this is what send-once relies on for a return-trip layout.
-        CHECK(same);                 // false -> reconstruction changed the structure (serialize bug)
-        CHECK(id2 == id1);           // false while same==true -> the HASH is unstable (hash bug)
+        CHECK(same);       // false -> reconstruction changed the structure (serialize bug)
+        CHECK(id2 == id1); // false while same==true -> the HASH is unstable (hash bug)
 
         // The genome's inline layout-by-value path uses the OUTER archive, which for a non-binary
         // consumer mode is GEM_JSON. Does a non-binary (JSON) round-trip preserve the content id
         // (which folds exact double bit patterns)?
         std::string layout_json;
-        { Gem::Weft::GJsonOArchive oa; GGenomeLayout cp = *orig;
-          oa &Gem::Weft::make_nvp("l", cp); layout_json = oa.str(); }
+        {
+            Gem::Weft::GJsonOArchive oa;
+            GGenomeLayout cp = *orig;
+            oa &Gem::Weft::make_nvp("l", cp);
+            layout_json = oa.str();
+        }
         auto back_json = std::make_shared<GGenomeLayout>();
-        { Gem::Weft::GJsonIArchive ia(layout_json); ia &Gem::Weft::make_nvp("l", *back_json); }
-        CHECK(back_json->sameStructure(*orig));     // structurally equal (same VALUES)?
-        CHECK(back_json->layoutId() == id1);        // but is the content id (bit-pattern hash) preserved?
+        {
+            Gem::Weft::GJsonIArchive ia(layout_json);
+            ia &Gem::Weft::make_nvp("l", *back_json);
+        }
+        CHECK(back_json->sameStructure(*orig)); // structurally equal (same VALUES)?
+        CHECK(back_json->layoutId() == id1); // but is the content id (bit-pattern hash) preserved?
 
         // Multi-hop: server->worker->server. Does re-serializing the RECONSTRUCTED layout keep the id?
         const auto back2 = layoutFromWireBlob(layoutToWireBlob(*back));
@@ -477,18 +535,30 @@ TEST_CASE("GGenomeLayout::layoutId survives the WIRE-BLOB round-trip", "[flat][l
     };
 
     SECTION("double array (n single-value groups)") {
-        GGenomeBuilder b; b.addDoubleArray(1000, -10., 10.);
-        Sphere ind; ind.setGenome(b.build()); roundtrip(ind.getLayout());
+        GGenomeBuilder b;
+        b.addDoubleArray(1000, -10., 10.);
+        Sphere ind;
+        ind.setGenome(b.build());
+        roundtrip(ind.getLayout());
     }
     SECTION("double groups of 10 (the image case)") {
-        GGenomeBuilder b; for(int t = 0; t < 100; ++t) { b.addDoubleGroup(10, -1., 1.); }
-        Sphere ind; ind.setGenome(b.build()); roundtrip(ind.getLayout());
+        GGenomeBuilder b;
+        for(int t = 0; t < 100; ++t) {
+            b.addDoubleGroup(10, -1., 1.);
+        }
+        Sphere ind;
+        ind.setGenome(b.build());
+        roundtrip(ind.getLayout());
     }
     SECTION("the existing mixed layout") {
         GGenomeBuilder b;
-        b.addDoubleGroup(4, -10., 10.); b.addDoubleArray(3, -2., 2.);
-        b.addInt32Group(2, -5, 5); b.addBoolGroup(2);
-        Sphere ind; ind.setGenome(b.build()); roundtrip(ind.getLayout());
+        b.addDoubleGroup(4, -10., 10.);
+        b.addDoubleArray(3, -2., 2.);
+        b.addInt32Group(2, -5, 5);
+        b.addBoolGroup(2);
+        Sphere ind;
+        ind.setGenome(b.build());
+        roundtrip(ind.getLayout());
     }
 }
 
@@ -506,8 +576,10 @@ TEST_CASE("GGenomeLayout::layoutId survives a serialization round-trip", "[flat]
     const LayoutId before = ind.getLayout()->layoutId();
 
     Sphere restored;
-    restored.fromString(ind.toString(Gem::Common::serializationMode::GEM_BINARY),
-                        Gem::Common::serializationMode::GEM_BINARY);
+    restored.fromString(
+        ind.toString(Gem::Common::serializationMode::GEM_BINARY),
+        Gem::Common::serializationMode::GEM_BINARY
+    );
     CHECK(restored.getLayout()->layoutId() == before);
     CHECK(restored.getLayout()->sameStructure(*ind.getLayout()));
 }
@@ -518,12 +590,17 @@ TEST_CASE("GGenome::streamlineInto matches streamline (bulk-flatten fast path)",
     // external (range-folded) values as streamline<T>(), just written straight into a caller buffer with
     // no temporary vector. Sphere's group is Constrained, so the per-element fold is exercised.
     Sphere ind(7);
-    ind.randomInit(activityMode::ACTIVEONLY); // vary the stored values so the fold actually does work
+    ind.randomInit(
+        activityMode::ACTIVEONLY
+    ); // vary the stored values so the fold actually does work
 
     std::vector<double> via_streamline;
     ind.streamline<double>(via_streamline);
 
-    std::vector<double> via_into(via_streamline.size() + 1, -987.0); // +1 sentinel to catch any overrun
+    std::vector<double> via_into(
+        via_streamline.size() + 1,
+        -987.0
+    ); // +1 sentinel to catch any overrun
     const std::size_t n = ind.streamlineInto(via_into.data());
 
     REQUIRE(n == via_streamline.size());
@@ -536,9 +613,9 @@ TEST_CASE("GGenome::streamlineInto matches streamline (bulk-flatten fast path)",
 /******************************************************************************/
 TEST_CASE("GGenomeBuilder: groups vs arrays vs single parameters", "[flat]") {
     GGenomeBuilder b;
-    b.addDouble(0., -1., 1.);          // group of 1
-    b.addDoubleGroup(4, -2., 2.);      // ONE group of 4 (shared sigma)
-    b.addDoubleArray(3, -3., 3.);      // 3 groups of 1
+    b.addDouble(0., -1., 1.);     // group of 1
+    b.addDoubleGroup(4, -2., 2.); // ONE group of 4 (shared sigma)
+    b.addDoubleArray(3, -3., 3.); // 3 groups of 1
     gen::GenomeData const g = b.build();
 
     const ChannelLayout<double> &ch = g.layout->d;
@@ -554,7 +631,7 @@ TEST_CASE("GGenomeBuilder: interned group labels", "[flat]") {
     //! [problem-handle-tuning#2]
     b.addDoubleGroup(2, -1., 1.).label("position"); // group 1
     b.addDouble(0., -1., 1.).label("scale");        // group 2
-    b.addDouble(0., -1., 1.);                        // group 3 (unlabeled)
+    b.addDouble(0., -1., 1.);                       // group 3 (unlabeled)
     gen::GenomeData const g = b.build();
 
     std::shared_ptr<const GGenomeLayout> L = g.layout;
@@ -564,9 +641,9 @@ TEST_CASE("GGenomeBuilder: interned group labels", "[flat]") {
     // Interning: two distinct strings -> a two-entry table; "position" used twice reuses one id.
     REQUIRE(L->labels.size() == 2);
     CHECK(L->d.groups[0].label_id >= 0);
-    CHECK(L->d.groups[0].label_id == L->d.groups[1].label_id);  // same string -> same id
-    CHECK(L->d.groups[2].label_id != L->d.groups[0].label_id);  // different string -> different id
-    CHECK(L->d.groups[3].label_id == -1);                       // unlabeled default
+    CHECK(L->d.groups[0].label_id == L->d.groups[1].label_id); // same string -> same id
+    CHECK(L->d.groups[2].label_id != L->d.groups[0].label_id); // different string -> different id
+    CHECK(L->d.groups[3].label_id == -1);                      // unlabeled default
 
     // id <-> name resolution.
     CHECK(L->labelName(L->d.groups[0].label_id) == "position");
@@ -620,8 +697,10 @@ TEST_CASE("GGenome: layout interning round-trips losslessly (compact + escape ro
     REQUIRE(L);
 
     Sphere restored;
-    restored.fromString(ind.toString(Gem::Common::serializationMode::GEM_BINARY),
-                        Gem::Common::serializationMode::GEM_BINARY);
+    restored.fromString(
+        ind.toString(Gem::Common::serializationMode::GEM_BINARY),
+        Gem::Common::serializationMode::GEM_BINARY
+    );
     auto RL = restored.getLayout();
     REQUIRE(RL);
     // The reconstructed per-value arrays must be identical to the original.
@@ -640,7 +719,9 @@ TEST_CASE("GGenome: layout interning round-trips losslessly (compact + escape ro
     // representable by the data structure) must fall back to full per-value serialisation and round-trip
     // exactly. Build one by hand and round-trip the ChannelLayout directly.
     ChannelLayout<double> ch;
-    ch.groups.push_back(GroupStructure<double>{0u, 3u, -1, true}); // one group of 3, NON-uniform below
+    ch.groups.push_back(
+        GroupStructure<double>{0u, 3u, -1, true}
+    ); // one group of 3, NON-uniform below
     ch.lower = {-1., -5., -9.};
     ch.upper = {1., 5., 9.};
     ch.init_lower = {-1., -5., -9.};
@@ -776,8 +857,10 @@ TEST_CASE("GGenome: serialization round-trip", "[flat]") {
 // VERBATIM and marks the item PROCESSED, WITHOUT invoking the local evaluate(). This is the
 // GPU / external-marshaller path; pinned so the contract survives the swap (and a prospective
 // acceptEvaluationResults rename of the injection entry point).
-TEST_CASE("GGenome: external evaluation result is accepted verbatim (no local evaluate())",
-          "[flat][external]") {
+TEST_CASE(
+    "GGenome: external evaluation result is accepted verbatim (no local evaluate())",
+    "[flat][external]"
+) {
     Sphere ind(5);
     // Place the genome where the true sphere fitness is a known NON-zero value (five 1.0s -> 5.0), so
     // an injected result that differs proves the external value was taken, not locally computed.
@@ -802,8 +885,10 @@ TEST_CASE("GGenome: external evaluation result is accepted verbatim (no local ev
 // A derived individual round-trips its value identity through EVERY serialization mode the string
 // interface offers, not just the one the basic round-trip above happens to use: the individual's
 // archive-tag registration has to produce a readable archive in each codec alike.
-TEST_CASE("GGenome: a derived individual round-trips through toString/fromString in every codec",
-          "[flat][serialize][formats]") {
+TEST_CASE(
+    "GGenome: a derived individual round-trips through toString/fromString in every codec",
+    "[flat][serialize][formats]"
+) {
     using mode = Gem::Common::serializationMode;
     const std::vector<double> vals{1., -2., 3., -4., 5.};
 
@@ -815,7 +900,10 @@ TEST_CASE("GGenome: a derived individual round-trips through toString/fromString
         REQUIRE_NOTHROW(restored.fromString(ind.toString(m), m));
 
         CHECK_NOTHROW(restored.compare(
-            ind, Gem::Common::expectation::EQUALITY, Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE));
+            ind,
+            Gem::Common::expectation::EQUALITY,
+            Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+        ));
 
         std::vector<double> v;
         restored.streamline<double>(v);
@@ -831,8 +919,10 @@ TEST_CASE("GGenome: a derived individual round-trips through toString/fromString
 // layoutId. This is the self-contained layer of the send-once wire form and the leaf of the individual's
 // serialization tree; the full derived-individual GArchive round-trip follows once its polymorphic owned
 // members are ported and registered.
-TEST_CASE("GGenomeLayout: round-trips through the GArchive codecs (binary + JSON)",
-          "[flat][garchive][layoutid]") {
+TEST_CASE(
+    "GGenomeLayout: round-trips through the GArchive codecs (binary + JSON)",
+    "[flat][garchive][layoutid]"
+) {
     using namespace Gem::Weft;
 
     // A layout with several groups across double / int32 / bool channels + labels, so the compact
@@ -874,8 +964,10 @@ TEST_CASE("GGenomeLayout: round-trips through the GArchive codecs (binary + JSON
 // that the whole object graph -- GGenome + its layout, the GProcessable lifecycle base, the result store,
 // and the null-by-default polymorphic owned members (constraint / processors / OA scratch) -- survives a
 // GArchive codec, reconstructing an equal (compare()) individual.
-TEST_CASE("GGenome: a derived individual round-trips through the GArchive codecs (binary + JSON)",
-          "[flat][garchive][individual]") {
+TEST_CASE(
+    "GGenome: a derived individual round-trips through the GArchive codecs (binary + JSON)",
+    "[flat][garchive][individual]"
+) {
     using namespace Gem::Weft;
     const std::vector<double> vals{1., -2., 3., -4., 5.};
 
@@ -891,7 +983,10 @@ TEST_CASE("GGenome: a derived individual round-trips through the GArchive codecs
         ia &make_nvp("ind", restored);
 
         CHECK_NOTHROW(restored.compare(
-            ind, Gem::Common::expectation::EQUALITY, Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE));
+            ind,
+            Gem::Common::expectation::EQUALITY,
+            Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+        ));
         std::vector<double> v;
         restored.streamline<double>(v);
         CHECK(v == vals);
@@ -910,7 +1005,10 @@ TEST_CASE("GGenome: a derived individual round-trips through the GArchive codecs
         ia &make_nvp("ind", restored);
 
         CHECK_NOTHROW(restored.compare(
-            ind, Gem::Common::expectation::EQUALITY, Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE));
+            ind,
+            Gem::Common::expectation::EQUALITY,
+            Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+        ));
         std::vector<double> v;
         restored.streamline<double>(v);
         CHECK(v == vals);
@@ -924,12 +1022,15 @@ TEST_CASE("GGenome: a derived individual round-trips through the GArchive codecs
 // dispatch, not a by-value member), reconstructs the dynamic type from the registry on load, and yields
 // a compare()-equal individual -- for both the flat binary and the human-readable JSON codec. The Boost
 // modes remain the default and are exercised by the existing standard tests.
-TEST_CASE("GCommonInterfaceT: an individual round-trips through toString/fromString with the GArchive codecs",
-          "[flat][garchive][individual][tostream]") {
+TEST_CASE(
+    "GCommonInterfaceT: an individual round-trips through toString/fromString with the GArchive "
+    "codecs",
+    "[flat][garchive][individual][tostream]"
+) {
     const std::vector<double> vals{1., -2., 3., -4., 5.};
 
-    for (const auto mode : {Gem::Common::serializationMode::GEM_BINARY,
-                            Gem::Common::serializationMode::GEM_JSON}) {
+    for(const auto mode :
+        {Gem::Common::serializationMode::GEM_BINARY, Gem::Common::serializationMode::GEM_JSON}) {
         GemSphere ind(5);
         ind.assignValueVector<double>(vals);
 
@@ -940,7 +1041,10 @@ TEST_CASE("GCommonInterfaceT: an individual round-trips through toString/fromStr
         REQUIRE_NOTHROW(restored.fromString(serialized, mode));
 
         CHECK_NOTHROW(restored.compare(
-            ind, Gem::Common::expectation::EQUALITY, Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE));
+            ind,
+            Gem::Common::expectation::EQUALITY,
+            Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+        ));
         std::vector<double> v;
         restored.streamline<double>(v);
         CHECK(v == vals);
@@ -955,8 +1059,11 @@ TEST_CASE("GCommonInterfaceT: an individual round-trips through toString/fromStr
 // tag written by tagOf() and resolved by create() on load. An unregistered concrete type would throw
 // "unknown tag" at the read, so a clean round-trip that reconstructs the constraint proves the
 // GEM_REGISTER_ARCHIVABLE registration (GCheckCombinerT, registered in GIndividualMultiConstraint.cpp).
-TEST_CASE("GGenome: a populated individual (registered polymorphic constraint) round-trips through GArchive",
-          "[flat][garchive][individual][polymorphic]") {
+TEST_CASE(
+    "GGenome: a populated individual (registered polymorphic constraint) round-trips through "
+    "GArchive",
+    "[flat][garchive][individual][polymorphic]"
+) {
     using namespace Gem::Weft;
     const std::vector<double> vals{1., -2., 3., -4., 5.};
 
@@ -975,8 +1082,10 @@ TEST_CASE("GGenome: a populated individual (registered polymorphic constraint) r
         oa &make_nvp("ind", *ind);
         GemSphere restored(5);
         GBinaryIArchive ia(oa.str());
-        REQUIRE_NOTHROW(ia &make_nvp("ind", restored)); // an unregistered tag would throw here
-        CHECK(restored.getPolicy()->hasConstraint());   // the polymorphic constraint was reconstructed
+        REQUIRE_NOTHROW(ia & make_nvp("ind", restored)); // an unregistered tag would throw here
+        CHECK(
+            restored.getPolicy()->hasConstraint()
+        ); // the polymorphic constraint was reconstructed
         std::vector<double> v;
         restored.streamline<double>(v);
         CHECK(v == vals);
@@ -989,7 +1098,7 @@ TEST_CASE("GGenome: a populated individual (registered polymorphic constraint) r
         oa &make_nvp("ind", *ind);
         GemSphere restored(5);
         GJsonIArchive ia(oa.str());
-        REQUIRE_NOTHROW(ia &make_nvp("ind", restored));
+        REQUIRE_NOTHROW(ia & make_nvp("ind", restored));
         CHECK(restored.getPolicy()->hasConstraint());
         std::vector<double> v;
         restored.streamline<double>(v);
@@ -1074,11 +1183,13 @@ namespace Gem::Tests {
 
 class Mixed : public GGenomeT<Mixed> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Mixed() {
         GGenomeBuilder b;
-        b.addDoubleGroup(3, -5., 5.).init(2.0); // structure only; the adaptors live on the OA config
+        b.addDoubleGroup(3, -5., 5.)
+            .init(2.0); // structure only; the adaptors live on the OA config
         b.addInt32Group(4, -10, 10).init(3);
         b.addBoolGroup(5).init(false);
         this->setGenome(b.build());
@@ -1095,7 +1206,9 @@ public:
     }
 
 protected:
-    std::vector<double> evaluate() override { return {0.}; }
+    std::vector<double> evaluate() override {
+        return {0.};
+    }
 
 private:
     friend struct Gem::Weft::access;
@@ -1113,7 +1226,8 @@ private:
  */
 class IntGauss : public GGenomeT<IntGauss> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     IntGauss() {
         GGenomeBuilder b;
@@ -1136,7 +1250,9 @@ public:
     }
 
 protected:
-    std::vector<double> evaluate() override { return {0.}; }
+    std::vector<double> evaluate() override {
+        return {0.};
+    }
 
 private:
     friend struct Gem::Weft::access;
@@ -1153,10 +1269,15 @@ private:
  */
 class ManyGroups : public GGenomeT<ManyGroups> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
-    ManyGroups() { build(64); }
-    explicit ManyGroups(std::size_t n) { build(n); }
+    ManyGroups() {
+        build(64);
+    }
+    explicit ManyGroups(std::size_t n) {
+        build(n);
+    }
     ManyGroups(const ManyGroups &) = default;
 
 protected:
@@ -1164,7 +1285,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -1187,7 +1311,8 @@ private:
  *  individual -- which is exactly what an `evaluation` return must not scale with. */
 class BulkyLeaf : public GGenomeT<BulkyLeaf> {
 public:
-    using genome_only = void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 
     BulkyLeaf() = default;
     explicit BulkyLeaf(std::size_t n_params, std::size_t n_data_points)
@@ -1203,7 +1328,10 @@ protected:
         std::vector<double> v;
         this->streamline<double>(v);
         return {std::ranges::fold_left(
-            v | std::views::transform([](double x) { return x * x; }), 0., std::plus{})};
+            v | std::views::transform([](double x) { return x * x; }),
+            0.,
+            std::plus{}
+        )};
     }
 
 private:
@@ -1219,10 +1347,10 @@ private:
 
 } // namespace Gem::Tests
 
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::Mixed) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::IntGauss) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::Mixed)      // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::IntGauss)   // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Tests::ManyGroups) // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Tests::BulkyLeaf) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Tests::BulkyLeaf)  // NOLINT
 
 using Gem::Tests::ManyGroups;
 using Gem::Tests::Mixed;
@@ -1379,7 +1507,10 @@ TEST_CASE("GGridArchitecture reads any genome through the §2 seam (flat)", "[fl
 }
 
 /******************************************************************************/
-TEST_CASE("GIndividualFactory: one shared layout across N produced individuals", "[flat][factory]") {
+TEST_CASE(
+    "GIndividualFactory: one shared layout across N produced individuals",
+    "[flat][factory]"
+) {
     // A temporary config file. writeConfigFile() generates it from the individual's describeConfig()
     // defaults; get_as<>() then reads it back and produces individuals.
     namespace fs = std::filesystem;
@@ -1422,14 +1553,17 @@ TEST_CASE("GIndividualFactory: one shared layout across N produced individuals",
     std::vector<double> v1_after;
     inds[0]->streamline<double>(v0_after);
     inds[1]->streamline<double>(v1_after);
-    CHECK(v0_after != v0_before);  // inds[0] changed
-    CHECK(v1_after == v1_before);  // inds[1] untouched -> independent value storage
+    CHECK(v0_after != v0_before); // inds[0] changed
+    CHECK(v1_after == v1_before); // inds[1] untouched -> independent value storage
 
     fs::remove(cfg);
 }
 
 /******************************************************************************/
-TEST_CASE("GIndividualFactory::getAdaptionConfig delegates to buildAdaptionConfig", "[flat][factory]") {
+TEST_CASE(
+    "GIndividualFactory::getAdaptionConfig delegates to buildAdaptionConfig",
+    "[flat][factory]"
+) {
     // The factory's getAdaptionConfig() forwards to the individual's optional buildAdaptionConfig hook
     // and returns the OA-owned config matching the produced genome (used with registerAdaptionConfig).
     namespace fs = std::filesystem;
@@ -1444,8 +1578,8 @@ TEST_CASE("GIndividualFactory::getAdaptionConfig delegates to buildAdaptionConfi
     REQUIRE(sample);
 
     auto ac = f.getAdaptionConfig(*sample);
-    REQUIRE(ac);                              // the hook is present -> a real config (not null)
-    CHECK(ac->doubleGroups().size() == 1);    // one double group, matching the par_dim==5 genome
+    REQUIRE(ac);                           // the hook is present -> a real config (not null)
+    CHECK(ac->doubleGroups().size() == 1); // one double group, matching the par_dim==5 genome
 
     fs::remove(cfg);
 }
@@ -1483,7 +1617,7 @@ TEST_CASE("GNeuralNetworkArchitecture computes per-layer weight offsets", "[arch
 // active Gem::Courtier::GWireSerializationScope, simulating the server->worker wire path WITHOUT any real
 // transport: a server-side registry interns each distinct layout, the first item to a peer carries the
 // full layout and every later item only its 16-byte id, and a worker resolves an id-only item from its
-// local cache or (on a miss) via a fetch callback.
+// local cache; an id it does not hold makes the load throw.
 
 namespace {
 using Gem::Courtier::GWireBlobId;
@@ -1561,57 +1695,6 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: a cache miss is resolved by the fetch fallback", "[flat][wire]") {
-    using mode = Gem::Common::serializationMode;
-
-    ManyGroups a(48);
-    a.randomInit(activityMode::ALLPARAMETERS);
-    const std::vector<double> a_vals = valuesOf(a);
-
-    // Server interns the layout and emits an id-only item (peer already "holds" the layout).
-    GWireBlobRegistry server_reg;
-    GWireSerializationContext server_ctx;
-    server_ctx.enabled = true;
-    server_ctx.peer = 1;
-    server_ctx.registry = &server_reg;
-    std::string s_idonly;
-    {
-        GWireSerializationScope const scope(&server_ctx);
-        (void)a.toString(mode::GEM_BINARY);          // first send: marks peer 1 as holding the layout
-        s_idonly = a.toString(mode::GEM_BINARY);     // second send: id-only
-    }
-
-    // A worker with an EMPTY cache receives the id-only item. A fetch callback (the hook of
-    // GWireSerializationContext; courtier's clients install none) pulls the blob from the server
-    // registry.
-    GWireBlobRegistry worker_reg;
-    std::size_t fetch_calls = 0;
-    GWireSerializationContext worker_ctx;
-    worker_ctx.enabled = true;
-    worker_ctx.peer = 0;
-    worker_ctx.registry = &worker_reg;
-    worker_ctx.fetch_blob = [&](const GWireBlobId &id) -> std::expected<std::string, std::string> {
-        ++fetch_calls;
-        std::string blob;
-        if(server_reg.tryGet(id, blob)) {
-            return blob;
-        }
-        return std::unexpected(std::string("layout id not held by the server"));
-    };
-
-    ManyGroups r;
-    {
-        GWireSerializationScope const scope(&worker_ctx);
-        r.fromString(s_idonly, mode::GEM_BINARY); // miss -> fetch -> reconstruct
-    }
-    CHECK(fetch_calls == 1);
-    CHECK(worker_reg.size() == 1); // the fetched blob is now cached
-    REQUIRE(r.getLayout());
-    CHECK(r.getLayout()->sameStructure(*a.getLayout()));
-    CHECK(valuesOf(r) == a_vals);
-}
-
-/******************************************************************************/
 TEST_CASE("Wire send-once: an unresolvable id-only reference throws", "[flat][wire]") {
     using mode = Gem::Common::serializationMode;
 
@@ -1628,8 +1711,8 @@ TEST_CASE("Wire send-once: an unresolvable id-only reference throws", "[flat][wi
         s_idonly = a.toString(mode::GEM_BINARY);
     }
 
-    // Empty cache, no fetch callback -> the miss cannot be resolved and load() must throw rather than
-    // silently produce a wrong/empty layout.
+    // Empty cache -> the miss cannot be resolved and load() must throw rather than silently produce a
+    // wrong/empty layout (a client then returns the item as failed and gets every blob in full again).
     GWireBlobRegistry worker_reg;
     GWireSerializationContext worker_ctx;
     worker_ctx.enabled = true;
@@ -1642,7 +1725,10 @@ TEST_CASE("Wire send-once: an unresolvable id-only reference throws", "[flat][wi
 }
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: default-off encoding is self-contained and interoperable", "[flat][wire]") {
+TEST_CASE(
+    "Wire send-once: default-off encoding is self-contained and interoperable",
+    "[flat][wire]"
+) {
     using mode = Gem::Common::serializationMode;
 
     ManyGroups a(32);
@@ -1674,9 +1760,11 @@ TEST_CASE("Wire send-once: default-off encoding is self-contained and interopera
     CHECK(worker_reg.size() == 0); // a full-form stream does not populate the cache by id
 }
 
-
 /******************************************************************************/
-TEST_CASE("In-place return-reconciliation primitives keep genome / relocate nothing", "[flat][identity]") {
+TEST_CASE(
+    "In-place return-reconciliation primitives keep genome / relocate nothing",
+    "[flat][identity]"
+) {
     // Direct guard for the two GProcessable primitives that make the networked reconciliation
     // pointer-stable (the demo-container policy tests exercise only the clone-and-replace FALLBACK, not
     // the geneva overrides):
@@ -1694,13 +1782,15 @@ TEST_CASE("In-place return-reconciliation primitives keep genome / relocate noth
     REQUIRE(returned->is_processed());
     const std::vector<double> returned_vals = valuesOf(*returned);
     const double returned_fitness = returned->getStoredResult(0).rawFitness();
-    REQUIRE(server_vals != returned_vals); // the two genomes really differ (guards the checks below)
+    REQUIRE(
+        server_vals != returned_vals
+    ); // the two genomes really differ (guards the checks below)
 
     // absorbResultsFrom(): results absorbed, genome KEPT.
     server_item.absorbResultsFrom(*returned);
     CHECK(server_item.is_processed());
     CHECK(server_item.getStoredResult(0).rawFitness() == returned_fitness);
-    CHECK(valuesOf(server_item) == server_vals);   // genome untouched (`evaluation` semantics)
+    CHECK(valuesOf(server_item) == server_vals); // genome untouched (`evaluation` semantics)
 
     // loadContentFrom(): full in-place deep copy; the object is not relocated (its address is fixed here,
     // documenting the contract the networked refill relies on) and returns true for a geneva individual.
@@ -1708,13 +1798,12 @@ TEST_CASE("In-place return-reconciliation primitives keep genome / relocate noth
     failed.randomInit(activityMode::ALLPARAMETERS);
     const GGenome *failed_addr = &failed;
     const bool did_load = failed.loadContentFrom(*returned);
-    CHECK(did_load);                               // geneva supports in-place substitution
-    CHECK(&failed == failed_addr);                 // no relocation
-    CHECK(valuesOf(failed) == returned_vals);      // now a full copy of the source's genome
+    CHECK(did_load);                          // geneva supports in-place substitution
+    CHECK(&failed == failed_addr);            // no relocation
+    CHECK(valuesOf(failed) == returned_vals); // now a full copy of the source's genome
     CHECK(failed.is_processed());
     CHECK(failed.getStoredResult(0).rawFitness() == returned_fitness);
 }
-
 
 /******************************************************************************/
 TEST_CASE("An evaluation return is small and does not scale with the individual", "[flat][wire]") {
@@ -1743,17 +1832,22 @@ TEST_CASE("An evaluation return is small and does not scale with the individual"
         c2::GCommandContainerT<GGenome> frame{c2::GFrameKind::WORK, std::move(item)};
         c2::makeReturnFrame(frame);
         CHECK(frame.kind() == c2::GFrameKind::RESULT);
-        CHECK(frame.tag() ==
-              static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::evaluation));
-        CHECK(frame.item() == nullptr);          // no individual travels back
+        CHECK(
+            frame.tag() ==
+            static_cast<std::uint32_t>(Gem::Geneva::Genome::geneva_command::evaluation)
+        );
+        CHECK(frame.item() == nullptr); // no individual travels back
         REQUIRE(frame.libraryPayload() != nullptr);
         return c2::container_to_string(frame, mode::GEM_BINARY).size();
     };
     const std::size_t lean_return = frame_size(std::move(lean));
     const std::size_t bulky_return = frame_size(std::move(bulky));
 
-    WARN("evaluation return: lean item=" << lean_item_size << " -> return=" << lean_return
-         << " | bulky item=" << bulky_item_size << " -> return=" << bulky_return);
+    WARN(
+        "evaluation return: lean item=" << lean_item_size << " -> return=" << lean_return
+                                        << " | bulky item=" << bulky_item_size
+                                        << " -> return=" << bulky_return
+    );
 
     // Smaller than the item it reports on ...
     CHECK(lean_return < lean_item_size);
@@ -1783,21 +1877,32 @@ TEST_CASE("An evaluation return carries the computed results to the live slot", 
 
     c2::GCommandContainerT<GGenome> frame{c2::GFrameKind::WORK, std::move(worker_copy)};
     c2::makeReturnFrame(frame);
-    CHECK(frame.outcome().correlation_id == 4711); // the routing token rides the frame, not the item
+    CHECK(
+        frame.outcome().correlation_id == 4711
+    ); // the routing token rides the frame, not the item
 
     // Wire round-trip, then apply to the live element exactly as the consumer's checkin() does.
     c2::GCommandContainerT<GGenome> received{c2::GFrameKind::NONE};
-    REQUIRE_NOTHROW(c2::container_from_string(
-        c2::container_to_string(frame, mode::GEM_BINARY), received, mode::GEM_BINARY));
+    REQUIRE_NOTHROW(
+        c2::container_from_string(
+            c2::container_to_string(frame, mode::GEM_BINARY),
+            received,
+            mode::GEM_BINARY
+        )
+    );
     REQUIRE(received.libraryPayload() != nullptr);
 
     server_item.applyProcessingOutcome(received.outcome());
     c2::GWireProtocolT<GGenome>::applyReturn(
-        server_item, received.tag(), received.libraryPayload(), nullptr);
+        server_item,
+        received.tag(),
+        received.libraryPayload(),
+        nullptr
+    );
 
     CHECK(server_item.is_processed());
     CHECK(server_item.getStoredResult(0).rawFitness() == worker_fitness); // the results arrived ...
-    CHECK(valuesOf(server_item) == server_vals);                          // ... and nothing else moved
+    CHECK(valuesOf(server_item) == server_vals); // ... and nothing else moved
 }
 
 /******************************************************************************/
@@ -1815,7 +1920,10 @@ public:
 
 } // namespace Gem::Tests
 
-TEST_CASE("A late evaluation return is applied to the retained original", "[flat][wire][latereturn]") {
+TEST_CASE(
+    "A late evaluation return is applied to the retained original",
+    "[flat][wire][latereturn]"
+) {
     // Ruling R3(i): clone retention stays, and a LATE `evaluation` -- one whose batch has already been
     // reconciled, so the live element is gone -- is applied to the clone the consumer retained for
     // exactly this case. The result is a complete individual (the retained genome plus the worker's
@@ -1824,14 +1932,18 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
     using namespace std::chrono_literals;
 
     Gem::Tests::LateReturnConsumer consumer;
-    consumer.setLateReturnBuffer(/*cap*/ 8, /*ttl_rounds*/ 100); // buffering on -> originals are retained
+    consumer.setLateReturnBuffer(
+        /*cap*/ 8,
+        /*ttl_rounds*/ 100
+    );                                  // buffering on -> originals are retained
     c2::GNetworkedTimeoutConfig limits; // the batch must end with the victim's slot open
     limits.reclaim_lease_ms = 20;
     limits.give_up_window_ms = 200;
     consumer.applyTimeoutConfig(limits);
 
     constexpr std::size_t N = 3;
-    constexpr std::size_t VICTIM = 1; // first dispatch round -> batch id 0 -> correlation id == slot index
+    constexpr std::size_t VICTIM =
+        1; // first dispatch round -> batch id 0 -> correlation id == slot index
     std::vector<std::unique_ptr<GGenome>> batch;
     for(std::size_t i = 0; i < N; ++i) {
         auto ind = std::make_unique<ManyGroups>(8);
@@ -1845,8 +1957,10 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
     // retained under its correlation id.
     std::atomic<bool> finished{false};
     std::jthread driver([&] {
-        consumer.processBatch(std::span<std::unique_ptr<GGenome>>(batch.data(), batch.size()),
-                              c2::GSubmissionPolicy::clone_on_partial_return());
+        consumer.processBatch(
+            std::span<std::unique_ptr<GGenome>>(batch.data(), batch.size()),
+            c2::GSubmissionPolicy::clone_on_partial_return()
+        );
         finished.store(true);
     });
     std::unique_ptr<GGenome> slow_worker_copy;
@@ -1886,10 +2000,12 @@ TEST_CASE("A late evaluation return is applied to the retained original", "[flat
     CHECK(reaped[0]->is_processed());
     auto *reaped_genome = dynamic_cast<GGenome *>(reaped[0].get());
     REQUIRE(reaped_genome != nullptr);
-    CHECK(reaped_genome->getStoredResult(0).rawFitness() == late_fitness); // the worker's result ...
+    CHECK(
+        reaped_genome->getStoredResult(0).rawFitness() == late_fitness
+    ); // the worker's result ...
     std::vector<double> reaped_vals;
     reaped_genome->streamline<double>(reaped_vals);
-    CHECK(reaped_vals == victim_vals);                                    // ... on the retained genome
+    CHECK(reaped_vals == victim_vals); // ... on the retained genome
 }
 
 /******************************************************************************/
@@ -1898,7 +2014,7 @@ TEST_CASE("Wire send-once: a worker never references a blob by id", "[flat][wire
     // direction too -- and there it MUST NOT intern. Interning is a source-side optimization: the
     // worker's ack bookkeeping is its own, so it cannot see the SERVER evict a blob from its bounded
     // registry, and an id-only return referencing an evicted blob is unresolvable (the server is the
-    // source; it has no fetch path). This pins the rule that a returning endpoint always inlines.
+    // source). This pins the rule that a returning endpoint always inlines.
     using mode = Gem::Common::serializationMode;
 
     ManyGroups original(40);
@@ -1940,7 +2056,7 @@ TEST_CASE("Wire send-once: a worker never references a blob by id", "[flat][wire
         second_return = on_worker.toString(mode::GEM_BINARY);
     }
     CHECK(second_return.size() == first_return.size()); // neither is an id-only reference
-    CHECK(worker_reg.trackedPeers() == 0);              // the worker recorded no acks toward the server
+    CHECK(worker_reg.trackedPeers() == 0); // the worker recorded no acks toward the server
 
     // Both decode on a server whose registry has been CLEARED in the meantime -- the situation a bounded
     // registry produces when it evicts. An id-only return would be unresolvable here and throw.
@@ -1978,14 +2094,15 @@ TEST_CASE("Wire send-once: large-genome wire-size before/after", "[flat][wire]")
     std::size_t idonly_submit = 0;
     {
         GWireSerializationScope const scope(&server_ctx);
-        first_submit = big.toString(mode::GEM_BINARY).size();   // present=true (carries the layout)
-        idonly_submit = big.toString(mode::GEM_BINARY).size();  // id-only
+        first_submit = big.toString(mode::GEM_BINARY).size();  // present=true (carries the layout)
+        idonly_submit = big.toString(mode::GEM_BINARY).size(); // id-only
     }
 
-    WARN("Wire size (2000-group genome, binary bytes):"
-         << "\n  submit  full=" << full_submit << "  first=" << first_submit
-         << "  id-only=" << idonly_submit
-         << "  (id-only is " << (100 * idonly_submit / full_submit) << "% of full)");
+    WARN(
+        "Wire size (2000-group genome, binary bytes):"
+        << "\n  submit  full=" << full_submit << "  first=" << first_submit << "  id-only="
+        << idonly_submit << "  (id-only is " << (100 * idonly_submit / full_submit) << "% of full)"
+    );
 
     // The id-only submit drops the whole O(2000) layout, keeping only the values + a 16-byte id.
     CHECK(idonly_submit < full_submit);
@@ -2046,8 +2163,10 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
         });
     }
 
-    consumer->processBatch(std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
-                           c2::GSubmissionPolicy::full_success_or_fatal());
+    consumer->processBatch(
+        std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
+        c2::GSubmissionPolicy::full_success_or_fatal()
+    );
 
     for(auto &client : clients) {
         client->flagCloseRequested();
@@ -2068,7 +2187,7 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
             ++with_genome;
         }
     }
-    CHECK(processed == N); // correctness: every item came back evaluated
+    CHECK(processed == N);   // correctness: every item came back evaluated
     CHECK(with_genome == N); // `evaluation` returns must still leave each item with its full genome
 
     // Send-once: a single layout served the whole population over all clients (had each item carried its
@@ -2081,8 +2200,10 @@ TEST_CASE("Wire send-once over a real websocket loopback interns one layout", "[
 }
 
 /******************************************************************************/
-TEST_CASE("Networked reconciliation keeps population elements at stable addresses",
-          "[flat][wire][net][identity]") {
+TEST_CASE(
+    "Networked reconciliation keeps population elements at stable addresses",
+    "[flat][wire][net][identity]"
+) {
     // Regression guard (Inv 15) for the in-place return reconciliation: a networked return must be
     // absorbed INTO the originally-submitted population element, keeping its heap address, rather than
     // swapping the deserialized return in (which would free the original and relocate it). Address
@@ -2103,9 +2224,9 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
     }
 
     // Snapshot the object addresses BEFORE submission -- the fix must leave every one of them unchanged.
-    const auto addrs_before = items
-        | std::views::transform([](const auto &it) -> const GGenome * { return it.get(); })
-        | std::ranges::to<std::vector<const GGenome *>>();
+    const auto addrs_before =
+        items | std::views::transform([](const auto &it) -> const GGenome * { return it.get(); }) |
+        std::ranges::to<std::vector<const GGenome *>>();
 
     c2::GWebsocketConsumerConfig config{
         .ip = "127.0.0.1",
@@ -2134,8 +2255,10 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
         });
     }
 
-    consumer->processBatch(std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
-                           c2::GSubmissionPolicy::full_success_or_fatal());
+    consumer->processBatch(
+        std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
+        c2::GSubmissionPolicy::full_success_or_fatal()
+    );
 
     for(auto &client : clients) {
         client->flagCloseRequested();
@@ -2160,9 +2283,9 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
             ++with_genome;
         }
     }
-    CHECK(processed == N);       // every item came back evaluated
-    CHECK(stable_address == N);  // and at its ORIGINAL heap address (in-place reconciliation)
-    CHECK(with_genome == N);     // an `evaluation` return still leaves each item its full genome
+    CHECK(processed == N);      // every item came back evaluated
+    CHECK(stable_address == N); // and at its ORIGINAL heap address (in-place reconciliation)
+    CHECK(with_genome == N);    // an `evaluation` return still leaves each item its full genome
 
     consumer->stopServer();
     c2::GConsumerRegistryT<GGenome>::instance().clear();
@@ -2170,8 +2293,10 @@ TEST_CASE("Networked reconciliation keeps population elements at stable addresse
 }
 
 /******************************************************************************/
-TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay correct",
-          "[flat][wire][net]") {
+TEST_CASE(
+    "Wire send-once: many distinct layouts under a bounded registry stay correct",
+    "[flat][wire][net]"
+) {
     // Dynamic-structure stress: a population mixing SEVERAL distinct genome structures (so the server
     // interns several layouts -- the same thing a NEAT-style run does as architectures evolve), evaluated
     // over real sockets with the server's layout cache bounded BELOW the number of distinct structures.
@@ -2219,8 +2344,10 @@ TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay c
         });
     }
 
-    consumer->processBatch(std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
-                           c2::GSubmissionPolicy::full_success_or_fatal());
+    consumer->processBatch(
+        std::span<std::unique_ptr<GGenome>>(items.data(), items.size()),
+        c2::GSubmissionPolicy::full_success_or_fatal()
+    );
 
     for(auto &client : clients) {
         client->flagCloseRequested();
@@ -2243,16 +2370,19 @@ TEST_CASE("Wire send-once: many distinct layouts under a bounded registry stay c
             ++with_genome;
         }
     }
-    CHECK(processed == N);                              // correct despite eviction + re-inline mid-run
-    CHECK(with_genome == N);                           // each item kept its own full genome
-    CHECK(consumer->getInternedBlobCount() <= 2);    // the capacity bound was honoured
+    CHECK(processed == N);                        // correct despite eviction + re-inline mid-run
+    CHECK(with_genome == N);                      // each item kept its own full genome
+    CHECK(consumer->getInternedBlobCount() <= 2); // the capacity bound was honoured
 
     consumer->stopServer();
     CHECK_FALSE(any_threw.load());
 }
 
 /******************************************************************************/
-TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genomes", "[wire][net][ea]") {
+TEST_CASE(
+    "EA over a websocket consumer with evaluation returns keeps full genomes",
+    "[wire][net][ea]"
+) {
     // Isolation test for the `evaluation`-return path under a REAL optimization (many generations,
     // selection + adaption), as opposed to the single-batch executor.workOn loopbacks above. Runs an EA
     // over the websocket consumer for enough generations to pass the point where the MPI path was seen
@@ -2280,7 +2410,12 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
         auto client = std::make_shared<ccons::GWebsocketClientT<GGenome>>(config);
         clients.push_back(client);
         client_threads.emplace_back([client, &any_threw] {
-            try { client->run(); } catch(...) { any_threw.store(true); }
+            try {
+                client->run();
+            }
+            catch(...) {
+                any_threw.store(true);
+            }
         });
     }
 
@@ -2297,15 +2432,20 @@ TEST_CASE("EA over a websocket consumer with evaluation returns keeps full genom
     pop->optimize();
     auto best = pop->getBestGlobalIndividual<Sphere>();
 
-    for(auto &client : clients) { client->flagCloseRequested(); }
-    for(auto &t : client_threads) { if(t.joinable()) t.join(); }
+    for(auto &client : clients) {
+        client->flagCloseRequested();
+    }
+    for(auto &t : client_threads) {
+        if(t.joinable())
+            t.join();
+    }
     consumer->stopServer();
     c2::GConsumerRegistryT<GGenome>::instance().clear(); // don't leak into other test cases
 
     REQUIRE(best);
     std::vector<double> v;
     best->streamline<double>(v);
-    CHECK(v.size() == 8);          // the best individual must keep its full genome
+    CHECK(v.size() == 8); // the best individual must keep its full genome
     CHECK_FALSE(any_threw.load());
 }
 
@@ -2384,10 +2524,10 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     SECTION("a contribution of a kind this Geneva cannot load") {
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_UNKNOWN_KIND);
         REQUIRE_FALSE(msg.empty());
-        CHECK(mentions(msg, "kind 99"));                    // names the offending kind
-        CHECK(mentions(msg, "GUnknownKindModule"));         // ... and the module, by its own name
-        CHECK(mentions(msg, "SomethingElse"));              // ... and the contribution
-        CHECK(mentions(msg, "Supported kinds"));            // ... and what this Geneva does serve
+        CHECK(mentions(msg, "kind 99"));            // names the offending kind
+        CHECK(mentions(msg, "GUnknownKindModule")); // ... and the module, by its own name
+        CHECK(mentions(msg, "SomethingElse"));      // ... and the contribution
+        CHECK(mentions(msg, "Supported kinds"));    // ... and what this Geneva does serve
         // ... namely all four of Geneva's kinds, each with its noun
         CHECK(mentions(msg, "1 (individual)"));
         CHECK(mentions(msg, "2 (optimization algorithm)"));
@@ -2444,8 +2584,9 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     }
 
     SECTION("a path that does not exist") {
-        const std::string msg =
-            rejectionMessage(std::filesystem::temp_directory_path() / "geneva_no_such_module_xyz.so");
+        const std::string msg = rejectionMessage(
+            std::filesystem::temp_directory_path() / "geneva_no_such_module_xyz.so"
+        );
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "Could not load the module"));
         CHECK(mentions(msg, "geneva_no_such_module_xyz.so"));
@@ -2522,7 +2663,10 @@ class ProbeGPUMarshaller final : public GBaseGPUMarshallerT<double> {};
 // adapter that makes --consumer gpu work for a loaded problem. This pins the author helper (marshallerManifest)
 // and the registration mechanics the loader uses -- the whole marshaller (device target, GPU-config path and,
 // via the produced handle, the scalar kind) travels inside the provider with no manifest ABI change.
-TEST_CASE("Marshaller module manifest contributes a registrable GPU marshaller", "[flat][plugin][marshaller]") {
+TEST_CASE(
+    "Marshaller module manifest contributes a registrable GPU marshaller",
+    "[flat][plugin][marshaller]"
+) {
     // The author helper builds a one-contribution manifest tagged as the marshaller kind, carrying this host's
     // own toolchain fingerprint (so it would pass the loader's compat gate).
     const GenevaModuleManifest *manifest =
@@ -2560,7 +2704,9 @@ TEST_CASE("Marshaller module manifest contributes a registrable GPU marshaller",
     auto *holder2 = static_cast<GMarshallerProviderPtr *>(other->contributions[0].make_factory());
     GMarshallerProviderPtr const provider2 = std::move(*holder2);
     delete holder2;
-    CHECK_FALSE(store->setOnce("cuda", provider2)); // collision: at most one marshaller per device target
+    CHECK_FALSE(
+        store->setOnce("cuda", provider2)
+    ); // collision: at most one marshaller per device target
 
     store->remove("cuda"); // leave the process-global store as we found it
 }
@@ -2583,13 +2729,14 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     auto stored_factory = std::dynamic_pointer_cast<oa_factory_t>(stored);
     REQUIRE(stored_factory); // would be null if a provider wrapper sat in between
     CHECK(stored_factory->getMnemonic() == "ea");
-    CHECK(stored_factory->getName() == stored_factory->getAlgorithmName()); // one name, two spellings
+    CHECK(
+        stored_factory->getName() == stored_factory->getAlgorithmName()
+    ); // one name, two spellings
 
     // (b) The module path (the author helper an OA plugin's manifest entry point calls) produces the very
     // same handle: one contribution, tagged as the OA kind, whose thunk hands back the factory across the
     // plain-C void* boundary. Exercised here without a .so; example 20 covers the dlopen half.
-    const GenevaModuleManifest *manifest =
-        Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
+    const GenevaModuleManifest *manifest = Gem::Geneva::oaManifest<ea_factory_t, "EAProbe">();
     REQUIRE(manifest != nullptr);
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
@@ -2599,7 +2746,8 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     void *raw = manifest->contributions[0].make_factory();
     REQUIRE(raw != nullptr);
     const std::unique_ptr<Gem::Geneva::GOAProviderPtr> holder(
-        static_cast<Gem::Geneva::GOAProviderPtr *>(raw));
+        static_cast<Gem::Geneva::GOAProviderPtr *>(raw)
+    );
     Gem::Geneva::GOAProviderPtr const from_module = std::move(*holder);
     REQUIRE(from_module);
     CHECK(std::dynamic_pointer_cast<oa_factory_t>(from_module)); // a factory, exactly as in (a)
@@ -2614,7 +2762,10 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
 
 /******************************************************************************/
 
-TEST_CASE("Go2 enforces exactly one individual (optimization problem) per process", "[flat][plugin][go2]") {
+TEST_CASE(
+    "Go2 enforces exactly one individual (optimization problem) per process",
+    "[flat][plugin][go2]"
+) {
     namespace fs = std::filesystem;
     const fs::path base = fs::temp_directory_path() / "geneva_claimonce_tests";
     fs::create_directories(base);
@@ -2641,7 +2792,10 @@ TEST_CASE("Go2 enforces exactly one individual (optimization problem) per proces
 // value given on the command line overrides a programmatic one. Regression guard for that precedence and for
 // the new setter/getter symmetry (a defect here would silently ignore a main()-side configuration or let it
 // win over an explicit command-line flag).
-TEST_CASE("Go2 two-phase configuration: programmatic setters and CLI precedence", "[flat][go2][config]") {
+TEST_CASE(
+    "Go2 two-phase configuration: programmatic setters and CLI precedence",
+    "[flat][go2][config]"
+) {
     namespace fs = std::filesystem;
     namespace c2 = Gem::Courtier;
     const fs::path base = fs::temp_directory_path() / "geneva_twophase_tests";
@@ -2677,10 +2831,10 @@ TEST_CASE("Go2 two-phase configuration: programmatic setters and CLI precedence"
         Go2 go(argc, argv, base / "Go2.json");
 
         CHECK(go.getConsumerName() == "stc");   // bound from the command line at construction
-        go.setConsumerName("beast");             // a later, programmatic attempt to change it
-        CHECK(go.getConsumerName() == "beast");  // the member now holds the programmatic value...
+        go.setConsumerName("beast");            // a later, programmatic attempt to change it
+        CHECK(go.getConsumerName() == "beast"); // the member now holds the programmatic value...
 
-        CHECK_THROWS(go.optimize());             // ...but finalizing configuration restores the CLI value
+        CHECK_THROWS(go.optimize()); // ...but finalizing configuration restores the CLI value
         CHECK(go.getConsumerName() == "stc");
 
         c2::GConsumerRegistryT<GGenome>::instance().clear();
@@ -2695,9 +2849,9 @@ TEST_CASE("Go2 two-phase configuration: programmatic setters and CLI precedence"
         Go2 go(argc, argv, base / "Go2.json");
 
         go.setConsumerName("stc");
-        go.setAlgorithmChain({"sa", "cgd"});     // a two-element programmatic chain, to be overridden
+        go.setAlgorithmChain({"sa", "cgd"}); // a two-element programmatic chain, to be overridden
 
-        CHECK_THROWS(go.optimize());             // finalizes: the CLI's single "ea" wins over the two above
+        CHECK_THROWS(go.optimize()); // finalizes: the CLI's single "ea" wins over the two above
         CHECK(go.getNAlgorithms() == 1);
 
         c2::GConsumerRegistryT<GGenome>::instance().clear();
@@ -2713,7 +2867,7 @@ TEST_CASE("Go2 two-phase configuration: programmatic setters and CLI precedence"
         go.setAlgorithmChain({"ea", "sa"});
 
         CHECK_THROWS(go.optimize());
-        CHECK(go.getNAlgorithms() == 2);         // both programmatically-set algorithms were resolved
+        CHECK(go.getNAlgorithms() == 2); // both programmatically-set algorithms were resolved
 
         c2::GConsumerRegistryT<GGenome>::instance().clear();
     }
@@ -2732,10 +2886,12 @@ TEST_CASE("Go2 two-phase configuration: programmatic setters and CLI precedence"
         go.setConsumerName("stc");
         go.setAlgorithmChain({"ea", "sa"});
 
-        (void) go.clientMode();
-        CHECK(go.getNAlgorithms() == 0);         // stc: clientMode() did not finalize -> chain still unresolved
+        (void)go.clientMode();
+        CHECK(
+            go.getNAlgorithms() == 0
+        ); // stc: clientMode() did not finalize -> chain still unresolved
 
-        CHECK_THROWS(go.optimize());             // ...the run start finalizes it
+        CHECK_THROWS(go.optimize()); // ...the run start finalizes it
         CHECK(go.getNAlgorithms() == 2);
 
         c2::GConsumerRegistryT<GGenome>::instance().clear();
@@ -2756,11 +2912,14 @@ TEST_CASE("destroying a GenevaInitializer keeps the process RNG alive", "[go2][r
     // fails on the unfixed code (the factory reports finalized(), so the draw throws) and passes once
     // ~GenevaInitializer() no longer finalizes the shared singleton (the factory is torn down only by
     // its own singleton destructor at process exit).
-    { Gem::Geneva::GenevaInitializer const gi; } // came online here; must NOT tear the factory down at scope exit
+    {
+        Gem::Geneva::GenevaInitializer const gi;
+    } // came online here; must NOT tear the factory down at scope exit
 
     REQUIRE_FALSE(Gem::Hap::randomFactory()->finalized()); // the shared factory must still be live
 
-    Gem::Hap::GRandom gr; // ctor pulls a fresh container -- would spin (unfixed) or throw (guarded) if dead
+    Gem::Hap::GRandom
+        gr; // ctor pulls a fresh container -- would spin (unfixed) or throw (guarded) if dead
     std::uniform_real_distribution<double> u(0., 1.);
     double x = 0.;
     for(int i = 0; i < 4096; ++i) { // enough draws to exhaust a container and force a refill
@@ -2787,7 +2946,9 @@ public:
 
 protected:
     /** @brief No-op: the test never runs the processor, it only checks it is carried across a copy. */
-    bool process_([[maybe_unused]] GGenome &p) override { return true; }
+    bool process_([[maybe_unused]] GGenome &p) override {
+        return true;
+    }
 
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
@@ -2810,7 +2971,10 @@ public:
 
 } // namespace Gem::Tests
 
-TEST_CASE("GGenomeFactory copy retains BOTH pre- and post-processors", "[flat][factory][regression]") {
+TEST_CASE(
+    "GGenomeFactory copy retains BOTH pre- and post-processors",
+    "[flat][factory][regression]"
+) {
     // No config file is read (we never call get_()), so a placeholder path is fine.
     Gem::Tests::ProbeFactory orig(
         std::filesystem::temp_directory_path() / "geneva_factory_proc_probe.json"
@@ -2823,7 +2987,7 @@ TEST_CASE("GGenomeFactory copy retains BOTH pre- and post-processors", "[flat][f
     // The buggy path: GGenomeFactory's copy ctor (reached via the derived copy ctor).
     Gem::Tests::ProbeFactory const copy(orig);
 
-    CHECK(copy.pre());   // regressed to null on the unfixed code (pre_processor_ was never copied)
+    CHECK(copy.pre()); // regressed to null on the unfixed code (pre_processor_ was never copied)
     CHECK(copy.post());
     // Deep-cloned, not aliased to the source's processors...
     CHECK(copy.pre().get() != orig.pre().get());
@@ -2833,8 +2997,10 @@ TEST_CASE("GGenomeFactory copy retains BOTH pre- and post-processors", "[flat][f
 }
 
 /******************************************************************************/
-TEST_CASE("GGenomeFixedSizePriorityQueue: the archive owns its individuals outright",
-          "[flat][pq][regression]") {
+TEST_CASE(
+    "GGenomeFixedSizePriorityQueue: the archive owns its individuals outright",
+    "[flat][pq][regression]"
+) {
     // AMENDED (Inv 7, deliberate contract change): this case was written when the archive held
     // shared_ptr clones while the population owned unique_ptrs, and three "boundary" overloads
     // cloned across that mismatch -- the single-item one recursed into itself (clone<>() returns a

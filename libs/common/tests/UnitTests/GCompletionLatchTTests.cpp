@@ -52,40 +52,48 @@ TEST_CASE("GCompletionLatchT: non-copyable", "[common][latch]") {
 // ---------------------------------------------------------------------------
 // Single-threaded count-down semantics
 
-TEST_CASE("GCompletionLatchT: count_down reports the last completion and reaches zero", "[common][latch]") {
+TEST_CASE(
+    "GCompletionLatchT: count_down reports the last completion and reaches zero",
+    "[common][latch]"
+) {
     GCompletionLatchT latch(3);
     CHECK(latch.remaining() == 3);
-    CHECK_FALSE(latch.count_down());   // 3 -> 2
+    CHECK_FALSE(latch.count_down()); // 3 -> 2
     CHECK(latch.remaining() == 2);
-    CHECK_FALSE(latch.count_down());   // 2 -> 1
-    CHECK(latch.count_down());         // 1 -> 0  (the last)
+    CHECK_FALSE(latch.count_down()); // 2 -> 1
+    CHECK(latch.count_down());       // 1 -> 0  (the last)
     CHECK(latch.remaining() == 0);
 }
 
 TEST_CASE("GCompletionLatchT: a latch armed for zero is already complete", "[common][latch]") {
     GCompletionLatchT latch(0);
     CHECK(latch.remaining() == 0);
-    latch.wait();                      // returns immediately, no hang
-    CHECK(latch.wait_for(0ms));        // already complete -> true
+    latch.wait();               // returns immediately, no hang
+    CHECK(latch.wait_for(0ms)); // already complete -> true
 }
 
-TEST_CASE("GCompletionLatchT: wait() returns once the count is fully drained (single thread)",
-          "[common][latch]") {
+TEST_CASE(
+    "GCompletionLatchT: wait() returns once the count is fully drained (single thread)",
+    "[common][latch]"
+) {
     GCompletionLatchT latch(2);
     latch.count_down();
     latch.count_down();
-    latch.wait();                      // must not block
+    latch.wait(); // must not block
     CHECK(latch.remaining() == 0);
 }
 
 // ---------------------------------------------------------------------------
 // wait_for timeout behaviour
 
-TEST_CASE("GCompletionLatchT: wait_for times out while completions are outstanding", "[common][latch]") {
+TEST_CASE(
+    "GCompletionLatchT: wait_for times out while completions are outstanding",
+    "[common][latch]"
+) {
     GCompletionLatchT latch(1);
-    CHECK_FALSE(latch.wait_for(20ms));  // still 1 outstanding -> timeout
+    CHECK_FALSE(latch.wait_for(20ms)); // still 1 outstanding -> timeout
     latch.count_down();
-    CHECK(latch.wait_for(20ms));        // now drained -> success without waiting
+    CHECK(latch.wait_for(20ms)); // now drained -> success without waiting
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +118,10 @@ TEST_CASE("GCompletionLatchT: arm() re-uses the latch for a fresh round", "[comm
 // via shared_ptr by every worker AND the waiter, mirroring the consumer, so it
 // outlives the last count_down() (see the lifetime note on the primitive).
 
-TEST_CASE("GCompletionLatchT: waiter unblocks only after every worker counts down",
-          "[common][latch][concurrency]") {
+TEST_CASE(
+    "GCompletionLatchT: waiter unblocks only after every worker counts down",
+    "[common][latch][concurrency]"
+) {
     constexpr std::size_t kWorkers = 64;
     auto latch = std::make_shared<GCompletionLatchT>(kWorkers);
     std::atomic<std::size_t> done{0};
@@ -137,8 +147,10 @@ TEST_CASE("GCompletionLatchT: waiter unblocks only after every worker counts dow
     }
 }
 
-TEST_CASE("GCompletionLatchT: stress -- repeated batches each release exactly their own waiter",
-          "[common][latch][concurrency]") {
+TEST_CASE(
+    "GCompletionLatchT: stress -- repeated batches each release exactly their own waiter",
+    "[common][latch][concurrency]"
+) {
     constexpr int kRounds = 200;
     constexpr std::size_t kBatch = 16;
 
@@ -156,7 +168,7 @@ TEST_CASE("GCompletionLatchT: stress -- repeated batches each release exactly th
         }
 
         latch->wait();
-        REQUIRE(completed.load() == kBatch);   // no early wakeup across 200 rounds
+        REQUIRE(completed.load() == kBatch); // no early wakeup across 200 rounds
 
         for(auto &t : ts) {
             t.join();

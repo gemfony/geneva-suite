@@ -406,7 +406,9 @@ int main(int argc, char **argv) {
 
             // Now add the required number of clones to the neighborhood
             for(std::size_t p = 1; p < nNeighborhoodMembers; p++) {
-                parentIndividuals.push_back(functionIndividual_ptr->clone<gind::GFunctionIndividual>());
+                parentIndividuals.push_back(
+                    functionIndividual_ptr->clone<gind::GFunctionIndividual>()
+                );
             }
             parentIndividuals.push_back(functionIndividual_ptr);
         }
@@ -417,7 +419,7 @@ int main(int argc, char **argv) {
 
     // Add individuals to the population. Many Geneva classes, such as
     // the optimization classes, feature an interface very similar to std::vector.
-    for(const auto & parentIndividual : parentIndividuals) {
+    for(const auto &parentIndividual : parentIndividuals) {
         pop_ptr->push_back(parentIndividual->clone());
     }
 
@@ -440,8 +442,7 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
     // Do something with the best individual found
-    auto const p =
-        pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

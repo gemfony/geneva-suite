@@ -82,11 +82,11 @@ struct GProcessingOutcome {
     ///////////////////////////////////////////////////////////////////////
 
     processingStatus status = processingStatus::UNPROCESSED; ///< How the evaluation ended
-    std::string error_descriptions;                          ///< Accumulated error text (empty on success)
-    double pre_processing_time = 0.;                         ///< Pre-processing duration (seconds)
-    double processing_time = 0.;                             ///< Processing duration (seconds)
-    double post_processing_time = 0.;                        ///< Post-processing duration (seconds)
-    CORRELATION_ID_TYPE correlation_id = 0;                  ///< (batch, slot) routing token of the slot
+    std::string error_descriptions;         ///< Accumulated error text (empty on success)
+    double pre_processing_time = 0.;        ///< Pre-processing duration (seconds)
+    double processing_time = 0.;            ///< Processing duration (seconds)
+    double post_processing_time = 0.;       ///< Post-processing duration (seconds)
+    CORRELATION_ID_TYPE correlation_id = 0; ///< (batch, slot) routing token of the slot
     /// The item's stable lineage id; its first half names the process that handed the item out and
     /// is checked at check-in
     SUBMISSION_UUID_TYPE submission_uuid{0, 0};

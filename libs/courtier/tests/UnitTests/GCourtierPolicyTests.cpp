@@ -43,8 +43,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <memory>
-#include <vector>
 #include <span>
+#include <vector>
 
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GBaseConsumerT.hpp"
@@ -80,10 +80,16 @@ struct LocalFixtureT {
     std::shared_ptr<GBaseConsumerT<GFaultyContainer>> consumer;
 
     /** @brief Reconciles the batch in place against the policy via the consumer directly. */
-    void workOn(std::vector<item_ptr> &items, const GSubmissionPolicy &policy,
-                item_ptr clone_template = nullptr) {
-        consumer->processBatch(std::span<item_ptr>(items.data(), items.size()), policy,
-                               std::move(clone_template));
+    void workOn(
+        std::vector<item_ptr> &items,
+        const GSubmissionPolicy &policy,
+        item_ptr clone_template = nullptr
+    ) {
+        consumer->processBatch(
+            std::span<item_ptr>(items.data(), items.size()),
+            policy,
+            std::move(clone_template)
+        );
     }
 };
 
@@ -98,8 +104,7 @@ std::vector<item_ptr> make_batch(
     std::vector<item_ptr> v;
     v.reserve(n);
     for(std::size_t i = 0; i < n; ++i) {
-        const bool faulty =
-            std::ranges::contains(faulty_indices, i);
+        const bool faulty = std::ranges::contains(faulty_indices, i);
         v.push_back(std::make_unique<GFaultyContainer>(i, faulty ? fm : fault_mode::NONE));
     }
     return v;

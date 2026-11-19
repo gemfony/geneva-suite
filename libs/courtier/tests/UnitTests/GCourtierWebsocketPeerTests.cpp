@@ -221,7 +221,7 @@ TEST_CASE(
         REQUIRE(peer);
         peer->send(makeMessage("last words"));
         peer->close(GPeerClose::RUN_ENDED);
-        peer->close(GPeerClose::NORMAL); // a second close changes nothing: the first decides
+        peer->close(GPeerClose::NORMAL);     // a second close changes nothing: the first decides
         peer->send(makeMessage("too late")); // after close(): dropped
     });
     client->send(
@@ -385,7 +385,11 @@ TEST_CASE(
     using namespace std::chrono_literals;
     constexpr std::size_t N_LARGE = 8; // 24 MiB: far more than the buffers of a loopback socket
     const std::string late = "sent before the other end knew of the close";
-    enum class Order : std::uint8_t { THEIRS_FIRST, OURS_FIRST, ANSWERED };
+    enum class Order : std::uint8_t {
+        THEIRS_FIRST,
+        OURS_FIRST,
+        ANSWERED
+    };
     const auto which = GENERATE(Order::THEIRS_FIRST, Order::OURS_FIRST, Order::ANSWERED);
 
     boost::asio::io_context ctx;
@@ -399,45 +403,48 @@ TEST_CASE(
     std::promise<std::uint16_t> their_view; // the code of the close frame the other end read
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
-    const std::jthread other_end([&, port = acceptor.local_endpoint().port(),
-                                  open = opened,
-                                  ours_called = closed_here]() {
-        try {
-            ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
-            ws.handshake("localhost", "/");
-            // The end under test is closed only now, so that its close frame does not arrive
-            // together with the answer to the handshake (Beast would read it with the answer)
-            open->wait_for(10s);
-            boost::asio::post(ctx, [&server_weak, closed_here] {
-                if(auto peer = server_weak.lock()) {
-                    peer->close(GPeerClose::NORMAL);
+    const std::jthread other_end(
+        [&, port = acceptor.local_endpoint().port(), open = opened, ours_called = closed_here]() {
+            try {
+                ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
+                ws.handshake("localhost", "/");
+                // The end under test is closed only now, so that its close frame does not arrive
+                // together with the answer to the handshake (Beast would read it with the answer)
+                open->wait_for(10s);
+                boost::asio::post(ctx, [&server_weak, closed_here] {
+                    if(auto peer = server_weak.lock()) {
+                        peer->close(GPeerClose::NORMAL);
+                    }
+                    closed_here->count_down();
+                });
+                ours_called->wait_for(10s);
+                if(which == Order::OURS_FIRST) {
+                    // Waits until the close frame of the end under test has arrived (it goes out at
+                    // once: nothing was queued before it); nothing reads it before the message below
+                    const auto until = std::chrono::steady_clock::now() + 10s;
+                    while(ws.next_layer().available() == 0 &&
+                          std::chrono::steady_clock::now() < until) {
+                        std::this_thread::sleep_for(1ms);
+                    }
                 }
-                closed_here->count_down();
-            });
-            ours_called->wait_for(10s);
-            if(which == Order::OURS_FIRST) {
-                // Waits until the close frame of the end under test has arrived (it goes out at
-                // once: nothing was queued before it); nothing reads it before the message below
-                const auto until = std::chrono::steady_clock::now() + 10s;
-                while(ws.next_layer().available() == 0 && std::chrono::steady_clock::now() < until) {
-                    std::this_thread::sleep_for(1ms);
+                if(which == Order::ANSWERED) {
+                    boost::beast::flat_buffer buffer;
+                    boost::system::error_code ec;
+                    std::ignore = ws.read(buffer, ec); // reads the close and answers it (Beast)
+                    their_view.set_value(ws.reason().code);
+                    return;
                 }
-            }
-            if(which == Order::ANSWERED) {
-                boost::beast::flat_buffer buffer;
-                boost::system::error_code ec;
-                std::ignore = ws.read(buffer, ec); // reads the close and answers it (Beast)
+                ws.write(boost::asio::buffer(late));
+                ws.close(
+                    boost::beast::websocket::close_code::internal_error
+                ); // reads until the other's
                 their_view.set_value(ws.reason().code);
-                return;
             }
-            ws.write(boost::asio::buffer(late));
-            ws.close(boost::beast::websocket::close_code::internal_error); // reads until the other's
-            their_view.set_value(ws.reason().code);
+            catch(...) {
+                their_view.set_exception(std::current_exception());
+            }
         }
-        catch(...) {
-            their_view.set_exception(std::current_exception());
-        }
-    });
+    );
 
     auto server = serverEnd(acceptor.accept());
     server_weak = server;
@@ -481,13 +488,13 @@ TEST_CASE(
     case Order::THEIRS_FIRST:
         CHECK(server_seen.messages == std::vector<std::string>{late});
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE); // this end began the close
-        CHECK(server_seen.how == GPeerClose::ERROR); // read by the peer's own read
+        CHECK(server_seen.how == GPeerClose::ERROR);     // read by the peer's own read
         CHECK(their_code == boost::beast::websocket::close_code::internal_error); // answered
         break;
     case Order::OURS_FIRST:
         CHECK(server_seen.messages.empty()); // discarded by Beast after our close went out
         CHECK(server_seen.end == GPeerEnd::CLOSED_HERE); // the closes crossed
-        CHECK(server_seen.how == GPeerClose::ERROR); // read by Beast's close operation
+        CHECK(server_seen.how == GPeerClose::ERROR);     // read by Beast's close operation
         break;
     case Order::ANSWERED:
         CHECK(server_seen.messages.empty());
@@ -966,8 +973,7 @@ TEST_CASE(
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
 
     const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-    const std::jthread other_end([port = acceptor.local_endpoint().port(),
-                                  held = release]() {
+    const std::jthread other_end([port = acceptor.local_endpoint().port(), held = release]() {
         boost::asio::io_context own;
         boost::beast::websocket::stream<tcp::socket> ws(own);
         ws.next_layer().connect({boost::asio::ip::address_v4::loopback(), port});
@@ -1021,10 +1027,7 @@ TEST_CASE(
 /******************************************************************************/
 // onOpen is not delivered after close() (and so no message either, rule 1): a close asked for while
 // the handshake is under way, and a handshake that then succeeds.
-TEST_CASE(
-    "GWebsocketPeer does not report onOpen after close()",
-    "[courtier][websocket][peer]"
-) {
+TEST_CASE("GWebsocketPeer does not report onOpen after close()", "[courtier][websocket][peer]") {
     boost::asio::io_context ctx;
     auto [accepted, connecting] = connectedPair(ctx);
     GSeen server_seen;

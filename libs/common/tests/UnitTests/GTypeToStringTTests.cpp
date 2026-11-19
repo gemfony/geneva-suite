@@ -37,19 +37,22 @@
 using namespace Gem::Common;
 
 TEST_CASE("GTypeToStringT: specialisations return the expected names", "[common][type-to-string]") {
-    CHECK(GTypeToStringT<double>::value()       == "double");
-    CHECK(GTypeToStringT<float>::value()        == "float");
+    CHECK(GTypeToStringT<double>::value() == "double");
+    CHECK(GTypeToStringT<float>::value() == "float");
     CHECK(GTypeToStringT<std::int32_t>::value() == "int32_t");
-    CHECK(GTypeToStringT<bool>::value()         == "bool");
-    CHECK(GTypeToStringT<std::string>::value()  == "string");
+    CHECK(GTypeToStringT<bool>::value() == "bool");
+    CHECK(GTypeToStringT<std::string>::value() == "string");
 }
 
-TEST_CASE("GTypeToStringT: primary template returns 'unknown' for unknown types", "[common][type-to-string]") {
+TEST_CASE(
+    "GTypeToStringT: primary template returns 'unknown' for unknown types",
+    "[common][type-to-string]"
+) {
     struct NotSpecialised {};
     CHECK(GTypeToStringT<NotSpecialised>::value() == "unknown");
     // Integer types other than int32_t fall through to the primary template.
-    CHECK(GTypeToStringT<long>::value()           == "unknown");
-    CHECK(GTypeToStringT<std::uint8_t>::value()   == "unknown");
+    CHECK(GTypeToStringT<long>::value() == "unknown");
+    CHECK(GTypeToStringT<std::uint8_t>::value() == "unknown");
     // Pointer / smart-pointer types also fall through.
-    CHECK(GTypeToStringT<int *>::value()          == "unknown");
+    CHECK(GTypeToStringT<int *>::value() == "unknown");
 }

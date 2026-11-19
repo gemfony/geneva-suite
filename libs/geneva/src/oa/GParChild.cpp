@@ -32,14 +32,14 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GThreadPool.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/concurrency/GThreadPool.hpp"
 #include "geneva/GOptimizationEnums.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -93,10 +93,7 @@ void GParChild::resetToOptimizationStart_() {
  * @param pop_size The desired total size of the population (parents plus children)
  * @param n_parents The desired number of parents
  */
-void GParChild::setPopulationSizes(
-    std::size_t pop_size,
-    std::size_t n_parents
-) {
+void GParChild::setPopulationSizes(std::size_t pop_size, std::size_t n_parents) {
     GOptimizationAlgorithmBase::setDefaultPopulationSize(pop_size);
     n_parents_ = n_parents;
     // Keep the expected number of children consistent with the (possibly newly set) sizes. This is
@@ -133,8 +130,7 @@ std::size_t GParChild::getNChildren() const {
         // but no individuals have been added yet
         return 0;
     }
-            return this->size() - n_parents_;
-   
+    return this->size() - n_parents_;
 }
 
 /******************************************************************************/
@@ -180,9 +176,7 @@ std::size_t GParChild::getNProcessableItems_() const {
  *
  * @param recombination_method The desired recombination (duplication) scheme
  */
-void GParChild::setRecombinationMethod(
-    duplicationScheme recombination_method
-) {
+void GParChild::setRecombinationMethod(duplicationScheme recombination_method) {
     recombination_method_ = recombination_method;
 }
 
@@ -203,10 +197,7 @@ duplicationScheme GParChild::getRecombinationMethod() const {
  * @param growth_rate The number of individuals to be added in each iteration
  * @param max_population_size The maximum allowed size of the population
  */
-void GParChild::setPopulationGrowth(
-    std::size_t growth_rate,
-    std::size_t max_population_size
-) {
+void GParChild::setPopulationGrowth(std::size_t growth_rate, std::size_t max_population_size) {
     growth_rate_ = growth_rate;
     max_population_size_ = max_population_size;
 }
@@ -388,12 +379,13 @@ std::vector<double> GParChild::buildRecombinationThresholds() const {
 void GParChild::recombineParallel(const std::vector<double> &threshold) {
     const std::size_t n_children = GOptimizationAlgorithmBase::data_cnt_.size() - n_parents_;
     const bool value_scheme =
-        (duplicationScheme::VALUEDUPLICATIONSCHEME == recombination_method_)
-        && not GOptimizationAlgorithmBase::inFirstIteration();
+        (duplicationScheme::VALUEDUPLICATIONSCHEME == recombination_method_) &&
+        not GOptimizationAlgorithmBase::inFirstIteration();
 
     // (1) sequential parent selection on the orchestration thread, then (2) the heavy load() deep-copies
     // in parallel (parents are read-only and each child slot is written by exactly one task -> no races).
-    const std::vector<std::size_t> parent_pos = selectParentsForChildren(n_children, value_scheme, threshold);
+    const std::vector<std::size_t> parent_pos =
+        selectParentsForChildren(n_children, value_scheme, threshold);
     copyParentsIntoChildrenParallel(parent_pos);
 }
 
@@ -411,7 +403,9 @@ void GParChild::recombineParallel(const std::vector<double> &threshold) {
  * @return For each child, the index of its selected parent slot
  */
 std::vector<std::size_t> GParChild::selectParentsForChildren(
-    std::size_t n_children, bool value_scheme, const std::vector<double> &threshold
+    std::size_t n_children,
+    bool value_scheme,
+    const std::vector<double> &threshold
 ) {
     std::vector<std::size_t> parent_pos(n_children);
     for(std::size_t c = 0; c < n_children; ++c) {
@@ -428,7 +422,8 @@ std::vector<std::size_t> GParChild::selectParentsForChildren(
  * @param threshold The value-duplication weight vector (see buildRecombinationThresholds())
  * @return The chosen parent slot index (0 with a single parent)
  */
-std::size_t GParChild::selectParentForChild(bool value_scheme, const std::vector<double> &threshold) {
+std::size_t
+GParChild::selectParentForChild(bool value_scheme, const std::vector<double> &threshold) {
     if(n_parents_ <= 1) {
         return 0;
     }
@@ -465,8 +460,7 @@ void GParChild::copyParentsIntoChildrenParallel(const std::vector<std::size_t> &
         futures_cnt.push_back(tp->async_schedule([this, child_idx, pp]() {
             std::unique_ptr<gen::GGenome> &child = GOptimizationAlgorithmBase::data_cnt_[child_idx];
             child->load(GOptimizationAlgorithmBase::data_cnt_[pp]);
-            child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()
-                ->setParentId(pp);
+            child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setParentId(pp);
         }));
     }
     tp->wait();
@@ -535,13 +529,13 @@ void GParChild::recombineOneSerial(
         const gen::GGenome &best_parent = (*this->front());
         const gen::GGenome &combiner =
             (n_parents_ > 2)
-                ? (*(*(this->begin() + this->uniform_int_distribution_(
-                                         this->gr_,
-                                         std::uniform_int_distribution<std::size_t>::param_type(
-                                             1,
-                                             n_parents_ - 1
-                                         )
-                                     ))))
+                ? (*(*(
+                      this->begin() +
+                      this->uniform_int_distribution_(
+                          this->gr_,
+                          std::uniform_int_distribution<std::size_t>::param_type(1, n_parents_ - 1)
+                      )
+                  )))
                 : (*(*(this->begin() + 1)));
 
         child->load(best_parent.crossOverWith(combiner));
@@ -560,10 +554,12 @@ void GParChild::recombineOneSerial(
  * @param threshold The value-duplication weight vector (see buildRecombinationThresholds())
  */
 void GParChild::duplicateForChild(
-    const std::unique_ptr<gen::GGenome> &child, const std::vector<double> &threshold
+    const std::unique_ptr<gen::GGenome> &child,
+    const std::vector<double> &threshold
 ) {
     switch(recombination_method_) {
-    case duplicationScheme::DEFAULTDUPLICATIONSCHEME: // we want the RANDOMDUPLICATIONSCHEME behavior
+    case duplicationScheme::
+        DEFAULTDUPLICATIONSCHEME: // we want the RANDOMDUPLICATIONSCHEME behavior
     case duplicationScheme::RANDOMDUPLICATIONSCHEME:
         // The recombine helpers copy the chosen parent's individual into the child slot's
         // individual and record the parent id on the child slot's personality.
@@ -689,7 +685,9 @@ void GParChild::fixAfterJobSubmission() {
     auto old_work_items = this->getOldWorkItems();
 
     // Make it known to remaining old individuals that they are now part of a new iteration
-    std::ranges::for_each(old_work_items, [iteration](const auto &p) { p->setAssignedIteration(iteration); });
+    std::ranges::for_each(old_work_items, [iteration](const auto &p) {
+        p->setAssignedIteration(iteration);
+    });
 
     // Make sure that parents are at the beginning of the array.
     std::ranges::sort(*this, std::ranges::greater{}, [](const auto &p) {
@@ -818,9 +816,7 @@ void GParChild::markParents() {
     for(it = GOptimizationAlgorithmBase::data_cnt_.begin();
         it != GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_;
         ++it) {
-        (*it)
-            ->template getPersonalityTraits<GBaseParChildPersonalityTraits>()
-            ->setIsParent();
+        (*it)->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setIsParent();
     }
 }
 
@@ -830,9 +826,7 @@ void GParChild::markParents() {
  */
 void GParChild::markChildren() {
     for(auto const &child : GOptimizationAlgorithmBase::data_cnt_ | std::views::drop(n_parents_)) {
-        child
-            ->template getPersonalityTraits<GBaseParChildPersonalityTraits>()
-            ->setIsChild();
+        child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setIsChild();
     }
 }
 
@@ -917,12 +911,14 @@ void GParChild::init() {
                 throw geneva_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GParChild::init(): Error!" << '\n'
-                    << "This adapting algorithm has no adaption config. The genome carries only structure;"
+                    << "This adapting algorithm has no adaption config. The genome carries only "
+                       "structure;"
                     << '\n'
-                    << "author an OA-owned GAdaptionConfig and provide it via setAdaptionConfig() (or, with"
+                    << "author an OA-owned GAdaptionConfig and provide it via setAdaptionConfig() "
+                       "(or, with"
                     << '\n'
-                    << "Go2, register it via go.registerAdaptionConfig(\"" << getAlgorithmPersonalityType()
-                    << "\", cfg))." << '\n'
+                    << "Go2, register it via go.registerAdaptionConfig(\""
+                    << getAlgorithmPersonalityType() << "\", cfg))." << '\n'
                 );
             }
             provided_adaption_config_->checkConsistency(*flat);
@@ -980,8 +976,7 @@ void GParChild::adjustPopulation_() {
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParChild::adjustPopulation() :" << '\n'
             << "The population size is 0." << '\n'
-            << "Did you call GOptimizationAlgorithmBase::setParentsAndPopulationSize() ?"
-            << '\n'
+            << "Did you call GOptimizationAlgorithmBase::setParentsAndPopulationSize() ?" << '\n'
         );
     }
 
@@ -1106,7 +1101,9 @@ void GParChild::valueRecombine(
             // child slot, so the child inherits the parent's evolved adaption state; setParentId records
             // the chosen parent. See randomRecombine() for the rationale.
             child->load(*(GOptimizationAlgorithmBase::data_cnt_.begin() + par));
-            child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setParentId(par);
+            child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setParentId(
+                par
+            );
             done = true;
 
             break;

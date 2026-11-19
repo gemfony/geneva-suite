@@ -45,15 +45,24 @@ namespace {
 class IntProvider : public GProviderT<int> {
 public:
     IntProvider(std::string mnemonic, int value)
-      : mnemonic_(std::move(mnemonic)), value_(value) {}
+      : mnemonic_(std::move(mnemonic))
+      , value_(value) {
+    }
 
-    std::shared_ptr<int> provide() override { return std::make_shared<int>(value_); }
-    [[nodiscard]] std::string getMnemonic() const override { return mnemonic_; }
-    [[nodiscard]] std::string getName() const override { return "IntProvider(" + mnemonic_ + ")"; }
+    std::shared_ptr<int> provide() override {
+        return std::make_shared<int>(value_);
+    }
+    [[nodiscard]] std::string getMnemonic() const override {
+        return mnemonic_;
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "IntProvider(" + mnemonic_ + ")";
+    }
     void addCLOptions(
         boost::program_options::options_description & /*visible*/,
         boost::program_options::options_description & /*hidden*/
-    ) override { /* no options */ }
+    ) override {                                      /* no options */
+    }
 
 private:
     std::string mnemonic_;

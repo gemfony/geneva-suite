@@ -116,10 +116,12 @@ public:
             return *value;
         }
         raiseException(
-            "In GGlobalOptionsT::get(\"" << key << "\"): Error!" << '\n'
-                << "Key is not present in the global options map." << '\n'
-                << "Use exists(key) to check before calling, or get(key, value) "
-                   "which signals absence via its return value." << '\n'
+            "In GGlobalOptionsT::get(\""
+            << key << "\"): Error!" << '\n'
+            << "Key is not present in the global options map." << '\n'
+            << "Use exists(key) to check before calling, or get(key, value) "
+               "which signals absence via its return value."
+            << '\n'
         );
     }
 
@@ -196,7 +198,8 @@ public:
 	 */
     [[nodiscard]] std::string getKeyDescription() const {
         const std::vector<std::string> keys = store_.keys(); // key order
-        return keys | std::views::join_with(std::string_view(", ")) | std::ranges::to<std::string>();
+        return keys | std::views::join_with(std::string_view(", ")) |
+               std::ranges::to<std::string>();
     }
 
     /************************************************************************/

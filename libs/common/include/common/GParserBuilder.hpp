@@ -355,7 +355,9 @@ inline void cfgWriteComments(boost::json::object &target, std::vector<std::strin
     if(not lines.empty()) {
         boost::json::array arr;
         arr.reserve(lines.size());
-        for(auto const &line : lines) { arr.emplace_back(line); }
+        for(auto const &line : lines) {
+            arr.emplace_back(line);
+        }
         target["comment"] = std::move(arr);
     }
 }
@@ -429,7 +431,10 @@ public:
     GParsableI(std::string const &option_name_var, std::string const &comment_var);
 
     /** @brief A constructor for vectors */
-    GParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
+    GParsableI(
+        std::vector<std::string> const &option_name_vec,
+        std::vector<std::string> const &comment_vec
+    );
 
     /** @brief The destructor */
     virtual ~GParsableI() = default;
@@ -540,9 +545,17 @@ class GFileParsableI : public GParsableI {
 
 public:
     /** @brief A constructor for individual items */
-    GFileParsableI(std::string const &option_name_var, std::string const &comment_var, bool is_essential_var);
+    GFileParsableI(
+        std::string const &option_name_var,
+        std::string const &comment_var,
+        bool is_essential_var
+    );
     /** @brief A constructor for vectors */
-    GFileParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec, bool is_essential_var);
+    GFileParsableI(
+        std::vector<std::string> const &option_name_vec,
+        std::vector<std::string> const &comment_vec,
+        bool is_essential_var
+    );
 
     /** @brief The destructor */
     ~GFileParsableI() override = default;
@@ -1043,8 +1056,7 @@ public:
         if(not call_back) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileCombinedParsableParameterT::registerCallBackFunction(): Error"
-                << '\n'
+                << "In GFileCombinedParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
         }
@@ -1126,8 +1138,7 @@ private:
         if(not call_back_func_) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileCombinedParsableParameterT::executeCallBackFunction_(): Error"
-                << '\n'
+                << "In GFileCombinedParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -1212,7 +1223,7 @@ protected:
 	  */
     void resetDefault(std::vector<parameter_type> const &def_val) {
         def_val_cnt_ = def_val;
-        par_cnt_     = def_val;
+        par_cnt_ = def_val;
     }
 
     /***************************************************************************/
@@ -1309,12 +1320,12 @@ public:
 	  *
 	  * @param call_back The function to be executed
 	  */
-    void registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
+    void
+    registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
         if(not call_back) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileVectorParsableParameterT::registerCallBackFunction(): Error"
-                << '\n'
+                << "In GFileVectorParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
         }
@@ -1402,8 +1413,7 @@ private:
         if(not call_back_func_) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileVectorParsableParameterT::executeCallBackFunction_(): Error"
-                << '\n'
+                << "In GFileVectorParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -1579,7 +1589,9 @@ public:
 	  *
 	  * @param call_back The function to be executed
 	  */
-    void registerCallBackFunction(std::move_only_function<void(std::array<parameter_type, N>)> call_back) {
+    void registerCallBackFunction(
+        std::move_only_function<void(std::array<parameter_type, N>)> call_back
+    ) {
         if(not call_back) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
@@ -1702,7 +1714,10 @@ public:
     /** @brief A constructor for individual items */
     GCLParsableI(std::string const &option_name_var, std::string const &comment_var);
     /** @brief A constructor for vectors */
-    GCLParsableI(std::vector<std::string> const &option_name_vec, std::vector<std::string> const &comment_vec);
+    GCLParsableI(
+        std::vector<std::string> const &option_name_vec,
+        std::vector<std::string> const &comment_vec
+    );
 
     /** @brief The destructor */
     ~GCLParsableI() override = default;
@@ -1842,9 +1857,8 @@ private:
     [[nodiscard]] std::string content() const override {
         std::ostringstream result; // NOLINT(cppcoreguidelines-init-variables)
         result << this->optionName() << " :\t" << stored_reference_ << "\t"
-               << ((stored_reference_ != def_val_)
-                       ? "default: " + Gem::Common::to_string(def_val_)
-                       : std::string());
+               << ((stored_reference_ != def_val_) ? "default: " + Gem::Common::to_string(def_val_)
+                                                   : std::string());
         return result.str();
     }
 
@@ -1899,8 +1913,11 @@ public:
         bool run_unknown_key_check = true
     );
     /** @brief Writes out a configuration file */
-    void
-    writeConfigFile(std::filesystem::path const &config_file, std::string const &header = "", bool write_all = true) const;
+    void writeConfigFile(
+        std::filesystem::path const &config_file,
+        std::string const &header = "",
+        bool write_all = true
+    ) const;
     /** @brief Update-in-place: parse @p config_file (if it exists) into the registered options, then rewrite
      *  it in canonical form -- stale keys (that no registered parameter consumes) dropped, existing values
      *  preserved, newly-registered parameters emitted with their defaults, comments/order refreshed. A
@@ -1976,13 +1993,17 @@ public:
     template <typename parameter_type>
     GParsableI &registerFileParameter(
         std::string const &option_name,
-        const parameter_type& def_val,
+        const parameter_type &def_val,
         std::move_only_function<void(parameter_type)> call_back,
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
 #ifdef DEBUG
-        assertNotRegistered_(option_name, file_parameter_proxies_, "registerFileParameter(single_parm_ptr)");
+        assertNotRegistered_(
+            option_name,
+            file_parameter_proxies_,
+            "registerFileParameter(single_parm_ptr)"
+        );
 #endif /* DEBUG */
 
         // Always route through the full constructor: the comment may legitimately be empty, but the
@@ -2055,8 +2076,7 @@ public:
         if(not parm_object) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterObject::resetFileParameterDefaults(GSingleParmT): Error!"
-                << '\n'
+                << "In GParameterObject::resetFileParameterDefaults(GSingleParmT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
         }
@@ -2099,7 +2119,11 @@ public:
         std::string const &comment2 = std::string()
     ) {
 #ifdef DEBUG
-        assertNotRegistered_(option_name1, file_parameter_proxies_, "registerFileParameter(comb_parm_ptr)");
+        assertNotRegistered_(
+            option_name1,
+            file_parameter_proxies_,
+            "registerFileParameter(comb_parm_ptr)"
+        );
 #endif /* DEBUG */
 
         // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
@@ -2151,8 +2175,7 @@ public:
         if(not parm_object) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterObject::resetFileParameterDefaults(GCombinedParT): Error!"
-                << '\n'
+                << "In GParameterObject::resetFileParameterDefaults(GCombinedParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
         }
@@ -2184,7 +2207,11 @@ public:
         std::string const &comment = std::string()
     ) {
 #ifdef DEBUG
-        assertNotRegistered_(option_name, file_parameter_proxies_, "registerFileParameter(vec_parm_ptr)");
+        assertNotRegistered_(
+            option_name,
+            file_parameter_proxies_,
+            "registerFileParameter(vec_parm_ptr)"
+        );
 #endif /* DEBUG */
 
         // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
@@ -2258,8 +2285,7 @@ public:
         if(not parm_object) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterObject::resetFileParameterDefaults(GVectorParT): Error!"
-                << '\n'
+                << "In GParameterObject::resetFileParameterDefaults(GVectorParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
         }
@@ -2293,7 +2319,11 @@ public:
         std::string const &comment = std::string()
     ) {
 #ifdef DEBUG
-        assertNotRegistered_(option_name, file_parameter_proxies_, "registerFileParameter(array_parm_ptr)");
+        assertNotRegistered_(
+            option_name,
+            file_parameter_proxies_,
+            "registerFileParameter(array_parm_ptr)"
+        );
 #endif /* DEBUG */
 
         std::shared_ptr<GFileArrayParsableParameterT<parameter_type, N>> array_parm_ptr;
@@ -2342,7 +2372,9 @@ public:
         return registerFileParameter<parameter_type, N>(
             option_name,
             def_val,
-            [&stored_reference](std::array<parameter_type, N> v) { stored_reference = std::move(v); },
+            [&stored_reference](std::array<parameter_type, N> v) {
+                stored_reference = std::move(v);
+            },
             is_essential,
             comment
         );
@@ -2374,8 +2406,7 @@ public:
         if(not parm_object) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterObject::resetFileParameterDefaults(GArrayParT): Error!"
-                << '\n'
+                << "In GParameterObject::resetFileParameterDefaults(GArrayParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
         }
@@ -2405,10 +2436,14 @@ public:
         parameter_type const &def_val,
         std::string const &comment = std::string(),
         bool implicit_allowed = GCL_IMPLICIT_NOT_ALLOWED,
-        const parameter_type& impl_val = GDefaultValueT<parameter_type>::value()
+        const parameter_type &impl_val = GDefaultValueT<parameter_type>::value()
     ) {
 #ifdef DEBUG
-        assertNotRegistered_(option_name, cl_parameter_proxies_, "registerCLParameter(ref_parm_ptr)");
+        assertNotRegistered_(
+            option_name,
+            cl_parameter_proxies_,
+            "registerCLParameter(ref_parm_ptr)"
+        );
 #endif /* DEBUG */
 
         std::shared_ptr<GCLReferenceParsableParameterT<parameter_type>> ref_parm_ptr;
@@ -2508,10 +2543,8 @@ private:
     /** @brief Resolves @p config_file against the configured base directory (creating the directory if
      *  absent), creates the file from defaults if it does not yet exist, and validates an existing file
      *  (regular file, ".json" extension). Sets @p file_existed and returns the resolved path. */
-    std::filesystem::path resolveConfigPathAndEnsureFile(
-        std::filesystem::path const &config_file,
-        bool &file_existed
-    );
+    std::filesystem::path
+    resolveConfigPathAndEnsureFile(std::filesystem::path const &config_file, bool &file_existed);
     /** @brief Update-in-place rewrite: reports on-disk keys no registered parameter consumes, then rewrites
      *  @p config_path in canonical form (using @p root's current values / @p rewrite_header). */
     void reportAndRewriteConfigFile(
@@ -2522,7 +2555,8 @@ private:
     /** @brief Builds the canonical configuration document (header + one entry per registered file
      *  option: value = the current parsed/default value, default = the registered default). Shared by
      *  writeConfigFile() and the update-in-place rewrite. */
-    [[nodiscard]] boost::json::value buildConfigDocument_(std::string const &header, bool write_all) const;
+    [[nodiscard]] boost::json::value
+    buildConfigDocument_(std::string const &header, bool write_all) const;
     /** @brief Atomically replaces @p config_file with the pretty-printed serialization of @p document
      *  (writes a temp sibling, then renames it over the target), bypassing the deliberate no-overwrite
      *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file. */

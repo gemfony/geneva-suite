@@ -47,7 +47,7 @@
  *     the entire author-facing surface: no Geneva macro, ordinary C++.
  */
 
-#include <boost/config.hpp>              // BOOST_SYMBOL_EXPORT
+#include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 #include "common/GModuleManifest.hpp" // GenevaModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"

@@ -92,7 +92,9 @@ public:
      *
      * @return A boolean indicating whether modifications were actually made
      */
-    bool modify_GUnitTests() { return this->modify_GUnitTests_(); }
+    bool modify_GUnitTests() {
+        return this->modify_GUnitTests_();
+    }
 
     /***************************************************************************/
     /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */

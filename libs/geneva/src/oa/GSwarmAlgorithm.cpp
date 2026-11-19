@@ -27,7 +27,6 @@
  *
  ********************************************************************************/
 #include "geneva/oa/GSwarmAlgorithm.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
@@ -37,19 +36,20 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
+#include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
-#include "geneva/genome/GGenome.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <atomic>
 #include <memory>
 #include <random>
 #include <ranges>
-#include <string>
 #include <span>
+#include <string>
 #include <tuple>
 #include <vector>
 
@@ -159,11 +159,10 @@ void GSwarmAlgorithm::resetToOptimizationStart_() {
         n_neighborhoods_
     ); // The collection of best individuals from each neighborhood
 
-    vel_max_ = 0.;     // The dimensionless maximum velocity (recomputed in init())
-    n_fp_parms_ = 0;   // The active floating-point parameter count (recomputed in init())
+    vel_max_ = 0.;   // The dimensionless maximum velocity (recomputed in init())
+    n_fp_parms_ = 0; // The active floating-point parameter count (recomputed in init())
 
-    last_iteration_individuals_cnt_
-        .clear(); // A temporary copy of the last iteration's individuals
+    last_iteration_individuals_cnt_.clear(); // A temporary copy of the last iteration's individuals
 
     // There is no more work to be done here, so we simply call the
     // function of the parent class
@@ -286,8 +285,7 @@ std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const
         throw geneva_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSwarmAlgorithm::getLastNIPos():" << '\n'
-            << "Received id " << neighborhood << " of a neighborhood which does not exist."
-            << '\n'
+            << "Received id " << neighborhood << " of a neighborhood which does not exist." << '\n'
             << "The number of neighborhoods is " << n_neighborhoods_ << " ." << '\n'
             << "hence the maximum allowed value of the id is " << n_neighborhoods_ - 1 << "."
             << '\n'
@@ -515,13 +513,16 @@ void GSwarmAlgorithm::init() {
     if(this->at(0)->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger << "In GSwarmAlgorithm::init(): Warning!" << '\n'
-                    << "The individuals expose more than one fitness criterion, but the swarm" << '\n'
-                    << "algorithm is single-objective: it optimizes only the first criterion" << '\n'
-                    << "(transformed_fitness(0)) and ignores the rest. Multi-objective PSO is not" << '\n'
-                    << "implemented. Use an evolutionary algorithm in a PARETO sorting mode for true" << '\n'
-                    << "multi-objective optimization." << '\n'
-                    << GWARNING;
+            glogger
+                << "In GSwarmAlgorithm::init(): Warning!" << '\n'
+                << "The individuals expose more than one fitness criterion, but the swarm" << '\n'
+                << "algorithm is single-objective: it optimizes only the first criterion" << '\n'
+                << "(transformed_fitness(0)) and ignores the rest. Multi-objective PSO is not"
+                << '\n'
+                << "implemented. Use an evolutionary algorithm in a PARETO sorting mode for true"
+                << '\n'
+                << "multi-objective optimization." << '\n'
+                << GWARNING;
         }
     }
 }
@@ -618,8 +619,9 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
         if(n_neighborhood_members_cnt_[n] == default_n_neighborhood_members_) {
             continue;
         }
-        if(n_neighborhood_members_cnt_[n] >
-                default_n_neighborhood_members_) { // Remove surplus items from the end of the neighborhood
+        if(
+            n_neighborhood_members_cnt_[n] > default_n_neighborhood_members_
+        ) { // Remove surplus items from the end of the neighborhood
             // Find out, how many surplus items there are
             std::size_t const n_surplus =
                 n_neighborhood_members_cnt_[n] -
@@ -650,8 +652,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
                 for(std::size_t i = 0; i < n_missing; i++) {
                     data_cnt_.insert(
                         data_cnt_.begin() + first_ni_pos,
-                        (*(last_iteration_individuals_cnt_.begin() + first_ni_pos + i))
-                            ->clone()
+                        (*(last_iteration_individuals_cnt_.begin() + first_ni_pos + i))->clone()
                     );
                 }
             }
@@ -664,17 +665,15 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
                     throw geneva_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
-                        << "No items returned in the first iteration; cannot seed the swarm." << '\n'
+                        << "No items returned in the first iteration; cannot seed the swarm."
+                        << '\n'
                     );
                 }
 
                 // Fill up with random items.
                 for(std::size_t n_m = 0; n_m < n_missing; n_m++) {
                     // Insert a clone of the first individual of the collection
-                    data_cnt_.insert(
-                        data_cnt_.begin() + first_ni_pos,
-                        (this->front())->clone()
-                    );
+                    data_cnt_.insert(data_cnt_.begin() + first_ni_pos, (this->front())->clone());
 
                     // Randomly initialize the item and prevent position updates
                     (*(data_cnt_.begin() + first_ni_pos))->randomInit(activityMode::ACTIVEONLY);
@@ -746,9 +745,12 @@ void GSwarmAlgorithm::updatePositions() {
     for(const auto &slot : *this) {
         if(not slot->scratch().hasAux(AUXKEY_SWARM_VELOCITY)) {
             slot->scratch().installAuxBlock<double>(
-                AUXKEY_SWARM_VELOCITY, n_fp_parms_, gen::AuxScope::PerIndividual
+                AUXKEY_SWARM_VELOCITY,
+                n_fp_parms_,
+                gen::AuxScope::PerIndividual
             );
-            std::span<double> const vel = slot->scratch().metaRecords<double>(AUXKEY_SWARM_VELOCITY);
+            std::span<double> const vel =
+                slot->scratch().metaRecords<double>(AUXKEY_SWARM_VELOCITY);
             for(std::size_t i = 0; i < n_fp_parms_; i++) {
                 vel[i] = GOptimizationAlgorithmBase::uniform_real_distribution_(
                     gr_,
@@ -883,11 +885,10 @@ void GSwarmAlgorithm::updatePositions() {
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent numeric kernel: the classic PSO velocity/position update (personal/neighborhood/global attraction terms scaled by the update-rule switch, velocity scaling, pruning, then the repulsion/attraction position step), all operating on the same extracted vectors
 void GSwarmAlgorithm::updateIndividualPositions(
-    [[maybe_unused]] const std::size_t & neighborhood
-    ,
+    [[maybe_unused]] const std::size_t &neighborhood,
     const std::unique_ptr<gen::GGenome> &ind,
-    const std::shared_ptr<gen::GGenome>& neighborhood_best,
-    const std::shared_ptr<gen::GGenome>& global_best,
+    const std::shared_ptr<gen::GGenome> &neighborhood_best,
+    const std::shared_ptr<gen::GGenome> &global_best,
     std::tuple<double, double, double, double> constants
 ) {
     // Extract the constants from the tuple
@@ -1114,22 +1115,20 @@ void GSwarmAlgorithm::evaluatePopulation_() {
 
     //--------------------------------------------------------------------------------
     // Sort according to the individuals' neighborhoods
-    sort(
-        data_cnt_.begin(),
-        data_cnt_.end(),
-        [](const auto &x, const auto &y) -> bool {
-            return x->template getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->getNeighborhood() <
-                   y->template getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->getNeighborhood();
-        }
-    );
+    sort(data_cnt_.begin(), data_cnt_.end(), [](const auto &x, const auto &y) -> bool {
+        return x->template getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()
+                   ->getNeighborhood() <
+               y->template getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()
+                   ->getNeighborhood();
+    });
 
     // Now update the number of items in each neighborhood: First reset the number of members of each neighborhood
     Gem::Common::assignVecConst(n_neighborhood_members_cnt_, static_cast<std::size_t>(0));
     // Then update the number of individuals in each neighborhood
     for(const auto &item_ptr : *this) {
         n_neighborhood_members_cnt_[item_ptr
-                                         ->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()
-                                         ->getNeighborhood()] += 1;
+                                        ->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()
+                                        ->getNeighborhood()] += 1;
     }
 
     // The population is repaired per-iteration in GSwarmAlgorithm::adjustNeighborhoods().
@@ -1277,7 +1276,7 @@ std::tuple<double, double> GSwarmAlgorithm::bestIterationFitness(maxMode m) cons
     std::tuple<double, double> best_iteration_fitness =
         std::make_tuple(this->at(0)->getWorstCase(), this->at(0)->getWorstCase());
 
-    for(auto const & i : *this) {
+    for(auto const &i : *this) {
         if(isBetter(
                std::get<G_TRANSFORMED_FITNESS>(i->getFitnessTuple()),
                std::get<G_TRANSFORMED_FITNESS>(best_iteration_fitness),
@@ -1426,8 +1425,7 @@ void GSwarmAlgorithm::fillUpNeighborhood1() {
         std::size_t const n = n_neighborhoods_ - 1 - i; // Calculate the correct neighborhood
 
         // Insert the required number of clones after the existing individual
-        for(std::size_t m = 1; m < default_n_neighborhood_members_;
-            m++) { // m stands for "missing"
+        for(std::size_t m = 1; m < default_n_neighborhood_members_; m++) { // m stands for "missing"
             // Add a clone of the first individual in the neighborhood to the next position
             this->insert(this->begin() + n, (*(this->begin() + n))->clone());
             // Make sure it has a unique value, if requested

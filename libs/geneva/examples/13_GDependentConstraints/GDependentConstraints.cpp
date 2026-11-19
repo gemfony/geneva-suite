@@ -115,13 +115,16 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // Add a number of start values to the go object. We also add some constraint definitions here.
     for(std::size_t i = 0; i < 10; i++) {
-        std::shared_ptr<gind::GFunctionIndividual> const p = gfi_ptr->get_as<gind::GFunctionIndividual>();
+        std::shared_ptr<gind::GFunctionIndividual> const p =
+            gfi_ptr->get_as<gind::GFunctionIndividual>();
 
         // Create the constraint objects
         std::shared_ptr<gind::GDoubleSumConstraint> const doublesum_constraint_ptr(
             new gind::GDoubleSumConstraint(1.)
         );
-        std::shared_ptr<gind::GSphereConstraint> const sphere_constraint_ptr(new gind::GSphereConstraint(3.));
+        std::shared_ptr<gind::GSphereConstraint> const sphere_constraint_ptr(
+            new gind::GSphereConstraint(3.)
+        );
         std::shared_ptr<gind::GDoubleSumGapConstraint> const gap_constraint(
             new gind::GDoubleSumGapConstraint(1., 0.05)
         ); // The sum of all variables must be 1 +/- 0.05
@@ -161,8 +164,7 @@ int main(int argc, char **argv) {
     }
 
     // Perform the actual optimization
-    auto const p =
-        go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

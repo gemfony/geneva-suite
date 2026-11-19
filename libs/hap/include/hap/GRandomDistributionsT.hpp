@@ -67,7 +67,8 @@ inline fp_type fast_uniform_01(urbg_type &g) {
     const auto x = static_cast<std::uint64_t>(g());
     if constexpr(std::is_same_v<fp_type, double>) {
         return static_cast<double>(x >> 11) * 0x1.0p-53; // 53-bit mantissa
-    } else {
+    }
+    else {
         return static_cast<float>(x >> 40) * 0x1.0p-24f; // 24-bit mantissa
     }
 }
@@ -94,11 +95,18 @@ public:
         using distribution_type = g_normal_distribution<fp_type>;
         param_type() = default;
         /** @param mean The mean of the distribution. @param stddev Its standard deviation. */
-        explicit param_type(fp_type mean, fp_type stddev = fp_type(1)) : mean_(mean), stddev_(stddev) {}
+        explicit param_type(fp_type mean, fp_type stddev = fp_type(1))
+          : mean_(mean)
+          , stddev_(stddev) {
+        }
         /** @return The configured mean. */
-        [[nodiscard]] fp_type mean() const { return mean_; }
+        [[nodiscard]] fp_type mean() const {
+            return mean_;
+        }
         /** @return The configured standard deviation. */
-        [[nodiscard]] fp_type stddev() const { return stddev_; }
+        [[nodiscard]] fp_type stddev() const {
+            return stddev_;
+        }
         /** @param a The left-hand-side parameters. @param b The right-hand-side parameters.
          *  @return true if mean and standard deviation are equal. */
         friend bool operator==(const param_type &a, const param_type &b) {
@@ -106,7 +114,10 @@ public:
         }
         /** @param a The left-hand-side parameters. @param b The right-hand-side parameters.
          *  @return true if the parameters differ. */
-        friend bool operator!=(const param_type &a, const param_type &b) { return not(a == b); }
+        friend bool operator!=(const param_type &a, const param_type &b) {
+            return not(a == b);
+        }
+
     private:
         fp_type mean_{0};
         fp_type stddev_{1};
@@ -114,20 +125,34 @@ public:
 
     g_normal_distribution() = default;
     /** @param mean The mean of the distribution. @param stddev Its standard deviation. */
-    explicit g_normal_distribution(fp_type mean, fp_type stddev = fp_type(1)) : params_(mean, stddev) {}
+    explicit g_normal_distribution(fp_type mean, fp_type stddev = fp_type(1))
+      : params_(mean, stddev) {
+    }
     /** @param p The distribution parameters to initialize from. */
-    explicit g_normal_distribution(const param_type &p) : params_(p) {}
+    explicit g_normal_distribution(const param_type &p)
+      : params_(p) {
+    }
 
     /** @brief Discards any cached (spare) deviate so the next draw recomputes a fresh pair. */
-    void reset() { have_spare_ = false; }
+    void reset() {
+        have_spare_ = false;
+    }
     /** @return The currently configured distribution parameters. */
-    [[nodiscard]] param_type param() const { return params_; }
+    [[nodiscard]] param_type param() const {
+        return params_;
+    }
     /** @brief Sets the distribution parameters. @param p The new distribution parameters. */
-    void param(const param_type &p) { params_ = p; }
+    void param(const param_type &p) {
+        params_ = p;
+    }
     /** @return The configured mean. */
-    [[nodiscard]] fp_type mean() const { return params_.mean(); }
+    [[nodiscard]] fp_type mean() const {
+        return params_.mean();
+    }
     /** @return The configured standard deviation. */
-    [[nodiscard]] fp_type stddev() const { return params_.stddev(); }
+    [[nodiscard]] fp_type stddev() const {
+        return params_.stddev();
+    }
 
     /** @tparam urbg_type The generator type. @param g The generator. @return A normal deviate using the stored parameters. */
     template <class urbg_type>
@@ -150,10 +175,11 @@ public:
             u = (fp_type(2) * fast_uniform_01<fp_type>(g)) - fp_type(1);
             v = (fp_type(2) * fast_uniform_01<fp_type>(g)) - fp_type(1);
             s = (u * u) + (v * v);
-        } while(s >= fp_type(1) || s == fp_type(0));
+        }
+        while(s >= fp_type(1) || s == fp_type(0));
         const fp_type f = std::sqrt(fp_type(-2) * std::log(s) / s);
-        spare_          = v * f;
-        have_spare_     = true;
+        spare_ = v * f;
+        have_spare_ = true;
         return p.mean() + (p.stddev() * (u * f));
     }
 
@@ -183,33 +209,53 @@ public:
         using distribution_type = g_bernoulli_distribution;
         param_type() = default;
         /** @param p The probability of drawing true, in [0,1]. */
-        explicit param_type(double p) : p_(p) {}
+        explicit param_type(double p)
+          : p_(p) {
+        }
         /** @return The configured probability of drawing true. */
-        [[nodiscard]] double p() const { return p_; }
+        [[nodiscard]] double p() const {
+            return p_;
+        }
         /** @param a The left-hand-side parameters. @param b The right-hand-side parameters.
          *  @return true if both probabilities are equal. */
-        friend bool operator==(const param_type &a, const param_type &b) { return a.p_ == b.p_; }
+        friend bool operator==(const param_type &a, const param_type &b) {
+            return a.p_ == b.p_;
+        }
         /** @param a The left-hand-side parameters. @param b The right-hand-side parameters.
          *  @return true if the probabilities differ. */
-        friend bool operator!=(const param_type &a, const param_type &b) { return not(a == b); }
+        friend bool operator!=(const param_type &a, const param_type &b) {
+            return not(a == b);
+        }
+
     private:
         double p_{0.5};
     };
 
     g_bernoulli_distribution() = default;
     /** @param p The probability of drawing true, in [0,1]. */
-    explicit g_bernoulli_distribution(double p) : params_(p) {}
+    explicit g_bernoulli_distribution(double p)
+      : params_(p) {
+    }
     /** @param p The distribution parameters to initialize from. */
-    explicit g_bernoulli_distribution(const param_type &p) : params_(p) {}
+    explicit g_bernoulli_distribution(const param_type &p)
+      : params_(p) {
+    }
 
     /** @brief No-op reset; this distribution holds no cached state. */
-    void reset() {}
+    void reset() {
+    }
     /** @return The currently configured distribution parameters. */
-    [[nodiscard]] param_type param() const { return params_; }
+    [[nodiscard]] param_type param() const {
+        return params_;
+    }
     /** @brief Sets the distribution parameters. @param p The new distribution parameters. */
-    void param(const param_type &p) { params_ = p; }
+    void param(const param_type &p) {
+        params_ = p;
+    }
     /** @return The configured probability of drawing true. */
-    [[nodiscard]] double p() const { return params_.p(); }
+    [[nodiscard]] double p() const {
+        return params_.p();
+    }
 
     /** @tparam urbg_type The generator type. @param g The generator. @return true with the stored probability. */
     template <class urbg_type>
@@ -468,9 +514,9 @@ public:
             fp_type sigma_left = params.sigma1();
             return (sigma_left * normal_distribution_(g)) + mean_left;
         }
-                    fp_type mean_right = params.mean() + std::abs(params.distance() / 2.);
-            fp_type sigma_right = params.sigma2();
-            return (sigma_right * normal_distribution_(g)) + mean_right;
+        fp_type mean_right = params.mean() + std::abs(params.distance() / 2.);
+        fp_type sigma_right = params.sigma2();
+        return (sigma_right * normal_distribution_(g)) + mean_right;
     }
 
     /**

@@ -41,10 +41,10 @@
 #include <tuple>
 #include <vector>
 
-#include "weft/GArchivePolymorphic.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GMemberReflectionT.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "weft/GArchivePolymorphic.hpp"
 
 using namespace Gem::Common;
 using Gem::Weft::GBinaryIArchive;
@@ -68,7 +68,9 @@ public:
     PolyBase() = default;
 
     int base_id_ = 0;
-    [[nodiscard]] virtual int kind() const { return 0; }
+    [[nodiscard]] virtual int kind() const {
+        return 0;
+    }
 
 protected:
 };
@@ -86,7 +88,9 @@ public:
     PolyA() = default;
 
     double a_val_ = 0.0;
-    [[nodiscard]] int kind() const override { return 1; }
+    [[nodiscard]] int kind() const override {
+        return 1;
+    }
 
 protected:
 };
@@ -104,7 +108,9 @@ public:
     PolyB() = default;
 
     std::string b_str_;
-    [[nodiscard]] int kind() const override { return 2; }
+    [[nodiscard]] int kind() const override {
+        return 2;
+    }
 
 protected:
 };
@@ -123,15 +129,19 @@ class PolyC : public GReflectiveInterfaceT<PolyC, PolyBase> {
 
 public:
     static constexpr std::string_view class_name = "PolyC";
-    explicit PolyC(int c) : c_val_(c) { /* public value ctor */ }
+    explicit PolyC(int c)
+      : c_val_(c) { /* public value ctor */
+    }
 
     int c_val_ = 0;
-    [[nodiscard]] int kind() const override { return 3; }
+    [[nodiscard]] int kind() const override {
+        return 3;
+    }
 
 protected:
-
 private:
-    PolyC() = default; ///< Private: only reachable through the befriended access shim (de-serialization).
+    PolyC() =
+        default; ///< Private: only reachable through the befriended access shim (de-serialization).
 };
 
 // A type registered IDENTITY-ONLY (GEM_REGISTER_TYPE) rather than archivable: it lands in the
@@ -151,7 +161,9 @@ public:
     PolyIdentityOnly() = default;
 
     int io_val_ = 0;
-    [[nodiscard]] int kind() const override { return 4; }
+    [[nodiscard]] int kind() const override {
+        return 4;
+    }
 
 protected:
 };
@@ -169,12 +181,12 @@ namespace {
 template <typename oarchive_type, typename iarchive_type, typename smart_ptr_type>
 smart_ptr_type ptr_roundtrip(const smart_ptr_type &in) {
     oarchive_type oa;
-    oa &in;
+    oa & in;
     std::string encoded = oa.str();
 
     iarchive_type ia(encoded);
     smart_ptr_type out;
-    ia &out;
+    ia & out;
     return out;
 }
 
@@ -182,9 +194,12 @@ smart_ptr_type ptr_roundtrip(const smart_ptr_type &in) {
 
 // ---------------------------------------------------------------------------
 
-TEST_CASE("GArchive polymorphic: a shared_ptr reconstructs the dynamic type", "[common][archive][poly]") {
+TEST_CASE(
+    "GArchive polymorphic: a shared_ptr reconstructs the dynamic type",
+    "[common][archive][poly]"
+) {
     auto a = std::make_shared<PolyA>();
-    a->base_id_ = 7;   // in the PolyBase slice (travels via gemfonyParent)
+    a->base_id_ = 7; // in the PolyBase slice (travels via gemfonyParent)
     a->a_val_ = 3.5;
     std::shared_ptr<PolyBase> p = a;
 
@@ -208,7 +223,10 @@ TEST_CASE("GArchive polymorphic: a shared_ptr reconstructs the dynamic type", "[
     }
 }
 
-TEST_CASE("GArchive polymorphic: a unique_ptr reconstructs the dynamic type", "[common][archive][poly]") {
+TEST_CASE(
+    "GArchive polymorphic: a unique_ptr reconstructs the dynamic type",
+    "[common][archive][poly]"
+) {
     auto b = std::make_unique<PolyB>();
     b->base_id_ = 4;
     b->b_str_ = "hello";
@@ -236,7 +254,10 @@ TEST_CASE("GArchive polymorphic: a null pointer round-trips as null", "[common][
     CHECK_FALSE(ptr_roundtrip<GJsonOArchive, GJsonIArchive>(p));
 }
 
-TEST_CASE("GArchive polymorphic: a container of mixed dynamic types round-trips", "[common][archive][poly]") {
+TEST_CASE(
+    "GArchive polymorphic: a container of mixed dynamic types round-trips",
+    "[common][archive][poly]"
+) {
     std::vector<std::shared_ptr<PolyBase>> v;
     auto a = std::make_shared<PolyA>();
     a->a_val_ = 1.25;
@@ -262,8 +283,10 @@ TEST_CASE("GArchive polymorphic: a container of mixed dynamic types round-trips"
     check(ptr_roundtrip<GJsonOArchive, GJsonIArchive>(v));
 }
 
-TEST_CASE("GArchive polymorphic: a private-default-ctor type reconstructs through the friend shim",
-          "[common][archive][poly]") {
+TEST_CASE(
+    "GArchive polymorphic: a private-default-ctor type reconstructs through the friend shim",
+    "[common][archive][poly]"
+) {
     // PolyC has NO public default constructor; the registry factory reconstructs it via
     // GReflectiveInterfaceAccess::construct. A round-trip proves the dynamic type is rebuilt.
     auto c = std::make_shared<PolyC>(42);
@@ -296,14 +319,16 @@ TEST_CASE("GArchive polymorphic: JSON output records the dynamic tag", "[common]
     std::shared_ptr<PolyBase> p = a;
 
     GJsonOArchive oa;
-    oa &p;
+    oa & p;
     std::string text = oa.str();
     CHECK(text.find("\"tag\":\"PolyA\"") != std::string::npos);
     CHECK(text.find("\"present\":true") != std::string::npos);
 }
 
-TEST_CASE("GArchive polymorphic: the completeness self-check flags an identity-only registration",
-          "[common][archive][poly]") {
+TEST_CASE(
+    "GArchive polymorphic: the completeness self-check flags an identity-only registration",
+    "[common][archive][poly]"
+) {
     // The archivable PolyBase/PolyA/PolyB/PolyC are fully dispatchable; PolyIdentityOnly was
     // registered identity-only (GEM_REGISTER_TYPE), so it must surface as a gap.
     const auto gaps = Gem::Weft::archiveRegistrationGaps();
@@ -313,15 +338,16 @@ TEST_CASE("GArchive polymorphic: the completeness self-check flags an identity-o
 
     // The identity-only type is reported ...
     const bool flags_identity_only =
-        std::any_of(gaps.begin(), gaps.end(),
-                    [](const std::string &g) { return g.find("PolyIdentityOnly") != std::string::npos; });
+        std::any_of(gaps.begin(), gaps.end(), [](const std::string &g) {
+            return g.find("PolyIdentityOnly") != std::string::npos;
+        });
     CHECK(flags_identity_only);
 
     // ... and the fully-archivable types are NOT.
-    for (const char *ok : {"\"PolyA\"", "\"PolyB\"", "\"PolyC\""}) {
-        const bool flagged =
-            std::any_of(gaps.begin(), gaps.end(),
-                        [&](const std::string &g) { return g.find(ok) != std::string::npos; });
+    for(const char *ok : {"\"PolyA\"", "\"PolyB\"", "\"PolyC\""}) {
+        const bool flagged = std::any_of(gaps.begin(), gaps.end(), [&](const std::string &g) {
+            return g.find(ok) != std::string::npos;
+        });
         CHECK_FALSE(flagged);
     }
 

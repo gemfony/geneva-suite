@@ -62,7 +62,7 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * message courtier itself acts on.
  *
  * A frame says what the message does to the *transport*: greet, pull for work, hand work out, check
- * a result back in, fetch a blob. What the message MEANS to the using library (evaluate this, here
+ * a result back in. What the message MEANS to the using library (evaluate this, here
  * are the results, ...) is not expressed here: it rides the frame as an opaque library tag plus a
  * library-defined payload that courtier relays without interpreting (see GCommandContainerT).
  *
@@ -79,22 +79,19 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  *    so that a client that cannot read the payload can still return the item as failed.
  *  - RESULT carries a processed item's outcome in its head and the item, or the library's payload,
  *    in its payload. It asks for nothing.
- *  - BLOB_REQUEST / BLOB_REPLY form the blob-send-once cache-miss fetch, served inside courtier.
- *    BLOB_REPLY is empty if the server's registry misses the blob.
  *
  * NONE is the cleared/default state of a frame container, never a transmitted frame. The values are
- * part of the wire format; the gaps are kinds of earlier protocols. The end of a run is not a
- * frame: the transport's close says it (GPeerClose::RUN_ENDED).
+ * part of the wire format; the gaps are kinds of earlier protocols. A message of any other kind is
+ * not a frame: its head cannot be read (see isFrameKind()). The end of a run is not a frame: the
+ * transport's close says it (GPeerClose::RUN_ENDED).
  */
 //! [courtier-frame-kind]
 enum class GFrameKind : Gem::Common::ENUMBASETYPE {
-    NONE = 0,         ///< Cleared / not yet filled in -- never sent
-    PULL = 1,         ///< worker -> server: "give me one item"
-    WORK = 3,         ///< server -> worker: a work item to process
-    BLOB_REQUEST = 6, ///< worker -> server: "send me the blob with this id"
-    BLOB_REPLY = 7,   ///< server -> worker: the requested blob
-    RESULT = 8,       ///< worker -> server: a processed item's outcome
-    HELLO = 10        ///< server -> worker: the first message (build, keep-alive)
+    NONE = 0,   ///< Cleared / not yet filled in -- never sent
+    PULL = 1,   ///< worker -> server: "give me one item"
+    WORK = 3,   ///< server -> worker: a work item to process
+    RESULT = 8, ///< worker -> server: a processed item's outcome
+    HELLO = 10  ///< server -> worker: the first message (build, keep-alive)
 };
 //! [courtier-frame-kind]
 
@@ -105,8 +102,6 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     case GFrameKind::NONE:
     case GFrameKind::PULL:
     case GFrameKind::WORK:
-    case GFrameKind::BLOB_REQUEST:
-    case GFrameKind::BLOB_REPLY:
     case GFrameKind::RESULT:
     case GFrameKind::HELLO:
         return true;
@@ -335,8 +330,6 @@ inline constexpr auto numeric_enum_values_v<Gem::Courtier::GFrameKind> = std::ar
     Gem::Courtier::GFrameKind::NONE,
     Gem::Courtier::GFrameKind::PULL,
     Gem::Courtier::GFrameKind::WORK,
-    Gem::Courtier::GFrameKind::BLOB_REQUEST,
-    Gem::Courtier::GFrameKind::BLOB_REPLY,
     Gem::Courtier::GFrameKind::RESULT,
     Gem::Courtier::GFrameKind::HELLO
 };

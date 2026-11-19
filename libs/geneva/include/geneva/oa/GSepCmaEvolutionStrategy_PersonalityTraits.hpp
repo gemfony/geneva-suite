@@ -39,10 +39,10 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "geneva/genome/GGenome.hpp"
-#include "geneva/GPersonalityTraits.hpp"
-#include "geneva/oa/GParetoTag.hpp"
 #include "common/GSelfTestable.hpp"
+#include "geneva/GPersonalityTraits.hpp"
+#include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GParetoTag.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -53,8 +53,10 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * selection rank (best == 0) and a pareto-front tag for the NSGA-II selection mode,
  * mirroring the informational tags the other algorithms' personalities carry.
  */
-class GSepCmaEvolutionStrategy_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GSepCmaEvolutionStrategy_PersonalityTraits, GPersonalityTraits>
+// NOLINTNEXTLINE(cppcoreguidelines-special-member-functions)
+class GSepCmaEvolutionStrategy_PersonalityTraits
+  : public Gem::Common::
+        GReflectiveInterfaceT<GSepCmaEvolutionStrategy_PersonalityTraits, GPersonalityTraits>
   , public GParetoTag
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
@@ -83,9 +85,8 @@ public:
     /** @brief The default constructor */
     GSepCmaEvolutionStrategy_PersonalityTraits() = default;
     /** @brief The copy constructor */
-    GSepCmaEvolutionStrategy_PersonalityTraits(
-        const GSepCmaEvolutionStrategy_PersonalityTraits &
-    ) = default;
+    GSepCmaEvolutionStrategy_PersonalityTraits(const GSepCmaEvolutionStrategy_PersonalityTraits &) =
+        default;
     /** @brief The standard destructor */
     ~GSepCmaEvolutionStrategy_PersonalityTraits() override = default;
 
@@ -126,4 +127,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

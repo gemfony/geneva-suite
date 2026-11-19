@@ -47,9 +47,9 @@
 #include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GIndividualFactory.hpp"
-#include "geneva/genome/GGenomeBuilder.hpp"
 #include <filesystem>
 #include <memory>
 
@@ -183,7 +183,8 @@ private:
     targetFunction targetFunction_ =
         GO_DEF_TARGETFUNCTION; ///< Specifies which demo function should be used
 
-    double seed_sigma_ = GFI_DEF_SIGMA; ///< The configured seed sigma, stamped by the factory for getAverageSigma()
+    double seed_sigma_ =
+        GFI_DEF_SIGMA; ///< The configured seed sigma, stamped by the factory for getAverageSigma()
 
     /***************************************************************************/
     /** @brief A simple n-dimensional parabola */
@@ -208,4 +209,3 @@ using GFMinIndividualFactory = Gem::Geneva::Genome::GIndividualFactory<GFMinIndi
 
 } /* namespace Geneva */
 } /* namespace Gem */
-

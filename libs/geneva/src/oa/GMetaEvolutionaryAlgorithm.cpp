@@ -50,8 +50,8 @@ GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::siz
     // umbrella-individuals' sub-optimizations submit to -- which is what keeps the two tiers deadlock-free.
     if(not orchestration_pool_) {
         const unsigned int n = n_orchestration_threads_ != 0
-                                   ? n_orchestration_threads_
-                                   : std::max(1u, std::thread::hardware_concurrency());
+                                 ? n_orchestration_threads_
+                                 : std::max(1u, std::thread::hardware_concurrency());
         orchestration_pool_ = std::make_unique<Gem::Common::Concurrency::GThreadPool>(
             "meta:orchestration",
             n,
@@ -79,7 +79,7 @@ GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::siz
             break;
         }
     }
-    return Gem::Courtier::submission_status_t{.is_complete=true, .has_errors=has_errors};
+    return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = has_errors};
 }
 
 /******************************************************************************/

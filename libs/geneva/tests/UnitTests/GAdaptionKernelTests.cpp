@@ -363,7 +363,10 @@ TEST_CASE("adaptGaussIntGroup: mode NEVER leaves values and state untouched", "[
 }
 
 /******************************************************************************/
-TEST_CASE("adaptGaussIntGroup: mode ALWAYS changes every value (minimal +/-1 guarantee)", "[kernel]") {
+TEST_CASE(
+    "adaptGaussIntGroup: mode ALWAYS changes every value (minimal +/-1 guarantee)",
+    "[kernel]"
+) {
     GaussConfig<double> cfg;
     cfg.mode = adaptionMode::ALWAYS;
     GaussState<double> st;

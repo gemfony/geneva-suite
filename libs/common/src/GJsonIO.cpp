@@ -162,7 +162,8 @@ boost::json::value parseJsonFile(std::filesystem::path const &path) {
         );
     }
     std::string const content(
-        (std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>())
+        (std::istreambuf_iterator<char>(ifs)),
+        (std::istreambuf_iterator<char>())
     );
     return parseJsonString(content, path.string());
 }
@@ -255,15 +256,18 @@ void applyConfigOverrides(boost::json::value &base, boost::json::value const &ov
         if(target.is_object() && target.get_object().contains("value")) {
             // A parameter node: replace only its value, leaving the code-owned default/comment.
             target.get_object()["value"] = override_value;
-        } else if(target.is_object() && override_value.is_object()) {
+        }
+        else if(target.is_object() && override_value.is_object()) {
             // A group node: recurse into it with the nested override object.
             applyConfigOverrides(target, override_value);
-        } else {
+        }
+        else {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::applyConfigOverrides(): Error!" << '\n'
                 << "The override for \"" << key << "\" does not match the structure of the"
-                << " configuration (neither a parameter node nor a group with a nested override)." << '\n'
+                << " configuration (neither a parameter node nor a group with a nested override)."
+                << '\n'
             );
         }
     }

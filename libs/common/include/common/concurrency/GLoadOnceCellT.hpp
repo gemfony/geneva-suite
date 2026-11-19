@@ -160,7 +160,9 @@ public:
 
     /***************************************************************************/
     /** @brief @return true once the cell has been filled (acquire-load of the ready flag) */
-    [[nodiscard]] bool loaded() const noexcept { return loaded_.load(std::memory_order_acquire); }
+    [[nodiscard]] bool loaded() const noexcept {
+        return loaded_.load(std::memory_order_acquire);
+    }
 
     /***************************************************************************/
     /**
@@ -175,7 +177,8 @@ public:
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GLoadOnceCellT::get(): Error!" << '\n'
-                << "The cell was read before it was loaded. Fill it once (via ensureLoaded())" << '\n'
+                << "The cell was read before it was loaded. Fill it once (via ensureLoaded())"
+                << '\n'
                 << "before any reader calls get()." << '\n'
             );
         }
@@ -186,9 +189,10 @@ private:
     /***************************************************************************/
     // Data
 
-    T data_{};                         ///< The immutable-between-resets payload
-    mutable std::mutex fill_mutex_;    ///< Serialises the fill (and reset) -- never taken on a loaded read
-    std::atomic<bool> loaded_{false};  ///< Ready flag; readers acquire-load it before touching data_
+    T data_{}; ///< The immutable-between-resets payload
+    mutable std::mutex
+        fill_mutex_; ///< Serialises the fill (and reset) -- never taken on a loaded read
+    std::atomic<bool> loaded_{false}; ///< Ready flag; readers acquire-load it before touching data_
 };
 
 /******************************************************************************/

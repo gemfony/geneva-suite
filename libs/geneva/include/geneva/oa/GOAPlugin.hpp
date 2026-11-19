@@ -40,7 +40,7 @@
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
 // Geneva headers go here
-#include "common/GModuleManifest.hpp" // the unified module manifest (GenevaCompat + contributions)
+#include "common/GModuleManifest.hpp"  // the unified module manifest (GenevaCompat + contributions)
 #include "geneva/oa/GFactoryStore.hpp" // GOAProviderPtr -- the handle the algorithm store holds
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"

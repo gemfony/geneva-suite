@@ -79,7 +79,7 @@ int main() {
         log.append(fid, x, 2. * std::sin(x));
     }
 
-    log.writeToFile("overlays.C",  plotBackend::ROOT);
+    log.writeToFile("overlays.C", plotBackend::ROOT);
     log.writeToFile("overlays.gp", plotBackend::GNUPLOT);
     //! [dietrich-overlays]
 

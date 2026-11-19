@@ -73,7 +73,8 @@ inline BackendKind backendKindFromString(const std::string &s) {
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"
         << " 'cuda'." << '\n'
         << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which runs the"
-        << " work item's own process()." << '\n');
+        << " work item's own process()." << '\n'
+    );
 }
 
 /** @brief Human-readable name of a backend kind.
@@ -81,7 +82,8 @@ inline BackendKind backendKindFromString(const std::string &s) {
  *  @return Its mnemonic ("cuda") */
 inline const char *toString(BackendKind k) {
     switch(k) {
-    case BackendKind::CUDA:   return "cuda";
+    case BackendKind::CUDA:
+        return "cuda";
     }
     return "cuda";
 }
@@ -111,10 +113,10 @@ struct LaunchConfig {
  * symbol is un-mangled, e.g. `extern "C"` for CUDA).
  */
 struct KernelSpec {
-    std::string path;             ///< path to the kernel source or prebuilt module
+    std::string path;               ///< path to the kernel source or prebuilt module
     std::string entry = "evaluate"; ///< kernel entry-point name
-    int device_id = 0;            ///< which GPU/device to use
-    LaunchConfig launch;          ///< launch geometry
+    int device_id = 0;              ///< which GPU/device to use
+    LaunchConfig launch;            ///< launch geometry
 };
 
 /******************************************************************************/

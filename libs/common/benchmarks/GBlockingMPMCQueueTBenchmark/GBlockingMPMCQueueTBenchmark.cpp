@@ -71,8 +71,8 @@ struct RunResult {
     double seconds = 0.0;
     long long produced = 0;
     long long consumed = 0;
-    long long checksum = 0;     // sum of all consumed values
-    long long expected = 0;     // expected sum (for conservation check)
+    long long checksum = 0; // sum of all consumed values
+    long long expected = 0; // expected sum (for conservation check)
 };
 
 template <std::size_t CAP>
@@ -108,9 +108,11 @@ RunResult<CAP> run_mpmc(int producers, int consumers, long long items_per_produc
             }
         });
     }
-    for(auto &t : prod) t.join();
+    for(auto &t : prod)
+        t.join();
     q.close();
-    for(auto &t : cons) t.join();
+    for(auto &t : cons)
+        t.join();
     auto t1 = clk::now();
 
     RunResult<CAP> r;
@@ -118,24 +120,34 @@ RunResult<CAP> run_mpmc(int producers, int consumers, long long items_per_produc
     r.produced = static_cast<long long>(producers) * items_per_producer;
     r.consumed = consumed.load();
     r.checksum = checksum.load();
-    r.expected = static_cast<long long>(producers) *
-                 (items_per_producer * (items_per_producer - 1) / 2);
+    r.expected =
+        static_cast<long long>(producers) * (items_per_producer * (items_per_producer - 1) / 2);
     return r;
 }
 
 template <std::size_t CAP>
 void report(const char *label, int prod, int cons, long long per_prod) {
     auto r = run_mpmc<CAP>(prod, cons, per_prod);
-    double const mips = (r.seconds > 0.0) ? (static_cast<double>(r.consumed) / r.seconds / 1e6) : 0.0;
+    double const mips =
+        (r.seconds > 0.0) ? (static_cast<double>(r.consumed) / r.seconds / 1e6) : 0.0;
     bool const ok = (r.consumed == r.produced) && (r.checksum == r.expected);
     std::printf(
         "%-10s P=%-2d C=%-2d items=%-12lld | %8.2f Mitems/s | %6.3f s | conserve=%s\n",
-        label, prod, cons, r.produced, mips, r.seconds, ok ? "OK" : "*** FAIL ***"
+        label,
+        prod,
+        cons,
+        r.produced,
+        mips,
+        r.seconds,
+        ok ? "OK" : "*** FAIL ***"
     );
     if(not ok) {
         std::printf(
             "    consumed=%lld produced=%lld checksum=%lld expected=%lld\n",
-            r.consumed, r.produced, r.checksum, r.expected
+            r.consumed,
+            r.produced,
+            r.checksum,
+            r.expected
         );
     }
 }
@@ -151,27 +163,33 @@ void latency_sketch(long long n) {
             auto t0 = clk::now();
             auto item = q.pop();
             auto t1 = clk::now();
-            if(not item) break;
+            if(not item)
+                break;
             lat_ns.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count());
         }
     });
 
     for(long long i = 0; i < n; ++i) {
         (void)q.push(static_cast<std::uint64_t>(i));
-        if((i & 0x3FF) == 0) std::this_thread::sleep_for(std::chrono::microseconds(1));
+        if((i & 0x3FF) == 0)
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
     }
     q.close();
     consumer.join();
 
     std::sort(lat_ns.begin(), lat_ns.end());
     auto pct = [&](double p) -> long long {
-        if(lat_ns.empty()) return 0;
+        if(lat_ns.empty())
+            return 0;
         auto idx = static_cast<std::size_t>(p * static_cast<double>(lat_ns.size() - 1));
         return lat_ns[idx];
     };
     std::printf(
         "latency (pop, %lld samples): p50=%lld ns  p99=%lld ns  p999=%lld ns\n",
-        static_cast<long long>(lat_ns.size()), pct(0.50), pct(0.99), pct(0.999)
+        static_cast<long long>(lat_ns.size()),
+        pct(0.50),
+        pct(0.99),
+        pct(0.999)
     );
 }
 
@@ -183,12 +201,15 @@ void teardown_stress(int rounds) {
         (void)q->try_push(0); // make it full so producers block
 
         std::vector<std::thread> ts;
-        for(int i = 0; i < 4; ++i) ts.emplace_back([&]() { (void)q->push(1); });   // blocked (full)
-        for(int i = 0; i < 4; ++i) ts.emplace_back([&]() { (void)q->pop(); });      // may block
+        for(int i = 0; i < 4; ++i)
+            ts.emplace_back([&]() { (void)q->push(1); }); // blocked (full)
+        for(int i = 0; i < 4; ++i)
+            ts.emplace_back([&]() { (void)q->pop(); }); // may block
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
         q->close(); // must wake everyone
-        for(auto &t : ts) t.join();
+        for(auto &t : ts)
+            t.join();
         (void)hangs;
     }
     std::printf("teardown stress: %d rounds completed (no hang)\n", rounds);
@@ -204,10 +225,14 @@ int main(int argc, char **argv) {
     long long items = 0;
     for(int i = 1; i < argc; ++i) {
         std::string const a = argv[i];
-        if(a == "--quick") quick = true;
-        else if(a == "--producers" && i + 1 < argc) producers = std::atoi(argv[++i]);
-        else if(a == "--consumers" && i + 1 < argc) consumers = std::atoi(argv[++i]);
-        else if(a == "--items" && i + 1 < argc) items = std::atoll(argv[++i]);
+        if(a == "--quick")
+            quick = true;
+        else if(a == "--producers" && i + 1 < argc)
+            producers = std::atoi(argv[++i]);
+        else if(a == "--consumers" && i + 1 < argc)
+            consumers = std::atoi(argv[++i]);
+        else if(a == "--items" && i + 1 < argc)
+            items = std::atoll(argv[++i]);
     }
 
     const long long per_prod = (items > 0) ? items : (quick ? 200000 : 5000000);
@@ -218,13 +243,16 @@ int main(int argc, char **argv) {
     if(producers > 0 && consumers > 0) {
         report<BOUNDED_CAP>("bounded", producers, consumers, per_prod);
         report<0>("unbounded", producers, consumers, per_prod);
-    } else {
+    }
+    else {
         const int configs[][2] = {{1, 1}, {1, 4}, {4, 1}, {4, 4}, {8, 8}};
         const int n = quick ? 3 : 5;
         std::printf("\n-- bounded (capacity=%zu) --\n", BOUNDED_CAP);
-        for(int i = 0; i < n; ++i) report<BOUNDED_CAP>("bounded", configs[i][0], configs[i][1], per_prod);
+        for(int i = 0; i < n; ++i)
+            report<BOUNDED_CAP>("bounded", configs[i][0], configs[i][1], per_prod);
         std::printf("\n-- unbounded --\n");
-        for(int i = 0; i < n; ++i) report<0>("unbounded", configs[i][0], configs[i][1], per_prod);
+        for(int i = 0; i < n; ++i)
+            report<0>("unbounded", configs[i][0], configs[i][1], per_prod);
     }
 
     std::printf("\n");

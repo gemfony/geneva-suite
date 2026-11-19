@@ -97,18 +97,23 @@ public:
      *  processing rule).
      *  @param items The batch span of items to flatten
      *  @param params_out Output buffer filled row-major with n_items * dim scalar_type (parameter j of item i at index i*dim + j) */
-    virtual void flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const = 0;
+    virtual void
+    flatten(std::span<const item_ptr> items, std::vector<scalar_type> &params_out) const = 0;
 
     /** @brief Optional opaque constants the kernel needs. Default: none.
      *  @return The problem-constant byte blob handed to the kernel (empty by default) */
-    [[nodiscard]] virtual std::vector<std::byte> problemConstants() const { return {}; }
+    [[nodiscard]] virtual std::vector<std::byte> problemConstants() const {
+        return {};
+    }
 
     /** @brief Whether problemConstants() is the same on every call (e.g. a fixed target image). When
      *  true (the default) the consumer builds the blob ONCE and the backend uploads it to the device
      *  ONCE, instead of rebuilding/re-uploading it for every batch. Override to false only if the
      *  constants genuinely change between batches.
      *  @return true if the problem constants are invariant across batches; false to rebuild/re-upload each batch */
-    [[nodiscard]] virtual bool problemConstantsStatic() const { return true; }
+    [[nodiscard]] virtual bool problemConstantsStatic() const {
+        return true;
+    }
 
     /** @brief Completes every item's processing with its result, leaving it PROCESSED -- or
      *  failed, with the failure recorded on it -- for the courtier reconciliation (see the class
@@ -131,7 +136,9 @@ public:
      *  is heavy. The kernel must be written to match (accumulate, not overwrite); see the Mona-Lisa
      *  demo. Backends without double atomics clamp this to 1.
      *  @return The number of GPU threads to cooperate on a single item (>= 1) */
-    [[nodiscard]] virtual int parallelWorkPerItem() const { return 1; }
+    [[nodiscard]] virtual int parallelWorkPerItem() const {
+        return 1;
+    }
 };
 
 /******************************************************************************/

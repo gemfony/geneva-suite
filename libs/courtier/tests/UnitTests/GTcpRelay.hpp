@@ -425,11 +425,11 @@ private:
 
     boost::asio::io_context ctx_; ///< Where everything runs
     boost::asio::executor_work_guard<boost::asio::io_context::executor_type> guard_ =
-        boost::asio::make_work_guard(ctx_);     ///< Keeps the thread in run() until the destructor
-    tcp::acceptor acceptor_{ctx_};              ///< Where clients connect
-    tcp::socket holder_{ctx_}; ///< Keeps the port bound while the acceptor is closed
-    unsigned short port_ = 0;                   ///< The acceptor's port
-    unsigned short upstream_ = 0;               ///< The server's port (relay thread)
+        boost::asio::make_work_guard(ctx_); ///< Keeps the thread in run() until the destructor
+    tcp::acceptor acceptor_{ctx_};          ///< Where clients connect
+    tcp::socket holder_{ctx_};              ///< Keeps the port bound while the acceptor is closed
+    unsigned short port_ = 0;               ///< The acceptor's port
+    unsigned short upstream_ = 0;           ///< The server's port (relay thread)
     std::vector<std::shared_ptr<Pair>> pairs_;  ///< Every connection made (relay thread)
     std::atomic<std::size_t> n_connections_{0}; ///< Connections accepted
     std::shared_ptr<std::atomic<std::size_t>> n_open_ =

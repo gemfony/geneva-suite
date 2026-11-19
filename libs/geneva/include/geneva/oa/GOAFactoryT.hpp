@@ -50,8 +50,8 @@
 #include "common/GFactoryT.hpp"
 #include "common/GProviderT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 #ifdef GEM_TESTING
 #include <catch2/catch_test_macros.hpp>
@@ -163,8 +163,7 @@ public:
 	  * @param hidden Command line options that should only be visible upon request
 	  */
     void addCLOptions(
-        [[maybe_unused]] boost::program_options::options_description & visible
-        ,
+        [[maybe_unused]] boost::program_options::options_description &visible,
         boost::program_options::options_description &hidden
     ) override {
         namespace po = boost::program_options;
@@ -208,12 +207,12 @@ public:
 	  *
 	  * @param cc_ptr A factory that produces the individuals used to populate the algorithm; must be non-empty
 	  */
-    void registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>>& cc_ptr) {
+    void
+    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
         if(not cc_ptr) {
             throw geneva_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptiomizationAlgorithmFactoryT<T>::registerContentCreator(): Error!"
-                << '\n'
+                << "In GOptiomizationAlgorithmFactoryT<T>::registerContentCreator(): Error!" << '\n'
                 << "Tried to register an empty pointer" << '\n'
             );
         }
@@ -227,7 +226,7 @@ public:
 	  *
 	  * @param pluggable_om The pluggable optimization monitor to register; must be non-empty
 	  */
-    void registerPluggableOM(const std::shared_ptr<GBasePluggableOM>& pluggable_om) {
+    void registerPluggableOM(const std::shared_ptr<GBasePluggableOM> &pluggable_om) {
         if(pluggable_om) {
             pluggable_om_ = pluggable_om;
         }
@@ -273,7 +272,9 @@ public:
 	  *
 	  * @return A human-readable, clear-text name of the algorithm
 	  */
-    [[nodiscard]] std::string getName() const final { return this->getAlgorithmName(); }
+    [[nodiscard]] std::string getName() const final {
+        return this->getAlgorithmName();
+    }
 
     /***************************************************************************/
     /**
@@ -283,7 +284,9 @@ public:
 	  *
 	  * @return A shared pointer to a newly created, configured optimization algorithm
 	  */
-    std::shared_ptr<oa_type> provide() override { return Gem::Common::GFactoryT<oa_type>::get(); }
+    std::shared_ptr<oa_type> provide() override {
+        return Gem::Common::GFactoryT<oa_type>::get();
+    }
 
     /***************************************************************************/
     /**
@@ -315,15 +318,14 @@ public:
         if(max_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_iteration_cl_);
         }
-                    throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptimizationAlgorithmBase<>::getMaxIterationCL(): Error!" << '\n'
-                << "max_iteration_cl_ wasn't set" << '\n'
-            );
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GOptimizationAlgorithmBase<>::getMaxIterationCL(): Error!" << '\n'
+            << "max_iteration_cl_ wasn't set" << '\n'
+        );
 
-            // Make the compiler happy
-            return static_cast<std::uint32_t>(0);
-       
+        // Make the compiler happy
+        return static_cast<std::uint32_t>(0);
     }
 
     /***************************************************************************/
@@ -356,16 +358,14 @@ public:
         if(max_stall_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_stall_iteration_cl_);
         }
-                    throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptimizationAlgorithmBase<>::getMaxStallIterationCL(): Error!"
-                << '\n'
-                << "max_stall_iteration_cl_ wasn't set" << '\n'
-            );
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GOptimizationAlgorithmBase<>::getMaxStallIterationCL(): Error!" << '\n'
+            << "max_stall_iteration_cl_ wasn't set" << '\n'
+        );
 
-            // Make the compiler happy
-            return static_cast<std::uint32_t>(0);
-       
+        // Make the compiler happy
+        return static_cast<std::uint32_t>(0);
     }
 
     /***************************************************************************/
@@ -400,15 +400,14 @@ public:
                 std::chrono::seconds(Gem::Common::narrow<long>(max_seconds_cl_));
             return max_duration;
         }
-                    throw geneva_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptimizationAlgorithmBase<>::getMaxTimeCL(): Error!" << '\n'
-                << "max_seconds_cl_ wasn't set" << '\n'
-            );
+        throw geneva_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GOptimizationAlgorithmBase<>::getMaxTimeCL(): Error!" << '\n'
+            << "max_seconds_cl_ wasn't set" << '\n'
+        );
 
-            // Make the compiler happy
-            return std::chrono::seconds(0);
-       
+        // Make the compiler happy
+        return std::chrono::seconds(0);
     }
 
 protected:
@@ -424,14 +423,15 @@ protected:
         std::shared_ptr<oa_type> p_alg = Gem::Common::GFactoryT<oa_type>::get_();
 
         // If we have been given a factory function for individuals, fill the object with data
-        if(content_creator_ptr_) { // Has a content creation object been registered ? If so, add individuals to the population
+        if(
+            content_creator_ptr_
+        ) { // Has a content creation object been registered ? If so, add individuals to the population
             for(std::size_t ind = 0; ind < p_alg->getDefaultPopulationSize(); ind++) {
                 std::shared_ptr<gen::GGenome> const p_ind = (*content_creator_ptr_)();
                 if(not p_ind) { // No valid item received, the factory has run empty
                     break;
                 }
                 p_alg->push_back(p_ind->clone());
-               
             }
         }
 
@@ -506,9 +506,12 @@ private:
     /// "has value / get-or-throw" interface on top of it.
     static constexpr std::int32_t CL_UNSET = -1;
 
-    std::int32_t max_iteration_cl_ = CL_UNSET;       ///< The maximum number of iterations (CL_UNSET == not set)
-    std::int32_t max_stall_iteration_cl_ = CL_UNSET; ///< Max improvement-free generations before stopping (CL_UNSET == not set)
-    std::int32_t max_seconds_cl_ = CL_UNSET;         ///< The maximum run duration in seconds (CL_UNSET == not set)
+    std::int32_t max_iteration_cl_ =
+        CL_UNSET; ///< The maximum number of iterations (CL_UNSET == not set)
+    std::int32_t max_stall_iteration_cl_ =
+        CL_UNSET; ///< Max improvement-free generations before stopping (CL_UNSET == not set)
+    std::int32_t max_seconds_cl_ =
+        CL_UNSET; ///< The maximum run duration in seconds (CL_UNSET == not set)
 };
 
 /******************************************************************************/
@@ -516,4 +519,3 @@ private:
 /******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */
-

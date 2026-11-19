@@ -82,9 +82,10 @@ namespace detail {
 template <typename uint_type>
 constexpr uint_type to_le(uint_type u) noexcept {
     static_assert(std::is_unsigned_v<uint_type>);
-    if constexpr (std::endian::native == std::endian::big) {
+    if constexpr(std::endian::native == std::endian::big) {
         return std::byteswap(u);
-    } else {
+    }
+    else {
         return u;
     }
 }
@@ -94,7 +95,7 @@ static_assert(sizeof(__float128) == 16, "binary128 must be 16 bytes");
 
 /** @brief Reverses a 16-byte block in place (used to canonicalise binary128 to LE on a BE host). */
 inline void reverse16(std::array<std::byte, 16> &b) noexcept {
-    for (std::size_t i = 0; i < 8; ++i) {
+    for(std::size_t i = 0; i < 8; ++i) {
         std::byte t = b[i];
         b[i] = b[15 - i];
         b[15 - i] = t;
@@ -113,7 +114,7 @@ inline void reverse16(std::array<std::byte, 16> &b) noexcept {
  */
 inline std::array<std::byte, 16> long_double_to_le128(long double v) noexcept {
     auto raw = std::bit_cast<std::array<std::byte, 16>>(static_cast<__float128>(v));
-    if constexpr (std::endian::native == std::endian::big) {
+    if constexpr(std::endian::native == std::endian::big) {
         reverse16(raw);
     }
     return raw;
@@ -121,7 +122,7 @@ inline std::array<std::byte, 16> long_double_to_le128(long double v) noexcept {
 
 /** @brief The inverse of @ref long_double_to_le128: decodes a LE binary128 back to @c long @c double. */
 inline long double le128_to_long_double(std::array<std::byte, 16> raw) noexcept {
-    if constexpr (std::endian::native == std::endian::big) {
+    if constexpr(std::endian::native == std::endian::big) {
         reverse16(raw);
     }
     return static_cast<long double>(std::bit_cast<__float128>(raw));
@@ -140,14 +141,20 @@ public:
     GBinaryOArchive() = default;
 
     /** @brief The accumulated encoded byte stream. */
-    [[nodiscard]] const std::string &str() const { return buffer_; }
+    [[nodiscard]] const std::string &str() const {
+        return buffer_;
+    }
     /** @brief Moves the accumulated byte stream out (leaving this archive empty). */
-    [[nodiscard]] std::string take() { return std::move(buffer_); }
+    [[nodiscard]] std::string take() {
+        return std::move(buffer_);
+    }
 
     // --- primitive hooks (called by GOArchiveT) ---------------------------
 
     /** @brief Writes a boolean as a single 0/1 byte. @param b The value. */
-    void put_bool(bool b) { buffer_.push_back(b ? char{1} : char{0}); }
+    void put_bool(bool b) {
+        buffer_.push_back(b ? char{1} : char{0});
+    }
 
     /** @brief Writes an integer at its natural width, little-endian. @param v The value. */
     template <typename int_type>
@@ -195,21 +202,33 @@ public:
 
     // --- framing hooks (structure is implicit in binary -> mostly no-ops) --
 
-    void begin_object() {}
-    void end_object() {}
-    void member(const char * /*name*/) {}
+    void begin_object() {
+    }
+    void end_object() {
+    }
+    void member(const char * /*name*/) {
+    }
     /** @brief Writes a container's element count as a 64-bit prefix. @param n The element count. */
-    void begin_seq(std::size_t n) { put_scalar(static_cast<std::uint64_t>(n)); }
-    void end_seq() {}
-    void begin_elem() {}
-    void end_elem() {}
+    void begin_seq(std::size_t n) {
+        put_scalar(static_cast<std::uint64_t>(n));
+    }
+    void end_seq() {
+    }
+    void begin_elem() {
+    }
+    void end_elem() {
+    }
 
     // Raw caller-managed range framing (make_array / make_binary): the count is
     // caller-managed and NOT written, so these carry no bytes in binary.
-    void begin_raw(std::size_t /*n*/) {}
-    void end_raw() {}
+    void begin_raw(std::size_t /*n*/) {
+    }
+    void end_raw() {
+    }
     /** @brief Writes @p n opaque bytes verbatim. @param p The block address. @param n The byte count. */
-    void put_bytes(const void *p, std::size_t n) { append_raw(p, n); }
+    void put_bytes(const void *p, std::size_t n) {
+        append_raw(p, n);
+    }
 
 private:
     void append_raw(const void *p, std::size_t n) {
@@ -228,10 +247,14 @@ private:
 class GBinaryIArchive : public GIArchiveT<GBinaryIArchive> {
 public:
     /** @brief Constructs a reader over @p data (which must outlive this archive). @param data The encoded stream. */
-    explicit GBinaryIArchive(std::string_view data) : data_(data) {}
+    explicit GBinaryIArchive(std::string_view data)
+      : data_(data) {
+    }
 
     /** @brief Whether every byte has been consumed (a well-formed full read ends here). */
-    [[nodiscard]] bool exhausted() const { return pos_ == data_.size(); }
+    [[nodiscard]] bool exhausted() const {
+        return pos_ == data_.size();
+    }
 
     // --- primitive hooks (called by GIArchiveT) ---------------------------
 
@@ -293,32 +316,43 @@ public:
 
     // --- framing hooks ----------------------------------------------------
 
-    void enter_object() {}
-    void leave_object() {}
-    void member(const char * /*name*/) {}
+    void enter_object() {
+    }
+    void leave_object() {
+    }
+    void member(const char * /*name*/) {
+    }
     /** @brief Reads a container's 64-bit element count. @return The element count. */
     std::size_t begin_seq() {
         std::uint64_t n = 0;
         get_scalar(n);
         return static_cast<std::size_t>(n);
     }
-    void end_seq() {}
-    void begin_elem() {}
-    void end_elem() {}
+    void end_seq() {
+    }
+    void begin_elem() {
+    }
+    void end_elem() {
+    }
 
     // Raw caller-managed range framing (make_array / make_binary): no count read.
-    void begin_raw() {}
-    void end_raw() {}
+    void begin_raw() {
+    }
+    void end_raw() {
+    }
     /** @brief Reads @p n opaque bytes verbatim into @p p. @param p The pre-sized destination. @param n The byte count. */
-    void get_bytes(void *p, std::size_t n) { read_raw(p, n); }
+    void get_bytes(void *p, std::size_t n) {
+        read_raw(p, n);
+    }
 
 private:
     void require(std::size_t n) const {
-        if (pos_ + n > data_.size()) {
+        if(pos_ + n > data_.size()) {
             throw weft_exception(
                 weft_error_streamer()
                 << "In GBinaryIArchive: attempt to read " << n << " byte(s) past the end of a "
-                << data_.size() << "-byte stream (cursor at " << pos_ << "). Truncated or malformed archive." << '\n'
+                << data_.size() << "-byte stream (cursor at " << pos_
+                << "). Truncated or malformed archive." << '\n'
             );
         }
     }

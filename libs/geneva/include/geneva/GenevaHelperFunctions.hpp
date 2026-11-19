@@ -58,8 +58,7 @@ namespace Gem::Geneva {
  * returned value is always "better". Optimization algorithms should retrieve fitness only through
  * this function.
  */
-double
-minOnly_transformed_fitness(const gen::GGenome &item, std::size_t id = 0);
+double minOnly_transformed_fitness(const gen::GGenome &item, std::size_t id = 0);
 
 /******************************************************************************/
 /**
@@ -68,8 +67,10 @@ minOnly_transformed_fitness(const gen::GGenome &item, std::size_t id = 0);
  * The comparison uses the main (first) fitness criterion via minOnly_transformed_fitness(); both
  * individuals are assumed to share the same maxMode (cross-checked in DEBUG builds).
  */
-bool
-isBetter(const std::shared_ptr<gen::GGenome> &x_ptr, const std::shared_ptr<gen::GGenome> &y_ptr);
+bool isBetter(
+    const std::shared_ptr<gen::GGenome> &x_ptr,
+    const std::shared_ptr<gen::GGenome> &y_ptr
+);
 
 /******************************************************************************/
 /**
@@ -77,8 +78,10 @@ isBetter(const std::shared_ptr<gen::GGenome> &x_ptr, const std::shared_ptr<gen::
  *
  * Implemented as the logical negation of isBetter() on the main fitness criterion.
  */
-bool
-isWorse(const std::shared_ptr<gen::GGenome> &x_ptr, const std::shared_ptr<gen::GGenome> &y_ptr);
+bool isWorse(
+    const std::shared_ptr<gen::GGenome> &x_ptr,
+    const std::shared_ptr<gen::GGenome> &y_ptr
+);
 
 /******************************************************************************/
 /**

@@ -72,13 +72,13 @@ int main() {
     std::string bytes;
     {
         Gem::Weft::GBinaryOArchive oa;
-        oa &original;
+        oa & original;
         bytes = oa.str();
     }
     Particle from_binary;
     {
         Gem::Weft::GBinaryIArchive ia(bytes);
-        ia &from_binary;
+        ia & from_binary;
     }
     assert(from_binary == original);
     std::cout << "binary: round-tripped " << bytes.size() << " bytes\n";
@@ -87,13 +87,13 @@ int main() {
     std::string text;
     {
         Gem::Weft::GJsonOArchive oa;
-        oa &original;
+        oa & original;
         text = oa.str();
     }
     Particle from_json;
     {
         Gem::Weft::GJsonIArchive ia(text);
-        ia &from_json;
+        ia & from_json;
     }
     assert(from_json == original);
     std::cout << "json:   " << text << '\n';

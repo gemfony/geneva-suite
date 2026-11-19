@@ -34,11 +34,11 @@
 #include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
-#include <array>
 #include <algorithm>
+#include <any>
+#include <array>
 #include <chrono>
 #include <filesystem>
-#include <any>
 #include <format>
 #include <fstream>
 #include <ranges>
@@ -49,17 +49,17 @@
 // Boost header files go here
 
 // Geneva headers go here
-#include "common/GReflectiveInterfaceT.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
+#include "common/GSelfTestable.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
-#include "common/GSelfTestable.hpp"
+#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva {
 
@@ -221,6 +221,7 @@ protected:
 
     /** @brief Applies modifications to this object. This is needed for testing purposes */
     bool modify_GUnitTests_() override;
+
 private:
     /************************************************************************/
     /**
@@ -279,7 +280,10 @@ class GCollectiveMonitor // NOLINT(cppcoreguidelines-special-member-functions)
     template <typename self_type>
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
-            Gem::Common::make_cloneable_container_member("pluggable_monitors_", self.pluggable_monitors_)
+            Gem::Common::make_cloneable_container_member(
+                "pluggable_monitors_",
+                self.pluggable_monitors_
+            )
         );
     }
     ///////////////////////////////////////////////////////////////////////
@@ -302,7 +306,7 @@ public:
     /**
      * @brief Allows to register a new pluggable monitor
      */
-    void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM>& om_ptr);
+    void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &om_ptr);
     /**
      * @brief Checks if pluggable monitors are registered in the collective monitor
      */
@@ -317,6 +321,7 @@ protected:
 
     /** @brief Applies modifications to this object */
     bool modify_GUnitTests_() override;
+
 private:
     /**
      * @brief Aggregates the work of all registered pluggable monitors
@@ -374,10 +379,7 @@ class GProgressPlotterT // NOLINT(cppcoreguidelines-special-member-functions)
     ///////////////////////////////////////////////////////////////////////
 
     // Make sure this class can only be instantiated if fp_type really is a floating point type
-    static_assert(
-        std::is_floating_point_v<fp_type>,
-        "fp_type should be a floating point type"
-    );
+    static_assert(std::is_floating_point_v<fp_type>, "fp_type should be a floating point type");
 
 public:
     /***************************************************************************/
@@ -751,7 +753,8 @@ private:
      * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     // NOLINTNEXTLINE(readability-function-size) -- switch-driven dispatcher over infoMode (INFOINIT/INFOPROCESSING/INFOEND) for GProgressPlotterT; each case is a self-contained stage of the same plot lifecycle
-    void informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    void
+    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT: {
             // Build a fresh data log for this run and DECLARE the series (its plot choice)
@@ -781,7 +784,8 @@ private:
                 spec.columns = {"x", "y", "z"};
                 if(landscape_resolution_ < 2) {
                     active_series_ = data_log_->declareSeries(spec);
-                } else {
+                }
+                else {
                     // The objective function as a heat map on the floor (filled in at INFOEND), without
                     // its surface; the evaluated candidates above it, their shadows on the map. The
                     // pad has a legend, so each text is shown once: the pad's title is the canvas
@@ -836,8 +840,8 @@ private:
 
         case Gem::Geneva::infoMode::INFOPROCESSING: {
             if(monitor_best_only_) { // Monitor the best individual only
-                auto const p =
-                    goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+                auto const p = goa->Interface::GOptimizerIT<
+                    oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
                 this->logIndividual_(*p);
             }
             else { // Monitor all individuals
@@ -879,8 +883,8 @@ private:
      * @param goa The optimization algorithm whose best candidate the landscape is a slice through
      */
     void scanLandscape_(oa::GOptimizationAlgorithmBase const &goa) {
-        auto const best =
-            goa.Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+        auto const best = goa.Interface::GOptimizerIT<
+            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
         if(not best) {
             return;
         }
@@ -916,8 +920,8 @@ private:
                 probe->template assignValueVector<fp_type>(values);
                 probe->process();
                 const double f = oa::GBasePluggableOM::use_raw_evaluation_
-                    ? probe->raw_fitness(0)
-                    : probe->transformed_fitness(0);
+                                   ? probe->raw_fitness(0)
+                                   : probe->transformed_fitness(0);
                 data_log.append(*landscape_series_, std::tuple<double, double, double>(x, y, f));
             }
         }
@@ -934,8 +938,8 @@ private:
      */
     void logIndividual_(gen::GGenome &ind) {
         const double primary_fitness = oa::GBasePluggableOM::use_raw_evaluation_
-            ? ind.raw_fitness(0)
-            : ind.transformed_fitness(0);
+                                         ? ind.raw_fitness(0)
+                                         : ind.transformed_fitness(0);
 
         if(monitor_valid_only_ && not ind.isValid()) {
             return;
@@ -976,7 +980,12 @@ private:
         case 3:
             data_log.append(
                 active_series_,
-                std::tuple<double, double, double, double>(vals[0], vals[1], vals[2], primary_fitness)
+                std::tuple<double, double, double, double>(
+                    vals[0],
+                    vals[1],
+                    vals[2],
+                    primary_fitness
+                )
             );
             break;
         default:
@@ -1001,21 +1010,22 @@ private:
         landscape_series_; ///< the objective function's landscape under the candidates, if one was asked for
     bool have_series_ = false; ///< whether a renderable series was declared (nProfileVars 1..3)
 
-    std::string file_name_ = std::string(
-        "progressScan.C"
-    ); ///< The name of the file the output should be written to.
+    std::string file_name_ =
+        std::string("progressScan.C"); ///< The name of the file the output should be written to.
     std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions_ =
         std::tuple<std::uint32_t, std::uint32_t>(1024, 768); ///< The dimensions of the canvas
 
     bool monitor_best_only_ =
         false; ///< Indicates whether only the best individuals should be monitored
-    bool monitor_valid_only_ = false; ///< Indicates whether only valid individuals should be plotted
+    bool monitor_valid_only_ =
+        false; ///< Indicates whether only valid individuals should be plotted
     bool observe_boundaries_ =
         false; ///< When set to true, the plotter will ignore values outside of a scan boundary
 
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
-    std::vector<std::string> variable_names_; ///< axis names of the profiled variables, in profile order
+    std::vector<std::string>
+        variable_names_; ///< axis names of the profiled variables, in profile order
     std::size_t landscape_resolution_ = 0; ///< grid points per axis of the 2-d landscape (0: none)
 };
 
@@ -1180,6 +1190,7 @@ protected:
 
     /** @brief Applies modifications to this object */
     bool modify_GUnitTests_() override;
+
 private:
     /**
      * @brief Allows to emit information in different stages of the information cycle
@@ -1200,9 +1211,9 @@ private:
 
     std::string file_name_ =
         "CompleteSolutionLog.txt";    ///< The name of the file to which solutions should be stored
-    std::vector<double> boundaries_; ///< Value boundaries used to filter logged solutions
+    std::vector<double> boundaries_;  ///< Value boundaries used to filter logged solutions
     bool boundaries_active_ = false;  ///< Set to true if boundaries have been set
-    bool with_name_and_type_ = false;   ///< When set to true, explanations for values are printed
+    bool with_name_and_type_ = false; ///< When set to true, explanations for values are printed
     bool with_commas_ = false; ///< When set to true, commas will be printed in-between values
     bool use_raw_fitness_ =
         true;                   ///< Indicates whether true- or transformed fitness should be output
@@ -1296,8 +1307,8 @@ protected:
 
     /** @brief Applies modifications to this object */
     bool modify_GUnitTests_() override;
-private:
 
+private:
     /**
      * @brief Allows to emit information in different stages of the information cycle
      */
@@ -1420,8 +1431,8 @@ protected:
 
     /** @brief Applies modifications to this object */
     bool modify_GUnitTests_() override;
-private:
 
+private:
     /**
      * @brief Allows to emit information in different stages of the information cycle
      */
@@ -1460,7 +1471,8 @@ private:
  */
 template <typename num_type>
 class GAdaptorPropertyLoggerT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM>
+  : public Gem::Common::
+        GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
@@ -1526,7 +1538,9 @@ public:
 	  * @param cp A constant reference to another GAdaptorPropertyLoggerT object whose data is deep-copied
 	  */
     GAdaptorPropertyLoggerT(const GAdaptorPropertyLoggerT<num_type> &cp)
-      : Gem::Common::GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM>(cp)
+      : Gem::Common::GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM>(
+            cp
+        )
       , file_name_(cp.file_name_)
       , adaptor_name_(cp.adaptor_name_)
       , property_(cp.property_)
@@ -1719,7 +1733,8 @@ private:
      * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     // NOLINTNEXTLINE(readability-function-size) -- switch-driven dispatcher over infoMode (INFOINIT/INFOPROCESSING/INFOEND) for GAdaptorPropertyLoggerT; each case is a self-contained stage of the same log lifecycle
-    void informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    void
+    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         using namespace Gem::Common;
         using namespace Gem::Dietrich; // GDataLog / GPlotSpec / plotKind / graphPlotMode
 
@@ -1727,7 +1742,8 @@ private:
         case Gem::Geneva::infoMode::INFOINIT: {
             // If the file pointed to by file_name_ already exists, make a back-up
             Gem::Common::backupExistingFile(
-                file_name_, "GAdaptorPropertyLoggerT::informationFunction_(): Error!"
+                file_name_,
+                "GAdaptorPropertyLoggerT::informationFunction_(): Error!"
             );
 
             // The fitness curve is recorded per-run, so start it fresh (the property store
@@ -1739,8 +1755,8 @@ private:
             std::uint32_t const iteration = goa->getIteration();
 
             // Record the current fitness
-            auto const p =
-                goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+            auto const p = goa->Interface::GOptimizerIT<
+                oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
             fitness_store_.emplace_back(static_cast<double>(iteration), p->raw_fitness(0));
 
             // Update the largest known iteration and the number of recorded iterations
@@ -1767,7 +1783,8 @@ private:
                     // configured SEED sigma read from a freshly seeded scratch.
                     gen::GAuxiliaryStore seed_scratch;
                     cfg_ptr->installInto(seed_scratch);
-                    for(double const sigma : oa::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
+                    for(double const sigma :
+                        oa::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
                         adaptor_property_store_.emplace_back(static_cast<double>(iteration), sigma);
                     }
                 }
@@ -1775,10 +1792,14 @@ private:
             else { // Monitor all individuals
                 // Loop over all individuals of the algorithm, reading the live adaption state off each
                 // slot's OA-owned scratch.
-                for(const auto & slot : *goa) {
+                for(const auto &slot : *goa) {
                     if(property_ == "sigma" && cfg_ptr) {
-                        for(double const sigma : oa::readAdaptionSigmas(slot->scratch(), *cfg_ptr, adaptor_name_)) {
-                            adaptor_property_store_.emplace_back(static_cast<double>(iteration), sigma);
+                        for(double const sigma :
+                            oa::readAdaptionSigmas(slot->scratch(), *cfg_ptr, adaptor_name_)) {
+                            adaptor_property_store_.emplace_back(
+                                static_cast<double>(iteration),
+                                sigma
+                            );
                         }
                     }
                 }
@@ -1796,7 +1817,10 @@ private:
             // as state). The property histogram is declared first and the fitness curve second,
             // matching the former pad order on the 1x2 canvas.
             GDataLog log("Adaptor properties", 1, 2);
-            log.setCanvasDimensions(std::get<0>(canvas_dimensions_), std::get<1>(canvas_dimensions_));
+            log.setCanvasDimensions(
+                std::get<0>(canvas_dimensions_),
+                std::get<1>(canvas_dimensions_)
+            );
 
             // A fixed-range 2-d histogram (iteration vs. property value). The explicit ranges make
             // makePlotter() rebuild exactly the GHistogram2D the legacy path constructed.
@@ -2014,8 +2038,8 @@ protected:
 
     /** @brief Applies modifications to this object */
     bool modify_GUnitTests_() override;
-private:
 
+private:
     /**
      * @brief Allows to emit information in different stages of the information cycle
      */

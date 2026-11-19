@@ -241,13 +241,16 @@ TEST_CASE(
     std::shared_ptr<GPeerI> server_end;
     std::mutex mutex;
     listener.start(sessions.executor(), [&](std::shared_ptr<GPeerI> peer, GWirePeerId) {
-        peer->start(GPeerHandlers{
-            .onOpen = [&n_server_open] { n_server_open.fetch_add(1); },
-            .onMessage = {},
-            .onClosed = [&n_server_closed](GPeerEnd, GPeerClose, std::string_view) {
-                n_server_closed.fetch_add(1);
+        peer->start(
+            GPeerHandlers{
+                .onOpen = [&n_server_open] { n_server_open.fetch_add(1); },
+                .onMessage = {},
+                .onClosed =
+                    [&n_server_closed](GPeerEnd, GPeerClose, std::string_view) {
+                        n_server_closed.fetch_add(1);
+                    }
             }
-        });
+        );
         const std::scoped_lock lock(mutex);
         server_end = std::move(peer);
     });
@@ -267,13 +270,16 @@ TEST_CASE(
             [&n_client_open,
              &n_client_closed](const std::shared_ptr<GPeerI> &peer, std::string_view) {
                 if(peer) {
-                    peer->start(GPeerHandlers{
-                        .onOpen = [&n_client_open] { n_client_open.fetch_add(1); },
-                        .onMessage = {},
-                        .onClosed = [&n_client_closed](GPeerEnd, GPeerClose, std::string_view) {
-                            n_client_closed.fetch_add(1);
+                    peer->start(
+                        GPeerHandlers{
+                            .onOpen = [&n_client_open] { n_client_open.fetch_add(1); },
+                            .onMessage = {},
+                            .onClosed =
+                                [&n_client_closed](GPeerEnd, GPeerClose, std::string_view) {
+                                    n_client_closed.fetch_add(1);
+                                }
                         }
-                    });
+                    );
                 }
             }
         );
@@ -429,13 +435,16 @@ TEST_CASE(
     listener.start(
         sessions_ctx.get_executor(),
         [&n_open, &n_closed_server, token](std::shared_ptr<GPeerI> peer, GWirePeerId) {
-            peer->start(GPeerHandlers{
-                .onOpen = [&n_open] { n_open.fetch_add(1); },
-                .onMessage = {},
-                .onClosed = [&n_closed_server, token](GPeerEnd, GPeerClose, std::string_view) {
-                    n_closed_server.fetch_add(1);
+            peer->start(
+                GPeerHandlers{
+                    .onOpen = [&n_open] { n_open.fetch_add(1); },
+                    .onMessage = {},
+                    .onClosed =
+                        [&n_closed_server, token](GPeerEnd, GPeerClose, std::string_view) {
+                            n_closed_server.fetch_add(1);
+                        }
                 }
-            });
+            );
         }
     );
     token.reset();
@@ -446,11 +455,13 @@ TEST_CASE(
             client.executor(),
             [&n_open](const std::shared_ptr<GPeerI> &peer, std::string_view) {
                 if(peer) {
-                    peer->start(GPeerHandlers{
-                        .onOpen = [&n_open] { n_open.fetch_add(1); },
-                        .onMessage = {},
-                        .onClosed = {}
-                    });
+                    peer->start(
+                        GPeerHandlers{
+                            .onOpen = [&n_open] { n_open.fetch_add(1); },
+                            .onMessage = {},
+                            .onClosed = {}
+                        }
+                    );
                 }
             }
         );
@@ -510,7 +521,10 @@ TEST_CASE(
             boost::asio::io_context sessions; // never runs: no peer is made here
             GWebsocketListener listener("listener test", 0, withPing(1s), 64);
             try {
-                listener.start(sessions.get_executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {});
+                listener.start(
+                    sessions.get_executor(),
+                    [](const std::shared_ptr<GPeerI> &, GWirePeerId) {}
+                );
             }
             catch(...) {
                 code = 0;

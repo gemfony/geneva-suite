@@ -52,10 +52,12 @@ class weft_exception : public std::runtime_error {
 public:
     /** @brief Constructs the exception from a ready-made diagnostic string. */
     explicit weft_exception(const std::string &what_arg)
-      : std::runtime_error(what_arg) {}
+      : std::runtime_error(what_arg) {
+    }
     /** @brief Constructs the exception from a C-string diagnostic. */
     explicit weft_exception(const char *what_arg)
-      : std::runtime_error(what_arg) {}
+      : std::runtime_error(what_arg) {
+    }
 };
 
 /******************************************************************************/
@@ -83,9 +85,13 @@ public:
     }
 
     /** @brief @return The accumulated diagnostic as a string. */
-    [[nodiscard]] std::string str() const { return oss_.str(); }
+    [[nodiscard]] std::string str() const {
+        return oss_.str();
+    }
     /** @brief Implicit conversion to string, so a streamer seeds a weft_exception directly. */
-    operator std::string() const { return oss_.str(); } // NOLINT(google-explicit-constructor)
+    operator std::string() const {
+        return oss_.str();
+    } // NOLINT(google-explicit-constructor)
 
 private:
     std::ostringstream oss_;

@@ -69,7 +69,9 @@ std::atomic<int> Payload_Concurrent::ctor_count{0};
 // A type without a default constructor — only reachable via a specialised
 // TFactory_GSingletonT<>. Tests the documented customisation point.
 struct Payload_FactorySpecialised {
-    explicit Payload_FactorySpecialised(int v) : value(v) {}
+    explicit Payload_FactorySpecialised(int v)
+      : value(v) {
+    }
     int value;
 };
 
@@ -115,23 +117,27 @@ TEST_CASE("GSingletonT: is non-instantiable and exposes STYPE", "[common][single
 // ---------------------------------------------------------------------------
 // instance(): default-construct on first call, reuse afterwards
 
-TEST_CASE("GSingletonT::instance() returns a non-null pointer to a default-constructed instance",
-          "[common][singleton]") {
+TEST_CASE(
+    "GSingletonT::instance() returns a non-null pointer to a default-constructed instance",
+    "[common][singleton]"
+) {
     auto sp = GSingletonT<Payload_Instance>::instance();
     REQUIRE(sp);
     CHECK(sp.use_count() >= 1);
 
     auto sp2 = GSingletonT<Payload_Instance>::instance();
     REQUIRE(sp2);
-    CHECK(sp.get() == sp2.get());      // same object across calls
+    CHECK(sp.get() == sp2.get()); // same object across calls
     CHECK(sp == sp2);
 }
 
 // ---------------------------------------------------------------------------
 // reset(): release the stored instance; instance() afterwards builds a fresh one
 
-TEST_CASE("GSingletonT::reset() drops the stored pointer; instance() afterwards builds a fresh one",
-          "[common][singleton]") {
+TEST_CASE(
+    "GSingletonT::reset() drops the stored pointer; instance() afterwards builds a fresh one",
+    "[common][singleton]"
+) {
     auto first = GSingletonT<Payload_Reset>::instance();
     REQUIRE(first);
 
@@ -149,11 +155,10 @@ TEST_CASE("GSingletonT::reset() drops the stored pointer; instance() afterwards 
 // ---------------------------------------------------------------------------
 // Customisation point: TFactory_GSingletonT<T> specialisation
 
-TEST_CASE("GSingletonT: honours TFactory_GSingletonT<T> specialisation",
-          "[common][singleton]") {
+TEST_CASE("GSingletonT: honours TFactory_GSingletonT<T> specialisation", "[common][singleton]") {
     auto sp = GSingletonT<Payload_FactorySpecialised>::instance();
     REQUIRE(sp);
-    CHECK(sp->value == 7);   // produced by the user-supplied factory above
+    CHECK(sp->value == 7); // produced by the user-supplied factory above
 }
 
 // ---------------------------------------------------------------------------
@@ -161,8 +166,10 @@ TEST_CASE("GSingletonT: honours TFactory_GSingletonT<T> specialisation",
 // see exactly one constructor invocation, and all returned pointers must
 // alias the same object.
 
-TEST_CASE("GSingletonT::instance() constructs exactly once under concurrent first access",
-          "[common][singleton][concurrency]") {
+TEST_CASE(
+    "GSingletonT::instance() constructs exactly once under concurrent first access",
+    "[common][singleton][concurrency]"
+) {
     // Reset any residual state from previous runs of this TU — the singleton
     // storage is per-type and survives between TEST_CASEs.
     GSingletonT<Payload_Concurrent>::reset();
@@ -206,8 +213,7 @@ TEST_CASE("GSingletonT::instance() constructs exactly once under concurrent firs
 // Never-destroy (leaky) lifetime policy: opt-in trait, disabled reset(), and
 // the extra leaked owning reference that pins the instance for the whole run.
 
-TEST_CASE("GSingletonT: gsingleton_never_destroy trait wiring is correct",
-          "[common][singleton]") {
+TEST_CASE("GSingletonT: gsingleton_never_destroy trait wiring is correct", "[common][singleton]") {
     // Opt-in payload vs. default baseline.
     static_assert(gsingleton_never_destroy<Payload_Leaky>::value);
     static_assert(not gsingleton_never_destroy<Payload_LeakyOff>::value);
@@ -215,13 +221,14 @@ TEST_CASE("GSingletonT: gsingleton_never_destroy trait wiring is correct",
     // The real singletons we enrolled.
     static_assert(gsingleton_never_destroy<GLogger>::value);
     static_assert(gsingleton_never_destroy<GGlobalOptionsT<std::string>>::value);
-    static_assert(gsingleton_never_destroy<GGlobalOptionsT<int>>::value); // partial spec covers any T
+    static_assert(
+        gsingleton_never_destroy<GGlobalOptionsT<int>>::value
+    ); // partial spec covers any T
 
     SUCCEED("compile-time trait checks passed");
 }
 
-TEST_CASE("GSingletonT::reset() is disabled for never-destroy singletons",
-          "[common][singleton]") {
+TEST_CASE("GSingletonT::reset() is disabled for never-destroy singletons", "[common][singleton]") {
     // reset() carries a requires-clause, so for a never-destroy type it is not a
     // viable candidate: calling it is ill-formed (a compile error). The
     // resettable_singleton concept detects this. Resettable types stay callable.
@@ -235,8 +242,10 @@ TEST_CASE("GSingletonT::reset() is disabled for never-destroy singletons",
     SUCCEED("compile-time reset() availability checks passed");
 }
 
-TEST_CASE("GSingletonT: never-destroy instance is a stable singleton with an extra pinned reference",
-          "[common][singleton]") {
+TEST_CASE(
+    "GSingletonT: never-destroy instance is a stable singleton with an extra pinned reference",
+    "[common][singleton]"
+) {
     // Singleton identity still holds.
     auto on = GSingletonT<Payload_Leaky>::instance();
     REQUIRE(on);
