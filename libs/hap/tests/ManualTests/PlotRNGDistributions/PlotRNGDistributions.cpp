@@ -32,11 +32,10 @@
  ********************************************************************************/
 
 /**
- * This test creates nEntries random numbers each for different random
- * number distributions. The results is output in the ROOT format -- see
- * http://root.cern.ch for further information. When executing the ROOT
- * script, a number of PNGs are created, suitable for inclusion in the
- * documentation.
+ * This manual test creates nEntries random numbers each for different random
+ * number distributions. The result is output in the ROOT format -- see
+ * http://root.cern.ch for further information. The ROOT script draws the
+ * distributions for a look by eye and also stores them as PNG files.
  */
 
 // Standard header files

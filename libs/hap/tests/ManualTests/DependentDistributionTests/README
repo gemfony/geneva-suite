@@ -1,0 +1,11 @@
+This directory contains a manual test of dependent random distributions:
+how does the distribution of a variable x_n look when it is calculated
+from the formula "Const - Sum(x_1 ... x_(n-1))"? It answers this question
+for 1-4 "free" variables and writes a file from which the ROOT analysis
+toolkit (see http://root.cern.ch) draws the distributions, for a look by eye.
+
+After calling the main executable, run
+
+root -l rootPlotDependentDistributions.C
+
+to inspect the results.

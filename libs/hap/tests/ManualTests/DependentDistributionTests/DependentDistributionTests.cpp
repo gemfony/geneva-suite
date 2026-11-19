@@ -32,11 +32,10 @@
  ********************************************************************************/
 
 /**
- * This directory contains a simple program that documents
- * dependent random distributions. E.g. it answers the queststion:
- * How does a distribution for a variable x_n look like, when it
- * is calculated from a formula "Const - Sum(x_1 ... x_(n-1)) .
- * It currently answers this questions for 1-4 "free" variables.
+ * This manual test shows dependent random distributions: how does the
+ * distribution of a variable x_n look when it is calculated from the formula
+ * "Const - Sum(x_1 ... x_(n-1))"? It answers this question for 1-4 "free"
+ * variables and writes a ROOT script that draws them, for a look by eye.
  */
 
 // Standard header files

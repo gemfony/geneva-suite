@@ -1,6 +1,7 @@
 This directory contains tests that mostly require manual inspection of the
-results. As an example, the GRandomUsage test creates plots with different
-random number distributions that can be viewed with the Root analysis toolkit.
+results. GRandomUsage, PlotRNGDistributions and DependentDistributionTests
+write files from which the ROOT analysis toolkit (http://root.cern.ch) draws
+random number distributions, for a look by eye.
 
 GRandomThroughput measures raw proxy throughput for a single random-number
 source (--source), but is sort-bound and does not differentiate the sources.
