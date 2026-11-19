@@ -32,13 +32,13 @@ IF (NOT DOXYGEN_FOUND)
 	RETURN ()
 ENDIF ()
 
-SET (GENEVA_DOC_LIB_NAME "dietrich")
-SET (GENEVA_DOC_LIB_DESC "Plotting library: ROOT macros, gnuplot / matplotlib "
+SET (GEM_DOC_LIB_NAME "dietrich")
+SET (GEM_DOC_LIB_DESC "Plotting library: ROOT macros, gnuplot / matplotlib "
 		"scripts, CSV / .npz data exports and a self-describing manifest for an "
 		"external renderer (named for the painter C. W. E. Dietrich)")
 # Dietrich depends on common; reference its tag file for cross-links (built in libs/common/doc;
 # the html path is relative to libs/dietrich/doc/html).
-SET (GENEVA_DOC_TAGFILES "${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
+SET (GEM_DOC_TAGFILES "${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
 	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in

@@ -34,16 +34,16 @@ ADD_SUBDIRECTORY ( GParallelisationOverhead )
 ADD_SUBDIRECTORY ( GSerializationOverhead )
 
 # Clients with MPI sub-clients need MPI, so this benchmark is built only with the MPI consumer.
-IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
 	ADD_SUBDIRECTORY ( GSubClientOverhead )
 ENDIF ()
 
 # The GPU optimisation benchmark drives the courtier GPU consumer, so it is built only when that
-# consumer is (GENEVA_BUILD_WITH_GPU_CONSUMER -- the opt-in add-on folded into gemfony-courtier). Like
+# consumer is (GEM_BUILD_WITH_GPU_CONSUMER -- the opt-in add-on folded into gemfony-courtier). Like
 # example 14 its kernel is runtime-compiled (NVRTC), so it needs no CUDA language at build time
 # -- it builds with an ordinary C++ toolchain and selects CPU/CUDA at run time.
-IF ( GENEVA_GPU_CONSUMER_ENABLED )
+IF ( GEM_GPU_CONSUMER_ENABLED )
 	ADD_SUBDIRECTORY ( GCUDAOptBenchmark )
 ENDIF ()
 
-GENEVA_AGGREGATE_TARGET( "benchmarks-geneva" )
+GEM_AGGREGATE_TARGET( "benchmarks-geneva" )

@@ -32,8 +32,8 @@ BOOST_URL = (
 # Where the from-source Boost is installed inside the image.
 IMAGE_BOOST_ROOT = "/opt/boost"
 
-# The compiled Boost components Geneva links against: GENEVA_BOOST_LIBS in
-# CMakeModules/CommonGenevaBuild.cmake. (Serialization and Filesystem are gone
+# The compiled Boost components Geneva links against: GEM_BOOST_LIBS in
+# CMakeModules/CommonGemBuild.cmake. (Serialization and Filesystem are gone
 # since the move to Gem::Weft; the tests use Catch2, not Boost.Test.)
 BOOST_LIBRARIES = "atomic,json,program_options,regex"
 

@@ -43,7 +43,7 @@ namespace json = boost::json;
 
 namespace {
 std::filesystem::path scratch(std::string const &tag) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_json_io_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_json_io_tests";
     std::filesystem::create_directories(base);
     return base / tag;
 }
@@ -144,10 +144,10 @@ TEST_CASE("parseJsonString: tolerates comments and trailing commas", "[common][j
 }
 
 TEST_CASE(
-    "parseJsonString: throws a geneva_exception on malformed input",
+    "parseJsonString: throws a gem_exception on malformed input",
     "[common][json-io][error]"
 ) {
-    CHECK_THROWS_AS(parseJsonString("{ not valid ", "bad"), geneva_exception);
+    CHECK_THROWS_AS(parseJsonString("{ not valid ", "bad"), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -169,11 +169,8 @@ TEST_CASE("writeJsonFile / parseJsonFile round-trip", "[common][json-io][file]")
     std::filesystem::remove(path);
 }
 
-TEST_CASE(
-    "parseJsonFile: throws a geneva_exception for a missing file",
-    "[common][json-io][error]"
-) {
-    CHECK_THROWS_AS(parseJsonFile(scratch("does_not_exist.json")), geneva_exception);
+TEST_CASE("parseJsonFile: throws a gem_exception for a missing file", "[common][json-io][error]") {
+    CHECK_THROWS_AS(parseJsonFile(scratch("does_not_exist.json")), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -286,7 +283,7 @@ TEST_CASE(
     json::value cfg = sampleConfig();
     CHECK_THROWS_AS(
         applyConfigOverrides(cfg, json::parse(R"({ "no_such_param": 1 })")),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -298,7 +295,7 @@ TEST_CASE(
     // touched_termination is a group; a scalar override cannot target it.
     CHECK_THROWS_AS(
         applyConfigOverrides(cfg, json::parse(R"({ "touched_termination": 3 })")),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -307,5 +304,5 @@ TEST_CASE(
     "[common][json-io][override][error]"
 ) {
     json::value cfg = sampleConfig();
-    CHECK_THROWS_AS(applyConfigOverrides(cfg, json::value(42)), geneva_exception);
+    CHECK_THROWS_AS(applyConfigOverrides(cfg, json::value(42)), gem_exception);
 }

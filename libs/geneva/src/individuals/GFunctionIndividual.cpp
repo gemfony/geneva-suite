@@ -652,7 +652,7 @@ gen::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
     } break;
 
     default: {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFunctionIndividual::buildGenome(): Error!"
             << "Found invalid parameter_type: " << c.p_t << '\n'
@@ -739,7 +739,7 @@ void GFunctionIndividual::applyConfig(GFunctionIndividual &ind, const Config &c)
     // The genome has already been installed on ind (postProcess_ / buildConfigured set it before this).
     if(ind.getParameterSize() < 2 && (c.demo_function == solverFunction::ROSENBROCK ||
                                       c.demo_function == solverFunction::ACKLEY)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFunctionIndividual::applyConfig(): function "
             << static_cast<int>(c.demo_function)

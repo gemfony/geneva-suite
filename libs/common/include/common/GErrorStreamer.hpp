@@ -160,7 +160,7 @@ public:
 	  *
 	  * IMPORTANT — exception-safety contract: this conversion runs file I/O
 	  * and re-enters the global logger when @c do_log_ is true. The canonical
-	  * use site is inside @c throw geneva_exception(g_error_streamer(...) <<
+	  * use site is inside @c throw gem_exception(g_error_streamer(...) <<
 	  * ... ); — i.e. the conversion happens while building the exception, *before*
 	  * stack-unwinding starts, so any throw originating here is the primary
 	  * (and only) in-flight exception. Callers MUST NOT trigger this conversion
@@ -212,7 +212,7 @@ private:
     // Data
     std::ostringstream ostream_;
     bool do_log_ = NO_LOG;
-    const std::string exception_file_ = "./GENEVA-EXCEPTION.log";
+    const std::string exception_file_ = "./GEM-EXCEPTION.log";
     std::string where_and_when_;
 
     /**************************************************************************/

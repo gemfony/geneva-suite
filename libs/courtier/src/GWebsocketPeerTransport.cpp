@@ -115,14 +115,14 @@ GWebsocketListener::~GWebsocketListener() {
  *
  * @param executor Where the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every accepted connection, on the accept strand (an I/O thread)
- * @throws geneva_exception if the acceptor cannot be opened, bound or set to listen, or if the I/O
+ * @throws gem_exception if the acceptor cannot be opened, bound or set to listen, or if the I/O
  *         threads cannot be started
  */
 void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     const auto fail = [this](std::string_view what, const error_code &ec) {
         error_code ignored;
         std::ignore = acceptor_.close(ignored);
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << name_ << ": " << what << ": " << ec.message() << '\n'
         );
@@ -176,7 +176,7 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         std::ignore = acceptor_.close(ignored);
         on_peer_ = nullptr;
         handler_executor_ = boost::asio::any_io_executor{};
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << name_ << ": could not start the I/O threads: " << why << '\n'
         );

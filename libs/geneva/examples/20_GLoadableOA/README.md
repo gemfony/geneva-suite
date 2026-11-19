@@ -44,7 +44,7 @@ analogue of example 18 (a loadable problem) and has two artifacts:
    GEM_REGISTER_ARCHIVABLE(GMyAlgorithm)                    // checkpoint tags: the algorithm ...
    GEM_REGISTER_ARCHIVABLE(GMyAlgorithm_PersonalityTraits)  // ... and its personality traits
 
-   extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+   extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
        return Gem::Geneva::oaManifest<
            Gem::Geneva::OptimizationAlgorithms::GOptimizationAlgorithmFactoryT<GMyAlgorithm>,
            "GMyAlgorithm">();
@@ -55,10 +55,10 @@ analogue of example 18 (a loadable problem) and has two artifacts:
    of its factory: extra command-line options or a `postProcess_()` step (`GParameterScanFactory` in the
    Geneva library is the in-tree example).
 
-   The `extern "C"` `geneva_module_manifest()` is the only irreducible boilerplate (the loader resolves this
+   The `extern "C"` `gem_module_manifest()` is the only irreducible boilerplate (the loader resolves this
    fixed, unmangled symbol via `dlsym`); everything else is the typed helper
    `Gem::Geneva::oaManifest<Factory, Name>()`. It builds the manifest: the **toolchain-compatibility
-   fingerprint** (`GenevaCompat`) and the **module-ABI stamp** (`GENEVA_MODULE_ABI_VERSION`), both validated
+   fingerprint** (`GemCompat`) and the **module-ABI stamp** (`GEM_MODULE_ABI_VERSION`), both validated
    by the loader before anything else is touched, plus one **OA contribution** whose thunk hands the loader
    your factory. The registrations are the same ones a compiled-in algorithm needs, so a checkpoint written
    with the module loaded resumes with it loaded.

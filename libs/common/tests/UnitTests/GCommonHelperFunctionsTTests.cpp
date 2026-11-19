@@ -105,7 +105,7 @@ TEST_CASE(
     "[common][helper][ptrDifferenceCheck]"
 ) {
     int a = 1;
-    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(&a, &a), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(&a, &a), gem_exception);
 }
 
 TEST_CASE(
@@ -113,7 +113,7 @@ TEST_CASE(
     "[common][helper][ptrDifferenceCheck]"
 ) {
     auto p = std::make_shared<int>(42);
-    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(p, p), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(p, p), gem_exception);
 }
 #endif
 
@@ -152,7 +152,7 @@ TEST_CASE(
 ) {
     TOther other;
     const TBase *base_ptr = &other;
-    REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_ptr)), geneva_exception);
+    REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_ptr)), gem_exception);
 }
 #endif
 
@@ -191,10 +191,7 @@ TEST_CASE(
     "[common][helper][convertSmartPointer]"
 ) {
     std::shared_ptr<TBase> null_sp;
-    REQUIRE_THROWS_AS(
-        (Gem::Common::convertSmartPointer<TBase, TDerived>(null_sp)),
-        geneva_exception
-    );
+    REQUIRE_THROWS_AS((Gem::Common::convertSmartPointer<TBase, TDerived>(null_sp)), gem_exception);
 }
 
 TEST_CASE(
@@ -203,10 +200,7 @@ TEST_CASE(
 ) {
     auto sp = std::make_shared<TOther>();
     auto base_sp = std::static_pointer_cast<TBase>(sp);
-    REQUIRE_THROWS_AS(
-        (Gem::Common::convertSmartPointer<TBase, TDerived>(base_sp)),
-        geneva_exception
-    );
+    REQUIRE_THROWS_AS((Gem::Common::convertSmartPointer<TBase, TDerived>(base_sp)), gem_exception);
 }
 #endif
 
@@ -266,7 +260,7 @@ TEST_CASE(
 }
 
 TEST_CASE("splitStringT two-sep: identical separators throw", "[common][helper][splitStringT2]") {
-    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1", "/", "/")), geneva_exception);
+    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1", "/", "/")), gem_exception);
 }
 
 // --- getMapItem ----------------------------------------------------------
@@ -292,12 +286,12 @@ TEST_CASE(
 
 TEST_CASE("getMapItem: missing key throws", "[common][helper][getMapItem]") {
     std::map<std::string, int> m{{"a", 1}};
-    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "z"), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "z"), gem_exception);
 }
 
 TEST_CASE("getMapItem: empty map throws", "[common][helper][getMapItem]") {
     std::map<std::string, int> m;
-    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "a"), geneva_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "a"), gem_exception);
 }
 
 // --- to_string -----------------------------------------------------------
@@ -360,7 +354,7 @@ TEST_CASE(
     "environmentVariableAs: missing variable returns empty optional",
     "[common][helper][environmentVariableAs]"
 ) {
-    auto result = Gem::Common::environmentVariableAs<int>("GENEVA_TEST_NONEXISTENT_VAR_XYZ_12345");
+    auto result = Gem::Common::environmentVariableAs<int>("GEM_TEST_NONEXISTENT_VAR_XYZ_12345");
     REQUIRE_FALSE(result.has_value());
 }
 
@@ -368,22 +362,22 @@ TEST_CASE(
     "environmentVariableAs: existing variable is read and converted",
     "[common][helper][environmentVariableAs]"
 ) {
-    ::setenv("GENEVA_TEST_VAR", "42", 1);
-    auto result = Gem::Common::environmentVariableAs<int>("GENEVA_TEST_VAR");
+    ::setenv("GEM_TEST_VAR", "42", 1);
+    auto result = Gem::Common::environmentVariableAs<int>("GEM_TEST_VAR");
     REQUIRE(result.has_value());
     REQUIRE(result.value() == 42);
-    ::unsetenv("GENEVA_TEST_VAR");
+    ::unsetenv("GEM_TEST_VAR");
 }
 
 TEST_CASE(
     "environmentVariableAs: string variable is returned verbatim",
     "[common][helper][environmentVariableAs]"
 ) {
-    ::setenv("GENEVA_TEST_STR", "hello", 1);
-    auto result = Gem::Common::environmentVariableAs<std::string>("GENEVA_TEST_STR");
+    ::setenv("GEM_TEST_STR", "hello", 1);
+    auto result = Gem::Common::environmentVariableAs<std::string>("GEM_TEST_STR");
     REQUIRE(result.has_value());
     REQUIRE(result.value() == "hello");
-    ::unsetenv("GENEVA_TEST_STR");
+    ::unsetenv("GEM_TEST_STR");
 }
 
 // --- narrow ---------------------------------------------------------

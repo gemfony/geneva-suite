@@ -148,7 +148,7 @@ are structured stubs with explicit TODOs:
   headers/libs/cmake config land under the prefix; `ldd` the main executables
   for unresolved symbols; resolution through the run paths alone (`LD_LIBRARY_PATH` unset).
 * `checks/outoftree.py` — build a tiny app against the installed tree via
-  `FindGeneva`; verify the `GENEVA_BUILD_TESTS` mismatch produces a useful
+  `FindGeneva`; verify the `GEM_BUILD_TESTS` mismatch produces a useful
   error.
   Both are structured stubs (command flow documented, marked TODO) because
   they require a completed install which is itself a LONG job.

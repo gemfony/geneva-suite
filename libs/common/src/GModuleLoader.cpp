@@ -79,16 +79,16 @@ std::vector<boost::dll::shared_library> &keptModules() {
  * Internal linkage (a function-local static), so it is this translation unit's toolchain, never
  * merged with a module's copy under RTLD_GLOBAL.
  */
-const GenevaCompat &hostCompat() {
-    static const GenevaCompat COMPAT = GENEVA_BUILD_FINGERPRINT;
+const GemCompat &hostCompat() {
+    static const GemCompat COMPAT = GEM_BUILD_FINGERPRINT;
     return COMPAT;
 }
 
 const char *compilerFamilyName(std::uint32_t family) {
     switch(family) {
-    case GENEVA_COMPILER_FAMILY_GNU:
+    case GEM_COMPILER_FAMILY_GNU:
         return "GNU";
-    case GENEVA_COMPILER_FAMILY_CLANG:
+    case GEM_COMPILER_FAMILY_CLANG:
         return "Clang";
     default:
         return "unknown-compiler";
@@ -97,9 +97,9 @@ const char *compilerFamilyName(std::uint32_t family) {
 
 const char *stdlibFamilyName(std::uint32_t family) {
     switch(family) {
-    case GENEVA_STDLIB_FAMILY_LIBSTDCXX:
+    case GEM_STDLIB_FAMILY_LIBSTDCXX:
         return "libstdc++";
-    case GENEVA_STDLIB_FAMILY_LIBCXX:
+    case GEM_STDLIB_FAMILY_LIBCXX:
         return "libc++";
     default:
         return "unknown-stdlib";
@@ -107,14 +107,14 @@ const char *stdlibFamilyName(std::uint32_t family) {
 }
 
 /** @brief A one-line human description of a fingerprint, for the mismatch diagnostic. */
-std::string describeCompat(const GenevaCompat &c) {
+std::string describeCompat(const GemCompat &c) {
     std::ostringstream os;
     os << compilerFamilyName(c.compiler_family) << ' ' << c.compiler_major << '.'
        << c.compiler_minor << " / " << stdlibFamilyName(c.stdlib_family) << ' ' << c.stdlib_version
        << " / C++" << c.cxx_standard << " / cxx11abi=" << c.glibcxx_cxx11_abi << " / Boost "
        << (c.boost_version / 100000) << '.' << (c.boost_version / 100 % 1000) << '.'
-       << (c.boost_version % 100) << " / Geneva " << c.geneva_version << " / abi_flags=0x"
-       << std::hex << c.abi_flags;
+       << (c.boost_version % 100) << " / Geneva " << c.gem_version << " / abi_flags=0x" << std::hex
+       << c.abi_flags;
     return os.str();
 }
 
@@ -123,7 +123,7 @@ std::string describeCompat(const GenevaCompat &c) {
  * naming the first offending axis. Everything is matched exactly (Boost to major.minor); this is
  * Track A's exact-match policy, validated by PostgreSQL/nginx/kernel/Apache prior art.
  */
-std::string compatMismatch(const GenevaCompat &host, const GenevaCompat &mod) {
+std::string compatMismatch(const GemCompat &host, const GemCompat &mod) {
     std::ostringstream os;
     auto axis = [&os](const char *name, unsigned long long modv, unsigned long long hostv) {
         os << "toolchain mismatch on " << name << ": plugin=" << modv << ", this program=" << hostv;
@@ -157,8 +157,8 @@ std::string compatMismatch(const GenevaCompat &host, const GenevaCompat &mod) {
     else if(mod.abi_flags != host.abi_flags) {
         axis("build-mode ABI flags (debug/sanitizer)", mod.abi_flags, host.abi_flags);
     }
-    else if(mod.geneva_version != host.geneva_version) {
-        axis("Geneva version", mod.geneva_version, host.geneva_version);
+    else if(mod.gem_version != host.gem_version) {
+        axis("Geneva version", mod.gem_version, host.gem_version);
     }
     else {
         return {}; // compatible
@@ -181,7 +181,7 @@ boost::dll::shared_library &openAndKeep(const std::string &path_str) {
         );
     }
     catch(const std::exception &e) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::openAndKeep(): Error!" << '\n'
             << "Could not load the module '" << path_str << "':" << '\n'
@@ -193,25 +193,25 @@ boost::dll::shared_library &openAndKeep(const std::string &path_str) {
 }
 
 /**
- * @brief Validates a module's GenevaCompat against this host; throws with an axis-naming diagnostic
+ * @brief Validates a module's GemCompat against this host; throws with an axis-naming diagnostic
  * on any mismatch. Checks the struct-version/size envelope first (readable under any toolchain
  * skew).
  */
-void validateCompatOrThrow(const GenevaCompat &mod, const std::string &path_str) {
-    if(mod.struct_version != GENEVA_COMPAT_STRUCT_VERSION ||
+void validateCompatOrThrow(const GemCompat &mod, const std::string &path_str) {
+    if(mod.struct_version != GEM_COMPAT_STRUCT_VERSION ||
        mod.struct_size < sizeof(std::uint32_t) * 4) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::validateCompatOrThrow(): Error!" << '\n'
-            << "The module '" << path_str << "' carries an incompatible GenevaCompat layout" << '\n'
+            << "The module '" << path_str << "' carries an incompatible GemCompat layout" << '\n'
             << "(struct_version=" << mod.struct_version << ", expected "
-            << GENEVA_COMPAT_STRUCT_VERSION
+            << GEM_COMPAT_STRUCT_VERSION
             << "). Rebuild it against the Geneva libraries this program uses." << '\n'
         );
     }
     const std::string mismatch = compatMismatch(hostCompat(), mod);
     if(not mismatch.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::validateCompatOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' is not ABI-compatible with this program." << '\n'
@@ -233,39 +233,39 @@ void validateCompatOrThrow(const GenevaCompat &mod, const std::string &path_str)
  * @param manifest The module's manifest (its compat gate has already passed)
  * @param path_str The module path, for the error text
  */
-void validateAbiStampOrThrow(const GenevaModuleManifest &manifest, const std::string &path_str) {
-    if(manifest.abi_version != GENEVA_MODULE_ABI_VERSION) {
-        throw geneva_exception(
+void validateAbiStampOrThrow(const GemModuleManifest &manifest, const std::string &path_str) {
+    if(manifest.abi_version != GEM_MODULE_ABI_VERSION) {
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' was built against a different Geneva module ABI."
             << '\n'
             << "  module ABI version: " << manifest.abi_version << '\n'
-            << "  this program:       " << GENEVA_MODULE_ABI_VERSION << '\n'
+            << "  this program:       " << GEM_MODULE_ABI_VERSION << '\n'
             << "The manifest layout, the contribution-kind numbering or a kind's payload type"
             << " differ, so nothing beyond this point can be read safely. Rebuild the module"
             << " against the Geneva libraries this program uses." << '\n'
         );
     }
-    if(manifest.manifest_size != static_cast<std::uint32_t>(sizeof(GenevaModuleManifest))) {
-        throw geneva_exception(
+    if(manifest.manifest_size != static_cast<std::uint32_t>(sizeof(GemModuleManifest))) {
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' claims module ABI version " << manifest.abi_version
             << " but carries a manifest of " << manifest.manifest_size
-            << " bytes, where this program's is " << sizeof(GenevaModuleManifest) << "." << '\n'
+            << " bytes, where this program's is " << sizeof(GemModuleManifest) << "." << '\n'
             << "The ABI version was not bumped for a layout change (a Geneva bug) or the module"
             << " was built with mismatched headers. Rebuild the module against the Geneva libraries"
             << " this program uses." << '\n'
         );
     }
-    if(manifest.contribution_size != static_cast<std::uint32_t>(sizeof(GenevaContribution))) {
-        throw geneva_exception(
+    if(manifest.contribution_size != static_cast<std::uint32_t>(sizeof(GemContribution))) {
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' claims module ABI version " << manifest.abi_version
             << " but carries contributions of " << manifest.contribution_size
-            << " bytes, where this program's are " << sizeof(GenevaContribution) << "." << '\n'
+            << " bytes, where this program's are " << sizeof(GemContribution) << "." << '\n'
             << "The ABI version was not bumped for a layout change (a Geneva bug) or the module"
             << " was built with mismatched headers. Rebuild the module against the Geneva libraries"
             << " this program uses." << '\n'
@@ -278,7 +278,7 @@ void validateAbiStampOrThrow(const GenevaModuleManifest &manifest, const std::st
  *  @param manifest The module's (fully gated) manifest
  *  @param path_str The module path
  *  @return A one-line human description, e.g. `'./libFoo.so' (module "Foo" 1.99.0-beta1)` */
-std::string describeModule(const GenevaModuleManifest &manifest, const std::string &path_str) {
+std::string describeModule(const GemModuleManifest &manifest, const std::string &path_str) {
     std::ostringstream os;
     os << '\'' << path_str << '\'';
     if(manifest.module_name != nullptr) {
@@ -293,28 +293,28 @@ std::string describeModule(const GenevaModuleManifest &manifest, const std::stri
 
 /** @brief The shared open-and-validate prologue of openModule() and loadModule(): opens (and keeps)
  *  the shared object, requires the unified manifest entry point, and runs both gates -- the
- *  GenevaCompat toolchain fingerprint and the module-ABI stamp -- BEFORE any C++ contribution is
+ *  GemCompat toolchain fingerprint and the module-ABI stamp -- BEFORE any C++ contribution is
  *  touched. The caller must hold moduleMutex.
  *  @param path_str The module path (as a string, for the error texts)
  *  @param caller The calling function's name, used in the error texts
  *  @return The module's (non-null, fully gated) manifest */
-const GenevaModuleManifest *openModuleLocked(const std::string &path_str, std::string_view caller) {
+const GemModuleManifest *openModuleLocked(const std::string &path_str, std::string_view caller) {
     boost::dll::shared_library const &lib = openAndKeep(path_str);
 
-    if(not lib.has(GENEVA_MODULE_MANIFEST_SYMBOL)) {
-        throw geneva_exception(
+    if(not lib.has(GEM_MODULE_MANIFEST_SYMBOL)) {
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::" << caller << "(): Error!" << '\n'
             << "'" << path_str << "' is not a Geneva module: it does not export the '"
-            << GENEVA_MODULE_MANIFEST_SYMBOL << "' manifest entry point" << '\n'
-            << "(it may predate the module scheme, or was built without a geneva_module_manifest()"
+            << GEM_MODULE_MANIFEST_SYMBOL << "' manifest entry point" << '\n'
+            << "(it may predate the module scheme, or was built without a gem_module_manifest()"
             << " entry point -- see common/GModuleManifest.hpp)." << '\n'
         );
     }
-    const GenevaModuleManifest *manifest =
-        lib.get<geneva_module_manifest_fn>(GENEVA_MODULE_MANIFEST_SYMBOL)();
+    const GemModuleManifest *manifest =
+        lib.get<gem_module_manifest_fn>(GEM_MODULE_MANIFEST_SYMBOL)();
     if(manifest == nullptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::" << caller << "(): Error!" << '\n'
             << "The module '" << path_str << "' returned a null manifest." << '\n'
@@ -349,7 +349,7 @@ std::string describeKinds(std::span<const GContributionHandler> handlers) {
  *  @param handlers The caller's handlers */
 void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
     if(handlers.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::loadModule(): Error!" << '\n'
             << "No contribution handler was given: a program states at the call which kinds of"
@@ -359,7 +359,7 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
     std::set<std::uint32_t> kinds;
     for(const GContributionHandler &handler : handlers) {
         if(not handler.take) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "The handler for kind " << handler.kind << " (" << handler.noun
@@ -367,7 +367,7 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
             );
         }
         if(not kinds.insert(handler.kind).second) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "More than one handler was given for kind " << handler.kind << "." << '\n'
@@ -393,7 +393,7 @@ handlerFor(std::span<const GContributionHandler> handlers, std::uint32_t kind) {
 /** @brief A contribution's name for the messages; "<null>" if the manifest left it out.
  *  @param contribution The contribution
  *  @return Its name or mnemonic */
-std::string_view contributionName(const GenevaContribution &contribution) {
+std::string_view contributionName(const GemContribution &contribution) {
     return contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "<null>";
 }
 
@@ -401,17 +401,17 @@ std::string_view contributionName(const GenevaContribution &contribution) {
 
 /******************************************************************************/
 
-const GenevaCompat &thisHostCompat() {
+const GemCompat &thisHostCompat() {
     return hostCompat();
 }
 
-std::string moduleCompatMismatch(const GenevaCompat &module_compat) {
+std::string moduleCompatMismatch(const GemCompat &module_compat) {
     return compatMismatch(hostCompat(), module_compat);
 }
 
 /******************************************************************************/
 
-const GenevaModuleManifest *openModule(const std::filesystem::path &module_path) {
+const GemModuleManifest *openModule(const std::filesystem::path &module_path) {
     const std::string path_str = module_path.string();
     std::scoped_lock const lock(moduleMutex);
 
@@ -431,9 +431,9 @@ void loadModule(
     const std::string path_str = module_path.string();
     std::scoped_lock const lock(moduleMutex);
 
-    // Open + require-manifest + validate GenevaCompat and the ABI stamp, via the prologue shared
+    // Open + require-manifest + validate GemCompat and the ABI stamp, via the prologue shared
     // with openModule(); then hand every contribution to the handler of its kind.
-    const GenevaModuleManifest *manifest = openModuleLocked(path_str, "loadModule");
+    const GemModuleManifest *manifest = openModuleLocked(path_str, "loadModule");
 
     const std::string described = describeModule(*manifest, path_str);
 
@@ -441,7 +441,7 @@ void loadModule(
     // never filled in), not a legitimate no-op: say so rather than load it and let the caller fail
     // later.
     if(manifest->contributions_count == 0 || manifest->contributions == nullptr) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::loadModule(): Error!" << '\n'
             << "The module " << described << " contributes nothing: its manifest lists "
@@ -454,7 +454,7 @@ void loadModule(
     }
 
     // The contributions as a range; the manifest is a plain-C array of contributions_count entries.
-    const std::span<const GenevaContribution> contributions(
+    const std::span<const GemContribution> contributions(
         manifest->contributions,
         manifest->contributions_count
     );
@@ -462,13 +462,13 @@ void loadModule(
     // First pass: every contribution is checked before anything of the module is called, so a
     // module with one defect that can be seen from the outside hands over nothing.
     for(std::size_t i = 0; i < contributions.size(); ++i) {
-        const GenevaContribution &contribution = contributions[i];
+        const GemContribution &contribution = contributions[i];
 
         // A contribution without its factory thunk is a broken module, not something to skip
         // silently: the thing the manifest advertises would simply never appear, and the user would
         // hunt for a missing mnemonic with nothing to go on.
         if(contribution.make_factory == nullptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "Contribution " << i << " of the module " << described << " (kind "
@@ -485,7 +485,7 @@ void loadModule(
         // contribution missing without a word.
         const GContributionHandler *handler = handlerFor(handlers, contribution.kind);
         if(handler == nullptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "Contribution " << i << " of the module " << described << " has kind "
@@ -505,7 +505,7 @@ void loadModule(
 
     // Second pass: every contribution is handed over.
     for(std::size_t i = 0; i < contributions.size(); ++i) {
-        const GenevaContribution &contribution = contributions[i];
+        const GemContribution &contribution = contributions[i];
         handlerFor(handlers, contribution.kind)
             ->take(
                 contribution,

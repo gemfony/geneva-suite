@@ -181,13 +181,13 @@ It does *not* repeat the export:
 
 ```cpp
 #include <boost/config.hpp>                     // BOOST_SYMBOL_EXPORT
-#include "common/GModuleManifest.hpp"           // GenevaModuleManifest
+#include "common/GModuleManifest.hpp"           // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp"  // Gem::Geneva::individualManifest<>
 #include "MyProblem.hpp"
 
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<MyProblem>,
         "./config/MyProblem.json", "MyProblem">();
@@ -236,8 +236,8 @@ of the user's program; a client whose program has another identity ends instead 
 other code. A program gets its identity from one line of CMake per executable:
 
 ```cmake
-GENEVA_STAMP_PROGRAM(MyOptimizer)                        # the commit of this project's sources
-GENEVA_STAMP_PROGRAM(MyOptimizer IDENTITY "release-7")   # or a text of one's own
+GEM_STAMP_PROGRAM(MyOptimizer)                        # the commit of this project's sources
+GEM_STAMP_PROGRAM(MyOptimizer IDENTITY "release-7")   # or a text of one's own
 ```
 
 Without `IDENTITY` the identity is the commit of the project's sources, taken from git at every build

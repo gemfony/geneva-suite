@@ -129,7 +129,7 @@ void GSimulatedAnnealing::addConfigurationOptions_(Gem::Common::GParserBuilder &
   */
 void GSimulatedAnnealing::setTDegradationStrength(double alpha) {
     if(alpha <= 0. || alpha >= 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::setTDegradationStrength(const double&):" << '\n'
             << "alpha must be in (0,1) for SA cooling; got: " << alpha << '\n'
@@ -157,7 +157,7 @@ double GSimulatedAnnealing::getTDegradationStrength() const {
   */
 void GSimulatedAnnealing::setT0(double t0) {
     if(t0 <= 0.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::setT0(const double&):" << '\n'
             << "Got negative start temperature: " << t0 << '\n'
@@ -196,7 +196,7 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     // Note that a number of checks (e.g. population size != 0) has already been done
     // in the parent class.
     if(this->n_parents_ == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::populationSanityChecks(): Error!" << '\n'
             << "Number of parents is set to 0"
@@ -206,7 +206,7 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     // We need at least as many children as parents
     std::size_t const pop_size = this->getPopulationSize();
     if(pop_size <= this->n_parents_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::populationSanityChecks() :" << '\n'
             << "Requested size of population is too small :" << pop_size << " " << this->n_parents_
@@ -232,7 +232,7 @@ void GSimulatedAnnealing::evaluatePopulation_() {
     // parents are clean, e.g. when they were extracted from another optimization.
     for(std::size_t i = this->getNParents(); i < this->size(); i++) {
         if(not this->at(i)->is_due_for_processing()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSimulatedAnnealing::evaluatePopulation_(): Error!" << '\n'
                 << "Tried to evaluate children in range " << std::get<0>(range) << " - "
@@ -272,7 +272,7 @@ void GSimulatedAnnealing::selectBest_() {
     // Make sure our population is not smaller than its nominal size -- this
     // should have been taken care of in fixAfterJobSubmission() .
     if(this->size() < this->getDefaultPopulationSize()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::selectBest(): Error!" << '\n'
             << "Size of population is smaller than expected: " << this->size() << " / "

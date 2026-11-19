@@ -321,7 +321,7 @@ template <typename T>
 void ptrDifferenceCheck(const T *p1, const T *p2) {
 #ifdef DEBUG
     if(nullptr != p1 && p1 == p2) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::ptrDifferenceCheck<T>(): "
             << "p1 and p2 point to the same object!" << '\n'
@@ -343,7 +343,7 @@ template <typename T>
 void ptrDifferenceCheck(const std::shared_ptr<T> &p1, const std::shared_ptr<T> &p2) {
 #ifdef DEBUG
     if(p1 && p1.get() == p2.get()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::ptrDifferenceCheck<T>(): "
             << "Smart pointers p1 and p2 point to the same object!" << '\n'
@@ -365,7 +365,7 @@ void ptrDifferenceCheck(const std::shared_ptr<T> &p1, const std::shared_ptr<T> &
  * @tparam target_type The target (derived) pointer type; must derive from base_type
  * @param convert_ptr The base pointer to convert (nullptr is returned unchanged)
  * @return convert_ptr converted to const target_type*, or nullptr if the input was nullptr
- * @throws geneva_exception in DEBUG builds if the dynamic_cast fails
+ * @throws gem_exception in DEBUG builds if the dynamic_cast fails
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -375,7 +375,7 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
     if(nullptr == convert_ptr || p) {
         return p;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In g_ptr_conversion(): invalid conversion from " << typeid(base_type).name() << " to "
         << typeid(target_type).name() << '\n'
@@ -394,7 +394,7 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
  * @tparam target_type The target (derived) pointee type; must derive from base_type
  * @param convert_ptr The base shared pointer to convert (empty is returned unchanged)
  * @return convert_ptr converted to std::shared_ptr<target_type>, or empty if the input was empty
- * @throws geneva_exception in DEBUG builds if the dynamic_pointer_cast fails
+ * @throws gem_exception in DEBUG builds if the dynamic_pointer_cast fails
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -404,7 +404,7 @@ std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &
     if(nullptr == convert_ptr.get() || p) {
         return p;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In g_ptr_conversion(): invalid conversion from " << typeid(base_type).name() << " to "
         << typeid(target_type).name() << '\n'
@@ -426,7 +426,7 @@ std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &
  * @param convert_ptr The base shared pointer to convert
  * @param compare_ptr The shared pointer that convert_ptr must not alias
  * @return convert_ptr converted to std::shared_ptr<target_type>
- * @throws geneva_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -448,7 +448,7 @@ std::shared_ptr<target_type> g_convert_and_compare(
  * @param convert_ptr The base pointer to convert
  * @param compare_ptr The pointer that convert_ptr must not alias
  * @return convert_ptr converted to const target_type*
- * @throws geneva_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -468,7 +468,7 @@ g_convert_and_compare(const base_type *convert_ptr, const target_type *compare_p
  * @param convert_ref The base reference whose address is converted
  * @param compare_ptr The pointer that the converted address must not alias
  * @return The address of convert_ref converted to const target_type*
- * @throws geneva_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -732,13 +732,13 @@ void copyCloneableObjectsContainer(
  * @tparam target_type The target pointee type
  * @param p_raw The source shared pointer to convert
  * @return p_raw converted to std::shared_ptr<target_type>
- * @throws geneva_exception in DEBUG builds on a null input or a failed conversion
+ * @throws gem_exception in DEBUG builds on a null input or a failed conversion
  */
 template <typename source_type, typename target_type>
 std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_type> &p_raw) {
 #ifdef DEBUG
     if(not p_raw) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In convertSmartPointer(): pointer is empty." << '\n'
         );
@@ -747,7 +747,7 @@ std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_ty
     if(p) {
         return p;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In convertSmartPointer(): invalid conversion to " << typeid(target_type).name() << '\n'
     );
@@ -787,13 +787,13 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
  * @param sep1 The outer separator splitting raw into fragments (must differ from sep2)
  * @param sep2 The inner separator splitting each fragment into its two sub-fields
  * @return A vector of (split1_type, split2_type) tuples
- * @throws geneva_exception if sep1 and sep2 are identical, or (DEBUG) if a fragment lacks exactly two sub-fields
+ * @throws gem_exception if sep1 and sep2 are identical, or (DEBUG) if a fragment lacks exactly two sub-fields
  */
 template <typename split1_type, typename split2_type>
 std::vector<std::tuple<split1_type, split2_type>>
 splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
     if(std::string(sep1) == std::string(sep2)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In splitStringT(): sep1 and sep2 are identical: \"" << sep1 << "\" / \"" << sep2
             << "\"" << '\n'
@@ -805,7 +805,7 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
         const auto sub = Gem::Common::splitString(fragment, sep2);
 #ifdef DEBUG
         if(2 != sub.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In splitStringT(): expected 2 sub-fragments, got " << sub.size() << '\n'
             );
@@ -831,12 +831,12 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
  * @param m The map to look up in
  * @param key The key whose mapped value is returned
  * @return A reference to the mapped value associated with key, const-qualified to match @p m
- * @throws geneva_exception if the map is empty or the key is absent
+ * @throws gem_exception if the map is empty or the key is absent
  */
 template <typename map_type>
 decltype(auto) getMapItem(map_type &&m, const std::string &key) {
     if(m.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In getMapItem(): map is empty" << '\n'
         );
@@ -845,7 +845,7 @@ decltype(auto) getMapItem(map_type &&m, const std::string &key) {
     if(it != m.end()) {
         return std::forward_like<map_type>(it->second);
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In getMapItem(): key \"" << key << "\" not found" << '\n'
     );

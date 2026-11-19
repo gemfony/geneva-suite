@@ -33,4 +33,4 @@ ADD_SUBDIRECTORY ( GRandomWalk )
 ADD_SUBDIRECTORY ( GResetToOptimizationStartTest )
 ADD_SUBDIRECTORY ( GSigmaSigmaAdaptionTest )
 
-GENEVA_AGGREGATE_TARGET( "tests-geneva-manual" )
+GEM_AGGREGATE_TARGET( "tests-geneva-manual" )

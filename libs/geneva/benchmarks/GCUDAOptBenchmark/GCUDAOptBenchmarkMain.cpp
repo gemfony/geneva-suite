@@ -122,7 +122,7 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
     gpb.parseConfigFile(configFile);
 
     if(algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GCUDAOptBenchmark loadConfig(): Error!" << '\n'
             << "The algo_tags (" << algoTags.size() << "), algo_mnemonics (" << algoMnemonics.size()

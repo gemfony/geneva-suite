@@ -30,4 +30,4 @@
 ADD_SUBDIRECTORY( GConfigFileCreation )
 ADD_SUBDIRECTORY( concurrency )
 
-GENEVA_AGGREGATE_TARGET( "examples-common" )
+GEM_AGGREGATE_TARGET( "examples-common" )

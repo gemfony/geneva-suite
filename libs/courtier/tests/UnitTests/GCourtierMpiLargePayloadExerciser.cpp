@@ -44,7 +44,7 @@
 #include "common/GGlobalDefines.hpp"
 #include "weft/GBinaryArchive.hpp" // Gem::Weft::GBinary[IO]Archive
 
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+#ifdef GEM_BUILD_WITH_MPI_CONSUMER
 
 #include <cstddef>
 #include <memory>
@@ -162,4 +162,4 @@ int main() {
     return 0;
 }
 
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
+#endif /* GEM_BUILD_WITH_MPI_CONSUMER */

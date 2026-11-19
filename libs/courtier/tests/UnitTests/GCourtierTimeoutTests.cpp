@@ -782,8 +782,7 @@ TEST_CASE(
     "[courtier][timeout][config]"
 ) {
     SECTION("an absent config file materializes the two limits, both 0") {
-        const auto path =
-            std::filesystem::temp_directory_path() / "geneva_nettimeout_defaults.json";
+        const auto path = std::filesystem::temp_directory_path() / "gem_nettimeout_defaults.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig cfg;
         cfg.load(path.string()); // absent -> written with defaults, then read back
@@ -793,8 +792,7 @@ TEST_CASE(
     }
 
     SECTION("non-default values round-trip through the JSON config file") {
-        const auto path =
-            std::filesystem::temp_directory_path() / "geneva_nettimeout_roundtrip.json";
+        const auto path = std::filesystem::temp_directory_path() / "gem_nettimeout_roundtrip.json";
         std::filesystem::remove(path);
         c2::GNetworkedTimeoutConfig w;
         w.reclaim_lease_ms = 1234;

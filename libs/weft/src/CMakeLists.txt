@@ -45,7 +45,7 @@ ADD_LIBRARY ( ${WEFT_LIBNAME} SHARED ${WEFTSOURCES} )
 SET_TARGET_PROPERTIES(
     ${WEFT_LIBNAME}
     PROPERTIES
-    VERSION ${GENEVA_VERSION}
+    VERSION ${GEM_VERSION}
 	EXPORT_NAME weft
 )
 
@@ -54,7 +54,7 @@ SET_TARGET_PROPERTIES(
 TARGET_COMPILE_DEFINITIONS(
     ${WEFT_LIBNAME}
     PRIVATE
-    WEFT_VERSION_STRING="${GENEVA_VERSION_FULL}"
+    WEFT_VERSION_STRING="${GEM_VERSION_FULL}"
 )
 
 # Publish the include directory through the target so that both the in-tree build
@@ -70,7 +70,7 @@ TARGET_INCLUDE_DIRECTORIES(
 # Weft is the dependency-free foundation layer: it links NOTHING from Geneva
 # (common depends on weft, not the other way round). Its only external dependency
 # is Boost.JSON, used by the JSON codec. The C++ standard is selected centrally in
-# CMakeModules/CommonGenevaBuild.cmake.
+# CMakeModules/CommonGemBuild.cmake.
 TARGET_LINK_LIBRARIES(
     ${WEFT_LIBNAME}
     PUBLIC
@@ -78,9 +78,9 @@ TARGET_LINK_LIBRARIES(
 )
 
 # Coverage instrumentation: only applied when explicitly enabled (driven by the
-# parent option GENEVA_BUILD_WITH_COVERAGE). Costly at runtime; do not enable for
+# parent option GEM_BUILD_WITH_COVERAGE). Costly at runtime; do not enable for
 # production builds.
-IF (GENEVA_BUILD_WITH_COVERAGE)
+IF (GEM_BUILD_WITH_COVERAGE)
     IF (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         TARGET_COMPILE_OPTIONS(${WEFT_LIBNAME} PUBLIC
             -fprofile-instr-generate -fcoverage-mapping)
@@ -91,7 +91,7 @@ IF (GENEVA_BUILD_WITH_COVERAGE)
         TARGET_LINK_OPTIONS(${WEFT_LIBNAME} PUBLIC --coverage)
     ELSE ()
         MESSAGE(WARNING
-            "GENEVA_BUILD_WITH_COVERAGE: unsupported compiler "
+            "GEM_BUILD_WITH_COVERAGE: unsupported compiler "
             "${CMAKE_CXX_COMPILER_ID}; coverage flags not applied.")
     ENDIF ()
 ENDIF ()

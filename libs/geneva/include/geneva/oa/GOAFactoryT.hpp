@@ -210,7 +210,7 @@ public:
     void
     registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
         if(not cc_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GOptiomizationAlgorithmFactoryT<T>::registerContentCreator(): Error!" << '\n'
                 << "Tried to register an empty pointer" << '\n'
@@ -231,7 +231,7 @@ public:
             pluggable_om_ = pluggable_om;
         }
         else {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In FactoryT<>::registerPluggableOM(): Tried to "
                    "register empty pluggable optimization monitor"
@@ -318,7 +318,7 @@ public:
         if(max_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_iteration_cl_);
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::getMaxIterationCL(): Error!" << '\n'
             << "max_iteration_cl_ wasn't set" << '\n'
@@ -358,7 +358,7 @@ public:
         if(max_stall_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_stall_iteration_cl_);
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::getMaxStallIterationCL(): Error!" << '\n'
             << "max_stall_iteration_cl_ wasn't set" << '\n'
@@ -400,7 +400,7 @@ public:
                 std::chrono::seconds(Gem::Common::narrow<long>(max_seconds_cl_));
             return max_duration;
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::getMaxTimeCL(): Error!" << '\n'
             << "max_seconds_cl_ wasn't set" << '\n'

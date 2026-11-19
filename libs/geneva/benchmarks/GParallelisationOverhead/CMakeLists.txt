@@ -47,7 +47,7 @@ SET(LIBRARIES_TO_LINK
 TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${LIBRARIES_TO_LINK})
 
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/geneva/PerformanceTests/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/geneva/PerformanceTests/${EXECUTABLENAME}/config )
 
 # A throughput-scale run: it sweeps the number of parallel workers against a deliberately delayed
 # evaluation, so it takes minutes, not seconds -- 1144 s measured on the development host. Registered
@@ -62,11 +62,11 @@ GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/tests/gene
 ADD_TEST(NAME ${EXECUTABLENAME}Reference COMMAND ${EXECUTABLENAME} --reference)
 SET_TESTS_PROPERTIES(${EXECUTABLENAME}Reference PROPERTIES
 		LABELS "benchmark" TIMEOUT 3600 FIXTURES_SETUP ${EXECUTABLENAME}ReferenceLine)
-GENEVA_TEST_SIZE(${EXECUTABLENAME}Reference XL)
+GEM_TEST_SIZE(${EXECUTABLENAME}Reference XL)
 ADD_TEST(${EXECUTABLENAME} ${EXECUTABLENAME})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES
 		LABELS "benchmark" TIMEOUT 3600 FIXTURES_REQUIRED ${EXECUTABLENAME}ReferenceLine)
-GENEVA_TEST_SIZE(${EXECUTABLENAME} XL)
+GEM_TEST_SIZE(${EXECUTABLENAME} XL)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/benchmarks/geneva/PerformanceTests/${EXECUTABLENAME} )
 
@@ -91,7 +91,7 @@ IF (Python3_Interpreter_FOUND)
 		COMMAND ${SPEEDUP_TOOLS_CHECK} figure $<TARGET_FILE:GSpeedupFigure>
 			${CMAKE_CURRENT_BINARY_DIR}/check-figure)
 	SET_TESTS_PROPERTIES(GSpeedupFigureMeans PROPERTIES LABELS "benchmark" TIMEOUT 60)
-	GENEVA_TEST_SIZE(GSpeedupFigureMeans S)
+	GEM_TEST_SIZE(GSpeedupFigureMeans S)
 
 	ADD_TEST(NAME ${EXECUTABLENAME}RunWithClients
 		COMMAND ${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
@@ -99,7 +99,7 @@ IF (Python3_Interpreter_FOUND)
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}RunWithClients PROPERTIES
 		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
 		FIXTURES_SETUP ${EXECUTABLENAME}SharedReference)
-	GENEVA_TEST_SIZE(${EXECUTABLENAME}RunWithClients M)
+	GEM_TEST_SIZE(${EXECUTABLENAME}RunWithClients M)
 
 	# The server waits for its clients before its first run (--waitForClients): a client started
 	# seconds after the other is waited for, one client too few ends the server at the limit.
@@ -109,7 +109,7 @@ IF (Python3_Interpreter_FOUND)
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}ClientGate PROPERTIES
 		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3
 		FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
-	GENEVA_TEST_SIZE(${EXECUTABLENAME}ClientGate L)
+	GEM_TEST_SIZE(${EXECUTABLENAME}ClientGate L)
 
 	# The placement of GSubClientOverheadSameJobId's second client job on a pid of the first job's
 	# Open MPI job family, on a busy host: while two processes take pids as fast as they can (a
@@ -125,7 +125,7 @@ IF (Python3_Interpreter_FOUND)
 		ADD_TEST(NAME SpeedupToolsPidPlacementUnderLoad COMMAND ${SPEEDUP_TOOLS_CHECK} placement 2)
 		SET_TESTS_PROPERTIES(SpeedupToolsPidPlacementUnderLoad PROPERTIES
 			LABELS "benchmark" TIMEOUT 240 PROCESSORS 18 SKIP_RETURN_CODE 77)
-		GENEVA_TEST_SIZE(SpeedupToolsPidPlacementUnderLoad L)
+		GEM_TEST_SIZE(SpeedupToolsPidPlacementUnderLoad L)
 
 		ADD_TEST(NAME SpeedupToolsPidPlacementSmallPidMax
 			COMMAND ${CMAKE_COMMAND} -E env SPEEDUP_TOOLS_PID_MAX=32768
@@ -137,7 +137,7 @@ IF (Python3_Interpreter_FOUND)
 		FOREACH (_entry SpeedupToolsPidPlacementSmallPidMax SpeedupToolsSameJobIdSmallPidMax)
 			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "benchmark" TIMEOUT 60
 				PASS_REGULAR_EXPRESSION "SKIPPED: pid_max is 32768")
-			GENEVA_TEST_SIZE(${_entry} S)
+			GEM_TEST_SIZE(${_entry} S)
 		ENDFOREACH ()
 
 		ADD_TEST(NAME SpeedupToolsPlacementKilled COMMAND ${SPEEDUP_TOOLS_CHECK} placement-killed)
@@ -147,29 +147,29 @@ IF (Python3_Interpreter_FOUND)
 		FOREACH (_entry SpeedupToolsPlacementKilled SpeedupToolsPlacementKilledSmallPidMax)
 			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "benchmark" TIMEOUT 60 PROCESSORS 18
 				PASS_REGULAR_EXPRESSION "the placement check, killed, left no process behind")
-			GENEVA_TEST_SIZE(${_entry} S)
+			GEM_TEST_SIZE(${_entry} S)
 		ENDFOREACH ()
 	ENDIF ()
 
 	# A check that starts MPI jobs refuses to run without MPIRUN instead of taking a launcher from
-	# PATH, which GenevaMpiTestsRegistered could not see.
+	# PATH, which GemMpiTestsRegistered could not see.
 	ADD_TEST(NAME SpeedupToolsLauncherRequired
 		COMMAND ${CMAKE_COMMAND} -E env --unset=MPIRUN ${SPEEDUP_TOOLS_CHECK} groups
 			${CMAKE_CURRENT_BINARY_DIR}/no-program
 			${CMAKE_CURRENT_BINARY_DIR}/check-launcher-required)
 	SET_TESTS_PROPERTIES(SpeedupToolsLauncherRequired PROPERTIES LABELS "benchmark" TIMEOUT 60
 		PASS_REGULAR_EXPRESSION "FAILED: MPIRUN is not set")
-	GENEVA_TEST_SIZE(SpeedupToolsLauncherRequired S)
+	GEM_TEST_SIZE(SpeedupToolsLauncherRequired S)
 
 	ADD_TEST(NAME ${EXECUTABLENAME}ShortReferenceRefused
 		COMMAND ${SPEEDUP_TOOLS_CHECK} refusal $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-refusal)
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}ShortReferenceRefused PROPERTIES
 		LABELS "benchmark" TIMEOUT 300 PROCESSORS 3)
-	GENEVA_TEST_SIZE(${EXECUTABLENAME}ShortReferenceRefused M)
+	GEM_TEST_SIZE(${EXECUTABLENAME}ShortReferenceRefused M)
 
-	IF (GENEVA_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE)
-		GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME}RunWithMPIClients TIMEOUT 300
+	IF (GEM_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE)
+		GEM_ADD_MPI_TEST(NAME ${EXECUTABLENAME}RunWithMPIClients TIMEOUT 300
 			COMMAND ${CMAKE_COMMAND} -E env
 				"MPIRUN=${MPIEXEC_EXECUTABLE} ${MPIEXEC_PREFLAGS} ${MPIEXEC_NUMPROC_FLAG}"
 				${SPEEDUP_TOOLS_CHECK} run $<TARGET_FILE:${EXECUTABLENAME}>
@@ -178,7 +178,7 @@ IF (Python3_Interpreter_FOUND)
 		SET_TESTS_PROPERTIES(${EXECUTABLENAME}RunWithMPIClients PROPERTIES
 			LABELS "benchmark" PROCESSORS 3
 			FIXTURES_REQUIRED ${EXECUTABLENAME}SharedReference)
-		GENEVA_TEST_SIZE(${EXECUTABLENAME}RunWithMPIClients M)
+		GEM_TEST_SIZE(${EXECUTABLENAME}RunWithMPIClients M)
 	ELSE ()
 		MESSAGE(STATUS "${EXECUTABLENAME}RunWithMPIClients not registered: no MPI consumer or launcher")
 	ENDIF ()

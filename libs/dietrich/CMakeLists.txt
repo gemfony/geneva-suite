@@ -50,11 +50,11 @@ ADD_SUBDIRECTORY ( include/dietrich )
 ADD_SUBDIRECTORY ( src )
 ADD_SUBDIRECTORY ( scripts )
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()
 
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
@@ -65,4 +65,4 @@ ADD_SUBDIRECTORY ( doc )
 # Self-contained aggregate over EVERYTHING in this lib's subtree (lib + tests).
 # The top-level `gemfony-build-all` depends on this so a plain
 # `make gemfony-build-all` still builds all of dietrich.
-GENEVA_AGGREGATE_TARGET( "dietrich-all" )
+GEM_AGGREGATE_TARGET( "dietrich-all" )

@@ -35,12 +35,12 @@
 # sources the user has, including their own changes:
 #
 #   podman build -f containers/geneva/Containerfile -t geneva:cpu \
-#       --build-arg GENEVA_COMMIT=$(git rev-parse HEAD) .
+#       --build-arg GEM_COMMIT=$(git rev-parse HEAD) .
 #   docker build -f containers/geneva/Containerfile -t geneva:cpu \
-#       --build-arg GENEVA_COMMIT=$(git rev-parse HEAD) .
+#       --build-arg GEM_COMMIT=$(git rev-parse HEAD) .
 #
-# Build arguments (GENEVA_COMMIT is needed, the others are optional):
-#   GENEVA_COMMIT  the commit of the checkout (git rev-parse HEAD, with "-dirty" appended when a
+# Build arguments (GEM_COMMIT is needed, the others are optional):
+#   GEM_COMMIT  the commit of the checkout (git rev-parse HEAD, with "-dirty" appended when a
 #                  tracked file differs from it). The build context holds no .git, and a Geneva
 #                  build must know its commit: without the argument the configure fails and says so
 #   BASE_IMAGE     the distribution image (default: Ubuntu 26.10, the recommended platform)
@@ -119,13 +119,13 @@ ARG COMPILER=gcc
 ARG BUILD_MODE=Release
 ARG RUN_TESTS=1
 ARG JOBS=
-ARG GENEVA_COMMIT=
+ARG GEM_COMMIT=
 
 COPY . /src/geneva
 
 # The commit of the sources goes where the build looks for it when there is no git
-# (CMakeModules/GenevaCommit.cmake).
-RUN if [ -n "${GENEVA_COMMIT}" ]; then echo "${GENEVA_COMMIT}" > /src/geneva/GENEVA_COMMIT; fi
+# (CMakeModules/GemCommit.cmake).
+RUN if [ -n "${GEM_COMMIT}" ]; then echo "${GEM_COMMIT}" > /src/geneva/GEM_COMMIT; fi
 
 # The configuration starts from the shipped scripts/genevaConfig.gcfg, so its defaults and comments
 # stay the one reference; only the values a container build needs differ. A container is built

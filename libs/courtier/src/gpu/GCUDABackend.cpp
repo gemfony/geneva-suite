@@ -51,7 +51,7 @@ namespace Gem::Courtier::GPU {
 namespace {
 
 /**
- * @brief Throws a geneva_exception if a CUDA driver call failed.
+ * @brief Throws a gem_exception if a CUDA driver call failed.
  * @param r The result code returned by the CUDA driver call
  * @param what A short label describing the operation, included in the error message
  */
@@ -61,7 +61,7 @@ void cuCheck(CUresult r, const char *what) {
         const char *desc = nullptr;
         cudaDriver().getErrorName(r, &name);
         cudaDriver().getErrorString(r, &desc);
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: CUDA driver error in " << what << ": " << (name ? name : "?")
             << " -- " << (desc ? desc : "?") << '\n'
@@ -70,14 +70,14 @@ void cuCheck(CUresult r, const char *what) {
 }
 
 /**
- * @brief Throws a geneva_exception if an NVRTC call failed (optionally appending the build log).
+ * @brief Throws a gem_exception if an NVRTC call failed (optionally appending the build log).
  * @param r The result code returned by the NVRTC call
  * @param what A short label describing the operation, included in the error message
  * @param log Optional NVRTC build log to append to the error message
  */
 void nvrtcCheck(nvrtcResult r, const char *what, const std::string &log = {}) {
     if(r != NVRTC_SUCCESS) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: NVRTC error in " << what << ": " << nvrtcGetErrorString(r) << '\n'
             << (log.empty() ? std::string{} : ("NVRTC build log:\n" + log + "\n"))
@@ -93,7 +93,7 @@ void nvrtcCheck(nvrtcResult r, const char *what, const std::string &log = {}) {
 std::string readFile(const std::string &path) {
     std::ifstream const in(path, std::ios::binary);
     if(not in) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: could not open kernel file '" << path << "'" << '\n'
         );
@@ -216,7 +216,7 @@ std::string GCUDABackend<scalar_type>::name() const {
  *
  * Selects the device, retains its primary context, and obtains the kernel module either by loading a
  * prebuilt PTX/cubin or by NVRTC-compiling a .cu source for the device's compute capability. Throws a
- * geneva_exception if no device is found, the device id is out of range, or compilation/loading fails.
+ * gem_exception if no device is found, the device id is out of range, or compilation/loading fails.
  *
  * @tparam scalar_type The host-side scalar element type of the parameter/result buffers
  * @param spec The kernel specification (device id, kernel path, entry-point name, launch config)
@@ -231,13 +231,13 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
     int n_devices = 0;
     cuCheck(drv.deviceGetCount(&n_devices), "cuDeviceGetCount");
     if(n_devices <= 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: no CUDA devices found" << '\n'
         );
     }
     if(spec.device_id < 0 || spec.device_id >= n_devices) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDABackend: device_id " << spec.device_id << " out of range [0," << n_devices
             << ")" << '\n'

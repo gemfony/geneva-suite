@@ -139,6 +139,6 @@ Compilation
 ===========
 
 All the examples in this folder are compiled as part of the Geneva tree when it is
-configured with GENEVA_BUILD_EXAMPLES=TRUE; they use targets of the tree and cannot
+configured with GEM_BUILD_EXAMPLES=TRUE; they use targets of the tree and cannot
 be built on their own. A project that builds against an installed Geneva starts
 from ../quickstart, whose README shows the steps.

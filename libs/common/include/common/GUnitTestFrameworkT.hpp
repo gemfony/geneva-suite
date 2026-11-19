@@ -62,14 +62,14 @@ std::shared_ptr<T> TFactory_GUnitTests() {
     try {
         p = std::make_shared<T>();
     }
-    catch(const geneva_exception &) {
+    catch(const gem_exception &) {
         // Re-throw without slicing: bare `throw;` propagates the dynamic
-        // type, whereas `throw g;` would copy-construct a geneva_exception
+        // type, whereas `throw g;` would copy-construct a gem_exception
         // and discard any derived-class state.
         throw;
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In std::shared_ptr<T> TFactory_GUnitTests(): Error!" << '\n'
             << "Caught unknown exception" << '\n'

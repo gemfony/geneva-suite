@@ -145,7 +145,7 @@ std::string cfgExpectedValue() {
  *  @param s The string to parse
  *  @param key The configuration key the value belongs to (named in the error text)
  *  @return The parsed value
- *  @throws geneva_exception if @p s is not a value of type T */
+ *  @throws gem_exception if @p s is not a value of type T */
 template <typename T>
 T cfgReadWhole(std::string const &s, std::string const &key) {
     T val{};
@@ -156,7 +156,7 @@ T cfgReadWhole(std::string const &s, std::string const &key) {
     }
     iss >> val;
     if(negative_unsigned || iss.fail() || not(iss >> std::ws).eof()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "The configuration entry \"" << key << "\" has the value \"" << s
             << "\", which is not " << cfgExpectedValue<T>() << '\n'
@@ -174,7 +174,7 @@ T cfgReadWhole(std::string const &s, std::string const &key) {
  *  @param s The string to parse
  *  @param key The configuration key the value belongs to (named in the error text)
  *  @return The parsed value
- *  @throws geneva_exception if @p s is not a value of type T */
+ *  @throws gem_exception if @p s is not a value of type T */
 template <typename T>
 T cfgScalarFromString(std::string const &s, std::string const &key) {
     if constexpr(std::is_same_v<T, std::string>) {
@@ -187,7 +187,7 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
         if(s == "false" || s == "0") {
             return false;
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "The configuration entry \"" << key << "\" has the value \"" << s
             << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
@@ -200,7 +200,7 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
         using wider = std::conditional_t<std::is_signed_v<T>, int, unsigned int>;
         auto const val = cfgReadWhole<wider>(s, key);
         if(not std::in_range<T>(val)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "The configuration entry \"" << key << "\" has the value \"" << s
                 << "\", which is not an integer from "
@@ -256,13 +256,13 @@ boost::json::value cfgScalarToJson(T const &v) {
  *  @param key The key as it stands in the file (a combined parameter's sub-key as "group/key")
  *  @param expected The form the key needs, with an example
  *  @param found The entry found under the key
- *  @throws geneva_exception always */
+ *  @throws gem_exception always */
 [[noreturn]] inline void cfgRefuseEntry(
     std::string const &key,
     std::string const &expected,
     boost::json::value const &found
 ) {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "The configuration entry \"" << key
         << "\" has the wrong form: " << boost::json::serialize(found) << '\n'
@@ -276,7 +276,7 @@ boost::json::value cfgScalarToJson(T const &v) {
  *  @param parent The enclosing JSON object
  *  @param key The group label to look up
  *  @return A pointer to the group object, or nullptr if @p key is absent
- *  @throws geneva_exception if the entry under @p key is not an object (see cfgRefuseEntry()) */
+ *  @throws gem_exception if the entry under @p key is not an object (see cfgRefuseEntry()) */
 inline boost::json::object const *
 cfgGroupEntry(boost::json::object const &parent, std::string const &key) {
     auto const *v = parent.if_contains(key);
@@ -304,7 +304,7 @@ cfgGroupEntry(boost::json::object const &parent, std::string const &key) {
  *  @param group The label of the enclosing group of a combined parameter, empty otherwise (names
  *         the key in the error text)
  *  @return A pointer to the entry's "value", or nullptr if @p key is absent
- *  @throws geneva_exception if the entry is not of that form (see cfgRefuseEntry()) */
+ *  @throws gem_exception if the entry is not of that form (see cfgRefuseEntry()) */
 inline boost::json::value const *cfgEntryValue(
     boost::json::object const &parent,
     std::string const &key,
@@ -761,7 +761,7 @@ public:
 	  */
     void registerCallBackFunction(std::move_only_function<void(parameter_type)> call_back) {
         if(not call_back) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSingleParsableParameter::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
@@ -801,7 +801,7 @@ private:
         // Check that we have the right number of comments
         if(this->hasComments()) {
             if(this->numberOfComments() != 1) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GFileSingleParsableParameterT<>::save_to(): Error!" << '\n'
                     << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
@@ -821,7 +821,7 @@ private:
 	  */
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GSingleParsableParameter::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
@@ -1054,7 +1054,7 @@ public:
 	  */
     void registerCallBackFunction(std::move_only_function<void(par0_type, par1_type)> call_back) {
         if(not call_back) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileCombinedParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
@@ -1103,7 +1103,7 @@ private:
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 2) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileCombinedParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 2 comments but got " << this->numberOfComments() << '\n'
@@ -1136,7 +1136,7 @@ private:
 	  */
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileCombinedParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
@@ -1323,7 +1323,7 @@ public:
     void
     registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
         if(not call_back) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileVectorParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
@@ -1373,7 +1373,7 @@ private:
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 1) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileVectorParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
@@ -1411,7 +1411,7 @@ private:
 	  */
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileVectorParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
@@ -1593,7 +1593,7 @@ public:
         std::move_only_function<void(std::array<parameter_type, N>)> call_back
     ) {
         if(not call_back) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileArrayParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
@@ -1638,7 +1638,7 @@ private:
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 1) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileArrayParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
@@ -1647,7 +1647,7 @@ private:
 
         // Do some error checking
         if(GArrayParT<parameter_type, N>::def_val_arr_.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileArrayParsableParameterT::save_to(): Error!" << '\n'
                 << "You need to provide at least one default value" << '\n'
@@ -1682,7 +1682,7 @@ private:
 	  */
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GFileArrayParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
@@ -2074,7 +2074,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterObject::resetFileParameterDefaults(GSingleParmT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
@@ -2173,7 +2173,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterObject::resetFileParameterDefaults(GCombinedParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
@@ -2283,7 +2283,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterObject::resetFileParameterDefaults(GVectorParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
@@ -2404,7 +2404,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterObject::resetFileParameterDefaults(GArrayParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
@@ -2508,7 +2508,7 @@ private:
     ) {
         auto it = findProxyByName_(proxies, option_name);
         if(it != proxies.end()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::" << caller << ": Error!" << '\n'
                 << "Parameter " << option_name << " has already been registered" << '\n'

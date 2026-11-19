@@ -32,7 +32,7 @@
  * @brief Module "glue" that makes GLineFitIndividual a runtime-loadable Geneva individual.
  *
  * This translation unit is compiled into the module .so ONLY (never the object library): it holds the fixed
- * extern "C" entry point geneva_module_manifest(), whose symbol name is fixed for the loader's dlsym and so
+ * extern "C" entry point gem_module_manifest(), whose symbol name is fixed for the loader's dlsym and so
  * must be unique per process. It deliberately does NOT re-emit the individual's GEM_REGISTER_ARCHIVABLE --
  * that lives once in GLineFitIndividual.cpp (the individual's own, compiled into both the module and any
  * compile-in consumer), so there is exactly one archive-tag registration per type.
@@ -45,7 +45,7 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
@@ -53,8 +53,8 @@
 
 // The module entry point. The extern "C" wrapper is the only irreducible boilerplate (fixed symbol name for
 // the loader's dlsym); everything else is the typed individualManifest<> helper.
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::Individuals::GLineFitIndividual>,
         "./config/GLineFitIndividual.json",

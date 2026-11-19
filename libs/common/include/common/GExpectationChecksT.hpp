@@ -989,7 +989,7 @@ void compare(
  * This function checks whether two complex types meet a given expectation. It is assumed that
  * these types have the standard Geneva interface with corresponding "compare" functions.
  *
- * @tparam geneva_type A type satisfying the Gemfony common interface (provides a compare() member)
+ * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @param x The first parameter to be compared
  * @param y The second parameter to be compared
  * @param x_name The name of the first parameter
@@ -997,11 +997,11 @@ void compare(
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to the member compare()
  */
-template <typename geneva_type>
-    requires Gem::Common::gemfony_common_interface<geneva_type>
+template <typename gem_type>
+    requires Gem::Common::gemfony_common_interface<gem_type>
 void compare(
-    geneva_type const &x,
-    geneva_type const &y,
+    gem_type const &x,
+    gem_type const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
@@ -1064,7 +1064,7 @@ void compare(
  * It is assumed that these types have the standard Geneva interface with corresponding "compare"
  * functions.
  *
- * @tparam geneva_type A type satisfying the Gemfony common interface (provides a compare() member)
+ * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @param x The first parameter to be compared (a smart pointer; may be empty)
  * @param y The second parameter to be compared (a smart pointer; may be empty)
  * @param x_name The name of the first parameter
@@ -1072,11 +1072,11 @@ void compare(
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to the pointee compare()
  */
-template <typename geneva_type>
-    requires Gem::Common::gemfony_common_interface<geneva_type>
+template <typename gem_type>
+    requires Gem::Common::gemfony_common_interface<gem_type>
 void compare(
-    std::shared_ptr<geneva_type> const &x,
-    std::shared_ptr<geneva_type> const &y,
+    std::shared_ptr<gem_type> const &x,
+    std::shared_ptr<gem_type> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
@@ -1170,7 +1170,7 @@ void compare(
  * reported as unequal. The pointees are viewed through NON-OWNING shared_ptrs (no-op deleter) so the
  * full shared_ptr comparison logic (null handling, EQUALITY / INEQUALITY) is reused verbatim.
  *
- * @tparam geneva_type A type satisfying the Gemfony common interface (provides a compare() member)
+ * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @param x The first parameter to be compared (a uniquely-owned pointer; may be empty)
  * @param y The second parameter to be compared (a uniquely-owned pointer; may be empty)
  * @param x_name The name of the first parameter
@@ -1178,19 +1178,19 @@ void compare(
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to the pointee compare()
  */
-template <typename geneva_type>
-    requires Gem::Common::gemfony_common_interface<geneva_type>
+template <typename gem_type>
+    requires Gem::Common::gemfony_common_interface<gem_type>
 void compare(
-    std::unique_ptr<geneva_type> const &x,
-    std::unique_ptr<geneva_type> const &y,
+    std::unique_ptr<gem_type> const &x,
+    std::unique_ptr<gem_type> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     compare(
-        std::shared_ptr<geneva_type>(x.get(), [](geneva_type *) { /* non-owning */ }),
-        std::shared_ptr<geneva_type>(y.get(), [](geneva_type *) { /* non-owning */ }),
+        std::shared_ptr<gem_type>(x.get(), [](gem_type *) { /* non-owning */ }),
+        std::shared_ptr<gem_type>(y.get(), [](gem_type *) { /* non-owning */ }),
         x_name,
         y_name,
         e,
@@ -1205,7 +1205,7 @@ void compare(
  * functions. For an idea of what the template specifier does, search for "template template" in conjunction
  * with containers.
  *
- * @tparam geneva_type A type satisfying the Gemfony common interface (provides a compare() member)
+ * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @tparam c_type The sequence container template (e.g. std::vector) holding the smart pointers
  * @param x The first vector to be compared
  * @param y The second vector to be compared
@@ -1214,12 +1214,12 @@ void compare(
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to each element compare()
  */
-template <typename geneva_type, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<geneva_type>
+template <typename gem_type, template <typename, typename> class c_type>
+    requires Gem::Common::gemfony_common_interface<gem_type>
 // NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element null/content diff reporting via nested compare()) for containers of smart pointers to Geneva types; splitting would scatter the tightly-coupled error-message assembly
 void compare(
-    c_type<std::shared_ptr<geneva_type>, std::allocator<std::shared_ptr<geneva_type>>> const &x,
-    c_type<std::shared_ptr<geneva_type>, std::allocator<std::shared_ptr<geneva_type>>> const &y,
+    c_type<std::shared_ptr<gem_type>, std::allocator<std::shared_ptr<gem_type>>> const &x,
+    c_type<std::shared_ptr<gem_type>, std::allocator<std::shared_ptr<gem_type>>> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
@@ -1348,7 +1348,7 @@ void compare(
  * element addresses, so two independent clones would always be reported as unequal. Non-owning
  * shared_ptr views (no-op deleter) are built so the full shared_ptr container logic is reused verbatim.
  *
- * @tparam geneva_type A type satisfying the Gemfony common interface (provides a compare() member)
+ * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @tparam c_type The sequence container template (e.g. std::vector) holding the unique pointers
  * @param x The first vector to be compared
  * @param y The second vector to be compared
@@ -1357,25 +1357,25 @@ void compare(
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to each element compare()
  */
-template <typename geneva_type, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<geneva_type>
+template <typename gem_type, template <typename, typename> class c_type>
+    requires Gem::Common::gemfony_common_interface<gem_type>
 void compare(
-    c_type<std::unique_ptr<geneva_type>, std::allocator<std::unique_ptr<geneva_type>>> const &x,
-    c_type<std::unique_ptr<geneva_type>, std::allocator<std::unique_ptr<geneva_type>>> const &y,
+    c_type<std::unique_ptr<gem_type>, std::allocator<std::unique_ptr<gem_type>>> const &x,
+    c_type<std::unique_ptr<gem_type>, std::allocator<std::unique_ptr<gem_type>>> const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
-    std::vector<std::shared_ptr<geneva_type>> x_view;
-    std::vector<std::shared_ptr<geneva_type>> y_view;
+    std::vector<std::shared_ptr<gem_type>> x_view;
+    std::vector<std::shared_ptr<gem_type>> y_view;
     x_view.reserve(x.size());
     y_view.reserve(y.size());
     for(auto const &p : x) {
-        x_view.emplace_back(p.get(), [](geneva_type *) { /* non-owning */ });
+        x_view.emplace_back(p.get(), [](gem_type *) { /* non-owning */ });
     }
     for(auto const &p : y) {
-        y_view.emplace_back(p.get(), [](geneva_type *) { /* non-owning */ });
+        y_view.emplace_back(p.get(), [](gem_type *) { /* non-owning */ });
     }
     compare(x_view, y_view, x_name, y_name, e, limit);
 }
@@ -1406,7 +1406,7 @@ void compare(
  * It increments the token's test counter, delegates to the appropriate compare() overload using the
  * items, names and limit held by the identity struct and the expectation taken from the token, and
  * records either success or a registered error message on the token. Non-expectation exceptions are
- * re-thrown as a geneva_exception.
+ * re-thrown as a gem_exception.
  *
  * @tparam T The type of the two items wrapped by the identity struct
  * @param data The identity struct holding the two items, their names and the comparison limit
@@ -1423,14 +1423,14 @@ void compare_t(identity<T> const &data, GToken &token) {
         token.registerErrorMessage(g);
     }
     catch(const std::exception &e) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Caught std::exception with message " << '\n'
             << e.what() << '\n'
         );
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Caught unknown exception" << '\n'
         );
@@ -1443,7 +1443,7 @@ void compare_t(identity<T> const &data, GToken &token) {
  *
  * It forces the use of base_type's own compare_() member (so only the base-class slice is compared),
  * incrementing the token's test counter and recording success or a registered error message on the
- * token. Non-expectation exceptions are re-thrown as a geneva_exception.
+ * token. Non-expectation exceptions are re-thrown as a gem_exception.
  *
  * @tparam base_type The base class whose compare_() member is invoked for the comparison
  * @param x The first object whose base_type slice is compared
@@ -1465,14 +1465,14 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
         token.registerErrorMessage(g);
     }
     catch(const std::exception &e) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Caught std::exception with message" << '\n'
             << e.what() << '\n'
         );
     }
     catch(...) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Caught unknown exception" << '\n'
         );

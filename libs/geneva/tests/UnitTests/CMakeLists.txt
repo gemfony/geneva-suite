@@ -118,7 +118,7 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 	# something else" path. Geneva's own library is the one guaranteed to be there.
 	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${GENEVA_LIBNAME}>\"")
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	GENEVA_ADD_INDIVIDUAL_MODULE(GMpiMnemonicModule badmodules/GMpiMnemonicModule.cpp)
 	ADD_DEPENDENCIES(${EXECUTABLENAME} GMpiMnemonicModule ${GENEVA_MPI_LIBNAME})
 	TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
@@ -173,7 +173,7 @@ FOREACH(_i RANGE ${_last_shard_index})
 	LIST(GET GENEVA_STANDARD_TEST_SHARDS ${_spec_index} _shard_spec)
 	ADD_TEST(NAME ${EXECUTABLENAME}-${_shard_name} COMMAND ${EXECUTABLENAME} "${_shard_spec}")
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}-${_shard_name} PROPERTIES LABELS "geneva")
-	GENEVA_TEST_SIZE(${EXECUTABLENAME}-${_shard_name} ${_shard_size})
+	GEM_TEST_SIZE(${EXECUTABLENAME}-${_shard_name} ${_shard_size})
 	LIST(APPEND GENEVA_STANDARD_TEST_SPECS "${_shard_spec}")
 ENDFOREACH()
 
@@ -187,14 +187,14 @@ ADD_TEST(
 		-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckShardCompleteness.cmake
 )
 SET_TESTS_PROPERTIES(${EXECUTABLENAME}-shard-completeness PROPERTIES LABELS "geneva")
-GENEVA_TEST_SIZE(${EXECUTABLENAME}-shard-completeness M)
+GEM_TEST_SIZE(${EXECUTABLENAME}-shard-completeness M)
 
 # Run alone, in a process of its own: see the case's comment. Hidden cases are in no shard
 # (as the benchmark case "[.oabench]"), so the shard partition is not touched.
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	ADD_TEST(NAME GenevaOptionalModulesFirst COMMAND ${EXECUTABLENAME} "[optional-first]")
 	SET_TESTS_PROPERTIES(GenevaOptionalModulesFirst PROPERTIES LABELS "geneva")
-	GENEVA_TEST_SIZE(GenevaOptionalModulesFirst S)
+	GEM_TEST_SIZE(GenevaOptionalModulesFirst S)
 ENDIF()
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/geneva/UnitTests )
@@ -204,4 +204,4 @@ INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/gen
 # Take care of other particularities of this test
 #
 
-GENEVA_AGGREGATE_TARGET( "tests-geneva-unit" )
+GEM_AGGREGATE_TARGET( "tests-geneva-unit" )

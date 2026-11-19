@@ -39,8 +39,8 @@
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"                // Gem::Common::serializationMode
-#include "common/GGenevaCommit.hpp"               // Gem::Common::genevaCommit(), programIdentity()
-#include "common/GModuleManifest.hpp"             // GENEVA_VERSION_STRING
+#include "common/GGemCommit.hpp"                  // Gem::Common::gemCommit(), programIdentity()
+#include "common/GModuleManifest.hpp"             // GEM_VERSION_STRING
 #include "courtier/GCommandContainerT.hpp"        // GCommandContainerT, container_to/from_string
 #include "courtier/GCourtierEnums.hpp"            // GFrameKind
 #include "courtier/GWireSerializationContext.hpp" // GWireSerializationScope / registry / ids
@@ -127,7 +127,7 @@ void wireDecodePayload(
 /******************************************************************************/
 /**
  * @brief Server side: the HELLO a session sends first on every connection: this build (the commit
- * of the Geneva sources, Gem::Common::genevaCommit()), the identity of this program
+ * of the Geneva sources, Gem::Common::gemCommit()), the identity of this program
  * (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
  * connection, which the client takes.
  * @tparam processable_type The payload type of the command container
@@ -140,7 +140,7 @@ std::string
 buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds keep_alive) {
     GCommandContainerT<processable_type> hello{GFrameKind::NONE};
     hello.setHello(
-        std::string(Gem::Common::genevaCommit()),
+        std::string(Gem::Common::gemCommit()),
         std::string(Gem::Common::programIdentity()),
         keep_alive
     );
@@ -157,10 +157,10 @@ buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds ke
  */
 template <typename processable_type>
 std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
-    const std::string_view own = Gem::Common::genevaCommit();
+    const std::string_view own = Gem::Common::gemCommit();
     if(hello.build() != own) {
         return "The server was built from another commit: the server's Geneva commit is " +
-               hello.build() + ", this client's (Geneva " + GENEVA_VERSION_STRING + ") is " +
+               hello.build() + ", this client's (Geneva " + GEM_VERSION_STRING + ") is " +
                std::string(own) + ". Server and client must be built from the same commit.";
     }
     const std::string_view own_program = Gem::Common::programIdentity();
@@ -193,7 +193,7 @@ std::string helloProgramUnchecked(const GCommandContainerT<processable_type> &he
                             : "this client's program has no identity";
     }
     return "The program is not checked against the server's: " + which +
-           " (Geneva's CMake support stamps a program with GENEVA_STAMP_PROGRAM; a program may "
+           " (Geneva's CMake support stamps a program with GEM_STAMP_PROGRAM; a program may "
            "also call Gem::Common::setProgramIdentity()).";
 }
 

@@ -28,13 +28,13 @@
 ################################################################################
 
 # The umbrella header re-exports the full plotting stack.
-SET ( GENEVADIETRICHINCLUDES
+SET ( DIETRICHINCLUDES
 	GPlotDesigner.hpp
 )
 
 # The plotting subsystem lives in focused headers under dietrich/plotting/;
 # dietrich/GPlotDesigner.hpp remains as an umbrella that includes them.
-SET ( GENEVADIETRICHPLOTTINGINCLUDES
+SET ( DIETRICHPLOTTINGINCLUDES
 	plotting/GBasePlotter.hpp
 	plotting/GDataCollectors.hpp
 	plotting/GDataLog.hpp
@@ -52,14 +52,14 @@ SET ( GENEVADIETRICHPLOTTINGINCLUDES
 # documented public API. NOTE that the wholesale INSTALL(DIRECTORY ... *.hpp) rule below (Inv 19)
 # still ships them -- the detail/ path only marks them as off-limits; do not include them from
 # outside the dietrich sources. Listed here so IDEs surface them.
-SET ( GENEVADIETRICHPLOTTINGDETAILINCLUDES
+SET ( DIETRICHPLOTTINGDETAILINCLUDES
 	plotting/detail/GPlotDetail.hpp
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
 ADD_CUSTOM_TARGET(CLION_ALL_DIETRICH_HEADERS SOURCES
-	${GENEVADIETRICHINCLUDES} ${GENEVADIETRICHPLOTTINGINCLUDES}
-	${GENEVADIETRICHPLOTTINGDETAILINCLUDES})
+	${DIETRICHINCLUDES} ${DIETRICHPLOTTINGINCLUDES}
+	${DIETRICHPLOTTINGDETAILINCLUDES})
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
 # cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)

@@ -431,7 +431,7 @@ private:
             // An item the transport cannot carry fails here, and only it: handed to the peer,
             // it would end the connection, and the next client would meet it again.
             if(bytes.size() > max_message_bytes_) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                     << "the message of " << bytes.size()
                     << " bytes is longer than the transport can carry (" << max_message_bytes_

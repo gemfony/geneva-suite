@@ -51,7 +51,7 @@ TARGET_LINK_LIBRARIES(GGenericOptimizer ${LIBRARIES_TO_LINK})
 # configuration once an individual is loaded, so materialize with the just-built plugin (and depend on it so
 # it exists first).
 ADD_DEPENDENCIES(GGenericOptimizer GLoadableParaboloid)
-GENEVA_MATERIALIZE_CONFIGS(GGenericOptimizer
+GEM_MATERIALIZE_CONFIGS(GGenericOptimizer
 	${INSTALL_PREFIX_DATA}/examples/GLoadableIndividual/config
 	--individual $<TARGET_FILE:GLoadableParaboloid>)
 
@@ -71,7 +71,7 @@ ADD_TEST(
 # A dlopen smoke test that hangs (rather than fails) would otherwise stall the gate for CTest's 25-minute
 # default; a sub-second run gets a generous but finite bound.
 SET_TESTS_PROPERTIES(GLoadableIndividual PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GLoadableIndividual S)
+GEM_TEST_SIZE(GLoadableIndividual S)
 
 # Regression guard (Inv 15) for the GCudaRNG teardown race fixed in hap/src/GCUDARng.cu. At process exit the
 # CUDA runtime unloads while the GRandomFactory's producer threads may still be refilling on the GPU; cuRAND
@@ -80,7 +80,7 @@ GENEVA_TEST_SIZE(GLoadableIndividual S)
 # threads saturated until it exits -- the reproducer that reliably provokes the race -- so we run it many
 # times and fail if the noise reappears in ANY run. Registered only when the CUDA RNG backend is built -- the
 # defect cannot occur otherwise -- which is a real, configure-time-detected condition.
-IF(GENEVA_USE_CUDA_RNG_ENABLED)
+IF(GEM_USE_CUDA_RNG_ENABLED)
 	ADD_TEST(
 		NAME GCudaRngShutdownNoise
 		COMMAND ${CMAKE_COMMAND}
@@ -91,7 +91,7 @@ IF(GENEVA_USE_CUDA_RNG_ENABLED)
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/CheckNoCudaShutdownNoise.cmake
 	)
 	SET_TESTS_PROPERTIES(GCudaRngShutdownNoise PROPERTIES LABELS "geneva;example")
-	GENEVA_TEST_SIZE(GCudaRngShutdownNoise M)
+	GEM_TEST_SIZE(GCudaRngShutdownNoise M)
 ENDIF()
 
 INSTALL(TARGETS GGenericOptimizer GLoadableParaboloid

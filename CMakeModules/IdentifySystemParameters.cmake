@@ -59,7 +59,7 @@ SET(NONE_DEF_STANDARD_FLAG "")
 ###############################################################################
 # Set the available build types for multi-config generators, and validate
 # and set the chosen build type in single-config generators. In this last
-# case the build type is set from the value of GENEVA_BUILD_TYPE if defined,
+# case the build type is set from the value of GEM_BUILD_TYPE if defined,
 # otherwise the value of CMAKE_BUILD_TYPE is used if defined, or the
 # value 'Debug' is used as default otherwise.
 #
@@ -68,15 +68,15 @@ MACRO (
 )
 
 	#--------------------------------------------------------------------------
-	SET(GENEVA_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel;Sanitize")
+	SET(GEM_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel;Sanitize")
 
 	# Set the available build types on multi-config generators
 	IF(CMAKE_CONFIGURATION_TYPES)
 		# Due to issue http://www.cmake.org/Bug/view.php?id=5811,
 		# the new variable is not used in the first run, only if it is
 		# already in the cache... so we force a rerun
-		IF (NOT "${CMAKE_CONFIGURATION_TYPES}" STREQUAL "${GENEVA_CONFIGURATION_TYPES}")
-			SET(CMAKE_CONFIGURATION_TYPES ${GENEVA_CONFIGURATION_TYPES})
+		IF (NOT "${CMAKE_CONFIGURATION_TYPES}" STREQUAL "${GEM_CONFIGURATION_TYPES}")
+			SET(CMAKE_CONFIGURATION_TYPES ${GEM_CONFIGURATION_TYPES})
 			SET(CMAKE_CONFIGURATION_TYPES ${CMAKE_CONFIGURATION_TYPES} CACHE
 			    STRING "The available build types" FORCE)
 
@@ -115,25 +115,25 @@ MACRO (
 
 	# The build type is not needed on multi-config generators
 	IF(NOT CMAKE_CONFIGURATION_TYPES)
-		IF(GENEVA_BUILD_TYPE)
-			IF(NOT ";${GENEVA_CONFIGURATION_TYPES};" MATCHES ";${GENEVA_BUILD_TYPE};")
-				MESSAGE (FATAL_ERROR "Unknown build type GENEVA_BUILD_TYPE=${GENEVA_BUILD_TYPE}!")
+		IF(GEM_BUILD_TYPE)
+			IF(NOT ";${GEM_CONFIGURATION_TYPES};" MATCHES ";${GEM_BUILD_TYPE};")
+				MESSAGE (FATAL_ERROR "Unknown build type GEM_BUILD_TYPE=${GEM_BUILD_TYPE}!")
 			ENDIF()
-			SET(MSG "Setting the build type to ${GENEVA_BUILD_TYPE}")
-			SET(CMAKE_BUILD_TYPE ${GENEVA_BUILD_TYPE})
-			IF(${GENEVA_BUILD_TYPE} STREQUAL "Sanitize")
+			SET(MSG "Setting the build type to ${GEM_BUILD_TYPE}")
+			SET(CMAKE_BUILD_TYPE ${GEM_BUILD_TYPE})
+			IF(${GEM_BUILD_TYPE} STREQUAL "Sanitize")
 				SET(MSG "${MSG}\nThis will default to Debug on systems that do not support this setting")
 			ENDIF()
-		ELSEIF(CMAKE_BUILD_TYPE) # GENEVA_BUILD_TYPE is unset, but CMAKE_BUILD_TYPE is set and not empty
-			IF(NOT ";${GENEVA_CONFIGURATION_TYPES};" MATCHES ";${CMAKE_BUILD_TYPE};")
+		ELSEIF(CMAKE_BUILD_TYPE) # GEM_BUILD_TYPE is unset, but CMAKE_BUILD_TYPE is set and not empty
+			IF(NOT ";${GEM_CONFIGURATION_TYPES};" MATCHES ";${CMAKE_BUILD_TYPE};")
 				MESSAGE (FATAL_ERROR "Unknown build type CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}!")
 			ENDIF()
 			SET(MSG "Using build type CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
-			SET(GENEVA_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+			SET(GEM_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
 		ELSE() # Both variables are unset
 			SET(MSG "Setting the build type to default value Debug")
 			SET(CMAKE_BUILD_TYPE "Debug")
-			SET(GENEVA_BUILD_TYPE "Debug")
+			SET(GEM_BUILD_TYPE "Debug")
 		ENDIF()
 		MESSAGE ("\n${MSG}\n")
 	ENDIF ()
@@ -146,12 +146,12 @@ ENDMACRO()
 #
 FUNCTION (
     FIND_HOST_OS
-    GENEVA_OS_NAME_OUT
-    GENEVA_OS_VERSION_OUT
+    GEM_OS_NAME_OUT
+    GEM_OS_VERSION_OUT
 )
     execute_process(COMMAND uname -r OUTPUT_VARIABLE LINUX_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
-    SET(${GENEVA_OS_NAME_OUT} "Linux" PARENT_SCOPE)
-    SET(${GENEVA_OS_VERSION_OUT} "${LINUX_VERSION}" PARENT_SCOPE)
+    SET(${GEM_OS_NAME_OUT} "Linux" PARENT_SCOPE)
+    SET(${GEM_OS_VERSION_OUT} "${LINUX_VERSION}" PARENT_SCOPE)
 ENDFUNCTION()
 
 ################################################################################
@@ -159,9 +159,9 @@ ENDFUNCTION()
 #
 FUNCTION (
     SET_COMPILER_FLAGS
-    GENEVA_OS_NAME_IN
-    GENEVA_OS_VERSION_IN
-    GENEVA_BUILD_MODE_IN
+    GEM_OS_NAME_IN
+    GEM_OS_VERSION_IN
+    GEM_BUILD_MODE_IN
 )
     SET(FLAGS_LOCAL "${CMAKE_CXX_FLAGS}")
 
@@ -185,9 +185,9 @@ ENDFUNCTION()
 #
 FUNCTION (
     SET_LINKER_FLAGS
-    GENEVA_OS_NAME_IN
-    GENEVA_OS_VERSION_IN
-    GENEVA_BUILD_MODE_IN
+    GEM_OS_NAME_IN
+    GEM_OS_VERSION_IN
+    GEM_BUILD_MODE_IN
 )
     IF(CMAKE_CXX_COMPILER_ID MATCHES ${GNU_DEF_IDENTIFIER})
         # For GCC version < 9.0 add the filesystem library explicitly
@@ -203,9 +203,9 @@ ENDFUNCTION()
 #
 FUNCTION (
     GET_BUILD_FLAGS
-    GENEVA_OS_NAME_IN
-    GENEVA_OS_VERSION_IN
-    GENEVA_BUILD_MODE_IN
+    GEM_OS_NAME_IN
+    GEM_OS_VERSION_IN
+    GEM_BUILD_MODE_IN
     PLATFORM_NEEDS_LIBRARY_LINKING_OUT
 )
     # Linux does not need explicit library linking in ADD_LIBRARY targets
@@ -217,11 +217,11 @@ ENDFUNCTION()
 #
 FUNCTION (
     FLAG_UNSUPPORTED_SETUPS
-    GENEVA_OS_NAME_IN
-    GENEVA_OS_VERSION_IN
-    GENEVA_BUILD_MODE_IN
+    GEM_OS_NAME_IN
+    GEM_OS_VERSION_IN
+    GEM_BUILD_MODE_IN
 )
-    IF(NOT ${GENEVA_OS_NAME_IN} STREQUAL "Linux")
+    IF(NOT ${GEM_OS_NAME_IN} STREQUAL "Linux")
         MESSAGE(FATAL_ERROR "Geneva only supports Linux.")
     ENDIF()
 

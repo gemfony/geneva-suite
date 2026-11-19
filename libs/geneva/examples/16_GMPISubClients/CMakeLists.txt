@@ -52,14 +52,14 @@ TARGET_LINK_LIBRARIES(${EXECUTABLENAME}
 ADD_DEPENDENCIES(${EXECUTABLENAME} ${GENEVA_MPI_LIBNAME})
 
 # config/config-overrides.json: a small population, so that a run is short (Inv 22)
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
 # Run under the detected launcher with 9 processes: the submitter and two groups of four (a lead and
 # three members; sub_client_group_size is 4 in config/GMPICascade.json). One iteration of a small
 # population; every evaluation sleeps 50 ms per parameter, shared out over the group. Every member
 # must serve rounds (../../../courtier/tests/CheckJobEnds.cmake: exit code 0, the members' lines,
 # none with 0 rounds, a time limit).
-GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME} TIMEOUT 180
+GEM_ADD_MPI_TEST(NAME ${EXECUTABLENAME} TIMEOUT 180
 	COMMAND ${CMAKE_COMMAND}
 		"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};9;${MPIEXEC_PREFLAGS};$<TARGET_FILE:${EXECUTABLENAME}>;${MPIEXEC_POSTFLAGS};--consumer;mpi;--eaMaxIterations;1"
 		-DEXPECT_EXIT=zero
@@ -72,13 +72,13 @@ GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME} TIMEOUT 180
 # PROCESSORS 9 tells the `ctest -j` scheduler what this entry really costs: one CTest slot but nine
 # live ranks. Without it the scheduler counts it as one and oversubscribes the machine.
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" PROCESSORS 9)
-GENEVA_TEST_SIZE(${EXECUTABLENAME} L)
+GEM_TEST_SIZE(${EXECUTABLENAME} L)
 
 # A help request under the launcher ends with 0: no rank starts the cascade, and with it MPI,
 # before Go2 prints the text and ends the process. Each rank runs in a directory of its own.
 SET(_help_dir ${CMAKE_CURRENT_BINARY_DIR}/help)
 FILE(MAKE_DIRECTORY ${_help_dir})
-GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME}Help TIMEOUT 60
+GEM_ADD_MPI_TEST(NAME ${EXECUTABLENAME}Help TIMEOUT 60
 	COMMAND ${CMAKE_COMMAND}
 		"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};${PROJECT_SOURCE_DIR}/libs/geneva/tests/MPITests/runInRankDirectory.sh;$<TARGET_FILE:${EXECUTABLENAME}>;${MPIEXEC_POSTFLAGS};--consumer;mpi;--help"
 		-DEXPECT_EXIT=zero
@@ -87,6 +87,6 @@ GENEVA_ADD_MPI_TEST(NAME ${EXECUTABLENAME}Help TIMEOUT 60
 		-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckJobEnds.cmake
 	WORKING_DIRECTORY ${_help_dir})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME}Help PROPERTIES LABELS "geneva;example" PROCESSORS 3)
-GENEVA_TEST_SIZE(${EXECUTABLENAME}Help S)
+GEM_TEST_SIZE(${EXECUTABLENAME}Help S)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

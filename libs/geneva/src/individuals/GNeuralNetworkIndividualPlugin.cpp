@@ -32,7 +32,7 @@
  * @brief Module "glue" that makes GNeuralNetworkIndividual a runtime-loadable Geneva individual.
  *
  * Compiled into the module .so ONLY (never the object library): it holds the fixed extern "C" entry point
- * geneva_module_manifest(), whose symbol name must be unique per process. It does NOT re-emit the
+ * gem_module_manifest(), whose symbol name must be unique per process. It does NOT re-emit the
  * individual's GEM_REGISTER_ARCHIVABLE -- that lives once in GNeuralNetworkIndividual.cpp, compiled into
  * both the module and any compile-in consumer. The neural network
  * reads its training data from the config-named networkDataFile at construction (in the factory hooks).
@@ -40,14 +40,14 @@
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::Individuals::GNeuralNetworkIndividual>,
         "./config/GNeuralNetworkIndividual.json",

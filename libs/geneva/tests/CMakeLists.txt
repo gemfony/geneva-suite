@@ -29,7 +29,7 @@
 
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
-IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
 	ADD_SUBDIRECTORY ( MPITests )
 	ADD_SUBDIRECTORY ( OutOfTree )
 ENDIF ()
@@ -37,13 +37,13 @@ ENDIF ()
 # With the CUDA backend of the GPU consumer built in: no library of geneva's closure (geneva,
 # courtier, hap, dietrich, common, weft -- ldd lists them all) may need the CUDA driver library at
 # load time, so that a CUDA build still starts on machines without an NVIDIA driver.
-IF ( GENEVA_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )
+IF ( GEM_GPU_CONSUMER_ENABLED AND CMAKE_CUDA_COMPILER )
 	ADD_TEST ( NAME GenevaNoDriverLink
 		COMMAND ${CMAKE_COMMAND}
 			"-DLIBS=$<TARGET_FILE:${GENEVA_LIBNAME}>"
 			-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( GenevaNoDriverLink PROPERTIES LABELS "geneva" )
-	GENEVA_TEST_SIZE ( GenevaNoDriverLink S )
+	GEM_TEST_SIZE ( GenevaNoDriverLink S )
 ENDIF ()
 
 # With the MPI consumer built: no Geneva library, and no ordinary Geneva program, may need the MPI
@@ -52,14 +52,14 @@ ENDIF ()
 # MPI link, so that a Geneva program still starts on a machine without MPI. GenevaStandardTests
 # stands for the programs. ldd lists the whole closure, so hap, dietrich, common and weft are
 # covered with geneva.
-IF ( GENEVA_BUILD_WITH_MPI_CONSUMER )
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
 	ADD_TEST ( NAME GenevaNoMpiLink
 		COMMAND ${CMAKE_COMMAND}
 			"-DLIBS=$<TARGET_FILE:${COURTIER_LIBNAME}>;$<TARGET_FILE:${GENEVA_LIBNAME}>;$<TARGET_FILE:GenevaStandardTests>"
 			"-DPATTERN=libmpi\\.so|libgemfony-courtier-mpi"
 			-P ${PROJECT_SOURCE_DIR}/libs/courtier/tests/CheckNoDriverLink.cmake )
 	SET_TESTS_PROPERTIES ( GenevaNoMpiLink PROPERTIES LABELS "geneva" )
-	GENEVA_TEST_SIZE ( GenevaNoMpiLink S )
+	GEM_TEST_SIZE ( GenevaNoMpiLink S )
 ENDIF ()
 
-GENEVA_AGGREGATE_TARGET( "tests-geneva" )
+GEM_AGGREGATE_TARGET( "tests-geneva" )

@@ -46,14 +46,14 @@ SET(DEPENDENCIES
 		GAlgorithmChaining
 		GGenericOptimizer)
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	SET(DEPENDENCIES
 			${DEPENDENCIES}
 			GMPIConsumer
 			GMPISubClients)
 ENDIF()
 
-IF(GENEVA_GPU_CONSUMER_ENABLED)
+IF(GEM_GPU_CONSUMER_ENABLED)
 	SET(DEPENDENCIES
 		${DEPENDENCIES}
 		GCUDAWorker)
@@ -81,11 +81,11 @@ ADD_SUBDIRECTORY( 12_GPluggableOptimizationMonitors )
 ADD_SUBDIRECTORY( 13_GDependentConstraints )
 
 # Example 14 (Mona-Lisa) drives the courtier GPU consumer, so it is built only when that consumer is
-# (GENEVA_BUILD_WITH_GPU_CONSUMER -- the opt-in add-on folded into gemfony-courtier). Its kernel is
+# (GEM_BUILD_WITH_GPU_CONSUMER -- the opt-in add-on folded into gemfony-courtier). Its kernel is
 # runtime-compiled (NVRTC), so it needs no CUDA language at build time -- it builds with an
 # ordinary C++ toolchain and selects CPU/CUDA at run time. It also requires libpng (its own
 # CMakeLists skips the example if libpng is absent).
-IF(GENEVA_GPU_CONSUMER_ENABLED)
+IF(GEM_GPU_CONSUMER_ENABLED)
 	ADD_SUBDIRECTORY(14_GCUDAWorker)
 	# Example 19: a stock GFunctionIndividual evaluated on the GPU purely via "--consumer gpu" -- the
 	# store-based GPU path for an ordinary library individual. Needs no libpng (unlike example 14).
@@ -95,7 +95,7 @@ IF(GENEVA_GPU_CONSUMER_ENABLED)
 	ADD_SUBDIRECTORY(21_GLoadableGPU)
 ENDIF()
 
-IF(GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	ADD_SUBDIRECTORY( 15_GMPIConsumer )
 	ADD_SUBDIRECTORY( 16_GMPISubClients )
 ENDIF()
@@ -164,7 +164,7 @@ ENDIF()
 #
 # The reference is generated (never hand-edited) by running a representative Go2 example with
 # --update-configs, which materializes Go2.json, every registered optimization-algorithm config and the
-# standard individual config. The GENEVA_CONFIG_REFERENCE environment variable suppresses the header's
+# standard individual config. The GEM_CONFIG_REFERENCE environment variable suppresses the header's
 # creation timestamp, so the output is byte-stable and regenerating it produces no spurious diff.
 #
 # Regenerating writes into the source tree -- the ONE deliberate exception to "a build never writes into
@@ -199,7 +199,7 @@ IF(TARGET GSimpleOptimizer)
 	# These are opt-in maintenance targets (config-reference regenerates a version-controlled tree); keep
 	# them out of the aggregate build target so a normal build never runs them.
 	SET_TARGET_PROPERTIES(config-reference config-reference-check
-			PROPERTIES GENEVA_EXCLUDE_FROM_AGGREGATE TRUE)
+			PROPERTIES GEM_EXCLUDE_FROM_AGGREGATE TRUE)
 ENDIF()
 
-GENEVA_AGGREGATE_TARGET( "examples-geneva" )
+GEM_AGGREGATE_TARGET( "examples-geneva" )

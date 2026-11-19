@@ -62,12 +62,12 @@ enum class BackendKind {
  *  anything else (including the retired "cpu") throws.
  *  @param s The backend mnemonic string to parse
  *  @return BackendKind::CUDA for "cuda"
- *  @throws geneva_exception on any string other than "cuda" */
+ *  @throws gem_exception on any string other than "cuda" */
 inline BackendKind backendKindFromString(const std::string &s) {
     if(s == "cuda") {
         return BackendKind::CUDA;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In Gem::Courtier::GPU::backendKindFromString(): Error!" << '\n'
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"

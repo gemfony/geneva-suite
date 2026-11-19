@@ -61,7 +61,7 @@ namespace {
  * @param look Returns true when what is waited for is there (or when waiting must end)
  * @param pause_min The first pause
  * @param pause_max The longest pause
- * @throws geneva_exception if the pauses break checkPollPauses()'s rule
+ * @throws gem_exception if the pauses break checkPollPauses()'s rule
  */
 template <typename look_type>
 void pollUntil(
@@ -91,7 +91,7 @@ void pollUntil(
  *         whose error handler returns. The wait ends then, and a request may still be active: its
  *         buffers must stay valid, and a started collective cannot be cancelled -- the caller can
  *         only end the job (MPI_Abort)
- * @throws geneva_exception if the pauses break checkPollPauses()'s rule
+ * @throws gem_exception if the pauses break checkPollPauses()'s rule
  */
 int waitPolled(
     std::span<MPI_Request> requests,
@@ -126,7 +126,7 @@ int waitPolled(
  * @param pause_min The first pause between two looks
  * @param pause_max The longest pause between two looks
  * @return The status of the message found
- * @throws geneva_exception if MPI_Iprobe reports an error (on a communicator whose error handler
+ * @throws gem_exception if MPI_Iprobe reports an error (on a communicator whose error handler
  *         returns), or if the pauses break checkPollPauses()'s rule
  */
 MPI_Status probePolled(
@@ -148,7 +148,7 @@ MPI_Status probePolled(
         pause_max
     );
     if(result != MPI_SUCCESS) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In probePolled(): Error!" << '\n'
             << "MPI_Iprobe failed with the error code " << result << '\n'
@@ -173,7 +173,7 @@ MPI_Status probePolled(
  * @return MPI_SUCCESS, or the error code of MPI_Iscatter (nothing was started then; the other
  *         processes may wait in it) or of the wait (see waitPolled(): the collective may still be
  *         active over the buffers) -- after an error the caller can only end the job (MPI_Abort)
- * @throws geneva_exception if the pauses break checkPollPauses()'s rule
+ * @throws gem_exception if the pauses break checkPollPauses()'s rule
  */
 int mpiScatter(
     const void *send_buf,
@@ -214,7 +214,7 @@ int mpiScatter(
  * @return MPI_SUCCESS, or the error code of MPI_Igather (nothing was started then; the other
  *         processes may wait in it) or of the wait (see waitPolled(): the collective may still be
  *         active over the buffers) -- after an error the caller can only end the job (MPI_Abort)
- * @throws geneva_exception if the pauses break checkPollPauses()'s rule
+ * @throws gem_exception if the pauses break checkPollPauses()'s rule
  */
 int mpiGather(
     const void *send_buf,

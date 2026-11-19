@@ -862,7 +862,7 @@ private:
     addDataPoint(const singleParameter<data_type> &data_point, std::vector<data_type> &data_vec) {
         // Check that we haven't exceeded the size of the data vector
         if(data_point.pos >= data_vec.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParameterScan::addDataPoint(): Error!" << '\n'
                 << "Got position beyond end of data vector: " << data_point.pos << " / "

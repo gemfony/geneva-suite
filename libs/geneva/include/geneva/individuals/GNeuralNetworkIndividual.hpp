@@ -461,7 +461,7 @@ inline std::shared_ptr<networkData> createNetworkData(
 ) {
     // Check the number of supplied layers
     if(architecture.size() < 2) { // We need at least an input- and an output-layer
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
             << "Got invalid number of layers: " << architecture.size() << '\n'
@@ -470,7 +470,7 @@ inline std::shared_ptr<networkData> createNetworkData(
 
     // Check that the output layer has exactly one node
     if(architecture.back() != 1) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
             << "The output layer must have exactly one node for this training data." << '\n'
@@ -480,7 +480,7 @@ inline std::shared_ptr<networkData> createNetworkData(
 
     // Some generators require a fixed input dimension (e.g. the sin data needs 2)
     if(required_input_nodes != 0 && architecture.front() != required_input_nodes) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
             << "The input layer must have exactly " << required_input_nodes
@@ -498,7 +498,7 @@ inline std::shared_ptr<networkData> createNetworkData(
     std::size_t layer_counter = 0;
     for(auto layer_size : architecture) {
         if(layer_size == 0) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
                 << "Layer " << layer_counter << "has invalid size " << layer_size << '\n'
@@ -940,7 +940,7 @@ public:
             std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
             error << "In createDataset(): Error!" << '\n'
                   << "Received invalid data type " << t << '\n';
-            throw(geneva_exception(error.str()));
+            throw(gem_exception(error.str()));
         } // no break: the default case always throws (the trailing break was unreachable)
         }
 

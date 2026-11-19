@@ -57,7 +57,7 @@
  *
  * This is an ordinary Geneva flat individual -- nothing about it is plugin-specific. It becomes loadable
  * purely because the companion translation unit (GLoadableParaboloidPlugin.cpp) gives it a small extern "C"
- * geneva_module_manifest() entry point via Gem::Geneva::individualManifest(). The very same class could
+ * gem_module_manifest() entry point via Gem::Geneva::individualManifest(). The very same class could
  * equally be COMPILED INTO a Geneva binary.
  *
  * The problem is an @f$ n @f$-dimensional paraboloid @f$ f(x)=\sum_i x_i^2 @f$, minimised at the origin.

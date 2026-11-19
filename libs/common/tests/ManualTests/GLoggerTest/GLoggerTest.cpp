@@ -82,11 +82,11 @@ int main(int argc, char **argv) {
     glogger << "Some information " << 3 << " " << 4 << '\n' << GWARNING;
 
     // Raising an exception. Note that the data will also be written to
-    // a file named GENEVA-EXCEPTION.log
+    // a file named GEM-EXCEPTION.log
     try {
         glogger << "Some information " << 5 << " " << 6 << '\n' << GEXCEPTION;
     }
-    catch(geneva_exception &e) {
+    catch(gem_exception &e) {
         std::cout << "Caught exception with message" << '\n' << e << '\n';
     }
 

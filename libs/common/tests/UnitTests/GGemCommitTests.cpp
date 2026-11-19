@@ -27,10 +27,10 @@
  *
  ********************************************************************************/
 
-// The commit the library was built from (common/GGenevaCommit.hpp) has the form of a git commit id,
+// The commit the library was built from (common/GGemCommit.hpp) has the form of a git commit id,
 // and the identity of the user's program is set once.
-// Where the build takes it from is tested on made-up source trees by GenevaCommitSources
-// (CMakeModules/CheckGenevaCommit.cmake).
+// Where the build takes it from is tested on made-up source trees by GemCommitSources
+// (CMakeModules/CheckGemCommit.cmake).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
@@ -38,11 +38,11 @@
 #include <regex>
 #include <string>
 
-#include "common/GGenevaCommit.hpp"
+#include "common/GGemCommit.hpp"
 
-TEST_CASE("genevaCommit() is a commit id that may be marked dirty", "[common][commit]") {
-    const std::string id{Gem::Common::genevaCommit()};
-    INFO("genevaCommit(): " << id);
+TEST_CASE("gemCommit() is a commit id that may be marked dirty", "[common][commit]") {
+    const std::string id{Gem::Common::gemCommit()};
+    INFO("gemCommit(): " << id);
     CHECK(std::regex_match(id, std::regex("[0-9a-f]{40}(-dirty)?")));
 }
 

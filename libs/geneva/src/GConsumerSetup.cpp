@@ -73,11 +73,11 @@
 
 // The GPU consumer + the marshaller store it is built from -- known ONLY here (folded into
 // gemfony-courtier / geneva only when the GPU consumer is built).
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/GMarshallerSetup.hpp"
 #include "geneva/genome/GBaseGPUMarshallerT.hpp"
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
 namespace Gem::Geneva {
 
@@ -251,7 +251,7 @@ public:
     }
 };
 
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
 /**
  * @brief Provider for the (local, device-only) GPU consumer.
  *
@@ -288,7 +288,7 @@ public:
         // was selected for a problem that never registered a device marshaller.
         std::shared_ptr<Gem::Common::GProviderT<GGPUMarshallerHandle>> base;
         if(not marshallerProviderStore()->get("cuda", base) || not base) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGPUConsumerProvider::setup(): Error!" << '\n'
                 << "\"--consumer gpu\" was selected but no GPU marshaller is registered for device "
@@ -351,7 +351,7 @@ private:
         auto marshaller = std::dynamic_pointer_cast<
             Gem::Courtier::GPU::GGPUEvaluableI<gen::GGenome, scalar_type>>(handle);
         if(not marshaller) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGPUConsumerProvider::buildGPUConsumer(): Error!" << '\n'
                 << "The registered GPU marshaller does not match its own declared scalar kind."
@@ -366,7 +366,7 @@ private:
         return consumer;
     }
 };
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
 /******************************************************************************/
 /**
@@ -384,9 +384,9 @@ struct ConsumerProviderRegistrar {
             std::make_shared<GStdThreadConsumerProvider>()
         );
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
     }
 };
 
@@ -559,7 +559,7 @@ std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> ensureProcessConsum
         []() -> std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> {
             auto provider = lookupConsumerProvider(std::string(c2::GDEFAULTCONSUMERMNEMONIC));
             if(not provider) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In Gem::Geneva::ensureProcessConsumer(): Error!" << '\n'
                     << "The default consumer \"" << c2::GDEFAULTCONSUMERMNEMONIC
@@ -620,7 +620,7 @@ buildConsumerClient(const c2::ConsumerSpec &spec) {
  * @return The role of this process (consumerRole()) and, for a CLIENT, its client
  *         (buildConsumerClient()); a CLIENT also stops drawing random numbers on the GPU, as Go2's
  *         clients do
- * @throws geneva_exception for a consumer no provider is registered for
+ * @throws gem_exception for a consumer no provider is registered for
  */
 GCommandLineClient buildClientFromCommandLine(int argc, char **argv) {
     namespace po = boost::program_options;
@@ -734,12 +734,12 @@ bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic) {
  * @param spec The consumer specification
  * @param client_requested Whether the program was started as a client (--client)
  * @return The role of this process
- * @throws geneva_exception for a mnemonic no provider is registered for
+ * @throws gem_exception for a mnemonic no provider is registered for
  */
 Gem::Courtier::processRole consumerRole(const c2::ConsumerSpec &spec, bool client_requested) {
     auto provider = lookupConsumerProvider(spec.mnemonic);
     if(not provider) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::consumerRole(): Error!" << '\n'
             << "No consumer is registered under the mnemonic \"" << spec.mnemonic << "\"" << '\n'

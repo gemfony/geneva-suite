@@ -30,7 +30,7 @@
 ################################################################################
 # Helper: declare a Dietrich-library Catch2 test executable. Each call
 #
-#     geneva_dietrich_test(<exe-name> <size> <source-files...>)
+#     gem_dietrich_test(<exe-name> <size> <source-files...>)
 #
 # creates an executable, links it against ONLY the dietrich + common libraries
 # (dietrich is a leaf peer on top of common; it must not pull in hap / courtier /
@@ -42,9 +42,9 @@
 # INSTALL. It is a required argument on purpose: a new test cannot be added without
 # saying what it costs, because the size is what decides whether a gate runs it.
 
-SET(_GENEVA_DIETRICH_TEST_TARGETS "")
+SET(_GEM_DIETRICH_TEST_TARGETS "")
 
-FUNCTION(geneva_dietrich_test name size)
+FUNCTION(gem_dietrich_test name size)
 	ADD_EXECUTABLE(${name} ${ARGN})
 
 	TARGET_LINK_LIBRARIES(${name}
@@ -52,24 +52,24 @@ FUNCTION(geneva_dietrich_test name size)
 
 	ADD_TEST(${name} ${name})
 	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "dietrich")
-	GENEVA_TEST_SIZE(${name} ${size})
+	GEM_TEST_SIZE(${name} ${size})
 	INSTALL(TARGETS ${name}
 		DESTINATION ${INSTALL_PREFIX_DATA}/tests/dietrich/UnitTests)
 
 	# Append to the parent-scope aggregate list.
-	SET(_GENEVA_DIETRICH_TEST_TARGETS "${_GENEVA_DIETRICH_TEST_TARGETS};${name}"
+	SET(_GEM_DIETRICH_TEST_TARGETS "${_GEM_DIETRICH_TEST_TARGETS};${name}"
 		PARENT_SCOPE)
 ENDFUNCTION()
 
 ################################################################################
 # Test executables.
 
-geneva_dietrich_test(GPlotDesignerTests           S  GPlotDesignerTests.cpp)
+gem_dietrich_test(GPlotDesignerTests           S  GPlotDesignerTests.cpp)
 
 ################################################################################
 # Aggregate `tests-dietrich-unit` target builds every Dietrich test exe at once.
 
 ADD_CUSTOM_TARGET( "tests-dietrich-unit"
-	DEPENDS ${_GENEVA_DIETRICH_TEST_TARGETS}
+	DEPENDS ${_GEM_DIETRICH_TEST_TARGETS}
 	COMMENT "Building the unit tests for the \"dietrich\" library."
 )

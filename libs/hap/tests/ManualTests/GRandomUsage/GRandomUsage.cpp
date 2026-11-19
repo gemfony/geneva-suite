@@ -283,7 +283,7 @@ void createRandomVector(
         break;
 
     default: {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In createRandomVector(): Error!" << '\n'
             << "Received invalid distType " << dType << '\n'
@@ -340,7 +340,7 @@ int main(int argc, char **argv) {
         break;
 
     default: {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In main(): Error!" << '\n'
             << "Received invalid rnrProductionMode " << rnrProductionMode << '\n'

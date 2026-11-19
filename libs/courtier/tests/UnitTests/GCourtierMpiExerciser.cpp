@@ -79,7 +79,7 @@
 
 #include "common/GGlobalDefines.hpp"
 
-#ifdef GENEVA_BUILD_WITH_MPI_CONSUMER
+#ifdef GEM_BUILD_WITH_MPI_CONSUMER
 
 #include <algorithm>
 #include <atomic>
@@ -155,7 +155,7 @@ int lowThreadLevel(int argc, char **argv) {
     try {
         const GMPIEnvironment environment(&argc, &argv);
     }
-    catch(const geneva_exception &) {
+    catch(const gem_exception &) {
         refused = true;
     }
     MPI_Finalize(); // this program initialized MPI, so it finalizes it
@@ -178,7 +178,7 @@ int refusal(int argc, char **argv) {
             std::ignore =
                 std::make_shared<client_type>(environment, c2::Consumers::MPIConsumerConfig{});
         }
-        catch(const geneva_exception &) {
+        catch(const gem_exception &) {
             refused = true;
         }
         return verdict(refused, "the submitter was refused the MPI client");
@@ -186,7 +186,7 @@ int refusal(int argc, char **argv) {
     try {
         const consumer_type consumer(environment);
     }
-    catch(const geneva_exception &) {
+    catch(const gem_exception &) {
         refused = true;
     }
     return verdict(refused, "a client was refused the MPI consumer");
@@ -673,4 +673,4 @@ int main() {
     return 0;
 }
 
-#endif /* GENEVA_BUILD_WITH_MPI_CONSUMER */
+#endif /* GEM_BUILD_WITH_MPI_CONSUMER */

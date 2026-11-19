@@ -1,4 +1,4 @@
-# Doxygen configuration for the @GENEVA_DOC_LIB_NAME@ library.
+# Doxygen configuration for the @GEM_DOC_LIB_NAME@ library.
 #
 # Minimal template -- only the keys that genuinely differ from Doxygen's
 # defaults are set here. New Doxygen versions add and rename tags; by NOT
@@ -10,13 +10,13 @@
 # corresponding <lib>/doc/CMakeLists.txt; everything below is shared across
 # all four libraries.
 
-PROJECT_NAME           = "Geneva -- @GENEVA_DOC_LIB_NAME@ library"
-PROJECT_NUMBER         = "@GENEVA_VERSION_FULL@"
-PROJECT_BRIEF          = "@GENEVA_DOC_LIB_DESC@"
+PROJECT_NAME           = "Geneva -- @GEM_DOC_LIB_NAME@ library"
+PROJECT_NUMBER         = "@GEM_VERSION_FULL@"
+PROJECT_BRIEF          = "@GEM_DOC_LIB_DESC@"
 
 # Sources to scan: the lib's own include/ and src/ trees.
-INPUT                  = @CMAKE_SOURCE_DIR@/libs/@GENEVA_DOC_LIB_NAME@/include \
-                         @CMAKE_SOURCE_DIR@/libs/@GENEVA_DOC_LIB_NAME@/src
+INPUT                  = @CMAKE_SOURCE_DIR@/libs/@GEM_DOC_LIB_NAME@/include \
+                         @CMAKE_SOURCE_DIR@/libs/@GEM_DOC_LIB_NAME@/src
 FILE_PATTERNS          = *.cpp *.hpp *.cu
 RECURSIVE              = YES
 
@@ -30,8 +30,8 @@ XML_OUTPUT             = xml
 
 # Tag file emitted for this lib (consumed by downstream libs for cross-refs)
 # and tag files consumed from upstream libs.
-GENERATE_TAGFILE       = @CMAKE_CURRENT_BINARY_DIR@/@GENEVA_DOC_LIB_NAME@.tag
-TAGFILES               = @GENEVA_DOC_TAGFILES@
+GENERATE_TAGFILE       = @CMAKE_CURRENT_BINARY_DIR@/@GEM_DOC_LIB_NAME@.tag
+TAGFILES               = @GEM_DOC_TAGFILES@
 
 # Extract every member by default (templates + private methods are valuable
 # for understanding the implementation). Internal stays off to keep public

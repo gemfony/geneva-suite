@@ -31,4 +31,4 @@ ADD_SUBDIRECTORY ( GHelperFunctionsTest )
 ADD_SUBDIRECTORY ( GLoggerTest )
 ADD_SUBDIRECTORY ( GThreadPoolTest )
 
-GENEVA_AGGREGATE_TARGET( "tests-common-manual" )
+GEM_AGGREGATE_TARGET( "tests-common-manual" )

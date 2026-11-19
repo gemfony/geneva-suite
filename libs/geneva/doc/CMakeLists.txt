@@ -34,8 +34,8 @@ IF (NOT DOXYGEN_FOUND)
 	RETURN ()
 ENDIF ()
 
-SET (GENEVA_DOC_LIB_NAME "geneva")
-SET (GENEVA_DOC_LIB_DESC "Core optimisation: Go2 driver, GGenome "
+SET (GEM_DOC_LIB_NAME "geneva")
+SET (GEM_DOC_LIB_DESC "Core optimisation: Go2 driver, GGenome "
 		"workflow, seven optimisation algorithms (EA/SA/Swarm/GD/CGD/NM/PS), "
 		"per-category GCommonInterfaceT<Root> CRTP roots, individuals, "
 		"pluggable monitors")
@@ -43,7 +43,7 @@ SET (GENEVA_DOC_LIB_DESC "Core optimisation: Go2 driver, GGenome "
 # html paths are relative to libs/geneva/doc/html. Joined into one space-separated string (see the
 # courtier counterpart for why it is not a CMake list).
 SET (_tag_dir "${CMAKE_BINARY_DIR}/libs")
-STRING (JOIN " " GENEVA_DOC_TAGFILES
+STRING (JOIN " " GEM_DOC_TAGFILES
 		"${_tag_dir}/common/doc/common.tag=../../../common/doc/html"
 		"${_tag_dir}/hap/doc/hap.tag=../../../hap/doc/html"
 		"${_tag_dir}/dietrich/doc/dietrich.tag=../../../dietrich/doc/html"

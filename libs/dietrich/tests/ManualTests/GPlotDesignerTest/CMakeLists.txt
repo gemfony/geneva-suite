@@ -45,7 +45,7 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 #ADD_SUBDIRECTORY (config)
 
 ADD_TEST(${EXECUTABLENAME} ${EXECUTABLENAME})
-GENEVA_TEST_SIZE(${EXECUTABLENAME} S)
+GEM_TEST_SIZE(${EXECUTABLENAME} S)
 
 # Every test here -- this generator run plus each *Validity driver -- runs the SAME generator and
 # writes the same fixed output file names (result.C / result.gp / result.py / result.m /
@@ -69,7 +69,7 @@ FUNCTION(GPD_VALIDITY_TEST _name _size _driver)
 			${ARGN}
 			-P ${CMAKE_CURRENT_SOURCE_DIR}/${_driver}
 	)
-	GENEVA_TEST_SIZE(${_name} ${_size})
+	GEM_TEST_SIZE(${_name} ${_size})
 ENDFUNCTION()
 
 # Optional ROOT-validity test: feed the generated macro to the real ROOT interpreter to confirm it is
@@ -77,13 +77,13 @@ ENDFUNCTION()
 # `xvfb-run` are present -- ROOT needs a display even in batch mode on this host -- and skipped
 # gracefully otherwise so ordinary builds are unaffected. The check keys off the rendered artifact, not
 # ROOT's exit code (its headless teardown returns non-zero after a successful render).
-FIND_PROGRAM(GENEVA_ROOT_EXECUTABLE NAMES root HINTS ENV ROOTSYS PATHS /opt/root/bin PATH_SUFFIXES bin)
-FIND_PROGRAM(GENEVA_XVFB_RUN NAMES xvfb-run)
-IF(GENEVA_ROOT_EXECUTABLE AND GENEVA_XVFB_RUN)
+FIND_PROGRAM(GEM_ROOT_EXECUTABLE NAMES root HINTS ENV ROOTSYS PATHS /opt/root/bin PATH_SUFFIXES bin)
+FIND_PROGRAM(GEM_XVFB_RUN NAMES xvfb-run)
+IF(GEM_ROOT_EXECUTABLE AND GEM_XVFB_RUN)
 	GPD_VALIDITY_TEST(GPlotDesignerRootValidity S RunRootValidity.cmake
-		-DROOT_EXE=${GENEVA_ROOT_EXECUTABLE}
-		-DXVFB_RUN=${GENEVA_XVFB_RUN})
-	MESSAGE(STATUS "GPlotDesigner: ROOT validity test ENABLED (root=${GENEVA_ROOT_EXECUTABLE})")
+		-DROOT_EXE=${GEM_ROOT_EXECUTABLE}
+		-DXVFB_RUN=${GEM_XVFB_RUN})
+	MESSAGE(STATUS "GPlotDesigner: ROOT validity test ENABLED (root=${GEM_ROOT_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: ROOT validity test skipped (root and/or xvfb-run not found)")
 ENDIF()
@@ -92,11 +92,11 @@ ENDIF()
 # gnuplot interpreter to confirm it is valid gnuplot input. Enabled only when `gnuplot` is present and
 # skipped gracefully otherwise. gnuplot renders reliably headless (no xvfb needed), so the check keys
 # off BOTH a produced PNG and a zero exit code.
-FIND_PROGRAM(GENEVA_GNUPLOT_EXECUTABLE NAMES gnuplot)
-IF(GENEVA_GNUPLOT_EXECUTABLE)
+FIND_PROGRAM(GEM_GNUPLOT_EXECUTABLE NAMES gnuplot)
+IF(GEM_GNUPLOT_EXECUTABLE)
 	GPD_VALIDITY_TEST(GPlotDesignerGnuplotValidity S RunGnuplotValidity.cmake
-		-DGNUPLOT_EXE=${GENEVA_GNUPLOT_EXECUTABLE})
-	MESSAGE(STATUS "GPlotDesigner: gnuplot validity test ENABLED (gnuplot=${GENEVA_GNUPLOT_EXECUTABLE})")
+		-DGNUPLOT_EXE=${GEM_GNUPLOT_EXECUTABLE})
+	MESSAGE(STATUS "GPlotDesigner: gnuplot validity test ENABLED (gnuplot=${GEM_GNUPLOT_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: gnuplot validity test skipped (gnuplot not found)")
 ENDIF()
@@ -106,20 +106,20 @@ ENDIF()
 # python3 is present AND `python3 -c "import matplotlib"` succeeds; skipped gracefully otherwise.
 # matplotlib renders reliably headless via its Agg backend (no display/xvfb needed), so the check keys
 # off a produced (non-trivial) PNG, a zero exit code AND the absence of a Python traceback / error.
-FIND_PROGRAM(GENEVA_PYTHON3_EXECUTABLE NAMES python3)
-IF(GENEVA_PYTHON3_EXECUTABLE)
+FIND_PROGRAM(GEM_PYTHON3_EXECUTABLE NAMES python3)
+IF(GEM_PYTHON3_EXECUTABLE)
 	EXECUTE_PROCESS(
-		COMMAND ${GENEVA_PYTHON3_EXECUTABLE} -c "import matplotlib"
-		RESULT_VARIABLE GENEVA_MATPLOTLIB_RC
+		COMMAND ${GEM_PYTHON3_EXECUTABLE} -c "import matplotlib"
+		RESULT_VARIABLE GEM_MATPLOTLIB_RC
 		OUTPUT_QUIET ERROR_QUIET
 	)
 ELSE()
-	SET(GENEVA_MATPLOTLIB_RC 1)
+	SET(GEM_MATPLOTLIB_RC 1)
 ENDIF()
-IF(GENEVA_PYTHON3_EXECUTABLE AND GENEVA_MATPLOTLIB_RC EQUAL 0)
+IF(GEM_PYTHON3_EXECUTABLE AND GEM_MATPLOTLIB_RC EQUAL 0)
 	GPD_VALIDITY_TEST(GPlotDesignerMatplotlibValidity S RunMatplotlibValidity.cmake
-		-DPYTHON_EXE=${GENEVA_PYTHON3_EXECUTABLE})
-	MESSAGE(STATUS "GPlotDesigner: matplotlib validity test ENABLED (python3=${GENEVA_PYTHON3_EXECUTABLE})")
+		-DPYTHON_EXE=${GEM_PYTHON3_EXECUTABLE})
+	MESSAGE(STATUS "GPlotDesigner: matplotlib validity test ENABLED (python3=${GEM_PYTHON3_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: matplotlib validity test skipped (python3 and/or matplotlib not found)")
 ENDIF()
@@ -129,11 +129,11 @@ ENDIF()
 # the driver runs it headless (no window system) and keys off a produced (non-trivial) PNG, a zero exit
 # code AND the absence of an Octave error. Enabled only when `octave` is present; skipped gracefully
 # otherwise.
-FIND_PROGRAM(GENEVA_OCTAVE_EXECUTABLE NAMES octave octave-cli)
-IF(GENEVA_OCTAVE_EXECUTABLE)
+FIND_PROGRAM(GEM_OCTAVE_EXECUTABLE NAMES octave octave-cli)
+IF(GEM_OCTAVE_EXECUTABLE)
 	GPD_VALIDITY_TEST(GPlotDesignerOctaveValidity S RunOctaveValidity.cmake
-		-DOCTAVE_EXE=${GENEVA_OCTAVE_EXECUTABLE})
-	MESSAGE(STATUS "GPlotDesigner: Octave validity test ENABLED (octave=${GENEVA_OCTAVE_EXECUTABLE})")
+		-DOCTAVE_EXE=${GEM_OCTAVE_EXECUTABLE})
+	MESSAGE(STATUS "GPlotDesigner: Octave validity test ENABLED (octave=${GEM_OCTAVE_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: Octave validity test skipped (octave not found)")
 ENDIF()
@@ -142,35 +142,35 @@ ENDIF()
 # GDataEmitter) is correct in BOTH formats -- the binary numpy .npz (built by hand) and the CSV. The check
 # loads the .npz with numpy.load() and asserts a known series' shape and a couple of values round-trip
 # BIT-EXACTLY, then parses a couple of CSV values back. Enabled only when python3 is present AND
-# `python3 -c "import numpy"` succeeds; skipped gracefully otherwise. (GENEVA_PYTHON3_EXECUTABLE is found
+# `python3 -c "import numpy"` succeeds; skipped gracefully otherwise. (GEM_PYTHON3_EXECUTABLE is found
 # above by the matplotlib block.)
-IF(GENEVA_PYTHON3_EXECUTABLE)
+IF(GEM_PYTHON3_EXECUTABLE)
 	EXECUTE_PROCESS(
-		COMMAND ${GENEVA_PYTHON3_EXECUTABLE} -c "import numpy"
-		RESULT_VARIABLE GENEVA_NUMPY_RC
+		COMMAND ${GEM_PYTHON3_EXECUTABLE} -c "import numpy"
+		RESULT_VARIABLE GEM_NUMPY_RC
 		OUTPUT_QUIET ERROR_QUIET
 	)
 ELSE()
-	SET(GENEVA_NUMPY_RC 1)
+	SET(GEM_NUMPY_RC 1)
 ENDIF()
-IF(GENEVA_PYTHON3_EXECUTABLE AND GENEVA_NUMPY_RC EQUAL 0)
+IF(GEM_PYTHON3_EXECUTABLE AND GEM_NUMPY_RC EQUAL 0)
 	GPD_VALIDITY_TEST(GPlotDesignerDataValidity S RunDataValidity.cmake
-		-DPYTHON_EXE=${GENEVA_PYTHON3_EXECUTABLE})
-	MESSAGE(STATUS "GPlotDesigner: data validity test ENABLED (python3=${GENEVA_PYTHON3_EXECUTABLE})")
+		-DPYTHON_EXE=${GEM_PYTHON3_EXECUTABLE})
+	MESSAGE(STATUS "GPlotDesigner: data validity test ENABLED (python3=${GEM_PYTHON3_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: data validity test skipped (python3 and/or numpy not found)")
 ENDIF()
 
 # Optional render-validity test: feed a DATA export (the raw series data + self-describing manifest the
-# DATA backend writes) to the EXTERNAL renderer scripts/geneva_plot_render.py and confirm it reproduces a
+# DATA backend writes) to the EXTERNAL renderer scripts/gem_plot_render.py and confirm it reproduces a
 # figure -- i.e. that rendering can live entirely outside the C++ library. Enabled only when python3 +
 # numpy + matplotlib are all present; skipped gracefully otherwise. Keys off a produced (non-trivial) PNG,
 # a zero exit code AND the absence of a Python traceback.
-IF(GENEVA_PYTHON3_EXECUTABLE AND GENEVA_NUMPY_RC EQUAL 0 AND GENEVA_MATPLOTLIB_RC EQUAL 0)
+IF(GEM_PYTHON3_EXECUTABLE AND GEM_NUMPY_RC EQUAL 0 AND GEM_MATPLOTLIB_RC EQUAL 0)
 	GPD_VALIDITY_TEST(GPlotDesignerRenderValidity M RunRenderValidity.cmake
-		-DRENDER_PY=${CMAKE_SOURCE_DIR}/libs/dietrich/scripts/geneva_plot_render.py
-		-DPYTHON_EXE=${GENEVA_PYTHON3_EXECUTABLE})
-	MESSAGE(STATUS "GPlotDesigner: render validity test ENABLED (python3=${GENEVA_PYTHON3_EXECUTABLE})")
+		-DRENDER_PY=${CMAKE_SOURCE_DIR}/libs/dietrich/scripts/gem_plot_render.py
+		-DPYTHON_EXE=${GEM_PYTHON3_EXECUTABLE})
+	MESSAGE(STATUS "GPlotDesigner: render validity test ENABLED (python3=${GEM_PYTHON3_EXECUTABLE})")
 ELSE()
 	MESSAGE(STATUS "GPlotDesigner: render validity test skipped (python3, numpy and/or matplotlib not found)")
 ENDIF()

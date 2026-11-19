@@ -49,9 +49,9 @@ FOREACH ( _dp ${_COURTIER_DOCPROGRAMS} )
 		${COURTIER_LIBNAME} ${COMMON_LIBNAME} ${WEFT_LIBNAME} ${Boost_LIBRARIES} )
 	ADD_TEST ( NAME courtier_${_dp} COMMAND courtier_${_dp} )
 	SET_TESTS_PROPERTIES ( courtier_${_dp} PROPERTIES LABELS "courtier;docprogram" TIMEOUT 120 )
-	GENEVA_TEST_SIZE ( courtier_${_dp} S )
+	GEM_TEST_SIZE ( courtier_${_dp} S )
 	INSTALL ( TARGETS courtier_${_dp}
 		DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/courtier )
 ENDFOREACH ()
 
-GENEVA_AGGREGATE_TARGET( "docprograms-courtier" )
+GEM_AGGREGATE_TARGET( "docprograms-courtier" )

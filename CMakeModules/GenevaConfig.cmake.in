@@ -59,15 +59,15 @@
 include(CMakeFindDependencyMacro)
 
 # Geneva exposes Boost through its public headers, so consumers need a
-# compatible Boost. The component list is GENEVA_BOOST_LIBS from
-# CommonGenevaBuild.cmake, filled in when the package is configured, so it
+# compatible Boost. The component list is GEM_BOOST_LIBS from
+# CommonGemBuild.cmake, filled in when the package is configured, so it
 # cannot drift from what the build itself requires.
 # CONFIG: Boost's own BoostConfig.cmake, as the build itself uses (CMP0167); CMake's FindBoost
 # module is gone from CMake 4, and asking for it warns in every project that has not set CMP0167.
-find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST_LIBS@)
+find_dependency(Boost @GEM_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GEM_BOOST_LIBS@)
 
 # The build flavor of this installation: TRUE if it was built with testing
-# support (GENEVA_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.
+# support (GEM_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.
 # It matters to a consumer twice:
 #
 #   - a testing-enabled libgemfony-geneva embeds Catch2-based test scaffolding
@@ -81,14 +81,14 @@ find_dependency(Boost @GENEVA_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GENEVA_BOOST
 #     (see the quickstart's unit-test guard for the canonical example).
 #
 # FindGeneva.cmake, the MODULE-mode fallback, exports the same variable.
-set(GENEVA_TESTING @GENEVA_INSTALLED_WITH_TESTING@)
+set(GENEVA_TESTING @GEM_INSTALLED_WITH_TESTING@)
 if(GENEVA_TESTING)
     find_dependency(Catch2 3)
 endif()
 
 # An installation built with the MPI consumer exports Geneva::courtier-mpi, whose
 # interface names MPI::MPI_CXX (its headers include mpi.h).
-set(GENEVA_MPI @GENEVA_INSTALLED_WITH_MPI@)
+set(GENEVA_MPI @GEM_INSTALLED_WITH_MPI@)
 if(GENEVA_MPI)
     find_dependency(MPI COMPONENTS CXX)
 endif()
@@ -97,7 +97,7 @@ endif()
 # Geneva::courtier. The GPU headers are installed in any case, so a program that
 # uses them gates on this variable: without the consumer they do not link. The
 # CUDA driver is loaded at run time, so there is no dependency to find here.
-set(GENEVA_GPU @GENEVA_INSTALLED_WITH_GPU@)
+set(GENEVA_GPU @GEM_INSTALLED_WITH_GPU@)
 
 # Pull in the exported Geneva::* imported targets.
 include("${CMAKE_CURRENT_LIST_DIR}/GenevaTargets.cmake")
@@ -118,15 +118,15 @@ set(GENEVA_INDIVIDUAL_CXX_STANDARD @CMAKE_CXX_STANDARD@)
 set(GENEVA_INDIVIDUAL_ABI_OPTIONS @GENEVA_INDIVIDUAL_ABI_OPTIONS@)
 include("${CMAKE_CURRENT_LIST_DIR}/GenevaIndividualModule.cmake")
 
-# Build-time config materialization (GENEVA_MATERIALIZE_CONFIGS): a downstream project materializes a
+# Build-time config materialization (GEM_MATERIALIZE_CONFIGS): a downstream project materializes a
 # config-owning binary's configuration directory from the code's registered defaults, exactly like the
-# in-tree Geneva examples (the required GenevaRunQuiet.cmake helper is installed next to this file).
-include("${CMAKE_CURRENT_LIST_DIR}/GenevaConfigMaterialization.cmake")
+# in-tree Geneva examples (the required GemRunQuiet.cmake helper is installed next to this file).
+include("${CMAKE_CURRENT_LIST_DIR}/GemConfigMaterialization.cmake")
 
-# The stamp of a program (GENEVA_STAMP_PROGRAM): its identity, by default the commit of the project's
-# own sources, which a server names in its HELLO and a client compares (GenevaCommit.cmake, which
+# The stamp of a program (GEM_STAMP_PROGRAM): its identity, by default the commit of the project's
+# own sources, which a server names in its HELLO and a client compares (GemCommit.cmake, which
 # takes the commit, is installed next to it).
-include("${CMAKE_CURRENT_LIST_DIR}/GenevaProgramStamp.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/GemProgramStamp.cmake")
 
 # Convenience list of all imported targets, mirroring the legacy
 # GENEVA_LIBRARIES variable (now holding imported targets instead of paths).

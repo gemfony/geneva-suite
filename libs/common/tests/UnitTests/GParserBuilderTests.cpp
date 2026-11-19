@@ -52,7 +52,7 @@ using namespace Gem::Common;
 namespace {
 
 std::filesystem::path scratch(std::string const &tag) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests";
     std::filesystem::create_directories(base);
     return base / (tag + ".json");
 }
@@ -480,10 +480,10 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS(gpb.resetFileParameterDefaults<int>("nope", 1), geneva_exception);
+    CHECK_THROWS_AS(gpb.resetFileParameterDefaults<int>("nope", 1), gem_exception);
     CHECK_THROWS_AS(
         gpb.resetFileParameterDefaults<int>("nope", std::vector<int>{1}),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -524,13 +524,13 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     // The scratch helper guarantees this directory exists.
-    auto dir = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
+    auto dir = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests";
     std::filesystem::create_directories(dir);
 
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(dir), geneva_exception);
+    CHECK_THROWS_AS(gpb.writeConfigFile(dir), gem_exception);
 }
 
 TEST_CASE(
@@ -547,7 +547,7 @@ TEST_CASE(
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), geneva_exception);
+    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
     std::filesystem::remove(cfg);
 }
 
@@ -589,7 +589,7 @@ TEST_CASE(
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), geneva_exception);
+    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
 
     std::filesystem::remove(not_a_dir);
 }
@@ -598,7 +598,7 @@ TEST_CASE(
     "GParserBuilder::writeConfigFile throws for a non-.json extension",
     "[common][parser-builder]"
 ) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests";
     std::filesystem::create_directories(base);
     auto cfg = base / "config_bad_ext.txt";
     std::filesystem::remove(cfg);
@@ -606,7 +606,7 @@ TEST_CASE(
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), geneva_exception);
+    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
 }
 
 TEST_CASE(
@@ -646,13 +646,13 @@ TEST_CASE(
 ) {
     // Any existing directory makes is_regular_file() return false -> parseConfigFile throws
     // (it used to return false, which a caller could ignore and run on its defaults).
-    auto dir = std::filesystem::temp_directory_path() / "geneva_parserbuilder_tests";
+    auto dir = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests";
     std::filesystem::create_directories(dir);
 
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.parseConfigFile(dir), geneva_exception);
+    CHECK_THROWS_AS(gpb.parseConfigFile(dir), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -679,10 +679,7 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS(
-        (gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)),
-        geneva_exception
-    );
+    CHECK_THROWS_AS((gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)), gem_exception);
 }
 
 TEST_CASE(
@@ -692,7 +689,7 @@ TEST_CASE(
     GParserBuilder gpb;
     CHECK_THROWS_AS(
         (gpb.resetFileParameterDefaults<int, 2>("nope", std::array<int, 2>{1, 2})),
-        geneva_exception
+        gem_exception
     );
 }
 
@@ -1188,7 +1185,7 @@ TEST_CASE(
         ContainsSubstring(cfg.string()) &&
             ContainsSubstring(R"("scan_randomly" has the wrong form)")
     );
-    CHECK_THROWS_AS(gpb.updateConfigFile(cfg), geneva_exception);
+    CHECK_THROWS_AS(gpb.updateConfigFile(cfg), gem_exception);
     std::filesystem::remove(cfg);
 }
 

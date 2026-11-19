@@ -85,7 +85,7 @@ inline constexpr std::string_view CONFIG_EMISSION_FLAG = "--update-configs";
  * timestamp would otherwise show as a spurious diff every time it is regenerated). It is a build-internal
  * mechanism -- users never set it.
  */
-inline constexpr std::string_view CONFIG_REFERENCE_ENV = "GENEVA_CONFIG_REFERENCE";
+inline constexpr std::string_view CONFIG_REFERENCE_ENV = "GEM_CONFIG_REFERENCE";
 
 /******************************************************************************/
 /**

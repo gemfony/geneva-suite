@@ -66,7 +66,7 @@ namespace Gem::Common {
  * @brief Parses a JSON document held in a string, tolerating comments and trailing commas.
  *
  * Numbers are parsed with full precision so a floating-point value round-trips exactly. On a parse
- * error a Gem::Common::geneva_exception is thrown.
+ * error a Gem::Common::gem_exception is thrown.
  */
 boost::json::value parseJsonString(std::string_view text, std::string_view context = "");
 
@@ -124,7 +124,7 @@ void writeJsonFile(std::filesystem::path const &path, boost::json::value const &
  *    left untouched, so an override stays valid across future default/comment changes;
  *  - if it is a group and the override value is an object, the overlay recurses into it;
  *  - otherwise the override names a key the configuration does not contain, or its shape does not
- *    match the target node, and a Gem::Common::geneva_exception is thrown — a stale or mistyped
+ *    match the target node, and a Gem::Common::gem_exception is thrown — a stale or mistyped
  *    override fails loudly rather than being silently ignored.
  */
 void applyConfigOverrides(boost::json::value &base, boost::json::value const &overrides);

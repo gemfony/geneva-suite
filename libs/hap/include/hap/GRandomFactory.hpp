@@ -192,7 +192,7 @@ public:
     G_CPU_BASE_GENERATOR::result_type next() {
 #ifdef DEBUG
         if(empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In random_container::next(): Error!" << '\n'
                 << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE << '\n'
@@ -233,7 +233,7 @@ private:
 	  *
 	  * Private (only the friend GRandomFactory may construct containers). Wraps
 	  * the fill in try/catch and rethrows allocation or unknown failures as a
-	  * geneva_exception.
+	  * gem_exception.
 	  *
 	  * @tparam rng_type A std::uniform_random_bit_generator, or a bulk engine exposing generate(dst, n)
 	  * @param rng A reference to an external random number generator used to fill the whole buffer
@@ -493,7 +493,7 @@ private:
 
     /** @brief A bounded buffer holding the random number packages. The queue backend is selected at
      *  compile time by FACTORYQUEUEBACKEND (default: the std::deque-backed queue -- unchanged
-     *  behaviour; switchable to the preallocated ring via GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED). */
+     *  behaviour; switchable to the preallocated ring via GEM_HAP_FACTORY_QUEUE_PREALLOCATED). */
     Gem::Common::Concurrency::GMPMCQueueT<
         std::unique_ptr<random_container>,
         DEFAULTFACTORYBUFFERSIZE,

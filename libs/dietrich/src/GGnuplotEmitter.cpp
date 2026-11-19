@@ -449,7 +449,7 @@ void emitMultiplot(
 /******************************************************************************/
 /**
  * Emits a gnuplot script for the graph plotters (GGraph2D / GGraph2ED / GGraph3D /
- * GGraph4D). Any other plotter type triggers a clear geneva_exception. The script
+ * GGraph4D). Any other plotter type triggers a clear gem_exception. The script
  * is terminal-agnostic (the caller / validity harness prepends `set terminal` and
  * `set output`): it lays the pads out as a `set multiplot` grid and, per pad, sets
  * the axis labels and title and emits a `plot`/`splot` with one inline dataset per

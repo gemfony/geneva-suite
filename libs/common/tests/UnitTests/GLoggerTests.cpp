@@ -64,7 +64,7 @@ public:
 
 // Build a unique scratch path for file-based tests.
 std::filesystem::path scratch(std::string const &tag) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_logger_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_logger_tests";
     std::filesystem::create_directories(base);
     return base / tag;
 }
@@ -226,12 +226,12 @@ TEST_CASE("GLogger::resetLogTargets clears the registry", "[common][logger]") {
 
 TEST_CASE("GLogger::addLogTarget(empty) throws", "[common][logger]") {
     GLogger g;
-    CHECK_THROWS_AS(g.addLogTarget(std::shared_ptr<GBaseLogTarget>{}), geneva_exception);
+    CHECK_THROWS_AS(g.addLogTarget(std::shared_ptr<GBaseLogTarget>{}), gem_exception);
 }
 
 TEST_CASE("GLogger::setDefaultLogTarget(empty) throws", "[common][logger]") {
     GLogger g;
-    CHECK_THROWS_AS(g.setDefaultLogTarget(std::shared_ptr<GBaseLogTarget>{}), geneva_exception);
+    CHECK_THROWS_AS(g.setDefaultLogTarget(std::shared_ptr<GBaseLogTarget>{}), gem_exception);
 }
 
 TEST_CASE(
@@ -259,7 +259,7 @@ TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target", "[
 }
 
 TEST_CASE(
-    "GLogger::throwException: throws geneva_exception with the supplied text",
+    "GLogger::throwException: throws gem_exception with the supplied text",
     "[common][logger]"
 ) {
     GLogger g;
@@ -267,7 +267,7 @@ TEST_CASE(
         g.throwException("forwarded-error");
         FAIL("expected throw");
     }
-    catch(geneva_exception const &e) {
+    catch(gem_exception const &e) {
         CHECK(std::string(e.what()).contains("forwarded-error"));
     }
 }
@@ -307,30 +307,30 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // GLogStreamer::operator<<(GManipulator&): switch arms.
 //
-// These go through the real `glogger` singleton (the Geneva exception path
-// writes a `GENEVA-EXCEPTION.log` file as a side-effect; the warning/logging
+// These go through the real `glogger` singleton (the gem_exception path
+// writes a `GEM-EXCEPTION.log` file as a side-effect; the warning/logging
 // paths go to the registered targets — by default the console). We don't
 // assert on the file content; we just hit the code so it's instrumented.
 // TERMINATION is deliberately NOT exercised — it would call std::terminate().
 
-TEST_CASE("GLogStreamer << GEXCEPTION throws a geneva_exception", "[common][logger][manipulator]") {
+TEST_CASE("GLogStreamer << GEXCEPTION throws a gem_exception", "[common][logger][manipulator]") {
     // Ensure the side-effect log file does not survive between test runs.
     std::error_code ec;
-    std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
+    std::filesystem::remove("GEM-EXCEPTION.log", ec);
 
     bool caught = false;
     try {
         glogger << "test-payload " << 123 << '\n' << GEXCEPTION;
-        FAIL("expected geneva_exception");
+        FAIL("expected gem_exception");
     }
-    catch(geneva_exception const &e) {
+    catch(gem_exception const &e) {
         caught = true;
         // Message must include the streamed payload.
         CHECK(std::string(e.what()).contains("test-payload"));
     }
     CHECK(caught);
 
-    std::filesystem::remove("GENEVA-EXCEPTION.log", ec);
+    std::filesystem::remove("GEM-EXCEPTION.log", ec);
 }
 
 TEST_CASE(
@@ -380,7 +380,7 @@ TEST_CASE(
 
 TEST_CASE("GLogStreamer << GFILE without a path throws", "[common][logger][manipulator]") {
     // The path-less form must complain: there is no destination to write to.
-    CHECK_THROWS_AS(glogger << "should-fail" << '\n' << GFILE, geneva_exception);
+    CHECK_THROWS_AS(glogger << "should-fail" << '\n' << GFILE, gem_exception);
 }
 
 TEST_CASE(

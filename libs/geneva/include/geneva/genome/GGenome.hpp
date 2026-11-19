@@ -260,7 +260,7 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
         const bool have =
             (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
         if(not have || blob.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::load(): Error!" << '\n'
                 << "An id-only layout reference could not be resolved: the layout is not held here."
@@ -523,7 +523,7 @@ private:
             }
 #ifdef DEBUG
             if(scale > T(0) && not(stored >= T(-0.5) && stored < T(0.5))) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::externalValue(): Error!" << '\n'
                     << "Internal coordinate " << stored << " of bounded parameter " << k
@@ -569,7 +569,7 @@ private:
             const bool below = x < ch.lower[k];
             const bool above = allow_upper_bound ? (x > ch.upper[k]) : not(x < ch.upper[k]);
             if(below || above) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::externalToInternalChecked(): Error!" << '\n'
                     << "External value " << x << " is outside the "
@@ -933,7 +933,7 @@ public:
      * adopted after the pre-processor has run here, so they must not depend on its effect; an
      * environment that computes them from the pre-processed values begins the processing with
      * beginProcessing() and completes it with completeProcessing(), and process(res_vec) refuses
-     * an item so begun (geneva_exception, the candidate is left untouched).
+     * an item so begun (gem_exception, the candidate is left untouched).
      */
     individual_processing_result process(
         const std::vector<individual_processing_result> &res_vec =
@@ -946,7 +946,7 @@ public:
      * pre-processor -- feasibility gate, adoption of the results, evaluation-policy transform,
      * PROCESSED, post-processor. The processing time is @p evaluation_time plus the time of the
      * adoption.
-     * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the
+     * @throws gem_exception if @p res_vec is empty or the processing was not begun (the
      *         candidate is left untouched)
      * @throws g_processing_exception as process() does
      */
@@ -970,7 +970,7 @@ public:
      * the candidate with the EXCEPTION_CAUGHT status and is rethrown as a processing exception;
      * the post-processor runs afterwards. This is how an execution environment that evaluates
      * differently (a process group, a device) stays inside the lifecycle.
-     * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
+     * @throws gem_exception if @p evaluation is empty (the candidate is left untouched)
      */
     individual_processing_result process(evaluation_function evaluation);
 
@@ -1198,7 +1198,7 @@ public:
     std::shared_ptr<personality_type> getPersonalityTraits() {
 #ifdef DEBUG
         if(not scratch_->personalityRef()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::getPersonalityTraits<personality_type>() : Empty personality "
                    "pointer found"
@@ -1213,11 +1213,11 @@ public:
 
     /** @brief The personality-traits base pointer.
      *  @return A shared pointer to this entity's GPersonalityTraits
-     *  @throw geneva_exception (DEBUG builds) if the personality pointer is empty */
+     *  @throw gem_exception (DEBUG builds) if the personality pointer is empty */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits() {
 #ifdef DEBUG
         if(not scratch_->personalityRef()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::getPersonalityTraits() : Empty personality pointer found" << '\n'
             );
@@ -1228,10 +1228,10 @@ public:
 
     /** @brief Sets the personality of this entity.
      *  @param gpt The personality-traits object to install (must be non-null)
-     *  @throw geneva_exception if gpt is empty */
+     *  @throw gem_exception if gpt is empty */
     void setPersonality(std::shared_ptr<GPersonalityTraits> gpt) {
         if(not gpt) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::setPersonality() : Empty personality pointer passed" << '\n'
             );
@@ -1288,7 +1288,7 @@ public:
     ) {
 #ifdef DEBUG
         if(countParameters<par_type>() != par_vec.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::assignValueVector():" << '\n'
                 << "Sizes don't match: " << countParameters<par_type>() << " / " << par_vec.size()
@@ -1379,7 +1379,7 @@ public:
 
 #ifdef DEBUG
         if(n_double + n_float != par_vec.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::assignFPValueVector():" << '\n'
                 << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'
@@ -1456,7 +1456,7 @@ public:
 
 #ifdef DEBUG
         if(n_double + n_float != par_vec.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGenome::assignFPValueVectorInternal():" << '\n'
                 << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'

@@ -26,8 +26,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   CUDA examples/benchmark, the CUDA RNG backend, the GPU consumer) is enabled only when
   *both* the toolkit *and* the installed driver support CUDA ≥ 13.3; otherwise CUDA is
   auto-disabled with a warning and the rest of Geneva still builds. Escape hatches:
-  `SKIPALLCUDA=1` / `-DGENEVA_SKIP_CUDA=ON` (no CUDA); `FORCECUDA=1` /
-  `-DGENEVA_FORCE_CUDA=ON` (bypass the *driver* check for build farms/CI, still
+  `SKIPALLCUDA=1` / `-DGEM_SKIP_CUDA=ON` (no CUDA); `FORCECUDA=1` /
+  `-DGEM_FORCE_CUDA=ON` (bypass the *driver* check for build farms/CI, still
   requiring the 13.3 toolkit).
 - **A CUDA build starts on machines without an NVIDIA driver.** The GPU consumer loads the
   driver library (`libcuda.so.1`) when it is first used, instead of linking it, so a program
@@ -134,7 +134,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
   4294967295), and for an enumeration text or a number that is none of its values
   (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
-- **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `geneva_exception`
+- **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `gem_exception`
   that names the file and the cause when the file cannot be read or applied, and return
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
   `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
@@ -198,7 +198,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `buildConsumer()` returns the consumer, and a provider reads the struct with
   `Gem::Courtier::configOf<config_type>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
-  `GENEVA_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
+  `GEM_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
   via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
   like any other.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
@@ -386,7 +386,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   Boost.Serialization (above), **Boost.Filesystem has also been dropped**: Geneva's own code uses
   `std::filesystem` throughout, and the plugin loader (Boost.DLL) is compiled with
   `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`.
-  `Boost::filesystem` was removed from the library link lines, the `GENEVA_BOOST_LIBS` component
+  `Boost::filesystem` was removed from the library link lines, the `GEM_BOOST_LIBS` component
   list, the installed `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An
   installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
   headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
@@ -398,7 +398,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (header `courtier/GDemoProcessingContainers.hpp`) are no longer part of the library: they are
   test code of courtier's own tests and are neither installed nor exported.
 - **A project outside the tree finds Geneva with `find_package(Geneva)` only.** The installation
-  no longer carries the modules that build the collection itself (`CommonGenevaBuild.cmake`,
+  no longer carries the modules that build the collection itself (`CommonGemBuild.cmake`,
   the modules it includes, and `IndependentBuild.cmake` with its `SETUP_BUILD_SYSTEM` macro);
   its `CMakeModules/` directory holds `FindGeneva.cmake`, the fallback of
   `find_package(Geneva MODULE)`, and nothing else.
@@ -415,8 +415,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `README.md` is the reference author path for an algorithm module, example 18's for a problem.
 - **A module load either succeeds or says exactly what is wrong with the module.** Two gates run
   before any of a module's C++ is touched: the toolchain-compatibility fingerprint
-  (`GenevaCompat` — compiler, standard library, Boost, build-mode ABI switches and Geneva version,
-  matched axis by axis) and the **module-ABI stamp** `GENEVA_MODULE_ABI_VERSION`, which covers this
+  (`GemCompat` — compiler, standard library, Boost, build-mode ABI switches and Geneva version,
+  matched axis by axis) and the **module-ABI stamp** `GEM_MODULE_ABI_VERSION`, which covers this
   release's manifest layout, contribution-kind numbering and per-kind payload types. The stamp is
   what catches a module built against a different `common/GModuleManifest.hpp` within one Geneva
   version — something the version number alone cannot see. Beyond the gates, every other defect is
@@ -425,8 +425,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   entry point, a contribution of a kind this Geneva cannot serve (previously skipped in silence),
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
-  the `GENEVA_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
-  supply it; the stamp also carries the size of a `GenevaContribution`. A contribution has a fourth
+  the `GEM_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
+  supply it; the stamp also carries the size of a `GemContribution`. A contribution has a fourth
   member, `subject`, last: for a consumer, the item type its provider distributes
   (`typeid(...).name()`, written by `consumerManifest<>`); a hand-written entry of any other kind
   leaves it out (null). A consumer contribution without a subject, or for another item type, is
@@ -453,6 +453,41 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   spelling of `getAlgorithmName()`).
 
 ## 7. Renames and small API removals
+
+- **The libraries below geneva and the collection's build say `gem`, not `geneva`.** Their names
+  are collection-neutral: inside a name `geneva` became `gem`, `Geneva` became `Gem`, `GENEVA`
+  became `GEM`; nothing else changed. What a user changes:
+  - the CMake options and compile switches passed with `-D`: `GEM_BUILD_TYPE`,
+    `GEM_BUILD_TESTS`, `GEM_BUILD_EXAMPLES`, `GEM_BUILD_BENCHMARKS`,
+    `GEM_BUILD_WITH_MPI_CONSUMER`, `GEM_BUILD_WITH_GPU_CONSUMER`, `GEM_USE_CUDA_RNG`,
+    `GEM_SKIP_CUDA`, `GEM_FORCE_CUDA`, `GEM_MIN_CUDA_VERSION`, `GEM_SANITIZER`,
+    `GEM_BUILD_WITH_COVERAGE`, `GEM_COVERAGE_LINE_THRESHOLD`, `GEM_COVERAGE_BRANCH_THRESHOLD`,
+    `GEM_COMMON_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`,
+    `GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT`,
+    `GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE`, `GEM_HAP_FACTORY_QUEUE_PREALLOCATED` (each was
+    `GENEVA_...`). The keys of `genevaConfig.gcfg` are unchanged; a build directory configured
+    with the old names is configured again (`prepareBuild.sh <gcfg> --clean -y`);
+  - the environment variables `GEM_CONFIG_BASENAME` and `GEM_RUN_TIMEOUT` (`startLocalJobs.sh`);
+  - the log files a program writes into its working directory: `GEM-EXCEPTION.log`,
+    `GEM-TERMINATION.log`, `Gem-Library-Collection.log`;
+  - the file `GEM_COMMIT` at the top of the sources and the container build argument
+    `GEM_COMMIT` (`--build-arg GEM_COMMIT=$(git rev-parse HEAD)`);
+  - the CMake presets `gem-default` (`CMakePresets.json`) and `gem-from-script` (written by
+    `prepareBuild.sh`);
+  - the functions of the installed CMake package `GEM_STAMP_PROGRAM()` and
+    `GEM_MATERIALIZE_CONFIGS()`;
+  - in C++: `gem_exception`, the module manifest (`GemModuleManifest`, `GemContribution`,
+    `GemCompat`, `GEM_MODULE_ABI_STAMP`, `GEM_MODULE_ABI_VERSION`, `GEM_CONTRIBUTION_*`,
+    `GEM_BUILD_FINGERPRINT`), the exported entry point `gem_module_manifest()` (a module built
+    before the rename is not found and is rebuilt), the version macros `GEM_VERSION`,
+    `GEM_VERSION_MAJOR` / `_MINOR` / `_PATCH` / `_PRERELEASE` / `_STRING`, and
+    `Gem::Common::gemCommit()` in `common/GGemCommit.hpp`.
+
+  What stays: the package (`find_package(Geneva)`, the `Geneva::` targets and every result
+  variable of the package, `GENEVA_VERSION` included), `GENEVA_ADD_INDIVIDUAL_MODULE()` and
+  `GENEVA_DECLARE_INDIVIDUAL()`, install paths, image and package names, `genevaConfig.gcfg`
+  and its keys, the keys of configuration files and the command-line options of programs, and
+  everything of the geneva library (`Gem::Geneva`).
 
 - **A parameter-scan or profile specification carries no label.** A variable is addressed by
   its index in the value channel of its type (`d(0, -1., 1., 10)`); a trailing label such as
@@ -595,15 +630,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   / `...UPPERBOUNDARYMSEC` are **removed**. The pauses, time limits and defaults of the networked
   consumers are named constants in `courtier/GCourtierEnums.hpp`.
 - **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
-  commit of the server's Geneva sources, `Gem::Common::genevaCommit()`, and the keep-alive
+  commit of the server's Geneva sources, `Gem::Common::gemCommit()`, and the keep-alive
   interval); a client built from another commit ends with a message that names both commits.
   Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has
-  changed), else from the file `GENEVA_COMMIT`, which `git archive` fills in and a build that
+  changed), else from the file `GEM_COMMIT`, which `git archive` fills in and a build that
   copies the sources without `.git` writes (the container build: the build argument
-  `GENEVA_COMMIT`); a tree without either does not configure. The `HELLO` names the identity of
+  `GEM_COMMIT`); a tree without either does not configure. The `HELLO` names the identity of
   the user's program as well (`Gem::Common::programIdentity()`): a client whose program has
   another one ends in the same way; where one side has none, the program is not checked and the
-  client says so once in its log. `GENEVA_STAMP_PROGRAM(<target> [IDENTITY <text>])` of Geneva's
+  client says so once in its log. `GEM_STAMP_PROGRAM(<target> [IDENTITY <text>])` of Geneva's
   CMake support stamps an executable with the commit of the project's own sources or a text of
   one's own; the quick start's template stamps its programs. A client asks for one item with `PULL`, the
   server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for

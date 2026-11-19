@@ -193,7 +193,7 @@ public:
             // The queue is closed (pool shutting down): surface the failure through
             // the future rather than losing it silently.
             promise_ptr->set_exception(
-                std::make_exception_ptr(geneva_exception(
+                std::make_exception_ptr(gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GThreadPool::async_schedule(): submission after the pool was closed"
                     << '\n'

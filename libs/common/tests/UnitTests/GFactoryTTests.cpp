@@ -102,7 +102,7 @@ public:
 // Creates and returns a path to a config file with the given content. The
 // content does not need to be parseable for tests of write/path behaviour.
 std::filesystem::path make_config(std::string const &tag, std::string const &content = "{}") {
-    auto base = std::filesystem::temp_directory_path() / "geneva_factory_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_factory_tests";
     std::filesystem::create_directories(base);
     auto p = base / (tag + ".json"); // GParserBuilder enforces .json
     {
@@ -176,8 +176,8 @@ TEST_CASE("GFactoryT::operator() forwards to get()", "[common][factory]") {
 TEST_CASE("GFactoryT::get() throws when the config path cannot be opened", "[common][factory]") {
     // Point at a directory that cannot exist + lacks the .json extension. The
     // wrapper's parse step throws either way.
-    TestFactory f(unreachable_config("geneva_does_not_exist.cfg"));
-    CHECK_THROWS_AS(f.get(), geneva_exception);
+    TestFactory f(unreachable_config("gem_does_not_exist.cfg"));
+    CHECK_THROWS_AS(f.get(), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +224,7 @@ TEST_CASE(
 TEST_CASE("GFactoryT::clone() in the base throws (intentional trap)", "[common][factory]") {
     auto p = make_config("clone_trap");
     TestFactory const f(p);
-    CHECK_THROWS_AS(f.clone(), geneva_exception);
+    CHECK_THROWS_AS(f.clone(), gem_exception);
 }
 
 TEST_CASE(
@@ -397,9 +397,9 @@ TEST_CASE(
 ) {
     // A file that does not exist: the parse throws out of the fill, which must leave the cache
     // empty rather than record a failure. (The load-once cell's throwing-producer contract.)
-    ValueReadingFactory f(unreachable_config("geneva_does_not_exist.json"));
-    CHECK_THROWS_AS(f.get(), geneva_exception);
-    CHECK_THROWS_AS(f.get(), geneva_exception);
+    ValueReadingFactory f(unreachable_config("gem_does_not_exist.json"));
+    CHECK_THROWS_AS(f.get(), gem_exception);
+    CHECK_THROWS_AS(f.get(), gem_exception);
 
     // Once the factory is pointed at a readable file, the very next get() succeeds.
     auto p = make_value_config("retry_after_failure", 5);

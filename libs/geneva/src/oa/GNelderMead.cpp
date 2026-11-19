@@ -95,7 +95,7 @@ std::size_t GNelderMead::getNSimplices() const {
  */
 void GNelderMead::setNSimplices(std::size_t n_simplices) {
     if(n_simplices == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setNSimplices(std::size_t):" << '\n'
             << "Got invalid number of simplices (0)." << '\n'
@@ -112,7 +112,7 @@ void GNelderMead::setNSimplices(std::size_t n_simplices) {
  */
 void GNelderMead::setAlpha(double alpha) {
     if(alpha <= 0.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setAlpha(double): Error!" << '\n'
             << "alpha must be > 0, got " << alpha << '\n'
@@ -139,7 +139,7 @@ double GNelderMead::getAlpha() const {
  */
 void GNelderMead::setGamma(double gamma) {
     if(gamma <= 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setGamma(double): Error!" << '\n'
             << "gamma must be > 1, got " << gamma << '\n'
@@ -166,7 +166,7 @@ double GNelderMead::getGamma() const {
  */
 void GNelderMead::setRho(double rho) {
     if(rho <= 0. || rho >= 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setRho(double): Error!" << '\n'
             << "rho must be in ]0,1[, got " << rho << '\n'
@@ -193,7 +193,7 @@ double GNelderMead::getRho() const {
  */
 void GNelderMead::setSigma(double sigma) {
     if(sigma <= 0. || sigma >= 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setSigma(double): Error!" << '\n'
             << "sigma must be in ]0,1[, got " << sigma << '\n'
@@ -221,7 +221,7 @@ double GNelderMead::getSigma() const {
  */
 void GNelderMead::setInitialEdge(double initial_edge) {
     if(initial_edge <= 0.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::setInitialEdge(double): Error!" << '\n'
             << "initial_edge must be > 0, got " << initial_edge << '\n'
@@ -841,7 +841,7 @@ void GNelderMead::adjustPopulation_() {
 
 #ifdef DEBUG
     if(this->size() != total_size) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GNelderMead::adjustPopulation():" << '\n'
             << "Population size is " << this->size() << '\n'

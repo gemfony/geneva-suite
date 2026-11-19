@@ -59,7 +59,7 @@ FOREACH ( _dp ${_GENEVA_DOCPROGRAMS} )
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
 	SET_TESTS_PROPERTIES ( geneva_${_dp} PROPERTIES LABELS "geneva;docprogram" TIMEOUT 120
 		FIXTURES_SETUP geneva_docprogram_figures )
-	GENEVA_TEST_SIZE ( geneva_${_dp} S )
+	GEM_TEST_SIZE ( geneva_${_dp} S )
 	INSTALL ( TARGETS geneva_${_dp}
 		DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/geneva )
 ENDFOREACH ()
@@ -78,7 +78,7 @@ ADD_TEST ( NAME geneva_docprogram_figures_removed
 	COMMAND ${CMAKE_COMMAND} -E rm -f ${_GENEVA_DOCPROGRAM_FIGURES} )
 SET_TESTS_PROPERTIES ( geneva_docprogram_figures_removed PROPERTIES LABELS "geneva;docprogram"
 	FIXTURES_SETUP geneva_docprogram_fresh )
-GENEVA_TEST_SIZE ( geneva_docprogram_figures_removed S )
+GEM_TEST_SIZE ( geneva_docprogram_figures_removed S )
 FOREACH ( _dp ${_GENEVA_DOCPROGRAMS} )
 	SET_PROPERTY ( TEST geneva_${_dp} APPEND PROPERTY FIXTURES_REQUIRED geneva_docprogram_fresh )
 ENDFOREACH ()
@@ -87,6 +87,6 @@ ADD_TEST ( NAME geneva_docprogram_titles
 		-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake )
 SET_TESTS_PROPERTIES ( geneva_docprogram_titles PROPERTIES LABELS "geneva;docprogram"
 	FIXTURES_REQUIRED geneva_docprogram_figures )
-GENEVA_TEST_SIZE ( geneva_docprogram_titles S )
+GEM_TEST_SIZE ( geneva_docprogram_titles S )
 
-GENEVA_AGGREGATE_TARGET( "docprograms-geneva" )
+GEM_AGGREGATE_TARGET( "docprograms-geneva" )

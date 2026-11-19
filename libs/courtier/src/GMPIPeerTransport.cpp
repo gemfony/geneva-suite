@@ -499,13 +499,13 @@ void GMPIPeer::finish_(GPeerEnd end, GPeerClose how, std::string_view detail) {
  * @param calls The MPI calls on courtier's communicator; must not be null
  * @param options How the peers and the poll are set up (the name is the owner's, for the log and
  *        the thread budget)
- * @throws geneva_exception if @p calls is null
+ * @throws gem_exception if @p calls is null
  */
 GMPIListener::GMPIListener(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions options)
   : calls_(std::move(calls))
   , options_(std::move(options)) {
     if(not calls_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIListener::GMPIListener(): Error!" << '\n'
             << "No calls to MPI were given" << '\n'
@@ -544,19 +544,19 @@ GMPIListener::~GMPIListener() {
  *
  * @param executor Where the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every client rank, on the poll's thread
- * @throws geneva_exception if the listener was started before, or if the communicator has no rank
+ * @throws gem_exception if the listener was started before, or if the communicator has no rank
  *         besides this one
  */
 void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     if(core_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << options_.name << ": Error!" << '\n'
             << "The listener has been started before" << '\n'
         );
     }
     if(calls_->size() < 2) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << options_.name << ": Error!" << '\n'
             << "The MPI consumer has no client rank: its communicator holds this rank only, "
@@ -803,13 +803,13 @@ void GMPIListener::joinPoll_() {
  *
  * @param calls The MPI calls on courtier's communicator, of a client's rank; must not be null
  * @param options How the peer and the poll are set up
- * @throws geneva_exception if @p calls is null or belongs to the submitter's rank
+ * @throws gem_exception if @p calls is null or belongs to the submitter's rank
  */
 GMPIConnector::GMPIConnector(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions options)
   : calls_(std::move(calls))
   , options_(std::move(options)) {
     if(not calls_ || calls_->rank() == RANK_MASTER_NODE) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIConnector::GMPIConnector(): Error!" << '\n'
             << (calls_ ? "The submitter's rank has no connector" : "No calls to MPI were given")

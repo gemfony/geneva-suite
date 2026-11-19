@@ -535,7 +535,7 @@ int main(int argc, char **argv) {
     }
 
     // A COMPREHENSIVE data export (result_data_full.npz) covering every kind the external
-    // renderer (scripts/geneva_plot_render.py) understands -- graph_2d (+ a secondary
+    // renderer (scripts/gem_plot_render.py) understands -- graph_2d (+ a secondary
     // overlay sharing the pad), graph_2d_err, graph_3d, graph_4d, hist_1d and hist_2d --
     // laid out on a 2x3 canvas. The render-validity ctest feeds this to the bundled Python
     // tool, exercising the (data + self-describing manifest) -> figure round-trip end to end.

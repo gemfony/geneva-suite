@@ -168,7 +168,7 @@ public:
      *
      * @param items The batch to flatten (every item must be a due GGenome of uniform dimension)
      * @param params_out Filled with @c items.size() * itemDimension() scalars (parameter j of item i at i*dim + j)
-     * @throws geneva_exception if an item is not a GGenome, or if its pre-processor changed its
+     * @throws gem_exception if an item is not a GGenome, or if its pre-processor changed its
      *         dimension (its values would not fit its row of the buffer)
      */
     void
@@ -182,7 +182,7 @@ public:
         for(std::size_t i = 0; i < items.size(); ++i) {
             const auto *flat = dynamic_cast<const Gem::Geneva::Genome::GGenome *>(items[i].get());
             if(flat == nullptr) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
                     << "A work item is not a GGenome; a GPU marshaller requires flat-genome"
@@ -199,7 +199,7 @@ public:
             // The consumer checked the uniform dimension before the pre-processors ran; a
             // pre-processor that changed it would make streamlineInto() write past the item's row.
             if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
                     << "Work item " << i << " has " << item_dim << " parameters after its"

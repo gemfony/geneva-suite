@@ -1,0 +1,41 @@
+Documentation programs
+======================
+
+The .cpp files in this directory exist to PRODUCE FIGURES OF THE GENEVA MANUAL
+(suite Invariant 27; rule D2 in the manual repository's
+DOCUMENTATION-INVARIANTS.md). Every program here
+
+  * compiles and links against this library's own dependency closure only,
+  * runs as an S-size ctest case, so it cannot rot without turning a gate red,
+  * writes its output to the WORKING DIRECTORY -- never into the source tree --
+    so it can be run from a build tree by the manual's `make figures` target.
+
+They are deliberately separate from examples/: an example teaches a user how to
+use the library, a documentation program backs a specific listing or figure in
+the manual.
+
+Figure producers
+----------------
+
+plot_rng_distributions  Draws 6000 numbers from each of eight distributions
+                        through a proxy and writes one ROOT macro per
+                        distribution, a histogram of its draws with a legend
+                        that states its parameters:
+                          rng-even.C        double, uniform on [0, 1)
+                          rng-evenwb.C      double, uniform on [-3, 2)
+                          rng-discrete.C    int32_t, uniform on [0, 10]
+                          rng-discretewb.C  int32_t, uniform on [-3, 10]
+                          rng-gauss.C       one Gaussian, mean 0, sigma 0.5
+                          rng-dgauss.C      bi_normal_distribution: two peaks
+                                            of sigma 0.5 at distance 2 about
+                                            mean 0
+                          rng-bitsimple.C   boolean, p(true) = 0.5
+                          rng-bitprob.C     boolean, p(true) = 0.7
+                        Each macro builds the canvas cc and saves nothing; the
+                        renderer prints it. The legends are formatted from the
+                        distribution objects the program draws with, and the
+                        program fails if a draw contradicts the range it states
+                        (half-open for doubles, closed for integers). Geneva's
+                        random numbers are not reproducible from a seed
+                        (DEVELOPMENT-INVARIANTS.md, Invariant 18), so a rerun
+                        draws different but equivalent histograms.

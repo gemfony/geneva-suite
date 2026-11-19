@@ -17,9 +17,9 @@ from ..model import CheckResult, Status, Tier
 _VERSION_HEADER = Path("libs/common/include/common/GGlobalDefines.hpp")
 
 _VER_RE = {
-    "major": re.compile(r"^#define[ \t]+GENEVA_VERSION_MAJOR[ \t]+(\d+)", re.MULTILINE),
-    "minor": re.compile(r"^#define[ \t]+GENEVA_VERSION_MINOR[ \t]+(\d+)", re.MULTILINE),
-    "patch": re.compile(r"^#define[ \t]+GENEVA_VERSION_PATCH[ \t]+(\d+)", re.MULTILINE),
+    "major": re.compile(r"^#define[ \t]+GEM_VERSION_MAJOR[ \t]+(\d+)", re.MULTILINE),
+    "minor": re.compile(r"^#define[ \t]+GEM_VERSION_MINOR[ \t]+(\d+)", re.MULTILINE),
+    "patch": re.compile(r"^#define[ \t]+GEM_VERSION_PATCH[ \t]+(\d+)", re.MULTILINE),
 }
 
 
@@ -42,7 +42,7 @@ def cmake_version(source_dir: Path) -> tuple[str | None, CheckResult]:
         m = rx.search(text)
         if not m:
             return None, _result("metadata/version", Status.FAIL,
-                                 f"GENEVA_VERSION_{key.upper()} not found", started)
+                                 f"GEM_VERSION_{key.upper()} not found", started)
         parts[key] = m.group(1)
     version = f"{parts['major']}.{parts['minor']}.{parts['patch']}"
     return version, _result("metadata/version", Status.PASS,

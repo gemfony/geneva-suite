@@ -77,7 +77,7 @@ namespace {
 void requireRole(c2::processRole wanted, const char *caller) {
     const c2::processRole actual = c2::mpiProcessRole();
     if(actual != wanted) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GMPIConsumerProvider::" << caller << "(): Error!" << '\n'
             << "This process has the role " << static_cast<int>(actual) << " in the MPI "
@@ -211,12 +211,12 @@ public:
 
 /******************************************************************************/
 
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 
 /**
  * @brief The module's entry point, resolved by the loader: one consumer contribution, "mpi".
  * @return The module's process-lifetime manifest
  */
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::consumerManifest<Gem::Geneva::GMPIConsumerProvider, "mpi">();
 }

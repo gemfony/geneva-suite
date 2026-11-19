@@ -45,13 +45,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * @brief Streams a geneva_exception's message to an output stream.
+ * @brief Streams a gem_exception's message to an output stream.
  *
  * @param o The output stream the exception text is written to
- * @param g The geneva_exception whose what()-message is to be emitted
+ * @param g The gem_exception whose what()-message is to be emitted
  * @return A reference to the output stream @p o (to allow chaining)
  */
-std::ostream &operator<<(std::ostream &o, const geneva_exception &g) {
+std::ostream &operator<<(std::ostream &o, const gem_exception &g) {
     o << g.what();
     return o;
 }

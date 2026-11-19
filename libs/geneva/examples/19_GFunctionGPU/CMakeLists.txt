@@ -31,7 +31,7 @@
 # GPU purely by selecting "--consumer gpu". It demonstrates the store-based GPU path for an ORDINARY
 # library individual: the problem contributes only a marshaller (deriving Gem::Geneva::GBaseGPUMarshallerT)
 # and Go2 builds the generic GPU consumer around it. Like example 14 it drives the courtier GPU consumer,
-# so it is built only when that consumer is (GENEVA_BUILD_WITH_GPU_CONSUMER -- see
+# so it is built only when that consumer is (GEM_BUILD_WITH_GPU_CONSUMER -- see
 # geneva/examples/CMakeLists.txt). The kernel is runtime-compiled by NVRTC, so no CUDA language is enabled
 # at build time -- it builds with an ordinary C++ toolchain and selects CPU / CUDA at run time via
 # config/GGPUConsumer.json.
@@ -51,7 +51,7 @@ ADD_EXECUTABLE ( ${EXECUTABLENAME}
 TARGET_INCLUDE_DIRECTORIES ( ${EXECUTABLENAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
 
 # The Geneva libraries (the GPU consumer + its CUDA backend are folded into gemfony-courtier when
-# GENEVA_BUILD_WITH_GPU_CONSUMER is ON -- required for this example to be built at all) and Boost.
+# GEM_BUILD_WITH_GPU_CONSUMER is ON -- required for this example to be built at all) and Boost.
 # GFunctionIndividual is no longer in the geneva library; it is compiled in via its object library (before
 # the Geneva/Boost libraries, the in-tree convention for an object library carrying archive registrations).
 TARGET_LINK_LIBRARIES ( ${EXECUTABLENAME} PRIVATE
@@ -69,7 +69,7 @@ ADD_CUSTOM_COMMAND ( TARGET ${EXECUTABLENAME} POST_BUILD
 
 # Materialize the configuration from code defaults at build time and overlay this example's overrides
 # (config/config-overrides.json: consumer=gpu and the GPU-consumer kernel path), then install it.
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/19_GFunctionGPU/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/19_GFunctionGPU/config )
 
 INSTALL ( TARGETS ${EXECUTABLENAME}
 	DESTINATION ${INSTALL_PREFIX_DATA}/examples/19_GFunctionGPU )

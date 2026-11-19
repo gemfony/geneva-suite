@@ -87,7 +87,7 @@ std::size_t GGeneralizedSimulatedAnnealing::getNChains() const {
 /** Allows to set the number of independent Markov chains. */
 void GGeneralizedSimulatedAnnealing::setNChains(std::size_t n_chains) {
     if(n_chains == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::setNChains(std::size_t): Error!" << '\n'
             << "Got invalid number of chains (0)." << '\n'
@@ -102,7 +102,7 @@ void GGeneralizedSimulatedAnnealing::setNChains(std::size_t n_chains) {
 void GGeneralizedSimulatedAnnealing::setQv(double qv) {
     // The Tsallis visiting form is defined for 1 < q_v < 3
     if(qv <= 1. || qv >= 3.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::setQv(double): Error!" << '\n'
             << "q_v must be in ]1,3[, got " << qv << '\n'
@@ -122,7 +122,7 @@ void GGeneralizedSimulatedAnnealing::setQa(double qa) {
     // The generalized acceptance form requires q_a != 1 (q_a == 1 is the
     // classical exponential limit and is intentionally excluded here).
     if(qa == 1.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::setQa(double): Error!" << '\n'
             << "q_a must not be exactly 1 (the classical exponential limit)." << '\n'
@@ -140,7 +140,7 @@ double GGeneralizedSimulatedAnnealing::getQa() const {
 /** Sets the initial visiting temperature (0 => derive from ranges). */
 void GGeneralizedSimulatedAnnealing::setT0(double t0) {
     if(t0 < 0.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::setT0(double): Error!" << '\n'
             << "t0 must be >= 0 (0 means derive from parameter ranges), got " << t0 << '\n'
@@ -254,7 +254,7 @@ void GGeneralizedSimulatedAnnealing::resetToOptimizationStart_() {
  */
 void GGeneralizedSimulatedAnnealing::adjustPopulation_() {
     if(this->empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::adjustPopulation_(): Error!" << '\n'
             << "No individuals found in the population. You need to add at least" << '\n'
@@ -288,7 +288,7 @@ void GGeneralizedSimulatedAnnealing::init() {
     n_fp_parms_ = this->at(0)->countFPParameters(activityMode::ACTIVEONLY);
 
     if(n_fp_parms_ == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGeneralizedSimulatedAnnealing::init(): Error!" << '\n'
             << "The individual exposes no floating point parameters; Generalized Simulated" << '\n'

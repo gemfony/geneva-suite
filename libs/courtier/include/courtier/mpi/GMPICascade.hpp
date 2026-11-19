@@ -38,7 +38,7 @@
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
 
-// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
+// No guard on GEM_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
 
 // Standard headers go here
 #include <array>
@@ -209,7 +209,7 @@ public:
  * MPI_Abort on the base communicator. In SUBMITTER_AND_GROUPS that is the whole run, in
  * GROUPS_ONLY one client job. A member that leaves without serve() ends the job the same way (its
  * lead would wait for ever). A call made by the wrong role or after release() throws a
- * geneva_exception before anything is announced, so the group stays in step.
+ * gem_exception before anything is announced, so the group stays in step.
  *
  * One per process; not copyable, not movable.
  */
@@ -373,7 +373,7 @@ private:
  *
  * @param lead_half Callable with the group's communicator (MPI_Comm); the lead's half of the round
  * @return What @p lead_half returns
- * @throws geneva_exception before anything is announced: on a process that is not a lead, without
+ * @throws gem_exception before anything is announced: on a process that is not a lead, without
  *         MPI or after release(); before requireRole() the MPI job is ended instead
  */
 template <typename F>

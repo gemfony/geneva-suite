@@ -126,7 +126,7 @@ TEST_CASE(
     "[common][serialization-helpers]"
 ) {
     // The implementation catches std::exception, logs, and returns an empty shared_ptr.
-    // (Only unknown-type catches throw a geneva_exception.)
+    // (Only unknown-type catches throw a gem_exception.)
     auto out =
         sharedPtrFromString<TestPayload>("not-a-valid-archive-blob", serializationMode::GEM_BINARY);
     CHECK_FALSE(out);

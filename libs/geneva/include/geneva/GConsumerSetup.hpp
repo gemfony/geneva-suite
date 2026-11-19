@@ -165,7 +165,7 @@ public:
  *
  * @param spec The consumer to build: its mnemonic and the configuration of its family
  * @return The consumer, registered in GConsumerRegistry; null for an unknown mnemonic
- * @throws geneva_exception if @c spec.config holds the configuration of another family
+ * @throws gem_exception if @c spec.config holds the configuration of another family
  */
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
 buildConsumer(const Gem::Courtier::ConsumerSpec &spec);
@@ -325,7 +325,7 @@ bool consumerDeterminesRoleAtRuntime(const std::string &mnemonic);
  * @param spec The consumer specification
  * @param client_requested Whether the program was started as a client (--client)
  * @return The role of this process
- * @throws geneva_exception for a mnemonic no provider is registered for
+ * @throws gem_exception for a mnemonic no provider is registered for
  */
 [[nodiscard]] Gem::Courtier::processRole
 consumerRole(const Gem::Courtier::ConsumerSpec &spec, bool client_requested = false);

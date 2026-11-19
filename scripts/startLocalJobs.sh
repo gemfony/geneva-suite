@@ -62,7 +62,7 @@
 #   ./startLocalJobs.sh ./GSimpleOptimizer 15 10000 beast -- -a "ea,cgd" --beast_prefetchDepth=4
 #
 # Environment:
-#   GENEVA_RUN_TIMEOUT   If set to a positive number of seconds, the script runs
+#   GEM_RUN_TIMEOUT      If set to a positive number of seconds, the script runs
 #                        NON-interactively: it waits up to that long for the
 #                        server (or, for MPI, the mpirun job) to finish, then tears
 #                        everything down and exits with its exit code (124 on
@@ -185,7 +185,7 @@ else
 fi
 
 # ---- wait for completion ----------------------------------------------------
-TIMEOUT="${GENEVA_RUN_TIMEOUT:-0}"
+TIMEOUT="${GEM_RUN_TIMEOUT:-0}"
 if echo "${TIMEOUT}" | grep -qE "^[0-9]+$" && [ "${TIMEOUT}" -gt 0 ]; then
     # Automated mode: wait up to TIMEOUT seconds for the server, then report.
     echo "Waiting up to ${TIMEOUT}s for the server to finish (automated mode) ..."

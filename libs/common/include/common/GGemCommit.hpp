@@ -45,23 +45,23 @@ namespace Gem::Common {
  *
  * A server of the networked consumers names it in the HELLO it greets each client with, and a
  * client built from another commit ends (courtier/GWireCodec.hpp). The build takes it at configure
- * time and again at every build, from git or from the file GENEVA_COMMIT at the top of the sources
- * (CMakeModules/GenevaCommit.cmake says how; a tree without either does not configure). The
+ * time and again at every build, from git or from the file GEM_COMMIT at the top of the sources
+ * (CMakeModules/GemCommit.cmake says how; a tree without either does not configure). The
  * definition is a source the build writes into the build directory.
  *
  * @return The commit id; the text lives as long as the program
  */
-[[nodiscard]] std::string_view genevaCommit() noexcept;
+[[nodiscard]] std::string_view gemCommit() noexcept;
 
 /******************************************************************************/
 /**
  * @brief Sets the identity of the user's program: a text that names its build, by default the
  * commit of the program's own sources.
  *
- * A server of the networked consumers names it in its HELLO beside genevaCommit(), and a client
+ * A server of the networked consumers names it in its HELLO beside gemCommit(), and a client
  * whose program has another identity ends; where one side has none, the program is not checked
- * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GENEVA_STAMP_PROGRAM,
- * CMakeModules/GenevaProgramStamp.cmake), which calls this function from a static object before
+ * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GEM_STAMP_PROGRAM,
+ * CMakeModules/GemProgramStamp.cmake), which calls this function from a static object before
  * main(); a program may also call it itself.
  *
  * The identity is one string per process and holds no lock: it is set before a consumer is made,
@@ -69,7 +69,7 @@ namespace Gem::Common {
  * this contract.
  *
  * @param identity The identity; setting the same text again is accepted
- * @throws geneva_exception if another identity has been set before (the text names both)
+ * @throws gem_exception if another identity has been set before (the text names both)
  */
 void setProgramIdentity(std::string identity);
 

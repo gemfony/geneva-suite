@@ -27,11 +27,11 @@
 #
 ################################################################################
 
-SET ( GENEVALICENSES
+SET ( GEMLICENSES
 	ApacheLicense-2.0
 	BoostSoftwareLicense-1.0
 	COPYING-CMAKE-SCRIPTS
 	README
 )
 
-INSTALL ( FILES ${GENEVALICENSES} DESTINATION ${INSTALL_PREFIX_DOCS}/licenses )
+INSTALL ( FILES ${GEMLICENSES} DESTINATION ${INSTALL_PREFIX_DOCS}/licenses )

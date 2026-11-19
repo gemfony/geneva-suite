@@ -33,20 +33,20 @@
  *
  * This example ships its problem as a loadable module and runs it with the generic optimizer
  * (example 18's GGenericOptimizer) via --individual, instead of a bespoke main -- the load-from-disk model.
- * This translation unit holds only the fixed extern "C" entry point geneva_module_manifest(); it does NOT
+ * This translation unit holds only the fixed extern "C" entry point gem_module_manifest(); it does NOT
  * re-emit GFMinIndividual's archive registration (that lives in GFMinIndividual.cpp).
  */
 
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-#include "common/GModuleManifest.hpp" // GenevaModuleManifest
+#include "common/GModuleManifest.hpp" // GemModuleManifest
 #include "geneva/genome/GIndividualFactory.hpp"
 #include "geneva/genome/GIndividualPlugin.hpp" // Gem::Geneva::individualManifest<>
 
 #include "GFMinIndividual.hpp"
 
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return Gem::Geneva::individualManifest<
         Gem::Geneva::Genome::GIndividualFactory<Gem::Geneva::GFMinIndividual>,
         "./config/GFMinIndividual.json",

@@ -94,7 +94,7 @@ bool isBetter(
     // Cross-check that both work items have the same maxMode
     if(x_mode != y_mode) {
         // Throw an exception
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In isBetterThan(x_ptr, y_ptr):" << '\n'
             << "Got different maxMode-settings: " << x_mode << " / " << y_mode << '\n'

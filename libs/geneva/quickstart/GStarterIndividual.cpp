@@ -84,7 +84,7 @@ GStarterIndividual::GStarterIndividual(
             upperBoundaries
         );
     }
-    catch(const geneva_exception &e) {
+    catch(const gem_exception &e) {
         glogger << e.what() << GTERMINATION;
     }
     catch(...) {
@@ -435,7 +435,7 @@ gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
 #ifdef DEBUG
     if(c.start_values.empty() || c.start_values.size() != c.lower_boundaries.size() ||
        c.start_values.size() != c.upper_boundaries.size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GStarterIndividual::buildGenome(): Error!" << '\n'
             << "Invalid sizes " << c.start_values.size() << " / " << c.lower_boundaries.size()

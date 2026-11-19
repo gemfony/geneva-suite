@@ -378,7 +378,7 @@ private:
     void
     verify(bool found, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag, it_type it) const {
         if(not found) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAuxiliaryStore::metaRecords(): no aux block under key " << key << '\n'
             );
@@ -387,7 +387,7 @@ private:
         // deserialised block has tag 0, see AuxBlock::serialize -- the per-process typeid hash cannot be
         // compared across a checkpoint, so it is treated as "type-unchecked").
         if(it->second.stride != pod_size || (it->second.tag != 0 && it->second.tag != pod_tag)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAuxiliaryStore::metaRecords(): POD type mismatch for key " << key << '\n'
                 << "stride " << it->second.stride << " vs sizeof " << pod_size << '\n'

@@ -64,29 +64,24 @@ void *abortingFactory() {
     std::abort();
 }
 
-const GenevaContribution CONTRIBUTION{
-    .kind = GENEVA_CONTRIBUTION_CONSUMER,
+const GemContribution CONTRIBUTION{
+    .kind = GEM_CONTRIBUTION_CONSUMER,
     .name_or_mnemonic = "foreign",
     .make_factory = abortingFactory,
     .subject = typeid(Gem::Tests::GForeignItem).name()
 };
 
-// GENEVA_MODULE_ABI_STAMP is a positional initializer prefix, so the members cannot be designated.
+// GEM_MODULE_ABI_STAMP is a positional initializer prefix, so the members cannot be designated.
 // NOLINTNEXTLINE(modernize-use-designated-initializers)
-const GenevaModuleManifest MANIFEST{
-    GENEVA_MODULE_ABI_STAMP,
-    "GForeignSubjectModule",
-    GENEVA_VERSION_STRING,
-    &CONTRIBUTION,
-    1u
-};
+const GemModuleManifest
+    MANIFEST{GEM_MODULE_ABI_STAMP, "GForeignSubjectModule", GEM_VERSION_STRING, &CONTRIBUTION, 1u};
 
 } // anonymous namespace
 
 // The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return &MANIFEST;
 }

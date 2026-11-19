@@ -30,7 +30,7 @@
 # Script mode (cmake -P) helper: runs a command with its stdout and stderr
 # captured to a log file, so a chatty-but-successful run does not clobber the
 # build output. If the command fails, the captured output is replayed in full
-# and the build step fails. Used by GENEVA_MATERIALIZE_CONFIGS to run the
+# and the build step fails. Used by GEM_MATERIALIZE_CONFIGS to run the
 # freshly built config-owning binaries (whose GLogger notes and warnings are
 # runtime output, intentionally unchanged at the code level).
 #
@@ -46,7 +46,7 @@
 
 FOREACH(_rq_var RQ_CMD RQ_WD RQ_LOG RQ_DESC)
 	IF(NOT DEFINED ${_rq_var})
-		MESSAGE(FATAL_ERROR "GenevaRunQuiet.cmake: required definition ${_rq_var} is missing")
+		MESSAGE(FATAL_ERROR "GemRunQuiet.cmake: required definition ${_rq_var} is missing")
 	ENDIF()
 ENDFOREACH()
 

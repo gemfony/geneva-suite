@@ -73,10 +73,10 @@ Prerequisites
  - A Geneva build must know the commit of its sources: a server of the
    networked consumers and its clients must be built from the same one. It is
    taken from git when the sources are a git checkout (with "-dirty" appended
-   when a tracked file has changed), else from the file GENEVA_COMMIT at the top
+   when a tracked file has changed), else from the file GEM_COMMIT at the top
    of the sources, which "git archive" fills in. Sources copied without .git
    need the id written into that file (the container build takes it as the
-   build argument GENEVA_COMMIT); without it the configure stops and says so.
+   build argument GEM_COMMIT); without it the configure stops and says so.
 
 Optional:
 
@@ -178,7 +178,7 @@ Everything the script does reduces to a cmake invocation, which can be issued by
 hand. From the build directory, point cmake at the source tree:
 
 cd $HOME/build
-cmake $GENEVAHOME -DGENEVA_BUILD_TYPE="Release"
+cmake $GENEVAHOME -DGEM_BUILD_TYPE="Release"
 make -j$(nproc)
 sudo make install
 
@@ -187,9 +187,9 @@ To choose a custom installation directory (the default is /opt/geneva):
 cmake $GENEVAHOME -DCMAKE_INSTALL_PREFIX="/where/the/library/goes"
 
 The configuration variables map onto the .gcfg settings: INSTALLDIR becomes
-CMAKE_INSTALL_PREFIX, BUILDMODE becomes GENEVA_BUILD_TYPE (Release, Debug,
+CMAKE_INSTALL_PREFIX, BUILDMODE becomes GEM_BUILD_TYPE (Release, Debug,
 RelWithDebInfo, MinSizeRel or Sanitize), BUILDTESTCODE becomes
-GENEVA_BUILD_TESTS, and so on; the compiler is selected with CMAKE_C_COMPILER /
+GEM_BUILD_TESTS, and so on; the compiler is selected with CMAKE_C_COMPILER /
 CMAKE_CXX_COMPILER. The simplest way to see the full command for a given
 configuration is to run "prepareBuild.sh ./my.gcfg --dryrun".
 
@@ -210,7 +210,7 @@ Running the test suite
 ======================
 
 A build with the test code enabled (BUILDTESTCODE in the .gcfg,
-GENEVA_BUILD_TESTS in cmake -- both default to on) registers the entire suite
+GEM_BUILD_TESTS in cmake -- both default to on) registers the entire suite
 with CTest. Run it from the build directory:
 
 cd $HOME/build
@@ -253,8 +253,8 @@ machine with "ctest -j1 -R <name>" -- serial, because under -j a test's reported
 time includes whatever it was competing with -- and pass the letter to the
 registration:
 
-  GENEVA_TEST_SIZE(<test-name> <S|M|L|XL>)          for a plain ADD_TEST
-  geneva_<library>_test(<name> <size> <sources>)    for the per-library helpers
+  GEM_TEST_SIZE(<test-name> <S|M|L|XL>)          for a plain ADD_TEST
+  gem_<library>_test(<name> <size> <sources>)       for the per-library helpers
 
 A test within about 20 % of a boundary is rounded UP, so a borderline case
 lands in the more expensive class rather than sneaking into a fast loop. A size
@@ -327,7 +327,7 @@ recommended starting point: it is not built by the in-tree build, it locates
 Geneva only through the installed package, and it can be copied out of the tree
 as-is. Its README has the step-by-step standalone build.
 
-The package also brings GENEVA_STAMP_PROGRAM(<target> [IDENTITY <text>]), which
+The package also brings GEM_STAMP_PROGRAM(<target> [IDENTITY <text>]), which
 stamps a program with the commit of your project's sources (taken from git at
 every build when the project is inside a git work tree, at its top or in a
 subdirectory; "-dirty" when a tracked file of that repository has changed) or

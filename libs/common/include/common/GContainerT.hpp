@@ -717,13 +717,13 @@ public:
      * Use resize_clone, resize_noclone, or resize_empty to grow SharedPtrStorage containers.
      *
      * @param amount The desired number of elements.
-     * @throws geneva_exception when growing (would insert null shared_ptrs).
+     * @throws gem_exception when growing (would insert null shared_ptrs).
      */
     void resize(size_type amount)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(amount > data_cnt_.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::resize(): "
                 << "Cannot grow a SharedPtrStorage container without a prototype. "
@@ -1056,14 +1056,14 @@ public:
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return The number of matching elements.
-     * @throws geneva_exception when @p item is null.
+     * @throws gem_exception when @p item is null.
      * @note Only available for SharedPtrStorage.
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
         if(not item) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::count(): "
                 << "Tried to count with an empty smart pointer." << '\n'
@@ -1084,14 +1084,14 @@ public:
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return A const_iterator to the found element, or end() if not found.
-     * @throws geneva_exception when @p item is null.
+     * @throws gem_exception when @p item is null.
      * @note Only available for SharedPtrStorage.
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
         if(not item) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::find(): "
                 << "Tried to find an empty smart pointer." << '\n'
@@ -1135,14 +1135,14 @@ public:
      * Changes to the original object after this call do not affect the stored copy.
      *
      * @param item_ptr A shared_ptr to the object to clone and append.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     void push_back_clone(const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::push_back_clone(): "
                 << "Tried to clone an empty smart pointer." << '\n'
@@ -1158,14 +1158,14 @@ public:
      * through the stored pointer.
      *
      * @param item_ptr A shared_ptr to the object to append.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     void push_back_noclone(StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::push_back_noclone(): "
                 << "Tried to insert an empty smart pointer." << '\n'
@@ -1184,14 +1184,14 @@ public:
      * @param pos     An iterator pointing to the insertion position.
      * @param item_ptr The object to clone and insert.
      * @return An iterator to the inserted element.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     iterator insert_clone(const_iterator pos, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::insert_clone(): "
                 << "Tried to clone an empty smart pointer." << '\n'
@@ -1206,14 +1206,14 @@ public:
      * @param pos     An iterator pointing to the insertion position.
      * @param count   The number of clones to insert.
      * @param item_ptr The object to clone and insert.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     void insert_clone(const_iterator pos, size_type count, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::insert_clone(count): "
                 << "Tried to clone an empty smart pointer." << '\n'
@@ -1240,14 +1240,14 @@ public:
      * @param pos     An iterator pointing to the insertion position.
      * @param item_ptr The object to insert (not cloned).
      * @return An iterator to the inserted element.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     iterator insert_noclone(const_iterator pos, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::insert_noclone(): "
                 << "Tried to insert an empty smart pointer." << '\n'
@@ -1266,14 +1266,14 @@ public:
      * @param pos     An iterator pointing to the insertion position.
      * @param count   The number of elements to insert.
      * @param item_ptr The object to insert.
-     * @throws geneva_exception when @p item_ptr is null.
+     * @throws gem_exception when @p item_ptr is null.
      * @note Only available for SharedPtrStorage or UniquePtrStorage (not PodStorage).
      */
     void insert_noclone(const_iterator pos, size_type count, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
         if(not item_ptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::insert_noclone(count): "
                 << "Tried to insert an empty smart pointer." << '\n'
@@ -1308,7 +1308,7 @@ public:
      *
      * @param amount  The desired number of elements.
      * @param item_ptr The prototype object used to fill new slots.
-     * @throws geneva_exception when growing and @p item_ptr is null.
+     * @throws gem_exception when growing and @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     void resize_clone(size_type amount, const StoredType &item_ptr)
@@ -1320,7 +1320,7 @@ public:
         }
         else if(amount > data_size) {
             if(not item_ptr) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GContainerT::resize_clone(): "
                     << "Tried to clone an empty smart pointer." << '\n'
@@ -1345,7 +1345,7 @@ public:
      *
      * @param amount  The desired number of elements.
      * @param item_ptr The prototype object used to fill new slots.
-     * @throws geneva_exception when growing and @p item_ptr is null.
+     * @throws gem_exception when growing and @p item_ptr is null.
      * @note Only available for SharedPtrStorage.
      */
     void resize_noclone(size_type amount, StoredType item_ptr)
@@ -1357,7 +1357,7 @@ public:
         }
         else if(amount > data_size) {
             if(not item_ptr) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GContainerT::resize_noclone(): "
                     << "Tried to insert an empty smart pointer." << '\n'
@@ -1568,7 +1568,7 @@ public:
 
 #ifdef DEBUG
         if(pos >= min_size) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GContainerT::crossOver(): Error!" << '\n'
                 << "Invalid position " << pos << " / " << this->size() << " / " << cp.size() << '\n'

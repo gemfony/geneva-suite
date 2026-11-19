@@ -30,4 +30,4 @@
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 
-GENEVA_AGGREGATE_TARGET( "tests-dietrich" )
+GEM_AGGREGATE_TARGET( "tests-dietrich" )

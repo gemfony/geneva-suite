@@ -32,7 +32,7 @@
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
 
-// No guard on GENEVA_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
+// No guard on GEM_BUILD_WITH_MPI_CONSUMER: see courtier/mpi/GMPIEnvironment.hpp.
 
 // Standard headers go here
 #include <chrono>
@@ -88,7 +88,7 @@ public:
      * @param config Reads serializationMode, clientPrefetchDepth (n), clientParallelEvaluations
      *        (m; between 1 and n, else the client is refused) and clientFirstContactLimit.
      *        nHandlerThreads is the server's.
-     * @throws geneva_exception if @p environment is null or the role of this process is not
+     * @throws gem_exception if @p environment is null or the role of this process is not
      *         CLIENT
      */
     GMPIConsumerWorkerNodeT(std::shared_ptr<GMPIEnvironment> environment, const config_type &config)
@@ -131,14 +131,14 @@ private:
     static std::shared_ptr<GMPIEnvironment>
     requireClient_(std::shared_ptr<GMPIEnvironment> environment) {
         if(not environment) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
                 << "The MPI environment must not be empty" << '\n'
             );
         }
         if(environment->role() != Gem::Courtier::processRole::CLIENT) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
                 << "The MPI client is built on a process whose role is CLIENT only; this process "

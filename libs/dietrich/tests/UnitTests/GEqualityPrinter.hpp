@@ -77,9 +77,9 @@ public:
 	 * @param y The second parameter to compare
 	 * @return A boolean indicating whether both parameters are equal
 	 */
-    template <typename geneva_type>
-        requires Gem::Common::gemfony_common_interface<geneva_type>
-    bool isEqual(const geneva_type &x, const geneva_type &y) const {
+    template <typename gem_type>
+        requires Gem::Common::gemfony_common_interface<gem_type>
+    bool isEqual(const gem_type &x, const gem_type &y) const {
         using namespace Gem::Common;
 
         try {
@@ -104,19 +104,18 @@ public:
 	 * @param y The std::vector used for the comparison
 	 * @return A boolean indicating whether both parameters are equal
 	 */
-    template <typename geneva_simplecontainer_type>
+    template <typename gem_simplecontainer_type>
         requires std::derived_from<
-            geneva_simplecontainer_type,
-            Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
+            gem_simplecontainer_type,
+            Gem::Common::GPodContainerT<typename gem_simplecontainer_type::value_type>>
     bool isEqual(
-        const geneva_simplecontainer_type &x,
-        const std::vector<typename geneva_simplecontainer_type::value_type> &y
+        const gem_simplecontainer_type &x,
+        const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
         using namespace Gem::Common;
 
         try {
-            x.Gem::Common::template GPodContainerT<
-                typename geneva_simplecontainer_type::value_type>::
+            x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
                 compare_base(y, Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
 
             return true;
@@ -139,9 +138,9 @@ public:
 	 * @param y The second parameter to compare
 	 * @return A boolean indicating whether both parameters are similar
 	 */
-    template <typename geneva_type>
-        requires Gem::Common::gemfony_common_interface<geneva_type>
-    bool isSimilar(const geneva_type &x, const geneva_type &y) const {
+    template <typename gem_type>
+        requires Gem::Common::gemfony_common_interface<gem_type>
+    bool isSimilar(const gem_type &x, const gem_type &y) const {
         using namespace Gem::Common;
 
         try {
@@ -166,19 +165,18 @@ public:
 	 * @param y The second parameter to compare
 	 * @return A boolean indicating whether both parameters are similar
 	 */
-    template <typename geneva_simplecontainer_type>
+    template <typename gem_simplecontainer_type>
         requires std::derived_from<
-            geneva_simplecontainer_type,
-            Gem::Common::GPodContainerT<typename geneva_simplecontainer_type::value_type>>
+            gem_simplecontainer_type,
+            Gem::Common::GPodContainerT<typename gem_simplecontainer_type::value_type>>
     bool isSimilar(
-        const geneva_simplecontainer_type &x,
-        const std::vector<typename geneva_simplecontainer_type::value_type> &y
+        const gem_simplecontainer_type &x,
+        const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
         using namespace Gem::Common;
 
         try {
-            x.Gem::Common::template GPodContainerT<
-                typename geneva_simplecontainer_type::value_type>::
+            x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
                 compare_base(
                     y,
                     Gem::Common::expectation::FP_SIMILARITY,

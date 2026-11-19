@@ -29,7 +29,7 @@
 Language: Cpp
 BasedOnStyle: LLVM
 # The build targets C++23 (central CMAKE_CXX_STANDARD in
-# CMakeModules/CommonGenevaBuild.cmake, per Development Invariant 16). clang-format's
+# CMakeModules/CommonGemBuild.cmake, per Development Invariant 16). clang-format's
 # Standard enum has no explicit c++23 value (it goes ...c++20, then Latest), so use
 # Latest — it parses the newest standard the tool supports and needs no bump as the
 # build's standard rises.

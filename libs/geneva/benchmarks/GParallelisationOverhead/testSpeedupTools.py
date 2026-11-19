@@ -111,8 +111,8 @@ def fail(message):
 def mpi_launcher(env=None):
     """The MPI launcher, its options and its flag for the rank count, from MPIRUN in env (the
     process's environment by default). There is no default from PATH: the build names its
-    launcher, the one GenevaMpiTestsRegistered looks for in the registered commands, so that the
-    entry is seen to start MPI jobs and runs under GenevaRunMpiTest.sh."""
+    launcher, the one GemMpiTestsRegistered looks for in the registered commands, so that the
+    entry is seen to start MPI jobs and runs under GemRunMpiTest.sh."""
     launcher = (os.environ if env is None else env).get('MPIRUN', '').split()
     if not launcher:
         fail('MPIRUN is not set: this check starts MPI jobs and needs the MPI launcher the build '
@@ -757,7 +757,7 @@ def check_interrupt(program, workdir, reference_dir):
             fail('the run did not begin to measure within 60 s')
         # The directory the script made for its MPI jobs (the client jobs' directories lie in it).
         # Every process of the session also inherits the directory this check was given by ctest
-        # (GENEVA_ADD_MPI_TEST), if any; it is not the script's.
+        # (GEM_ADD_MPI_TEST), if any; it is not the script's.
         job_dirs = backing_directories(session_processes(script.pid))
         job_dirs.discard(os.environ.get('OMPI_MCA_btl_sm_backing_directory'))
         shm_dirs = {os.path.dirname(d) for d in job_dirs}

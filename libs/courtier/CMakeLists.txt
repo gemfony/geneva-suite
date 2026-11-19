@@ -36,7 +36,7 @@
 #                                          target (links no MPI)
 #   courtier/src/mpi/, include/courtier/mpi/
 #                                          the gemfony-courtier-mpi target, built
-#                                          only under GENEVA_BUILD_WITH_MPI_CONSUMER
+#                                          only under GEM_BUILD_WITH_MPI_CONSUMER
 #   courtier/tests/                        UnitTests, ManualTests
 #   courtier/tests/support/                the work items of the tests and the
 #                                          docprograms (courtier-test-support, a
@@ -54,19 +54,19 @@
 ADD_SUBDIRECTORY ( include/courtier )
 ADD_SUBDIRECTORY ( src )
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()
 
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( docprograms )
 ENDIF ()
 
-IF ( GENEVA_BUILD_BENCHMARKS )
+IF ( GEM_BUILD_BENCHMARKS )
 	ADD_SUBDIRECTORY ( benchmarks )
 ENDIF ()
 
@@ -75,10 +75,10 @@ ADD_SUBDIRECTORY ( doc )
 
 # courtier's programs and the libraries they are built with (its test support) link courtier's
 # own closure only: nothing of hap, dietrich or geneva.
-IF ( GENEVA_BUILD_TESTS )
-	geneva_check_link_closure ( CourtierProgramsLinkOnlyCourtier
+IF ( GEM_BUILD_TESTS )
+	gem_check_link_closure ( CourtierProgramsLinkOnlyCourtier
 		FORBID "^gemfony-(hap|dietrich|geneva)"
 		DIRECTORIES tests examples benchmarks docprograms )
 ENDIF ()
 
-GENEVA_AGGREGATE_TARGET( "courtier-all" )
+GEM_AGGREGATE_TARGET( "courtier-all" )

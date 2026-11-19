@@ -86,12 +86,12 @@ using adaption_fp_t = typename adaption_fp<T>::type;
  * @param lo The lower (inclusive) boundary of the external range.
  * @param hi The upper (exclusive) boundary of the external range.
  * @return The folded value in the half-open range [lo, hi); lo if the range is collapsed (hi <= lo).
- * @throw geneva_exception if val is NaN or infinite.
+ * @throw gem_exception if val is NaN or infinite.
  */
 template <typename T>
 T foldConstrainedFP(const T &val, const T &lo, const T &hi) {
     if(std::isnan(val) || std::isinf(val)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In foldConstrainedFP(): Error" << '\n'
             << "val is " << (std::isnan(val) ? "NaN" : "infinite") << '\n'

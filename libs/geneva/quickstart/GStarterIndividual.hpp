@@ -220,7 +220,7 @@ public:
 #ifdef DEBUG
         // Check whether values have been provided
         if(startValues.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GStarterIndividual::addContent(): Error!" << '\n'
                 << "No parameters given" << '\n'
@@ -230,7 +230,7 @@ public:
         // Check whether all sizes match
         if(startValues.size() != lowerBoundaries.size() ||
            startValues.size() != upperBoundaries.size()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GStarterIndividual::addContent(): Error!" << '\n'
                 << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size() << " / "

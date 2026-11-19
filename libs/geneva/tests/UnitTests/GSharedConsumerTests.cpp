@@ -497,7 +497,7 @@ TEST_CASE(
     CHECK(client.client != nullptr);
     CHECK_FALSE(Gem::Hap::gpuRandomNumbersAllowed());
 
-    CHECK_THROWS_AS(build({"-c", "does_not_exist"}), geneva_exception);
+    CHECK_THROWS_AS(build({"-c", "does_not_exist"}), gem_exception);
     Gem::Hap::setGpuRandomNumbersAllowed(gpu_allowed);
 }
 

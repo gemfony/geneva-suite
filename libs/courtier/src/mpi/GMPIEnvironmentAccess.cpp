@@ -89,10 +89,10 @@ thread_local bool building = false; // NOLINT(cppcoreguidelines-avoid-non-const-
 /** @brief Refuses a call of the three functions from the callable of mpiEnvironmentOn() (or from
  *  anything it calls), which runs while the environment is being built.
  *  @param where The function that was called
- *  @throws geneva_exception on the thread that builds the environment */
+ *  @throws gem_exception on the thread that builds the environment */
 void refuseWhileBuilding(const char *where) {
     if(building) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In " << where << ": Error!" << '\n'
             << where << " was called while the MPI environment is being built on this thread, "
@@ -160,7 +160,7 @@ std::shared_ptr<Consumers::GMPIEnvironment> mpiEnvironment() {
  * @brief Builds the process's MPI environment on the communicator @p make_base returns.
  * @param make_base Called once MPI is initialized; returns the base communicator
  * @return The environment; the caller keeps it for as long as it uses MPI
- * @throws geneva_exception if an environment exists already, or if called from the callable of
+ * @throws gem_exception if an environment exists already, or if called from the callable of
  *         another mpiEnvironmentOn() on this thread
  */
 std::shared_ptr<Consumers::GMPIEnvironment>
@@ -168,7 +168,7 @@ mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
     refuseWhileBuilding("mpiEnvironmentOn()");
     const std::scoped_lock lock(environmentMutex);
     if(not environment.expired()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In mpiEnvironmentOn(): Error!" << '\n'
             << "An MPI environment exists already; mpiEnvironmentOn() must be the first call "

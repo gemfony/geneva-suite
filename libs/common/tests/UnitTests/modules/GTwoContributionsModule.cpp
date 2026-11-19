@@ -51,7 +51,7 @@ namespace {
 
 // A plain-C array, as the manifest takes one
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
-const GenevaContribution CONTRIBUTIONS[] = {
+const GemContribution CONTRIBUTIONS[] = {
     {.kind = Gem::Tests::TEST_KIND_FIRST,
      .name_or_mnemonic = "first",
      .make_factory = []() -> void * {
@@ -64,13 +64,13 @@ const GenevaContribution CONTRIBUTIONS[] = {
      }},
 };
 
-// Written as the other hand-written test manifests are: GENEVA_MODULE_ABI_STAMP is a positional
+// Written as the other hand-written test manifests are: GEM_MODULE_ABI_STAMP is a positional
 // initializer prefix, so the members cannot be designated.
 // NOLINTNEXTLINE(modernize-use-designated-initializers)
-const GenevaModuleManifest MANIFEST{
-    GENEVA_MODULE_ABI_STAMP,
+const GemModuleManifest MANIFEST{
+    GEM_MODULE_ABI_STAMP,
     "GTwoContributionsModule",
-    GENEVA_VERSION_STRING,
+    GEM_VERSION_STRING,
     CONTRIBUTIONS,
     2u
 };
@@ -79,8 +79,8 @@ const GenevaModuleManifest MANIFEST{
 
 // The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return &MANIFEST;
 }

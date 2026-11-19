@@ -201,7 +201,7 @@ unsigned int getNHardwareThreads() {
 std::string loadTextDataFromFile(std::filesystem::path const &p) {
     // Check that the file exists
     if(not std::filesystem::exists(p)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In loadTextDataFromFile(): Error!" << '\n'
             << "Tried to load data from file " << p.string() << '\n'
@@ -212,7 +212,7 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
     std::ifstream source_file_stream(p);
 
     if(not source_file_stream) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In loadTextDataFromFile(): Error!" << '\n'
             << "Stream from file " << p.string() << '\n'
@@ -237,7 +237,7 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
 std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
     // Check that the file exists
     if(not std::filesystem::exists(p)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In loadTextLinesFromFile(): Error!" << '\n'
             << "Tried to load data from file " << p.string() << '\n'
@@ -248,7 +248,7 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
     std::ifstream source_file_stream(p);
 
     if(not source_file_stream) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In loadTextLinesFromFile(): Error!" << '\n'
             << "Stream from file " << p.string() << '\n'
@@ -353,7 +353,7 @@ std::vector<std::string> splitString(std::string const &str, const char *sep) {
 
 #ifdef DEBUG
     if(1 != std::string(sep).size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In splitString(): Error!" << '\n'
             << "Supplied separator \"" << sep << "\" has invalid size " << std::string(sep).size()
@@ -396,7 +396,7 @@ std::vector<unsigned int> stringToUIntVec(std::string const &raw, char sep) {
     std::string rest;
 
     if(not parseSeparatedNumbers(std::string_view(raw), sep, result, rest)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In stringToUIntVec(const std::string& raw): Error!" << '\n'
             << "Parsing failed." << '\n'
@@ -421,7 +421,7 @@ std::vector<double> stringToDoubleVec(std::string const &raw) {
     std::string rest;
 
     if(not parseSeparatedNumbers(std::string_view(raw), ',', result, rest)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In stringToDoubleVec(const std::string& raw): Error!" << '\n'
             << "Parsing failed." << '\n'
@@ -456,7 +456,7 @@ std::vector<std::tuple<unsigned int, unsigned int>> stringToUIntTupleVec(std::st
         }
     };
     auto throwFail = [&]() {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In stringToUIntTupleVec(const std::string& raw): Error!" << '\n'
             << "Parsing failed." << '\n'
@@ -536,7 +536,7 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
         break;
 
     default:
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Common::duration_from_string(\"" << duration_string << "\"): Error!" << '\n'
             << "Invalid number of fields present: " << timings.size() << '\n'
@@ -649,7 +649,7 @@ void condnotset(std::string const &f, std::string const &d) {
           << "In function " << f << " Error!" << '\n'
           << "Function was called even though " << d << " hasn't been set." << '\n'
           << "================================================" << '\n';
-    throw(geneva_exception(error.str()));
+    throw(gem_exception(error.str()));
 }
 
 /******************************************************************************/

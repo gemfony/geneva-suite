@@ -900,7 +900,7 @@ private:
  *
  * The function plotters (function_1d / function_2d) cannot be reconstructed from a
  * spec -- their formula and sampling range are not part of the GPlotSpec value -- so
- * those kinds throw a geneva_exception.
+ * those kinds throw a gem_exception.
  */
 [[nodiscard]] std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec);
 

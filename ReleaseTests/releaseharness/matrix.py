@@ -18,7 +18,7 @@ _GUEST_INSTALL_PREFIX = f"{GUEST_BUILD}/install-prefix"
 
 # The release-test images ship NO CUDA toolkit (see backends/containerfile.py),
 # so a containerized build can never compile CUDA regardless of the host GPU --
-# enabling GENEVA_USE_CUDA_RNG there makes hap's ENABLE_LANGUAGE(CUDA) hard-fail
+# enabling GEM_USE_CUDA_RNG there makes hap's ENABLE_LANGUAGE(CUDA) hard-fail
 # ("Failed to find nvcc"). CUDA must therefore be gated on the IMAGE providing a
 # toolkit, not on host gpu_available. Until a CUDA image variant exists this is
 # always False. Flip to True (and add CUDA to the Containerfile + GPU passthrough

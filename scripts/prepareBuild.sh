@@ -38,7 +38,7 @@
 
 ####################################################################
 # Make a note of the build-root-directory
-GENEVA_BUILDROOT="${PWD}"
+GEM_BUILDROOT="${PWD}"
 
 ####################################################################
 # Parse command line arguments
@@ -114,12 +114,12 @@ for arg in "$@"; do
 done
 
 # Geneva REQUIRES an out-of-source build. The build directory is the directory this script is invoked
-# from (GENEVA_BUILDROOT = PWD). Refuse to proceed when that is the source tree itself -- a common
+# from (GEM_BUILDROOT = PWD). Refuse to proceed when that is the source tree itself -- a common
 # footgun when the script is run from the checkout instead of a dedicated build directory. Left
 # unguarded, --clean would delete the sources (find PWD ... -exec rm -rf) and a configure/build would
 # litter the source tree with CMake artifacts. This check is independent of all other options.
 _SRC_ROOT="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
-_BUILD_ROOT_CANON="$(cd "${GENEVA_BUILDROOT}" 2>/dev/null && pwd)"
+_BUILD_ROOT_CANON="$(cd "${GEM_BUILDROOT}" 2>/dev/null && pwd)"
 if [ -n "${_SRC_ROOT}" ] && [ "${_BUILD_ROOT_CANON}" = "${_SRC_ROOT}" ]; then
 	echo -e "\nError: refusing to use the Geneva source tree as the build directory:"
 	echo -e "  ${_SRC_ROOT}"
@@ -144,9 +144,9 @@ fi
 # Exits with code 1 if the user declines.
 _confirm_and_clean() {
 	if [ "${YES}" = "1" ]; then
-		echo -en "\nCleaning build directory '${GENEVA_BUILDROOT}' (auto-confirmed via -y) ..."
+		echo -en "\nCleaning build directory '${GEM_BUILDROOT}' (auto-confirmed via -y) ..."
 	else
-		echo -e "\nBuild directory '${GENEVA_BUILDROOT}' is already configured."
+		echo -e "\nBuild directory '${GEM_BUILDROOT}' is already configured."
 		echo -e "Warning: ALL files (except *.gcfg) will be permanently deleted."
 		printf "Proceed? [y/N] "
 		read -r _confirm
@@ -157,9 +157,9 @@ _confirm_and_clean() {
 				exit 1
 				;;
 		esac
-		echo -en "Cleaning build directory '${GENEVA_BUILDROOT}' ..."
+		echo -en "Cleaning build directory '${GEM_BUILDROOT}' ..."
 	fi
-	find "${GENEVA_BUILDROOT}" -mindepth 1 -maxdepth 1 ! -name "*.gcfg" -exec rm -rf {} +
+	find "${GEM_BUILDROOT}" -mindepth 1 -maxdepth 1 ! -name "*.gcfg" -exec rm -rf {} +
 	echo -e " done\n"
 }
 
@@ -168,10 +168,10 @@ _confirm_and_clean() {
 # --build, no config file) exit immediately with a reconfigure hint;
 # otherwise fall through to the configure (and optionally build) step.
 if [ "${CLEAN}" = "1" ]; then
-	if [ -e "${GENEVA_BUILDROOT}/CMakeCache.txt" ]; then
+	if [ -e "${GEM_BUILDROOT}/CMakeCache.txt" ]; then
 		_confirm_and_clean
 	else
-		echo -e "\nBuild directory '${GENEVA_BUILDROOT}' does not appear to be configured."
+		echo -e "\nBuild directory '${GEM_BUILDROOT}' does not appear to be configured."
 		echo -e "Nothing to clean.\n"
 	fi
 	if [ "${BUILD}" = "0" ] && [ -z "${CONFIGFILE}" ]; then
@@ -187,24 +187,24 @@ fi
 # Build-only shortcut: --build requested, directory already configured,
 # no --clean and no explicit config file — skip cmake, go straight to make.
 if [ "${BUILD}" = "1" ] && [ "${CLEAN}" = "0" ] && [ -z "${CONFIGFILE}" ] \
-		&& [ -e "${GENEVA_BUILDROOT}/CMakeCache.txt" ]; then
+		&& [ -e "${GEM_BUILDROOT}/CMakeCache.txt" ]; then
 	_NCORES=$(nproc 2>/dev/null || echo 1)
-	echo -e "\nBuild directory already configured. Running: make -C ${GENEVA_BUILDROOT} -j${_NCORES}\n"
+	echo -e "\nBuild directory already configured. Running: make -C ${GEM_BUILDROOT} -j${_NCORES}\n"
 	echo -e "---------------------------------------------------------------------\n"
-	make -C "${GENEVA_BUILDROOT}" -j"${_NCORES}"
+	make -C "${GEM_BUILDROOT}" -j"${_NCORES}"
 	exit $?
 fi
 
 ####################################################################
 # Auto-detect a .gcfg file in the call directory if none was given
 if [ -z "${CONFIGFILE}" ]; then
-	gcfg_files=( "${GENEVA_BUILDROOT}"/*.gcfg )
+	gcfg_files=( "${GEM_BUILDROOT}"/*.gcfg )
 	if [ -e "${gcfg_files[0]}" ]; then
 		if [ "${#gcfg_files[@]}" -eq 1 ]; then
 			CONFIGFILE="${gcfg_files[0]}"
 			_AUTODETECTED=1
 		else
-			echo -e "\nError: multiple .gcfg files found in '${GENEVA_BUILDROOT}'."
+			echo -e "\nError: multiple .gcfg files found in '${GEM_BUILDROOT}'."
 			echo -e "Please specify the configuration file explicitly. Leaving...\n"
 			exit 1
 		fi
@@ -335,7 +335,7 @@ esac
 # Sanitizer: validate and, when enabled, force CUDA + the MPI consumer OFF
 # (nvcc cannot compile with -fsanitize; MPI internals flood ThreadSanitizer).
 # The actual -fsanitize flags are applied centrally by CMake via the
-# GENEVA_SANITIZER cache variable passed below.
+# GEM_SANITIZER cache variable passed below.
 case "${SANITIZER}" in
 	none|thread|address|undefined) ;;
 	*) echo -e "\nError: SANITIZER must be none|thread|address|undefined. Got '${SANITIZER}'. Leaving...\n"; exit 1 ;;
@@ -412,13 +412,13 @@ if [ "${GENERATE_PRESET}" = "1" ]; then
 	_PRESET_VARS=""
 	_preset_add "CMAKE_INSTALL_PREFIX"            "PATH"   "${INSTALLDIR}"
 	_preset_add "CMAKE_VERBOSE_MAKEFILE"          "BOOL"   "${VERBOSEMAKEFILE}"
-	_preset_add "GENEVA_BUILD_TYPE"               "STRING" "${BUILDMODE}"
-	_preset_add "GENEVA_BUILD_TESTS"              "BOOL"   "${BUILDTESTCODE}"
-	_preset_add "GENEVA_BUILD_EXAMPLES"           "BOOL"   "${BUILDEXAMPLES}"
-	_preset_add "GENEVA_BUILD_BENCHMARKS"         "BOOL"   "${BUILDBENCHMARKS}"
-	_preset_add "GENEVA_BUILD_WITH_MPI_CONSUMER"  "BOOL"   "${BUILDMPICONSUMER}"
-	_preset_add "GENEVA_BUILD_WITH_GPU_CONSUMER"  "STRING" "${BUILDGPUCONSUMER}"
-	_preset_add "GENEVA_USE_CUDA_RNG"             "STRING" "${USECUDARNG}"
+	_preset_add "GEM_BUILD_TYPE"               "STRING" "${BUILDMODE}"
+	_preset_add "GEM_BUILD_TESTS"              "BOOL"   "${BUILDTESTCODE}"
+	_preset_add "GEM_BUILD_EXAMPLES"           "BOOL"   "${BUILDEXAMPLES}"
+	_preset_add "GEM_BUILD_BENCHMARKS"         "BOOL"   "${BUILDBENCHMARKS}"
+	_preset_add "GEM_BUILD_WITH_MPI_CONSUMER"  "BOOL"   "${BUILDMPICONSUMER}"
+	_preset_add "GEM_BUILD_WITH_GPU_CONSUMER"  "STRING" "${BUILDGPUCONSUMER}"
+	_preset_add "GEM_USE_CUDA_RNG"             "STRING" "${USECUDARNG}"
 
 	if [ -n "${BOOSTROOT}" ]; then
 		_preset_add "BOOST_ROOT"       "PATH" "${BOOSTROOT}"
@@ -428,12 +428,12 @@ if [ "${GENERATE_PRESET}" = "1" ]; then
 	fi
 
 	[ -n "${MPIROOT}" ]          && _preset_add "MPI_HOME"               "PATH"   "${MPIROOT}"
-	_preset_add "GENEVA_SKIP_CUDA"              "BOOL"   "${SKIPALLCUDA}"
-	_preset_add "GENEVA_FORCE_CUDA"             "BOOL"   "${FORCECUDA}"
+	_preset_add "GEM_SKIP_CUDA"              "BOOL"   "${SKIPALLCUDA}"
+	_preset_add "GEM_FORCE_CUDA"             "BOOL"   "${FORCECUDA}"
 	_preset_add "GIMAGE_USE_FLOAT"             "BOOL"   "${GIMAGE_USE_FLOAT}"
 	_preset_add "HAP_RANDOM_SOURCE"            "STRING" "${RANDOMSOURCE}"
-	_preset_add "GENEVA_BUILD_WITH_COVERAGE"    "BOOL"   "${WITHCOVERAGE}"
-	_preset_add "GENEVA_SANITIZER"              "STRING" "${SANITIZER}"
+	_preset_add "GEM_BUILD_WITH_COVERAGE"    "BOOL"   "${WITHCOVERAGE}"
+	_preset_add "GEM_SANITIZER"              "STRING" "${SANITIZER}"
 	[ -n "${CUDA_NVCC}" ] && [ "${SKIPALLCUDA}" = "0" ] && _preset_add "CMAKE_CUDA_COMPILER" "FILEPATH" "${CUDA_NVCC}"
 	[ -n "${CUDA_ROOT}" ] && [ "${SKIPALLCUDA}" = "0" ] && _preset_add "CUDAToolkit_ROOT"   "PATH"     "${CUDA_ROOT}"
 	[ -n "${_C_COMPILER}" ]      && _preset_add "CMAKE_C_COMPILER"        "FILEPATH" "${_C_COMPILER}"
@@ -441,18 +441,18 @@ if [ "${GENERATE_PRESET}" = "1" ]; then
 	[ -n "${CXXEXTRAFLAGS}" ]    && _preset_add "CMAKE_CXX_FLAGS"         "STRING"   "${CXXEXTRAFLAGS}"
 	[ -n "${LINKEREXTRAFLAGS}" ] && _preset_add "CMAKE_EXE_LINKER_FLAGS"  "STRING"   "${LINKEREXTRAFLAGS}"
 
-	PRESET_FILE="${GENEVA_BUILDROOT}/CMakeUserPresets.json"
+	PRESET_FILE="${GEM_BUILDROOT}/CMakeUserPresets.json"
 	cat > "${PRESET_FILE}" <<ENDOFPRESET
 {
   "version": 3,
   "cmakeMinimumRequired": { "major": 3, "minor": 27, "patch": 0 },
   "configurePresets": [
     {
-      "name": "geneva-from-script",
+      "name": "gem-from-script",
       "displayName": "Geneva (prepareBuild config)",
       "description": "Auto-generated by prepareBuild.sh -- do not edit manually",
       "generator": "Unix Makefiles",
-      "binaryDir": "${GENEVA_BUILDROOT}",
+      "binaryDir": "${GEM_BUILDROOT}",
       "cacheVariables": {${_PRESET_VARS}
       }
     }
@@ -476,7 +476,7 @@ fi
 # Guard against reconfiguring an already-configured build directory.
 # (--clean and --generate-preset are handled earlier and exit before
 # reaching this point.)
-if [ -e "${GENEVA_BUILDROOT}/CMakeCache.txt" ] && [ "${DRYRUN}" = "0" ]; then
+if [ -e "${GEM_BUILDROOT}/CMakeCache.txt" ] && [ "${DRYRUN}" = "0" ]; then
 	_confirm_and_clean
 fi
 
@@ -487,21 +487,21 @@ cmake_args=()
 [ -n "${BOOSTROOT}" ] && cmake_args+=("-DBOOST_ROOT=${BOOSTROOT}")
 [ -n "${BOOSTLIBS}" ] && cmake_args+=("-DBOOST_LIBRARYDIR=${BOOSTLIBS}" "-DBOOST_INCLUDEDIR=${BOOSTINCL}")
 cmake_args+=(
-	"-DGENEVA_BUILD_TYPE=${BUILDMODE}"
-	"-DGENEVA_BUILD_TESTS=${BUILDTESTCODE}"
-	"-DGENEVA_BUILD_EXAMPLES=${BUILDEXAMPLES}"
-	"-DGENEVA_BUILD_BENCHMARKS=${BUILDBENCHMARKS}"
+	"-DGEM_BUILD_TYPE=${BUILDMODE}"
+	"-DGEM_BUILD_TESTS=${BUILDTESTCODE}"
+	"-DGEM_BUILD_EXAMPLES=${BUILDEXAMPLES}"
+	"-DGEM_BUILD_BENCHMARKS=${BUILDBENCHMARKS}"
 	"-DCMAKE_VERBOSE_MAKEFILE=${VERBOSEMAKEFILE}"
 	"-DCMAKE_INSTALL_PREFIX=${INSTALLDIR}"
-	"-DGENEVA_BUILD_WITH_MPI_CONSUMER=${BUILDMPICONSUMER}"
-	"-DGENEVA_BUILD_WITH_GPU_CONSUMER=${BUILDGPUCONSUMER}"
-	"-DGENEVA_USE_CUDA_RNG=${USECUDARNG}"
-	"-DGENEVA_SKIP_CUDA=${SKIPALLCUDA}"
-	"-DGENEVA_FORCE_CUDA=${FORCECUDA}"
+	"-DGEM_BUILD_WITH_MPI_CONSUMER=${BUILDMPICONSUMER}"
+	"-DGEM_BUILD_WITH_GPU_CONSUMER=${BUILDGPUCONSUMER}"
+	"-DGEM_USE_CUDA_RNG=${USECUDARNG}"
+	"-DGEM_SKIP_CUDA=${SKIPALLCUDA}"
+	"-DGEM_FORCE_CUDA=${FORCECUDA}"
 	"-DGIMAGE_USE_FLOAT=${GIMAGE_USE_FLOAT}"
 	"-DHAP_RANDOM_SOURCE=${RANDOMSOURCE}"
-	"-DGENEVA_BUILD_WITH_COVERAGE=${WITHCOVERAGE}"
-	"-DGENEVA_SANITIZER=${SANITIZER}"
+	"-DGEM_BUILD_WITH_COVERAGE=${WITHCOVERAGE}"
+	"-DGEM_SANITIZER=${SANITIZER}"
 )
 [ -n "${MPIROOT}" ]          && cmake_args+=("-DMPI_HOME=${MPIROOT}")
 if [ -n "${CUDA_NVCC}" ] && [ "${SKIPALLCUDA}" = "0" ]; then
@@ -521,7 +521,7 @@ if [ -n "${CMAKEEXTRAFLAGS}" ]; then
 fi
 
 ####################################################################
-echo -e "\nConfiguring with command: \"${CMAKE} -S ${PROJECTROOT} -B ${GENEVA_BUILDROOT} ${cmake_args[*]}\"\n"
+echo -e "\nConfiguring with command: \"${CMAKE} -S ${PROJECTROOT} -B ${GEM_BUILDROOT} ${cmake_args[*]}\"\n"
 echo -e "---------------------------------------------------------------------\n"
 
 if [ "${DRYRUN}" = "1" ]; then
@@ -532,13 +532,13 @@ if [ "${DRYRUN}" = "1" ]; then
 		echo -e "Build step that would follow: make -j${_NCORES}\n"
 	fi
 else
-	if "${CMAKE}" -S "${PROJECTROOT}" -B "${GENEVA_BUILDROOT}" "${cmake_args[@]}"; then
+	if "${CMAKE}" -S "${PROJECTROOT}" -B "${GEM_BUILDROOT}" "${cmake_args[@]}"; then
 		echo -e "\n---------------------------------------------------------------------"
 		if [ "${BUILD}" = "1" ]; then
 			_NCORES=$(nproc 2>/dev/null || echo 1)
-			echo -e "\nConfiguration complete. Building with: make -C ${GENEVA_BUILDROOT} -j${_NCORES}\n"
+			echo -e "\nConfiguration complete. Building with: make -C ${GEM_BUILDROOT} -j${_NCORES}\n"
 			echo -e "---------------------------------------------------------------------\n"
-			make -C "${GENEVA_BUILDROOT}" -j"${_NCORES}"
+			make -C "${GEM_BUILDROOT}" -j"${_NCORES}"
 		else
 			echo -e "\nYou may now build and install Geneva in the usual way:"
 			echo -e "make\t\t# Use '-jn', where 'n' is the number of cores in your system"

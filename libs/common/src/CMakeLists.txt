@@ -42,18 +42,18 @@ SET ( COMMONSOURCES
 	GSigHupHandler.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp
-	${GENEVA_COMMIT_SOURCE}
+	${GEM_COMMIT_SOURCE}
 )
 
 # The commit of the sources, taken again before every build of the library (the top-level
-# CMakeLists.txt says why). The script rewrites GENEVA_COMMIT_SOURCE only when the id changes, so
+# CMakeLists.txt says why). The script rewrites GEM_COMMIT_SOURCE only when the id changes, so
 # that otherwise nothing is compiled or linked again. A changed id (a commit, or the first change of
 # a tracked file after one: "-dirty") costs one compile and the relink of the library and of every
 # target that links it -- intended, not a defect.
-ADD_CUSTOM_TARGET ( geneva-commit
-	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GENEVA_COMMIT_SOURCE}
-		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GenevaCommit.cmake
-	BYPRODUCTS ${GENEVA_COMMIT_SOURCE}
+ADD_CUSTOM_TARGET ( gem-commit
+	COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DOUTPUT=${GEM_COMMIT_SOURCE}
+		-P ${PROJECT_SOURCE_DIR}/CMakeModules/GemCommit.cmake
+	BYPRODUCTS ${GEM_COMMIT_SOURCE}
 	COMMENT "Taking the commit of the Geneva sources"
 	VERBATIM
 )
@@ -66,12 +66,12 @@ set_source_files_properties(
 )
 
 ADD_LIBRARY ( ${COMMON_LIBNAME} SHARED ${COMMONSOURCES} )
-ADD_DEPENDENCIES ( ${COMMON_LIBNAME} geneva-commit )
+ADD_DEPENDENCIES ( ${COMMON_LIBNAME} gem-commit )
 
 SET_TARGET_PROPERTIES(
     ${COMMON_LIBNAME}
     PROPERTIES
-    VERSION ${GENEVA_VERSION}
+    VERSION ${GEM_VERSION}
 	EXPORT_NAME common
 )
 
@@ -87,7 +87,7 @@ TARGET_INCLUDE_DIRECTORIES(
 
 # Propagate the Boost dependencies that appear in the public headers
 # (json/program_options/regex/atomic). The C++ standard is
-# selected centrally in CMakeModules/CommonGenevaBuild.cmake.
+# selected centrally in CMakeModules/CommonGemBuild.cmake.
 TARGET_LINK_LIBRARIES(
     ${COMMON_LIBNAME}
     PUBLIC
@@ -104,9 +104,9 @@ TARGET_LINK_LIBRARIES(${COMMON_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
 # Coverage instrumentation: only applied when explicitly enabled, only to
 # the Common library and its tests (driven by the parent CMakeLists.txt
-# option `GENEVA_BUILD_WITH_COVERAGE`). Costly at runtime; do not enable
+# option `GEM_BUILD_WITH_COVERAGE`). Costly at runtime; do not enable
 # for production builds.
-IF (GENEVA_BUILD_WITH_COVERAGE)
+IF (GEM_BUILD_WITH_COVERAGE)
     IF (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         TARGET_COMPILE_OPTIONS(${COMMON_LIBNAME} PUBLIC
             -fprofile-instr-generate -fcoverage-mapping)
@@ -117,7 +117,7 @@ IF (GENEVA_BUILD_WITH_COVERAGE)
         TARGET_LINK_OPTIONS(${COMMON_LIBNAME} PUBLIC --coverage)
     ELSE ()
         MESSAGE(WARNING
-            "GENEVA_BUILD_WITH_COVERAGE: unsupported compiler "
+            "GEM_BUILD_WITH_COVERAGE: unsupported compiler "
             "${CMAKE_CXX_COMPILER_ID}; coverage flags not applied.")
     ENDIF ()
 ENDIF ()

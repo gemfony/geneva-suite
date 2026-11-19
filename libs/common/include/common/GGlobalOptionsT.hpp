@@ -101,7 +101,7 @@ public:
     /**
 	 * @brief Retrieves an option from the map, returning it as the function result.
 	 *
-	 * Throws @c geneva_exception when the key does not exist (previously, the
+	 * Throws @c gem_exception when the key does not exist (previously, the
 	 * function used @c map::operator[] which silently inserted a default-
 	 * constructed value — surprising for a read-only accessor and a source of
 	 * silent map growth / null-deref bugs in callers that forgot to call
@@ -109,7 +109,7 @@ public:
 	 *
 	 * @param key The name of the option that should be retrieved
 	 * @return The value associated with the given key
-	 * @throw geneva_exception if the key is not present in the option map
+	 * @throw gem_exception if the key is not present in the option map
 	 */
     T get(const std::string &key) {
         if(auto value = store_.get(key)) {

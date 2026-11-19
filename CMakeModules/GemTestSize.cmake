@@ -22,7 +22,7 @@
 #
 ################################################################################
 #
-# GENEVA_TEST_SIZE(<test-name> <S|M|L|XL>)
+# GEM_TEST_SIZE(<test-name> <S|M|L|XL>)
 #
 # Gives a registered CTest test its SIZE label -- the one label the gates select on.
 # Every registered test carries exactly one; the semantic labels it also carries
@@ -34,16 +34,16 @@
 #
 ################################################################################
 
-FUNCTION(GENEVA_TEST_SIZE _test _size)
+FUNCTION(GEM_TEST_SIZE _test _size)
 	IF(NOT "${_size}" MATCHES "^(S|M|L|XL)$")
 		MESSAGE(FATAL_ERROR
-			"GENEVA_TEST_SIZE(${_test} ${_size}): the size must be exactly one of S, M, L, XL. "
+			"GEM_TEST_SIZE(${_test} ${_size}): the size must be exactly one of S, M, L, XL. "
 			"See the \"Running the test suite\" section of INSTALL for what each means and how to "
 			"measure one.")
 	ENDIF()
 	IF(NOT TEST ${_test})
 		MESSAGE(FATAL_ERROR
-			"GENEVA_TEST_SIZE(${_test} ${_size}): no test named \"${_test}\" is registered in this "
+			"GEM_TEST_SIZE(${_test} ${_size}): no test named \"${_test}\" is registered in this "
 			"directory. Call this AFTER the ADD_TEST that registers it.")
 	ENDIF()
 	SET_PROPERTY(TEST ${_test} APPEND PROPERTY LABELS ${_size})

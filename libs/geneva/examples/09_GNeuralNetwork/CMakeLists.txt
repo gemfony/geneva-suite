@@ -50,10 +50,10 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		)
 
 
-GENEVA_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
+GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
 # The four sample training sets are MATERIALIZED FROM CODE at build time -- the same model
-# GENEVA_MATERIALIZE_CONFIGS applies to configuration -- instead of being shipped as data files. This
+# GEM_MATERIALIZE_CONFIGS applies to configuration -- instead of being shipped as data files. This
 # example writes them itself (--trainingDataType selects the distribution and the run also emits the
 # matching ROOT visualization macro "<name>.dat.C"), so a checked-in copy is a hand-synced duplicate of
 # what the code already produces: the shipped set was written by Boost.Serialization and became
@@ -71,7 +71,7 @@ ADD_CUSTOM_COMMAND ( TARGET ${EXECUTABLENAME} POST_BUILD
 	COMMENT "Generating ${EXECUTABLENAME} sample training data from code"
 	VERBATIM )
 # The names are listed in the order of the trainingDataType enumeration (HYPERCUBE=1 ... SINUS=4); each
-# run is routed through GenevaRunQuiet.cmake, so its output is replayed only if it fails.
+# run is routed through GemRunQuiet.cmake, so its output is replayed only if it fails.
 SET ( _nn_type 1 )
 FOREACH ( _nn_name hyper_cube hyper_sphere axis_centric sinus )
 	ADD_CUSTOM_COMMAND ( TARGET ${EXECUTABLENAME} POST_BUILD
@@ -80,7 +80,7 @@ FOREACH ( _nn_name hyper_cube hyper_sphere axis_centric sinus )
 			"-DRQ_WD=${CMAKE_CURRENT_BINARY_DIR}"
 			"-DRQ_LOG=${CMAKE_CURRENT_BINARY_DIR}/dataset-${_nn_name}.log"
 			"-DRQ_DESC=Training-data generation for ${_nn_name}"
-			-P ${GENEVA_RUN_QUIET_SCRIPT}
+			-P ${GEM_RUN_QUIET_SCRIPT}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 		VERBATIM )
 	MATH ( EXPR _nn_type "${_nn_type} + 1" )
@@ -92,6 +92,6 @@ INSTALL ( DIRECTORY ${_nn_data_dir}/ DESTINATION ${INSTALL_PREFIX_DATA}/examples
 ADD_TEST ( NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
 SET_TESTS_PROPERTIES ( ${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300 )
-GENEVA_TEST_SIZE(${EXECUTABLENAME} M)
+GEM_TEST_SIZE(${EXECUTABLENAME} M)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

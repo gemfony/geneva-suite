@@ -35,34 +35,40 @@
 #
 ################################################################################
 #
-# Orchestrator for the Hap library subtree.
-#
-# Hap mirrors Hap with identical class names in namespace Gem::Hap, library
-# gemfony-hap and include prefix <hap/...>, so it can act as a drop-in
-# replacement. Both libraries build in parallel; the GHapVsHap benchmark links
-# both for side-by-side comparison.
+# Orchestrator for the Hap library subtree: the random number library, namespace
+# Gem::Hap, target gemfony-hap, include prefix <hap/...>.
 #
 # Layout:
 #   hap/include/hap/*.hpp   public headers
 #   hap/src/*.cpp *.cu       implementation + the gemfony-hap target
+#   hap/tests/               unit, quality, concurrency and manual tests
+#   hap/examples/            usage examples
+#   hap/docprograms/         figure producers for the manual, each registered
+#                            as an S-size test
+#   hap/benchmarks/          GHapBenchmark
+#   hap/doc/                 the per-library Doxygen target (doc-hap)
 ################################################################################
 
 ADD_SUBDIRECTORY ( include/hap )
 ADD_SUBDIRECTORY ( src )
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()
 
-IF ( GENEVA_BUILD_EXAMPLES )
+IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
-IF ( GENEVA_BUILD_BENCHMARKS )
+IF ( GEM_BUILD_TESTS )
+	ADD_SUBDIRECTORY ( docprograms )
+ENDIF ()
+
+IF ( GEM_BUILD_BENCHMARKS )
 	ADD_SUBDIRECTORY ( benchmarks )
 ENDIF ()
 
-# Per-library Doxygen target (doc-hap), mirroring hap/.
+# Per-library Doxygen target (doc-hap).
 ADD_SUBDIRECTORY ( doc )
 
-GENEVA_AGGREGATE_TARGET( "hap-all" )
+GEM_AGGREGATE_TARGET( "hap-all" )

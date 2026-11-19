@@ -33,7 +33,7 @@
  *
  * Part of the loader's negative-path coverage (see GGenomeTests.cpp, "[plugin][reject]"). Toolchain
  * fingerprint, ABI version and contribution size are this build's; only the size of the manifest is
- * not, which is what a module built against a GenevaModuleManifest of another layout under the same
+ * not, which is what a module built against a GemModuleManifest of another layout under the same
  * ABI version would look like. The loader must refuse it with the ABI gate, before it reads a field
  * behind the stamp: the factory here ends the process, so a test that gets past the gate fails
  * loudly.
@@ -57,20 +57,20 @@ void *abortingFactory() {
     std::abort();
 }
 
-const GenevaContribution CONTRIBUTION{
-    .kind = GENEVA_CONTRIBUTION_INDIVIDUAL,
+const GemContribution CONTRIBUTION{
+    .kind = GEM_CONTRIBUTION_INDIVIDUAL,
     .name_or_mnemonic = "WrongManifestSize",
     .make_factory = abortingFactory
 };
 
 // Written field by field, as GStaleAbiModule is, so that one of the stamp's fields can be wrong.
-const GenevaModuleManifest MANIFEST{
-    .compat = GENEVA_BUILD_FINGERPRINT,
-    .abi_version = GENEVA_MODULE_ABI_VERSION,
-    .manifest_size = static_cast<std::uint32_t>(sizeof(GenevaModuleManifest) + 8u), // the defect
-    .contribution_size = static_cast<std::uint32_t>(sizeof(GenevaContribution)),
+const GemModuleManifest MANIFEST{
+    .compat = GEM_BUILD_FINGERPRINT,
+    .abi_version = GEM_MODULE_ABI_VERSION,
+    .manifest_size = static_cast<std::uint32_t>(sizeof(GemModuleManifest) + 8u), // the defect
+    .contribution_size = static_cast<std::uint32_t>(sizeof(GemContribution)),
     .module_name = "GManifestSizeModule",
-    .module_version = GENEVA_VERSION_STRING,
+    .module_version = GEM_VERSION_STRING,
     .contributions = &CONTRIBUTION,
     .contributions_count = 1u
 };
@@ -79,8 +79,8 @@ const GenevaModuleManifest MANIFEST{
 
 // The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest();
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 // NOLINTNEXTLINE(readability-identifier-naming)
-extern "C" BOOST_SYMBOL_EXPORT const GenevaModuleManifest *geneva_module_manifest() {
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
     return &MANIFEST;
 }

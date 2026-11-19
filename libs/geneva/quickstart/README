@@ -67,7 +67,7 @@ project.
 
    The quickstart expects its configuration files under ./config; they are
    materialized into the build tree from the code's registered defaults
-   right after the build (GENEVA_MATERIALIZE_CONFIGS, exported by the
+   right after the build (GEM_MATERIALIZE_CONFIGS, exported by the
    installed Geneva CMake package), so no hand-maintained config files
    are shipped.
 
@@ -80,7 +80,7 @@ internal Geneva test scaffolding header (Geneva_tests.hpp), which is
 part of the Geneva *sources* and is not installed. The test target is
 built only when Catch2 v3 and that header are available AND the
 installed Geneva itself was built with test code (the BUILDTESTCODE
-knob / GENEVA_BUILD_TESTS; find_package(Geneva) reports the flavor as
+knob / GEM_BUILD_TESTS; find_package(Geneva) reports the flavor as
 GENEVA_TESTING). Against an install built without test code the
 individual's self-test hooks are present but throw by design, and a
 consumer cannot compile that away, so the test is skipped with a STATUS

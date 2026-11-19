@@ -392,7 +392,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // The logger's routines will in addition try to print on the console. Note
         // that we ignore any "source" information, as this is already contained
         // in the logged message.
-        GFileLogger const gfl("GENEVA-EXCEPTION.log");
+        GFileLogger const gfl("GEM-EXCEPTION.log");
         gfl.log(error);
 
         // Send the exception out. This done globally, so an exception
@@ -414,7 +414,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // The logger's routines will in addition try to print on the console. Note
         // that we ignore any "source" information, as this is already contained
         // in the logged message.
-        GFileLogger const gfl("GENEVA-TERMINATION.log");
+        GFileLogger const gfl("GEM-TERMINATION.log");
         gfl.log(error);
 
         // Initiate the termination sequence.

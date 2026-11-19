@@ -73,12 +73,12 @@ enum class GMPICascadeLayout : Gem::Common::ENUMBASETYPE {
  *
  * @param pause_min The first pause after a look that found nothing
  * @param pause_max The longest pause
- * @throws geneva_exception unless 0 < pause_min <= pause_max; the text names both values
+ * @throws gem_exception unless 0 < pause_min <= pause_max; the text names both values
  */
 inline void
 checkPollPauses(std::chrono::microseconds pause_min, std::chrono::microseconds pause_max) {
     if(pause_min.count() <= 0 || pause_max < pause_min) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In checkPollPauses(): Error!" << '\n'
             << "The poll pauses must satisfy 0 < pause_min <= pause_max, but pause_min is "
@@ -115,7 +115,7 @@ struct GMPICascadeConfig {
      * cascade checks the configuration it received from rank 0 (check()), whoever filled it.
      *
      * @param config_file The path of the configuration file (usually GMPICASCADECONFIGFILE)
-     * @throws geneva_exception if the file cannot be read or parsed: there is no silent default
+     * @throws gem_exception if the file cannot be read or parsed: there is no silent default
      */
     void load(const std::string &config_file) {
         Gem::Common::GParserBuilder gpb;
@@ -156,11 +156,11 @@ struct GMPICascadeConfig {
      * @brief Refuses a configuration a cascade cannot use: a group size of 0, a layout that is
      * not one of the two, or poll pauses that break checkPollPauses()'s rule.
      *
-     * @throws geneva_exception naming what is wrong
+     * @throws gem_exception naming what is wrong
      */
     void check() const {
         if(groupSize == 0) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPICascadeConfig::check(): Error!" << '\n'
                 << "The group size of the MPI cascade (sub_client_group_size) is 0; a group has "
@@ -169,7 +169,7 @@ struct GMPICascadeConfig {
         }
         if(layout != GMPICascadeLayout::SUBMITTER_AND_GROUPS &&
            layout != GMPICascadeLayout::GROUPS_ONLY) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMPICascadeConfig::check(): Error!" << '\n'
                 << "The layout of the MPI cascade has the unknown value "

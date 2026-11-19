@@ -287,7 +287,7 @@ public:
     void setNRunsPerOptimization(std::size_t n_runs_per_optimization) {
 #ifdef DEBUG
         if(0 == n_runs_per_optimization) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMetaOptimizerIndividualT<ind_type>::setNRunsPerOptimization(): Error!"
                 << '\n'
@@ -572,7 +572,7 @@ public:
      */
     void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMetaOptimizerIndividualT<T>::registerIndividualFactory(): Error!" << '\n'
                 << "Individual is empty" << '\n'
@@ -769,7 +769,7 @@ protected:
         // ind_factory_->get() below would dereference a null factory pointer (undefined behaviour) rather
         // than report the missing registration.
         if(not ind_factory_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMetaOptimizerIndividualT<T>::evaluate(): Error!" << '\n'
                 << "No factory class for individuals has been registered" << '\n'
@@ -1100,7 +1100,7 @@ public:
      */
     void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GMetaOptimizerIndividualFactoryT<T>::registerIndividualFactory(): Error!"
                 << '\n'
@@ -1895,7 +1895,7 @@ private:
         } break;
 
         default: {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GOptOptMonitorT<ind_type>>: Received invalid infoMode " << im << '\n'
             );

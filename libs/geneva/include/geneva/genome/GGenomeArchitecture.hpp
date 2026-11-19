@@ -147,7 +147,7 @@ private:
      *  @param n The number of floating-point values the individual provided */
     void checkSize(std::size_t n) const {
         if(n < rows_ * cols_) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGridArchitecture: Error!" << '\n'
                 << "Individual has " << n << " FP values, but the " << rows_ << "x" << cols_

@@ -75,7 +75,7 @@ void GGenome::setGenome(GenomeData const &g) {
     auto checkBounds = [](auto const &ch, const char *type_name) {
         for(std::size_t k = 0; k < ch.size(); ++k) {
             if(ch.fold[k] && ch.lower[k] > ch.upper[k]) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::setGenome(): Error!" << '\n'
                     << "Bounded " << type_name << " parameter " << k
@@ -225,14 +225,14 @@ bool GGenome::randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr) 
  */
 std::size_t GGenome::getCrossOverPos(const std::size_t lower, const std::size_t upper) {
     if(lower == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::getCrossOverPos(): Error!" << '\n'
             << "lower boundary is 0, but must be > 0" << '\n'
         );
     }
     if(upper <= lower) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::getCrossOverPos(): Error!" << '\n'
             << "Invalid range: upper (" << upper << ") must be > lower (" << lower << ")" << '\n'
@@ -302,7 +302,7 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
 void GGenome::cannibalize(GGenome &cp_base) {
     auto &cp = dynamic_cast<GGenome &>(cp_base);
     if(cp.is_due_for_processing() || cp.has_errors()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::cannibalize(): Error!" << '\n'
             << "cp isn't processed or has errors" << '\n'
@@ -650,7 +650,7 @@ GGenome::GGenome(GGenome const &cp) {
  */
 void GGenome::setPolicy(std::shared_ptr<GProblemPolicy> policy) {
     if(not policy) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::setPolicy(): Error!" << '\n'
             << "Tried to install an empty problem policy" << '\n'
@@ -681,7 +681,7 @@ individual_processing_result
 GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &result_cnt) {
 #ifdef DEBUG
     if(result_cnt.size() != stored_results_cnt_.size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::markAsProcessedWith(): Vector dimensions" << '\n'
             << "do not fit: " << result_cnt.size() << " / " << stored_results_cnt_.size() << '\n'
@@ -705,7 +705,7 @@ GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &re
  */
 individual_processing_result GGenome::getStoredResult(const std::size_t id) const {
     if(not this->is_processed()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::getStoredResult(): Tried to" << '\n'
             << "retrieve stored result while the PROCESSED flag was not set" << '\n'
@@ -735,11 +735,11 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
  * @param evaluation Computes the raw results of this candidate; must not be empty. It must
  *   return as many results as the candidate has criteria.
  * @return The first stored result after processing
- * @throws geneva_exception if @p evaluation is empty (the candidate is left untouched)
+ * @throws gem_exception if @p evaluation is empty (the candidate is left untouched)
  */
 individual_processing_result GGenome::process(evaluation_function evaluation) {
     if(not evaluation) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::process(evaluation): Error!" << '\n'
             << "The evaluation is empty" << '\n'
@@ -783,7 +783,7 @@ individual_processing_result GGenome::processWith_(
  * @param evaluation_time The time in seconds it took to compute @p res_vec (on a batch path the
  *        evaluation of the whole batch)
  * @return The first stored result after processing
- * @throws geneva_exception if @p res_vec is empty or the processing was not begun (the candidate
+ * @throws gem_exception if @p res_vec is empty or the processing was not begun (the candidate
  *         is left untouched)
  */
 individual_processing_result GGenome::completeProcessing(
@@ -826,7 +826,7 @@ void GGenome::processingCore_(
     }
 
     if(injected_fault == GFaultInjector::Fault::THROW) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "Fault injected into the processing of a GGenome (THROW)" << '\n'
         );
@@ -859,7 +859,7 @@ double GGenome::adoptRawResults_(
     try {
         if(not res_vec.empty()) {
             if(res_vec.size() != this->getNStoredResults()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::adoptRawResults_(): Error!" << '\n'
                     << "res_vec has invalid size. Got " << res_vec.size() << '\n'
@@ -890,7 +890,7 @@ double GGenome::adoptRawResults_(
             const std::vector<double> raw =
                 evaluation != nullptr ? (*evaluation)(std::as_const(*this)) : this->evaluate();
             if(raw.size() != this->getNStoredResults()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GGenome::adoptRawResults_(): Error!" << '\n'
                     << (evaluation != nullptr ? "The evaluation given to process()" : "evaluate()")
@@ -980,7 +980,7 @@ void GGenome::finalizeFeasibleEvaluation_(
 void GGenome::setFitness_(std::vector<double> const &f_cnt) {
 #ifdef DEBUG
     if(f_cnt.size() != this->getNStoredResults()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::setFitness_(): Error!" << '\n'
             << "Invalid size of fitness vector: " << f_cnt.size()
@@ -1054,7 +1054,7 @@ void GGenome::applyInvalidityPolicy_() {
 void GGenome::setResult(const std::size_t id, const double value) {
 #ifdef DEBUG
     if(id >= this->getNStoredResults()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::setResult(): Error!" << '\n'
             << "Invalid position in vector: " << id << " (expected min 0 and max "
@@ -1085,14 +1085,14 @@ std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) cons
 bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
 #ifdef DEBUG
     if(boundaries.size() != this->getNStoredResults()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::isGoodEnough(): Error!" << '\n'
             << "Number of boundaries does not match number of fitness criteria" << '\n'
         );
     }
     if(not this->is_processed()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::isGoodEnough(): Error!" << '\n'
             << "Trying to compare fitness values although the individual isn't processed" << '\n'
@@ -1126,7 +1126,7 @@ bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
 bool GGenome::isValid() const {
 #ifdef DEBUG
     if(this->is_due_for_processing() || this->has_errors()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::isValid():" << '\n'
             << "Function was called for unprocessed or erroneous individual" << '\n'
@@ -1253,7 +1253,7 @@ double GGenome::squaredSumCombiner() const {
  */
 double GGenome::weighedSquaredSumCombiner(std::vector<double> const &weights) const {
     if(this->getNStoredResults() != weights.size()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGenome::weighedSquaredSumCombiner(): Error!" << '\n'
             << "Sizes of results and the weights vector don't match: " << this->getNStoredResults()

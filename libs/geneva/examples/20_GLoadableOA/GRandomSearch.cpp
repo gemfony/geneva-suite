@@ -127,7 +127,7 @@ void GRandomSearch::evaluatePopulation_() {
     const auto status = this->workOnPopulation(0, this->size());
 
     if(not status.is_complete || status.has_errors) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GRandomSearch::evaluatePopulation_(): Error!" << '\n'
             << "The population could not be fully evaluated (is_complete=" << status.is_complete
@@ -154,14 +154,14 @@ void GRandomSearch::adjustPopulation_() {
     const std::size_t n_start = this->size();
 
     if(n_start == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GRandomSearch::adjustPopulation_(): Error!" << '\n'
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
     if(this->getDefaultPopulationSize() == 0) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GRandomSearch::adjustPopulation_(): Error!" << '\n'
             << "The default population size is 0." << '\n'

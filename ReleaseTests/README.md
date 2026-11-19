@@ -136,7 +136,7 @@ case-insensitive.
 Geneva's requirements are GCC >= 15, Clang >= 22, CMake >= 3.27 and
 Boost >= 1.91; at configure time the compiler floor is enforced by
 `CMakeModules/IdentifySystemParameters.cmake`, the Boost floor by the Boost
-search in `CMakeModules/CommonGenevaBuild.cmake`. Every in-image toolchain meets
+search in `CMakeModules/CommonGemBuild.cmake`. Every in-image toolchain meets
 it.
 
 ---

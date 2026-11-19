@@ -54,7 +54,7 @@ SET_SOURCE_FILES_PROPERTIES(
 )
 
 # If we compile with CUDA support, add the appropriate file
-IF(GENEVA_USE_CUDA_RNG_ENABLED)
+IF(GEM_USE_CUDA_RNG_ENABLED)
 	SET(HAPSOURCES
 		${HAPSOURCES}
 		GCUDARng.cu
@@ -72,7 +72,7 @@ ADD_LIBRARY ( ${HAP_LIBNAME} SHARED ${HAPSOURCES} )
 SET_TARGET_PROPERTIES(
     ${HAP_LIBNAME}
     PROPERTIES
-    VERSION ${GENEVA_VERSION}
+    VERSION ${GEM_VERSION}
 	CUDA_ARCHITECTURES 80 86 89
 	EXPORT_NAME hap
 )
@@ -82,7 +82,7 @@ target_compile_options(${HAP_LIBNAME} PRIVATE
 )
 
 # Export the include directory. The C++ standard is selected centrally in
-# CMakeModules/CommonGenevaBuild.cmake.
+# CMakeModules/CommonGemBuild.cmake.
 TARGET_INCLUDE_DIRECTORIES(
     ${HAP_LIBNAME}
     PUBLIC
@@ -91,11 +91,11 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 # Default-source selection for the Gem::Hap::GRandom alias (see HAP_RANDOM_SOURCE and
-# GENEVA_HAP_PUBLIC_DEFINE in the top-level CMakeLists). The macro is PUBLIC so every consumer of
+# GEM_HAP_PUBLIC_DEFINE in the top-level CMakeLists). The macro is PUBLIC so every consumer of
 # <hap/GRandomT.hpp> sees the same GRandom; 'queue' defines nothing (the header defaults to QUEUE),
 # keeping the common case macro-free.
-IF(GENEVA_HAP_PUBLIC_DEFINE)
-	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC ${GENEVA_HAP_PUBLIC_DEFINE})
+IF(GEM_HAP_PUBLIC_DEFINE)
+	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PUBLIC ${GEM_HAP_PUBLIC_DEFINE})
 ENDIF()
 MESSAGE(STATUS "Hap: default GRandom source = ${HAP_RANDOM_SOURCE}")
 
@@ -108,7 +108,7 @@ TARGET_LINK_LIBRARIES(${HAP_LIBNAME} PUBLIC ${COMMON_LIBNAME})
 # HAP_USE_CUDA compile definition and links the cuRAND + CUDA-runtime host
 # libraries. cuRAND is part of the (optional) NVIDIA CUDA Toolkit the user
 # provides; it is never vendored into the source tree.
-IF(GENEVA_USE_CUDA_RNG_ENABLED)
+IF(GEM_USE_CUDA_RNG_ENABLED)
 	FIND_PACKAGE(CUDAToolkit REQUIRED)
 	TARGET_COMPILE_DEFINITIONS(${HAP_LIBNAME} PRIVATE HAP_USE_CUDA=1)
 	TARGET_LINK_LIBRARIES(${HAP_LIBNAME} PRIVATE CUDA::curand CUDA::cudart)

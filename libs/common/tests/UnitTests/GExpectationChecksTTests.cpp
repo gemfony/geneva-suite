@@ -313,7 +313,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): GCommonInterfaceT-derived objects via the geneva-type overload.
+// compare(): GCommonInterfaceT-derived objects via the gem_type overload.
 // A tiny GCommonInterfaceT-derivative is enough.
 
 namespace {
@@ -355,7 +355,7 @@ private:
 } // namespace
 
 TEST_CASE(
-    "compare<geneva_type>: equal Geneva objects + EQUALITY pass",
+    "compare<gem_type>: equal Geneva objects + EQUALITY pass",
     "[common][expectations][compare]"
 ) {
     CmpObj const a(5);
@@ -364,7 +364,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<geneva_type>: unequal Geneva objects + EQUALITY fail",
+    "compare<gem_type>: unequal Geneva objects + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     CmpObj const a(5);
@@ -373,7 +373,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<geneva_type>: unequal Geneva objects + INEQUALITY pass",
+    "compare<gem_type>: unequal Geneva objects + INEQUALITY pass",
     "[common][expectations][compare]"
 ) {
     CmpObj const a(5);
@@ -382,7 +382,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<geneva_type>: equal Geneva objects + INEQUALITY fail",
+    "compare<gem_type>: equal Geneva objects + INEQUALITY fail",
     "[common][expectations][compare]"
 ) {
     CmpObj const a(5);
@@ -391,10 +391,10 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): shared_ptr<geneva_type> overload.
+// compare(): shared_ptr<gem_type> overload.
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: both null + EQUALITY pass",
+    "compare<shared_ptr<gem_type>>: both null + EQUALITY pass",
     "[common][expectations][compare]"
 ) {
     std::shared_ptr<CmpObj> const a;
@@ -403,7 +403,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: one null one non-null + EQUALITY fail",
+    "compare<shared_ptr<gem_type>>: one null one non-null + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     std::shared_ptr<CmpObj> const a;
@@ -412,7 +412,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: matching contents + EQUALITY pass",
+    "compare<shared_ptr<gem_type>>: matching contents + EQUALITY pass",
     "[common][expectations][compare]"
 ) {
     auto a = std::make_shared<CmpObj>(7);
@@ -421,7 +421,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: differing contents + EQUALITY fail",
+    "compare<shared_ptr<gem_type>>: differing contents + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     auto a = std::make_shared<CmpObj>(7);
@@ -430,10 +430,10 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): container<shared_ptr<geneva_type>> overload — vector<shared_ptr>.
+// compare(): container<shared_ptr<gem_type>> overload — vector<shared_ptr>.
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: identical contents + EQUALITY pass",
+    "compare<vector<shared_ptr<gem_type>>>: identical contents + EQUALITY pass",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{
@@ -448,7 +448,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: differing sizes + EQUALITY fail",
+    "compare<vector<shared_ptr<gem_type>>>: differing sizes + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{std::make_shared<CmpObj>(1)};
@@ -460,7 +460,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: element diff + EQUALITY fail",
+    "compare<vector<shared_ptr<gem_type>>>: element diff + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{
@@ -475,7 +475,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: INEQUALITY satisfied when one differs",
+    "compare<vector<shared_ptr<gem_type>>>: INEQUALITY satisfied when one differs",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{
@@ -490,7 +490,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: nullptr vs non-null element + EQUALITY fail",
+    "compare<vector<shared_ptr<gem_type>>>: nullptr vs non-null element + EQUALITY fail",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{
@@ -650,10 +650,10 @@ TEST_CASE("compare<set<int>>: equal sets + INEQUALITY throw", "[common][expectat
 }
 
 // ---------------------------------------------------------------------------
-// compare(): shared_ptr<geneva_type> INEQUALITY cases
+// compare(): shared_ptr<gem_type> INEQUALITY cases
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: both null + INEQUALITY throw",
+    "compare<shared_ptr<gem_type>>: both null + INEQUALITY throw",
     "[common][expectations][compare]"
 ) {
     std::shared_ptr<CmpObj> const a;
@@ -662,7 +662,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: one null one non-null + INEQUALITY pass",
+    "compare<shared_ptr<gem_type>>: one null one non-null + INEQUALITY pass",
     "[common][expectations][compare]"
 ) {
     std::shared_ptr<CmpObj> const a;
@@ -671,7 +671,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: differing contents + INEQUALITY pass",
+    "compare<shared_ptr<gem_type>>: differing contents + INEQUALITY pass",
     "[common][expectations][compare]"
 ) {
     auto a = std::make_shared<CmpObj>(7);
@@ -680,7 +680,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "compare<shared_ptr<geneva_type>>: matching contents + INEQUALITY throw",
+    "compare<shared_ptr<gem_type>>: matching contents + INEQUALITY throw",
     "[common][expectations][compare]"
 ) {
     auto a = std::make_shared<CmpObj>(7);
@@ -689,10 +689,10 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): vector<shared_ptr<geneva_type>> INEQUALITY — identical containers should throw
+// compare(): vector<shared_ptr<gem_type>> INEQUALITY — identical containers should throw
 
 TEST_CASE(
-    "compare<vector<shared_ptr<geneva_type>>>: identical containers + INEQUALITY throw",
+    "compare<vector<shared_ptr<gem_type>>>: identical containers + INEQUALITY throw",
     "[common][expectations][compare]"
 ) {
     std::vector<std::shared_ptr<CmpObj>> const a{

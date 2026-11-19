@@ -68,11 +68,11 @@ SET ( OPTIMIZATIONSOURCES
 
 # GTestIndividual1 is a LIBRARY-INTERNAL test fixture: GEvolutionaryAlgorithm's GEM_TESTING self-test
 # (fillWithObjects) instantiates it. It is therefore compiled into the library, but ONLY under
-# GENEVA_BUILD_TESTS (-DGEM_TESTING) -- a production build omits it, so libgemfony-geneva still ships zero
+# GEM_BUILD_TESTS (-DGEM_TESTING) -- a production build omits it, so libgemfony-geneva still ships zero
 # concrete individuals. Its GEM_TESTING-only test consumers (GenevaStandardTests) link the library and get it
 # from there. GTestIndividual2 and GTestIndividual3 are NOT used by the library; they are packaged as object
 # libraries below.
-IF(GENEVA_BUILD_TESTS)
+IF(GEM_BUILD_TESTS)
 	SET(OPTIMIZATIONSOURCES ${OPTIMIZATIONSOURCES} individuals/GTestIndividual1.cpp)
 ENDIF()
 
@@ -131,12 +131,12 @@ GENEVA_DECLARE_INDIVIDUAL(GMetaOptimizerIndividualT
 # test and benchmark targets (never by the library). They are packaged MODE compile -- an object library each
 # consumer links -- and built only when something can consume them: GTestIndividual2 by the unit tests and the
 # GSerializationOverhead / GRandomWalk benchmarks-and-manual-tests; GTestIndividual3 by the unit tests only.
-IF(GENEVA_BUILD_TESTS OR GENEVA_BUILD_BENCHMARKS)
+IF(GEM_BUILD_TESTS OR GEM_BUILD_BENCHMARKS)
 	GENEVA_DECLARE_INDIVIDUAL(GTestIndividual2
 		MODE    compile
 		SOURCES individuals/GTestIndividual2.cpp)
 ENDIF()
-IF(GENEVA_BUILD_TESTS)
+IF(GEM_BUILD_TESTS)
 	GENEVA_DECLARE_INDIVIDUAL(GTestIndividual3
 		MODE    compile
 		SOURCES individuals/GTestIndividual3.cpp)
@@ -164,7 +164,7 @@ ENDIF()
 #
 # Consumers are not gated here: the courtier consumers are header-only
 # templates with no .cpp to exclude, and the MPI consumer is already gated by
-# GENEVA_BUILD_WITH_MPI_CONSUMER. Consumer plugin selection is deferred to a
+# GEM_BUILD_WITH_MPI_CONSUMER. Consumer plugin selection is deferred to a
 # later plugin-architecture phase.
 #
 ################################################################################
@@ -179,17 +179,17 @@ OPTION(GENEVA_ALGO_PS    "Build the Parameter Scan algorithm"              ON)
 # unit-test fixtures (notably GTestIndividual1) and the algorithms' own
 # GEM_TESTING self-tests reference the optimization algorithms by type, so a
 # testing-enabled build needs every algorithm compiled in. Disabling any
-# algorithm while GENEVA_BUILD_TESTS is ON would otherwise fail at link time
+# algorithm while GEM_BUILD_TESTS is ON would otherwise fail at link time
 # with a cryptic undefined-reference error; catch it here with a clear message.
-# (Production slim-core builds run with GENEVA_BUILD_TESTS=OFF anyway.)
-IF (GENEVA_BUILD_TESTS AND NOT (GENEVA_ALGO_SA AND GENEVA_ALGO_SWARM
+# (Production slim-core builds run with GEM_BUILD_TESTS=OFF anyway.)
+IF (GEM_BUILD_TESTS AND NOT (GENEVA_ALGO_SA AND GENEVA_ALGO_SWARM
 		AND GENEVA_ALGO_CGD AND GENEVA_ALGO_NM
 		AND GENEVA_ALGO_PS))
 	MESSAGE(FATAL_ERROR
-		"GENEVA_BUILD_TESTS=ON requires all GENEVA_ALGO_* options to be ON: the "
+		"GEM_BUILD_TESTS=ON requires all GENEVA_ALGO_* options to be ON: the "
 		"in-library test fixtures reference every optimization algorithm. For a "
 		"slim-core build with an algorithm disabled, configure with "
-		"-DGENEVA_BUILD_TESTS=OFF.")
+		"-DGEM_BUILD_TESTS=OFF.")
 ENDIF ()
 
 IF(GENEVA_ALGO_SA)
@@ -244,14 +244,14 @@ TARGET_COMPILE_DEFINITIONS ( ${GENEVA_LIBNAME} PRIVATE ${GENEVA_ALGO_DEFINES} )
 SET_TARGET_PROPERTIES(
     ${GENEVA_LIBNAME}
     PROPERTIES
-    VERSION ${GENEVA_VERSION}
+    VERSION ${GEM_VERSION}
 	EXPORT_NAME geneva
 )
 
 
 
 # Export the include directory. The C++ standard is selected centrally in
-# CMakeModules/CommonGenevaBuild.cmake.
+# CMakeModules/CommonGemBuild.cmake.
 TARGET_INCLUDE_DIRECTORIES(
 	${GENEVA_LIBNAME}
 	PUBLIC
@@ -273,7 +273,7 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 # link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
-IF ( GENEVA_BUILD_TESTS )
+IF ( GEM_BUILD_TESTS )
 	# When built with testing support (-DGEM_TESTING), the library embeds
 	# Catch2-based test scaffolding (GTestIndividual*, GUnitTestFrameworkT) and
 	# therefore references Catch2 symbols. Consumers of such a testing-enabled
@@ -298,7 +298,7 @@ INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_P
 # the same directory as libgemfony-geneva, in the build tree as in the installation, which is where
 # the loader looks. Where libgemfony-courtier-mpi or the MPI library is missing, the module fails to
 # load, and the loader says so (a Geneva program that does not use MPI still starts).
-IF (GENEVA_BUILD_WITH_MPI_CONSUMER)
+IF (GEM_BUILD_WITH_MPI_CONSUMER)
 	# A MODULE: loaded, never linked, so it is not part of the exported package. It keeps the "lib"
 	# prefix, which MODULE libraries drop by default.
 	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} MODULE

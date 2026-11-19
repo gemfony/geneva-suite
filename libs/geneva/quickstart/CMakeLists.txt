@@ -121,19 +121,19 @@ INSTALL(TARGETS GStarterGenericOptimizer GStarterIndividual DESTINATION bin)
 # each client, and a client built from other sources ends instead of computing with them. Add
 # IDENTITY <text> to give a text of your own instead.
 
-GENEVA_STAMP_PROGRAM(GStarter)
-GENEVA_STAMP_PROGRAM(GStarterGenericOptimizer)
+GEM_STAMP_PROGRAM(GStarter)
+GEM_STAMP_PROGRAM(GStarterGenericOptimizer)
 
 ################################################################################
 # Materialize the configuration files from code defaults at build time, so the
 # example can be run directly from the build tree (GStarter expects
 # ./config/*.json). find_package(Geneva) above exported the same
-# GENEVA_MATERIALIZE_CONFIGS mechanism the in-tree examples use: after GStarter
+# GEM_MATERIALIZE_CONFIGS mechanism the in-tree examples use: after GStarter
 # is built it runs once with --update-configs, which (re)creates every config
 # file the example reads under <build>/config from the code's registered
 # defaults. No hand-maintained config files are shipped.
 
-GENEVA_MATERIALIZE_CONFIGS(GStarter bin/config)
+GEM_MATERIALIZE_CONFIGS(GStarter bin/config)
 
 ################################################################################
 # Optional unit test.
@@ -189,7 +189,7 @@ IF (Catch2_FOUND AND EXISTS "${GENEVA_TEST_INCLUDE_DIR}/Geneva_tests.hpp" AND GE
 
 	# The Geneva testing code (modify_GUnitTests / specificTests*) is compiled in
 	# only when GEM_TESTING is defined; the in-tree build sets this globally via
-	# CommonGenevaBuild.cmake when GENEVA_BUILD_TESTS is on.
+	# CommonGemBuild.cmake when GEM_BUILD_TESTS is on.
 	TARGET_COMPILE_DEFINITIONS(${TESTNAME} PRIVATE GEM_TESTING)
 
 	TARGET_INCLUDE_DIRECTORIES(${TESTNAME} PRIVATE "${GENEVA_TEST_INCLUDE_DIR}")
@@ -197,7 +197,7 @@ IF (Catch2_FOUND AND EXISTS "${GENEVA_TEST_INCLUDE_DIR}/Geneva_tests.hpp" AND GE
 	ADD_TEST(NAME ${TESTNAME} COMMAND ${TESTNAME})
 ELSEIF (NOT GENEVA_TESTING)
 	MESSAGE(STATUS "Skipping GStarterIndividualUnitTests: the installed Geneva was built without test code "
-		"(GENEVA_BUILD_TESTS off, or the install does not report its flavor), so its self-test hook "
+		"(GEM_BUILD_TESTS off, or the install does not report its flavor), so its self-test hook "
 		"bodies throw by design - defining GEM_TESTING here cannot change the installed library")
 ELSE ()
 	MESSAGE(STATUS "Skipping GStarterIndividualUnitTests: Catch2 v3 and/or the Geneva test scaffolding "

@@ -27,10 +27,10 @@
 #
 ################################################################################
 #
-# Driver of the test GenevaMpiTestsRegistered: every CTest entry of the build tree whose command
+# Driver of the test GemMpiTestsRegistered: every CTest entry of the build tree whose command
 # names the MPI launcher -- directly, or as an argument of a driver (CheckJobEnds.cmake's COMMAND,
-# the MPIRUN of the speed-up checks) -- runs under GenevaRunMpiTest.sh, that is, was registered with
-# GENEVA_ADD_MPI_TEST (GenevaMpiTest.cmake), so that it has a directory of its own for Open MPI's
+# the MPIRUN of the speed-up checks) -- runs under GemRunMpiTest.sh, that is, was registered with
+# GEM_ADD_MPI_TEST (GemMpiTest.cmake), so that it has a directory of its own for Open MPI's
 # shared-memory files; and that its TIMEOUT was not lowered afterwards below the runner's bound
 # plus the margin the runner needs to end the command and remove the directory. The entries are
 # read from "ctest --show-only=json-v1".
@@ -40,7 +40,7 @@
 # (the speed-up checks refuse to run without MPIRUN, CheckJobEnds.cmake takes the whole command).
 #
 # Inputs (via -D): CTEST (the ctest program), BUILD_DIR (the build tree), MPIEXEC (the launcher),
-# RUNNER (GenevaRunMpiTest.sh), MARGIN (GENEVA_MPI_TEST_MARGIN of GenevaMpiTest.cmake).
+# RUNNER (GemRunMpiTest.sh), MARGIN (GEM_MPI_TEST_MARGIN of GemMpiTest.cmake).
 #
 ################################################################################
 
@@ -107,13 +107,13 @@ IF(_without_runner)
 	LIST(LENGTH _without_runner _bad)
 	LIST(JOIN _without_runner "\n  " _names)
 	MESSAGE(FATAL_ERROR "${_bad} of ${_with_launcher} entries that name the MPI launcher are not "
-		"registered with GENEVA_ADD_MPI_TEST (GenevaMpiTest.cmake), so they share Open MPI's "
+		"registered with GEM_ADD_MPI_TEST (GemMpiTest.cmake), so they share Open MPI's "
 		"shared-memory directory with every other job:\n  ${_names}")
 ENDIF()
 IF(_short_timeout)
 	LIST(JOIN _short_timeout "\n  " _names)
 	MESSAGE(FATAL_ERROR "Entries whose TIMEOUT leaves the runner less than ${MARGIN} s after its "
 		"bound, so that ctest may end them before the directory is removed (set the TIMEOUT "
-		"through GENEVA_ADD_MPI_TEST only):\n  ${_names}")
+		"through GEM_ADD_MPI_TEST only):\n  ${_names}")
 ENDIF()
 MESSAGE(STATUS "All ${_with_launcher} entries that name the MPI launcher run under ${RUNNER}")

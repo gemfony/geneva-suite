@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
 
 #ifdef DEBUG
             if(g->getParameterSize() != *it) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In main(): parameter size of individual != requested size: "
                     << g->getParameterSize() << " / " << *it << std::endl
@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
             }
 
             if(!go_loop.empty()) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In main(): go contains " << go_loop.size()
                     << " items when it should be empty." << std::endl

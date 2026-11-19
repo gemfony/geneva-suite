@@ -719,7 +719,7 @@ TEST_CASE(
     }
 
     SECTION("an empty evaluation") {
-        CHECK_THROWS_AS(ind.process(GGenome::evaluation_function{}), geneva_exception);
+        CHECK_THROWS_AS(ind.process(GGenome::evaluation_function{}), gem_exception);
         CHECK(ind.getProcessingStatus() == processingStatus::DO_PROCESS);
     }
 
@@ -933,7 +933,7 @@ TEST_CASE(
 
     // The sections that run the consumer need its backend factory, which courtier contains only
     // where the GPU consumer is built; the marshaller and the item's own rules are tested everywhere.
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
     using Gem::Courtier::GSubmissionPolicy;
     using Gem::Courtier::GPU::GGPUConsumerT;
     GGPUConsumerT<GGenome, double> consumer(
@@ -976,7 +976,7 @@ TEST_CASE(
             CHECK(std::get<2>(item->getProcessingTimes()) >= 0.2);
         }
     }
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
     SECTION("a pre-processor that changes the dimension is refused before the buffer is written") {
         batch[0]->registerPreProcessor(std::make_shared<Gem::Tests::GrowingPreProcessor>());
@@ -1001,10 +1001,7 @@ TEST_CASE(
         const Gem::Tests::ProcessWritingMarshaller marshaller;
         std::vector<double> params;
         marshaller.flatten(batch, params);
-        CHECK_THROWS_AS(
-            marshaller.scatter(batch, std::vector<double>(3, 12.), 0.),
-            geneva_exception
-        );
+        CHECK_THROWS_AS(marshaller.scatter(batch, std::vector<double>(3, 12.), 0.), gem_exception);
         CHECK(
             suppliedEvaluationLog.order == std::vector<std::string>{"pre", "pre", "pre"}
         ); // not run a second time
@@ -1012,7 +1009,7 @@ TEST_CASE(
         CHECK_NOTHROW(batch[0]->completeProcessing({individual_processing_result(12.)}));
     }
 
-#ifdef GENEVA_BUILD_WITH_GPU_CONSUMER
+#ifdef GEM_BUILD_WITH_GPU_CONSUMER
     SECTION("a failing device reaches the submitter; the items are begun again when resubmitted") {
         GGPUConsumerT<GGenome, double> failing(
             std::make_unique<Gem::Tests::FailingBackend>(),
@@ -1036,7 +1033,7 @@ TEST_CASE(
         batch[0]->set_processing_status(processingStatus::DO_PROCESS);
         CHECK_THROWS_AS(
             batch[0]->completeProcessing({individual_processing_result(3.)}),
-            geneva_exception
+            gem_exception
         );
 
         // A working device processes the resubmitted batch: each item is begun anew
@@ -1049,7 +1046,7 @@ TEST_CASE(
             CHECK(item->getProcessingStatus() == processingStatus::PROCESSED);
         }
     }
-#endif /* GENEVA_BUILD_WITH_GPU_CONSUMER */
+#endif /* GEM_BUILD_WITH_GPU_CONSUMER */
 
     SECTION("an item whose pre- or post-processor throws fails alone") {
         // On the marshaller directly: under a submission policy the consumer would end the run
@@ -1077,32 +1074,32 @@ TEST_CASE(
         GGenome &item = *batch[0];
         item.set_processing_status(processingStatus::DO_PROCESS);
         const std::vector<individual_processing_result> res{individual_processing_result(3.)};
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
         item.beginProcessing();
-        CHECK_THROWS_AS(item.completeProcessing({}), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing({}), gem_exception);
         CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
         CHECK_NOTHROW(item.completeProcessing(res));
         CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception); // not twice
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception); // not twice
 
         // A begun item that is un-submitted and submitted again must be begun again
         item.set_processing_status(processingStatus::DO_PROCESS);
         item.beginProcessing();
         item.set_processing_status(processingStatus::UNPROCESSED);
         item.set_processing_status(processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
 
         // So does a submission of a begun item that is due already (DO_PROCESS to DO_PROCESS)
         item.beginProcessing();
         item.set_processing_status(processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
 
         // A clone of a begun item is not begun
         item.set_processing_status(processingStatus::DO_PROCESS);
         item.beginProcessing();
         auto copy = item.clone();
         CHECK(copy->getProcessingStatus() == processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(copy->completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(copy->completeProcessing(res), gem_exception);
         CHECK_NOTHROW(item.completeProcessing(res));
 
         // Results adopted with markAsProcessedWith() end a begun processing: the item is refused
@@ -1115,13 +1112,13 @@ TEST_CASE(
             Catch::Matchers::ContainsSubstring("Function called while processing_status_")
         );
         item.mark_as_due_for_processing();
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
 
         // So does a new submission of a begun item (e.g. its values were changed after the
         // pre-processor ran)
         item.beginProcessing();
         item.mark_as_due_for_processing();
-        CHECK_THROWS_AS(item.completeProcessing(res), geneva_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
         item.beginProcessing();
         CHECK_NOTHROW(item.completeProcessing(res));
         CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);

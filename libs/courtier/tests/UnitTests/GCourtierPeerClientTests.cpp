@@ -63,7 +63,7 @@
 #include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
-#include "common/GGenevaCommit.hpp"
+#include "common/GGemCommit.hpp"
 #include "common/GLogger.hpp"
 #include "common/GModuleManifest.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
@@ -2498,7 +2498,7 @@ TEST_CASE(
     GCommandContainerT<GFaultyContainer> got{GFrameKind::NONE};
     REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));
     CHECK(got.kind() == GFrameKind::HELLO);
-    CHECK(got.build() == Gem::Common::genevaCommit());
+    CHECK(got.build() == Gem::Common::gemCommit());
     CHECK(Gem::Courtier::helloMismatch(got).empty());
 }
 
@@ -2526,8 +2526,8 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(log->hasLineWith(
         {"The server was built from another commit",
          OTHER_COMMIT,
-         Gem::Common::genevaCommit(),
-         GENEVA_VERSION_STRING}
+         Gem::Common::gemCommit(),
+         GEM_VERSION_STRING}
     ));
     glogger.resetLogTargets();
 }
@@ -2540,7 +2540,7 @@ TEST_CASE(
     "[courtier][peer][client][programidentity]"
 ) {
     REQUIRE(Gem::Common::programIdentity().empty());
-    const std::string own_commit{Gem::Common::genevaCommit()};
+    const std::string own_commit{Gem::Common::gemCommit()};
     // What the clients log goes here for the duration of this test.
     auto log = std::make_shared<CapturedLog>();
     glogger.addLogTarget(log);

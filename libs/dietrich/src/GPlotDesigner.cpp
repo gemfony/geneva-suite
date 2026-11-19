@@ -480,7 +480,7 @@ std::vector<GPlotColumn> GBasePlotter::dataColumns() const {
  * @param row Unused in the base; always rejected
  */
 void GBasePlotter::appendRow([[maybe_unused]] std::span<const double> row) {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In GBasePlotter::appendRow(): Error!" << '\n'
         << getPlotterName() << " does not support generic row append." << '\n'
@@ -554,7 +554,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             p = std::make_unique<GHistogram1I>(spec.n_bins_x.value_or(10), *spec.range_x);
         }
         else {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
                 << "an integer histogram (kind \"" << to_string(spec.kind)
@@ -565,7 +565,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         break;
     case plotKind::function_1d:
     case plotKind::function_2d:
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In makePlotter(): Error!" << '\n'
             << "a function plotter (kind \"" << to_string(spec.kind)
@@ -617,7 +617,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             g3d->setSurfaceProjection(*spec.projection);
         }
         else {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
                 << "a surface projection was requested for a plot of kind \""
@@ -631,7 +631,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     if(spec.surface.has_value() || spec.floor_shadow.has_value()) {
         auto *g3d = dynamic_cast<GGraph3D *>(p.get());
         if(g3d == nullptr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In makePlotter(): Error!" << '\n'
                 << "\"surface\" or \"floor_shadow\" was given for a plot of kind \""
@@ -675,7 +675,7 @@ std::string GBasePlotter::dsMarker() const {
 void GBasePlotter::registerSecondaryPlotter(const std::shared_ptr<GBasePlotter> &sp) {
     // Check that the secondary plot isn't empty
     if(not sp) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GBasePlotter::registerSecondaryPlotter(): Error!" << '\n'
             << "Got empty secondary plot" << '\n'
@@ -684,7 +684,7 @@ void GBasePlotter::registerSecondaryPlotter(const std::shared_ptr<GBasePlotter> 
 
     // Check that the secondary plotter is compatible with us
     if(not this->isCompatible(sp)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GBasePlotter::registerSecondaryPlotter(): Error!" << '\n'
             << "Received incompatible secondary plotter" << '\n'
@@ -1077,7 +1077,7 @@ void GPlotDesigner::setDataFormat(dataFormat format) {
  */
 void GPlotDesigner::setEmitter(std::shared_ptr<IPlotEmitter> emitter) {
     if(not emitter) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GPlotDesigner::setEmitter(): Error!" << '\n'
             << "Got empty emitter" << '\n'
@@ -1217,7 +1217,7 @@ void GPlotDesigner::registerPlotter(const std::shared_ptr<GBasePlotter> &plotter
         plotters_cnt_.push_back(plotter_ptr);
     }
     else {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GPlotDesigner::registerPlotter(): Error!" << '\n'
             << "Got empty plotter" << '\n'

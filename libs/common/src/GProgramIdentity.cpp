@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "common/GGenevaCommit.hpp"
+#include "common/GGemCommit.hpp"
 
 // Standard headers go here
 #include <string>
@@ -46,7 +46,7 @@ namespace {
 /******************************************************************************/
 /**
  * The identity of the user's program. A function-local static, so that a static object of the
- * program (the stamp of GENEVA_STAMP_PROGRAM) can set it before main(), whatever the order of
+ * program (the stamp of GEM_STAMP_PROGRAM) can set it before main(), whatever the order of
  * static initialization. No lock: see setProgramIdentity().
  */
 std::string &identity() {
@@ -63,7 +63,7 @@ void setProgramIdentity(std::string identity_text) {
         return;
     }
     if(not id.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, timeAndPlace())
             << "In Gem::Common::setProgramIdentity(): Error!" << '\n'
             << "The program's identity is \"" << id << "\" and cannot become \"" << identity_text

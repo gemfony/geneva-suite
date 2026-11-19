@@ -169,12 +169,12 @@ public:
      * @brief Reads the immutable payload (lock-free once loaded).
      *
      * @return A const reference to the stored payload
-     * @throws geneva_exception if the cell has not been loaded yet (a programming error: fill the cell via
+     * @throws gem_exception if the cell has not been loaded yet (a programming error: fill the cell via
      *         @c ensureLoaded() before any reader calls @c get())
      */
     [[nodiscard]] const T &get() const {
         if(not this->loaded()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GLoadOnceCellT::get(): Error!" << '\n'
                 << "The cell was read before it was loaded. Fill it once (via ensureLoaded())"

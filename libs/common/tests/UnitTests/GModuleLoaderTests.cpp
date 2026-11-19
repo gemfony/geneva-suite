@@ -70,7 +70,7 @@ struct Recorder {
  *  @return The check function */
 GContributionHandler::function_type recordingCheck(Recorder &recorder) {
     return [&recorder](
-               const GenevaContribution &contribution,
+               const GemContribution &contribution,
                const GContributionContext & /*context*/
            ) { recorder.events.push_back(std::string("check ") + contribution.name_or_mnemonic); };
 }
@@ -79,10 +79,7 @@ GContributionHandler::function_type recordingCheck(Recorder &recorder) {
  *  @param recorder Where the call is recorded
  *  @return The take function */
 GContributionHandler::function_type recordingTake(Recorder &recorder) {
-    return [&recorder](
-               const GenevaContribution &contribution,
-               const GContributionContext &context
-           ) {
+    return [&recorder](const GemContribution &contribution, const GContributionContext &context) {
         const auto payload =
             Gem::Common::takeContribution<GTestPayloadPtr>(contribution, context, "test payload");
         recorder.events.push_back(std::string("take ") + contribution.name_or_mnemonic);
@@ -122,7 +119,7 @@ bool mentions(const std::string &haystack, const std::string &needle) {
 /** @brief A path that does not exist, so that a load of it can only fail when the file is
  *  opened. */
 std::filesystem::path noSuchModule() {
-    return std::filesystem::temp_directory_path() / "geneva_no_such_module_for_loader_tests.so";
+    return std::filesystem::temp_directory_path() / "gem_no_such_module_for_loader_tests.so";
 }
 
 } // anonymous namespace
@@ -142,7 +139,7 @@ TEST_CASE("Module loader: both kinds served", "[common][moduleloader]") {
          .take = recordingTake(recorder)},
     }};
 
-    REQUIRE_NOTHROW(Gem::Common::loadModule(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS, handlers));
+    REQUIRE_NOTHROW(Gem::Common::loadModule(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers));
 
     CHECK(recorder.taken == std::vector<std::string>{"first/1", "second/2"});
     // Every check ran before any take
@@ -155,8 +152,8 @@ TEST_CASE("Module loader: both kinds served", "[common][moduleloader]") {
     for(std::size_t i = 0; i < recorder.contexts.size(); ++i) {
         const GContributionContext &context = recorder.contexts[i];
         CHECK(context.index == i);
-        CHECK(context.path == std::filesystem::path(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS));
-        CHECK(mentions(context.description, GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS));
+        CHECK(context.path == std::filesystem::path(GEM_TEST_MODULE_TWO_CONTRIBUTIONS));
+        CHECK(mentions(context.description, GEM_TEST_MODULE_TWO_CONTRIBUTIONS));
         CHECK(mentions(context.description, "GTwoContributionsModule"));
     }
 }
@@ -173,7 +170,7 @@ TEST_CASE(
          .take = recordingTake(recorder)},
     }};
 
-    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
+    const std::string msg = rejectionMessage(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
     REQUIRE_FALSE(msg.empty());
     CHECK(mentions(msg, "kind 1002"));
     CHECK(mentions(msg, "second"));
@@ -198,14 +195,14 @@ TEST_CASE(
         {.kind = TEST_KIND_SECOND,
          .noun = "second thing",
          .check =
-             [](const GenevaContribution & /*contribution*/,
+             [](const GemContribution & /*contribution*/,
                 const GContributionContext & /*context*/) {
                  throw std::runtime_error("the second contribution is refused by its check");
              },
          .take = recordingTake(recorder)},
     }};
 
-    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
+    const std::string msg = rejectionMessage(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
     CHECK(msg == "the second contribution is refused by its check");   // passes through unchanged
     CHECK(recorder.events == std::vector<std::string>{"check first"}); // the first check ran
 
@@ -220,7 +217,7 @@ TEST_CASE("Module loader: the kinds in the message are the handlers'", "[common]
         {.kind = 2002u, .noun = "pear", .check = {}, .take = recordingTake(recorder)},
     }};
 
-    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
+    const std::string msg = rejectionMessage(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
     REQUIRE_FALSE(msg.empty());
     CHECK(mentions(msg, "Supported kinds: 2001 (apple), 2002 (pear)"));
     CHECK(recorder.taken.empty());
@@ -275,13 +272,13 @@ TEST_CASE("Module loader: the gates work without Geneva", "[common][moduleloader
     SECTION("a shared library that is not a module") {
         std::string msg;
         try {
-            (void)Gem::Common::openModule(GENEVA_TEST_NOT_A_MODULE);
+            (void)Gem::Common::openModule(GEM_TEST_NOT_A_MODULE);
         }
         catch(const std::exception &e) {
             msg = e.what();
         }
         CHECK(mentions(msg, "is not a Geneva module"));
-        CHECK(mentions(msg, GENEVA_TEST_NOT_A_MODULE));
+        CHECK(mentions(msg, GEM_TEST_NOT_A_MODULE));
     }
 
     SECTION("a path that does not exist") {
@@ -296,24 +293,24 @@ TEST_CASE("Module loader: the gates work without Geneva", "[common][moduleloader
     }
 
     SECTION("the test module") {
-        const GenevaModuleManifest *manifest =
-            Gem::Common::openModule(GENEVA_TEST_MODULE_TWO_CONTRIBUTIONS);
+        const GemModuleManifest *manifest =
+            Gem::Common::openModule(GEM_TEST_MODULE_TWO_CONTRIBUTIONS);
         REQUIRE(manifest != nullptr);
         CHECK(manifest->contributions_count == 2);
     }
 }
 
 /******************************************************************************/
-// Toolchain-compatibility gate (GenevaCompat). The loader validates a module's fingerprint before
+// Toolchain-compatibility gate (GemCompat). The loader validates a module's fingerprint before
 // touching any of its C++ contributions; here we exercise that gate directly (a .so is not needed)
 // via the exposed comparator. Regression guard for the silent-crash hole where a
-// same-GENEVA_VERSION module built with an incompatible compiler/stdlib/Boost/build-mode used to
+// same-GEM_VERSION module built with an incompatible compiler/stdlib/Boost/build-mode used to
 // pass and then corrupt the process.
 TEST_CASE(
     "Module compat gate accepts this host's own fingerprint",
     "[common][moduleloader][compat]"
 ) {
-    const GenevaCompat self = Gem::Common::thisHostCompat();
+    const GemCompat self = Gem::Common::thisHostCompat();
     CHECK(Gem::Common::moduleCompatMismatch(self).empty());
 }
 
@@ -322,32 +319,32 @@ TEST_CASE(
     "[common][moduleloader][compat]"
 ) {
     using Gem::Common::moduleCompatMismatch;
-    const GenevaCompat host = Gem::Common::thisHostCompat();
+    const GemCompat host = Gem::Common::thisHostCompat();
 
     SECTION("compiler version") {
-        GenevaCompat m = host;
+        GemCompat m = host;
         m.compiler_major += 1;
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("compiler major"));
     }
     SECTION("standard-library version") {
-        GenevaCompat m = host;
+        GemCompat m = host;
         m.stdlib_version += 1;
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("standard-library version"));
     }
     SECTION("build-mode ABI flags") {
-        GenevaCompat m = host;
-        m.abi_flags ^= GENEVA_ABI_FLAG_ASAN; // pretend the module was built with AddressSanitizer
+        GemCompat m = host;
+        m.abi_flags ^= GEM_ABI_FLAG_ASAN; // pretend the module was built with AddressSanitizer
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("ABI flags"));
     }
     SECTION("Geneva version") {
-        GenevaCompat m = host;
-        m.geneva_version += 1;
+        GemCompat m = host;
+        m.gem_version += 1;
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("Geneva version"));

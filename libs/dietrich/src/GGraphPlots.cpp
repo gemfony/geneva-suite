@@ -1005,7 +1005,7 @@ std::string GGraph3D::rootProjectedSurface_(
     const std::string &indent
 ) const {
     if(is_secondary) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
             << "a surface projection was requested for an overlay -- only the primary plot of a "
@@ -1014,7 +1014,7 @@ std::string GGraph3D::rootProjectedSurface_(
         );
     }
     if(not this->drawing_arguments_.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
             << "a surface projection decides the drawing itself and cannot be combined with the "
@@ -1022,7 +1022,7 @@ std::string GGraph3D::rootProjectedSurface_(
         );
     }
     if(this->currentSize() < 3) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
             << "a surface needs at least three points, got " << this->currentSize() << '\n'
@@ -1158,7 +1158,7 @@ GGraph3D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own
  */
 void GGraph4D::setMinMarkerSize(const double &min_marker_size) {
     if(min_marker_size < 0.) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph4D::setMinMarkerSize(): Error!" << '\n'
             << "Received invalid minimum marker size: " << min_marker_size << '\n'
@@ -1177,7 +1177,7 @@ void GGraph4D::setMinMarkerSize(const double &min_marker_size) {
  */
 void GGraph4D::setMaxMarkerSize(const double &max_marker_size) {
     if(max_marker_size < 0. || max_marker_size < min_marker_size_) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph4D::setMaxMarkerSize(): Error!" << '\n'
             << "Received invalid maximum marker size: " << min_marker_size_ << " "
@@ -1376,7 +1376,7 @@ GGraph4D::footerData_(
     // the previous getMinMax(4D) contract, including its requirement of at least two
     // data items, while reading straight from the columns (no copy).
     if(data_size < static_cast<std::size_t>(2)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GGraph4D::footerData_(): Error!" << '\n'
             << "Got vector of invalid size " << data_size << '\n'
@@ -1609,7 +1609,7 @@ std::string GFunctionPlotter1D::headerData_(
 ) const {
     // Check the extreme values for consistency
     if(std::get<0>(x_extremes_) >= std::get<1>(x_extremes_)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFunctionPlotter1D::headerData_(): Error!" << '\n'
             << "lower boundary >= upper boundary: " << std::get<0>(x_extremes_) << " / "
@@ -1819,7 +1819,7 @@ std::string GFunctionPlotter2D::headerData_(
 ) const {
     // Check the extreme values for consistency
     if(std::get<0>(x_extremes_) >= std::get<1>(x_extremes_)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFunctionPlotter2D::headerData_(): Error!" << '\n'
             << "lower boundary(x) >= upper boundary(x): " << std::get<0>(x_extremes_) << " / "
@@ -1828,7 +1828,7 @@ std::string GFunctionPlotter2D::headerData_(
     }
 
     if(std::get<0>(y_extremes_) >= std::get<1>(y_extremes_)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GFunctionPlotter2D::headerData_(): Error!" << '\n'
             << "lower boundary(y) >= upper boundary(y): " << std::get<0>(y_extremes_) << " / "

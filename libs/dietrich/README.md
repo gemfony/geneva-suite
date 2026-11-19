@@ -25,7 +25,7 @@ result through any backend:
 - **Octave** — emits a GNU Octave plotting script.
 - **data** — exports the raw series as CSV and as a binary NumPy `.npz`, alongside a
   self-describing JSON manifest.
-- **external renderer** — `scripts/geneva_plot_render.py` consumes the data export +
+- **external renderer** — `scripts/gem_plot_render.py` consumes the data export +
   manifest and produces figures entirely outside the C++ library.
 
 ### Two API levels
@@ -59,7 +59,7 @@ dietrich/include/dietrich/plotting/*.hpp      focused public headers
 dietrich/src/GPlotDesigner.cpp                implementation (gemfony-dietrich)
 dietrich/tests/UnitTests/                     Catch2 unit tests
 dietrich/tests/ManualTests/GPlotDesignerTest/ byte-exact + backend validity gates
-dietrich/scripts/geneva_plot_render.py        the bundled external renderer
+dietrich/scripts/gem_plot_render.py        the bundled external renderer
 ```
 
 ## Building and testing

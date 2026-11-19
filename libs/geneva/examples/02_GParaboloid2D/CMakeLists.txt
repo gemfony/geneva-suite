@@ -57,7 +57,7 @@ TARGET_LINK_LIBRARIES (GParaboloid2D-fixed
 		${LIBRARIES_TO_LINK}
 		)
 
-GENEVA_MATERIALIZE_CONFIGS ( GParaboloid2D-fixed ${INSTALL_PREFIX_DATA}/examples/GParaboloid2D/config )
+GEM_MATERIALIZE_CONFIGS ( GParaboloid2D-fixed ${INSTALL_PREFIX_DATA}/examples/GParaboloid2D/config )
 
 # (2) The loadable variant -> module libGParaboloid2D-module.so, run by the generic optimizer.
 GENEVA_DECLARE_INDIVIDUAL(GParaboloid2D-module
@@ -71,7 +71,7 @@ GENEVA_DECLARE_INDIVIDUAL(GParaboloid2D-module
 ADD_TEST(NAME GParaboloid2D-fixed COMMAND GParaboloid2D-fixed
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(GParaboloid2D-fixed PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GParaboloid2D-fixed S)
+GEM_TEST_SIZE(GParaboloid2D-fixed S)
 
 ADD_TEST(
 	NAME GParaboloid2D-module
@@ -79,7 +79,7 @@ ADD_TEST(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES(GParaboloid2D-module PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GParaboloid2D-module S)
+GEM_TEST_SIZE(GParaboloid2D-module S)
 
 INSTALL ( TARGETS GParaboloid2D-fixed GParaboloid2D-module
 	DESTINATION ${INSTALL_PREFIX_DATA}/examples/GParaboloid2D )

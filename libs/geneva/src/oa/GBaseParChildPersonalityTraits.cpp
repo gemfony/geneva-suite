@@ -58,10 +58,10 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * This base class has no associated optimization algorithm of its own, so the
  * function always throws and never returns normally.
  *
- * @return Never returns normally; always throws a geneva_exception
+ * @return Never returns normally; always throws a gem_exception
  */
 std::string GBaseParChildPersonalityTraits::getMnemonic() const {
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In GBaseParChildPersonalityTraits::getMnemonic(): Error!" << '\n'
         << "This function should never have been called" << '\n'
@@ -160,13 +160,13 @@ void GBaseParChildPersonalityTraits::setParentId(const std::size_t &parent_id) {
  * @brief Retrieves the parent id's value. Note that this function will throw if
  * no parent id has been set.
  *
- * @return The parent's id; throws a geneva_exception if the parent id is unset
+ * @return The parent's id; throws a gem_exception if the parent id is unset
  */
 std::size_t GBaseParChildPersonalityTraits::getParentId() const {
     if(parent_id_ >= 0) {
         return parent_id_;
     }
-    throw geneva_exception(
+    throw gem_exception(
         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
         << "In GBaseParChildPersonalityTraits::getParentId():" << '\n'
         << "parent_id_ is unset" << '\n'
@@ -339,7 +339,7 @@ void GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests_()
             this->clone<GBaseParChildPersonalityTraits>();
 
         CHECK_NOTHROW(p_test->unsetParentId());
-        CHECK_THROWS_AS((p_test->getParentId()), geneva_exception);
+        CHECK_THROWS_AS((p_test->getParentId()), gem_exception);
     }
 
     // --------------------------------------------------------------------------

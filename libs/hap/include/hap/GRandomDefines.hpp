@@ -52,16 +52,16 @@ using seed_type = std::mt19937::result_type;
 /******************************************************************************/
 // Some constants needed for the random number generation
 
-#ifdef GENEVA_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE
+#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE
 const std::size_t DEFAULTARRAYSIZE =
-    GENEVA_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE; ///< Default size of the random number array
+    GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE; ///< Default size of the random number array
 #else
 constexpr std::size_t DEFAULTARRAYSIZE = 10000; ///< Default size of the random number array
 #endif /* GHAP_DEFAULT_ARRAY_SIZE */
 
-#ifdef GENEVA_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE
+#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE
 const std::size_t DEFAULTFACTORYBUFFERSIZE =
-    GENEVA_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE; ///< Default size of the underlying buffer
+    GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE; ///< Default size of the underlying buffer
 #else
 // The producers FILL the fresh-package buffer to capacity, so this default is a deliberate
 // hap-specific memory budget, NOT the generic queue default (Gem::Common::DEFAULTBUFFERSIZE
@@ -70,38 +70,38 @@ const std::size_t DEFAULTFACTORYBUFFERSIZE =
 // proxy refill while the producer pool refills continuously; a persistent shortfall shows up
 // in getNGetTimeouts() rather than being hidden by a huge buffer.
 constexpr std::size_t DEFAULTFACTORYBUFFERSIZE = 64; ///< Default size of the underlying buffer
-#endif /* GENEVA_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE */
+#endif /* GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE */
 
 // Selects the MPMC-queue backend the random factory's package buffers use. The default is the
 // std::deque-backed queue, so production behaviour is unchanged; defining
-// GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED at configure time switches them to the preallocated ring
+// GEM_HAP_FACTORY_QUEUE_PREALLOCATED at configure time switches them to the preallocated ring
 // buffer (a drop-in, interface-identical alternative -- see Gem::Common::Concurrency::GMPMCQueueT).
-#ifdef GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED
+#ifdef GEM_HAP_FACTORY_QUEUE_PREALLOCATED
 constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
     Gem::Common::Concurrency::QueueBackend::Preallocated;
 #else
 constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
     Gem::Common::Concurrency::QueueBackend::Deque;
-#endif /* GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED */
+#endif /* GEM_HAP_FACTORY_QUEUE_PREALLOCATED */
 
-#ifdef GENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT
+#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT
 const std::uint16_t DEFAULTFACTORYGETWAIT =
-    GENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT; ///< waiting time in milliseconds
+    GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT; ///< waiting time in milliseconds
 #else
 constexpr std::uint16_t DEFAULTFACTORYGETWAIT = 200; ///< waiting time in milliseconds
-#endif /* GENEVA_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT */
+#endif /* GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT */
 
 /// How long the call that starts producer threads waits for their start before it warns that it waits
 constexpr std::chrono::seconds PRODUCERSTARTFIRSTWARNING{10};
 /// How long that call waits between its later warnings
 constexpr std::chrono::seconds PRODUCERSTARTREPEATWARNING{60};
 
-#ifdef GENEVA_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE
+#ifdef GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE
 const std::size_t DEFAULTSEEDVECTORSIZE =
-    GENEVA_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE; ///< The size of the seeding vector
+    GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE; ///< The size of the seeding vector
 #else
 constexpr std::size_t DEFAULTSEEDVECTORSIZE = 2000; ///< The size of the seeding vector
-#endif /* GENEVA_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE */
+#endif /* GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE */
 
 /******************************************************************************/
 /**

@@ -27,16 +27,16 @@
 #
 ################################################################################
 #
-# GENEVA_STAMP_PROGRAM(<target> [IDENTITY <text>])
+# GEM_STAMP_PROGRAM(<target> [IDENTITY <text>])
 #
 # Stamps the executable <target> with the identity of the user's program. A server of the networked
 # consumers names it in the HELLO it greets each client with, beside the commit of Geneva, and a
 # client whose program has another identity ends (Gem::Common::setProgramIdentity(),
-# common/GGenevaCommit.hpp). So a server and its clients are known to be built from the same sources.
+# common/GGemCommit.hpp). So a server and its clients are known to be built from the same sources.
 #
 #  - With IDENTITY, <text> is the identity.
 #  - Without it, the identity is the commit of the project's sources (CMAKE_SOURCE_DIR), taken at
-#    every build by the rule of GenevaCommit.cmake: if the sources are inside a git work tree (at
+#    every build by the rule of GemCommit.cmake: if the sources are inside a git work tree (at
 #    its top or in a subdirectory), the id of its HEAD, with "-dirty" appended when a tracked file of
 #    that repository differs from it. Sources without git give no identity: CMake says once, at
 #    configure time, that the program is not stamped, and it is not checked against a server's
@@ -48,44 +48,44 @@
 # identity changes. Only executables are stamped: a module loaded at run time is checked by the
 # module loader's own gates.
 #
-# This module is shared by the in-tree build (included from CommonGenevaBuild.cmake) and the
-# installed package (included from GenevaConfig.cmake); GenevaCommit.cmake must sit next to it.
+# This module is shared by the in-tree build (included from CommonGemBuild.cmake) and the
+# installed package (included from GenevaConfig.cmake); GemCommit.cmake must sit next to it.
 #
 ################################################################################
 
-SET(GENEVA_PROGRAM_STAMP_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GenevaCommit.cmake)
+SET(GEM_PROGRAM_STAMP_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/GemCommit.cmake)
 
-FUNCTION(GENEVA_STAMP_PROGRAM _target)
+FUNCTION(GEM_STAMP_PROGRAM _target)
 	CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 1 _arg "" "IDENTITY" "")
 	IF(_arg_UNPARSED_ARGUMENTS)
-		MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM(${_target}): unknown arguments ${_arg_UNPARSED_ARGUMENTS}")
+		MESSAGE(FATAL_ERROR "GEM_STAMP_PROGRAM(${_target}): unknown arguments ${_arg_UNPARSED_ARGUMENTS}")
 	ENDIF()
 	IF(NOT TARGET ${_target})
-		MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM(${_target}): there is no target ${_target}")
+		MESSAGE(FATAL_ERROR "GEM_STAMP_PROGRAM(${_target}): there is no target ${_target}")
 	ENDIF()
 	GET_TARGET_PROPERTY(_type ${_target} TYPE)
 	IF(NOT _type STREQUAL "EXECUTABLE")
 		MESSAGE(FATAL_ERROR
-			"GENEVA_STAMP_PROGRAM(${_target}): ${_target} is a ${_type}, not an executable. Only a "
+			"GEM_STAMP_PROGRAM(${_target}): ${_target} is a ${_type}, not an executable. Only a "
 			"program is stamped; a module loaded at run time is checked by the module loader.")
 	ENDIF()
 
 	GET_TARGET_PROPERTY(_binary_dir ${_target} BINARY_DIR)
-	SET(_source ${_binary_dir}/${_target}-GenevaProgramStamp.cpp)
+	SET(_source ${_binary_dir}/${_target}-GemProgramStamp.cpp)
 	SET(_command ${CMAKE_COMMAND} -DMODE=program -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DOUTPUT=${_source})
 	IF(DEFINED _arg_IDENTITY)
 		IF(_arg_IDENTITY STREQUAL "")
-			MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM(${_target}): IDENTITY is empty")
+			MESSAGE(FATAL_ERROR "GEM_STAMP_PROGRAM(${_target}): IDENTITY is empty")
 		ENDIF()
 		LIST(APPEND _command "-DIDENTITY=${_arg_IDENTITY}")
 	ENDIF()
 
 	# Now, so that the source exists and CMake can say what the identity is ...
 	EXECUTE_PROCESS(
-		COMMAND ${_command} -P ${GENEVA_PROGRAM_STAMP_SCRIPT}
+		COMMAND ${_command} -P ${GEM_PROGRAM_STAMP_SCRIPT}
 		RESULT_VARIABLE _rc OUTPUT_VARIABLE _out ERROR_VARIABLE _err)
 	IF(NOT _rc EQUAL 0)
-		MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM(${_target}): ${_err}")
+		MESSAGE(FATAL_ERROR "GEM_STAMP_PROGRAM(${_target}): ${_err}")
 	ENDIF()
 	SET(_identity "")
 	IF(_out MATCHES "Program identity: ([^\n]*)")
@@ -93,7 +93,7 @@ FUNCTION(GENEVA_STAMP_PROGRAM _target)
 	ENDIF()
 	IF("${_identity}" STREQUAL "")
 		MESSAGE(STATUS
-			"${_target} is not stamped: GENEVA_STAMP_PROGRAM was given no IDENTITY, and "
+			"${_target} is not stamped: GEM_STAMP_PROGRAM was given no IDENTITY, and "
 			"${CMAKE_SOURCE_DIR} is not inside a git work tree (or git is not installed); the "
 			"program is not checked against a server's program")
 	ELSE()
@@ -103,7 +103,7 @@ FUNCTION(GENEVA_STAMP_PROGRAM _target)
 	# ... and, for the commit, at every build, so that a commit made after the configure is seen
 	IF(NOT DEFINED _arg_IDENTITY)
 		ADD_CUSTOM_TARGET(${_target}-program-stamp
-			COMMAND ${_command} -DQUIET=ON -P ${GENEVA_PROGRAM_STAMP_SCRIPT}
+			COMMAND ${_command} -DQUIET=ON -P ${GEM_PROGRAM_STAMP_SCRIPT}
 			BYPRODUCTS ${_source}
 			COMMENT "Taking the identity of ${_target}"
 			VERBATIM)

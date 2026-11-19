@@ -27,7 +27,7 @@
 #
 ################################################################################
 
-SET ( GENEVAWEFTINCLUDES
+SET ( WEFTINCLUDES
 	GArchive.hpp
 	GArchivePolymorphic.hpp
 	GBinaryArchive.hpp
@@ -38,7 +38,7 @@ SET ( GENEVAWEFTINCLUDES
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_WEFT_HEADERS SOURCES ${GENEVAWEFTINCLUDES})
+ADD_CUSTOM_TARGET(CLION_ALL_WEFT_HEADERS SOURCES ${WEFTINCLUDES})
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is
 # self-contained and cannot drift. (The SET list above is retained only for the CLion

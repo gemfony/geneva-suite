@@ -547,7 +547,7 @@ void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart
                 // First do some error-checking
 #ifdef DEBUG
                 if(not p) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GRandomFactory::producer(): Error!" << '\n'
                         << "Got empty recycling pointer" << '\n'

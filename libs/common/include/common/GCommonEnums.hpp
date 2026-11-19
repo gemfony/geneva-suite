@@ -78,8 +78,8 @@ namespace Gem::Common {
  * conditions, however, the buffer should never reach its upper
  * limit.
  */
-#ifdef GENEVA_COMMON_DEFAULT_BUFFER_SIZE
-constexpr std::size_t DEFAULTBUFFERSIZE = GENEVA_COMMON_DEFAULT_BUFFER_SIZE;
+#ifdef GEM_COMMON_DEFAULT_BUFFER_SIZE
+constexpr std::size_t DEFAULTBUFFERSIZE = GEM_COMMON_DEFAULT_BUFFER_SIZE;
 #else
 constexpr std::size_t DEFAULTBUFFERSIZE = 5000;
 #endif

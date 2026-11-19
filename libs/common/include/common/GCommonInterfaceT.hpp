@@ -233,7 +233,7 @@ public:
         ); // Note: will overwrite existing files
 
         if(not ofstr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommonInterfaceT::toFile():" << '\n'
                 << "Problems connecting to file " << p.string() << '\n'
@@ -244,7 +244,7 @@ public:
 
 #ifdef DEBUG
         if(not ofstr.good()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommonInterfaceT::toFile():" << '\n'
                 << "Stream error after writing to " << p.string() << '\n'
@@ -263,7 +263,7 @@ public:
     void fromFile(const std::filesystem::path &p, Gem::Common::serializationMode ser_mod) {
         // Check that the file exists
         if(not std::filesystem::exists(p)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommonInterfaceT::fromFile(): Error!" << '\n'
                 << "Requested input file " << p.string() << '\n'
@@ -274,7 +274,7 @@ public:
         std::ifstream ifstr(p);
 
         if(not ifstr) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GCommonInterfaceT::fromFile():" << '\n'
                 << "Problem connecting to file " << p.string() << '\n'
@@ -331,7 +331,7 @@ public:
      * Reads a configuration file from disk
      *
      * @param config_file The name of the configuration file to be parsed
-     * @throws geneva_exception if the file cannot be read or applied (GParserBuilder::parseConfigFile())
+     * @throws gem_exception if the file cannot be read or applied (GParserBuilder::parseConfigFile())
      */
     void readConfigFile(std::filesystem::path const &config_file) {
         // This class will handle the interaction with configuration files
@@ -409,7 +409,7 @@ public:
             raw.release(); // ownership passes to the converted pointer
             return std::unique_ptr<clone_type>(converted);
         }
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GCommonInterfaceT<>::clone<clone_type>():" << '\n'
             << "Invalid conversion to type " << typeid(clone_type).name() << '\n'

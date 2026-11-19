@@ -68,7 +68,7 @@ TARGET_LINK_LIBRARIES(GLoadableOAOptimizer ${LIBRARIES_TO_LINK})
 # (GRandomSearch.json) only exists once the module is loaded, so materialize with the just-built module (and
 # depend on it so it exists first).
 ADD_DEPENDENCIES(GLoadableOAOptimizer GRandomSearch)
-GENEVA_MATERIALIZE_CONFIGS(GLoadableOAOptimizer
+GEM_MATERIALIZE_CONFIGS(GLoadableOAOptimizer
 	${INSTALL_PREFIX_DATA}/examples/20_GLoadableOA/config
 	--module $<TARGET_FILE:GRandomSearch>)
 
@@ -83,7 +83,7 @@ ADD_TEST(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES(GLoadableOA PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GLoadableOA S)
+GEM_TEST_SIZE(GLoadableOA S)
 
 # The role check, through the same real path: this module is an ALGORITHM, so naming it as the optimization
 # problem (--individual) must be refused by name rather than surface much later as a missing problem. What
@@ -98,7 +98,7 @@ ADD_TEST(
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 SET_TESTS_PROPERTIES(GLoadableOA_WrongRole PROPERTIES LABELS "geneva;example" TIMEOUT 120)
-GENEVA_TEST_SIZE(GLoadableOA_WrongRole M)
+GEM_TEST_SIZE(GLoadableOA_WrongRole M)
 
 INSTALL(TARGETS GLoadableOAOptimizer GRandomSearch
 	DESTINATION ${INSTALL_PREFIX_DATA}/examples/20_GLoadableOA)

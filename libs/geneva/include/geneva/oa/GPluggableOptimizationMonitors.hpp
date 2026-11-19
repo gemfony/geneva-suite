@@ -444,7 +444,7 @@ public:
     void setProfileSpec(std::string const &par_str) {
         // Check that the parameter string isn't empty
         if(par_str.empty()) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GPluggableOptimizationMonitors<>::setProfileSpec(std::string): Error!"
                 << '\n'
@@ -1855,7 +1855,7 @@ private:
         } break;
 
         default: {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GAdaptorPropertyLoggerT: Received invalid infoMode " << im << '\n'
             );

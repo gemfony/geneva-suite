@@ -27,7 +27,7 @@
 #
 ################################################################################
 #
-# Driver for the test GenevaProgramStamp: GENEVA_STAMP_PROGRAM (GenevaProgramStamp.cmake) in
+# Driver for the test GemProgramStamp: GEM_STAMP_PROGRAM (GemProgramStamp.cmake) in
 # made-up projects, each in a directory of its own under WORK (removed and made again at the start):
 #   - a project without git: a program with IDENTITY gets that text (quotes and backslashes kept),
 #     one without it no identity, and CMake says that it is not stamped (at every configure);
@@ -38,7 +38,7 @@
 #   - a library target is refused.
 #
 # Input (passed via -D):
-#   MODULE        CMakeModules/GenevaProgramStamp.cmake
+#   MODULE        CMakeModules/GemProgramStamp.cmake
 #   GIT           the git executable
 #   CXX_COMPILER  the C++ compiler of the build (the projects are configured, not compiled)
 #   WORK          a scratch directory in the build tree
@@ -47,7 +47,7 @@
 
 IF(NOT MODULE OR NOT GIT OR NOT CXX_COMPILER OR NOT WORK)
 	MESSAGE(FATAL_ERROR
-		"CheckGenevaProgramStamp.cmake needs -DMODULE=<GenevaProgramStamp.cmake> -DGIT=<git> "
+		"CheckGemProgramStamp.cmake needs -DMODULE=<GemProgramStamp.cmake> -DGIT=<git> "
 		"-DCXX_COMPILER=<compiler> -DWORK=<dir>")
 ENDIF()
 
@@ -76,7 +76,7 @@ ENDMACRO()
 # Sets _id to the identity the stamp of _target in _tree-build sets ("<none>" without a stamp)
 MACRO(_stamp_of _tree _target)
 	SET(_id "<none>")
-	SET(_file "${_tree}-build/${_target}-GenevaProgramStamp.cpp")
+	SET(_file "${_tree}-build/${_target}-GemProgramStamp.cpp")
 	IF(EXISTS "${_file}")
 		FILE(READ "${_file}" _content)
 		IF(_content MATCHES "setProgramIdentity\\(\"(([^\"\\\\]|\\\\.)*)\"\\)")
@@ -101,9 +101,9 @@ ENDMACRO()
 SET(_tree "${WORK}/plain")
 _project("${_tree}"
 	"add_executable(given main.cpp)"
-	"GENEVA_STAMP_PROGRAM(given IDENTITY [=[a \"text\" with a \\ of its own]=])"
+	"GEM_STAMP_PROGRAM(given IDENTITY [=[a \"text\" with a \\ of its own]=])"
 	"add_executable(unstamped main.cpp)"
-	"GENEVA_STAMP_PROGRAM(unstamped)")
+	"GEM_STAMP_PROGRAM(unstamped)")
 _configure("${_tree}")
 IF(NOT _rc EQUAL 0)
 	STRING(APPEND _problems "\n  project without git: the configure failed: ${_out}")
@@ -128,7 +128,7 @@ ENDIF()
 
 # A project that is a git work tree: its HEAD, and "-dirty" once a tracked file has changed
 SET(_tree "${WORK}/git")
-_project("${_tree}" "add_executable(probe main.cpp)" "GENEVA_STAMP_PROGRAM(probe)")
+_project("${_tree}" "add_executable(probe main.cpp)" "GEM_STAMP_PROGRAM(probe)")
 _git("${_tree}" init -q)
 _git("${_tree}" add CMakeLists.txt main.cpp)
 _git("${_tree}" commit -q -m "a commit")
@@ -152,7 +152,7 @@ ENDIF()
 # "-dirty" once a tracked file of that repository has changed, inside the project or not
 SET(_repository "${WORK}/below")
 SET(_tree "${_repository}/project")
-_project("${_tree}" "add_executable(probe main.cpp)" "GENEVA_STAMP_PROGRAM(probe)")
+_project("${_tree}" "add_executable(probe main.cpp)" "GEM_STAMP_PROGRAM(probe)")
 FILE(WRITE "${_repository}/elsewhere.txt" "one\n")
 _git("${_repository}" init -q)
 _git("${_repository}" add elsewhere.txt project/CMakeLists.txt project/main.cpp)
@@ -175,13 +175,13 @@ ENDIF()
 
 # A library is refused
 SET(_tree "${WORK}/library")
-_project("${_tree}" "add_library(probe STATIC main.cpp)" "GENEVA_STAMP_PROGRAM(probe)")
+_project("${_tree}" "add_library(probe STATIC main.cpp)" "GEM_STAMP_PROGRAM(probe)")
 _configure("${_tree}")
 IF(_rc EQUAL 0 OR NOT _out MATCHES "probe is a STATIC_LIBRARY, not an executable")
 	STRING(APPEND _problems "\n  library: expected a refusal, got (${_rc}): ${_out}")
 ENDIF()
 
 IF(_problems)
-	MESSAGE(FATAL_ERROR "GENEVA_STAMP_PROGRAM did not stamp as it should:${_problems}")
+	MESSAGE(FATAL_ERROR "GEM_STAMP_PROGRAM did not stamp as it should:${_problems}")
 ENDIF()
-MESSAGE(STATUS "GENEVA_STAMP_PROGRAM stamped the four programs as it should, and refused the library")
+MESSAGE(STATUS "GEM_STAMP_PROGRAM stamped the four programs as it should, and refused the library")

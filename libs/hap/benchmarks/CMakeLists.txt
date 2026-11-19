@@ -29,4 +29,4 @@
 
 ADD_SUBDIRECTORY ( GHapBenchmark )
 
-GENEVA_AGGREGATE_TARGET( "benchmarks-hap" )
+GEM_AGGREGATE_TARGET( "benchmarks-hap" )

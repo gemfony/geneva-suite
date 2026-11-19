@@ -1,8 +1,8 @@
 This folder contains the CMake modules and scripts of the Geneva build: the
-shared functionality of the build (CommonGenevaBuild.cmake and the modules it
+shared functionality of the build (CommonGemBuild.cmake and the modules it
 includes), the helpers of the test suite (the Check*.cmake drivers, the
-registration of tests that start MPI jobs with GenevaMpiTest.cmake and its
-runner GenevaRunMpiTest.sh, the size labels, the best-of-N runs), and the
+registration of tests that start MPI jobs with GemMpiTest.cmake and its
+runner GemRunMpiTest.sh, the size labels, the best-of-N runs), and the
 templates of what an installation carries. Each file says at its top what it
 is for.
 
@@ -13,8 +13,8 @@ What an installation carries from here:
   the MODULE-mode fallback for finding an installed Geneva;
 - the config package (GenevaConfig.cmake, generated from GenevaConfig.cmake.in,
   with its version file), which carries its own helpers next to it:
-  GenevaIndividualModule.cmake, GenevaConfigMaterialization.cmake and
-  GenevaRunQuiet.cmake (the install rule is in the top-level CMakeLists.txt).
+  GenevaIndividualModule.cmake, GemConfigMaterialization.cmake and
+  GemRunQuiet.cmake (the install rule is in the top-level CMakeLists.txt).
 
 Everything else builds and checks the collection itself; a project outside the
 tree uses find_package(Geneva) instead.

@@ -29,4 +29,4 @@
 
 ADD_SUBDIRECTORY ( GPlotDesignerTest )
 
-GENEVA_AGGREGATE_TARGET( "tests-dietrich-manual" )
+GEM_AGGREGATE_TARGET( "tests-dietrich-manual" )

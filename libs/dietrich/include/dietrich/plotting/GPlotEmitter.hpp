@@ -113,7 +113,7 @@ public:
 /**
  * The gnuplot backend. emitDocument() supports ONLY the graph plotters
  * (GGraph2D / GGraph2ED / GGraph3D / GGraph4D); any other plotter type triggers a
- * clear geneva_exception directing the caller to the ROOT backend. The emitted
+ * clear gem_exception directing the caller to the ROOT backend. The emitted
  * script is terminal-agnostic (a validity harness prepends its own `set terminal`
  * / `set output`), laid out as a `set multiplot` grid of per-pad plots.
  *
@@ -142,7 +142,7 @@ public:
  * The matplotlib backend. emitDocument() supports the graph plotters
  * (GGraph2D / GGraph2ED / GGraph3D / GGraph4D) and the histogram plotters
  * (GHistogram1D / GHistogram1I / GHistogram2D); any other plotter type (e.g. a function plotter)
- * triggers a clear geneva_exception directing the caller to the ROOT backend. The
+ * triggers a clear gem_exception directing the caller to the ROOT backend. The
  * emitted script is a self-contained Python program that selects the headless Agg
  * backend, builds a `fig` with one Axes per pad and plots into it, but deliberately
  * ends WITHOUT `fig.savefig(...)` so it stays terminal-agnostic -- a validity
@@ -170,7 +170,7 @@ public:
  * The Octave / MATLAB backend. emitDocument() supports the graph plotters
  * (GGraph2D / GGraph2ED / GGraph3D / GGraph4D) and the histogram plotters
  * (GHistogram1D / GHistogram1I / GHistogram2D); any other plotter type (e.g. a function plotter)
- * triggers a clear geneva_exception directing the caller to the ROOT backend. The
+ * triggers a clear gem_exception directing the caller to the ROOT backend. The
  * emitted script is a self-contained `.m` program using only the Octave-and-MATLAB
  * COMMON CORE (base functions, no toolboxes / packages): a `figure()` with one
  * `subplot` per pad. It deliberately ends WITHOUT a `print` / `saveas`, so it stays

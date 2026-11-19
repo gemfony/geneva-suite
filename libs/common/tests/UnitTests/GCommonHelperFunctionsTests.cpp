@@ -47,7 +47,7 @@ using namespace Gem::Common;
 // concurrent runs do not collide.
 namespace {
 std::filesystem::path scratch(std::string const &tag) {
-    auto base = std::filesystem::temp_directory_path() / "geneva_helper_tests";
+    auto base = std::filesystem::temp_directory_path() / "gem_helper_tests";
     std::filesystem::create_directories(base);
     return base / tag;
 }
@@ -237,8 +237,8 @@ TEST_CASE("time_point round-trip via ms representation", "[common][helper-nonT][
 // ---------------------------------------------------------------------------
 // condnotset
 
-TEST_CASE("condnotset: raises geneva_exception", "[common][helper-nonT][condnotset]") {
-    CHECK_THROWS_AS(condnotset("SOME_DEFINE", "test-context"), geneva_exception);
+TEST_CASE("condnotset: raises gem_exception", "[common][helper-nonT][condnotset]") {
+    CHECK_THROWS_AS(condnotset("SOME_DEFINE", "test-context"), gem_exception);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ TEST_CASE(
     "[common][helper-nonT][backup]"
 ) {
     const std::filesystem::path dir =
-        std::filesystem::temp_directory_path() / "geneva-backup-existing-file-test";
+        std::filesystem::temp_directory_path() / "gem-backup-existing-file-test";
     std::filesystem::remove_all(dir);
     std::filesystem::create_directories(dir);
 
@@ -338,7 +338,7 @@ TEST_CASE(
     "[common][helper-nonT][backup]"
 ) {
     const std::filesystem::path dir =
-        std::filesystem::temp_directory_path() / "geneva-backup-absent-file-test";
+        std::filesystem::temp_directory_path() / "gem-backup-absent-file-test";
     std::filesystem::remove_all(dir);
     std::filesystem::create_directories(dir);
 

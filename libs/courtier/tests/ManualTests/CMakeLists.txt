@@ -37,4 +37,4 @@ TARGET_LINK_LIBRARIES(GCourtierNetworkedExerciser ${LIBRARIES_TO_LINK})
 INSTALL(TARGETS GCourtierNetworkedExerciser
 		DESTINATION ${INSTALL_PREFIX_DATA}/tests/courtier/ManualTests)
 
-GENEVA_AGGREGATE_TARGET( "tests-courtier-manual" )
+GEM_AGGREGATE_TARGET( "tests-courtier-manual" )

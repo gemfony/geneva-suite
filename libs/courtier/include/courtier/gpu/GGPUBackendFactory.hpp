@@ -43,7 +43,7 @@ class GGPUDeviceBackendI;
 /******************************************************************************/
 /**
  * Builds the device backend for @p kind. The GPU consumer is device-only, so the only backend is CUDA
- * (which runs the kernel). Throws a geneva_exception if the requested backend was not compiled in (its
+ * (which runs the kernel). Throws a gem_exception if the requested backend was not compiled in (its
  * toolkit was absent at configure time).
  *
  * This factory is the extensible backend picker: new device backends (e.g. HIP/SYCL) slot in behind a

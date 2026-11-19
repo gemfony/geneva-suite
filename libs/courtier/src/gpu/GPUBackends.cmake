@@ -28,7 +28,7 @@
 ################################################################################
 
 # GPU-consumer backend sources + device-toolkit detection. This fragment is INCLUDEd from
-# courtier/src/CMakeLists.txt when GENEVA_BUILD_WITH_GPU_CONSUMER is ON, so the device-model-agnostic
+# courtier/src/CMakeLists.txt when GEM_BUILD_WITH_GPU_CONSUMER is ON, so the device-model-agnostic
 # GPU consumer ships INSIDE the one gemfony-courtier library (just like the MPI consumer), rather than
 # in a separate library. It only sets variables; the caller folds the sources into the courtier target
 # and applies the matching link libraries + compile definitions:
@@ -44,7 +44,7 @@ SET ( COURTIER_GPU_SRCS
 
 # --- optional CUDA backend (NVRTC + CUDA driver API; no nvcc compilation here) ----------------
 # CUDA is enabled globally by the top-level CMakeLists when a toolkit is found (CMAKE_CUDA_COMPILER)
-# and GENEVA_SKIP_CUDA is OFF.
+# and GEM_SKIP_CUDA is OFF.
 SET ( COURTIER_GPU_HAVE_CUDA FALSE )
 IF ( CMAKE_CUDA_COMPILER )
 	SET ( COURTIER_GPU_HAVE_CUDA TRUE )

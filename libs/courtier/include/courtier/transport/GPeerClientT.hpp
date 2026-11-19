@@ -157,7 +157,7 @@ public:
      *
      * @param connector How a connection to the server is made; the client owns it. Must not be null.
      * @param options The settings of this client
-     * @throws geneva_exception if the parallel evaluations are 0 or above the prefetch depth
+     * @throws gem_exception if the parallel evaluations are 0 or above the prefetch depth
      */
     GPeerClientT(std::unique_ptr<GConnectorI> connector, GPeerClientOptions options)
       : options_(checkedOptions_(std::move(options)))
@@ -654,7 +654,7 @@ private:
         try {
             std::string bytes = Gem::Courtier::wireEncode(frame, &wire_ctx_, options_.mode);
             if(bytes.size() > limit) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
                     << "the message of " << bytes.size()
                     << " bytes is longer than the transport can carry (" << limit << " bytes)"
@@ -788,12 +788,12 @@ private:
     //-------------------------------------------------------------------------
     /** @brief Checks m against n (m between 1 and n; n of 0 is taken as 1)
      *  @param options The options as given @return The options
-     *  @throws geneva_exception if m is 0 or above n */
+     *  @throws gem_exception if m is 0 or above n */
     static GPeerClientOptions checkedOptions_(GPeerClientOptions options) {
         options.prefetchDepth = std::max<std::size_t>(options.prefetchDepth, 1);
         if(options.parallelEvaluations == 0 ||
            options.parallelEvaluations > options.prefetchDepth) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In " << options.name << ": Error!" << '\n'
                 << "The client is to evaluate " << options.parallelEvaluations

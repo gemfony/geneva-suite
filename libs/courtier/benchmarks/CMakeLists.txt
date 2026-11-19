@@ -30,4 +30,4 @@
 # GBufferPortTTest and GConsumerPerformance benchmarked the legacy buffer-port / consumers and were
 # removed with the legacy stack.
 
-GENEVA_AGGREGATE_TARGET( "benchmarks-courtier" )
+GEM_AGGREGATE_TARGET( "benchmarks-courtier" )

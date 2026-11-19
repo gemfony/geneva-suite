@@ -187,7 +187,7 @@ public:
     void logWithSource(std::string const &msg, std::string const &extension) const override;
 
 private:
-    std::string fname_ = "Geneva-Library-Collection.log"; ///< The name of the log file
+    std::string fname_ = "Gem-Library-Collection.log"; ///< The name of the log file
     mutable bool first_ = true; ///< Indicates whether any logging has already been done
 };
 
@@ -408,12 +408,12 @@ public:
 		 * handlers (which may re-enter the logger) do not deadlock against the lock
 		 * we just held.
 		 *
-		 * @param error The error message carried by the thrown geneva_exception
+		 * @param error The error message carried by the thrown gem_exception
 		 */
     void throwException(std::string const &error) {
         // The error message has already been built by the caller and no logger-protected
         // state is touched here, so no lock is needed.
-        throw(geneva_exception(error));
+        throw(gem_exception(error));
     }
 
     /***************************************************************************/

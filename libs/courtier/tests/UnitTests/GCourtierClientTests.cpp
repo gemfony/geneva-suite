@@ -49,7 +49,7 @@ using Gem::Courtier::GFaultyContainer;
 
 /******************************************************************************/
 // An item whose processing throws something other than a g_processing_exception -- here the
-// geneva_exception the processing lifecycle throws for an item that is not due -- used to leave
+// gem_exception the processing lifecycle throws for an item that is not due -- used to leave
 // processWorkFrame() and end the worker. It is returned flagged instead; only a WORK frame without
 // an item is still an error.
 

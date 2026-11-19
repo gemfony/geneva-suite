@@ -135,7 +135,7 @@ GParsableI::GParsableI(
  */
 std::string GParsableI::optionName(std::size_t pos) const {
     if(option_name_.size() <= pos) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::optionName(std::size_t): Error!" << '\n'
             << "Tried to access item at position " << pos << '\n'
@@ -155,7 +155,7 @@ std::string GParsableI::optionName(std::size_t pos) const {
  */
 std::string GParsableI::comment(std::size_t pos) const {
     if(comment_.size() <= pos) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::comment(std::size_t): Error!" << '\n'
             << "Tried to access item at position " << pos << '\n'
@@ -256,7 +256,7 @@ GParsableI &GParsableI::operator<<(std::ios_base &(*val)(std::ios_base &)) {
 GParsableI &GParsableI::operator<<(commentLevel const &cl) {
 #ifdef DEBUG
     if(comment_.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::operator<< (commentLevel const& cl): Error!" << '\n'
             << "No comments in vector" << '\n'
@@ -264,7 +264,7 @@ GParsableI &GParsableI::operator<<(commentLevel const &cl) {
     }
 
     if(comment_.size() <= cl.getCommentLevel()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::operator<< (commentLevel const& cl): Error!" << '\n'
             << "Invalid comment level " << cl.getCommentLevel()
@@ -290,7 +290,7 @@ GParsableI &GParsableI::operator<<(commentLevel const &cl) {
 GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const &nc) {
 #ifdef DEBUG
     if(comment_.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::operator<< (nextComment const& nc): Error!" << '\n'
             << "No comments in vector" << '\n'
@@ -298,7 +298,7 @@ GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const &nc) {
     }
 
     if(comment_.size() <= (cl_ + 1)) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParsableI::operator<< (nextComment const& nc): Error!" << '\n'
             << "Invalid comment level " << cl_ + 1 << " requested, where the maximum is "
@@ -424,7 +424,7 @@ GCLParsableI::GCLParsableI(
  * The default constructor
  */
 GParserBuilder::GParserBuilder() {
-    auto basename_opt = Gem::Common::environmentVariableAs<std::string>("GENEVA_CONFIG_BASENAME");
+    auto basename_opt = Gem::Common::environmentVariableAs<std::string>("GEM_CONFIG_BASENAME");
     if(basename_opt && !(*basename_opt).empty()) {
         // Read out the directory
         config_base_dir_ = std::filesystem::path(*basename_opt);
@@ -442,7 +442,7 @@ GParserBuilder::GParserBuilder() {
  * @param root The already-parsed JSON document to apply to the registered options
  * @param config_path The originating file path, used only for diagnostic messages (may be empty)
  * @param run_unknown_key_check Whether to run the unknown-key diagnostic for this load
- * @throws geneva_exception if the document is not an object, if the entry of a known key does not
+ * @throws gem_exception if the document is not an object, if the entry of a known key does not
  *         have the form its parameter needs, or if a value does not read as its parameter's type
  *         (the error names the key)
  */
@@ -453,7 +453,7 @@ void GParserBuilder::loadFromDocument(
 ) {
     // A configuration document is always a JSON object at the root. Anything else is malformed.
     if(not root.is_object()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParserBuilder::loadFromDocument(): Error!" << '\n'
             << "Configuration file " << config_path.string() << '\n'
@@ -481,7 +481,7 @@ void GParserBuilder::loadFromDocument(
                 continue;
             }
             if(unknown_key_is_error_) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GParserBuilder::loadFromDocument(): Error!" << '\n'
                     << "Configuration file " << config_path.string() << '\n'
@@ -516,7 +516,7 @@ void GParserBuilder::loadFromDocument(
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
  * @param do_rewrite Whether to rewrite the file in canonical form after applying it
  * @param rewrite_header The header for a rewrite; empty uses the standard auto-created header
- * @throws geneva_exception if the file cannot be resolved, read, parsed or applied (a value of the
+ * @throws gem_exception if the file cannot be resolved, read, parsed or applied (a value of the
  *         wrong form, an unknown key while unknown keys are errors, a call-back that throws) or
  *         rewritten; the message names the file and the cause
  */
@@ -569,7 +569,7 @@ void GParserBuilder::doParseConfigFile_(
         // on its defaults while the file said otherwise. The cause has been logged where it was
         // thrown; this only adds the file, and is not logged a second time. It names no function,
         // as parseConfigFile() and updateConfigFile() both come here.
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
             << "The configuration file " << config_path.string()
             << " could not be read or applied:" << '\n'
@@ -599,7 +599,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
             std::error_code ec;
             std::filesystem::create_directories(config_base_dir_, ec);
             if(ec) {
-                throw geneva_exception(
+                throw gem_exception(
                     g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                     << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
                     << "Base-directory " << config_base_dir_.string()
@@ -612,7 +612,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
                     << GLOGGING;
         }
         else if(not std::filesystem::is_directory(config_base_dir_)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
                 << "Base-directory " << config_base_dir_.string() << " is not a directory" << '\n'
@@ -645,7 +645,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
     else { // config_file exists
         // Is it a regular file ?
         if(not std::filesystem::is_regular_file(config_path)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
                 << config_path.string() << " exists but is no regular file." << '\n'
@@ -655,7 +655,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
         // We require the file to have the json extension
         if(not std::filesystem::path(config_path).has_extension() ||
            std::filesystem::path(config_path).extension() != ".json") {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
                 << config_path.string() << " does not have the required extension \".json\"" << '\n'
@@ -720,7 +720,7 @@ void GParserBuilder::reportAndRewriteConfigFile(
  *
  * @param config_file The path of the configuration file to read and parse
  * @param captured An optional pointer to a JSON document that, if non-null, receives the parsed options
- * @throws geneva_exception if the file cannot be read or applied (see doParseConfigFile_())
+ * @throws gem_exception if the file cannot be read or applied (see doParseConfigFile_())
  */
 void GParserBuilder::parseConfigFile(
     std::filesystem::path const &config_file,
@@ -738,7 +738,7 @@ void GParserBuilder::parseConfigFile(
  *
  * @param config_file The path of the configuration file to update in place
  * @param header An optional header comment; empty uses the standard auto-created header
- * @throws geneva_exception if the file cannot be read, applied or rewritten (see doParseConfigFile_())
+ * @throws gem_exception if the file cannot be read, applied or rewritten (see doParseConfigFile_())
  */
 void GParserBuilder::updateConfigFile(
     std::filesystem::path const &config_file,
@@ -809,7 +809,7 @@ void GParserBuilder::writeConfigFile(
     {
         // Is config_file a directory ?
         if(std::filesystem::is_directory(config_file)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
                 << config_file.string() << " is a directory." << '\n'
@@ -818,7 +818,7 @@ void GParserBuilder::writeConfigFile(
 
         // We do not allow to overwrite existing files
         if(std::filesystem::exists(config_file) && std::filesystem::is_regular_file(config_file)) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
                 << "You have specified an existing file (" << config_file.string() << ")." << '\n'
@@ -835,7 +835,7 @@ void GParserBuilder::writeConfigFile(
         if(not target_dir.empty()) {
             if(std::filesystem::exists(target_dir)) {
                 if(not std::filesystem::is_directory(target_dir)) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
                         << "The target path " << target_dir.string() << " is not a directory."
@@ -847,7 +847,7 @@ void GParserBuilder::writeConfigFile(
                 std::error_code ec;
                 std::filesystem::create_directories(target_dir, ec);
                 if(ec) {
-                    throw geneva_exception(
+                    throw gem_exception(
                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                         << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
                         << "Could not create the target directory " << target_dir.string() << ": "
@@ -863,7 +863,7 @@ void GParserBuilder::writeConfigFile(
 
         // Check that the configuration file has the required extension
         if(not config_file.has_extension() || config_file.extension() != ".json") {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
                 << config_file.string() << " does not have the required extension \".json\"" << '\n'
@@ -874,7 +874,7 @@ void GParserBuilder::writeConfigFile(
     // Open the required configuration file
     std::ofstream ofs(config_file);
     if(not ofs) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParserBuilder::writeConfigFile(): Error writing configuration file "
             << config_file.string() << '\n'
@@ -903,7 +903,7 @@ void GParserBuilder::writeConfigFile(
 boost::json::value
 GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
     if(file_parameter_proxies_.empty()) {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParserBuilder::buildConfigDocument_(): No variables found!" << '\n'
         );
@@ -958,7 +958,7 @@ void GParserBuilder::atomicReplaceConfigFile_(
 ) const {
     // Enforce the .json extension (matches writeConfigFile()/parseConfigFile()).
     if(not config_file.has_extension() || config_file.extension() != ".json") {
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParserBuilder::atomicReplaceConfigFile_(): Error!" << '\n'
             << config_file.string() << " does not have the required extension \".json\"" << '\n'
@@ -971,7 +971,7 @@ void GParserBuilder::atomicReplaceConfigFile_(
     {
         std::ofstream ofs(tmp_path);
         if(not ofs) {
-            throw geneva_exception(
+            throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GParserBuilder::atomicReplaceConfigFile_(): Error writing temporary file "
                 << tmp_path.string() << '\n'
@@ -986,7 +986,7 @@ void GParserBuilder::atomicReplaceConfigFile_(
     if(ec) {
         std::error_code ignore;
         std::filesystem::remove(tmp_path, ignore);
-        throw geneva_exception(
+        throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GParserBuilder::atomicReplaceConfigFile_(): Error!" << '\n'
             << "Could not rename " << tmp_path.string() << " over " << config_file.string() << ": "

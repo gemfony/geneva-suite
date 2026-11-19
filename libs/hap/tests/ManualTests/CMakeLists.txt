@@ -31,6 +31,5 @@
 ADD_SUBDIRECTORY ( DependentDistributionTests )
 ADD_SUBDIRECTORY ( GRandomThroughput )
 ADD_SUBDIRECTORY ( GRandomUsage )
-ADD_SUBDIRECTORY ( PlotRNGDistributions )
 
-GENEVA_AGGREGATE_TARGET( "tests-hap-manual" )
+GEM_AGGREGATE_TARGET( "tests-hap-manual" )

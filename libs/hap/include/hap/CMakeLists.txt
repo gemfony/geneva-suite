@@ -40,9 +40,9 @@
 #
 ################################################################################
 
-IF(GENEVA_USE_CUDA_RNG_ENABLED)
+IF(GEM_USE_CUDA_RNG_ENABLED)
 	ENABLE_LANGUAGE(CUDA)
-	# The CUDA device dialect is set centrally in CommonGenevaBuild.cmake (CMAKE_CUDA_STANDARD).
+	# The CUDA device dialect is set centrally in CommonGemBuild.cmake (CMAKE_CUDA_STANDARD).
 ENDIF()
 
 SET ( HAPINCLUDES
@@ -59,7 +59,7 @@ SET ( HAPINCLUDES
 	GXoshiro256ppSIMD.hpp
 )
 
-IF(GENEVA_USE_CUDA_RNG_ENABLED)
+IF(GEM_USE_CUDA_RNG_ENABLED)
 	SET(HAPINCLUDES
 		${HAPINCLUDES}
 		GCUDARng.hpp
