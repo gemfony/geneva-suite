@@ -31,8 +31,11 @@
 # Starts or stops the MQTT broker of courtier's tests: a mosquitto of its own, on a free port of the
 # loopback interface -- never the host's broker. A CTest fixture runs it (tests/CMakeLists.txt):
 #
-#   mqttTestBroker.sh start <mosquitto> <dir>   writes <dir>/port and <dir>/pid
-#   mqttTestBroker.sh stop  <mosquitto> <dir>   ends the broker of <dir>/pid
+#   mqttTestBroker.sh start <mosquitto> <dir> [<port>]   writes <dir>/port and <dir>/pid
+#   mqttTestBroker.sh stop  <mosquitto> <dir>            ends the broker of <dir>/pid
+#
+# With a port the broker is started on that one (a test that restarts its own broker where its
+# clients look for it), waiting up to five seconds for it to be free; without one on a free one.
 #
 # The tests that use it read <dir>/port; each uses a topic prefix of its own, so that tests that run
 # at the same time do not see each other. The broker runs without a configuration file
@@ -45,9 +48,10 @@
 
 set -u
 
-if [ $# -ne 3 ]; then
-    echo "Usage: mqttTestBroker.sh start|stop <mosquitto> <dir>"; exit 2
+if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+    echo "Usage: mqttTestBroker.sh start|stop <mosquitto> <dir> [<port>]"; exit 2
 fi
+WANTED=${4:-}
 ACTION=$1; MOSQUITTO=$2; DIR=$3
 mkdir -p "$DIR" || exit 1
 
@@ -78,9 +82,12 @@ case "$ACTION" in
 start)
     stop_broker # one left behind by a run that was ended from outside
     : > "$DIR/port"
-    for _ in $(seq 1 20); do
-        PORT=$((20000 + RANDOM % 20000))
-        listening "$PORT" && continue
+    for _ in $(seq 1 50); do
+        PORT=${WANTED:-$((20000 + RANDOM % 20000))}
+        if listening "$PORT"; then
+            [ -n "$WANTED" ] && sleep 0.1
+            continue
+        fi
         setsid "$MOSQUITTO" -p "$PORT" >> "$DIR/broker.log" 2>&1 < /dev/null &
         PID=$!
         for _ in $(seq 1 50); do
@@ -104,6 +111,6 @@ stop)
     echo "the test broker has ended"
     ;;
 *)
-    echo "Usage: mqttTestBroker.sh start|stop <mosquitto> <dir>"; exit 2
+    echo "Usage: mqttTestBroker.sh start|stop <mosquitto> <dir> [<port>]"; exit 2
     ;;
 esac
