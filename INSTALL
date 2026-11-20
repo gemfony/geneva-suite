@@ -150,9 +150,10 @@ starts none; --mqtt_ip and --mqtt_port name it (default 127.0.0.1:1883).
    websocket from about 1 s on.
  - Server and clients connect anonymously and without encryption, as the
    websocket consumer does: run the broker on a trusted network only.
- - Every client takes two broker connections (one of its own, one of its
-   server's): 400 clients need about 800, more than the 1024 open files a broker
-   started by systemd may have. Raise its limit.
+ - A run with N clients takes 2N+1 broker connections: one of each client, one
+   of the server for each client, and the server's own for the joins. The 1024
+   open files a broker started by systemd may have suffice for about 500 clients;
+   raise its limit for more.
  - Runs that share a broker use different topic prefixes (--mqtt_topic): a
    server takes every client that joins under its prefix.
  - A work item or a result travels as one MQTT packet of at most 2,000,000 bytes
