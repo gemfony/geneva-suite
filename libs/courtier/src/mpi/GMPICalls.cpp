@@ -44,7 +44,8 @@ namespace Gem::Courtier::Consumers {
 
 namespace {
 
-// The handle carries the bytes of the MPI_Request (an int in MPICH, a pointer in Open MPI).
+// The handle carries the bytes of the MPI_Request (an int in MPICH, a pointer in Open MPI), XORed
+// with those of MPI_REQUEST_NULL.
 static_assert(
     sizeof(MPI_Request) <= sizeof(std::uintptr_t),
     "an MPI_Request must fit into a GMPIRequest"
@@ -55,40 +56,37 @@ static_assert(
 );
 
 /******************************************************************************/
-/**
- * @param request An MPI request
- * @return Its handle; NONE for MPI_REQUEST_NULL
- * @throws gem_exception for an active request whose bytes are all zero (it could not be told
- *         from NONE; neither MPICH nor Open MPI makes one)
- */
-GMPIRequest toHandle(MPI_Request request) {
-    if(request == MPI_REQUEST_NULL) {
-        return GMPIRequest::NONE;
-    }
+/** @param request An MPI request @return Its bytes, in an otherwise zero std::uintptr_t */
+std::uintptr_t bytesOf(MPI_Request request) {
     std::uintptr_t bytes = 0;
     std::memcpy(&bytes, static_cast<const void *>(&request), sizeof(MPI_Request));
-    if(bytes == 0) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICalls: Error!" << '\n'
-            << "MPI made a request that cannot be told from no request" << '\n'
-        );
-    }
-    // An opaque handle, as std::byte is: every value is valid, not only the named NONE.
-    return static_cast<GMPIRequest>(bytes); // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+    return bytes;
 }
 
 /******************************************************************************/
 /**
+ * The handle is the request's bytes XOR those of MPI_REQUEST_NULL, so that NONE (0) is
+ * MPI_REQUEST_NULL by construction and every other request has a handle that is not NONE.
+ *
+ * @param request An MPI request
+ * @return Its handle; NONE for MPI_REQUEST_NULL
+ */
+GMPIRequest toHandle(MPI_Request request) {
+    // An opaque handle, as std::byte is: every value is valid, not only the named NONE.
+    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
+    return static_cast<GMPIRequest>(bytesOf(request) ^ bytesOf(MPI_REQUEST_NULL));
+}
+
+/******************************************************************************/
+/**
+ * Undoes toHandle(): the same XOR with the bytes of MPI_REQUEST_NULL.
+ *
  * @param handle A handle made by toHandle()
  * @return The MPI request; MPI_REQUEST_NULL for NONE
  */
 MPI_Request toRequest(GMPIRequest handle) {
-    if(handle == GMPIRequest::NONE) {
-        return MPI_REQUEST_NULL;
-    }
     MPI_Request request = MPI_REQUEST_NULL;
-    const auto bytes = static_cast<std::uintptr_t>(handle);
+    const std::uintptr_t bytes = static_cast<std::uintptr_t>(handle) ^ bytesOf(MPI_REQUEST_NULL);
     std::memcpy(static_cast<void *>(&request), &bytes, sizeof(MPI_Request));
     return request;
 }
@@ -213,19 +211,8 @@ GMPIRequest GMPICalls::startSend(int rank, int tag, std::string_view bytes) {
         communicator_,
         &request
     );
-    // The request is completed by testSome() or given up by giveUp(), through its handle. A request
-    // that cannot be made into a handle is cancelled and waited for before the exception leaves:
-    // the caller frees the bytes while it unwinds, and MPI must have stopped reading them by then.
-    // MPI_Wait on a send marked for cancellation returns whatever the other rank does. (No test:
-    // neither MPICH nor Open MPI makes such a request.)
-    try {
-        return toHandle(request); // NOLINT(clang-analyzer-optin.mpi.MPI-Checker)
-    }
-    catch(...) {
-        MPI_Cancel(&request);
-        MPI_Wait(&request, MPI_STATUS_IGNORE);
-        throw;
-    }
+    // The request is completed by testSome() or given up by giveUp(), through its handle.
+    return toHandle(request); // NOLINT(clang-analyzer-optin.mpi.MPI-Checker)
 }
 
 /******************************************************************************/
