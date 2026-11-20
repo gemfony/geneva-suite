@@ -145,4 +145,17 @@ IF ( GEM_BUILD_EXAMPLES )
 		WORKING_DIRECTORY ${RESTART_WORKDIR} )
 	SET_TESTS_PROPERTIES ( GMPICheckpointRestartKilled PROPERTIES LABELS "geneva" PROCESSORS 3 )
 	GEM_TEST_SIZE ( GMPICheckpointRestartKilled M )
+
+	# As the first, under the MPI cascade of example 16: nine ranks, the submitter and two groups of
+	# four, each of which evaluates one item on all its ranks. The ranks share the run directory, so
+	# the example's materialized configuration is copied there first.
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartCascade TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 2
+			config/GEvolutionaryAlgorithm.json checkpoints
+			$<TARGET_FILE_DIR:GMPISubClients>/config --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 9 ${MPIEXEC_PREFLAGS}
+			$<TARGET_FILE:GMPISubClients> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartCascade PROPERTIES LABELS "geneva" PROCESSORS 9 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartCascade L )
 ENDIF ()
