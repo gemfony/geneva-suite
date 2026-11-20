@@ -49,8 +49,12 @@ namespace Gem::Courtier::Consumers {
  * Every connection is a new MQTT client with a new id, which joins the server through the broker.
  * A connection whose broker connection fails, or whose server's will arrives, ends, and the client
  * connects again (see GPeerClientT); one that hears no server within twice its keep-alive (no
- * server took its join, say because none had started yet) ends too, and the client tries again. A
- * client that is told that the run has ended ends.
+ * server took its join, say because none had started yet) ends too, and the client tries again:
+ * a client started long before its server waits without a limit by default
+ * (clientFirstContactLimit 0) and is served at most about two keep-alive intervals after the server
+ * has started. Its MQTT keep-alive is its own pingInterval, fixed when it connects; it says so in
+ * its log when the server's HELLO names another, so server and clients set it alike. A client
+ * that is told that the run has ended ends.
  *
  * It is configured by a GMqttConsumerConfig, the struct its server is built from too. The client
  * must be held by a std::shared_ptr.
