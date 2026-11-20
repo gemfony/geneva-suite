@@ -436,10 +436,11 @@ void GRandomFactory::accountProducers(std::uint16_t n_running) {
  * libraries must not be shut down: they are unloaded at process exit before this library's
  * finalize() joins the producers, and a producer caught inside their start then hangs or aborts the
  * exit. By returning only after every start has finished, the call that starts producers -- the first
- * getNewRandomContainer() or a setNProducerThreads() that adds threads -- keeps its caller, and thus
- * the end of main(), behind every start. The first call therefore waits for the slowest producer's
- * start instead of the fastest; on the GPU they share the creation of the CUDA context and finish
- * close together.
+ * getNewRandomContainer() or a setNProducerThreads() that adds threads -- keeps its caller behind
+ * every start, and the end of main() only if that caller is the thread that ends the program
+ * (getNewRandomContainer() states the contract). The first call therefore waits for the slowest
+ * producer's start instead of the fastest; on the GPU they share the creation of the CUDA context
+ * and finish close together.
  *
  * The wait has no time limit: a start that never ends cannot be left behind safely. So that a wedged
  * device is seen as such, a warning names how many producers are at which stage of their start after
