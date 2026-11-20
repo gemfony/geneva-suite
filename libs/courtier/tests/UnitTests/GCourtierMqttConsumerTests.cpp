@@ -67,7 +67,7 @@ namespace {
 
 using item_ptr = std::unique_ptr<GFaultyContainer>;
 
-constexpr auto PATIENCE = 30s; // how long a case waits for what is due within a few seconds
+constexpr auto PATIENCE = 20s; // how long a case waits for what is due within a few seconds
 
 /** @brief Waits, at most PATIENCE, for @p condition @return Whether it held in time */
 template <typename condition_type>
@@ -132,17 +132,49 @@ itemsOf(std::size_t n, fault_mode mode = fault_mode::NONE, unsigned int sleep_ms
     return items;
 }
 
-/** @brief Hands @p items to @p consumer as one batch, on a thread of its own
- *  @return Its end */
-std::future<void>
-submitted(GMqttConsumerT<GFaultyContainer> &consumer, std::vector<item_ptr> &items) {
-    return std::async(std::launch::async, [&consumer, &items] {
-        consumer.processBatch(
-            std::span<item_ptr>(items.data(), items.size()),
-            GSubmissionPolicy::full_success_or_fatal()
-        );
-    });
-}
+/**
+ * One batch, handed to a server on a thread of its own, whose wait is bounded: a batch that is not
+ * done within PATIENCE (a case that fails) has its server stopped when this goes, which ends it,
+ * so that the case fails with its own message instead of waiting for ctest's limit. Its policy
+ * cannot end the process: an item that has not come back by then is neither resubmitted nor
+ * fatal, its slot is refilled from an unprocessed template (and the case's check of the items
+ * fails). In a case that passes no item goes missing, so the policy decides nothing.
+ */
+class BoundedBatch {
+public:
+    BoundedBatch(GMqttConsumerT<GFaultyContainer> &consumer, std::vector<item_ptr> &items)
+      : consumer_(consumer)
+      , done_(std::async(std::launch::async, [&consumer, &items] {
+          Gem::Courtier::GSubmissionPolicy policy = GSubmissionPolicy::clone_on_partial_return();
+          policy.fatal_on_none_returned = false;
+          consumer.processBatch(
+              std::span<item_ptr>(items.data(), items.size()),
+              policy,
+              std::make_unique<GFaultyContainer>(items.size())
+          );
+      })) { /* nothing */
+    }
+    /** @brief Stops the server if the batch is not done, then waits for its end */
+    ~BoundedBatch() {
+        if(done_.wait_for(0s) != std::future_status::ready) {
+            consumer_.stopServer();
+        }
+        done_.wait();
+    }
+    BoundedBatch(const BoundedBatch &) = delete;
+    BoundedBatch(BoundedBatch &&) = delete;
+    BoundedBatch &operator=(const BoundedBatch &) = delete;
+    BoundedBatch &operator=(BoundedBatch &&) = delete;
+
+    /** @brief Waits for the batch, at most PATIENCE @return Whether it is done */
+    [[nodiscard]] bool done() {
+        return done_.wait_for(PATIENCE) == std::future_status::ready;
+    }
+
+private:
+    GMqttConsumerT<GFaultyContainer> &consumer_; ///< The server
+    std::future<void> done_;                     ///< The batch's end
+};
 
 /** @brief @param items Work items @return Whether every one has been processed */
 bool allProcessed(const std::vector<item_ptr> &items) {
@@ -169,9 +201,8 @@ TEST_CASE(
 
     const auto consumer = startedServer(config);
     auto items = itemsOf(8);
-    auto batch = submitted(*consumer, items);
-    REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
-    batch.get();
+    BoundedBatch batch(*consumer, items);
+    REQUIRE(batch.done());
     CHECK(allProcessed(items));
 }
 
@@ -197,14 +228,13 @@ TEST_CASE(
     {
         const RunningClient dying(through_relay);
         REQUIRE(eventually([&] { return consumer->connectedClients() == 1U; }));
-        auto batch = submitted(*consumer, items);
+        BoundedBatch batch(*consumer, items);
         std::this_thread::sleep_for(300ms); // it holds an item and evaluates it
         relay.setAccepting(false);
         relay.cutAll();
 
         const RunningClient other(config);
-        REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
-        batch.get();
+        REQUIRE(batch.done());
     }
     CHECK(allProcessed(items));
     CHECK(consumer->requeuedCount() >= 1);
@@ -236,8 +266,7 @@ TEST_CASE(
 
     const auto next = startedServer(config);
     auto items = itemsOf(8);
-    auto batch = submitted(*next, items);
-    REQUIRE(batch.wait_for(PATIENCE) == std::future_status::ready);
-    batch.get();
+    BoundedBatch batch(*next, items);
+    REQUIRE(batch.done());
     CHECK(allProcessed(items));
 }
