@@ -41,12 +41,17 @@
 #     n_clients   Number of client processes to start (>= 1). For the MPI consumer
 #                 this is the number of WORKER ranks; mpirun then launches
 #                 n_clients + 1 ranks (one rank-0 master plus n_clients workers).
-#     port        TCP port the server listens on (> 1000). IGNORED for the MPI
-#                 consumer (MPI uses no listening socket); pass any placeholder,
-#                 e.g. 0.
-#     consumer    Consumer mnemonic: "beast" (websocket, the default) or "mpi".
-#                 For "beast" the program is started once in server
-#                 mode plus n_clients times in client mode over local TCP. For
+#     port        TCP port the server listens on (> 1000). For the MQTT consumer
+#                 the port of the MQTT broker the server and its clients meet on
+#                 (the broker is not started by this script; see INSTALL, "The
+#                 broker of the MQTT consumer"). IGNORED for the MPI consumer (MPI
+#                 uses no listening socket); pass any placeholder, e.g. 0.
+#     consumer    Consumer mnemonic: "beast" (websocket, the default), "mqtt" or
+#                 "mpi". For "beast" the program is started once in server mode
+#                 plus n_clients times in client mode over local TCP; "mqtt" is
+#                 started the same way, and every process is given the broker
+#                 (--mqtt_ip, --mqtt_port) and a topic prefix of this run's own
+#                 (--mqtt_topic), so that runs that share a broker stay apart. For
 #                 "mpi" the program is launched ONCE via mpirun (one process that
 #                 internally splits into the rank-0 master and the worker ranks);
 #                 there are no separate client invocations and no port.
@@ -60,6 +65,7 @@
 #
 # Examples:
 #   ./startLocalJobs.sh ./GSimpleOptimizer 15 10000 beast -- -a "ea,cgd" --beast_prefetchDepth=4
+#   ./startLocalJobs.sh ./GSimpleOptimizer 15 18830 mqtt
 #
 # Environment:
 #   GEM_RUN_TIMEOUT      If set to a positive number of seconds, the script runs
@@ -71,6 +77,7 @@
 #                        output interactively (Ctrl-C to stop; all jobs are cleaned
 #                        up on exit).
 #   MPIRUN               Override the MPI launcher (default: mpirun). MPI only.
+#   GEM_MQTT_BROKER      The host of the MQTT broker (default: 127.0.0.1). MQTT only.
 ####################################################################
 
 set -u
@@ -93,8 +100,9 @@ done
 set -- "${POSITIONAL[@]}"
 
 if [ $# -lt 3 ] || [ $# -gt 4 ]; then
-    echo "Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: beast|mpi] [-- <extra args>...]"
-    echo "       (for mpi the port is ignored and n_clients is the number of worker ranks)"
+    echo "Usage: ./startLocalJobs.sh <program> <n_clients> <port> [consumer: beast|mqtt|mpi] [-- <extra args>...]"
+    echo "       (for mqtt the port is the broker's; for mpi it is ignored and n_clients is the"
+    echo "       number of worker ranks)"
     echo "       (everything after -- is forwarded to every program invocation)"
     exit 1
 fi
@@ -121,14 +129,20 @@ if [ "${CONSUMER}" != "mpi" ]; then
     fi
 fi
 
-# Map the consumer mnemonic to its CLI option names (verified against the current
-# courtier consumers: GWebsocketConsumerT -> "beast"/--beast_*, GMPIConsumerT -> "mpi").
-# MPI is launched via mpirun rather than as server + clients.
+# The options that tell the server and the clients where to meet (checked against the
+# courtier consumers: GWebsocketConsumerT -> "beast"/--beast_*, GMqttConsumerT ->
+# "mqtt"/--mqtt_*, GMPIConsumerT -> "mpi"). The websocket server listens itself, so
+# only its clients are told where (localhost); an MQTT server and its clients are all
+# told where the broker is, and a topic prefix of this run's own. MPI is launched via
+# mpirun rather than as server + clients.
+SERVER_OPTS=()
 case "${CONSUMER}" in
-    beast) IP_OPT="beast_ip"; PORT_OPT="beast_port" ;;
+    beast) IP_OPT="beast_ip"; PORT_OPT="beast_port"; HOST="localhost" ;;
+    mqtt)  IP_OPT="mqtt_ip"; PORT_OPT="mqtt_port"; HOST="${GEM_MQTT_BROKER:-127.0.0.1}"
+           SERVER_OPTS=("--${IP_OPT}=${HOST}") ;;
     mpi)   ;; # handled separately below
     *)
-        echo "Error: unknown consumer '${CONSUMER}'. Use 'beast' or 'mpi'. Leaving."
+        echo "Error: unknown consumer '${CONSUMER}'. Use 'beast', 'mqtt' or 'mpi'. Leaving."
         exit 1
         ;;
 esac
@@ -170,16 +184,20 @@ else
     # ---- socket consumers: one server process + NCLIENTS client processes ----
     SERVER_OUT=./output/output_server
     echo "Starting server (${CONSUMER}) on port ${PORT} ..."
-    ( "${PROG}" -c "${CONSUMER}" "--${PORT_OPT}=${PORT}" "${EXTRA_ARGS[@]}" >& "${SERVER_OUT}" ) &
+    TOPIC_OPTS=()
+    [ "${CONSUMER}" = "mqtt" ] && TOPIC_OPTS=("--mqtt_topic=gem-local-$$")
+    ( "${PROG}" -c "${CONSUMER}" "${SERVER_OPTS[@]}" "--${PORT_OPT}=${PORT}" "${TOPIC_OPTS[@]}" \
+        "${EXTRA_ARGS[@]}" >& "${SERVER_OUT}" ) &
     SERVER_PID=$!
 
-    # Give the server a moment to bind its listening socket before the clients connect.
+    # Give the server a moment to bind its listening socket (mqtt: to subscribe to the joins)
+    # before the clients connect.
     sleep 1
 
     echo "Starting ${NCLIENTS} client(s) ..."
     for i in $(seq 1 "${NCLIENTS}"); do
-        ( "${PROG}" -c "${CONSUMER}" --client "--${IP_OPT}=localhost" "--${PORT_OPT}=${PORT}" \
-            "${EXTRA_ARGS[@]}" >& "./output/output_client_${i}" ) &
+        ( "${PROG}" -c "${CONSUMER}" --client "--${IP_OPT}=${HOST}" "--${PORT_OPT}=${PORT}" \
+            "${TOPIC_OPTS[@]}" "${EXTRA_ARGS[@]}" >& "./output/output_client_${i}" ) &
         CLIENT_PIDS+=($!)
     done
 fi

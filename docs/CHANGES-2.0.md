@@ -376,8 +376,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `--mqtt_pingInterval` (default 15 s) is each end's MQTT keep-alive; a client keeps its own
   value (it is fixed when it connects) and says so in its log when its server names another, so
   set it alike on both sides. A client may start long before its server: it waits without a
-  limit by default (`--mqtt_firstContactLimit` 0) and is served at most about two keep-alive
-  intervals after the server has started. An item travels as one packet of at most 2,000,000
+  limit by default (`--mqtt_firstContactLimit` 0), joining again after two keep-alive intervals
+  without an answer and a pause that grows to 30 s (as `beast`'s does after a failed attempt),
+  so it finds a server at most both of them after the server has started, about a minute at the
+  defaults. An item travels as one packet of at most 2,000,000
   bytes; a larger one fails (`beast` and `mpi` carry larger ones). No encryption and no login, as
   with `beast`: the broker belongs on a trusted network and needs `set_tcp_nodelay` (`INSTALL`).
   With 402 clients it reached 71 % of `beast`'s speed-up at evaluations of 10 ms and the same

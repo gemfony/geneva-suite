@@ -297,7 +297,10 @@ private:
  * endWork() joins the thread, stops the MQTT clients that still run and lets their operations
  * complete, and shuts the I/O context down: the ends that are still open go without onClosed, and
  * without a DISCONNECT, so their clients hear their wills. A listener whose own broker connection
- * fails takes no new client; it says so in the log.
+ * fails (the broker restarts, say) makes a new MQTT client for the joins after a pause that grows
+ * as a client's does, from GCLIENTRECONNECTPAUSEMIN to GCLIENTRECONNECTPAUSEMAX, until the broker
+ * answers or the listener is stopped; meanwhile no client can join. The log says so once when the
+ * broker is lost and once when it answers again.
  */
 class GMqttListener final : public GListenerI {
 public:
@@ -327,7 +330,7 @@ private:
     struct GJoins; ///< The listener's MQTT client (GMqttPeerTransport.cpp)
 
     void connect_();
-    void joinsBroken_(const std::string &);
+    void joinsBroken_(std::uint64_t, const std::string &);
     void receiveJoin_();
     void joined_(std::string);
     void handOver_(const std::shared_ptr<GMqttPeer> &, const std::string &);

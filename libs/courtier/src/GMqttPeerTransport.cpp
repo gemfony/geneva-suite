@@ -951,10 +951,16 @@ void GMqttPeer::report_(GPeerEnd end, GPeerClose how, const std::string &detail)
 
 /** The listener's MQTT client, and what start() waits for */
 struct GMqttListener::GJoins {
-    GJoins(const boost::asio::any_io_executor &io, GLinkWatch watch)
-      : client(io, std::monostate{}, std::move(watch)) { /* nothing */
+    explicit GJoins(const boost::asio::any_io_executor &io)
+      : retry(io) { /* nothing */
     }
-    client_type client;   ///< The client
+    /// The client; made anew when it has lost the broker (connect_())
+    std::unique_ptr<client_type> client;
+    /// Counts the clients made and given up: a hook of one that is not the current one is ignored
+    std::uint64_t generation = 0;
+    boost::asio::steady_timer retry; ///< The pause before the next client is made
+    std::chrono::milliseconds pause = GCLIENTRECONNECTPAUSEMIN; ///< Its next length
+    bool down = false;    ///< The broker was lost and has not answered again (said once in the log)
     bool decided = false; ///< start() has its answer (strand only)
     std::string why;      ///< Why the client could not subscribe; empty if it did
     Gem::Common::Concurrency::GCompletionLatchT answered{1}; ///< start()'s answer is there
@@ -1005,12 +1011,7 @@ GMqttListener::~GMqttListener() {
 void GMqttListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     handler_executor_ = std::move(executor);
     on_peer_ = std::move(on_peer);
-    joins_ =
-        std::make_unique<GJoins>(strand_, GLinkWatch{[this](std::string what, bool) {
-                                     boost::asio::post(strand_, [this, what = std::move(what)] {
-                                         this->joinsBroken_(what);
-                                     });
-                                 }});
+    joins_ = std::make_unique<GJoins>(strand_);
 
     std::string why;
     work_guard_.emplace(io_context_.get_executor());
@@ -1056,59 +1057,111 @@ void GMqttListener::start(boost::asio::any_io_executor executor, on_peer_type on
 }
 
 /******************************************************************************/
-/** On the strand: the listener's MQTT client connects and subscribes to P/join; start() is told
- *  the outcome, and the joins are read from then on. */
+/** On the strand: a new MQTT client of the listener (a new number, and a new client id from the
+ *  broker) connects and subscribes to P/join, and the joins are read from then on. The first one
+ *  tells start() the outcome; a later one, made after the broker was lost, resets the pause and
+ *  says once in the log that clients can join again. */
 void GMqttListener::connect_() {
-    auto &client = joins_->client;
+    const std::uint64_t generation = ++joins_->generation;
+    joins_->client = std::make_unique<client_type>(
+        strand_,
+        std::monostate{},
+        GLinkWatch{[this, generation](std::string what, bool) {
+            boost::asio::post(strand_, [this, generation, what = std::move(what)] {
+                this->joinsBroken_(generation, what);
+            });
+        }}
+    );
+    auto &client = *joins_->client;
     configure(client, options_);
     client.async_run([](error_code) { /* the watch tells what ended it */ });
     client.async_subscribe(
         subscription(options_.topic + "/join"),
         mqtt::subscribe_props{},
-        [this](error_code ec, std::vector<mqtt::reason_code> codes, mqtt::suback_props) {
-            if(joins_->decided) {
+        [this,
+         generation](error_code ec, std::vector<mqtt::reason_code> codes, mqtt::suback_props) {
+            if(generation != joins_->generation) {
                 return;
             }
-            joins_->decided = true;
-            joins_->why = subscriptionError(ec, codes);
-            if(joins_->why.empty()) {
-                this->receiveJoin_();
+            const std::string why = subscriptionError(ec, codes);
+            if(not joins_->decided) {
+                joins_->decided = true;
+                joins_->why = why;
+                if(why.empty()) {
+                    this->receiveJoin_();
+                }
+                joins_->answered.count_down();
+                return;
             }
-            joins_->answered.count_down();
+            if(not why.empty()) {
+                this->joinsBroken_(generation, "the broker refused the subscription: " + why);
+                return;
+            }
+            joins_->pause = GCLIENTRECONNECTPAUSEMIN;
+            if(joins_->down) {
+                joins_->down = false;
+                glogger << "In " << name_
+                        << ": the listener reaches the MQTT broker again: clients can join" << '\n'
+                        << GLOGGING;
+            }
+            this->receiveJoin_();
         }
     );
 }
 
 /******************************************************************************/
-/** On the strand: the listener's client has lost the broker (GLinkWatch). Before the subscription
- *  start() is told why; afterwards no client can join any more, which the log says. The client
- *  stops either way. @param what What happened */
-void GMqttListener::joinsBroken_(const std::string &what) {
+/** On the strand: the listener's client has lost the broker (GLinkWatch), or the broker refused it
+ *  the subscription. The client stops. Before the first subscription start() is told why;
+ *  afterwards the log says once that no client can join, and a new client is made after a pause
+ *  that doubles from GCLIENTRECONNECTPAUSEMIN to GCLIENTRECONNECTPAUSEMAX, as a client's does
+ *  (without its random spread: there is one listener), until the broker answers or the listener
+ *  stops. @param generation The number of the client @param what What happened */
+void GMqttListener::joinsBroken_(std::uint64_t generation, const std::string &what) {
+    if(generation != joins_->generation) {
+        return; // a hook of a client given up before
+    }
+    ++joins_->generation; // what this client reports from now on (its own stop) is ignored
+    joins_->client->cancel();
     if(not joins_->decided) {
         joins_->decided = true;
         joins_->why = what;
         joins_->answered.count_down();
+        return;
     }
-    else if(not stopped_.load()) {
+    if(stopped_.load()) {
+        return;
+    }
+    if(not joins_->down) {
+        joins_->down = true;
         glogger << "In " << name_ << ": the listener's connection to the MQTT broker has ended ("
-                << what << "): no new client can join" << '\n'
+                << what << "): no client can join until it has connected again" << '\n'
                 << GWARNING;
     }
-    joins_->client.cancel();
+    joins_->retry.expires_after(joins_->pause);
+    joins_->pause = std::min(2 * joins_->pause, GCLIENTRECONNECTPAUSEMAX);
+    joins_->retry.async_wait([this](const error_code &ec) {
+        if(not ec && not stopped_.load()) {
+            this->connect_();
+        }
+    });
 }
 
 /******************************************************************************/
-/** Waits for the next join; on the strand. The wait ends with the listener's client. */
+/** Waits for the next join; on the strand. The wait ends with the listener's client, and a wait of
+ *  a client that has been replaced reads nothing more. */
 void GMqttListener::receiveJoin_() {
-    joins_->client.async_receive(
-        [this](error_code ec, std::string, std::string payload, mqtt::publish_props) {
-            if(ec) {
-                return;
-            }
-            this->joined_(std::move(payload));
-            this->receiveJoin_();
+    joins_->client->async_receive([this, generation = joins_->generation](
+                                      error_code ec,
+                                      std::string,
+                                      std::string payload,
+                                      mqtt::publish_props
+                                  ) {
+        if(ec || generation != joins_->generation) {
+            return; // the client has stopped, or a newer one reads
         }
-    );
+        this->joined_(std::move(payload));
+        this->receiveJoin_();
+    });
 }
 
 /******************************************************************************/
@@ -1194,7 +1247,8 @@ void GMqttListener::stop() {
     }
     auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     boost::asio::post(strand_, [this, done] {
-        joins_->client.cancel(); // it has no will: the broker forgets it
+        joins_->client->cancel(); // it has no will: the broker forgets it
+        joins_->retry.cancel();
         done->count_down();
     });
     if(not done->wait_for(LISTENER_STOP_BOUND)) {
@@ -1235,7 +1289,10 @@ void GMqttListener::endWork() {
 void GMqttListener::letClientsGo_() {
     io_context_.restart();
     if(joins_) {
-        joins_->client.cancel();
+        if(joins_->client) {
+            joins_->client->cancel();
+        }
+        joins_->retry.cancel();
     }
     for(const auto &known : ends_) {
         if(auto end = known.second.lock()) {

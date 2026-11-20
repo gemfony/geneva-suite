@@ -410,12 +410,23 @@ void GWebsocketPeer::close(GPeerClose how) {
  * end waits for it, so that the client still hears what the close says (the end of the run); the
  * client's end ends at once and reports FAILED (it never opened): nothing has been said on the
  * connection yet, and a client that halts while its server does not answer does not wait for the
- * handshake limit.
+ * handshake limit. A close asked for after the other end's close has been read changes nothing:
+ * the connection ends as closed there.
  *
  * @param how What the other end is told
  */
 void GWebsocketPeer::beginClose_(GPeerClose how) {
     if(closing_ || finished_) {
+        return;
+    }
+    if(close_received_) {
+        // The other end's close has been read (Beast answers it within the read in progress), and
+        // that read ends the connection as CLOSED_THERE, with what that close said: the first
+        // close decides, and this one adds nothing. Without this a close() that arrived between
+        // Beast's answer and the read's end reported CLOSED_HERE and lost the other end's word
+        // (GCourtierWebsocketPeerTests, "the other end's close is answered before the role is told
+        // of the open", red under ThreadSanitizer once in many runs; the order of the posted close
+        // and of Beast's completion cannot be forced from outside, so no test pins it every time).
         return;
     }
     closing_ = true;

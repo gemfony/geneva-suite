@@ -178,11 +178,17 @@ IF(GEM_MQTT_CONSUMER_ENABLED)
 			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
 		SET_TESTS_PROPERTIES(GCourtierMqttTransportTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
 		# The MQTT consumer and its client when a process comes late or goes (a client before its
-		# server, a client that dies, a server that dies): about 15 s of waiting for limits
+		# server, a client that dies, a server that dies, the broker that restarts): about 20 s of
+		# waiting for limits
 		gem_courtier_test(GCourtierMqttConsumerTests L GCourtierMqttConsumerTests.cpp GMqttTestSupport.hpp
 			GTcpRelay.hpp)
+		# A case restarts a broker of its own with the same script, in a directory of its own below
+		# GCOURTIER_MQTT_OWN_BROKER_DIR (one per instance: the case may run in several processes)
 		TARGET_COMPILE_DEFINITIONS(GCourtierMqttConsumerTests
-			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}"
+			GCOURTIER_MQTT_OWN_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}-restart"
+			GCOURTIER_MQTT_BROKER_SCRIPT="${CMAKE_CURRENT_SOURCE_DIR}/../mqttTestBroker.sh"
+			GCOURTIER_MOSQUITTO="${GEM_MOSQUITTO_EXECUTABLE}")
 		SET_TESTS_PROPERTIES(GCourtierMqttConsumerTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
 		# The rules of GPeerI.hpp on the MQTT transport too
 		TARGET_COMPILE_DEFINITIONS(GCourtierPeerRulesTests
