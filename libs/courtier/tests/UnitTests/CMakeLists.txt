@@ -177,6 +177,13 @@ IF(GEM_MQTT_CONSUMER_ENABLED)
 		TARGET_COMPILE_DEFINITIONS(GCourtierMqttTransportTests
 			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
 		SET_TESTS_PROPERTIES(GCourtierMqttTransportTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+		# The MQTT consumer and its client when a process comes late or goes (a client before its
+		# server, a client that dies, a server that dies): about 15 s of waiting for limits
+		gem_courtier_test(GCourtierMqttConsumerTests L GCourtierMqttConsumerTests.cpp GMqttTestSupport.hpp
+			GTcpRelay.hpp)
+		TARGET_COMPILE_DEFINITIONS(GCourtierMqttConsumerTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierMqttConsumerTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
 		# The rules of GPeerI.hpp on the MQTT transport too
 		TARGET_COMPILE_DEFINITIONS(GCourtierPeerRulesTests
 			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
