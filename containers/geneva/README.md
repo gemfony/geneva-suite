@@ -52,7 +52,7 @@ with `--build-arg`:
 | `RUN_TESTS` | `1` | `0` skips the test suite (`build.sh --no-tests`) |
 | `WITH_CUDA` | `0` | `1` adds the CUDA toolkit (`build.sh --cuda`) |
 | `CUDA_PACKAGE` | `cuda-toolkit-13-3` | the toolkit package from the Ubuntu archive |
-| `BOOST_VERSION` | `1.91.0` | the Boost release compiled from source |
+| `BOOST_VERSION` | `1.92.0` | the Boost release compiled from source |
 | `BASE_IMAGE` | `docker.io/library/ubuntu:26.10` | the distribution image |
 | `JOBS` | all cores | parallel compile jobs |
 

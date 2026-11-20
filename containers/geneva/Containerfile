@@ -48,7 +48,7 @@
 #   CUDA_PACKAGE   the toolkit package from the Ubuntu archive (default cuda-toolkit-13-3)
 #   COMPILER       gcc or clang (default gcc)
 #   BUILD_MODE     Release, Debug, RelWithDebInfo (default Release)
-#   BOOST_VERSION  the Boost release built from source (default 1.91.0)
+#   BOOST_VERSION  the Boost release built from source (default 1.92.0)
 #   RUN_TESTS      1 = run the test suite (without the XL benchmarks) during the build (default 1)
 #   JOBS           parallel compile jobs (default: all cores the build sees)
 #
@@ -91,7 +91,7 @@ RUN printf '/opt/boost/lib\n/opt/geneva/lib\n' > /etc/ld.so.conf.d/geneva.conf
 # Stage 2: Boost from source, in the same C++23 mode as Geneva (INSTALL, "Compiling Boost").
 FROM toolchain AS boost
 
-ARG BOOST_VERSION=1.91.0
+ARG BOOST_VERSION=1.92.0
 ARG COMPILER=gcc
 ARG JOBS=
 

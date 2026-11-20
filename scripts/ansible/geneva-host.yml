@@ -1,0 +1,263 @@
+################################################################################
+#
+# This file is part of the Geneva library collection. The following license
+# applies to this file:
+#
+# ------------------------------------------------------------------------------
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ------------------------------------------------------------------------------
+#
+# Note that other files in the Geneva library collection may use a different
+# license. Please see the licensing information in each file.
+#
+################################################################################
+#
+# See the NOTICE file in the top-level directory of the Geneva library
+# collection for a list of contributors and copyright information.
+#
+################################################################################
+# Prepares an Ubuntu 26.10 host for building Geneva, as INSTALL describes it: the
+# compilers and tools from the distribution, Boost compiled from source in C++23
+# mode below /opt/boost, and the optional parts chosen below.
+#
+# On this machine:
+#   ansible-playbook -K -i localhost, -c local geneva-host.yml
+# On other hosts, from an inventory of your own:
+#   ansible-playbook -K -i hosts.ini geneva-host.yml
+# Choices are passed with -e, for instance
+#   -e boost_toolset=clang -e geneva_cuda=true -e geneva_mqtt_broker=true
+#
+# A Boost of the requested version that is already installed at boost_prefix is
+# left alone, so the playbook can be run again. Afterwards set
+# BOOSTROOT="<boost_prefix>" in genevaConfig.gcfg.
+#
+# With -e geneva_measure_server=true it also prepares a host on which only the
+# server of a distributed measurement runs, while its clients run on another
+# machine and reach it through ssh port forwarding:
+#   - a user (geneva_user) for the runs, who logs in with geneva_ssh_pubkey, a
+#     public key on the machine that runs the playbook;
+#   - an open-file limit for hundreds of connections;
+#   - ssh logins by key only;
+#   - a firewall that lets in ssh only: the measurement's ports (the websocket
+#     server's, the MQTT broker's) are reached through forwarded ssh ports;
+#   - mosquitto with a configuration for measurements (set_tcp_nodelay, see
+#     INSTALL; bound to 127.0.0.1), started by hand for a measurement; the
+#     system service is off.
+################################################################################
+
+- name: Prepare a host for building Geneva
+  hosts: all
+  become: true
+  vars:
+    boost_version: "1.92.0"   # the release built from source; Geneva needs 1.91 or newer
+    boost_prefix: /opt/boost
+    boost_toolset: gcc        # gcc or clang: the compiler Geneva will be built with
+    geneva_mpi: true          # Open MPI, for the MPI consumer
+    geneva_plot_tools: "{{ not (geneva_measure_server | bool) }}" # gnuplot, octave, matplotlib
+    geneva_mqtt_broker: false # mosquitto, installed as a system service on port 1883
+    geneva_cuda: false        # NVIDIA driver 615 and CUDA 13.3; the host must be rebooted afterwards
+    geneva_measure_server: false        # the measurement-server part described above
+    geneva_user: geneva
+    geneva_ssh_pubkey: "{{ lookup('ansible.builtin.env', 'HOME') }}/.ssh/id_ed25519.pub"
+    geneva_broker_port: 18830
+    boost_name: "boost_{{ boost_version | replace('.', '_') }}"
+    boost_url: "https://archives.boost.io/release/{{ boost_version }}/source/{{ boost_name }}.tar.gz"
+    # BOOST_VERSION as boost/version.hpp defines it: major * 100000 + minor * 100 + patch
+    boost_number: "{{ (boost_version.split('.')[0] | int) * 100000
+                      + (boost_version.split('.')[1] | int) * 100
+                      + (boost_version.split('.')[2] | int) }}"
+
+  tasks:
+    - name: Refuse a system other than Ubuntu 26.10 or newer (the package names are those of 26.10)
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version is version("26.10", ">=")
+          - boost_toolset in ["gcc", "clang"]
+        fail_msg: "Ubuntu 26.10 or newer is needed, and boost_toolset must be gcc or clang"
+
+    - name: Install the compilers and tools
+      ansible.builtin.apt:
+        name: [ca-certificates, curl, git, make, cmake, g++, clang, catch2, rsync]
+        install_recommends: false
+        update_cache: true
+
+    - name: Install Open MPI (MPI consumer)
+      ansible.builtin.apt:
+        name: [libopenmpi-dev, openmpi-bin]
+        install_recommends: false
+      when: geneva_mpi | bool
+
+    - name: Install the plot viewers
+      ansible.builtin.apt:
+        name: [gnuplot, octave, python3-matplotlib]
+        install_recommends: false
+      when: geneva_plot_tools | bool
+
+    - name: Install the MQTT broker (it starts as a service on port 1883)
+      ansible.builtin.apt:
+        name: [mosquitto]
+        install_recommends: false
+      when: geneva_mqtt_broker | bool or geneva_measure_server | bool
+
+    # The driver Ubuntu recommends supports only CUDA 13.0, and nvidia-cuda-toolkit is CUDA 12.4
+    # (INSTALL, "GPU support on Ubuntu 26.10").
+    - name: Install the NVIDIA driver and CUDA
+      ansible.builtin.apt:
+        name: [nvidia-driver-615-open, cuda-toolkit-13-3]
+      when: geneva_cuda | bool
+      register: cuda_install
+
+    - name: Read the version of an installed Boost
+      ansible.builtin.command:
+        cmd: sed -n 's/^#define BOOST_VERSION \([0-9]*\)$/\1/p' {{ boost_prefix }}/include/boost/version.hpp
+      register: boost_installed
+      changed_when: false
+      failed_when: false
+
+    - name: Build and install Boost
+      when: boost_installed.stdout != (boost_number | string)
+      block:
+        - name: Make a directory for the Boost build
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: geneva-boost-
+          register: boost_build
+
+        - name: Read the checksum of the Boost release
+          ansible.builtin.uri:
+            url: "{{ boost_url }}.json"
+            return_content: true
+          register: boost_release
+
+        - name: Download Boost {{ boost_version }}
+          ansible.builtin.get_url:
+            url: "{{ boost_url }}"
+            dest: "{{ boost_build.path }}/{{ boost_name }}.tar.gz"
+            checksum: "sha256:{{ boost_release.json.sha256 }}"
+            mode: "0644"
+
+        - name: Unpack Boost
+          ansible.builtin.unarchive:
+            src: "{{ boost_build.path }}/{{ boost_name }}.tar.gz"
+            dest: "{{ boost_build.path }}"
+            remote_src: true
+
+        - name: Configure Boost
+          ansible.builtin.command:
+            cmd: ./bootstrap.sh --prefix={{ boost_prefix }} --with-toolset={{ boost_toolset }}
+            chdir: "{{ boost_build.path }}/{{ boost_name }}"
+
+        # The decisive flag is -std=c++23: Boost must be built in the mode Geneva is built in.
+        # Only the libraries Geneva links are compiled; all headers are installed.
+        - name: Compile and install Boost (this takes a while)
+          ansible.builtin.command:
+            cmd: >-
+              ./b2 -j{{ ansible_processor_nproc }} toolset={{ boost_toolset }}
+              cxxflags=-std=c++23 variant=release link=shared threading=multi
+              --with-atomic --with-json --with-program_options --with-regex
+              install
+            chdir: "{{ boost_build.path }}/{{ boost_name }}"
+
+      always:
+        - name: Remove the Boost build directory
+          ansible.builtin.file:
+            path: "{{ boost_build.path }}"
+            state: absent
+          when: boost_build.path is defined
+
+    - name: Prepare the measurement server
+      when: geneva_measure_server | bool
+      block:
+        - name: Add the user for the runs
+          ansible.builtin.user:
+            name: "{{ geneva_user }}"
+            shell: /bin/bash
+
+        - name: Make the user's ssh directory
+          ansible.builtin.file:
+            path: "/home/{{ geneva_user }}/.ssh"
+            state: directory
+            owner: "{{ geneva_user }}"
+            group: "{{ geneva_user }}"
+            mode: "0700"
+
+        - name: Let the user log in with the key
+          ansible.builtin.copy:
+            content: "{{ lookup('ansible.builtin.file', geneva_ssh_pubkey) }}\n"
+            dest: "/home/{{ geneva_user }}/.ssh/authorized_keys"
+            owner: "{{ geneva_user }}"
+            group: "{{ geneva_user }}"
+            mode: "0600"
+
+        - name: Raise the open-file limit of the user (a run holds a connection per client)
+          ansible.builtin.copy:
+            content: |
+              {{ geneva_user }} soft nofile 65536
+              {{ geneva_user }} hard nofile 65536
+            dest: /etc/security/limits.d/geneva-measure.conf
+            mode: "0644"
+
+        # sshd takes the first value it reads for a setting; 00- comes before the image's files.
+        - name: Allow ssh logins by key only
+          ansible.builtin.copy:
+            content: |
+              PasswordAuthentication no
+              KbdInteractiveAuthentication no
+              PubkeyAuthentication yes
+              PermitRootLogin prohibit-password
+            dest: /etc/ssh/sshd_config.d/00-keys-only.conf
+            mode: "0644"
+            validate: /usr/sbin/sshd -t -f %s
+          notify: Reload ssh
+
+        - name: Write the broker's configuration for measurements
+          ansible.builtin.copy:
+            content: |
+              # A broker for Geneva's measurements, started by hand:
+              #   ulimit -n 65536; mosquitto -c /etc/mosquitto/geneva-measure.conf
+              # set_tcp_nodelay: without it a message can wait about 40 ms (INSTALL).
+              listener {{ geneva_broker_port }} 127.0.0.1
+              allow_anonymous true
+              set_tcp_nodelay true
+              max_connections -1
+              persistence false
+            dest: /etc/mosquitto/geneva-measure.conf
+            mode: "0644"
+
+        - name: Stop the broker's system service (a measurement starts its own broker)
+          ansible.builtin.systemd_service:
+            name: mosquitto
+            state: stopped
+            enabled: false
+
+        - name: Let ssh in (the only port the firewall opens)
+          ansible.builtin.command: ufw allow OpenSSH
+          register: ufw_ssh
+          changed_when: "'Skipping' not in ufw_ssh.stdout"
+
+        - name: Switch the firewall on
+          ansible.builtin.command: ufw --force enable
+          register: ufw_on
+          changed_when: false
+
+    - name: Say that the driver needs a reboot
+      ansible.builtin.debug:
+        msg: "The NVIDIA driver was installed or changed: reboot the host before building Geneva."
+      when: cuda_install is changed
+
+  handlers:
+    - name: Reload ssh
+      ansible.builtin.systemd_service:
+        name: ssh
+        state: reloaded

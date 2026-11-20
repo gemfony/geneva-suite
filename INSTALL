@@ -109,6 +109,16 @@ examples emit:
 sudo apt-get install --no-install-recommends libopenmpi-dev openmpi-bin
 sudo apt-get install --no-install-recommends gnuplot octave python3-matplotlib
 
+All of this -- the packages, the optional components, and Boost compiled as
+described in "Compiling Boost on Linux" below -- can also be installed with the
+Ansible playbook scripts/ansible/geneva-host.yml, on this machine or on others:
+
+ansible-playbook -K -i localhost, -c local scripts/ansible/geneva-host.yml
+
+Its header lists the choices it takes (the Boost version and compiler, MPI, the
+plot viewers, the MQTT broker, CUDA, and a host prepared as the server of a
+distributed measurement).
+
 
 GPU support on Ubuntu 26.10
 ---------------------------
@@ -394,9 +404,9 @@ Compiling Boost on Linux
 Download a Boost release, unpack it, and configure the build with bootstrap.sh,
 naming the installation prefix (here /opt/boost):
 
-wget https://archives.boost.io/release/1.91.0/source/boost_1_91_0.tar.bz2
-tar xjf boost_1_91_0.tar.bz2
-cd boost_1_91_0
+wget https://archives.boost.io/release/1.92.0/source/boost_1_92_0.tar.gz
+tar xzf boost_1_92_0.tar.gz
+cd boost_1_92_0
 ./bootstrap.sh --prefix=/opt/boost
 
 Then compile and install with b2. The decisive flag is cxxflags="-std=c++23":
