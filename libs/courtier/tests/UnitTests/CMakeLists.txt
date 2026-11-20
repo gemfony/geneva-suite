@@ -93,7 +93,8 @@ gem_courtier_test(GCourtierTimeoutTests     M  GCourtierTimeoutTests.cpp)
 gem_courtier_test(GCourtierConcurrencyTests S  GCourtierConcurrencyTests.cpp)
 gem_courtier_test(GCourtierClientTests      M  GCourtierClientTests.cpp)
 gem_courtier_test(GCourtierWebsocketTests   M  GCourtierWebsocketTests.cpp GTcpRelay.hpp)
-gem_courtier_test(GCourtierWebsocketPeerTests M  GCourtierWebsocketPeerTests.cpp)
+# L: one case waits out the handshake limit of 30 s that bounds a close without keep-alive
+gem_courtier_test(GCourtierWebsocketPeerTests L  GCourtierWebsocketPeerTests.cpp)
 gem_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTransportTests.cpp)
 # The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound
 gem_courtier_test(GCourtierWebsocketStopTests M  GCourtierWebsocketStopTests.cpp)

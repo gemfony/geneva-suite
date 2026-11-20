@@ -140,9 +140,10 @@ void startRecording(
     );
 }
 
-/** @brief Runs @p ctx until it has nothing left to do, but not for longer than ten seconds. */
-bool runsDry(boost::asio::io_context &ctx) {
-    ctx.run_for(std::chrono::seconds(10));
+/** @brief Runs @p ctx until it has nothing left to do, but not for longer than @p limit
+ *  @return Whether it ran dry within the limit */
+bool runsDry(boost::asio::io_context &ctx, std::chrono::seconds limit = std::chrono::seconds(10)) {
+    ctx.run_for(limit);
     return ctx.stopped();
 }
 
@@ -287,8 +288,8 @@ TEST_CASE(
 /******************************************************************************/
 // A close whose queued messages cannot be written: the other end shakes hands and then reads
 // nothing, so the messages handed over before the close fill the socket's buffers and the close
-// frame never goes out. The end comes at the handshake limit (or the idle limit, both 200 ms here)
-// and is this end's close.
+// frame never goes out. The end is this end's close, and Beast's idle limit brings it (200 ms after
+// the open, before the close's own timer of 200 ms after close(); the log names the idle limit).
 TEST_CASE(
     "GWebsocketPeer reports a close whose queued messages cannot be written as its own close",
     "[courtier][websocket][peer]"
@@ -321,6 +322,53 @@ TEST_CASE(
 
     CHECK(client_seen.nClosed == 1);
     CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
+    CHECK(client_weak.expired());
+}
+
+/******************************************************************************/
+// The same close without the keep-alive (a ping interval of 0): Beast then has no idle limit, and
+// the close's own timer is all that ends the wait for the queue, at the handshake limit
+// GWEBSOCKETHANDSHAKETIMEOUT (30 s) -- neither at once nor never. This case takes that long.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one linear scenario; the count comes from the assertion macros
+TEST_CASE(
+    "GWebsocketPeer without keep-alive ends a close whose queue cannot be written at the handshake "
+    "limit",
+    "[courtier][websocket][peer]"
+) {
+    using Gem::Courtier::GWEBSOCKETHANDSHAKETIMEOUT;
+    constexpr std::size_t N_LARGE = 8; // 24 MiB: far more than the buffers of a loopback socket
+    boost::asio::io_context ctx;
+    auto [accepted, connecting] = connectedPair(ctx);
+    GSeen client_seen;
+
+    boost::beast::websocket::stream<tcp::socket> deaf(std::move(accepted));
+    deaf.async_accept([](const boost::system::error_code &ec) { REQUIRE_FALSE(ec); });
+
+    std::weak_ptr<GWebsocketPeer> client_weak;
+    auto client = clientEnd(
+        std::move(connecting),
+        GWebsocketPeer::GOptions{.name = "client end", .pingInterval = 0ms}
+    );
+    client_weak = client;
+    std::chrono::steady_clock::time_point closed_at;
+    startRecording(client, client_seen, [&] {
+        if(auto peer = client_weak.lock()) {
+            for(std::size_t i = 0; i < N_LARGE; ++i) {
+                peer->send(makeMessage(std::string(LARGE_MESSAGE_BYTES, 'x')));
+            }
+            closed_at = std::chrono::steady_clock::now();
+            peer->close(GPeerClose::NORMAL);
+        }
+    });
+    client.reset();
+
+    REQUIRE(runsDry(ctx, GWEBSOCKETHANDSHAKETIMEOUT + std::chrono::seconds(10)));
+    const auto took = std::chrono::steady_clock::now() - closed_at;
+
+    CHECK(client_seen.nClosed == 1);
+    CHECK(client_seen.end == GPeerEnd::CLOSED_HERE);
+    CHECK(took >= GWEBSOCKETHANDSHAKETIMEOUT - 1s);
+    CHECK(took < GWEBSOCKETHANDSHAKETIMEOUT + 5s);
     CHECK(client_weak.expired());
 }
 
