@@ -132,4 +132,17 @@ IF ( GEM_BUILD_EXAMPLES )
 		WORKING_DIRECTORY ${RESTART_WORKDIR} )
 	SET_TESTS_PROPERTIES ( GMPICheckpointRestartLimit PROPERTIES LABELS "geneva" PROCESSORS 3 )
 	GEM_TEST_SIZE ( GMPICheckpointRestartLimit M )
+
+	# As before, but job 1 is ended from outside once it has written a checkpoint: SIGKILL to the
+	# launcher, then to what is left of the job, as a batch system does at a job's time limit. Job 2
+	# starts from the newest checkpoint, which must be complete.
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartKilled TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh kill 3
+			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GSimpleOptimizer> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartKilled PROPERTIES LABELS "geneva" PROCESSORS 3 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartKilled M )
 ENDIF ()
