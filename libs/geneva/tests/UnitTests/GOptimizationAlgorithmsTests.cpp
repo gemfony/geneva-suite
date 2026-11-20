@@ -52,11 +52,13 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "common/GParserBuilder.hpp"
+#include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -730,6 +732,66 @@ TEST_CASE(
     CHECK(have_final); // the run's final state was checkpointed
 
     fs::remove_all(cp_dir);
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "a Go2 resumed from a checkpoint does not add its own individuals to the population",
+    "[oa][go2]"
+) {
+    // A program that registers its individual with Go2::push_back() (instead of a content creator)
+    // and is started again with --cp_file: the checkpoint brings the whole population. Regression
+    // (2026-11-20): Go2 added its own individuals to the restored population as well, and the
+    // algorithm stopped with "Size of data vector (5) should be 4".
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+
+    const fs::path base = fs::temp_directory_path() / "geneva-go2-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: a short run whose last checkpoint is the final one
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(2);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName((base / "checkpoints").string(), "resume.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base / "checkpoints")) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+
+    // Job 2: Go2 with --cp_file and an individual of its own
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.push_back(proto.clone());
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        job2->setPopulationSizes(4, 2);
+        job2->setReportIteration(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+        CHECK(go.getBestGlobalIndividual<gind::GLineFitIndividual>());
+    }
+
+    fs::remove_all(base);
 }
 
 /******************************************************************************/
