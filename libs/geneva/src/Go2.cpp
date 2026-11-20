@@ -1316,7 +1316,7 @@ void Go2::parseCommandLine(
 				("update-configs", "Refresh every configuration file this binary owns (Go2.json, each algorithm's config and the individual's config) in place -- drop keys no registered parameter consumes, keep existing values, add newly-registered keys with defaults -- then exit without optimizing. Runs on the local thread-pool consumer regardless of --consumer.")
 				("optimizationAlgorithms,a", po::value<std::string>(&optimization_algorithms), oa_help.c_str())
 				("cp_file,f", po::value<std::string>(&checkpoint_file)->default_value("empty"),
-				 "A file (including its path) holding a checkpoint for a given optimization algorithm")
+				 "A file (including its path) holding a checkpoint for the first optimization algorithm. The run continues from the state it holds, with the settings of this job: halt criteria, checkpoint settings, threads and report interval come from this job's configuration and command line")
 				("client", "Indicates that this program should run as a client or in server mode. Note that "
 				 "this setting will trigger an error unless called in conjunction with a consumer capable "
 				 "of dealing with clients. "

@@ -788,6 +788,72 @@ TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
 
 /******************************************************************************/
 
+TEST_CASE(
+    "a run resumed from a checkpoint follows the settings of the job that resumes it",
+    "[oa][go2]"
+) {
+    // The checkpoint supplies the state of the run; the halt criteria and the checkpoint settings
+    // are those of the job that resumes it (maintainer decision, 2026-11-20). Regression: they came
+    // from the checkpoint, so a run ended by its iteration limit could not be continued -- job 2 ran
+    // one iteration past job 1's limit, whatever limit it was given.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-job-settings-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: iterations 0 to 2, a checkpoint every iteration; the final one holds iteration 2
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(3);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName((base / "checkpoints").string(), "settings.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base / "checkpoints")) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = base / entry.path().filename();
+            fs::rename(entry.path(), final_checkpoint);
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+    fs::remove_all(base / "checkpoints");
+
+    // Job 2: a higher limit, and no checkpoints of its own
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(6);
+        job2->setReportIteration(0);
+        job2->setCheckpointInterval(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+    }
+    CHECK(job2->getStartIteration() == 3); // the iteration after the checkpoint's
+    CHECK(job2->getIteration() == 6);      // ran on to job 2's own limit
+    CHECK(job2->getMaxIteration() == 6);
+    CHECK(job2->getCheckpointInterval() == 0);
+    CHECK(not fs::exists(base / "checkpoints")); // job 2 wrote no checkpoint
+
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
 TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
     // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
     // wrote one in place -- was reported as "usually means the individual type ... is not available".
@@ -857,6 +923,7 @@ TEST_CASE(
         go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
         auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
         job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(3); // job 2's own limit: one iteration after job 1's last
         job2->setReportIteration(0);
         go & job2;
         REQUIRE_NOTHROW(go.optimize());

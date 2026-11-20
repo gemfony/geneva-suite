@@ -162,7 +162,9 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
 
 /******************************************************************************/
 /**
- * @brief Loads the state of the class from disc
+ * @brief Loads the state of a run from a checkpoint file. The settings of the job that resumes it
+ * (jobSettings_(): halt criteria, checkpoint settings, threads, report interval) are kept: they
+ * come from this job's configuration and command line, not from the checkpoint.
  *
  * @param cp_file The path to the checkpoint file to be loaded
  */
@@ -181,6 +183,13 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
             << "but got " << opt_desc << '\n'
         );
     }
+
+    // The job's own settings outlive what the checkpoint says about them (see jobSettings_()).
+    auto job_settings = this->jobSettings_();
+    auto const kept = std::apply(
+        [](auto const &...setting) { return std::make_tuple(setting...); },
+        job_settings
+    );
 
     // Deserialize the checkpoint. A checkpoint is a GArchive of this algorithm AND its polymorphic
     // population, so the concrete individual type must be registered (compiled in, or loaded from an
@@ -210,6 +219,8 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
                         "against the same Geneva version.\n")
         );
     }
+
+    job_settings = kept;
 
     // A population shares ONE problem policy in memory (optimization direction, evaluation policy,
     // constraint), but the archive stores a copy with every individual, so after deserialization each
